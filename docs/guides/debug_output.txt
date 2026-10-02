@@ -1,0 +1,51 @@
+## Plan: Customer/Entity Staging Rebuild (DRAFT)
+
+This plan performs a full rebuild of customer/entity staging data by deleting all rows in both staging tables, then backfilling from file index records using your mapping rules. It uses `file_number + file_title` as identity for dedupe, maps `entity_type = customer_type = file_type`, and sets unmapped customer fields (`email`, `customer_code`) to `NULL`. The runbook is designed to be SQL Server-safe with preview-first checks, transaction boundaries, and post-load validation, following existing repo patterns for cleanup/backfill SQL workflows and avoiding mixed hard/soft-delete behavior from app controllers during execution.
+
+**Steps**
+1. Preflight and lock execution window  
+   - Confirm no concurrent writes from indexing flows in [app/Http/Controllers/FileIndexingController.php](app/Http/Controllers/FileIndexingController.php), [app/Http/Controllers/MlsFileNoController.php](app/Http/Controllers/MlsFileNoController.php), and [app/Http/Controllers/GknGenerationController.php](app/Http/Controllers/GknGenerationController.php).  
+   - Use a maintenance window so staging tables are not repopulated mid-run.
+
+2. Create rollback snapshots before delete  
+   - In SQL Server, create timestamped backup tables for `dbo.customers_staging` and `dbo.entities_staging` (full copy).  
+   - Record row counts and checksum-style totals for rollback verification.
+
+3. Run preview queries for source quality  
+   - Preview from `dbo.file_indexings` for null/blank `file_number`, `file_title`, `file_type`, duplicates on `file_number + file_title`, and normalized key collisions.  
+   - Reuse the repo’s preview-first SQL pattern seen in [database/sql/DELETE_REGISTRY_3_PREVIEW.sql](database/sql/DELETE_REGISTRY_3_PREVIEW.sql) and [database/sql/cleanup_shelf_location_and_batch_update.sql](database/sql/cleanup_shelf_location_and_batch_update.sql).
+
+4. Delete all staging rows in a controlled transaction  
+   - Execute full delete of `dbo.customers_staging` and `dbo.entities_staging` inside one transaction with immediate count checks.  
+   - If identity reseed is needed, include it explicitly and log old/new seed values.
+
+5. Backfill `customers_staging` from `file_indexings`  
+   - Insert with mappings: `residential_address ← residence_address`, `property_address ← location`, `account_no ← file_number`, `customer_type ← file_type`, `customer_name ← file_title`, `phone ← phone`, `file_number ← file_number`.  
+   - Set `email = NULL`, `customer_code = NULL`; leave `entity_id` null at insert stage.
+
+6. Backfill `entities_staging` from `file_indexings`  
+   - Insert with mappings: `entity_name ← file_title`, `file_number ← file_number`, `entity_type ← file_type`.  
+   - Dedupe on `file_number + file_title` during insert.
+
+7. Re-link customer-to-entity references  
+   - Update `customers_staging.entity_id` by joining on `file_number + customer_name = file_number + entity_name`.  
+   - Validate no unexpected one-to-many joins; quarantine collisions into an exceptions table.
+
+8. Operationalize and document  
+   - Save execution SQL under a new script in `database/sql/` and add a short runbook note in docs.  
+   - Reference delete behavior differences in [app/Http/Controllers/FileIndexController.php](app/Http/Controllers/FileIndexController.php#L1514-L1554) and [app/Http/Controllers/FileIndexController.php](app/Http/Controllers/FileIndexController.php#L5674-L5716) so teams avoid app-level deletes during DB backfill.
+
+**Verification**
+- Pre/post counts: source eligible rows vs inserted customers/entities vs linked `entity_id` rows.
+- Integrity checks:  
+  - no null `file_number` in staging after backfill,  
+  - no duplicate `file_number + name` pairs,  
+  - `customers_staging.entity_id` resolves for expected rows.  
+- Rollback drill: validate restore from snapshot tables in one transaction.
+- Optional app sanity: spot-check list/search pages that read staging data.
+
+**Decisions**
+- Delete scope: full delete of both staging tables before rebuild.
+- Backfill identity: `file_number + file_title`.
+- Type mapping: `entity_type = customer_type = file_type`.
+- Unmapped customer fields: `email = NULL`, `customer_code = NULL`.

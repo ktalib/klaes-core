@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIXED Land Use Implementation Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fee-input { background-color: #dbeafe; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">MIXED Land Use Implementation Preview</h1>
+        
+        <!-- Scenario 1: Regular Application -->
+        <div class="mb-8 border border-gray-200 rounded-lg p-4">
+            <h2 class="text-lg font-semibold mb-4">Scenario 1: Regular Application (Residential)</h2>
+            <div class="flex items-center">
+                <span class="text-gray-600 mr-2">Land Use:</span>
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">Residential</span>
+            </div>
+            <p class="text-sm text-gray-500 mt-2">Standard display - no dropdown needed</p>
+        </div>
+        
+        <!-- Scenario 2: MIXED Land Use Application -->
+        <div class="mb-8 border border-blue-200 rounded-lg p-4 bg-blue-50">
+            <h2 class="text-lg font-semibold mb-4 text-blue-800">Scenario 2: MIXED Land Use Application</h2>
+            <div class="flex items-center">
+                <span class="text-gray-600 mr-2">Land Use:</span>
+                <div class="flex items-center">
+                    <select id="demo_land_use" class="px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateDemoFees()">
+                        <option value="">Select Land Use</option>
+                        <option value="Residential">Residential</option>
+                        <option value="Commercial">Commercial</option>
+                    </select>
+                    <span class="ml-2 text-xs text-gray-500">(Primary: MIXED)</span>
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mt-2">Dynamic dropdown appears for MIXED applications</p>
+            
+            <!-- Fee Section Demo -->
+            <div class="mt-6 bg-white rounded-md p-4">
+                <h3 class="font-medium text-center mb-4">INITIAL BILL (Demo)</h3>
+                
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm mb-1">Application fee (₦)</label>
+                        <input type="text" class="w-full p-2 border border-gray-300 rounded-md fee-input" value="10,000.00" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">Processing fee (₦)</label>
+                        <input type="text" class="w-full p-2 border border-gray-300 rounded-md fee-input" value="20,000.00" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1">Survey Fee (₦)</label>
+                        <select id="demo_survey_fee" class="w-full p-2 border border-gray-300 rounded-md fee-input" disabled>
+                            <option value="">Select land use first</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Survey fee updates based on land use</p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <span>Total:</span>
+                    <span class="font-bold" id="demo_total">₦ 30,000.00</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Implementation Summary -->
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h2 class="text-lg font-semibold mb-4">Implementation Summary</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="font-medium mb-2">Key Features:</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>✅ Detects MIXED land use from URL parameter</li>
+                        <li>✅ Shows dropdown for land use selection</li>
+                        <li>✅ Updates fees dynamically based on selection</li>
+                        <li>✅ Validates land use selection before form submission</li>
+                        <li>✅ Saves selected land use to unit_land_use field</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-medium mb-2">Database Impact:</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>• Primary application: land_use = "MIXED"</li>
+                        <li>• Unit application: unit_land_use = "Residential/Commercial"</li>
+                        <li>• Fees calculated based on unit_land_use</li>
+                        <li>• Backward compatible with existing applications</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function updateDemoFees() {
+            const landUseSelect = document.getElementById('demo_land_use');
+            const surveyFeeSelect = document.getElementById('demo_survey_fee');
+            const totalElement = document.getElementById('demo_total');
+            
+            if (!landUseSelect.value) {
+                surveyFeeSelect.innerHTML = '<option value="">Select land use first</option>';
+                surveyFeeSelect.disabled = true;
+                totalElement.textContent = '₦ 30,000.00';
+                return;
+            }
+            
+            surveyFeeSelect.disabled = false;
+            
+            if (landUseSelect.value === 'Residential') {
+                surveyFeeSelect.innerHTML = `
+                    <option value="50000">Block of Flat - ₦ 50,000.00</option>
+                    <option value="70000">Apartment - ₦ 70,000.00</option>
+                `;
+                surveyFeeSelect.value = '50000';
+                totalElement.textContent = '₦ 80,000.00';
+            } else if (landUseSelect.value === 'Commercial') {
+                surveyFeeSelect.innerHTML = `
+                    <option value="100000">Commercial - ₦ 100,000.00</option>
+                `;
+                surveyFeeSelect.value = '100000';
+                totalElement.textContent = '₦ 130,000.00';
+            }
+        }
+    </script>
+</body>
+</html>

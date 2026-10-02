@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test CofO File Number Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CofO File Number Search Test</h1>
+        <p>This page tests the CofO file number search functionality to verify that CON-RES-2025-6 and similar file numbers are found correctly.</p>
+        
+        <div class="test-section">
+            <h3>Test Case 1: CON-COM-2010-258</h3>
+            <p><strong>Expected:</strong> Should find record in CofO table with Grantor="KANO STATE GOVERNMENT", Grantee="Mr. NURUDDEEN RASHID YUSUF HARUN"</p>
+            <input type="text" id="test1-input" value="CON-COM-2010-258" placeholder="Enter file number">
+            <button onclick="testFileNumber('test1')">Test Search</button>
+            <div id="test1-result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Test Case 2: CON-RES-2025-6</h3>
+            <p><strong>Expected:</strong> Should find record in CofO table (if it exists) or show "not found" message</p>
+            <input type="text" id="test2-input" value="CON-RES-2025-6" placeholder="Enter file number">
+            <button onclick="testFileNumber('test2')">Test Search</button>
+            <div id="test2-result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Custom Test</h3>
+            <p>Enter any file number to test:</p>
+            <input type="text" id="custom-input" placeholder="Enter file number">
+            <button onclick="testFileNumber('custom')">Test Search</button>
+            <div id="custom-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        async function testFileNumber(testId) {
+            const input = document.getElementById(testId + '-input');
+            const result = document.getElementById(testId + '-result');
+            const fileNumber = input.value.trim();
+            
+            if (!fileNumber) {
+                showResult(result, 'Please enter a file number', 'error');
+                return;
+            }
+            
+            showResult(result, 'Searching...', 'loading');
+            
+            try {
+                const response = await fetch('/caveat/api/search-file-number', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({
+                        file_number: fileNumber
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let message = `Search Result for "${fileNumber}":\n\n`;
+                    message += `Found: ${data.found ? 'YES' : 'NO'}\n`;
+                    
+                    if (data.found) {
+                        message += `Primary Source: ${data.primary_source}\n`;
+                        message += `Table: ${data.table}\n\n`;
+                        
+                        if (data.data) {
+                            message += 'Raw Data:\n';
+                            message += JSON.stringify(data.data, null, 2) + '\n\n';
+                        }
+                        
+                        if (data.normalized && data.normalized.fields) {
+                            message += 'Normalized Fields:\n';
+                            Object.entries(data.normalized.fields).forEach(([field, entry]) => {
+                                message += `  ${field}: ${entry.value} (confidence: ${entry.confidence}, source: ${entry.source})\n`;
+                            });
+                        }
+                    } else {
+                        message += '\nNo records found in any table (property_records, registered_instruments, CofO)';
+                    }
+                    
+                    showResult(result, message, data.found ? 'success' : 'error');
+                } else {
+                    showResult(result, `Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showResult(result, `Request failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function showResult(element, message, type) {
+            element.textContent = message;
+            element.className = `result ${type}`;
+            element.style.display = 'block';
+        }
+        
+        // Add CSRF token if available
+        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+        if (!csrfToken) {
+            const meta = document.createElement('meta');
+            meta.name = 'csrf-token';
+            meta.content = '{{ csrf_token() }}'; // This would be rendered by Laravel
+            document.head.appendChild(meta);
+        }
+    </script>
+</body>
+</html>

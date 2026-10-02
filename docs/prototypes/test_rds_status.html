@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RDS Status Test</title>
+</head>
+<body>
+    <h1>RDS Status Test</h1>
+    <p>Testing RDS status endpoint for instrument ID: 2</p>
+    
+    <button onclick="testRDSStatus()">Test RDS Status</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function testRDSStatus() {
+            const instrumentId = 2;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.innerHTML = '<p>Testing...</p>';
+                
+                const response = await fetch(`/instrument_registration/rds-status/${instrumentId}`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h3>Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    <p><strong>RDS Exists:</strong> ${data.exists ? 'YES' : 'NO'}</p>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

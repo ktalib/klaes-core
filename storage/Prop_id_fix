@@ -1,0 +1,345 @@
+
+Got it — **you want each unique `mlsFNo` to have its own unique `prop_id`, and that same `prop_id` must be used across ALL tables**.
+But **no two different `mlsFNo` should ever share the same `prop_id`**.
+
+Example
+`CON-RES-2001-12` → `prop_id = 12`
+But **only that MLS file** should get 12.
+Every other MLS file gets its own different `prop_id`.
+
+This is exactly what the mapping method below does.
+
+---
+
+# ✅ **SOLUTION (SQL Server)**
+
+This will:
+
+1. Clear all `prop_id`
+2. Generate a unique `prop_id` for each MLS file number (no duplicates)
+3. Apply the same `prop_id` to ALL tables
+
+---
+
+# ⭐ STEP 1 — Clear all `prop_id` values
+
+```sql
+UPDATE file_history_staging SET prop_id = NULL;
+UPDATE CofO_staging SET prop_id = NULL;
+UPDATE pic SET prop_id = NULL;
+```
+
+---
+
+# ⭐ STEP 2 — Create a mapping of each unique MLS file number → unique prop_id
+
+This ensures **only one MLS file gets each `prop_id`**.
+
+```sql
+DROP TABLE IF EXISTS #PropIDMap;
+
+SELECT 
+    mlsFNo,
+    ROW_NUMBER() OVER (ORDER BY mlsFNo) AS prop_id
+INTO #PropIDMap
+FROM (
+    SELECT DISTINCT mlsFNo FROM file_history_staging
+    UNION
+    SELECT DISTINCT mlsFNo FROM CofO_staging
+    UNION
+    SELECT DISTINCT mlsFNo FROM pic
+) AS AllMLS;
+```
+
+✔ Now each unique `mlsFNo` has a unique `prop_id`
+✔ No prop_id is repeated for different mlsFNo
+✔ The mapping covers **ALL** MLS numbers across all tables
+
+---
+
+# ⭐ STEP 3 — Update all tables using the mapping
+
+### Update `file_history_staging`
+
+```sql
+UPDATE F
+SET F.prop_id = M.prop_id
+FROM file_history_staging F
+JOIN #PropIDMap M ON F.mlsFNo = M.mlsFNo;
+```
+
+### Update `CofO_staging`
+
+```sql
+UPDATE C
+SET C.prop_id = M.prop_id
+FROM CofO_staging C
+JOIN #PropIDMap M ON C.mlsFNo = M.mlsFNo;
+```
+
+### Update `pic`
+
+```sql
+UPDATE P
+SET P.prop_id = M.prop_id
+FROM pic P
+JOIN #PropIDMap M ON P.mlsFNo = M.mlsFNo;
+```
+
+---
+
+# ⭐ STEP 4 — Verify
+
+```sql
+SELECT mlsFNo, COUNT(DISTINCT prop_id)
+FROM file_history_staging
+GROUP BY mlsFNo;
+
+SELECT mlsFNo, COUNT(DISTINCT prop_id)
+FROM CofO_staging
+GROUP BY mlsFNo;
+
+SELECT mlsFNo, COUNT(DISTINCT prop_id)
+FROM pic
+GROUP BY mlsFNo;
+```
+
+Each `mlsFNo` should now have **exactly 1 prop_id**, and that `prop_id` will be the same in all tables.
+
+---
+
+# 🎉 FINAL RESULT
+
+✔ Each MLS File Number gets **one unique prop_id**
+✔ No two MLS File Numbers share the same prop_id
+✔ All tables (`file_history_staging`, `CofO_staging`, `pic`) use the **same prop_id** for the same MLS file number
+✔ No duplicates, conflicts, or mismatched IDs
+
+---
+
+If you want, I can generate a **stored procedure** so you run everything with a single EXEC command.
+
+
+-------------------------------
+
+ Here are **additional SQL checks** you can use to confirm that:
+
+1. **Each `mlsFNo` has only one `prop_id`**
+2. **Each `prop_id` is mapped to only one `mlsFNo`**
+3. **All tables are using the same mapping**
+
+---
+
+# ✅ **1. Check for MLS numbers having more than one prop_id (should return 0 rows)**
+
+### file_history_staging
+
+```sql
+SELECT mlsFNo, COUNT(DISTINCT prop_id) AS propIdCount
+FROM file_history_staging
+GROUP BY mlsFNo
+HAVING COUNT(DISTINCT prop_id) > 1;
+```
+
+### CofO_staging
+
+```sql
+SELECT mlsFNo, COUNT(DISTINCT prop_id) AS propIdCount
+FROM CofO_staging
+GROUP BY mlsFNo
+HAVING COUNT(DISTINCT prop_id) > 1;
+```
+
+### pic
+
+```sql
+SELECT mlsFNo, COUNT(DISTINCT prop_id) AS propIdCount
+FROM pic
+GROUP BY mlsFNo
+HAVING COUNT(DISTINCT prop_id) > 1;
+```
+
+✔ If your update was correct → **all should return 0 rows**
+❌ If you see rows, then something is still wrong.
+
+---
+
+# ✅ **2. Check for a `prop_id` used by more than one MLS number (should also return 0 rows)**
+
+### file_history_staging
+
+```sql
+SELECT prop_id, COUNT(DISTINCT mlsFNo) AS mlsCount, STRING_AGG(mlsFNo, ', ') AS mlsList
+FROM file_history_staging
+GROUP BY prop_id
+HAVING COUNT(DISTINCT mlsFNo) > 1;
+```
+
+### CofO_staging
+
+```sql
+SELECT prop_id, COUNT(DISTINCT mlsFNo) AS mlsCount, STRING_AGG(mlsFNo, ', ') AS mlsList
+FROM CofO_staging
+GROUP BY prop_id
+HAVING COUNT(DISTINCT mlsFNo) > 1;
+```
+
+### pic
+
+```sql
+SELECT prop_id, COUNT(DISTINCT mlsFNo) AS mlsCount, STRING_AGG(mlsFNo, ', ') AS mlsList
+FROM pic
+GROUP BY prop_id
+HAVING COUNT(DISTINCT mlsFNo) > 1;
+```
+
+✔ These should also return **no rows**
+❌ If you get rows → some `prop_id` is duplicated.
+
+---
+
+# ✅ **3. Confirm that all tables now share the same mapping**
+
+This will show any mismatch between tables:
+
+```sql
+SELECT 
+    F.mlsFNo,
+    F.prop_id AS file_history_prop,
+    C.prop_id AS cofo_prop,
+    P.prop_id AS pic_prop
+FROM file_history_staging F
+LEFT JOIN CofO_staging C ON F.mlsFNo = C.mlsFNo
+LEFT JOIN pic P ON F.mlsFNo = P.mlsFNo
+WHERE 
+    (C.prop_id IS NOT NULL AND C.prop_id <> F.prop_id)
+    OR
+    (P.prop_id IS NOT NULL AND P.prop_id <> F.prop_id)
+ORDER BY F.mlsFNo;
+```
+
+✔ If everything is perfect → **query returns 0 rows**
+❌ If it returns rows → some tables are still not aligned.
+
+---
+
+# ✅ **4. Check total unique MLS count vs unique prop_id count**
+
+This confirms that the count matches exactly.
+
+```sql
+SELECT 
+    (SELECT COUNT(DISTINCT mlsFNo) FROM file_history_staging
+     UNION SELECT COUNT(DISTINCT mlsFNo) FROM CofO_staging
+     UNION SELECT COUNT(DISTINCT mlsFNo) FROM pic) AS totalMLS,
+
+    (SELECT COUNT(DISTINCT prop_id) FROM file_history_staging
+     UNION SELECT COUNT(DISTINCT prop_id) FROM CofO_staging
+     UNION SELECT COUNT(DISTINCT prop_id) FROM pic) AS totalPropID;
+```
+
+✔ The two numbers must be the **same**.
+
+
+
+  FROM [klas].[dbo].[fileNumber] where mlsfNo ='1244'
+
+  SELECT *
+FROM [klas].[dbo].[fileNumber]
+WHERE mlsfNo NOT LIKE '%[^0-9]%'
+
+
+
+Raised the PHP upload ceilings so Blind Scanning migrations can carry very large folders without tripping a 413. Updated C:\xampp\php\php.ini (line 701) and C:\xampp\php\php.ini (line 853) to set both post_max_size and upload_max_filesize to 1024M, and C:\xampp\php\php.ini (line 856) now allows max_file_uploads=200, which stops Apache/PHP from rejecting multi-file folder uploads before Laravel ever sees them.
+
+Verified the new limits via php -i | Select-String upload_max_filesize, post_max_size, and max_file_uploads, all of which now report the higher values; restart Apache (or the whole XAMPP stack) so the running web server picks up the edited php.ini, then retry migrating a large folder.
+
+Next steps:
+
+Restart Apache/XAMPP to load the new PHP settings.
+Re-test Blind Scanning with one of the previously failing folders; if it still fails, grab the exact folder size so we can decide whether to bump the limits further or enforce a browser-side size warning.
+
+
+
+
+
+
+
+
+
+
+
+Activity Monitoring
+
+Added full backend stack for the monitoring module: new service aggregates metrics, charts, leaderboard rows, caching and timeline helpers with FileIndexing name normalization and per-module filters (app/Services/ActivityMonitoringService.php (line 14)), while the controller exposes HTML/JSON endpoints, per-user drilldowns and CSV/PDF exports (app/Http/Controllers/ActivityMonitoringController.php (line 13)). New exports class plus DOMPDF/Excel aliases complete the reporting pipeline (app/Exports/ActivityMonitoringExport.php (line 1), config/app.php (line 5)).
+Secured access by extending User::can() to consult Spatie tables and caching the results per request (app/Models/User.php (line 222)), seeding the view-activity-reports permission via a migration (database/migrations/2025_12_07_150100_add_view_activity_reports_permission.php (line 1)), adding the tracked route group (routes/app3.php (line 160)) and exposing the menu link only for entitled users (resources/views/admin/menu/partials/modules/system_admin.blade.php (line 19)). Please run php artisan migrate after deploying.
+Built the SPA-style Blade experience with Alpine.js, Flatpickr and ApexCharts: sticky filters, multi-select users, module pills, summary cards/bar, charts, leaderboard with sparklines + expandable breakdowns, auto-refresh and a slide-in detail modal (resources/views/activity-monitoring/index.blade.php (line 11) plus the partials under resources/views/activity-monitoring/partials/). CSV/PDF exports reuse the same payload (resources/views/activity-monitoring/exports/summary.blade.php (line 1)). Design/operational notes live in ACTIVITY_MONITORING_IMPLEMENTATION.md (line 1).
+Updated dependencies via Composer to include maatwebsite/excel and barryvdh/laravel-dompdf (composer.json (line 25)). Installation required  ecause those PHP extensions are missing locally; enable them on future installs for best compatibility.
+Next steps
+
+php artisan migrate to seed the new permission.
+Ensure GD and ZIP extensions are enabled on the deployment target before running composer install.
+Set ACTIVITY_MONITORING_WEEKLY_TARGET in .env if you need a different per-user goal baseline.
+No automated tests were run (not requested). Please exercise the new dashboard manually after migrating.
+
+
+
+
+
+
+
+
+i imported about 5k records , but the following  [deeds_date]
+    ,[deeds_time]
+    ,[reg_date]
+    ,[reg_time]
+and
+    [related_file_number]
+    did not insert, 
+
+so want you to create a sub module under File history import, 
+
+to fix the [file_history_staging] table,  
+
+here my plan
+ 
+
+
+    ,
+
+the fix module should update only  the [file_history_staging] table
+first where
+mlsFNo =    "File Number"
+source 'File History' and
+serialNo = " Serial No" and
+pageNo = "Page No   " and
+volumeNo =" Vol No  " 
+
+
+csv header
+File Number
+Related File Number
+Transaction Type
+Original Holder (Assignor)
+Current Holder (Assignee)   
+Landuse Location
+Transaction Date
+Serial No
+Page No 
+Vol No
+Reg Time    
+Reg Date                                                                                    
+
+once the where condition match and the import button is clicked the system
+should only update the file_history staging table,
+
+in the ui there should be preview import
+
+the  File History Staging Update
+should a page on it own and also if i Upload a CSV file and click on preview button, nothing is happeing
+no feedback notjhing, and the csv file i upload just disapaire 
+
+Request failed with status 500
+
+file-history-staging-update.js?v=20251118-1:173 Staging update preview failed: Error: Request failed with status 500
+    at FileHistoryStagingUpdateManager.handlePreviewSubmit (file-history-staging-update.js?v=20251118-1:153:23)

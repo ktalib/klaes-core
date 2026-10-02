@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fullscreen Document Preview</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .document-preview {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .pdf-page {
+            margin-bottom: 10px;
+            border: 1px solid #e5e7eb;
+        }
+        #metadata-fullscreen-btn:hover {
+            background-color: #f3f4f6;
+            border-color: #d1d5db;
+        }
+        #metadata-fullscreen-btn svg {
+            transition: transform 0.2s ease;
+        }
+        #metadata-fullscreen-btn:hover svg {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-bold mb-6">Test Fullscreen Document Preview</h1>
+        
+        <!-- Test Button -->
+        <button id="test-open-modal" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Open Test Modal with Document Preview
+        </button>
+
+        <!-- Edit Metadata Modal -->
+        <div id="metadata-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeMetadataModal()" tabindex="-1">
+            <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold" id="metadata-modal-title">Edit Document Metadata</h3>
+                    <button class="text-gray-400 hover:text-gray-600" onclick="closeMetadataModal()">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-medium mb-2">Metadata Fields</h4>
+                        <div id="metadata-form" class="space-y-4">
+                            <div class="space-y-2">
+                                <label class="block text-sm font-medium text-gray-700">File Number</label>
+                                <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Enter file number">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-sm font-medium text-gray-700">Document Type</label>
+                                <select class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                    <option>Select document type</option>
+                                    <option>Certificate</option>
+                                    <option>Lease Agreement</option>
+                                    <option>Survey Plan</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-medium">Document Preview</h4>
+                            <button id="metadata-fullscreen-btn" class="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors" onclick="openMetadataFullScreenViewer()" title="Open fullscreen preview">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+                                </svg>
+                                Fullscreen
+                            </button>
+                        </div>
+                        <div id="metadata-preview-content" class="document-preview border rounded-lg p-4 bg-gray-50">
+                            <div class="text-center py-8">
+                                <p class="text-gray-500">Sample PDF Document Preview</p>
+                                <p class="text-sm text-gray-400 mt-2">Click the fullscreen button to view in full size</p>
+                            </div>
+                        </div>
+                        <h4 class="font-medium mb-2 mt-4">Extracted Text</h4>
+                        <div class="document-preview border rounded-lg p-4 bg-white">
+                            <pre id="metadata-extracted-text-preview" class="text-xs whitespace-pre-wrap text-gray-700">Sample extracted text from the document would appear here...</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors" onclick="closeMetadataModal()">
+                        Cancel
+                    </button>
+                    <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                        Apply
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fullscreen Viewer Modal -->
+        <div id="fullscreen-viewer" class="hidden fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-[100]" onclick="closeFullScreenViewer()" tabindex="-1">
+            <div class="relative w-full h-full mx-2 my-4 max-w-6xl max-h-[96vh]" onclick="event.stopPropagation()">
+                <div class="absolute right-3 top-3 z-[110] flex items-center space-x-2">
+                    <button id="fullscreen-download" class="px-3 py-2 bg-gray-800 text-white rounded" onclick="downloadFullScreenFile(event)">Download</button>
+                    <button id="fullscreen-close" class="px-3 py-2 bg-red-600 text-white rounded" onclick="closeFullScreenViewer()">Close</button>
+                </div>
+
+                <div id="fullscreen-controls" class="absolute left-3 top-3 z-[110] flex items-center space-x-2 text-white">
+                    <button id="fullscreen-prev" class="px-3 py-2 bg-gray-800 bg-opacity-60 rounded" onclick="fullScreenPrevPage(event)">Prev</button>
+                    <span id="fullscreen-page-info" class="px-3 py-2 bg-gray-800 bg-opacity-30 rounded">Page 1 / 1</span>
+                    <button id="fullscreen-next" class="px-3 py-2 bg-gray-800 bg-opacity-60 rounded" onclick="fullScreenNextPage(event)">Next</button>
+                </div>
+
+                <div id="fullscreen-content" class="w-full h-full flex items-center justify-center">
+                    <canvas id="fullscreen-pdf-canvas" class="mx-auto" style="max-width:100%; height:auto; display:none;"></canvas>
+                    <img id="fullscreen-image" src="" alt="" class="max-w-full max-h-full object-contain hidden" />
+                    <div id="fullscreen-unsupported" class="text-white text-center hidden">
+                        <h2 class="text-2xl mb-4">Document Preview</h2>
+                        <p>This is a fullscreen preview demo. In the actual application, the document would be rendered here.</p>
+                        <div class="mt-8 p-8 bg-white bg-opacity-10 rounded-lg max-w-md mx-auto">
+                            <h3 class="text-lg mb-4">Features:</h3>
+                            <ul class="text-left space-y-2">
+                                <li>• PDF document rendering</li>
+                                <li>• Image preview support</li>
+                                <li>• Page navigation controls</li>
+                                <li>• Download functionality</li>
+                                <li>• Keyboard shortcuts</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentEditingFile = 'demo-file-123';
+        let uploadedFiles = [
+            {
+                id: 'demo-file-123',
+                name: 'sample-document.pdf',
+                file: null, // Would be actual File object
+                type: 'application/pdf'
+            }
+        ];
+
+        // Initialize PDF.js worker
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // Fullscreen viewer state
+        let fsCurrentFile = null;
+        let fsPDFDocument = null;
+        let fsCurrentPage = 1;
+
+        // Test functions
+        document.getElementById('test-open-modal').addEventListener('click', function() {
+            document.getElementById('metadata-modal').classList.remove('hidden');
+        });
+
+        function closeMetadataModal() {
+            document.getElementById('metadata-modal').classList.add('hidden');
+        }
+
+        function openMetadataFullScreenViewer() {
+            if (!currentEditingFile) {
+                alert('No file selected for preview');
+                return;
+            }
+            // For demo, just show the fullscreen viewer
+            document.getElementById('fullscreen-viewer').classList.remove('hidden');
+            document.getElementById('fullscreen-unsupported').classList.remove('hidden');
+        }
+
+        function closeFullScreenViewer() {
+            const viewer = document.getElementById('fullscreen-viewer');
+            if (viewer) viewer.classList.add('hidden');
+            document.getElementById('fullscreen-unsupported').classList.add('hidden');
+            fsCurrentFile = null;
+            fsPDFDocument = null;
+            fsCurrentPage = 1;
+        }
+
+        function downloadFullScreenFile(event) {
+            event.stopPropagation();
+            alert('Download functionality would be implemented here');
+        }
+
+        function fullScreenPrevPage(event) {
+            event.stopPropagation();
+            alert('Previous page functionality');
+        }
+
+        function fullScreenNextPage(event) {
+            event.stopPropagation();
+            alert('Next page functionality');
+        }
+
+        // Keyboard shortcuts for fullscreen viewer
+        document.addEventListener('keydown', function(e) {
+            const viewer = document.getElementById('fullscreen-viewer');
+            if (!viewer.classList.contains('hidden')) {
+                if (e.key === 'Escape') {
+                    closeFullScreenViewer();
+                } else if (e.key === 'ArrowLeft') {
+                    fullScreenPrevPage(e);
+                } else if (e.key === 'ArrowRight') {
+                    fullScreenNextPage(e);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

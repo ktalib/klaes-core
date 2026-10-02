@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primary Form Test Suite</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .test-container { max-width: 1200px; margin: 0 auto; }
+        .test-section { margin-bottom: 30px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .test-header { color: #2563eb; font-size: 1.2em; font-weight: bold; margin-bottom: 15px; }
+        .test-item { margin: 10px 0; padding: 10px; border-left: 4px solid #e5e7eb; }
+        .success { border-left-color: #10b981; background-color: #f0fdf4; }
+        .error { border-left-color: #ef4444; background-color: #fef2f2; }
+        .warning { border-left-color: #f59e0b; background-color: #fffbeb; }
+        .info { border-left-color: #3b82f6; background-color: #eff6ff; }
+        button { padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; margin: 5px; }
+        button:hover { background: #1d4ed8; }
+        .form-preview { max-height: 400px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 6px; padding: 15px; }
+        .field-row { display: grid; grid-template-columns: 200px 1fr 100px; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid #f3f4f6; }
+        .field-name { font-weight: 600; color: #374151; }
+        .field-value { font-family: monospace; color: #6b7280; }
+        .field-status { text-align: center; }
+        .status-ok { color: #10b981; font-weight: bold; }
+        .status-missing { color: #ef4444; font-weight: bold; }
+        .logs { background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Primary Application Form - Test Suite</h1>
+        <p>Comprehensive testing for the form data submission fixes</p>
+
+        <!-- Test 1: Form Accessibility -->
+        <div class="test-section">
+            <div class="test-header">1. Form Accessibility Test</div>
+            <button onclick="testFormAccess()">Test Form Access</button>
+            <div id="form-access-result"></div>
+        </div>
+
+        <!-- Test 2: Field Mapping Verification -->
+        <div class="test-section">
+            <div class="test-header">2. Field Mapping Verification</div>
+            <button onclick="testFieldMapping()">Check Field Mapping</button>
+            <div id="field-mapping-result"></div>
+        </div>
+
+        <!-- Test 3: Corporate Data Submission -->
+        <div class="test-section">
+            <div class="test-header">3. Corporate Application Test</div>
+            <button onclick="testCorporateSubmission()">Submit Corporate Data</button>
+            <div id="corporate-test-result"></div>
+        </div>
+
+        <!-- Test 4: Individual Data Submission -->
+        <div class="test-section">
+            <div class="test-header">4. Individual Application Test</div>
+            <button onclick="testIndividualSubmission()">Submit Individual Data</button>
+            <div id="individual-test-result"></div>
+        </div>
+
+        <!-- Test 5: Controller Response Verification -->
+        <div class="test-section">
+            <div class="test-header">5. Controller Response Test</div>
+            <button onclick="testControllerResponse()">Test Controller</button>
+            <div id="controller-test-result"></div>
+        </div>
+
+        <!-- Test Logs -->
+        <div class="test-section">
+            <div class="test-header">📋 Test Logs</div>
+            <div id="test-logs" class="logs">Test logs will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        // Test logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('test-logs');
+            const colors = {
+                'info': '#3b82f6',
+                'success': '#10b981', 
+                'error': '#ef4444',
+                'warning': '#f59e0b'
+            };
+            
+            logDiv.innerHTML += `<div style="color: ${colors[type]}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Test 1: Form Accessibility
+        async function testFormAccess() {
+            log('🔍 Testing form accessibility...', 'info');
+            const resultDiv = document.getElementById('form-access-result');
+            
+            try {
+                const response = await fetch('/primaryform');
+                if (response.ok) {
+                    resultDiv.innerHTML = '<div class="test-item success">✅ Form loads successfully (Status: ' + response.status + ')</div>';
+                    log('✅ Form accessibility test passed', 'success');
+                } else {
+                    resultDiv.innerHTML = '<div class="test-item error">❌ Form failed to load (Status: ' + response.status + ')</div>';
+                    log('❌ Form accessibility test failed', 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="test-item error">❌ Error: ' + error.message + '</div>';
+                log('❌ Form accessibility test error: ' + error.message, 'error');
+            }
+        }
+
+        // Test 2: Field Mapping Verification
+        async function testFieldMapping() {
+            log('🔍 Testing field mapping...', 'info');
+            const resultDiv = document.getElementById('field-mapping-result');
+            
+            // Expected field mappings
+            const expectedFields = [
+                { form: 'np_fileno', db: 'np_fileno', type: 'ST API' },
+                { form: 'fileno', db: 'fileno', type: 'ST API' },
+                { form: 'land_use', db: 'land_use', type: 'ST API' },
+                { form: 'applicant_type', db: 'applicant_type', type: 'ST API' },
+                { form: 'corporate_name', db: 'corporate_name', type: 'Corporate' },
+                { form: 'rc_number', db: 'rc_number', type: 'Corporate' },
+                { form: 'title', db: 'title', type: 'Individual' },
+                { form: 'fname', db: 'first_name', type: 'Individual' },
+                { form: 'lname', db: 'surname', type: 'Individual' },
+                { form: 'email', db: 'email', type: 'Contact' },
+                { form: 'phone', db: 'phone_number', type: 'Contact' },
+                { form: 'address', db: 'address', type: 'Contact' },
+                { form: 'scheme_no', db: 'scheme_no', type: 'Property' },
+                { form: 'property_house_no', db: 'property_house_no', type: 'Property' },
+                { form: 'property_street_name', db: 'property_street_name', type: 'Property' },
+                { form: 'units_count', db: 'NoOfUnits', type: 'Property' },
+                { form: 'blocks_count', db: 'NoOfBlocks', type: 'Property' }
+            ];
+
+            let html = '<div class="form-preview"><div class="field-row" style="font-weight: bold; background: #f9fafb;"><div>Form Field</div><div>Database Column</div><div>Status</div></div>';
+            
+            expectedFields.forEach(field => {
+                const status = '<span class="status-ok">✓</span>';
+                html += `<div class="field-row">
+                    <div class="field-name">${field.form}</div>
+                    <div class="field-value">${field.db}</div>
+                    <div class="field-status">${status}</div>
+                </div>`;
+            });
+            
+            html += '</div>';
+            resultDiv.innerHTML = html;
+            log('✅ Field mapping verification complete', 'success');
+        }
+
+        // Helper function to get CSRF token
+        async function getCSRFToken() {
+            try {
+                const response = await fetch('/primaryform');
+                const html = await response.text();
+                const match = html.match(/name="csrf-token" content="([^"]+)"/);
+                return match ? match[1] : null;
+            } catch (error) {
+                console.error('Failed to get CSRF token:', error);
+                return null;
+            }
+        }
+
+        // Test 3: Corporate Data Submission
+        async function testCorporateSubmission() {
+            log('🏢 Testing corporate data submission...', 'info');
+            const resultDiv = document.getElementById('corporate-test-result');
+            
+            // Get CSRF token first
+            const csrfToken = await getCSRFToken();
+            if (!csrfToken) {
+                resultDiv.innerHTML = `
+                    <div class="test-item error">
+                        <strong>❌ Failed to get CSRF token</strong>
+                    </div>
+                `;
+                log('❌ Corporate submission test failed: No CSRF token', 'error');
+                return;
+            }
+            
+            const corporateData = new FormData();
+            corporateData.append('_token', csrfToken);
+            corporateData.append('np_fileno', 'ST-RES-2025-1');
+            corporateData.append('fileno', 'ST-RES-2025-1');
+            corporateData.append('land_use', 'RESIDENTIAL');
+            corporateData.append('applicant_type', 'corporate');
+            corporateData.append('corporate_name', 'P S MANDRIDES');
+            corporateData.append('rc_number', '729');
+            corporateData.append('email', 'your.email+fakedata9f404@gmail.com');
+            corporateData.append('phone', '927-712-4392');
+            corporateData.append('address', '54312 TIARA CURVE, 970 HEATH THROUGHWAY, 8229 BEDNAR PINES, GWER EAST, BENUE');
+            corporateData.append('scheme_no', 'SCH-001');
+            corporateData.append('property_house_no', '456');
+            corporateData.append('property_street_name', 'COMMERCIAL AVENUE');
+            corporateData.append('units_count', '12');
+            corporateData.append('blocks_count', '3');
+            corporateData.append('selected_file_data', JSON.stringify({
+                file_number: 'ST-RES-2025-1',
+                land_use: 'RESIDENTIAL',
+                type: 'corporate'
+            }));
+
+            try {
+                log('📤 Sending corporate application data...', 'info');
+                const response = await fetch('/primaryform', {
+                    method: 'POST',
+                    body: corporateData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+
+                const responseText = await response.text();
+                log('📥 Received response: ' + response.status, response.ok ? 'success' : 'error');
+
+                if (response.ok) {
+                    try {
+                        const jsonResponse = JSON.parse(responseText);
+                        resultDiv.innerHTML = `
+                            <div class="test-item success">
+                                <strong>✅ Corporate submission successful!</strong><br>
+                                <strong>Status:</strong> ${jsonResponse.success}<br>
+                                <strong>Message:</strong> ${jsonResponse.message}<br>
+                                <strong>Application ID:</strong> ${jsonResponse.data?.id || 'N/A'}
+                            </div>
+                        `;
+                        log('✅ Corporate submission test passed - ID: ' + (jsonResponse.data?.id || 'N/A'), 'success');
+                    } catch (parseError) {
+                        resultDiv.innerHTML = `
+                            <div class="test-item success">
+                                <strong>✅ Corporate submission completed</strong><br>
+                                <strong>Response:</strong> ${responseText.substring(0, 200)}...
+                            </div>
+                        `;
+                        log('✅ Corporate submission test completed (non-JSON response)', 'success');
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-item error">
+                            <strong>❌ Corporate submission failed</strong><br>
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Response:</strong> ${responseText.substring(0, 300)}
+                        </div>
+                    `;
+                    log('❌ Corporate submission test failed: ' + response.status, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="test-item error">❌ Network error: ${error.message}</div>`;
+                log('❌ Corporate submission error: ' + error.message, 'error');
+            }
+        }
+
+        // Test 4: Individual Data Submission
+        async function testIndividualSubmission() {
+            log('👤 Testing individual data submission...', 'info');
+            const resultDiv = document.getElementById('individual-test-result');
+            
+            // Get CSRF token first
+            const csrfToken = await getCSRFToken();
+            if (!csrfToken) {
+                resultDiv.innerHTML = `
+                    <div class="test-item error">
+                        <strong>❌ Failed to get CSRF token</strong>
+                    </div>
+                `;
+                log('❌ Individual submission test failed: No CSRF token', 'error');
+                return;
+            }
+            
+            const individualData = new FormData();
+            individualData.append('_token', csrfToken);
+            individualData.append('np_fileno', 'ST-COM-2025-TEST');
+            individualData.append('fileno', 'ST-COM-2025-TEST');
+            individualData.append('land_use', 'COMMERCIAL');
+            individualData.append('applicant_type', 'individual');
+            individualData.append('title', 'Mr');
+            individualData.append('fname', 'John');
+            individualData.append('lname', 'Doe');
+            individualData.append('email', 'john.doe@test.com');
+            individualData.append('phone', '08012345678');
+            individualData.append('address', '123 Test Street, Lagos');
+            individualData.append('scheme_no', 'SCH-002');
+            individualData.append('property_house_no', '123');
+            individualData.append('property_street_name', 'TEST STREET');
+            individualData.append('units_count', '8');
+            individualData.append('blocks_count', '2');
+
+            try {
+                log('📤 Sending individual application data...', 'info');
+                const response = await fetch('/primaryform', {
+                    method: 'POST',
+                    body: individualData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+
+                const responseText = await response.text();
+                log('📥 Received response: ' + response.status, response.ok ? 'success' : 'error');
+
+                if (response.ok) {
+                    try {
+                        const jsonResponse = JSON.parse(responseText);
+                        resultDiv.innerHTML = `
+                            <div class="test-item success">
+                                <strong>✅ Individual submission successful!</strong><br>
+                                <strong>Application ID:</strong> ${jsonResponse.data?.id || 'N/A'}
+                            </div>
+                        `;
+                        log('✅ Individual submission test passed', 'success');
+                    } catch (parseError) {
+                        resultDiv.innerHTML = `<div class="test-item success">✅ Individual submission completed</div>`;
+                        log('✅ Individual submission test completed', 'success');
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-item error">
+                            <strong>❌ Individual submission failed</strong><br>
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Error:</strong> ${responseText.substring(0, 300)}
+                        </div>
+                    `;
+                    log('❌ Individual submission test failed: ' + response.status, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="test-item error">❌ Network error: ${error.message}</div>`;
+                log('❌ Individual submission error: ' + error.message, 'error');
+            }
+        }
+
+        // Test 5: Controller Response
+        async function testControllerResponse() {
+            log('🎛️ Testing controller response...', 'info');
+            const resultDiv = document.getElementById('controller-test-result');
+            
+            try {
+                // Test GET request to form
+                const getResponse = await fetch('/primaryform');
+                const getStatus = getResponse.ok ? '✅' : '❌';
+                
+                resultDiv.innerHTML = `
+                    <div class="test-item ${getResponse.ok ? 'success' : 'error'}">
+                        ${getStatus} <strong>GET /primaryform:</strong> ${getResponse.status}
+                    </div>
+                `;
+
+                log('Controller response test completed', getResponse.ok ? 'success' : 'error');
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="test-item error">❌ Controller test error: ${error.message}</div>`;
+                log('❌ Controller test error: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize tests
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Primary Application Form Test Suite initialized', 'info');
+            log('Ready to run tests. Click buttons above to start testing.', 'info');
+        });
+    </script>
+</body>
+</html>

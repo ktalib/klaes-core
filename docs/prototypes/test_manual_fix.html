@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Manual File Number Fix</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body>
+    <div x-data="testManualEntry()">
+        <h2>Test Manual File Number Entry</h2>
+        
+        <!-- MLS Tab -->
+        <div>
+            <h3>MLS</h3>
+            <input type="text" id="mls-prefix" placeholder="Prefix (e.g. COM)" value="COM">
+            <input type="text" id="mls-number" placeholder="Number (e.g. 2023-001)" value="2023-001">
+            <input type="text" id="mls-preview" readonly>
+        </div>
+        
+        <!-- KANGIS Tab -->
+        <div>
+            <h3>KANGIS</h3>
+            <input type="text" id="kangis-prefix" placeholder="Prefix (e.g. KNML)" value="">
+            <input type="text" id="kangis-number" placeholder="Number (e.g. 123)" value="">
+            <input type="text" id="kangis-preview" readonly>
+        </div>
+        
+        <!-- New KANGIS Tab -->
+        <div>
+            <h3>New KANGIS</h3>
+            <input type="text" id="newkangis-prefix" placeholder="Prefix (e.g. KN)" value="">
+            <input type="text" id="newkangis-number" placeholder="Number (e.g. 1586)" value="">
+            <input type="text" id="newkangis-preview" readonly>
+        </div>
+        
+        <button @click="testExtraction()">Test File Number Extraction</button>
+        
+        <div x-show="result">
+            <h3>Result:</h3>
+            <p x-text="result"></p>
+        </div>
+    </div>
+
+    <script>
+        function testManualEntry() {
+            return {
+                result: '',
+                
+                testExtraction() {
+                    console.log('Testing file number extraction...');
+                    
+                    // Try multiple approaches to get the file number
+                    let fileNumber = '';
+                    
+                    // Method 1: Try to get from preview fields
+                    const mlsPreview = document.getElementById('mls-preview');
+                    const kangisPreview = document.getElementById('kangis-preview');
+                    const newkangisPreview = document.getElementById('newkangis-preview');
+                    
+                    if (mlsPreview && mlsPreview.value) {
+                        fileNumber = mlsPreview.value;
+                        console.log('Found file number from MLS preview:', fileNumber);
+                    } else if (kangisPreview && kangisPreview.value) {
+                        fileNumber = kangisPreview.value;
+                        console.log('Found file number from KANGIS preview:', fileNumber);
+                    } else if (newkangisPreview && newkangisPreview.value) {
+                        fileNumber = newkangisPreview.value;
+                        console.log('Found file number from New KANGIS preview:', fileNumber);
+                    }
+                    
+                    // Method 2: Try to build from form fields
+                    if (!fileNumber) {
+                        console.log('Trying to build from form fields...');
+                        
+                        const mlsPrefix = document.getElementById('mls-prefix')?.value || '';
+                        const mlsNumber = document.getElementById('mls-number')?.value || '';
+                        const kangisPrefix = document.getElementById('kangis-prefix')?.value || '';
+                        const kangisNumber = document.getElementById('kangis-number')?.value || '';
+                        const newkangisPrefix = document.getElementById('newkangis-prefix')?.value || '';
+                        const newkangisNumber = document.getElementById('newkangis-number')?.value || '';
+                        
+                        console.log('Form values:', {
+                            mlsPrefix, mlsNumber, kangisPrefix, kangisNumber, newkangisPrefix, newkangisNumber
+                        });
+                        
+                        // Build file number based on what's entered
+                        if (mlsPrefix && mlsNumber) {
+                            fileNumber = `${mlsPrefix}-${mlsNumber}`;
+                            console.log('Built MLS file number:', fileNumber);
+                        } else if (kangisPrefix && kangisNumber) {
+                            const paddedNumber = kangisNumber.padStart(5, '0');
+                            fileNumber = `${kangisPrefix} ${paddedNumber}`;
+                            console.log('Built KANGIS file number:', fileNumber);
+                        } else if (newkangisPrefix && newkangisNumber) {
+                            fileNumber = `${newkangisPrefix}${newkangisNumber}`;
+                            console.log('Built New KANGIS file number:', fileNumber);
+                        } else if (mlsPrefix) {
+                            fileNumber = mlsPrefix;
+                            console.log('Using MLS prefix only:', fileNumber);
+                        } else if (mlsNumber) {
+                            fileNumber = mlsNumber;
+                            console.log('Using MLS number only:', fileNumber);
+                        } else if (kangisPrefix) {
+                            fileNumber = kangisPrefix;
+                            console.log('Using KANGIS prefix only:', fileNumber);
+                        } else if (kangisNumber) {
+                            fileNumber = kangisNumber;
+                            console.log('Using KANGIS number only:', fileNumber);
+                        } else if (newkangisPrefix) {
+                            fileNumber = newkangisPrefix;
+                            console.log('Using New KANGIS prefix only:', fileNumber);
+                        } else if (newkangisNumber) {
+                            fileNumber = newkangisNumber;
+                            console.log('Using New KANGIS number only:', fileNumber);
+                        }
+                    }
+                    
+                    // Method 3: Use default if nothing found
+                    if (!fileNumber) {
+                        console.log('No file number found, using default...');
+                        fileNumber = 'MANUAL-ENTRY-' + Date.now();
+                    }
+                    
+                    console.log('Final file number:', fileNumber);
+                    this.result = `Extracted file number: ${fileNumber}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

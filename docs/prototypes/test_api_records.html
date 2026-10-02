@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Blind Scanning Records API</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Test Blind Scanning Records API</h1>
+    <button id="testApi">Test API Call</button>
+    <div id="result"></div>
+
+    <script>
+        $('#testApi').click(function() {
+            $('#result').html('Loading...');
+            
+            fetch('/blind-scanning/list', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                $('#result').html('<pre>' + JSON.stringify(data, null, 2) + '</pre>');
+            })
+            .catch(error => {
+                $('#result').html('Error: ' + error.message);
+            });
+        });
+    </script>
+</body>
+</html>

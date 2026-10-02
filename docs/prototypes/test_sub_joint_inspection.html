@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Sub Joint Inspection</title>
+</head>
+<body>
+    <h2>Test Sub-Actions Joint Site Inspection Endpoint</h2>
+    
+    <form id="testForm">
+        <input type="hidden" name="_token" value="">
+        <input type="hidden" name="application_id" value="">
+        <input type="hidden" name="sub_application_id" value="45">
+        <input type="text" name="inspection_date" value="2024-01-01" placeholder="Inspection Date">
+        <button type="submit">Test Submit</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch CSRF token from a GET route
+            fetch('/')
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const metaToken = doc.querySelector('meta[name="csrf-token"]');
+                    if (metaToken) {
+                        document.querySelector('input[name="_token"]').value = metaToken.getAttribute('content');
+                        console.log('CSRF token set:', metaToken.getAttribute('content'));
+                    } else {
+                        console.log('No CSRF token found in page');
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to get CSRF token:', error);
+                });
+        });
+
+        document.getElementById('testForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const payload = {};
+            for (let [key, value] of formData.entries()) {
+                payload[key] = value;
+            }
+
+            console.log('Submitting to:', '/sub-actions/planning-recommendation/joint-site-inspection');
+            console.log('Payload:', payload);
+
+            fetch('/sub-actions/planning-recommendation/joint-site-inspection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json().then(data => ({
+                    status: response.status,
+                    data: data
+                }));
+            })
+            .then(result => {
+                document.getElementById('result').innerHTML = `
+                    <h3>Response (Status: ${result.status}):</h3>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                `;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = `
+                    <h3>Error:</h3>
+                    <pre>${error.message}</pre>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>

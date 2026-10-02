@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KANGIS - Official Search Report (Online Copy)</title>
+    <style>
+      /* General Page Setup */
+      body {
+        background-color: #525659;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .page {
+        background-color: #fff;
+        width: 11in;
+        min-height: 8.5in;
+        padding: 0.5in 0.6in;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+        position: relative;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Watermark */
+      .watermark-img {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 70px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        color: rgba(0, 0, 0, 0.12);
+        white-space: nowrap;
+        text-transform: uppercase;
+        text-align: center;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .watermark-copy {
+        position: absolute;
+        left: 50%;
+        top: 45%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 80px;
+        color: rgba(0, 0, 0, 0.06);
+        font-weight: 900;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 0;
+        display: none;
+      }
+
+      header {
+        width: 100%;
+        border-bottom: 2px solid #000;
+        padding-bottom: 5px;
+        margin-bottom: 15px;
+      }
+      .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .logo-box img {
+        width: 85px;
+        height: auto;
+      }
+      .title-block {
+        text-align: center;
+        flex: 1;
+      }
+      .title-block h1 {
+        font-size: 20px;
+        color: #007a33;
+        margin: 0;
+        font-weight: bold;
+      }
+      .title-block h3 {
+        font-size: 15px;
+        margin: 0;
+        text-decoration: underline;
+        font-weight: bold;
+      }
+      .date-line {
+        text-align: right;
+        font-size: 14px;
+        font-weight: bold;
+        margin-top: 10px;
+      }
+
+      .section-label {
+        border: 1px solid #000;
+        display: inline-block;
+        padding: 2px 8px;
+        font-weight: bold;
+        font-size: 13px;
+        margin: 10px 0;
+        background: #fff;
+      }
+
+      /* PROPERTY DETAILS - FIXED ALIGNMENT */
+      .prop-details {
+        font-size: 14px;
+        margin-bottom: 15px;
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+      }
+      .prop-details td {
+        padding: 6px 0;
+        vertical-align: top;
+      }
+
+      .bold-lbl-left { font-weight: bold; white-space: nowrap; width: 130px; }
+      .val-cell-left { width: auto; }
+      .bold-lbl-right { font-weight: bold; white-space: nowrap; width: 110px; padding-left: 40px; }
+      .val-cell-right { width: 200px; }
+
+      /* Transaction Table */
+      .transaction-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10.5px;
+        table-layout: fixed;
+        margin-bottom: 20px;
+      }
+      .transaction-table th,
+      .transaction-table td {
+        padding: 8px 5px;
+        vertical-align: top;
+        border-bottom: 0.5px solid #eee;
+        word-wrap: break-word;
+      }
+      .transaction-table .header-row th {
+        font-weight: bold;
+        border-bottom: 1.5px solid #000;
+        background: #fff;
+        text-align: left;
+      }
+
+      .c1 { width: 3%; } .c1b { width: 8%; } .c2 { width: 9%; } .c3 { width: 9%; }
+      .c3b { width: 7%; } .c3c { width: 7%; }
+      .c4 { width: 15%; } .c5 { width: 9%; } .c6 { width: 8%; }
+      .c7 { width: 5%; } .c8 { width: 20%; }
+
+      /* Footer/Signature Section */
+      .content-pusher { flex-grow: 1; }
+      .bottom-wrapper {
+        width: 100%;
+      }
+      .signature-section {
+        display: table;
+        width: 100%;
+        margin-top: 4px;
+        margin-bottom: 2px;
+        page-break-inside: avoid;
+      }
+      .sig-row { display: table-row; }
+      .sig-box { display: table-cell; text-align: left; width: 33.33%; font-size: 11px; line-height: 1.8; vertical-align: top; padding-right: 12px; }
+      .sig-box > div { display: flex; align-items: baseline; }
+      .sig-label { font-weight: bold; display: inline-block; width: 75px; flex-shrink: 0; }
+      .sig-dots { border-bottom: 1px dotted #000; flex: 1; min-width: 0; }
+
+      footer {
+        width: 100%;
+        padding-top: 0;
+        background-color: white;
+        page-break-inside: avoid;
+      }
+      .remarks-container {
+        border-top: 2px solid #000;
+        width: 100%;
+        padding-top: 0;
+        page-break-inside: avoid;
+      }
+      .remarks-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-start;
+        gap: 10px;
+      }
+      #report-caveat-note {
+        text-align: center;
+        flex: 1;
+        margin-right: 60px;
+      }
+      .timestamp-text {
+        font-size: 12px;
+        font-weight: bold;
+        margin: 8px 0;
+      }
+      
+      /* New Footer Branding Layout */
+      .branding-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding-top: 10px;
+        border-top: 1px solid #f0f0f0;
+      }
+      
+      .disclaimer-box {
+        text-align: left;
+        font-size: 10px;
+        color: #333;
+        line-height: 1.4;
+      }
+      
+      .logo-group {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+      }
+      
+      .logo-group img {
+        height: 16px;
+        width: auto;
+      }
+
+      .footer-bottom {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 4px;
+        position: relative;
+      }
+      #report-generated-by {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+      }
+
+      #qr-code canvas {
+        width: 34px !important;
+        height: 34px !important;
+      }
+
+      @media print {
+        @page {
+          size: landscape;
+          margin: 0.35in;
+          @bottom-right {
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 9px;
+            color: #555;
+          }
+        }
+        body { background: none; padding: 0; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { box-shadow: none; width: 100%; min-height: auto; padding: 0.12in 0.18in; display: flex; flex-direction: column; }
+        .content-pusher { display: none !important; }
+        footer, .bottom-wrapper, .remarks-container, .signature-section, .footer-bottom {
+          page-break-inside: auto !important;
+          break-inside: auto !important;
+        }
+        .watermark-img, .watermark-copy { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .watermark-img { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); }
+        .watermark-copy { position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); }
+        .transaction-table { margin-bottom: 1px; }
+        .transaction-table th, .transaction-table td { padding: 3px 3px; }
+        .remarks-container { margin-bottom: 0; }
+        .remarks-container .section-label { margin: 1px 0; }
+        .timestamp-text { margin: 1px 0; font-size: 8px; }
+        .signature-section { margin-top: 0; margin-bottom: 0; }
+        .sig-box { font-size: 8px; line-height: 1.12; padding-right: 4px; }
+        .footer-bottom {
+          margin-top: 0;
+          line-height: 1;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 8px;
+          position: static !important;
+        }
+        #report-generated-by {
+          font-size: 7px;
+          position: static !important;
+          left: auto !important;
+          right: auto !important;
+          flex: 1;
+          text-align: center;
+          line-height: 1;
+        }
+        .logo-group img { height: 12px; }
+        #qr-code { line-height: 0; }
+        #qr-code canvas { width: 22px !important; height: 22px !important; }
+        .page-number-display { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div id="watermark-img" class="watermark-img">Online Legal Search</div>
+      <div id="wm-copy" class="watermark-copy">FILE COPY</div>
+
+      <header>
+        <div class="header-top">
+          <div class="logo-box"><img src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Logo" /></div>
+          <div class="title-block">
+            <h1>KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING</h1>
+            <h2 style="font-size:16px;margin:2px 0;font-weight:bold;">LEGAL SEARCH REPORT</h2>
+            <h3>ONLINE SEARCH REPORT</h3>
+          </div>
+          <div class="logo-box"><img src="http://app.klaes.ng/assets/logo/ministry2.jpeg" alt="Logo" /></div>
+        </div>
+        <div class="date-line" id="report-date-line">Date: March 19, 2026</div>
+      </header>
+
+      <div class="section-label">Property Details</div>
+      <table class="prop-details">
+        <tr>
+          <td class="bold-lbl-left">File Number:</td>
+          <td class="val-cell-left"><strong id="report-file-number">KN:LND:2026:5501</strong></td>
+
+          <td class="bold-lbl-right">Lon/Lat:</td>
+          <td class="val-cell-right"><strong id="report-district-lga">-</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Term:</td>
+          <td class="val-cell-left"><strong id="report-term">-</strong></td>
+          <td class="bold-lbl-right"></td>
+          <td class="val-cell-right"></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">File Title:</td>
+          <td class="val-cell-left"><strong id="report-file-title">AL-HASSAN TRADING CO.</strong></td>
+
+          <td class="bold-lbl-right">Plot No:</td>
+          <td class="val-cell-right"><strong id="report-plot-no">Plot 45A</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Land Use:</td>
+          <td class="val-cell-left"><strong id="report-land-use">-</strong></td>
+
+          <td class="bold-lbl-right">Size:</td>
+          <td class="val-cell-right"><strong id="report-size">-</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Plot Description:</td>
+          <td class="val-cell-left">
+            <strong id="report-plot-description">Commercial Layout at Zoo Road, Kano State.</strong>
+          </td>
+
+          <td class="bold-lbl-right">TP No:</td>
+          <td class="val-cell-right"><strong id="report-tpno">TP/KN/NSR/102</strong></td>
+        </tr>
+      </table>
+
+      <div class="section-label">File History</div>
+      <table class="transaction-table">
+        <tbody id="report-transactions-body">
+          <tr class="header-row">
+            <th class="c1">S/N</th>
+            <th class="c1b">File No</th>
+            <th class="c4" style="white-space: nowrap;">Instrument/Transaction Type</th>
+            <th class="c2">Party 1</th>
+            <th class="c3">Party 2</th>
+            <th class="c3b party-3-col">Party 3</th>
+            <th class="c3c party-4-col">Party 4</th>
+            <th class="c5">Reg. Time<br />Reg. Date</th>
+            <th class="c6">Reg. Particulars</th>
+            <th class="c7">Caveat</th>
+            <th class="c8">Comments</th>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>GOVT. OF KANO STATE</td>
+            <td>AL-HASSAN TRADING CO.</td>
+            <td>Statutory Right Of Occupancy</td>
+            <td><strong>10:45 AM</strong><br />Feb 12, 2012</td>
+            <td>KN/TR/404</td>
+            <td>1.2Ha</td>
+            <td>No</td>
+            <td>Records verified via KANGIS portal.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p id="report-ground-rent" style="font-size:12px;font-weight:bold;margin:8px 0;color:#92400e;display:none;"></p>
+
+      <div class="content-pusher"></div>
+
+      <div class="bottom-wrapper">
+        <div class="remarks-container">
+          <div class="remarks-header">
+            <div class="section-label">Remarks</div>
+            <span id="report-caveat-note" style="font-size:14px;font-weight:bold;margin:0;display:none;"></span>
+          </div>
+          <p class="timestamp-text" id="report-remarks">
+            Certified as a true reflection of the records held at KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING as at
+            Thursday, March 19, 2026 10:30 PM.
+          </p>
+          <p id="report-no-cofo-comment" style="font-size:12px;font-weight:bold;margin:8px 0;color:#1e40af;display:none;"></p>
+          <p id="report-encumbrance-comment" style="font-size:12px;font-weight:bold;margin:8px 0;color:#166534;display:none;"></p>
+          <p id="report-litigation-comment" style="font-size:12px;font-weight:bold;margin:8px 0;color:#be123c;display:none;"></p>
+          <p id="report-general-comment" style="font-size:12px;font-weight:bold;margin:8px 0;color:#1f2937;display:none;"></p>
+          <p id="report-wrc-comment" style="font-size:12px;font-weight:bold;margin:8px 0;color:#dc2626;display:none;"></p>
+          <p id="report-cofo-comment" style="font-size:12px;font-weight:bold;margin:8px 0;color:#166534;display:none;"></p>
+        </div>
+
+        <div class="signature-section">
+          <div class="sig-row">
+          <div class="sig-box">
+            <div>Name: <span id="report-full-name" style="border-bottom: 1px dotted #000; min-width: 200px; display: inline-block; padding: 0 4px;"></span></div>
+            <div>Rank:...............................................</div>
+            <div>Sign:............................ Date:.............................</div>
+          </div>
+          <div class="sig-box">
+            <div>Verified by:.......................................</div>
+            <div>Rank:...............................................</div>
+            <div>Sign:............................ Date:.............................</div>
+          </div>
+          <div class="sig-box">
+            <div>Sign:............................ Date:.............................</div>
+            <div style="font-weight:bold">Director Deeds</div>
+            <div>(for Permanent Secretary/Hon. Commissioner)</div>
+          </div>
+          </div>
+        </div>
+
+        <p style="font-size:10px;font-style:italic;font-weight:bold;text-align:center;margin:4px 0 0;color:#555;">N.B: This search report is deduced based on the available records from the file and does not represent any document in possession of any body.<span id="report-nb-fileno"></span></p>
+
+        <div class="footer-bottom">
+          <div class="disclaimer-box" id="report-generated-by">
+            Generated by system-admin at 10:30 PM & 19/03/2026
+          </div>
+          <div style="display:flex;gap:15px;align-items:center;">
+            <div class="logo-group">
+              <img src="http://app.klaes.ng/storage/upload/logo/logo.png" alt="KLAES Logo" />
+              <img src="http://app.klaes.ng/assets/logo/las.jpg" alt="LAS Logo" />
+            </div>
+            <div id="qr-code"></div>
+          </div>
+        </div>
+
+        <div class="page-number-display" style="text-align:right;font-size:9px;color:#666;margin-top:6px;">Page 1 of 1</div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const fileNo             = params.get('file_number') || '';
+        const propId             = params.get('prop_id') || '';
+        const displayFileNumber  = params.get('display_file_number') || '';
+        const displayFileTitle   = params.get('display_file_title') || '';
+        const displayDistrictLga = params.get('display_district_lga') || '';
+        const displayLandUse     = params.get('display_land_use') || '';
+        const displaySize        = params.get('display_size') || '';
+        const displayPlotNo      = params.get('display_plot_no') || '';
+        const displayTpno        = params.get('display_tpno') || '';
+        const timelineOrder      = params.get('timeline_order') || '';
+        const excludedKeys       = params.get('excluded_keys') || '';
+        if (!fileNo && !propId) return;
+
+        const url = '/legal-search/report-template-data?' + new URLSearchParams({
+          file_number: fileNo,
+          prop_id: propId,
+          display_file_number: displayFileNumber,
+          display_file_title: displayFileTitle,
+          display_district_lga: displayDistrictLga,
+          display_land_use: displayLandUse,
+          display_size: displaySize,
+          display_plot_no: displayPlotNo,
+          display_tpno: displayTpno,
+          timeline_order: timelineOrder,
+          excluded_keys: excludedKeys,
+        }).toString();
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+          .then(r => r.json())
+          .then(payload => {
+            if (!payload || !payload.success || !payload.data) return;
+            const d = payload.data;
+
+            const setText = (id, v) => {
+              const el = document.getElementById(id);
+              if (el) el.textContent = (v != null && String(v).trim() !== '') ? v : '-';
+            };
+
+            // Term of the Right of Occupancy, derived from land use:
+            // Residential / Agricultural = 99 years; Commercial / Industrial = 40 years.
+            const termFromLandUse = (landUse) => {
+              const lu = String(landUse || '').toUpperCase();
+              if (lu.includes('RESIDENT') || lu.startsWith('RES') || lu.includes('AGRIC') || lu.startsWith('AG')) return '99 Years';
+              if (lu.includes('COMMERC') || lu.startsWith('COM') || lu.includes('INDUSTR') || lu.startsWith('IND')) return '40 Years';
+              return '';
+            };
+
+            setText('report-date-line', d.date_line);
+            setText('report-file-number', d.file_number);
+            setText('report-file-title', d.file_title);
+            setText('report-district-lga', d.lon_lat);
+            setText('report-size', d.size);
+            setText('report-land-use', d.land_use);
+            setText('report-term', termFromLandUse(d.land_use));
+            setText('report-plot-no', d.plot_no);
+            setText('report-plot-description', d.plot_description);
+            setText('report-tpno', d.tpno);
+            setText('report-remarks', d.remarks);
+            setText('report-generated-by', d.generated_by);
+            setText('report-full-name', d.full_name);
+
+            const nbFileNoEl = document.getElementById('report-nb-fileno');
+            if (nbFileNoEl && d.file_number) {
+              nbFileNoEl.textContent = ' File No: ' + d.file_number + '.';
+            }
+
+            // Caveat note
+            const caveatEl = document.getElementById('report-caveat-note');
+            if (caveatEl && d.caveat_note) {
+              caveatEl.textContent = d.caveat_note;
+              caveatEl.style.display = 'block';
+              if (d.under_investigation || d.is_caveated || d.is_flagged) {
+                caveatEl.style.color = '#dc2626';
+              } else {
+                caveatEl.style.color = '#166534';
+              }
+            }
+
+            // Ground rent
+            const grEl = document.getElementById('report-ground-rent');
+            if (grEl && d.ground_rent) {
+              grEl.textContent = d.ground_rent;
+              grEl.style.display = 'block';
+            }
+
+            // No CoFO comment
+            const ncEl = document.getElementById('report-no-cofo-comment');
+            if (ncEl && d.no_cofo_comment) {
+              ncEl.textContent = d.no_cofo_comment;
+              ncEl.style.display = 'block';
+            }
+
+            // Encumbrance comment
+            const ltEl = document.getElementById('report-litigation-comment');
+            if (ltEl && d.litigation_comment) {
+              ltEl.textContent = d.litigation_comment;
+              ltEl.style.display = 'block';
+            }
+
+            const ecEl = document.getElementById('report-encumbrance-comment');
+            if (ecEl && d.encumbrance_comment) {
+              ecEl.textContent = d.encumbrance_comment;
+              ecEl.style.display = 'block';
+            }
+
+            const genEl = document.getElementById('report-general-comment');
+            if (genEl && d.general_comment) {
+              genEl.textContent = d.general_comment;
+              genEl.style.display = 'block';
+            }
+
+            // W/R/C (Withdrawn / Revoked / Cancelled) notice from duplicate_fileno
+            const wrcEl = document.getElementById('report-wrc-comment');
+            if (wrcEl && d.wrc_comment) {
+              wrcEl.textContent = d.wrc_comment;
+              wrcEl.style.display = 'block';
+            }
+
+            // CoFO ready / collected notice from duplicate_fileno
+            const cofoEl = document.getElementById('report-cofo-comment');
+            if (cofoEl && d.cofo_comment) {
+              cofoEl.textContent = d.cofo_comment;
+              cofoEl.style.display = 'block';
+            }
+
+
+
+            const tbody = document.getElementById('report-transactions-body');
+            if (tbody && Array.isArray(d.rows) && d.rows.length > 0) {
+              const header = tbody.querySelector('.header-row')?.outerHTML || '';
+              const rows = d.rows.map(row => `
+                <tr>
+                  <td>${row.sn}</td>
+                  <td>${row.file_no || '-'}</td>
+                  <td>${row.instrument_type}</td>
+                  <td>${row.grantor}</td>
+                  <td>${row.grantee}</td>
+                  <td class="party-3-col">${row.party_3 || '-'}</td>
+                  <td class="party-4-col">${row.party_4 || '-'}</td>
+                  <td><strong>${row.reg_time}</strong><br>${row.reg_date}</td>
+                  <td>${row.reg_no}</td>
+                  <td>${row.caveat}</td>
+                  <td>${row.comments}</td>
+                </tr>
+              `).join('');
+              tbody.innerHTML = header + rows;
+
+              // Hide Party 3/4 columns if no data
+              const hasP3 = d.rows.some(r => r.party_3 && r.party_3 !== '-' && r.party_3.trim() !== '');
+              const hasP4 = d.rows.some(r => r.party_4 && r.party_4 !== '-' && r.party_4.trim() !== '');
+              if (!hasP3) document.querySelectorAll('.party-3-col, .c3b').forEach(el => el.style.display = 'none');
+              if (!hasP4) document.querySelectorAll('.party-4-col, .c3c').forEach(el => el.style.display = 'none');
+            }
+
+            // Generate QR code with encrypted data
+            if (d.qr_data && typeof QRCode !== 'undefined') {
+              const qrContainer = document.getElementById('qr-code');
+              if (qrContainer) {
+                new QRCode(qrContainer, {
+                  text: d.qr_data,
+                  width: 42,
+                  height: 42,
+                  colorDark: '#000000',
+                  colorLight: '#ffffff',
+                  correctLevel: QRCode.CorrectLevel.L,
+                });
+              }
+            }
+          })
+          .catch(() => {});
+      })();
+
+      // Watermark: first print = coat of arms, subsequent prints = FILE COPY (DB-backed via print_logs)
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const fileNo = params.get('file_number') || '';
+        const docType = 'Legal Search Online';
+        const wmImg = document.getElementById('watermark-img');
+        const wmCopy = document.getElementById('wm-copy');
+        let isFileCopy = false;
+
+        function showOriginal() {
+          if (wmImg) wmImg.style.display = 'block';
+          if (wmCopy) wmCopy.style.display = 'none';
+        }
+
+        function showFileCopy() {
+          if (wmImg) wmImg.style.display = 'none';
+          if (wmCopy) wmCopy.style.display = 'block';
+        }
+
+        // Explicit choice from the Print Manager ("Print Original" / "Print File
+        // Copy") forces the watermark; otherwise fall back to auto-detect from
+        // the print history (first print = Original, reprints = FILE COPY).
+        const forcedType = (params.get('status') || '').toLowerCase();
+
+        if (forcedType === 'copy' || forcedType === 'original') {
+          isFileCopy = (forcedType === 'copy');
+          if (isFileCopy) { showFileCopy(); } else { showOriginal(); }
+        } else if (fileNo) {
+          // Check print status from print_logs table
+          fetch('/print-manager/status?' + new URLSearchParams({
+            reference_number: fileNo,
+            document_type: docType
+          }), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.success && data.status && data.status.original > 0) {
+              isFileCopy = true;
+              showFileCopy();
+            } else {
+              showOriginal();
+            }
+          })
+          .catch(() => showOriginal());
+        } else {
+          showOriginal();
+        }
+
+        window.addEventListener('afterprint', function () {
+          if (!fileNo) return;
+          // Log print to print_logs table
+          fetch('/print-manager/log', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              reference_number: fileNo,
+              document_type: docType,
+              status: isFileCopy ? 'Copy' : 'Original',
+              print_type: 'Individual'
+            })
+          }).catch(() => {});
+
+          // When the operator explicitly chose "Print Original" / "Print File
+          // Copy", keep the watermark exactly as chosen — never auto-flip based
+          // on a previous print. Only the auto-detect flow switches after print.
+          if (!forcedType) {
+            isFileCopy = true;
+            showFileCopy();
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Unindexed Files API</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center">Test Unindexed Files API</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">API Status</h3>
+                <div id="api-status" class="text-2xl font-bold text-gray-400">Testing...</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">Files Found</h3>
+                <div id="files-count" class="text-2xl font-bold text-gray-400">0</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-2">Response Time</h3>
+                <div id="response-time" class="text-2xl font-bold text-gray-400">0ms</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Raw API Response</h2>
+            <pre id="api-response" class="bg-gray-100 p-4 rounded text-sm overflow-auto max-h-96">Loading...</pre>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Formatted Files Table</h2>
+            <div id="files-table">Loading...</div>
+        </div>
+
+        <div class="text-center mt-6">
+            <button id="refresh-btn" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                Refresh Data
+            </button>
+        </div>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const startTime = Date.now();
+            const statusEl = document.getElementById('api-status');
+            const countEl = document.getElementById('files-count');
+            const timeEl = document.getElementById('response-time');
+            const responseEl = document.getElementById('api-response');
+            const tableEl = document.getElementById('files-table');
+
+            statusEl.textContent = 'Loading...';
+            statusEl.className = 'text-2xl font-bold text-yellow-500';
+
+            try {
+                const response = await fetch('/scanning/unindexed-files', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const endTime = Date.now();
+                const responseTime = endTime - startTime;
+                timeEl.textContent = responseTime + 'ms';
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update status
+                    statusEl.textContent = data.success ? 'Success' : 'Failed';
+                    statusEl.className = data.success ? 'text-2xl font-bold text-green-500' : 'text-2xl font-bold text-red-500';
+                    
+                    // Update count
+                    countEl.textContent = data.count || 0;
+                    
+                    // Show raw response
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                    
+                    // Create table
+                    if (data.success && data.files && data.files.length > 0) {
+                        let tableHTML = `
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Number</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded By</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                        `;
+                        
+                        data.files.forEach(file => {
+                            tableHTML += `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${file.id}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            ${file.file_number || 'N/A'}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${file.type && file.type.includes('pdf') ? 'bg-red-100 text-red-800' : file.type && file.type.includes('image') ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">
+                                            ${file.type && file.type.includes('pdf') ? 'PDF' : file.type && file.type.includes('image') ? 'Image' : 'Other'}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                            ${file.status || 'Uploaded'}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${file.uploaded_by || 'Unknown'}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${file.date}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        tableHTML += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                        
+                        tableEl.innerHTML = tableHTML;
+                    } else {
+                        tableEl.innerHTML = '<p class="text-gray-500 text-center py-8">No files found</p>';
+                    }
+                    
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+            } catch (error) {
+                statusEl.textContent = 'Error';
+                statusEl.className = 'text-2xl font-bold text-red-500';
+                responseEl.textContent = 'Error: ' + error.message;
+                tableEl.innerHTML = '<p class="text-red-500 text-center py-8">Failed to load data</p>';
+                console.error('API Test Error:', error);
+            }
+        }
+
+        // Test on page load
+        document.addEventListener('DOMContentLoaded', testAPI);
+        
+        // Refresh button
+        document.getElementById('refresh-btn').addEventListener('click', testAPI);
+    </script>
+</body>
+</html>

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Upload Validation Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .swal-validation-popup {
+            font-family: 'Inter', sans-serif;
+        }
+        .swal-validation-title {
+            color: #dc2626;
+            font-weight: 600;
+        }
+        .swal-validation-content {
+            color: #374151;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Document Upload Validation Test</h1>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Features:</h2>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li>✅ Duplicate file detection using metadata (name + size + lastModified)</li>
+                <li>✅ File type validation (PDF, JPG, JPEG, PNG only)</li>
+                <li>✅ File size validation (5MB maximum)</li>
+                <li>✅ Visual feedback with success indicators</li>
+                <li>✅ Remove file functionality with cleanup</li>
+                <li>✅ SweetAlert error notifications</li>
+                <li>✅ Individual field tracking</li>
+                <li>✅ UI state management</li>
+            </ul>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold mb-6">Document Upload Fields</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Application Letter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Application Letter</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="flex justify-center mb-2">
+                            <i data-lucide="upload" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-center">
+                            <input type="file" name="application_letter" id="application_letter" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                            <label for="application_letter" id="application_letter_label" class="flex items-center text-blue-600 cursor-pointer">
+                                <span>Upload Document</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2" id="application_letter_name">PDF, JPG or PNG (max. 5MB)</p>
+                        <button type="button" onclick="removeFile('application_letter')" id="application_letter_remove" class="text-red-600 text-xs mt-2 hidden hover:text-red-800">
+                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Remove File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Payment Receipt -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Payment Receipt</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="flex justify-center mb-2">
+                            <i data-lucide="upload" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-center">
+                            <input type="file" name="payment_receipt" id="payment_receipt" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                            <label for="payment_receipt" id="payment_receipt_label" class="flex items-center text-blue-600 cursor-pointer">
+                                <span>Upload Document</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2" id="payment_receipt_name">PDF, JPG or PNG (max. 5MB)</p>
+                        <button type="button" onclick="removeFile('payment_receipt')" id="payment_receipt_remove" class="text-red-600 text-xs mt-2 hidden hover:text-red-800">
+                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Remove File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Passport -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Passport</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="flex justify-center mb-2">
+                            <i data-lucide="upload" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-center">
+                            <input type="file" name="passport" id="passport" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                            <label for="passport" id="passport_label" class="flex items-center text-blue-600 cursor-pointer">
+                                <span>Upload Document</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2" id="passport_name">PDF, JPG or PNG (max. 5MB)</p>
+                        <button type="button" onclick="removeFile('passport')" id="passport_remove" class="text-red-600 text-xs mt-2 hidden hover:text-red-800">
+                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Remove File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ID Card -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ID Card</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="flex justify-center mb-2">
+                            <i data-lucide="upload" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-center">
+                            <input type="file" name="id_card" id="id_card" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                            <label for="id_card" id="id_card_label" class="flex items-center text-blue-600 cursor-pointer">
+                                <span>Upload Document</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2" id="id_card_name">PDF, JPG or PNG (max. 5MB)</p>
+                        <button type="button" onclick="removeFile('id_card')" id="id_card_remove" class="text-red-600 text-xs mt-2 hidden hover:text-red-800">
+                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Remove File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Power of Attorney -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Power of Attorney</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="flex justify-center mb-2">
+                            <i data-lucide="upload" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-center">
+                            <input type="file" name="power_of_attorney" id="power_of_attorney" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                            <label for="power_of_attorney" id="power_of_attorney_label" class="flex items-center text-blue-600 cursor-pointer">
+                                <span>Upload Document</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2" id="power_of_attorney_name">PDF, JPG or PNG (max. 5MB)</p>
+                        <button type="button" onclick="removeFile('power_of_attorney')" id="power_of_attorney_remove" class="text-red-600 text-xs mt-2 hidden hover:text-red-800">
+                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Remove File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Certificate of Title -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Certificate of Title</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="flex justify-center mb-2">
+                            <i data-lucide="upload" class="w-6 h-6 text-gray-400"></i>
+                        </div>
+                        <div class="flex justify-center">
+                            <input type="file" name="certificate_of_title" id="certificate_of_title" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                            <label for="certificate_of_title" id="certificate_of_title_label" class="flex items-center text-blue-600 cursor-pointer">
+                                <span>Upload Document</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2" id="certificate_of_title_name">PDF, JPG or PNG (max. 5MB)</p>
+                        <button type="button" onclick="removeFile('certificate_of_title')" id="certificate_of_title_remove" class="text-red-600 text-xs mt-2 hidden hover:text-red-800">
+                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1"></i>Remove File
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <h3 class="text-lg font-semibold mb-4">Test Instructions:</h3>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <ol class="list-decimal list-inside space-y-2 text-sm text-blue-800">
+                        <li>Upload the same file to two different fields - should show duplicate error</li>
+                        <li>Try uploading a file larger than 5MB - should show size error</li>
+                        <li>Try uploading an unsupported file type (.txt, .doc) - should show type error</li>
+                        <li>Upload a valid file - should show success indicator and remove button</li>
+                        <li>Click remove button - should clear file and reset UI</li>
+                        <li>Upload different files to each field - should work without conflicts</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button onclick="showUploadedFiles()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Show Uploaded Files Debug
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store uploaded files metadata to prevent duplicates
+        let uploadedFilesMetadata = new Map();
+
+        function updateFileName(input, labelId) {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Create file metadata signature
+            const fileSignature = `${file.name}_${file.size}_${file.lastModified}`;
+            
+            // Check if this exact file has already been uploaded
+            if (uploadedFilesMetadata.has(fileSignature)) {
+                const existingField = uploadedFilesMetadata.get(fileSignature);
+                
+                // Show error message
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Duplicate File Detected',
+                    html: `<div style="text-align: left;">
+                        <p><strong>File:</strong> ${file.name}</p>
+                        <p><strong>Already uploaded as:</strong> ${existingField}</p>
+                        <p class="text-sm text-gray-600 mt-2">Please select a different file or remove the duplicate from the other field.</p>
+                    </div>`,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc2626',
+                    customClass: {
+                        popup: 'swal-validation-popup',
+                        title: 'swal-validation-title',
+                        htmlContainer: 'swal-validation-content'
+                    }
+                });
+                
+                // Clear the duplicate file selection
+                input.value = '';
+                return;
+            }
+
+            // Check if this input field already has a file and remove its signature
+            const currentFieldName = getFieldDisplayName(input.id);
+            const existingSignature = Array.from(uploadedFilesMetadata.entries())
+                .find(([signature, fieldName]) => fieldName === currentFieldName)?.[0];
+            
+            if (existingSignature) {
+                uploadedFilesMetadata.delete(existingSignature);
+            }
+
+            // Add new file signature
+            uploadedFilesMetadata.set(fileSignature, currentFieldName);
+            
+            // Update UI
+            const fileName = file.name;
+            document.getElementById(input.id + '_name').textContent = fileName;
+            document.getElementById(labelId).innerHTML = '<span>Change Document</span>';
+            
+            // Show remove button
+            const removeButton = document.getElementById(input.id + '_remove');
+            if (removeButton) {
+                removeButton.classList.remove('hidden');
+            }
+            
+            // Add success indicator
+            const uploadArea = input.closest('.border-dashed');
+            if (uploadArea) {
+                uploadArea.classList.remove('border-gray-300');
+                uploadArea.classList.add('border-green-300', 'bg-green-50');
+                
+                // Add success icon
+                const uploadIcon = uploadArea.querySelector('[data-lucide="upload"]');
+                if (uploadIcon) {
+                    uploadIcon.setAttribute('data-lucide', 'check-circle');
+                    uploadIcon.classList.remove('text-gray-400');
+                    uploadIcon.classList.add('text-green-500');
+                    // Re-initialize Lucide icons for the updated icon
+                    if (window.lucide) {
+                        lucide.createIcons();
+                    }
+                }
+            }
+        }
+
+        function getFieldDisplayName(fieldId) {
+            const fieldNames = {
+                'application_letter': 'Application Letter',
+                'payment_receipt': 'Payment Receipt',
+                'passport': 'Passport',
+                'id_card': 'ID Card',
+                'power_of_attorney': 'Power of Attorney',
+                'certificate_of_title': 'Certificate of Title'
+            };
+            return fieldNames[fieldId] || fieldId;
+        }
+
+        // Function to remove file and clean up metadata
+        function removeFile(inputId) {
+            const input = document.getElementById(inputId);
+            if (!input || !input.files[0]) return;
+
+            const file = input.files[0];
+            const fileSignature = `${file.name}_${file.size}_${file.lastModified}`;
+            
+            // Remove from metadata store
+            uploadedFilesMetadata.delete(fileSignature);
+            
+            // Clear input
+            input.value = '';
+            
+            // Reset UI
+            const labelId = inputId + '_label';
+            const nameId = inputId + '_name';
+            const removeButtonId = inputId + '_remove';
+            
+            document.getElementById(labelId).innerHTML = '<span>Upload Document</span>';
+            document.getElementById(nameId).textContent = 'PDF, JPG or PNG (max. 5MB)';
+            
+            // Hide remove button
+            const removeButton = document.getElementById(removeButtonId);
+            if (removeButton) {
+                removeButton.classList.add('hidden');
+            }
+            
+            // Reset upload area styling
+            const uploadArea = input.closest('.border-dashed');
+            if (uploadArea) {
+                uploadArea.classList.remove('border-green-300', 'bg-green-50');
+                uploadArea.classList.add('border-gray-300');
+                
+                // Reset icon
+                const uploadIcon = uploadArea.querySelector('[data-lucide="check-circle"]');
+                if (uploadIcon) {
+                    uploadIcon.setAttribute('data-lucide', 'upload');
+                    uploadIcon.classList.remove('text-green-500');
+                    uploadIcon.classList.add('text-gray-400');
+                    // Re-initialize Lucide icons for the updated icon
+                    if (window.lucide) {
+                        lucide.createIcons();
+                    }
+                }
+            }
+        }
+
+        // Enhanced file validation function
+        function validateFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return true;
+
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            
+            // Check file size
+            if (file.size > maxSize) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'File Too Large',
+                    text: `File "${file.name}" is too large. Maximum file size is 5MB.`,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc2626'
+                });
+                input.value = '';
+                return false;
+            }
+            
+            // Check file type
+            if (!allowedTypes.includes(file.type)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Invalid File Type',
+                    text: `File "${file.name}" is not a supported format. Please upload PDF, JPG, or PNG files only.`,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc2626'
+                });
+                input.value = '';
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Debug function to show uploaded files
+        function showUploadedFiles() {
+            const filesArray = Array.from(uploadedFilesMetadata.entries());
+            let debugInfo = "Current uploaded files:\n\n";
+            
+            if (filesArray.length === 0) {
+                debugInfo += "No files uploaded yet.";
+            } else {
+                filesArray.forEach(([signature, fieldName], index) => {
+                    debugInfo += `${index + 1}. Field: ${fieldName}\n   Signature: ${signature}\n\n`;
+                });
+            }
+            
+            Swal.fire({
+                title: 'Debug: Uploaded Files',
+                text: debugInfo,
+                icon: 'info',
+                confirmButtonText: 'OK',
+                customClass: {
+                    popup: 'swal-debug-popup'
+                }
+            });
+        }
+
+        // Add event listeners to all file inputs for validation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Lucide icons
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+            
+            const fileInputs = document.querySelectorAll('input[type="file"]');
+            fileInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    if (validateFileUpload(this)) {
+                        // Only proceed with updateFileName if validation passes
+                        const labelId = this.id + '_label';
+                        updateFileName(this, labelId);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

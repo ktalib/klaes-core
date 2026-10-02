@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Commissioning Sheet - Alignment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+        }
+        
+        .header h1 {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+        }
+        
+        .header h2 {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+        }
+        
+        .header h3 {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 10px 0 0 0;
+        }
+        
+        .form-section {
+            margin: 30px 0;
+        }
+        
+        .form-row {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: baseline;
+        }
+        
+        .form-label {
+            font-weight: bold;
+            width: 120px; /* Fixed width for consistent alignment */
+            margin-right: 10px;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        
+        .form-value {
+            border-bottom: 1px solid #333;
+            flex-grow: 1;
+            padding: 2px 5px;
+            min-height: 18px;
+        }
+        
+        .comparison {
+            background: #f9f9f9;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #10b981;
+        }
+        
+        .old-alignment {
+            background: #fef2f2;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .new-alignment {
+            background: #f0fdf4;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MINISTRY OF LAND & PHYSICAL PLANNING</h1>
+        <h2>DEPT. OF LANDS</h2>
+        <h3>FILE COMMISSIONING SHEET - ALIGNMENT TEST</h3>
+    </div>
+    
+    <div class="comparison">
+        <h3>✅ Fixed Alignment (NEW)</h3>
+        <p><strong>All field labels now have consistent 120px width, ensuring perfect alignment of underlines and values.</strong></p>
+    </div>
+    
+    <div class="form-section">
+        <div class="form-row">
+            <span class="form-label">File No:</span>
+            <span class="form-value">MLSF/2023/001234</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">File Name:</span>
+            <span class="form-value">Musa Ali Application for Sectional Title</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">Allottee:</span>
+            <span class="form-value">Musa Ali</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">Plot No:</span>
+            <span class="form-value">123A</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">TP No:</span>
+            <span class="form-value">TP/456/2023</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">Location:</span>
+            <span class="form-value">Block 5, Section 12, Gaborone</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">Date Created:</span>
+            <span class="form-value">18/09/2025</span>
+        </div>
+        
+        <div class="form-row">
+            <span class="form-label">Created by:</span>
+            <span class="form-value">Administrator</span>
+        </div>
+    </div>
+    
+    <div class="comparison">
+        <h3>🔧 Changes Made:</h3>
+        <ul>
+            <li><strong>JavaScript PDF Generation:</strong> 
+                <ul>
+                    <li>Added fixed <code>labelWidth = 40</code> for consistent spacing</li>
+                    <li>All underlines now start at <code>lineStartX = leftMargin + labelWidth</code></li>
+                    <li>All field values start at <code>textStartX = lineStartX + 2</code></li>
+                </ul>
+            </li>
+            <li><strong>HTML PDF Template:</strong>
+                <ul>
+                    <li>Changed <code>min-width: 120px</code> to <code>width: 120px</code> for labels</li>
+                    <li>Added <code>flex-shrink: 0</code> to prevent label compression</li>
+                    <li>Removed <code>full-width</code> classes for consistent single-line layout</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="old-alignment">
+        <h4>❌ Previous Issues:</h4>
+        <p>Labels had different text lengths causing misaligned underlines:</p>
+        <ul>
+            <li>"File No:" → line at position 49</li>
+            <li>"File Name:" → line at position 54</li>
+            <li>"Date Created:" → line at position 59</li>
+            <li>"Created by:" → line at position 59</li>
+        </ul>
+    </div>
+    
+    <div class="new-alignment">
+        <h4>✅ Now Fixed:</h4>
+        <p>All labels have consistent width, all underlines perfectly aligned:</p>
+        <ul>
+            <li>All lines start at the same position (65px from left margin)</li>
+            <li>All field values start at the same position (67px from left margin)</li>
+            <li>Perfect visual alignment for professional appearance</li>
+        </ul>
+    </div>
+</body>
+</html>

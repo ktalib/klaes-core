@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draft Autosave Fix Verification</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; font-size: 12px; }
+        .code-block { background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Draft Autosave TypeError Fix Verification</h1>
+    
+    <div class="test-section error">
+        <h3>🚨 Original Error</h3>
+        <pre>
+[2025-10-06 13:11:35] local.ERROR: array_keys(): Argument #1 ($array) must be of type array, string given
+at C:\Users\Administrator\Documents\app\app\Http\Controllers\SubApplicationDraftController.php:91
+        </pre>
+        <p><strong>Root Cause:</strong> Frontend was sending <code>form_state</code> as a JSON string, but backend was expecting an array and trying to call <code>array_keys()</code> on the string.</p>
+    </div>
+
+    <div class="test-section success">
+        <h3>✅ Fix Applied</h3>
+        <p><strong>Solution:</strong> Updated <code>SubApplicationDraftController::saveDraft()</code> to handle both old and new autosave formats.</p>
+        
+        <h4>Backend Changes:</h4>
+        <div class="code-block">
+<pre>
+// Before (caused error)
+Log::info('[SubApplicationDraftAutosave] saveDraft called', [
+    'form_state_keys' => array_keys($request->input('form_state', [])), // ❌ Fails when form_state is string
+]);
+
+// After (handles both formats)
+$isOldFormat = $request->has('form_state') && is_string($request->input('form_state'));
+
+if ($isOldFormat) {
+    // Handle old format (form_state as JSON string)
+    $formState = json_decode($validated['form_state'], true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        $formState = [];
+    }
+} else {
+    // Handle new format (form_state as array)
+    $formState = $validated['form_state'];
+}
+</pre>
+        </div>
+    </div>
+
+    <div class="test-section info">
+        <h3>📊 Format Compatibility</h3>
+        <p>The controller now supports both autosave formats:</p>
+        
+        <h4>Old Format (Current Frontend):</h4>
+        <div class="code-block">
+<pre>
+POST /subapplication/draft/save
+Content-Type: multipart/form-data
+
+form_state: '{"_token":"...", "fileno":"SUB-2025-...", "land_use":"Commercial", ...}'
+progress_percent: 80
+unit_file_no: "SUB-2025-14343359"
+auto_save: "1"
+</pre>
+        </div>
+
+        <h4>New Format (Future):</h4>
+        <div class="code-block">
+<pre>
+POST /subapplication/draft/save
+Content-Type: application/json
+
+{
+  "form_state": {
+    "_token": "...",
+    "fileno": "SUB-2025-...",
+    "land_use": "Commercial",
+    ...
+  },
+  "metadata": {
+    "progress_percent": 80,
+    "trigger": "auto",
+    "last_completed_step": 1
+  },
+  "unit_file_no": "SUB-2025-14343359"
+}
+</pre>
+        </div>
+    </div>
+
+    <div class="test-section success">
+        <h3>🧪 Testing Instructions</h3>
+        <ol>
+            <li><strong>Clear Laravel Cache:</strong>
+                <pre>php artisan config:clear && php artisan cache:clear</pre>
+            </li>
+            
+            <li><strong>Test Draft Autosave:</strong>
+                <ul>
+                    <li>Go to the Sub Application form</li>
+                    <li>Start filling out the form</li>
+                    <li>Wait for autosave (30 seconds) or trigger manually</li>
+                    <li>Check draft status should show "Draft saved" instead of "Save failed"</li>
+                </ul>
+            </li>
+            
+            <li><strong>Check Logs:</strong>
+                <ul>
+                    <li>Monitor <code>storage/logs/laravel.log</code></li>
+                    <li>Should no longer see <code>array_keys(): Argument #1 ($array) must be of type array, string given</code></li>
+                    <li>Should see log entries like: <code>[SubApplicationDraftAutosave] saveDraft called {"format":"old",...}</code></li>
+                </ul>
+            </li>
+            
+            <li><strong>Verify Functionality:</strong>
+                <ul>
+                    <li>Draft should save successfully</li>
+                    <li>Form data should be preserved</li>
+                    <li>Progress tracking should work</li>
+                    <li>Unit file number should be handled correctly</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="test-section info">
+        <h3>🔧 Technical Details</h3>
+        
+        <h4>Key Changes Made:</h4>
+        <ul>
+            <li><strong>Format Detection:</strong> Added <code>$isOldFormat</code> check to detect JSON string vs array</li>
+            <li><strong>Dual Validation:</strong> Different validation rules for old vs new format</li>
+            <li><strong>JSON Parsing:</strong> Safe JSON decode with error handling for old format</li>
+            <li><strong>Unit File Number:</strong> Extracts from both form_state and direct parameter</li>
+            <li><strong>Logging:</strong> Updated to show format type and avoid array_keys error</li>
+        </ul>
+
+        <h4>Files Modified:</h4>
+        <ul>
+            <li><code>app/Http/Controllers/SubApplicationDraftController.php</code> - Added dual format support</li>
+        </ul>
+
+        <h4>Error Prevention:</h4>
+        <ul>
+            <li>Safe JSON parsing with <code>json_last_error()</code> check</li>
+            <li>Type checking before calling <code>array_keys()</code></li>
+            <li>Fallback handling for malformed data</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h3>✅ Expected Results</h3>
+        <ul>
+            <li>✅ No more <code>array_keys(): Argument #1 ($array) must be of type array, string given</code> errors</li>
+            <li>✅ Draft autosave works correctly</li>
+            <li>✅ "Draft status: Save failed" becomes "Draft saved"</li>
+            <li>✅ Form data preserved correctly in drafts</li>
+            <li>✅ Unit file numbers handled properly</li>
+            <li>✅ Land use validation working (from previous fixes)</li>
+            <li>✅ Progress tracking functional</li>
+        </ul>
+    </div>
+
+    <script>
+        console.log('Draft Autosave Fix Applied');
+        console.log('Monitor the browser console and server logs to verify the fix is working');
+        
+        // If we're on the actual form page, log some debug info
+        if (window.SUB_APPLICATION_DRAFT_ENDPOINTS) {
+            console.log('Draft endpoints available:', window.SUB_APPLICATION_DRAFT_ENDPOINTS);
+        }
+    </script>
+</body>
+</html>

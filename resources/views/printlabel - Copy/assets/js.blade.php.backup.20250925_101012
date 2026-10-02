@@ -1,0 +1,1791 @@
+    <script>
+        // Wait for DOM and libraries to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+
+            // Check for ST filter from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const stFilterActive = urlParams.get('url') === 'st';
+            
+            // Application state
+            let state = {
+                selectedFiles: [],
+                labelSize: "30-in-1",
+                labelFormat: "qrcode",
+                activeTab: "files",
+                copies: 1,
+                selectedTemplate: "30-in-1",
+                showHistory: false,
+                searchTerm: "",
+                orientation: "landscape",
+                showAdvancedOptions: false,
+                batchMode: false,
+                batchStartNumber: 1,
+                batchCount: 30,
+                availableFiles: [],
+                generatedBatches: [],
+                currentPage: 1,
+                totalPages: 1,
+                loading: false,
+                stFilterActive: stFilterActive, // Add ST filter state
+            };
+
+            // API endpoints
+            const API = {
+                files: '/printlabel/api/files',
+                createBatch: '/printlabel/api/batch',
+                batches: '/printlabel/api/batches',
+                batchDetails: '/printlabel/api/batch/',
+                batchForPrinting: '/printlabel/api/batch/',
+                markPrinted: '/printlabel/api/batch/',
+                deleteBatch: '/printlabel/api/batch/',
+                statistics: '/printlabel/api/statistics'
+            };
+
+            // Utility functions
+            function showLoading(message = 'Loading...') {
+                state.loading = true;
+                console.log(message);
+            }
+
+            function hideLoading() {
+                state.loading = false;
+            }
+
+            function showError(message) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: message,
+                    confirmButtonColor: '#3b82f6'
+                });
+                console.error(message);
+            }
+
+            function showSuccess(message) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: message,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+                console.log(message);
+            }
+
+            function showLoading(message = 'Loading...') {
+                Swal.fire({
+                    title: 'Please wait...',
+                    text: message,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                state.loading = true;
+                console.log(message);
+            }
+
+            function hideLoading() {
+                if (state.loading) {
+                    Swal.close();
+                    state.loading = false;
+                }
+            }
+
+            // API functions
+            function fetchAvailableFiles(search, page) {
+                search = search || '';
+                page = page || 1;
+                
+                showLoading('Loading files...');
+                const params = new URLSearchParams({
+                    search: search,
+                    page: page,
+                    per_page: 30
+                });
+                
+                // Add ST filter parameter if active
+                if (state.stFilterActive) {
+                    params.append('st_filter', 'true');
+                }
+                
+                fetch(API.files + '?' + params)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            state.availableFiles = data.data;
+                            state.currentPage = data.pagination.current_page;
+                            state.totalPages = data.pagination.last_page;
+                            renderFileList();
+                            updateCounts();
+                        } else {
+                            showError(data.message);
+                        }
+                        hideLoading();
+                    })
+                    .catch(error => {
+                        showError('Failed to fetch files: ' + error.message);
+                        hideLoading();
+                    });
+            }
+
+            function createLabelBatch() {
+                if (state.selectedFiles.length === 0) {
+                    showError('Please select at least one file');
+                    return;
+                }
+
+                // For ST mode, allow any number of files. For regular mode, keep 30 file limit
+                if (!state.stFilterActive && state.selectedFiles.length > 30) {
+                    showError('Cannot select more than 30 files per batch');
+                    return;
+                }
+
+                showLoading('Creating batch...');
+                
+                fetch(API.createBatch, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        file_ids: state.selectedFiles,
+                        label_format: state.selectedTemplate,
+                        orientation: state.orientation,
+                        batch_size: state.batchCount
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess('Batch ' + data.data.batch_number + ' created successfully with ' + data.data.file_count + ' files');
+                        state.selectedFiles = [];
+                        updateCounts();
+                        renderFileList();
+                        fetchAvailableFiles(); // Refresh the file list
+                        fetchGeneratedBatches(); // Refresh batches
+                        switchTab('generated'); // Switch to generated tab
+                    } else {
+                        showError(data.message);
+                    }
+                    hideLoading();
+                })
+                .catch(error => {
+                    showError('Failed to create batch: ' + error.message);
+                    hideLoading();
+                });
+            }
+
+            function fetchGeneratedBatches(status, page) {
+                status = status || '';
+                page = page || 1;
+                
+                showLoading('Loading batches...');
+                const params = new URLSearchParams({
+                    status: status,
+                    page: page,
+                    per_page: 20
+                });
+                
+                fetch(API.batches + '?' + params)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            state.generatedBatches = data.data;
+                            renderBatchList();
+                        } else {
+                            showError(data.message);
+                        }
+                        hideLoading();
+                    })
+                    .catch(error => {
+                        showError('Failed to fetch batches: ' + error.message);
+                        hideLoading();
+                    });
+            }
+
+            function markBatchAsPrinted(batchId) {
+                showLoading('Marking batch as printed...');
+                
+                fetch(API.markPrinted + batchId + '/print', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess('Batch marked as printed successfully');
+                        fetchGeneratedBatches(); // Refresh batches
+                        fetchStatistics(); // Refresh statistics
+                    } else {
+                        showError(data.message);
+                    }
+                    hideLoading();
+                })
+                .catch(error => {
+                    showError('Failed to mark batch as printed: ' + error.message);
+                    hideLoading();
+                });
+            }
+
+            function deleteBatch(batchId) {
+                if (!confirm('Are you sure you want to delete this batch?')) {
+                    return;
+                }
+
+                showLoading('Deleting batch...');
+                
+                fetch(API.deleteBatch + batchId, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess('Batch deleted successfully');
+                        fetchGeneratedBatches(); // Refresh batches
+                        fetchStatistics(); // Refresh statistics
+                    } else {
+                        showError(data.message);
+                    }
+                    hideLoading();
+                })
+                .catch(error => {
+                    showError('Failed to delete batch: ' + error.message);
+                    hideLoading();
+                });
+            }
+
+            function fetchStatistics() {
+                fetch(API.statistics)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateStatistics(data.data);
+                        } else {
+                            console.error('Failed to fetch statistics:', data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Failed to fetch statistics:', error.message);
+                    });
+            }
+
+            function updateStatistics(stats) {
+                document.getElementById('availableFilesCount').textContent = stats.available_files;
+                if (document.getElementById('totalBatchesCount')) {
+                    document.getElementById('totalBatchesCount').textContent = stats.total_batches;
+                }
+                if (document.getElementById('generatedBatchesCount')) {
+                    document.getElementById('generatedBatchesCount').textContent = stats.generated_batches;
+                }
+                if (document.getElementById('printedBatchesCount')) {
+                    document.getElementById('printedBatchesCount').textContent = stats.printed_batches;
+                }
+                if (document.getElementById('completedBatchesCount')) {
+                    document.getElementById('completedBatchesCount').textContent = stats.completed_batches;
+                }
+            }
+
+            // Rendering functions
+            function renderFileList() {
+                const fileListContent = document.getElementById("fileListContent");
+                
+                if (state.availableFiles.length === 0) {
+                    fileListContent.innerHTML = `
+                        <div class="p-8 text-center text-gray-500">
+                            <div class="mb-2">
+                                <i data-lucide="file-text" class="h-8 w-8 mx-auto text-gray-400"></i>
+                            </div>
+                            <p>No files available for label printing</p>
+                            <p class="text-sm">Files need to have a batch number and not already have labels printed</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                const filteredFiles = filterFiles();
+                fileListContent.innerHTML = filteredFiles
+                    .map(
+                        (file) => `
+                    <div class="flex items-center p-4">
+                        <input type="checkbox" id="${
+                            file.id
+                        }" class="file-checkbox mr-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" ${
+                            state.selectedFiles.includes(file.id) ? "checked" : ""
+                        }>
+                        <div class="flex flex-1 items-center gap-3">
+                            <i data-lucide="file-text" class="h-8 w-8 text-blue-500"></i>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <p class="font-medium text-blue-600">${
+                                        file.file_number
+                                    }</p>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">${
+                                        file.land_use_type || 'File'
+                                    }</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-1">${
+                                    file.file_title || 'No title'
+                                }</p>
+                                <div class="flex flex-wrap items-center gap-2 mt-1">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${
+                                        file.shelf_location || 'No location'
+                                    }</span>
+                                    <span class="text-xs text-gray-500">Plot: ${file.plot_number || 'N/A'}</span>
+                                    <span class="text-xs text-gray-500">District: ${file.district || 'N/A'}</span>
+                                    <span class="text-xs text-gray-500">LGA: ${file.lga || 'N/A'}</span>
+                                    <span class="text-xs text-gray-500">Batch: ${file.batch_no || 'N/A'}</span>
+                                </div>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <i data-lucide="check-circle" class="h-3 w-3 mr-1"></i>
+                                Indexed
+                            </span>
+                        </div>
+                    </div>
+                `
+                    )
+                    .join("");
+
+                // Re-initialize icons
+                lucide.createIcons();
+
+                // Add event listeners to checkboxes
+                document.querySelectorAll(".file-checkbox").forEach((checkbox) => {
+                    checkbox.addEventListener("change", function () {
+                        const fileId = parseInt(this.id);
+                        if (this.checked) {
+                            // For ST mode, remove the file limit. For regular mode, keep 30 file limit
+                            if (!state.stFilterActive && state.selectedFiles.length >= 30) {
+                                this.checked = false;
+                                showError('Cannot select more than 30 files per batch');
+                                return;
+                            }
+                            if (!state.selectedFiles.includes(fileId)) {
+                                state.selectedFiles.push(fileId);
+                            }
+                        } else {
+                            state.selectedFiles = state.selectedFiles.filter(
+                                (id) => id !== fileId
+                            );
+                        }
+                        updateCounts();
+                        updateSelectAllCheckbox();
+                    });
+                });
+            }
+
+            function renderBatchList() {
+                const batchListContent = document.getElementById('batchListContent');
+                
+                if (state.generatedBatches.length === 0) {
+                    batchListContent.innerHTML = `
+                        <div class="p-8 text-center text-gray-500">
+                            <div class="mb-2">
+                                <i data-lucide="package" class="h-8 w-8 mx-auto text-gray-400"></i>
+                            </div>
+                            <p>No batches generated yet</p>
+                            <p class="text-sm">Create your first batch in the "Select Files" tab</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                let html = '';
+                const statusColors = {
+                    'pending': 'bg-yellow-100 text-yellow-800',
+                    'generated': 'bg-blue-100 text-blue-800',
+                    'printed': 'bg-green-100 text-green-800',
+                    'completed': 'bg-gray-100 text-gray-800'
+                };
+                
+                for (let i = 0; i < state.generatedBatches.length; i++) {
+                    const batch = state.generatedBatches[i];
+                    const statusClass = statusColors[batch.status] || 'bg-gray-100 text-gray-800';
+                    const createdDate = new Date(batch.created_at).toLocaleDateString();
+                    const creatorName = batch.creator ? batch.creator.name : 'Unknown';
+                    const statusCapitalized = batch.status.charAt(0).toUpperCase() + batch.status.slice(1);
+                    
+                    html += `<div class="p-3 grid grid-cols-7 gap-4 hover:bg-gray-50">
+                        <div class="font-medium">${batch.batch_number}</div>
+                        <div class="text-sm">${createdDate}</div>
+                        <div class="text-sm">${batch.batch_items ? batch.batch_items.length : 0}/${batch.batch_size}</div>
+                        <div class="text-sm">${batch.label_format}</div>
+                        <div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                                ${statusCapitalized}
+                            </span>
+                        </div>
+                        <div class="text-sm">${creatorName}</div>
+                        <div class="flex gap-1">
+                            <button onclick="viewBatchDetails(${batch.id})" class="p-1 text-blue-600 hover:text-blue-800" title="View Details">
+                                <i data-lucide="eye" class="h-4 w-4"></i>
+                            </button>`;
+                    
+                    if (batch.status === 'generated') {
+                        html += `<button onclick="printBatchLabels(${batch.id})" class="p-1 text-green-600 hover:text-green-800" title="Print Labels">
+                                    <i data-lucide="printer" class="h-4 w-4"></i>
+                                </button>`;
+                    }
+                    
+                    if (batch.status !== 'printed' && batch.status !== 'completed') {
+                        html += `<button onclick="deleteBatch(${batch.id})" class="p-1 text-red-600 hover:text-red-800" title="Delete Batch">
+                                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                </button>`;
+                    }
+                    
+                    html += `</div>
+                    </div>`;
+                }
+                
+                batchListContent.innerHTML = html;
+                lucide.createIcons();
+            }
+
+            function viewBatchDetails(batchId) {
+                showLoading('Loading batch details...');
+                
+                fetch(API.batchDetails + batchId)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            displayBatchDetailsModal(data.data);
+                        } else {
+                            showError(data.message);
+                        }
+                        hideLoading();
+                    })
+                    .catch(error => {
+                        showError('Failed to fetch batch details: ' + error.message);
+                        hideLoading();
+                    });
+            }
+
+            function displayBatchDetailsModal(batch) {
+                const modalHTML = `
+                    <div id="batchDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+                            <div class="mt-3">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-lg font-medium text-gray-900">Batch Details: ${batch.batch_number}</h3>
+                                    <button onclick="closeBatchDetailsModal()" class="text-gray-400 hover:text-gray-600">
+                                        <i data-lucide="x" class="h-6 w-6"></i>
+                                    </button>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500">Batch Number</p>
+                                        <p class="text-sm text-gray-900">${batch.batch_number}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500">Status</p>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            ${batch.status.charAt(0).toUpperCase() + batch.status.slice(1)}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500">Label Format</p>
+                                        <p class="text-sm text-gray-900">${batch.label_format}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500">Created</p>
+                                        <p class="text-sm text-gray-900">${new Date(batch.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500">Files Count</p>
+                                        <p class="text-sm text-gray-900">${batch.batch_items ? batch.batch_items.length : 0}/${batch.batch_size}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-500">Created By</p>
+                                        <p class="text-sm text-gray-900">${batch.creator ? batch.creator.name : 'Unknown'}</p>
+                                    </div>
+                                </div>
+
+                                ${batch.batch_items && batch.batch_items.length > 0 ? `
+                                    <div class="mb-4">
+                                        <h4 class="text-md font-medium text-gray-900 mb-2">Files in this Batch</h4>
+                                        <div class="max-h-60 overflow-y-auto border rounded-md">
+                                            <table class="min-w-full divide-y divide-gray-200">
+                                                <thead class="bg-gray-50">
+                                                    <tr>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">File Number</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="bg-white divide-y divide-gray-200">
+                                                    ${batch.batch_items.map(item => `
+                                                        <tr>
+                                                            <td class="px-4 py-2 text-sm font-medium text-gray-900">${item.file_number}</td>
+                                                            <td class="px-4 py-2 text-sm text-gray-500">${item.file_title || 'No title'}</td>
+                                                            <td class="px-4 py-2 text-sm text-gray-500">${item.shelf_location || 'N/A'}</td>
+                                                            <td class="px-4 py-2 text-sm">
+                                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.is_printed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                                                                    ${item.is_printed ? 'Printed' : 'Pending'}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                <div class="flex justify-end space-x-3">
+                                    ${batch.status === 'generated' ? `
+                                        <button onclick="markBatchAsPrinted(${batch.id}); closeBatchDetailsModal();" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700">
+                                            Mark as Printed
+                                        </button>
+                                    ` : ''}
+                                    ${batch.status !== 'printed' && batch.status !== 'completed' ? `
+                                        <button onclick="deleteBatch(${batch.id}); closeBatchDetailsModal();" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700">
+                                            Delete Batch
+                                        </button>
+                                    ` : ''}
+                                    <button onclick="closeBatchDetailsModal()" class="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400">
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                lucide.createIcons();
+            }
+
+            function closeBatchDetailsModal() {
+                const modal = document.getElementById('batchDetailsModal');
+                if (modal) {
+                    modal.remove();
+                }
+            }
+
+            function printBatchLabels(batchId) {
+                showLoading('Loading batch for printing...');
+                
+                fetch(API.batchForPrinting + batchId + '/print')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Load the batch data into the state for printing
+                            const batch = data.data.batch;
+                            const files = data.data.files;
+                            
+                            // Clear current selection and load batch files
+                            state.selectedFiles = files.map(file => file.id);
+                            state.availableFiles = files; // Set the files as available for preview
+                            state.selectedTemplate = batch.label_format;
+                            state.labelFormat = batch.label_format === 'qr_code' ? 'qrcode' : 'barcode';
+                            state.orientation = batch.orientation || 'portrait';
+                            state.batchMode = false; // We're printing existing files, not generating new ones
+                            
+                            // Update UI elements
+                            document.getElementById('labelTemplate').value = batch.label_format;
+                            document.querySelector(`[data-format="${state.labelFormat}"]`).click();
+                            document.querySelector(`[data-orientation="${state.orientation}"]`).click();
+                            
+                            // Switch to preview tab to show the labels ready for printing
+                            switchTab('preview');
+                            
+                            showSuccess(`Loaded batch ${batch.batch_number} with ${files.length} files for printing`);
+                            
+                            // Store the batch ID for when we actually print
+                            state.currentBatchId = batchId;
+                        } else {
+                            showError(data.message);
+                        }
+                        hideLoading();
+                    })
+                    .catch(error => {
+                        showError('Failed to load batch for printing: ' + error.message);
+                        hideLoading();
+                    });
+            }
+
+            // Make functions globally accessible
+            window.viewBatchDetails = viewBatchDetails;
+            window.printBatchLabels = printBatchLabels;
+            window.markBatchAsPrinted = markBatchAsPrinted;
+            window.deleteBatch = deleteBatch;
+            window.closeBatchDetailsModal = closeBatchDetailsModal;
+
+            // Utility functions
+            function generateBatchFileNumber(index) {
+                const fileNumber = (state.batchStartNumber + index)
+                    .toString()
+                    .padStart(4, "0");
+                return fileNumber;
+            }
+
+            function updateCounts() {
+                document.getElementById("selectedFilesCount").textContent = state.selectedFiles.length;
+                document.getElementById(
+                    "selectionStatus"
+                ).textContent = `${state.selectedFiles.length} of ${state.availableFiles.length} selected`;
+                
+                // Update button states based on selection
+                updateButtonStates();
+            }
+
+            function updateButtonStates() {
+                const selectedCount = state.selectedFiles.length;
+                
+                // Dynamic limits based on mode - ST mode has no upper limit
+                const maxFiles = state.stFilterActive ? 999999 : 30; // Effectively unlimited for ST mode
+                const minFiles = 1;
+                
+                const isValidSelection = selectedCount >= minFiles && selectedCount <= maxFiles;
+                const printBtn = document.getElementById("printBtn");
+                const continueToSettingsBtn = document.getElementById("continueToSettingsBtn");
+                
+                // Update selection feedback with mode-specific messaging
+                const selectionStatus = document.getElementById("selectionStatus");
+                if (selectionStatus) {
+                    if (state.stFilterActive) {
+                        selectionStatus.textContent = `${selectedCount} SUA files selected`;
+                        selectionStatus.classList.remove("text-red-600"); // No limits for SUA
+                    } else {
+                        selectionStatus.textContent = `${selectedCount} of max ${maxFiles} files selected`;
+                        if (selectedCount > maxFiles) {
+                            selectionStatus.classList.add("text-red-600");
+                            selectionStatus.textContent += ` (exceeds limit!)`;
+                        } else {
+                            selectionStatus.classList.remove("text-red-600");
+                        }
+                    }
+                }
+                
+                // Enable buttons based on valid selection
+                if (printBtn) {
+                    printBtn.disabled = !isValidSelection;
+                    if (isValidSelection) {
+                        printBtn.classList.remove("opacity-50", "cursor-not-allowed");
+                        printBtn.classList.add("hover:bg-blue-700");
+                    } else {
+                        printBtn.classList.add("opacity-50", "cursor-not-allowed");
+                        printBtn.classList.remove("hover:bg-blue-700");
+                    }
+                }
+                
+                if (continueToSettingsBtn) {
+                    continueToSettingsBtn.disabled = !isValidSelection;
+                    if (isValidSelection) {
+                        continueToSettingsBtn.classList.remove("opacity-50", "cursor-not-allowed");
+                        continueToSettingsBtn.classList.add("hover:bg-blue-700");
+                    } else {
+                        continueToSettingsBtn.classList.add("opacity-50", "cursor-not-allowed");
+                        continueToSettingsBtn.classList.remove("hover:bg-blue-700");
+                    }
+                }
+                
+                // Update tab accessibility
+                updateTabAccessibility();
+            }
+
+            function filterFiles() {
+                return state.availableFiles.filter(
+                    (file) =>
+                        !state.searchTerm ||
+                        file.file_number.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+                        (file.file_title && file.file_title.toLowerCase().includes(state.searchTerm.toLowerCase())) ||
+                        (file.plot_number && file.plot_number.toLowerCase().includes(state.searchTerm.toLowerCase())) ||
+                        (file.district && file.district.toLowerCase().includes(state.searchTerm.toLowerCase())) ||
+                        (file.lga && file.lga.toLowerCase().includes(state.searchTerm.toLowerCase()))
+                );
+            }
+
+            function updateTabAccessibility() {
+                const selectedCount = state.selectedFiles.length;
+                // ST mode has no upper limit, regular mode limited to 30
+                const maxFiles = state.stFilterActive ? 999999 : 30;
+                const hasValidSelection = selectedCount >= 1 && selectedCount <= maxFiles;
+                
+                // Get tab buttons
+                const settingsTab = document.querySelector('[data-tab="settings"]');
+                const previewTab = document.querySelector('[data-tab="preview"]');
+                
+                // Settings tab accessibility
+                if (settingsTab) {
+                    if (hasValidSelection) {
+                        settingsTab.classList.remove('opacity-50', 'cursor-not-allowed');
+                        settingsTab.style.pointerEvents = 'auto';
+                        settingsTab.title = 'Configure label settings';
+                    } else {
+                        settingsTab.classList.add('opacity-50', 'cursor-not-allowed');
+                        settingsTab.style.pointerEvents = 'none';
+                        settingsTab.title = `Select ${state.stFilterActive ? 'at least 1 SUA file' : 'up to 30 files'} first`;
+                    }
+                }
+                
+                // Preview tab accessibility (requires settings to be configured)
+                if (previewTab) {
+                    const hasSettings = state.labelFormat && state.labelSize;
+                    if (hasValidSelection && hasSettings) {
+                        previewTab.classList.remove('opacity-50', 'cursor-not-allowed');
+                        previewTab.style.pointerEvents = 'auto';
+                        previewTab.title = 'Preview and print labels';
+                    } else {
+                        previewTab.classList.add('opacity-50', 'cursor-not-allowed');
+                        previewTab.style.pointerEvents = 'none';
+                        if (!hasValidSelection) {
+                            previewTab.title = `Select ${state.stFilterActive ? 'at least 1 SUA file' : 'up to 30 files'} first`;
+                        } else {
+                            previewTab.title = 'Configure label settings first';
+                        }
+                    }
+                }
+            }
+
+            function updateSelectAllCheckbox() {
+                const selectAllCheckbox = document.getElementById("selectAll");
+                const filteredFiles = filterFiles();
+                selectAllCheckbox.checked =
+                    state.selectedFiles.length === filteredFiles.length &&
+                    filteredFiles.length > 0;
+            }
+
+            function switchTab(tabName) {
+                // Update tab buttons
+                document.querySelectorAll(".tab-btn").forEach((btn) => {
+                    btn.classList.remove("active", "border-blue-500", "text-blue-600");
+                    btn.classList.add("border-transparent", "text-gray-500");
+                });
+                document
+                    .querySelector(`[data-tab="${tabName}"]`)
+                    .classList.add("active", "border-blue-500", "text-blue-600");
+                document
+                    .querySelector(`[data-tab="${tabName}"]`)
+                    .classList.remove("border-transparent", "text-gray-500");
+
+                // Update tab content
+                document.querySelectorAll(".tab-content").forEach((content) => {
+                    content.classList.remove("active");
+                });
+                document.getElementById(`${tabName}-tab`).classList.add("active");
+
+                state.activeTab = tabName;
+                if (tabName === "preview") {
+                    updatePreview();
+                } else if (tabName === "generated") {
+                    fetchGeneratedBatches();
+                } else if (tabName === "settings") {
+                    // Update settings tab with real data
+                    updateSettingsPreview();
+                }
+            }
+
+            function updateSettingsPreview() {
+                // Update the settings tab to show real selected files data
+                const selectedFilesData = state.selectedFiles.map(fileId => 
+                    state.availableFiles.find(f => f.id === fileId)
+                ).filter(file => file !== undefined);
+
+                // Update any preview elements in the settings tab
+                if (selectedFilesData.length > 0) {
+                    console.log('Selected files for settings:', selectedFilesData);
+                    // You can add specific UI updates here if needed
+                }
+            }
+
+            function updatePreview() {
+                const previewDescription = document.getElementById("previewDescription");
+                const previewContent = document.getElementById("previewContent");
+                const printSummary = document.getElementById("printSummary");
+
+                // Get selected files data for preview
+                const selectedFilesData = state.selectedFiles.map(fileId => 
+                    state.availableFiles.find(f => f.id === fileId)
+                ).filter(file => file !== undefined);
+
+                console.log('UpdatePreview called:', {
+                    selectedFilesCount: state.selectedFiles.length,
+                    availableFilesCount: state.availableFiles.length,
+                    selectedFilesData: selectedFilesData,
+                    batchMode: state.batchMode,
+                    selectedTemplate: state.selectedTemplate
+                });
+
+                if (state.batchMode) {
+                    previewDescription.textContent = `You are generating ${
+                        state.batchCount
+                    } batch labels with file numbers from ${generateBatchFileNumber(
+                        0
+                    )} to ${generateBatchFileNumber(
+                        state.batchCount - 1
+                    )}. Please review the label previews below before printing.`;
+                } else {
+                    previewDescription.textContent = `You have selected ${state.selectedFiles.length} files to print labels for. Please review the label previews below before printing.`;
+                }
+
+                // If no files selected and not in batch mode, show message
+                if (selectedFilesData.length === 0 && !state.batchMode) {
+                    previewContent.innerHTML = `
+                        <div class="col-span-full p-8 text-center text-gray-500">
+                            <div class="mb-2">
+                                <i data-lucide="file-text" class="h-8 w-8 mx-auto text-gray-400"></i>
+                            </div>
+                            <p>No files selected for preview</p>
+                            <p class="text-sm">Please go back and select files to generate labels</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                let previewHTML = "";
+
+                // Check if we should show 30-in-1 layout (when we have exactly 30 files or batch mode with 30)
+                const shouldShow30Layout = (selectedFilesData.length === 30 && state.selectedTemplate === "30-in-1") || 
+                                         (state.batchMode && state.batchCount === 30 && state.selectedTemplate === "30-in-1");
+
+                if (shouldShow30Layout) {
+                    previewContent.className = "w-full flex justify-center";
+                    previewHTML = `
+                    <div class="bg-white border-2 border-gray-300 p-4 shadow-lg mx-auto" style="aspect-ratio: 210/297; min-height: 800px; width: 600px;">
+                        <h3 class="text-xs font-medium mb-2 text-center text-gray-600">A4 Page - 30 Labels Layout</h3>
+                        <div class="grid grid-cols-3 gap-1 h-full">
+                `;
+
+                    // Generate 30 labels using real file data or batch data
+                    for (let i = 0; i < 30; i++) {
+                        let fileNumber, location;
+                        
+                        if (state.batchMode) {
+                            fileNumber = generateBatchFileNumber(i);
+                            location = `Shelf/Rack-${String.fromCharCode(
+                                65 + Math.floor(i / 10)
+                            )}${((i % 10) + 1).toString().padStart(2, "0")}`;
+                        } else if (selectedFilesData[i]) {
+                            const file = selectedFilesData[i];
+                            fileNumber = file.file_number;
+                            location = file.shelf_location || 'N/A';
+                        } else {
+                            // For 30-in-1 layout, we need exactly 30 labels, so fill remaining with placeholders
+                            fileNumber = `PLACEHOLDER-${(i + 1).toString().padStart(3, '0')}`;
+                            location = 'N/A';
+                        }
+
+                        previewHTML += `
+                        <div class="border border-gray-200 p-1 flex flex-col items-center justify-center bg-white text-center" style="min-height: 75px;">
+                            <div class="mb-1">
+                                ${
+                                    state.labelFormat === "barcode"
+                                        ? `<canvas id="barcode-${i}" width="120" height="40" style="width:120px;height:40px;"></canvas>`
+                                        : `<canvas id="qrcode-${i}" width="70" height="70" style="width:70px;height:70px;"></canvas>`
+                                }
+                            </div>
+                            <div class="text-xs">
+                                <p class="font-bold text-xs leading-tight">${fileNumber}</p>
+                                <p class="text-gray-600 text-xs leading-tight">${location}</p>
+                            </div>
+                        </div>
+                    `;
+                    }
+
+                    previewHTML += `
+                        </div>
+                    </div>
+                `;
+                } else {
+                    previewContent.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
+                    // Standard preview layout - show all selected files or up to 6 for preview
+                    const itemsToShow = state.batchMode
+                        ? Math.min(state.batchCount, 6)
+                        : Math.min(selectedFilesData.length, 12); // Show up to 12 for better preview
+
+                    if (itemsToShow === 0) {
+                        previewHTML = `
+                            <div class="col-span-full p-8 text-center text-gray-500">
+                                <div class="mb-2">
+                                    <i data-lucide="file-text" class="h-8 w-8 mx-auto text-gray-400"></i>
+                                </div>
+                                <p>No files to preview</p>
+                                <p class="text-sm">Please select files to generate labels</p>
+                            </div>
+                        `;
+                    } else {
+                        for (let i = 0; i < itemsToShow; i++) {
+                            let fileNumber, location;
+                            
+                            if (state.batchMode) {
+                                fileNumber = generateBatchFileNumber(i);
+                                location = `Shelf/Rack-${String.fromCharCode(
+                                    65 + Math.floor(i / 10)
+                                )}${((i % 10) + 1).toString().padStart(2, "0")}`;
+                            } else if (selectedFilesData[i]) {
+                                const file = selectedFilesData[i];
+                                fileNumber = file.file_number;
+                                location = file.shelf_location || 'N/A';
+                            } else {
+                                continue;
+                            }
+
+                            previewHTML += `
+                            <div class="border p-6 rounded-md flex flex-col items-center">
+                                <div class="mb-4 w-full flex justify-center">
+                                    ${
+                                        state.labelFormat === "barcode"
+                                            ? `<canvas id="barcode-${i}" width="320" height="120" class="border" style="width:320px;height:120px;"></canvas>`
+                                            : `<canvas id="qrcode-${i}" width="160" height="160" class="border" style="width:160px;height:160px;"></canvas>`
+                                    }
+                                </div>
+                                <div class="text-center text-sm mt-2">
+                                    <p class="font-bold">${fileNumber}</p>
+                                    <p class="text-gray-500">${location}</p>
+                                </div>
+                            </div>
+                        `;
+                        }
+                        
+                        // If we have more files than shown, add a note
+                        if (selectedFilesData.length > itemsToShow) {
+                            previewHTML += `
+                                <div class="border p-6 rounded-md flex flex-col items-center justify-center bg-gray-50">
+                                    <div class="text-center text-sm text-gray-600">
+                                        <p class="font-medium">+ ${selectedFilesData.length - itemsToShow} more files</p>
+                                        <p class="text-xs">All selected files will be printed</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+
+                previewContent.innerHTML = previewHTML;
+
+                // Generate codes for preview
+                setTimeout(() => {
+                    const itemsToGenerate = shouldShow30Layout ? 30 : (state.batchMode
+                        ? Math.min(state.batchCount, 12)
+                        : Math.min(selectedFilesData.length, 12)); // Generate codes for all displayed items
+
+                    console.log('Generating codes for preview:', {
+                        itemsToGenerate,
+                        shouldShow30Layout,
+                        selectedFilesDataLength: selectedFilesData.length
+                    });
+
+                    for (let i = 0; i < itemsToGenerate; i++) {
+                        let fileNumber, location, trackingId;
+                        
+                        if (state.batchMode) {
+                            fileNumber = generateBatchFileNumber(i);
+                            location = `Shelf/Rack: ${String.fromCharCode(
+                                65 + Math.floor(i / 10)
+                            )}${((i % 10) + 1).toString().padStart(2, "0")}`;
+                            trackingId = `TRK-${fileNumber}`;
+                        } else if (selectedFilesData[i]) {
+                            const file = selectedFilesData[i];
+                            fileNumber = file.file_number;
+                            location = `Shelf/Rack: ${file.shelf_location || 'N/A'}`;
+                            trackingId = file.batch_no || file.id;
+                        } else {
+                            // For 30-in-1 layout, generate placeholder data
+                            if (shouldShow30Layout) {
+                                fileNumber = `PLACEHOLDER-${(i + 1).toString().padStart(3, '0')}`;
+                                location = 'Shelf/Rack: N/A';
+                                trackingId = `PH-${i}`;
+                            } else {
+                                continue;
+                            }
+                        }
+
+                        if (state.labelFormat === "barcode") {
+                            const canvas = document.getElementById(`barcode-${i}`);
+                            if (canvas && typeof JsBarcode === "function") {
+                                const isCompact = shouldShow30Layout;
+                                JsBarcode(canvas, fileNumber, {
+                                    format: "CODE128",
+                                    lineColor: "#000",
+                                    background: "#fff",
+                                    margin: isCompact ? 0 : 2,
+                                    width: isCompact ? 1.5 : 2,
+                                    height: isCompact ? 40 : 60,
+                                    displayValue: false,
+                                });
+                                console.log(`Generated barcode for ${fileNumber}`);
+                            } else {
+                                console.error("Barcode canvas not found or JsBarcode missing for", `barcode-${i}`);
+                            }
+                        } else {
+                            const canvas = document.getElementById(`qrcode-${i}`);
+                            if (canvas && typeof QRious !== "undefined") {
+                                const size = shouldShow30Layout ? 70 : 160;
+                                try {
+                                    // Create a structured data format for the QR code
+                                    const qrData = JSON.stringify({
+                                        fileNumber: fileNumber,
+                                        shelf: location.replace("Shelf/Rack: ", ""),
+                                        trackingId: trackingId,
+                                        timestamp: new Date().toISOString().split("T")[0],
+                                    });
+
+                                    // Generate QR code using QRious
+                                    const qr = new QRious({
+                                        element: canvas,
+                                        value: qrData,
+                                        size: 120,
+                                        level: "M",
+                                        background: "#ffffff",
+                                        foreground: "#000000",
+                                    });
+                                    console.log(`Generated QR code for ${fileNumber}`);
+                                } catch (error) {
+                                    console.error("QR Code generation error:", error);
+                                    // Draw error message on canvas
+                                    const ctx = canvas.getContext("2d");
+                                    ctx.fillStyle = "#f3f4f6";
+                                    ctx.fillRect(0, 0, size, size);
+                                    ctx.strokeStyle = "#d1d5db";
+                                    ctx.strokeRect(0, 0, size, size);
+                                    ctx.fillStyle = "#6b7280";
+                                    ctx.font = "10px Arial";
+                                    ctx.textAlign = "center";
+                                    ctx.fillText("QR Error", size / 2, size / 2 - 5);
+                                    ctx.fillText("Load Failed", size / 2, size / 2 + 5);
+                                }
+                            } else {
+                                console.error("QR canvas not found or QRious missing for", `qrcode-${i}`);
+                            }
+                        }
+                    }
+                }, 120);
+
+                // Update print summary
+                const totalLabels = state.batchMode ? state.batchCount : state.selectedFiles.length;
+                const templateName = document
+                    .getElementById("labelTemplate")
+                    .selectedOptions[0].text.split(" - ")[0];
+                const sizeName = document.getElementById("labelSize").selectedOptions[0].text;
+
+                printSummary.innerHTML = `
+                <div class="flex justify-between">
+                    <span class="text-sm">Labels:</span>
+                    <span class="text-sm font-medium">${totalLabels}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm">Copies per label:</span>
+                    <span class="text-sm font-medium">${state.copies}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm">Total labels to print:</span>
+                    <span class="text-sm font-medium">${totalLabels * state.copies}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm">Template:</span>
+                    <span class="text-sm font-medium">${templateName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm">Size:</span>
+                    <span class="text-sm font-medium">${sizeName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm">Format:</span>
+                    <span class="text-sm font-medium">${
+                        state.labelFormat === "barcode" ? "Barcode" : "QR Code"
+                    }</span>
+                </div>
+                ${
+                    state.batchMode
+                        ? `
+                <div class="flex justify-between">
+                    <span class="text-sm">File Number Range:</span>
+                    <span class="text-sm font-medium">${generateBatchFileNumber(
+                        0
+                    )} - ${generateBatchFileNumber(state.batchCount - 1)}</span>
+                </div>
+                `
+                        : ""
+                }
+            `;
+            }
+
+            function printLabels() {
+                // Check if we have something to print
+                if (state.selectedFiles.length === 0 && !state.batchMode) {
+                    alert("Please select files or enable batch mode to print labels");
+                    return;
+                }
+
+                // Create print section content
+                const printSection = document.getElementById("printSection");
+                printSection.innerHTML = "";
+
+                // Create a container for the print content
+                const printContainer = document.createElement("div");
+                printContainer.className = "print-page";
+
+                // Determine what we're printing
+                const itemsToPrint = state.batchMode ? state.batchCount : state.selectedFiles.length;
+                
+                console.log('PrintLabels called:', {
+                    itemsToPrint,
+                    selectedFilesLength: state.selectedFiles.length,
+                    selectedTemplate: state.selectedTemplate,
+                    batchMode: state.batchMode
+                });
+                
+                // Check if we're using the 30-in-1 template - print ALL selected files, not just 30
+                if (state.selectedTemplate === "30-in-1") {
+                    // Create the 30-in-1 grid layout
+                    const gridContainer = document.createElement("div");
+                    gridContainer.className = "print-30-in-1";
+
+                    for (let i = 0; i < itemsToPrint; i++) {
+                        let fileNumber, location, trackingId;
+                
+                        if (state.batchMode) {
+                            fileNumber = generateBatchFileNumber(i);
+                            location = `Shelf/Rack-${String.fromCharCode(65 + Math.floor(i / 10))}${((i % 10) + 1).toString().padStart(2, "0")}`;
+                            trackingId = `TRK-${fileNumber}`;
+                        } else {
+                            const file = state.availableFiles.find(f => f.id === state.selectedFiles[i]);
+                            if (!file) continue;
+                            fileNumber = file.file_number;
+                            location = file.shelf_location ? (file.shelf_location.startsWith('Shelf/Rack-') ? file.shelf_location : `Shelf/Rack-${file.shelf_location}`) : 'Shelf/Rack-N/A';
+                            trackingId = file.batch_no || file.id;
+                        }
+
+                        // Create label container
+                        const labelDiv = document.createElement("div");
+                        labelDiv.className = "print-label";
+                        
+                        // Create inner container
+                        const labelInner = document.createElement("div");
+                        labelInner.className = "label-inner";
+                        
+                        // Create QR/barcode container
+                        const qrContainer = document.createElement("div");
+                        qrContainer.className = "qr-container";
+                        
+                        // Create canvas for barcode/QR code
+                        const canvas = document.createElement("canvas");
+                        canvas.id = `print-barcode-${i}`;
+                        
+                        // Add canvas to QR container
+                        qrContainer.appendChild(canvas);
+                        labelInner.appendChild(qrContainer);
+                        
+                        // Create text container
+                        const textContainer = document.createElement("div");
+                        textContainer.className = "text-container";
+                        
+                        // Add text content
+                        const fileNumberPara = document.createElement("p");
+                        fileNumberPara.className = "file-number";
+                        fileNumberPara.textContent = fileNumber;
+                        
+                        const locationPara = document.createElement("p");
+                        locationPara.className = "location";
+                        locationPara.textContent = location;
+
+                        // Add text elements to text container
+                        textContainer.appendChild(fileNumberPara);
+                        textContainer.appendChild(locationPara);
+                        
+                        // Add text container to inner container
+                        labelInner.appendChild(textContainer);
+                        
+                        // Add inner container to label
+                        labelDiv.appendChild(labelInner);
+                        
+                        // Add complete label to grid
+                        gridContainer.appendChild(labelDiv);
+
+                        // Generate barcode/QR code after adding to DOM
+                        setTimeout(() => {
+                            console.log(`Generating ${state.labelFormat} for ${fileNumber}`);
+                            
+                            if (state.labelFormat === "barcode") {
+                                if (typeof JsBarcode === "function") {
+                                    JsBarcode(canvas, fileNumber, {
+                                        format: "CODE128",
+                                        width: 2.5,
+                                        height: 40,
+                                        displayValue: false,
+                                        fontSize: 12,
+                                        margin: 0,
+                                        background: "#FFFFFF"
+                                    });
+                                }
+                            } else {
+                                if (typeof QRious !== "undefined") {
+                                    try {
+                                        const qrData = JSON.stringify({
+                                            fileNumber: fileNumber,
+                                            shelf: location.replace("Shelf/Rack-", ""),
+                                            trackingId: trackingId,
+                                            timestamp: new Date().toISOString().split("T")[0],
+                                        });
+
+                                        // Set canvas dimensions to ensure proper sizing for print
+                                        canvas.width = 300;  // 300px at 300dpi = ~25mm (1 inch)
+                                        canvas.height = 300;
+                                        
+                                        const qr = new QRious({
+                                            element: canvas,
+                                            value: qrData,
+                                            size: 300, // High-resolution QR code for better scanning
+                                            level: "M", // Medium error correction is sufficient
+                                            background: "#FFFFFF",
+                                            foreground: "#000000",
+                                            padding: 0
+                                        });
+                                        
+                                        console.log(`QR code generated successfully for ${fileNumber}`);
+                                    } catch (error) {
+                                        console.error(`QR Code generation error for ${fileNumber}:`, error);
+                                        const ctx = canvas.getContext("2d");
+                                        ctx.fillStyle = "#f3f4f6";
+                                        ctx.fillRect(0, 0, 300, 300);
+                                        ctx.strokeStyle = "#000000";
+                                        ctx.strokeRect(0, 0, 300, 300);
+                                        ctx.fillStyle = "#000000";
+                                        ctx.font = "12px Arial";
+                                        ctx.textAlign = "center";
+                                        ctx.fillText("QR Error", 150, 140);
+                                        ctx.fillText(fileNumber, 150, 160);
+                                    }
+                                } else {
+                                    console.error("QRious library not loaded");
+                                }
+                            }
+                        }, 100 + (i * 10)); // Staggered timing to prevent canvas conflicts
+                    }
+
+                    printContainer.appendChild(gridContainer);
+                } else {
+                    // Standard layout for other templates or different quantities
+                    const gridContainer = document.createElement("div");
+                    gridContainer.className = "print-standard";
+
+                    for (let i = 0; i < itemsToPrint; i++) {
+                        let fileNumber, location, trackingId;
+                
+                        if (state.batchMode) {
+                            fileNumber = generateBatchFileNumber(i);
+                            location = `Shelf/Rack-${String.fromCharCode(65 + Math.floor(i / 10))}${((i % 10) + 1).toString().padStart(2, "0")}`;
+                            trackingId = `TRK-${fileNumber}`;
+                        } else {
+                            const file = state.availableFiles.find(f => f.id === state.selectedFiles[i]);
+                            if (!file) continue;
+                            fileNumber = file.file_number;
+                            location = file.shelf_location ? (file.shelf_location.startsWith('Shelf/Rack-') ? file.shelf_location : `Shelf/Rack-${file.shelf_location}`) : 'Shelf/Rack-N/A';
+                            trackingId = file.batch_no || file.id;
+                        }
+
+                        const labelDiv = document.createElement("div");
+                        labelDiv.className = "print-standard-label";
+
+                        // Create inner container
+                        const labelInner = document.createElement("div");
+                        labelInner.className = "label-inner";
+
+                        // Create canvas for barcode/QR code
+                        const canvasContainer = document.createElement("div");
+                        canvasContainer.className = "qr-container";
+                        const canvas = document.createElement("canvas");
+                        canvas.id = `print-barcode-${i}`;
+                        
+                            if (state.labelFormat === "qrcode") {
+                                canvas.width = 600;
+                                canvas.height = 600;
+                            } else {
+                                canvas.width = 600;
+                                canvas.height = 200;
+                            }                        canvasContainer.appendChild(canvas);
+                        labelInner.appendChild(canvasContainer);
+
+                        // Add text content
+                        const textContainer = document.createElement("div");
+                        textContainer.className = "text-container";
+                        
+                        const fileNumberPara = document.createElement("p");
+                        fileNumberPara.className = "file-number";
+                        fileNumberPara.textContent = fileNumber;
+                        
+                        const locationPara = document.createElement("p");
+                        locationPara.className = "location";
+                        locationPara.textContent = location;
+
+                        textContainer.appendChild(fileNumberPara);
+                        textContainer.appendChild(locationPara);
+                        labelInner.appendChild(textContainer);
+                        
+                        labelDiv.appendChild(labelInner);
+                        gridContainer.appendChild(labelDiv);
+
+                        // Generate barcode/QR code after adding to DOM
+                        setTimeout(() => {
+                            if (state.labelFormat === "barcode") {
+                                if (typeof JsBarcode === "function") {
+                                    JsBarcode(canvas, fileNumber, {
+                                        format: "CODE128",
+                                        width: 2,
+                                        height: 40,
+                                        displayValue: false,
+                                        fontSize: 10,
+                                    });
+                                }
+                            } else {
+                                if (typeof QRious !== "undefined") {
+                                    try {
+                                        const qrData = JSON.stringify({
+                                            fileNumber: fileNumber,
+                                            shelf: location.replace("Shelf/Rack-", ""),
+                                            trackingId: trackingId,
+                                            timestamp: new Date().toISOString().split("T")[0],
+                                        });
+
+                                        const qr = new QRious({
+                                            element: canvas,
+                                            value: qrData,
+                                            size: 600,
+                                            level: "M",
+                                            background: "#FFFFFF",
+                                            foreground: "#000000",
+                                        });
+                                        
+                                        console.log(`Single file QR code generated successfully for ${fileNumber}`);
+                                    } catch (error) {
+                                        console.error("QR Code generation error:", error);
+                                        const ctx = canvas.getContext("2d");
+                                        ctx.fillStyle = "#f3f4f6";
+                                        ctx.fillRect(0, 0, 120, 120);
+                                        ctx.strokeStyle = "#d1d5db";
+                                        ctx.strokeRect(0, 0, 120, 120);
+                                    }
+                                }
+                            }
+                        }, 100 + (i * 10)); // Staggered timing
+                    }
+
+                    printContainer.appendChild(gridContainer);
+                }
+
+                printSection.appendChild(printContainer);
+
+                // Add print summary (hidden during actual printing)
+                const summaryDiv = document.createElement("div");
+                summaryDiv.className = "mt-6 p-4 border-t no-print";
+                const summaryTitle = document.createElement("h3");
+                summaryTitle.className = "text-sm font-medium mb-2";
+                summaryTitle.textContent = "Print Summary";
+
+                const totalLabels = state.batchMode ? state.batchCount : state.selectedFiles.length;
+                const templateName = document
+                    .getElementById("labelTemplate")
+                    .selectedOptions[0].text.split(" - ")[0];
+                const sizeName = document.getElementById("labelSize").selectedOptions[0].text;
+
+                const summaryContent = document.createElement("div");
+                summaryContent.className = "space-y-2 text-sm";
+                summaryContent.innerHTML = `
+                <div class="flex justify-between">
+                    <span>Labels:</span>
+                    <span class="font-medium">${totalLabels}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Copies per label:</span>
+                    <span class="font-medium">${state.copies}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Total labels printed:</span>
+                    <span class="font-medium">${totalLabels * state.copies}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Template:</span>
+                    <span class="font-medium">${templateName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Size:</span>
+                    <span class="font-medium">${sizeName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Format:</span>
+                    <span class="font-medium">${
+                        state.labelFormat === "barcode" ? "Barcode" : "QR Code"
+                    }</span>
+                </div>
+                ${
+                    state.batchMode
+                        ? `
+                <div class="flex justify-between">
+                    <span>File Number Range:</span>
+                    <span class="font-medium">${generateBatchFileNumber(0)} - ${generateBatchFileNumber(state.batchCount - 1)}</span>
+                </div>
+                `
+                        : ""
+                }
+                <div class="flex justify-between">
+                    <span>Printed on:</span>
+                    <span class="font-medium">${new Date().toLocaleString()}</span>
+                </div>
+            `;
+
+                summaryDiv.appendChild(summaryTitle);
+                summaryDiv.appendChild(summaryContent);
+                printContainer.appendChild(summaryDiv);
+
+                // Trigger print dialog
+                setTimeout(() => {
+                    window.print();
+                    
+                    // If we're printing a batch (not creating new labels), mark it as printed after printing
+                    if (state.currentBatchId) {
+                        setTimeout(() => {
+                            if (confirm('Have you successfully printed the labels? This will mark the batch as printed.')) {
+                                markBatchAsPrinted(state.currentBatchId);
+                                state.currentBatchId = null; // Clear the batch ID
+                            }
+                        }, 2000); // Give time for print dialog to complete
+                    }
+                }, 500);
+            }
+
+            // Initialize button states
+            updateButtonStates();
+            
+            // Load initial data
+            fetchAvailableFiles();
+            fetchStatistics();
+
+            // Tab switching
+            document.querySelectorAll(".tab-btn").forEach((btn) => {
+                btn.addEventListener("click", function () {
+                    switchTab(this.dataset.tab);
+                });
+            });
+
+            // History toggle
+            if (document.getElementById("historyBtn")) {
+                document
+                    .getElementById("historyBtn")
+                    .addEventListener("click", function () {
+                        state.showHistory = !state.showHistory;
+                        document.getElementById("printHistory").style.display =
+                            state.showHistory ? "block" : "none";
+                    });
+            }
+
+            if (document.getElementById("closeHistoryBtn")) {
+                document
+                    .getElementById("closeHistoryBtn")
+                    .addEventListener("click", function () {
+                        state.showHistory = false;
+                        document.getElementById("printHistory").style.display = "none";
+                    });
+            }
+
+            // Reset form
+            document
+                .getElementById("resetBtn")
+                .addEventListener("click", function () {
+                    state.selectedFiles = [];
+                    state.labelSize = "30-in-1";
+                    state.labelFormat = "qrcode";
+                    state.copies = 1;
+                    state.selectedTemplate = "30-in-1";
+                    state.orientation = "portrait";
+                    state.showAdvancedOptions = false;
+                    state.batchMode = false;
+                    state.batchStartNumber = 1;
+                    state.batchCount = 30;
+
+                    // Reset UI
+                    document.getElementById("copies").value = 1;
+                    document.getElementById("batchMode").checked = false;
+                    document.getElementById("batchControls").style.display = "none";
+                    document.getElementById("batchStart").value = 1;
+                    document.getElementById("batchCount").value = 30;
+
+                    renderFileList();
+                    updateCounts();
+                });
+
+            // Search functionality
+            document
+                .getElementById("searchInput")
+                .addEventListener("input", function () {
+                    state.searchTerm = this.value;
+                    // Debounce the search
+                    clearTimeout(this.searchTimeout);
+                    this.searchTimeout = setTimeout(() => {
+                        fetchAvailableFiles(state.searchTerm);
+                    }, 500);
+                });
+
+            // Select all functionality
+            document
+                .getElementById("selectAll")
+                .addEventListener("change", function () {
+                    const filteredFiles = filterFiles();
+                    if (this.checked) {
+                        state.selectedFiles = [
+                            ...new Set([
+                                ...state.selectedFiles,
+                                ...filteredFiles.map((f) => f.id),
+                            ]),
+                        ];
+                    } else {
+                        const filteredIds = filteredFiles.map((f) => f.id);
+                        state.selectedFiles = state.selectedFiles.filter(
+                            (id) => !filteredIds.includes(id)
+                        );
+                    }
+                    renderFileList();
+                    updateCounts();
+                });
+
+            // Batch mode toggle
+            document
+                .getElementById("batchMode")
+                .addEventListener("change", function () {
+                    state.batchMode = this.checked;
+                    document.getElementById("batchControls").style.display = this
+                        .checked
+                        ? "flex"
+                        : "none";
+                });
+
+            document
+                .getElementById("batchStart")
+                .addEventListener("change", function () {
+                    state.batchStartNumber = parseInt(this.value);
+                });
+
+            document
+                .getElementById("batchCount")
+                .addEventListener("change", function () {
+                    state.batchCount = parseInt(this.value);
+                });
+
+            document
+                .getElementById("generateBatchBtn")
+                .addEventListener("click", function () {
+                    const startFileNumber = generateBatchFileNumber(0);
+                    const endFileNumber = generateBatchFileNumber(state.batchCount - 1);
+                    alert(
+                        `Generated ${state.batchCount} batch labels from ${startFileNumber} to ${endFileNumber}`
+                    );
+                });
+
+            // Label format selection
+            document.querySelectorAll(".label-format-option").forEach((option) => {
+                option.addEventListener("click", function () {
+                    document
+                        .querySelectorAll(".label-format-option")
+                        .forEach((opt) => opt.classList.remove("selected"));
+                    this.classList.add("selected");
+                    state.labelFormat = this.dataset.format;
+                    updateTabAccessibility(); // Update tab accessibility when format changes
+                });
+            });
+
+            // Orientation selection
+            document.querySelectorAll(".orientation-option").forEach((option) => {
+                option.addEventListener("click", function () {
+                    document
+                        .querySelectorAll(".orientation-option")
+                        .forEach((opt) => opt.classList.remove("selected"));
+                    this.classList.add("selected");
+                    state.orientation = this.dataset.orientation;
+                    document.querySelector(
+                        `input[value="${this.dataset.orientation}"]`
+                    ).checked = true;
+                });
+            });
+
+            // Advanced options toggle
+            if (document.getElementById("advancedToggle")) {
+                document
+                    .getElementById("advancedToggle")
+                    .addEventListener("click", function () {
+                        state.showAdvancedOptions = !state.showAdvancedOptions;
+                        document.getElementById("advancedOptions").style.display =
+                            state.showAdvancedOptions ? "block" : "none";
+                        this.textContent = state.showAdvancedOptions
+                            ? "Hide Advanced"
+                            : "Show Advanced";
+                    });
+            }
+
+            // Copies input
+            document
+                .getElementById("copies")
+                .addEventListener("change", function () {
+                    state.copies = parseInt(this.value);
+                });
+
+            // Template and size selection
+            document
+                .getElementById("labelTemplate")
+                .addEventListener("change", function () {
+                    state.selectedTemplate = this.value;
+                });
+
+            document
+                .getElementById("labelSize")
+                .addEventListener("change", function () {
+                    state.labelSize = this.value;
+                    updateTabAccessibility(); // Update tab accessibility when size changes
+                });
+
+            // Navigation buttons
+            document
+                .getElementById("continueToSettingsBtn")
+                .addEventListener("click", function () {
+                    if (this.disabled) return;
+                    
+                    const selectedCount = state.selectedFiles.length;
+                    const maxFiles = state.stFilterActive ? 999999 : 30; // No limit for ST mode
+                    const minFiles = 1;
+                    
+                    if (selectedCount < minFiles) {
+                        showError(`Please select at least ${minFiles} file${minFiles > 1 ? 's' : ''} to continue.`);
+                        return;
+                    }
+                    
+                    if (!state.stFilterActive && selectedCount > maxFiles) {
+                        showError(`Too many files selected. Maximum ${maxFiles} files allowed. Currently selected: ${selectedCount}`);
+                        return;
+                    }
+                    
+                    switchTab("settings");
+                });
+
+            document
+                .getElementById("backToFilesBtn")
+                .addEventListener("click", function () {
+                    switchTab("files");
+                });
+
+            document
+                .getElementById("continueToPreviewBtn")
+                .addEventListener("click", function () {
+                    switchTab("preview");
+                });
+
+            document
+                .getElementById("backToSettingsBtn")
+                .addEventListener("click", function () {
+                    switchTab("settings");
+                });
+
+            // Action buttons
+            if (document.getElementById("duplicateBtn")) {
+                document
+                    .getElementById("duplicateBtn")
+                    .addEventListener("click", function () {
+                        state.copies = state.copies + 1;
+                        document.getElementById("copies").value = state.copies;
+                        alert(
+                            `Duplicated selected labels. Now printing ${state.copies} copies of each.`
+                        );
+                    });
+            }
+
+            if (document.getElementById("exportPdfBtn")) {
+                document
+                    .getElementById("exportPdfBtn")
+                    .addEventListener("click", function () {
+                        alert("Exporting labels as PDF...");
+                    });
+            }
+
+            if (document.getElementById("saveTemplateBtn")) {
+                document
+                    .getElementById("saveTemplateBtn")
+                    .addEventListener("click", function () {
+                        const templateName = prompt("Enter a name for this template:");
+                        if (templateName) {
+                            alert(`Template "${templateName}" saved successfully!`);
+                        }
+                    });
+            }
+
+            if (document.getElementById("importTemplateBtn")) {
+                document
+                    .getElementById("importTemplateBtn")
+                    .addEventListener("click", function () {
+                        alert(
+                            "Import template functionality would open a file dialog here"
+                        );
+                    });
+            }
+
+            // Print buttons - now calls backend to create batch
+            document
+                .getElementById("printBtn")
+                .addEventListener("click", function () {
+                    if (this.disabled) return;
+                    
+                    // For ST mode, allow printing any number of files (minimum 1)
+                    if (state.stFilterActive) {
+                        if (state.selectedFiles.length === 0) {
+                            showError('Please select at least one file to create a batch. Currently selected: ' + state.selectedFiles.length);
+                            return;
+                        }
+                    } else {
+                        // For regular mode, keep the 30 files requirement
+                        if (state.selectedFiles.length !== 30) {
+                            showError('Please select exactly 30 files to create a batch. Currently selected: ' + state.selectedFiles.length);
+                            return;
+                        }
+                    }
+                    createLabelBatch();
+                });
+
+            // Status filter for batches
+            if (document.getElementById("statusFilter")) {
+                document
+                    .getElementById("statusFilter")
+                    .addEventListener("change", function () {
+                        fetchGeneratedBatches(this.value);
+                    });
+            }
+
+            // Refresh batches button
+            if (document.getElementById("refreshBatchesBtn")) {
+                document
+                    .getElementById("refreshBatchesBtn")
+                    .addEventListener("click", function () {
+                        fetchGeneratedBatches();
+                        fetchStatistics();
+                    });
+            }
+
+            // Final print button - now calls the printLabels function
+            document
+                .getElementById("finalPrintBtn")
+                .addEventListener("click", printLabels);
+
+            // Initialize the page
+            fetchAvailableFiles();
+            fetchStatistics();
+            updateCounts();
+            updateTabAccessibility(); // Initialize tab accessibility
+
+        });
+    </script>

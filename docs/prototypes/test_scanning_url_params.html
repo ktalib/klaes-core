@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Scanning URL Parameters - Enhanced</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+        .test-links {
+            background: #f4f4f4;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .test-links a {
+            display: inline-block;
+            background: #007cba;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        .test-links a:hover {
+            background: #005a87;
+        }
+        .description {
+            background: #e8f4fd;
+            padding: 15px;
+            border-left: 4px solid #007cba;
+            margin: 20px 0;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .comparison-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .comparison-item h4 {
+            color: #333;
+            margin-top: 0;
+        }
+        .feature-list {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Enhanced Scanning Page URL Parameter Test</h1>
+    
+    <div class="description">
+        <h3>Updated Implementation Summary:</h3>
+        <p>The scanning page now supports enhanced conditional "Scan More" functionality with UI context changes based on URL parameters:</p>
+        <ul>
+            <li><strong>/scanning</strong> - Normal view with standard interface</li>
+            <li><strong>/scanning?url=scmore</strong> - "Scan More" mode with modified interface and context</li>
+        </ul>
+    </div>
+
+    <div class="test-links">
+        <h3>Test Links:</h3>
+        <a href="/scanning" target="_blank">Normal Scanning Page</a>
+        <a href="/scanning?url=scmore" target="_blank">Scan More Mode</a>
+    </div>
+
+    <div class="comparison">
+        <div class="comparison-item">
+            <h4>🔹 Normal Mode (/scanning)</h4>
+            <ul>
+                <li><strong>Title:</strong> "Upload Indexed Scanned File"</li>
+                <li><strong>Description:</strong> "Upload scanned documents to their digital folders"</li>
+                <li><strong>Select File Button:</strong> ✅ Visible</li>
+                <li><strong>Upload More Features:</strong> ❌ Hidden</li>
+                <li><strong>Label:</strong> "Select Indexed File"</li>
+            </ul>
+        </div>
+        
+        <div class="comparison-item">
+            <h4>🔸 Scan More Mode (/scanning?url=scmore)</h4>
+            <ul>
+                <li><strong>Title:</strong> "<em>Scan more File</em>"</li>
+                <li><strong>Description:</strong> "Upload <em>additional</em> scanned documents to existing digital folders"</li>
+                <li><strong>Select File Button:</strong> ❌ Hidden</li>
+                <li><strong>Upload More Features:</strong> ✅ Visible</li>
+                <li><strong>Label:</strong> "Selected Indexed File"</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="feature-list">
+        <h3>🆕 New Features Added:</h3>
+        <ol>
+            <li><strong>Context-Sensitive Titles:</strong> Page titles now include "Scan more" when in scan more mode</li>
+            <li><strong>Hidden Select File Button:</strong> Button is hidden when user is in scan more mode (file already selected)</li>
+            <li><strong>Updated Descriptions:</strong> Text changes to "additional scanned documents" in scan more mode</li>
+            <li><strong>Label Changes:</strong> "Select" changes to "Selected" indicating file is already chosen</li>
+            <li><strong>JavaScript Integration:</strong> Mode switching maintains proper context for both normal and scan more modes</li>
+        </ol>
+    </div>
+
+    <div class="description">
+        <h3>What was implemented in this update:</h3>
+        <ol>
+            <li><strong>Dynamic Page Titles:</strong> Added conditional titles with "Scan more" suffix</li>
+            <li><strong>Conditional Select File Button:</strong> Hidden when in scan more mode</li>
+            <li><strong>Updated Label Text:</strong> Changes from "Select" to "Selected" to indicate file is pre-selected</li>
+            <li><strong>Enhanced Descriptions:</strong> Added "additional" context for scan more mode</li>
+            <li><strong>JavaScript Title Updates:</strong> Mode switching respects scan more context</li>
+        </ol>
+    </div>
+
+    <div class="description">
+        <h3>Files Modified:</h3>
+        <ul>
+            <li><code>resources/views/scanning/index.blade.php</code> - Enhanced with context-sensitive UI elements</li>
+        </ul>
+    </div>
+
+    <h3>Usage Instructions:</h3>
+    <ul>
+        <li>Use <strong>/scanning</strong> for normal document upload workflow with file selection</li>
+        <li>Use <strong>/scanning?url=scmore</strong> when adding additional documents to an existing indexed file (file already selected)</li>
+    </ul>
+
+    <div class="feature-list">
+        <h3>💡 User Experience Improvements:</h3>
+        <ul>
+            <li><strong>Clearer Context:</strong> User knows they're in "scan more" mode from the page title</li>
+            <li><strong>Streamlined Interface:</strong> Unnecessary file selection removed when file is pre-selected</li>
+            <li><strong>Consistent Messaging:</strong> All text elements reflect the current mode</li>
+            <li><strong>Better Workflow:</strong> Direct upload interface for adding more documents</li>
+        </ul>
+    </div>
+</body>
+</html>

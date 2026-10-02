@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Indexed Files DataTable</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+</head>
+<body>
+    <h1>Indexed Files DataTable Test</h1>
+    
+    <div>
+        <h3>Test 1: Direct API Call</h3>
+        <button onclick="testDirectAPI()">Test Direct API Call</button>
+        <pre id="api-result"></pre>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <h3>Test 2: DataTables Integration</h3>
+        <table id="test-table" class="display">
+            <thead>
+                <tr>
+                    <th>Tracking ID</th>
+                    <th>File Number</th>
+                    <th>Name</th>
+                    <th>Indexed Date</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
+
+    <script>
+        // Test 1: Direct API call
+        function testDirectAPI() {
+            const url = '/fileindexing/api/indexed-files/datatable';
+            console.log('Testing URL:', url);
+            
+            fetch(url + '?length=10&start=0&draw=1')
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    document.getElementById('api-result').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('api-result').textContent = 'Error: ' + error.message;
+                });
+        }
+
+        // Test 2: DataTables integration
+        $(document).ready(function() {
+            console.log('Initializing test DataTable...');
+            
+            $('#test-table').DataTable({
+                processing: true,
+                serverSide: true,
+                ajax: {
+                    url: '/fileindexing/api/indexed-files/datatable',
+                    type: 'GET',
+                    error: function(xhr, error, thrown) {
+                        console.error('DataTables AJAX error:', error, thrown);
+                        alert('Error loading data: ' + error);
+                    }
+                },
+                columns: [
+                    { data: 'tracking_id' },
+                    { data: 'fileNumber' },
+                    { data: 'name' },
+                    { data: 'indexed_at' }
+                ]
+            });
+        });
+    </script>
+</body>
+</html>

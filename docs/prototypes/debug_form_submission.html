@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Form Submission Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .field-info { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .error { color: red; }
+        .success { color: green; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Primary Form Debug Tool</h1>
+    
+    <button onclick="debugFormFields()">Debug Form Fields</button>
+    <button onclick="debugFormData()">Debug FormData</button>
+    <button onclick="testSubmission()">Test Form Submission</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function debugFormFields() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Form Fields Debug</h2>';
+            
+            const form = document.getElementById('primaryApplicationForm');
+            if (!form) {
+                results.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            // Check specific fields that are failing validation
+            const fieldsToCheck = [
+                'applicantType',
+                'applicant_type', 
+                'scheme_no',
+                'property_street_name',
+                'property_lga',
+                'property_state'
+            ];
+            
+            fieldsToCheck.forEach(fieldName => {
+                const field = form.querySelector(`[name="${fieldName}"]`);
+                if (field) {
+                    const fieldInfo = `
+                        <div class="field-info">
+                            <strong>${fieldName}:</strong><br>
+                            Element: ${field.tagName.toLowerCase()}<br>
+                            Type: ${field.type || 'N/A'}<br>
+                            Value: "${field.value}"<br>
+                            Visible: ${field.offsetParent !== null}<br>
+                            Disabled: ${field.disabled}<br>
+                            ID: ${field.id || 'No ID'}<br>
+                            Classes: ${field.className || 'No classes'}
+                        </div>
+                    `;
+                    results.innerHTML += fieldInfo;
+                } else {
+                    results.innerHTML += `<div class="field-info error">❌ Field "${fieldName}" not found</div>`;
+                }
+            });
+        }
+        
+        function debugFormData() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>FormData Debug</h2>';
+            
+            const form = document.getElementById('primaryApplicationForm');
+            if (!form) {
+                results.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            const formData = new FormData(form);
+            
+            // Check what FormData contains
+            let formDataHtml = '<div class="debug"><h3>FormData Contents:</h3>';
+            for (let [key, value] of formData.entries()) {
+                formDataHtml += `<div><strong>${key}:</strong> ${value}</div>`;
+            }
+            formDataHtml += '</div>';
+            
+            results.innerHTML += formDataHtml;
+            
+            // Check for specific missing fields
+            const requiredFields = ['applicantType', 'scheme_no', 'property_street_name', 'property_lga', 'property_state'];
+            let missingFields = [];
+            
+            requiredFields.forEach(field => {
+                if (!formData.has(field)) {
+                    missingFields.push(field);
+                }
+            });
+            
+            if (missingFields.length > 0) {
+                results.innerHTML += `<div class="error">❌ Missing from FormData: ${missingFields.join(', ')}</div>`;
+            } else {
+                results.innerHTML += '<div class="success">✅ All required fields present in FormData</div>';
+            }
+        }
+        
+        function testSubmission() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Form Submission Test</h2>';
+            
+            const form = document.getElementById('primaryApplicationForm');
+            if (!form) {
+                results.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            // Simulate the validation that happens in form-submission.js
+            const getFieldValue = (name) => {
+                const field = form.querySelector(`[name="${name}"]`);
+                return field ? field.value.trim() : '';
+            };
+            
+            const applicantType = getFieldValue('applicantType') || getFieldValue('applicant_type');
+            const schemeNo = getFieldValue('scheme_no');
+            const propertyStreet = getFieldValue('property_street_name');
+            const propertyLga = getFieldValue('property_lga');
+            const propertyState = getFieldValue('property_state');
+            
+            const errors = [];
+            if (!applicantType) errors.push('Select an applicant type.');
+            if (!schemeNo) errors.push('Scheme number is required.');
+            if (!propertyStreet) errors.push('Property street name is required.');
+            if (!propertyLga) errors.push('Property LGA is required.');
+            if (!propertyState) errors.push('Property state is required.');
+            
+            const testHtml = `
+                <div class="debug">
+                    <h3>Field Values:</h3>
+                    <div>applicantType: "${applicantType}"</div>
+                    <div>scheme_no: "${schemeNo}"</div>
+                    <div>property_street_name: "${propertyStreet}"</div>
+                    <div>property_lga: "${propertyLga}"</div>
+                    <div>property_state: "${propertyState}"</div>
+                </div>
+            `;
+            
+            results.innerHTML += testHtml;
+            
+            if (errors.length > 0) {
+                results.innerHTML += `<div class="error">❌ Validation Errors:<br>${errors.join('<br>')}</div>`;
+            } else {
+                results.innerHTML += '<div class="success">✅ All fields pass validation</div>';
+            }
+        }
+    </script>
+    
+    <div style="margin-top: 30px; padding: 20px; border: 1px solid #ccc; background: #f9f9f9;">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Open this page while you have the primary form open in another tab</li>
+            <li>Fill out the form fields that are causing validation errors</li>
+            <li>Come back to this tab and run the debug functions</li>
+            <li>This will help identify what's wrong with the form submission</li>
+        </ol>
+    </div>
+</body>
+</html>

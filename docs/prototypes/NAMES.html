@@ -1,0 +1,9 @@
+<h3 class="text-sm font-medium">
+    @if($application->applicant_type == 'individual')
+    {{$application->applicant_title }} {{$application->first_name }} {{$application->surname }}
+    @elseif($application->applicant_type == 'corporate')
+    {{$application->rc_number }} {{$application->corporate_name }}
+    @elseif($application->applicant_type == 'multiple')
+    {{$application->multiple_owners_names }}
+    @endif
+</h3>

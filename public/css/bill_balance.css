@@ -1,0 +1,336 @@
+:root {
+  --bb-pill-radius: 999px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #0d9488;
+  color: #fff;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(13, 148, 136, 0.2);
+}
+
+.btn-primary:hover {
+  background: #0f766e;
+  box-shadow: 0 4px 8px rgba(13, 148, 136, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  background: #fff;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.75rem;
+  background: #dc2626;
+  color: #fff;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+.btn-link {
+  color: #0d9488;
+  font-weight: 600;
+}
+
+.card {
+  background: #fff;
+  border-radius: 1.25rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.75rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
+}
+
+.form-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 0.25rem;
+}
+
+.form-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5f5;
+  padding: 0.6rem 0.85rem;
+  text-transform: uppercase;
+}
+
+/* Uppercase for select dropdowns and textareas in forms */
+.modal-card select,
+.modal-card textarea {
+  text-transform: uppercase;
+}
+
+/* Uppercase table cell content */
+.bill-balance-table td,
+.bill-balance-table th {
+  text-transform: uppercase;
+}
+
+.status-pill {
+  display: inline-flex;
+  padding: 0.25rem 0.85rem;
+  border-radius: var(--bb-pill-radius);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-draft { background: #f1f5f9; color: #475569; }
+.status-pending { background: #fef3c7; color: #b45309; }
+.status-approved { background: #dcfce7; color: #15803d; }
+.status-archived { background: #e2e8f0; color: #475569; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 640px;
+  background: #fff;
+  border-radius: 1.25rem;
+  border: 1px solid #e2e8f0;
+  padding: 0;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.15);
+  max-height: calc(100vh - 3rem);
+  overflow: hidden;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-card::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+.modal-card::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+.modal-card .overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-card .overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-card .overflow-y-auto::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+.modal-card .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+.modal-close {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #94a3b8;
+}
+
+/* Enhanced Table Styles */
+.form-input-sm {
+  display: block;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.form-input-sm:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.table-row-hover:hover {
+  background-color: #f8fafc;
+}
+
+/* Status badges */
+.status-paid {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  background-color: #dcfce7;
+  color: #166534;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: var(--bb-pill-radius);
+}
+
+.status-pending {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  background-color: #fed7aa;
+  color: #9a3412;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: var(--bb-pill-radius);
+}
+
+/* Pagination styles */
+.pagination-btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #475569;
+  background-color: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover {
+  background-color: #f8fafc;
+}
+
+.pagination-current {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #3b82f6;
+  border-radius: 0.5rem;
+}
+
+.pagination-disabled {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  background-color: #f1f5f9;
+  border-radius: 0.5rem;
+  cursor: not-allowed;
+}
+
+/* File number badge */
+.file-number-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background-color: #dbeafe;
+  color: #1e40af;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+}
+
+/* Enhanced sorting links */
+a.sort-link {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #64748b;
+  transition: color 0.2s;
+}
+
+a.sort-link:hover {
+  color: #334155;
+}
+
+/* Bill balance listing table improvements */
+.bill-balance-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bill-balance-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: #f8fafc;
+  letter-spacing: 0.04em;
+}
+
+.bill-balance-table tbody td {
+  vertical-align: middle;
+  line-height: 1.35;
+}
+
+.bill-balance-table tbody tr:nth-child(even) {
+  background-color: #fcfdff;
+}
+
+.bill-balance-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* ── Table search (the header controls above the table) ─────────────────────
+   Its own classes rather than .form-input-sm + Tailwind's pl-*: this sheet is
+   loaded by the view, so it lands AFTER the Tailwind build in the layout head,
+   and .form-input-sm's `padding` shorthand beats a `pl-9` utility at equal
+   specificity. The icon would then sit on top of the placeholder. */
+.bb-search-input {
+  display: block;
+  width: 14rem;
+  padding: 0.4rem 0.6rem 0.4rem 2.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.bb-search-input:focus {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 1px #0d9488;
+}
+
+@media (min-width: 768px) {
+  .bb-search-input { width: 18rem; }
+}
+
+/* Slimmer than the full-size buttons, to sit level with the input. */
+.bb-search-btn {
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.5rem;
+}

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUA Memo Site Plan Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .info { color: #17a2b8; }
+        .section { 
+            margin-bottom: 25px; 
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎯 SUA Memo Site Plan Number Implementation</h1>
+        
+        <div class="section">
+            <h2>✅ Updates Completed</h2>
+            <ul>
+                <li class="success">✅ Controller Validation: Added 'site_plan_no' => 'required|string'</li>
+                <li class="success">✅ Data Sanitization: Added trim() processing for site_plan_no</li>
+                <li class="success">✅ Template Reference: Updated site plan page reference to use site_plan_no field</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📝 Implementation Details</h2>
+            
+            <h3>Controller Changes (MemoController.php)</h3>
+            <ul>
+                <li><strong>Validation:</strong> Added 'site_plan_no' => 'required|string' to generateSUAMemo method</li>
+                <li><strong>Data Processing:</strong> Added sanitization: $data['site_plan_no'] = trim((string) $data['site_plan_no'])</li>
+            </ul>
+            
+            <h3>Template Changes (sua_memo_template_new.blade.php)</h3>
+            <ul>
+                <li><strong>Site Plan Reference:</strong> Changed from $memo->page_no to $memo->site_plan_no in the recommendation text</li>
+                <li><strong>Fallback:</strong> Uses $landAdmin->site_plan_page_no if memo field is empty</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🧪 Testing Checklist</h2>
+            <p class="info">To test the implementation:</p>
+            <ol>
+                <li><strong>Create a new SUA memo</strong> using the generate form</li>
+                <li><strong>Enter a site plan number</strong> (e.g., "SP-2025-001")</li>
+                <li><strong>Submit the form</strong> and verify no validation errors</li>
+                <li><strong>View the generated memo</strong> and check that:</li>
+                <ul>
+                    <li>The site plan reference shows the correct number</li>
+                    <li>The text reads: "...based on recommended site plan at page [YOUR_SITE_PLAN_NO]..."</li>
+                </ul>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Form Field Reference</h2>
+            <p>The form field in generate_sua_memo.blade.php:</p>
+            <pre style="background: #f8f9fa; padding: 10px; border-radius: 3px;">
+&lt;div&gt;
+    &lt;label class="block text-sm font-medium text-gray-700 mb-1"&gt;
+        Site Plan PageNo &lt;span class="text-red-500"&gt;*&lt;/span&gt;
+    &lt;/label&gt;
+    &lt;input type="text" name="site_plan_no" value="" required
+           class="w-full p-2 border border-gray-300 rounded-md text-sm"&gt;
+&lt;/div&gt;</pre>
+        </div>
+
+        <div class="section">
+            <h2>📋 Ready for Use</h2>
+            <p class="success">✅ All updates are complete and the site_plan_no field is now fully integrated into the SUA memo system!</p>
+            
+            <p class="info">
+                <strong>Next:</strong> You can now use the SUA memo generation form to create memos with proper site plan number tracking and display.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

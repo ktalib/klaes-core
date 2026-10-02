@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PuA File Number - Fixed Implementation Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .test-section {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .success { border-color: #10b981; background-color: #f0fdf4; }
+        .warning { border-color: #f59e0b; background-color: #fffbeb; }
+        .error { border-color: #ef4444; background-color: #fef2f2; }
+        .info { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-600">PuA File Number - Fixed Implementation Test</h1>
+        
+        <!-- Implementation Status -->
+        <div class="test-section success">
+            <h2 class="text-xl font-semibold mb-4">🎉 Fixed Issues</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold text-green-600 mb-2">✅ Backend Fixes</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>✅ Added missing <code>renderPagination</code> function to primary.js</li>
+                        <li>✅ Added <code>/api/st-file-numbers/validate/{fileNumber}</code> endpoint</li>
+                        <li>✅ Added <code>/api/st-file-numbers/search</code> endpoint</li>
+                        <li>✅ Routes properly configured in app3.php</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold text-blue-600 mb-2">🔧 Frontend Improvements</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>🔧 Updated PuA view with two selection dropdowns</li>
+                        <li>🔧 Added land use filter dropdown</li>
+                        <li>🔧 Enhanced parent selection with search</li>
+                        <li>🔧 Added loading indicators and error handling</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test 1: API Endpoints -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">🔗 Test 1: Fixed API Endpoints</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold mb-2">Search PRIMARY Files</h3>
+                    <button onclick="testSearchEndpoint()" 
+                            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-2">
+                        Test /api/st-file-numbers/search
+                    </button>
+                    <div id="searchResults" class="text-xs bg-gray-50 p-2 rounded min-h-16"></div>
+                </div>
+                
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold mb-2">Validate File Number</h3>
+                    <input type="text" id="validateInput" value="ST-RES-2025-1" 
+                           class="w-full p-2 border rounded mb-2" placeholder="Enter file number">
+                    <button onclick="testValidateEndpoint()" 
+                            class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-2">
+                        Test /api/st-file-numbers/validate
+                    </button>
+                    <div id="validateResults" class="text-xs bg-gray-50 p-2 rounded min-h-16"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test 2: Two Dropdown System -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">📋 Test 2: Two Selection Dropdowns System</h2>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <!-- Simulate the new PuA interface -->
+                <h3 class="text-lg font-semibold mb-4">Parent File Number Selection</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Land Use Filter -->
+                    <div>
+                        <label for="test_land_use_filter" class="block text-xs font-medium text-gray-600 mb-1">
+                            Filter by Land Use
+                        </label>
+                        <select id="test_land_use_filter" 
+                                class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                onchange="loadTestPrimaryFileNumbers()">
+                            <option value="">All Land Uses</option>
+                            <option value="RES">Residential</option>
+                            <option value="COM">Commercial</option>
+                            <option value="IND">Industrial</option>
+                            <option value="MIXED">Mixed Use</option>
+                        </select>
+                    </div>
+                    
+                    <!-- File Number Selection -->
+                    <div>
+                        <label for="test_parent_file_number" class="block text-xs font-medium text-gray-600 mb-1">
+                            Primary File Number
+                        </label>
+                        <select id="test_parent_file_number"
+                                class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                onchange="handleTestParentSelection(this.value)"
+                                disabled>
+                            <option value="">Select land use first...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Loading Indicator -->
+                <div class="mb-4 flex items-center justify-between">
+                    <p class="text-xs text-gray-500">
+                        <i data-lucide="info" class="inline h-3 w-3 mr-1"></i>
+                        Only PRIMARY file numbers with status USED are available
+                    </p>
+                    <div id="test_loading_indicator" class="hidden">
+                        <span class="text-xs text-blue-500">
+                            <i data-lucide="loader-2" class="inline h-3 w-3 mr-1 animate-spin"></i>
+                            Loading...
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Selected Parent Details -->
+                <div id="test_parent_details" class="hidden p-3 bg-blue-50 rounded-md">
+                    <h4 class="text-sm font-medium text-blue-800 mb-2">Selected Parent Details:</h4>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div><strong>File Number:</strong> <span id="test_parent_file_display">-</span></div>
+                        <div><strong>Land Use:</strong> <span id="test_parent_land_use_display">-</span></div>
+                        <div><strong>Applicant:</strong> <span id="test_parent_applicant_display">-</span></div>
+                        <div><strong>Status:</strong> <span id="test_parent_status_display">-</span></div>
+                    </div>
+                </div>
+                
+                <!-- Test PuA Generation -->
+                <div class="mt-4 pt-4 border-t">
+                    <h4 class="font-semibold mb-2">Test PuA Generation</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Applicant Type</label>
+                            <select id="test_applicant_type" class="w-full p-2 border rounded" disabled>
+                                <option value="">Select type...</option>
+                                <option value="Individual">Individual</option>
+                                <option value="Corporate">Corporate</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+                            <input type="text" id="test_first_name" class="w-full p-2 border rounded" 
+                                   placeholder="Enter first name" disabled>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Surname</label>
+                            <input type="text" id="test_surname" class="w-full p-2 border rounded" 
+                                   placeholder="Enter surname" disabled>
+                        </div>
+                    </div>
+                    <button onclick="testPuaGeneration()" id="test_generate_btn"
+                            class="mt-4 bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            disabled>
+                        Generate PuA File Number
+                    </button>
+                    <div id="test_generation_result" class="mt-4 hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Implementation Summary -->
+        <div class="test-section info">
+            <h2 class="text-xl font-semibold mb-4">📖 Implementation Summary</h2>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h3 class="font-semibold mb-3">What Was Fixed:</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <h4 class="font-semibold text-red-600 mb-2">❌ Previous Issues:</h4>
+                        <ul class="space-y-1">
+                            <li>• <code>renderPagination is not a function</code> error</li>
+                            <li>• Missing <code>/api/st-file-numbers/validate/{fileNumber}</code></li>
+                            <li>• Single input field for parent selection</li>
+                            <li>• No land use filtering capability</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-green-600 mb-2">✅ Solutions Implemented:</h4>
+                        <ul class="space-y-1">
+                            <li>• Added complete <code>renderPagination()</code> function with navigation</li>
+                            <li>• Added validate and search API endpoints</li>
+                            <li>• Implemented two-dropdown selection system</li>
+                            <li>• Added land use filtering and search functionality</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-yellow-50 rounded">
+                    <h4 class="font-semibold text-yellow-800">🎯 User Request Fulfilled:</h4>
+                    <p class="text-sm text-yellow-700 mt-1">
+                        "<em>there should be 2 selection drop, where the user will select or search for the file number, select np_fileno where file_no_type = PRIMARY</em>"
+                    </p>
+                    <p class="text-sm text-green-700 mt-2">
+                        ✅ <strong>Implemented:</strong> Two dropdowns - Land Use filter + PRIMARY file number selection with proper database filtering.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test functions for API endpoints
+        async function testSearchEndpoint() {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = 'Testing search endpoint...';
+            
+            try {
+                const response = await fetch('/api/st-file-numbers/search?file_no_type=PRIMARY&status=USED');
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="text-green-600 font-semibold">✅ Search successful</div>
+                        <div>Found ${data.data.length} PRIMARY files</div>
+                        <div class="mt-2 max-h-32 overflow-y-auto">
+                            ${data.data.map(record => `
+                                <div class="text-xs p-1 border-b">
+                                    ${record.np_fileno} - ${record.land_use} (${record.applicant_type})
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `<div class="text-red-600">❌ ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="text-red-600">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testValidateEndpoint() {
+            const fileNumber = document.getElementById('validateInput').value;
+            const resultsDiv = document.getElementById('validateResults');
+            
+            if (!fileNumber) {
+                resultsDiv.innerHTML = '<div class="text-red-600">Please enter a file number</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = 'Testing validate endpoint...';
+            
+            try {
+                const response = await fetch(`/api/st-file-numbers/validate/${fileNumber}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="text-green-600 font-semibold">✅ Validation successful</div>
+                        <div class="text-xs mt-1">
+                            <div><strong>Type:</strong> ${data.data.file_no_type}</div>
+                            <div><strong>Status:</strong> ${data.data.status}</div>
+                            <div><strong>Land Use:</strong> ${data.data.land_use}</div>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `<div class="text-red-600">❌ ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="text-red-600">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Test functions for dropdown system
+        async function loadTestPrimaryFileNumbers() {
+            const landUseFilter = document.getElementById('test_land_use_filter');
+            const fileNumberSelect = document.getElementById('test_parent_file_number');
+            const loadingIndicator = document.getElementById('test_loading_indicator');
+            
+            const selectedLandUse = landUseFilter.value;
+            
+            fileNumberSelect.innerHTML = '<option value="">Loading...</option>';
+            fileNumberSelect.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+            
+            try {
+                const params = new URLSearchParams({
+                    file_no_type: 'PRIMARY',
+                    status: 'USED'
+                });
+                
+                if (selectedLandUse) {
+                    params.append('land_use_code', selectedLandUse);
+                }
+                
+                const response = await fetch(`/api/st-file-numbers/search?${params.toString()}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    fileNumberSelect.innerHTML = '<option value="">Select a file number...</option>';
+                    
+                    data.data.forEach(record => {
+                        const applicantName = record.applicant_type === 'Corporate' 
+                            ? record.corporate_name 
+                            : `${record.first_name || ''} ${record.surname || ''}`.trim();
+                        
+                        const option = document.createElement('option');
+                        option.value = record.np_fileno;
+                        option.textContent = `${record.np_fileno} - ${record.land_use} (${applicantName})`;
+                        option.dataset.details = JSON.stringify(record);
+                        fileNumberSelect.appendChild(option);
+                    });
+                    
+                    fileNumberSelect.disabled = false;
+                    
+                    if (data.data.length === 0) {
+                        fileNumberSelect.innerHTML = '<option value="">No PRIMARY files found for this land use</option>';
+                    }
+                } else {
+                    fileNumberSelect.innerHTML = '<option value="">Error loading file numbers</option>';
+                }
+            } catch (error) {
+                fileNumberSelect.innerHTML = '<option value="">Error loading file numbers</option>';
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        function handleTestParentSelection(selectedValue) {
+            const fileNumberSelect = document.getElementById('test_parent_file_number');
+            const parentDetails = document.getElementById('test_parent_details');
+            const applicantType = document.getElementById('test_applicant_type');
+            const firstName = document.getElementById('test_first_name');
+            const surname = document.getElementById('test_surname');
+            const generateBtn = document.getElementById('test_generate_btn');
+            
+            if (!selectedValue) {
+                parentDetails.classList.add('hidden');
+                applicantType.disabled = true;
+                firstName.disabled = true;
+                surname.disabled = true;
+                generateBtn.disabled = true;
+                return;
+            }
+            
+            const selectedOption = fileNumberSelect.querySelector(`option[value="${selectedValue}"]`);
+            if (selectedOption && selectedOption.dataset.details) {
+                const details = JSON.parse(selectedOption.dataset.details);
+                
+                document.getElementById('test_parent_file_display').textContent = details.np_fileno;
+                document.getElementById('test_parent_land_use_display').textContent = details.land_use;
+                document.getElementById('test_parent_status_display').textContent = details.status;
+                
+                const applicantName = details.applicant_type === 'Corporate' 
+                    ? details.corporate_name 
+                    : `${details.first_name || ''} ${details.surname || ''}`.trim();
+                document.getElementById('test_parent_applicant_display').textContent = applicantName || 'N/A';
+                
+                parentDetails.classList.remove('hidden');
+                
+                // Enable form fields
+                applicantType.disabled = false;
+                firstName.disabled = false;
+                surname.disabled = false;
+                generateBtn.disabled = false;
+            }
+        }
+
+        async function testPuaGeneration() {
+            const parentFileNumber = document.getElementById('test_parent_file_number').value;
+            const applicantType = document.getElementById('test_applicant_type').value;
+            const firstName = document.getElementById('test_first_name').value;
+            const surname = document.getElementById('test_surname').value;
+            const resultDiv = document.getElementById('test_generation_result');
+            
+            if (!parentFileNumber || !applicantType || !firstName || !surname) {
+                resultDiv.innerHTML = '<div class="p-3 bg-red-50 text-red-800 rounded">Please fill in all fields</div>';
+                resultDiv.classList.remove('hidden');
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="p-3 bg-blue-50 text-blue-800 rounded">Generating PuA file number...</div>';
+            resultDiv.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/st-file-numbers/reserve-pua', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'test'
+                    },
+                    body: JSON.stringify({
+                        parent_file_number: parentFileNumber,
+                        applicant_type: applicantType,
+                        first_name: firstName,
+                        surname: surname
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="p-3 bg-green-50 text-green-800 rounded">
+                            <div class="font-semibold">✅ PuA File Number Generated Successfully!</div>
+                            <div class="mt-2 text-sm">
+                                <div><strong>Parent:</strong> ${data.data.np_fileno}</div>
+                                <div><strong>PuA Unit:</strong> ${data.data.unit_fileno}</div>
+                                <div><strong>Tracking ID:</strong> ${data.data.tracking_id}</div>
+                                <div><strong>Status:</strong> RESERVED</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="p-3 bg-red-50 text-red-800 rounded">❌ Generation failed: ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="p-3 bg-red-50 text-red-800 rounded">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Initialize Lucide icons
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

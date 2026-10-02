@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global File Numbers Auto-Fill Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Global File Numbers Auto-Fill Test - With Top Selection</h1>
+        
+        <!-- Test the Top File Selection -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Top Priority File Selection</h2>
+            
+            <!-- Top File Selection Card -->
+            <div class="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6 shadow-lg">
+                <div class="flex items-center mb-4">
+                    <div class="bg-purple-500 p-3 rounded-lg mr-3">
+                        <i data-lucide="search" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900">Select Primary File Number</h3>
+                        <p class="text-sm text-gray-600">Choose an existing file number to auto-populate all form fields</p>
+                    </div>
+                    <div class="bg-purple-600 px-3 py-1 rounded-full shadow-sm">
+                        <span class="text-white text-xs font-medium">REQUIRED</span>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-3">
+                        Primary File Number <span class="text-red-500">*</span>
+                    </label>
+                    
+                    <!-- Loading State -->
+                    <div id="top-file-loading" class="hidden mb-4">
+                        <div class="flex items-center justify-center py-4">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                            <span class="ml-2 text-sm text-gray-600">Loading file numbers...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Dropdown -->
+                    <div class="relative">
+                        <select id="top-primary-file-select" 
+                                name="top_primary_file_number_id" 
+                                class="w-full px-4 py-4 bg-white border-2 border-purple-200 rounded-lg text-purple-900 font-mono text-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
+                                onchange="handleTopFileSelection(this)"
+                                required>
+                            <option value="">🔍 Select a Primary File Number to begin...</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Selection Preview -->
+                    <div id="top-selection-preview" class="hidden mt-4 p-4 bg-white rounded-lg border border-purple-200 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm text-purple-600 font-medium">Selected File:</div>
+                                <div id="top-selected-file-display" class="font-mono text-lg font-bold text-purple-900">-</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm text-purple-600 font-medium">Land Use:</div>
+                                <div id="top-land-use-display" class="font-semibold text-purple-700">-</div>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-purple-100">
+                            <div class="text-sm text-purple-600 font-medium">Applicant:</div>
+                            <div id="top-applicant-display" class="text-purple-900">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Hidden Cards Section -->
+        <div id="hidden-cards-section" class="space-y-8 hidden">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Hidden Cards (Revealed After Selection)</h2>
+                <p class="text-gray-600 mb-4">These cards are hidden initially and only shown after a file number is selected from the top dropdown.</p>
+            
+            <!-- Primary File Number Selection (copied from our implementation) -->
+            <div class="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border border-blue-200 rounded-xl p-10 shadow-lg">
+                <div class="flex items-center mb-4">
+                    <div class="bg-blue-500 p-3 rounded-full mr-4 shadow-md">
+                        <i data-lucide="file-text" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900">Select Primary FileNo</h3>
+                        <p class="text-sm text-gray-600">Choose from existing file numbers</p>
+                    </div>
+                    <div class="bg-purple-500 px-3 py-1 rounded-full shadow-sm">
+                        <span class="text-white text-xs font-medium">SELECT</span>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg border border-blue-100 p-6 shadow-inner">
+                    <label class="block text-sm font-medium text-gray-700 mb-3">Primary File Number <span class="text-red-500">*</span></label>
+                    
+                    <!-- Loading State -->
+                    <div id="primary-file-loading" class="hidden mb-4">
+                        <div class="flex items-center justify-center py-4">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                            <span class="ml-2 text-sm text-gray-600">Loading file numbers...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Dropdown -->
+                    <div class="relative">
+                        <select id="primary-file-select" 
+                                name="primary_file_number_id" 
+                                class="w-full px-4 py-4 bg-white border-2 border-blue-200 rounded-lg text-blue-900 font-mono text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                                onchange="handlePrimaryFileSelection(this)"
+                                required>
+                            <option value="">Select a Primary File Number...</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Selected File Display -->
+                    <div id="selected-file-display" class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 hidden">
+                        <div class="text-sm font-medium text-blue-800 mb-2">Selected File:</div>
+                        <div id="selected-file-number" class="font-mono text-lg font-bold text-blue-900">-</div>
+                    </div>
+                    
+                    <!-- Components Display -->
+                    <div id="file-components-display" class="mt-6 space-y-3 hidden">
+                        <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                            <span class="text-gray-600">NP File No:</span>
+                            <span id="display-np-fileno" class="font-semibold text-blue-700">-</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                            <span class="text-gray-600">File No:</span>
+                            <span id="display-fileno" class="font-semibold text-blue-700">-</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                            <span class="text-gray-600">Land Use:</span>
+                            <span id="display-land-use" class="font-semibold text-blue-700">-</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                            <span class="text-gray-600">Applicant:</span>
+                            <span id="display-applicant" class="font-semibold text-blue-700">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Form Fields Display -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Hidden Fields Display -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Hidden Form Fields</h2>
+                
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">np_fileno:</span>
+                        <span id="test-np-fileno" class="font-mono bg-gray-100 px-2 py-1 rounded text-sm">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">fileno:</span>
+                        <span id="test-fileno" class="font-mono bg-gray-100 px-2 py-1 rounded text-sm">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">land_use:</span>
+                        <span id="test-land-use" class="font-mono bg-gray-100 px-2 py-1 rounded text-sm">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">primary_file_id:</span>
+                        <span id="test-primary-file-id" class="font-mono bg-gray-100 px-2 py-1 rounded text-sm">-</span>
+                    </div>
+                </div>
+                
+                <!-- Test hidden inputs -->
+                <input type="hidden" name="np_fileno" id="hidden-np-fileno">
+                <input type="hidden" name="fileno" id="hidden-fileno">
+                <input type="hidden" name="land_use" id="hidden-land-use">
+                <input type="hidden" name="primary_file_id" id="hidden-primary-file-id">
+            </div>
+            
+            <!-- Applicant Fields Display -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Auto-Filled Applicant Fields</h2>
+                
+                <div class="space-y-3">
+                    <!-- Applicant Type Display -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Applicant Type</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="radio" name="applicantType" value="individual" class="mr-2">
+                                Individual
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="applicantType" value="corporate" class="mr-2">
+                                Corporate
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="applicantType" value="multiple" class="mr-2">
+                                Multiple Owners
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Individual Fields -->
+                    <input type="text" id="applicantFirstName" placeholder="First Name" class="w-full px-3 py-2 border rounded text-sm">
+                    <input type="text" id="applicantSurname" placeholder="Surname" class="w-full px-3 py-2 border rounded text-sm">
+                    
+                    <!-- Corporate Fields -->
+                    <input type="text" id="corporateName" placeholder="Corporate Name" class="w-full px-3 py-2 border rounded text-sm">
+                    <input type="text" id="rcNumber" placeholder="RC Number" class="w-full px-3 py-2 border rounded text-sm">
+                    
+                    <!-- Multiple Owners Field -->
+                    <textarea id="multipleOwnersNames" placeholder="Multiple Owners Names" class="w-full px-3 py-2 border rounded text-sm" rows="3"></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <!-- API Test Results -->
+        <div class="bg-gray-800 text-white rounded-lg p-6 mt-8">
+            <h2 class="text-xl font-semibold mb-4">API Debug Console</h2>
+            <div id="debug-console" class="font-mono text-sm space-y-1 h-60 overflow-y-auto">
+                <div class="text-green-400">🚀 Global File Numbers Auto-Fill Test Page Loaded</div>
+            </div>
+        </div>
+        
+        <!-- Control Buttons -->
+        <div class="flex justify-center space-x-4 mt-8">
+            <button onclick="refreshPrimaryFileNumbers()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+                Refresh File Numbers
+            </button>
+            <button onclick="testAPIDirectly()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+                Test API Directly
+            </button>
+            <button onclick="clearAllAutoFilledFields()" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
+                Clear All Fields
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Override console.log to show in debug console
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const debugConsole = document.getElementById('debug-console');
+            if (debugConsole) {
+                const message = args.join(' ');
+                const div = document.createElement('div');
+                div.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+                if (message.includes('❌')) div.className = 'text-red-400';
+                else if (message.includes('✅')) div.className = 'text-green-400';
+                else if (message.includes('📡')) div.className = 'text-blue-400';
+                debugConsole.appendChild(div);
+                debugConsole.scrollTop = debugConsole.scrollHeight;
+            }
+        };
+
+        // Monitor field changes to update display
+        function updateFieldDisplays() {
+            document.getElementById('test-np-fileno').textContent = 
+                document.getElementById('hidden-np-fileno')?.value || '-';
+            document.getElementById('test-fileno').textContent = 
+                document.getElementById('hidden-fileno')?.value || '-';
+            document.getElementById('test-land-use').textContent = 
+                document.getElementById('hidden-land-use')?.value || '-';
+            document.getElementById('test-primary-file-id').textContent = 
+                document.getElementById('hidden-primary-file-id')?.value || '-';
+            
+            // Also update applied file number display if it exists
+            const appliedField = document.getElementById('applied-file-number');
+            const appliedDisplay = document.getElementById('test-applied-file-number');
+            if (appliedField && appliedDisplay) {
+                appliedDisplay.textContent = appliedField.value || '-';
+            }
+        }
+
+        // Test API directly
+        function testAPIDirectly() {
+            console.log('🧪 Testing Global API directly...');
+            fetch('/api/file-numbers/st-all?file_no_type=PRIMARY&limit=10')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('✅ Direct API Test Success:', data);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'API Test Success',
+                        text: `Found ${data.data?.length || 0} primary file numbers`,
+                        timer: 3000
+                    });
+                })
+                .catch(error => {
+                    console.error('❌ Direct API Test Failed:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'API Test Failed',
+                        text: error.message
+                    });
+                });
+        }
+
+        // Override updateHiddenField to also update displays
+        const originalUpdateHiddenField = window.updateHiddenField;
+        if (originalUpdateHiddenField) {
+            window.updateHiddenField = function(fieldId, value) {
+                originalUpdateHiddenField(fieldId, value);
+                updateFieldDisplays();
+            };
+        }
+        
+        // Override showAllCards to also show hidden cards section
+        const originalShowAllCards = window.showAllCards;
+        if (originalShowAllCards) {
+            window.showAllCards = function() {
+                originalShowAllCards();
+                const hiddenCardsSection = document.getElementById('hidden-cards-section');
+                if (hiddenCardsSection) {
+                    hiddenCardsSection.classList.remove('hidden');
+                }
+                console.log('✅ Test: Showed all hidden cards including applicant details');
+            };
+        }
+        
+        // Override hideAllCards to also hide hidden cards section
+        const originalHideAllCards = window.hideAllCards;
+        if (originalHideAllCards) {
+            window.hideAllCards = function() {
+                originalHideAllCards();
+                const hiddenCardsSection = document.getElementById('hidden-cards-section');
+                if (hiddenCardsSection) {
+                    hiddenCardsSection.classList.add('hidden');
+                }
+                console.log('🔄 Test: Hid all cards including applicant details');
+            };
+        }
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        // Set up field monitoring
+        setInterval(updateFieldDisplays, 1000);
+    </script>
+    
+    <!-- Include our Global File Numbers Auto-Fill script -->
+    <script src="/js/primaryform/global-file-numbers-autofill.js"></script>
+</body>
+</html>

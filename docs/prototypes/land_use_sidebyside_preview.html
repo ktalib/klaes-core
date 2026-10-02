@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit Land Use Side-by-Side Layout Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6 text-center">Unit Land Use Side-by-Side Layout Preview</h1>
+        
+        <!-- SUA Application Layout -->
+        <div class="mb-8 border border-gray-200 rounded-lg p-4">
+            <h2 class="text-lg font-semibold mb-4 text-blue-800">SUA Application Layout (1x2 Grid)</h2>
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <!-- Land Use Field Column -->
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-600 mr-1"></i>
+                        Land Use <span class="text-red-500">*</span> 
+                        <span class="text-xs font-normal text-yellow-600">(Important: This determines fee calculation)</span>
+                    </label>
+                    <select id="demo_sua_land_use" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateDemoSUACard(this.value)">
+                        <option value="">Select Land Use</option>
+                        <option value="Residential">Residential</option>
+                        <option value="Commercial">Commercial</option>
+                        <option value="Industrial">Industrial</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Select the primary land use for this standalone unit application</p>
+                </div>
+                
+                <!-- Land Use Information Card Column -->
+                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                        <i class="fas fa-info-circle text-blue-600 mr-1"></i>
+                        Unit Land Use Information
+                    </h4>
+                    <div class="space-y-2 text-xs">
+                        <div class="bg-white/50 rounded p-2">
+                            <strong>Application Type:</strong> Standalone Unit Application (SUA)
+                        </div>
+                        <div class="bg-white/50 rounded p-2">
+                            <strong>Current Selection:</strong> 
+                            <span id="demo_sua_selected" class="text-blue-600 font-medium">Not selected</span>
+                        </div>
+                        <div class="bg-white/50 rounded p-2">
+                            <strong>Fee Impact:</strong> 
+                            <span id="demo_sua_fees" class="text-green-600">Select land use to view fees</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-2">
+                            <i class="fas fa-lightbulb mr-1"></i>
+                            SUA applications are independent and don't inherit from primary applications
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Regular Sub-Application Layout -->
+        <div class="mb-8 border border-gray-200 rounded-lg p-4">
+            <h2 class="text-lg font-semibold mb-4 text-purple-800">Regular Sub-Application Layout (1x2 Grid)</h2>
+            
+            <!-- MIXED Land Use Scenario -->
+            <div class="mb-6">
+                <h3 class="text-md font-medium mb-2 text-orange-600">Scenario: MIXED Land Use Application</h3>
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <!-- Unit Land Use Field Column -->
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 mr-1"></i>
+                            Unit Land Use <span class="text-red-500">*</span> 
+                            <span class="text-xs font-normal text-yellow-600">(Important: This determines unit-specific fees)</span>
+                        </label>
+                        <select id="demo_unit_land_use" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateDemoUnitCard(this.value)">
+                            <option value="">Select Land Use for This Unit</option>
+                            <option value="Residential">Residential</option>
+                            <option value="Commercial">Commercial</option>
+                        </select>
+                        <p class="text-xs text-gray-500">
+                            <strong>Primary Application Land Use:</strong> MIXED
+                            <br>Select specific land use for this unit (different from primary application)
+                        </p>
+                    </div>
+                    
+                    <!-- Unit Land Use Information Card Column -->
+                    <div class="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                            <i class="fas fa-info-circle text-purple-600 mr-1"></i>
+                            Unit Land Use Information
+                        </h4>
+                        <div class="space-y-2 text-xs">
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Application Type:</strong> Unit Application (Secondary)
+                            </div>
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Primary App Land Use:</strong> 
+                                <span class="text-purple-600 font-medium">MIXED</span>
+                            </div>
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Unit Selection:</strong> 
+                                <span id="demo_unit_selected" class="text-orange-600 font-medium">Not selected</span>
+                            </div>
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Fee Impact:</strong> 
+                                <span id="demo_unit_fees" class="text-green-600">Select land use to view fees</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-lightbulb mr-1"></i>
+                                MIXED applications allow individual unit land use selection
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Regular Land Use Scenario -->
+            <div class="mb-6">
+                <h3 class="text-md font-medium mb-2 text-green-600">Scenario: Regular Land Use Application</h3>
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <!-- Unit Land Use Field Column -->
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 mr-1"></i>
+                            Unit Land Use <span class="text-red-500">*</span> 
+                            <span class="text-xs font-normal text-yellow-600">(Important: This determines unit-specific fees)</span>
+                        </label>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <span class="bg-green-100 text-green-800 px-3 py-2 rounded text-sm font-medium">
+                                    Residential
+                                </span>
+                                <span class="ml-2 text-xs text-gray-500">(Inherited from primary application)</span>
+                            </div>
+                            <p class="text-xs text-gray-500">This unit inherits the land use from the primary application</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Unit Land Use Information Card Column -->
+                    <div class="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                            <i class="fas fa-info-circle text-purple-600 mr-1"></i>
+                            Unit Land Use Information
+                        </h4>
+                        <div class="space-y-2 text-xs">
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Application Type:</strong> Unit Application (Secondary)
+                            </div>
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Primary App Land Use:</strong> 
+                                <span class="text-purple-600 font-medium">Residential</span>
+                            </div>
+                            <div class="bg-white/50 rounded p-2">
+                                <strong>Unit Land Use:</strong> 
+                                <span class="text-green-600 font-medium">Residential (Inherited)</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-2">
+                                <i class="fas fa-lightbulb mr-1"></i>
+                                This unit inherits land use from the primary application
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Features Summary -->
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h2 class="text-lg font-semibold mb-4">Key Features of the Side-by-Side Layout</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="font-medium mb-2 text-blue-600">Left Column (Field):</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>✅ Interactive land use selection</li>
+                        <li>✅ Important visual emphasis (yellow background)</li>
+                        <li>✅ Real-time validation</li>
+                        <li>✅ Context-specific help text</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-medium mb-2 text-purple-600">Right Column (Information Card):</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>✅ Dynamic information updates</li>
+                        <li>✅ Fee calculation preview</li>
+                        <li>✅ Application type context</li>
+                        <li>✅ Visual feedback for selections</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateDemoSUACard(selectedValue) {
+            const selectedEl = document.getElementById('demo_sua_selected');
+            const feesEl = document.getElementById('demo_sua_fees');
+            
+            selectedEl.textContent = selectedValue || 'Not selected';
+            
+            const fees = {
+                'Residential': 'App: ₦10,000 + Process: ₦20,000 + Survey: ₦50,000-₦70,000',
+                'Commercial': 'App: ₦10,000 + Process: ₦20,000 + Survey: ₦100,000',
+                'Industrial': 'App: ₦10,000 + Process: ₦20,000 + Survey: ₦100,000'
+            };
+            
+            feesEl.textContent = fees[selectedValue] || 'Select land use to view fees';
+        }
+
+        function updateDemoUnitCard(selectedValue) {
+            const selectedEl = document.getElementById('demo_unit_selected');
+            const feesEl = document.getElementById('demo_unit_fees');
+            
+            selectedEl.textContent = selectedValue || 'Not selected';
+            
+            const fees = {
+                'Residential': 'App: ₦10,000 + Process: ₦20,000 + Survey: ₦50,000-₦70,000',
+                'Commercial': 'App: ₦10,000 + Process: ₦20,000 + Survey: ₦100,000'
+            };
+            
+            feesEl.textContent = fees[selectedValue] || 'Select land use to view fees';
+        }
+    </script>
+</body>
+</html>

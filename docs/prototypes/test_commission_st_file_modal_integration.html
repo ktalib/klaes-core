@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="test-token">
+    <title>Commission New ST - File Modal Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">Commission New ST - File Modal Integration Test</h1>
+        
+        <!-- Test NPFN Generation -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">NPFN Generation Test</h2>
+            
+            <!-- Land Use Selection -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Land Use:</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <label class="flex items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-blue-50">
+                        <input type="checkbox" name="selectedLandUse" value="COMMERCIAL" onchange="handleLandUseChange(this)" class="mr-2">
+                        <span>Commercial</span>
+                    </label>
+                    <label class="flex items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-green-50">
+                        <input type="checkbox" name="selectedLandUse" value="RESIDENTIAL" onchange="handleLandUseChange(this)" class="mr-2">
+                        <span>Residential</span>
+                    </label>
+                    <label class="flex items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-orange-50">
+                        <input type="checkbox" name="selectedLandUse" value="INDUSTRIAL" onchange="handleLandUseChange(this)" class="mr-2">
+                        <span>Industrial</span>
+                    </label>
+                    <label class="flex items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-purple-50">
+                        <input type="checkbox" name="selectedLandUse" value="MIXED" onchange="handleLandUseChange(this)" class="mr-2">
+                        <span>Mixed</span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- NPFN Display -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Generated NPFN:</label>
+                <input type="text" id="np-fileno-display" class="w-full p-3 border border-gray-300 rounded-lg bg-blue-50 font-mono" readonly placeholder="Select a land use to generate NPFN">
+                <input type="hidden" name="np_fileno" id="np-fileno-hidden">
+                <input type="hidden" name="land_use" id="land-use-hidden">
+            </div>
+            
+            <!-- Test Results -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Test Results:</label>
+                <div id="test-results" class="p-3 bg-gray-100 rounded-lg border">
+                    <p class="text-gray-600">Select a land use to see the NPFN generation in action...</p>
+                </div>
+            </div>
+            
+            <!-- Commission Button -->
+            <div class="flex justify-center">
+                <button onclick="testCommissionFileNumber()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    Test Commission File Number
+                </button>
+            </div>
+        </div>
+        
+        <!-- API Test Results -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">API Test Results</h2>
+            <div id="api-results" class="p-3 bg-gray-100 rounded-lg border">
+                <p class="text-gray-600">API test results will appear here...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the file modal integration script -->
+    <script>
+        // Mock functions for testing without the full Laravel environment
+        function handleLandUseChange(selectedCheckbox) {
+            console.log('Land use changed to:', selectedCheckbox.value);
+            
+            // Get all land use checkboxes
+            const allCheckboxes = document.querySelectorAll('input[name="selectedLandUse"]');
+            
+            // Uncheck all others
+            allCheckboxes.forEach(checkbox => {
+                if (checkbox !== selectedCheckbox) {
+                    checkbox.checked = false;
+                    checkbox.closest('label').classList.remove('border-blue-400', 'border-green-400', 'border-orange-400', 'border-purple-400');
+                    checkbox.closest('label').classList.add('border-gray-300');
+                }
+            });
+            
+            // Handle the selected checkbox
+            if (selectedCheckbox.checked) {
+                const landUse = selectedCheckbox.value;
+                selectedCheckbox.closest('label').classList.remove('border-gray-300');
+                
+                switch(landUse) {
+                    case 'COMMERCIAL':
+                        selectedCheckbox.closest('label').classList.add('border-blue-400');
+                        break;
+                    case 'RESIDENTIAL':
+                        selectedCheckbox.closest('label').classList.add('border-green-400');
+                        break;
+                    case 'INDUSTRIAL':
+                        selectedCheckbox.closest('label').classList.add('border-orange-400');
+                        break;
+                    case 'MIXED':
+                        selectedCheckbox.closest('label').classList.add('border-purple-400');
+                        break;
+                }
+                
+                // Update hidden fields
+                document.getElementById('land-use-hidden').value = landUse;
+                
+                // Test the NPFN generation
+                testNPFNGeneration(landUse);
+            }
+        }
+        
+        function testNPFNGeneration(landUse) {
+            const resultsDiv = document.getElementById('test-results');
+            const npfnField = document.getElementById('np-fileno-display');
+            
+            resultsDiv.innerHTML = `
+                <div class="space-y-2">
+                    <p><strong>Testing NPFN Generation:</strong></p>
+                    <p>Land Use: <span class="font-mono text-blue-600">${landUse}</span></p>
+                    <p class="text-orange-600">Calling API endpoint: <code>/commission-new-st/next-fileno?landuse=${landUse}</code></p>
+                </div>
+            `;
+            
+            npfnField.value = 'Generating...';
+            
+            // Test the actual API call
+            fetch(`/commission-new-st/next-fileno?landuse=${landUse}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('API Response:', data);
+                
+                if (data.success && data.fileNumber) {
+                    npfnField.value = data.fileNumber;
+                    document.getElementById('np-fileno-hidden').value = data.fileNumber;
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="space-y-2">
+                            <p><strong>✅ NPFN Generation Successful:</strong></p>
+                            <p>Land Use: <span class="font-mono text-blue-600">${landUse}</span></p>
+                            <p>Generated NPFN: <span class="font-mono text-green-600">${data.fileNumber}</span></p>
+                            <p>Year: <span class="font-mono">${data.year}</span></p>
+                            <p class="text-sm text-gray-600">✅ Serial number is properly generated from backend!</p>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.message || 'Failed to generate file number');
+                }
+            })
+            .catch(error => {
+                console.error('API Error:', error);
+                
+                const currentYear = new Date().getFullYear();
+                const landUseCode = landUse === 'COMMERCIAL' ? 'COM' : landUse === 'RESIDENTIAL' ? 'RES' : landUse === 'INDUSTRIAL' ? 'IND' : 'MIXED';
+                const fallbackNPFN = `ST-${landUseCode}-${currentYear}-001`;
+                
+                npfnField.value = fallbackNPFN;
+                document.getElementById('np-fileno-hidden').value = fallbackNPFN;
+                
+                resultsDiv.innerHTML = `
+                    <div class="space-y-2">
+                        <p><strong>⚠️ API Error - Using Fallback:</strong></p>
+                        <p>Land Use: <span class="font-mono text-blue-600">${landUse}</span></p>
+                        <p>Fallback NPFN: <span class="font-mono text-yellow-600">${fallbackNPFN}</span></p>
+                        <p class="text-red-600">Error: ${error.message}</p>
+                        <p class="text-sm text-gray-600">This is expected if the backend endpoint is not yet implemented.</p>
+                    </div>
+                `;
+            });
+        }
+        
+        function testCommissionFileNumber() {
+            const npFileNo = document.getElementById('np-fileno-hidden').value;
+            const landUse = document.getElementById('land-use-hidden').value;
+            const apiResults = document.getElementById('api-results');
+            
+            if (!npFileNo || !landUse) {
+                alert('Please select a land use and generate an NPFN first.');
+                return;
+            }
+            
+            apiResults.innerHTML = `
+                <div class="space-y-2">
+                    <p><strong>Testing Commission API:</strong></p>
+                    <p>File Number: <span class="font-mono text-blue-600">${npFileNo}</span></p>
+                    <p class="text-orange-600">Calling API endpoint: <code>/commission-new-st/commission</code></p>
+                </div>
+            `;
+            
+            // Test the commission API
+            fetch('/commission-new-st/commission', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    np_fileno: npFileNo,
+                    applicant_type: 'individual',
+                    land_use: landUse,
+                    first_name: 'Test',
+                    surname: 'User',
+                    commissioned_by: 'System Test',
+                    commissioned_date: new Date().toISOString().split('T')[0]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Commission API Response:', data);
+                
+                if (data.success) {
+                    apiResults.innerHTML = `
+                        <div class="space-y-2">
+                            <p><strong>✅ Commission API Successful:</strong></p>
+                            <p>File Number: <span class="font-mono text-green-600">${data.fileNumber}</span></p>
+                            <p>Message: <span class="text-green-600">${data.message}</span></p>
+                            <p class="text-sm text-gray-600">✅ File number commissioned successfully!</p>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(data.message || 'Failed to commission file number');
+                }
+            })
+            .catch(error => {
+                console.error('Commission API Error:', error);
+                
+                apiResults.innerHTML = `
+                    <div class="space-y-2">
+                        <p><strong>⚠️ Commission API Error:</strong></p>
+                        <p>File Number: <span class="font-mono text-red-600">${npFileNo}</span></p>
+                        <p class="text-red-600">Error: ${error.message}</p>
+                        <p class="text-sm text-gray-600">This is expected if the backend endpoint is not fully implemented.</p>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

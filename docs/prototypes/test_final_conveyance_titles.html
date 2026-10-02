@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Conveyance Titles Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Final Conveyance Titles Test</h1>
+        
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold mb-2">Test Scenario</h2>
+            <ul class="list-disc list-inside space-y-1 text-sm text-gray-600">
+                <li>Open Final Conveyance modal</li>  
+                <li>Switch to Buyers List tab</li>
+                <li>Click Edit on any buyer</li>
+                <li>Verify titles dropdown is populated from database</li>
+                <li>Verify existing buyer title is pre-selected</li>
+            </ul>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-2">Available Test Data</h2>
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="font-medium mb-2">Titles from Database:</h3>
+                <div class="grid grid-cols-4 gap-2 text-sm">
+                    <span class="bg-blue-100 px-2 py-1 rounded">Mr.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Mrs.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Miss</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Dr.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Prof.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Barr.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Arc.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Chief</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">High Chief</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Alhaji</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Hajia</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Mallam</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Senator</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Honorable</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Capt.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Col.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Master</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">HRH</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Messr.</span>
+                    <span class="bg-blue-100 px-2 py-1 rounded">Other</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-2">Test Links</h2>
+            <div class="space-y-2">
+                <a href="http://localhost:8001/login" target="_blank" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Login to KLAES System
+                </a>
+                <p class="text-sm text-gray-600">After login, navigate to Sectional Titling → Conveyance page to test</p>
+            </div>
+        </div>
+
+        <div class="border-t pt-4">
+            <h2 class="text-lg font-semibold mb-2">Expected Behavior</h2>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Final Conveyance modal opens with two tabs</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Buyers List tab shows existing buyers with edit buttons working</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Edit modal shows buyer title dropdown populated from database</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Current buyer's title is pre-selected in dropdown</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>All 20 titles from database appear as options</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

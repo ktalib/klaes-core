@@ -1,0 +1,129 @@
+-- MS SQL Server script to add unit fields to gisDataCapture table
+
+-- PrimaryGISID column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'PrimaryGISID')
+BEGIN
+    ALTER TABLE gisDataCapture ADD PrimaryGISID NVARCHAR(255) NULL;
+END
+
+-- STFileNo column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'STFileNo')
+BEGIN
+    ALTER TABLE gisDataCapture ADD STFileNo NVARCHAR(255) NULL;
+END
+
+-- app_id column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'app_id')
+BEGIN
+    ALTER TABLE gisDataCapture ADD app_id NVARCHAR(255) NULL;
+END
+
+-- scheme_no column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'scheme_no')
+BEGIN
+    ALTER TABLE gisDataCapture ADD scheme_no NVARCHAR(255) NULL;
+END
+
+-- section_no column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'section_no')
+BEGIN
+    ALTER TABLE gisDataCapture ADD section_no NVARCHAR(255) NULL;
+END
+
+-- block_no column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'block_no')
+BEGIN
+    ALTER TABLE gisDataCapture ADD block_no NVARCHAR(255) NULL;
+END
+
+-- unit_no column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'unit_no')
+BEGIN
+    ALTER TABLE gisDataCapture ADD unit_no NVARCHAR(255) NULL;
+END
+
+-- landuse column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'landuse')
+BEGIN
+    ALTER TABLE gisDataCapture ADD landuse NVARCHAR(255) NULL;
+END
+
+-- height column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'height')
+BEGIN
+    ALTER TABLE gisDataCapture ADD height NVARCHAR(255) NULL;
+END
+
+-- unit_id column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'unit_id')
+BEGIN
+    ALTER TABLE gisDataCapture ADD unit_id NVARCHAR(255) NULL;
+END
+
+-- section_attribute column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'section_attribute')
+BEGIN
+    ALTER TABLE gisDataCapture ADD section_attribute NVARCHAR(255) NULL;
+END
+
+-- base column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'base')
+BEGIN
+    ALTER TABLE gisDataCapture ADD base NVARCHAR(255) NULL;
+END
+
+-- floor column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'floor')
+BEGIN
+    ALTER TABLE gisDataCapture ADD floor NVARCHAR(255) NULL;
+END
+
+-- tpreport column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'tpreport')
+BEGIN
+    ALTER TABLE gisDataCapture ADD tpreport NVARCHAR(255) NULL;
+END
+
+-- UnitControlBeaconNo column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'UnitControlBeaconNo')
+BEGIN
+    ALTER TABLE gisDataCapture ADD UnitControlBeaconNo NVARCHAR(255) NULL;
+END
+
+-- UnitControlBeaconX column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'UnitControlBeaconX')
+BEGIN
+    ALTER TABLE gisDataCapture ADD UnitControlBeaconX NVARCHAR(255) NULL;
+END
+
+-- UnitControlBeaconY column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'UnitControlBeaconY')
+BEGIN
+    ALTER TABLE gisDataCapture ADD UnitControlBeaconY NVARCHAR(255) NULL;
+END
+
+-- UnitSize column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'UnitSize')
+BEGIN
+    ALTER TABLE gisDataCapture ADD UnitSize NVARCHAR(255) NULL;
+END
+
+-- UnitDemsion column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'UnitDemsion')
+BEGIN
+    ALTER TABLE gisDataCapture ADD UnitDemsion NVARCHAR(255) NULL;
+END
+
+-- UnitPosition column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'UnitPosition')
+BEGIN
+    ALTER TABLE gisDataCapture ADD UnitPosition NVARCHAR(255) NULL;
+END
+
+-- main_application_id column
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'gisDataCapture' AND COLUMN_NAME = 'main_application_id')
+BEGIN
+    ALTER TABLE gisDataCapture ADD main_application_id INT NULL;
+END
+
+PRINT 'Unit fields have been added to the gisDataCapture table if they did not exist.'

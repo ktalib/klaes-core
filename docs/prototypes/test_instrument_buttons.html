@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Instrument Buttons</title>
+    <style>
+        .instrument-type-btn {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            background: #f0f0f0;
+            cursor: pointer;
+        }
+        .instrument-type-btn:hover {
+            background: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Instrument Buttons</h1>
+    <p>Click any button to test if JavaScript is working:</p>
+    
+    <button class="instrument-type-btn" data-type="power-of-attorney">Power of Attorney</button>
+    <button class="instrument-type-btn" data-type="deed-of-gift">Deed of Gift</button>
+    <button class="instrument-type-btn" data-type="deed-of-assignment">Deed of Assignment</button>
+    
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+    
+    <script>
+        // Test the instrument types object
+        const instrumentTypes = {
+            'power-of-attorney': {
+                id: 'power-of-attorney',
+                name: 'Power of Attorney',
+                firstParty: 'Grantor',
+                secondParty: 'Grantee',
+                needsRootReg: true
+            },
+            'deed-of-gift': {
+                id: 'deed-of-gift',
+                name: 'Deed of Gift',
+                firstParty: 'Donor',
+                secondParty: 'Donee',
+                needsRootReg: true
+            },
+            'deed-of-assignment': {
+                id: 'deed-of-assignment',
+                name: 'Deed of Assignment',
+                firstParty: 'Assignor',
+                secondParty: 'Assignee',
+                needsRootReg: true
+            }
+        };
+        
+        // Add event listeners
+        document.querySelectorAll('.instrument-type-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.getAttribute('data-type');
+                const instrumentType = instrumentTypes[type];
+                
+                if (instrumentType) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>✅ JavaScript is working!</h3>
+                        <p><strong>Selected:</strong> ${instrumentType.name}</p>
+                        <p><strong>First Party:</strong> ${instrumentType.firstParty}</p>
+                        <p><strong>Second Party:</strong> ${instrumentType.secondParty}</p>
+                        <p><strong>Needs Root Reg:</strong> ${instrumentType.needsRootReg}</p>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <h3>❌ Error</h3>
+                        <p>Instrument type not found: ${type}</p>
+                    `;
+                }
+            });
+        });
+        
+        // Test if the object is properly defined
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('result').innerHTML = `
+                <h3>🔧 JavaScript Loaded</h3>
+                <p>Instrument types defined: ${Object.keys(instrumentTypes).length}</p>
+                <p>Click any button above to test functionality.</p>
+            `;
+        });
+    </script>
+</body>
+</html>

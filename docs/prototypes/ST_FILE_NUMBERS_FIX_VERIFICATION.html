@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ST File Numbers Fix Verification</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .success { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .error { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .info { color: #0c5460; background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        .highlight { background-color: #fff3cd; }
+        .test-section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .test-button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .test-button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 ST File Numbers Fix Verification</h1>
+        
+        <div class="info">
+            <h3>✅ Changes Made:</h3>
+            <ul>
+                <li><strong>Fixed Query Logic:</strong> Now includes records with ST file numbers even if they don't have MLS numbers</li>
+                <li><strong>Updated UI:</strong> Changed from "MLS FileNo Management" to "File Number Management"</li>
+                <li><strong>Enhanced Filtering:</strong> Records with any file number type (MLS, ST, KANGIS, New KANGIS) are now included</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Verification Tests</h2>
+            
+            <button class="test-button" onclick="testDebugEndpoint()">1. Test Debug Endpoint</button>
+            <button class="test-button" onclick="testSTEndpoint()">2. Test ST Specific Endpoint</button>
+            <button class="test-button" onclick="testDataTable()">3. Test DataTable Data</button>
+            <button class="test-button" onclick="runAllTests()">🚀 Run All Tests</button>
+        </div>
+
+        <div id="test-results"></div>
+        
+        <div class="test-section">
+            <h2>📋 Expected ST File Numbers</h2>
+            <p>These ST file numbers should now be visible in the table:</p>
+            <ul>
+                <li><code>ST-RES-2025-1</code></li>
+                <li><code>ST-COM-2025-1-001</code></li>
+                <li><code>ST-COM-2025-2-001</code></li>
+                <li><code>ST-COM-2025-3-001</code></li>
+                <li><code>ST-COM-2025-4</code></li>
+                <li><code>ST-MIXED-2025-1</code></li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Manual Verification Steps</h2>
+            <ol>
+                <li><strong>Access the Management Page:</strong> <a href="/mls-fileno" target="_blank">Open File Number Management</a></li>
+                <li><strong>Check Total Count:</strong> Should be higher than before (includes ST records)</li>
+                <li><strong>Filter by Source:</strong> Select "ST Dept" from the Status/Source filter</li>
+                <li><strong>Verify Columns:</strong>
+                    <ul>
+                        <li>"Primary File No" column shows MLS numbers (or N/A)</li>
+                        <li>"Other File Numbers" column shows ST, KANGIS, and New KANGIS numbers</li>
+                    </ul>
+                </li>
+                <li><strong>Search Test:</strong> Search for "ST-" to find all ST file numbers</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        let testResults = [];
+
+        async function makeRequest(url, testName) {
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    testResults.push({ name: testName, status: 'success', data: data });
+                    return { success: true, data: data };
+                } else {
+                    testResults.push({ name: testName, status: 'error', message: data.message || 'Unknown error' });
+                    return { success: false, message: data.message };
+                }
+            } catch (error) {
+                testResults.push({ name: testName, status: 'error', message: error.message });
+                return { success: false, message: error.message };
+            }
+        }
+
+        async function testDebugEndpoint() {
+            updateResults('<h3>🔍 Testing Debug Endpoint...</h3>');
+            const result = await makeRequest('/mls-fileno/debug', 'Debug Endpoint');
+            
+            if (result.success) {
+                const data = result.data;
+                let html = '<div class="success">✅ Debug Endpoint Test: SUCCESS</div>';
+                html += `<p><strong>Database:</strong> ${data.database_name}</p>`;
+                html += `<p><strong>Total Records:</strong> ${data.total_count}</p>`;
+                html += `<p><strong>Sources:</strong> ${data.sources ? data.sources.join(', ') : 'None'}</p>`;
+                updateResults(html);
+            } else {
+                updateResults(`<div class="error">❌ Debug Endpoint Test: FAILED<br>${result.message}</div>`);
+            }
+        }
+
+        async function testSTEndpoint() {
+            updateResults('<h3>🎯 Testing ST Specific Endpoint...</h3>');
+            const result = await makeRequest('/mls-fileno/test-st', 'ST Test Endpoint');
+            
+            if (result.success) {
+                const data = result.data;
+                let html = '<div class="success">✅ ST Test Endpoint: SUCCESS</div>';
+                html += `<p><strong>Total ST Records:</strong> ${data.total_st_records}</p>`;
+                
+                if (data.controller_query_test) {
+                    html += `<p><strong>Controller Query Results:</strong></p>`;
+                    html += `<ul>`;
+                    html += `<li>Total Records: ${data.controller_query_test.total_records}</li>`;
+                    html += `<li>ST File Number Records: ${data.controller_query_test.st_file_no_records}</li>`;
+                    html += `<li>ST Dept Records: ${data.controller_query_test.st_dept_records}</li>`;
+                    html += `</ul>`;
+                }
+
+                if (data.search_results) {
+                    html += `<h4>🔎 Search Results for Specific ST Numbers:</h4>`;
+                    html += `<table>`;
+                    html += `<tr><th>ST File Number</th><th>Found Count</th><th>Status</th></tr>`;
+                    
+                    for (const [stNumber, result] of Object.entries(data.search_results)) {
+                        const status = result.found_count > 0 ? '✅ Found' : '❌ Not Found';
+                        const rowClass = result.found_count > 0 ? 'highlight' : '';
+                        html += `<tr class="${rowClass}"><td>${stNumber}</td><td>${result.found_count}</td><td>${status}</td></tr>`;
+                    }
+                    html += `</table>`;
+                }
+
+                updateResults(html);
+            } else {
+                updateResults(`<div class="error">❌ ST Test Endpoint: FAILED<br>${result.message}</div>`);
+            }
+        }
+
+        async function testDataTable() {
+            updateResults('<h3>📊 Testing DataTable Endpoint...</h3>');
+            const result = await makeRequest('/mls-fileno/datatable?start=0&length=20&draw=1', 'DataTable Endpoint');
+            
+            if (result.success) {
+                const data = result.data;
+                let html = '<div class="success">✅ DataTable Test: SUCCESS</div>';
+                html += `<p><strong>Total Records:</strong> ${data.recordsTotal}</p>`;
+                html += `<p><strong>Filtered Records:</strong> ${data.recordsFiltered}</p>`;
+                
+                if (data.data && data.data.length > 0) {
+                    html += `<h4>📋 Sample Records (First 5):</h4>`;
+                    html += `<table>`;
+                    html += `<tr><th>ID</th><th>Primary File No</th><th>Other Numbers</th><th>Source</th></tr>`;
+                    
+                    data.data.slice(0, 5).forEach(record => {
+                        const primaryFileNo = record.mlsfNo || 'N/A';
+                        const otherNumbers = record.OtherNumbers || '-';
+                        const source = record.SOURCE || 'N/A';
+                        
+                        html += `<tr>`;
+                        html += `<td>${record.id}</td>`;
+                        html += `<td>${primaryFileNo}</td>`;
+                        html += `<td>${otherNumbers.replace(/<[^>]*>/g, '')}</td>`;  // Strip HTML for display
+                        html += `<td>${source}</td>`;
+                        html += `</tr>`;
+                    });
+                    html += `</table>`;
+                }
+                
+                updateResults(html);
+            } else {
+                updateResults(`<div class="error">❌ DataTable Test: FAILED<br>${result.message}</div>`);
+            }
+        }
+
+        async function runAllTests() {
+            updateResults('<h2>🚀 Running All Tests...</h2>');
+            await testDebugEndpoint();
+            await testSTEndpoint();
+            await testDataTable();
+            
+            // Summary
+            const successCount = testResults.filter(t => t.status === 'success').length;
+            const totalTests = testResults.length;
+            
+            let summaryHtml = `<div class="test-section">`;
+            summaryHtml += `<h3>📊 Test Summary</h3>`;
+            summaryHtml += `<p><strong>Tests Passed:</strong> ${successCount}/${totalTests}</p>`;
+            
+            if (successCount === totalTests) {
+                summaryHtml += `<div class="success">🎉 All tests passed! The ST file numbers fix is working correctly.</div>`;
+                summaryHtml += `<p><strong>Next Steps:</strong></p>`;
+                summaryHtml += `<ul>`;
+                summaryHtml += `<li>✅ Visit <a href="/mls-fileno" target="_blank">File Number Management</a> to see the results</li>`;
+                summaryHtml += `<li>✅ Filter by "ST Dept" to see ST file numbers</li>`;
+                summaryHtml += `<li>✅ Search for "ST-" to find all ST file numbers</li>`;
+                summaryHtml += `</ul>`;
+            } else {
+                summaryHtml += `<div class="error">⚠️ Some tests failed. Please check the results above.</div>`;
+            }
+            
+            summaryHtml += `</div>`;
+            updateResults(summaryHtml);
+        }
+
+        function updateResults(html) {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML += html;
+        }
+
+        // Auto-run tests on page load after 2 seconds
+        setTimeout(runAllTests, 2000);
+    </script>
+</body>
+</html>

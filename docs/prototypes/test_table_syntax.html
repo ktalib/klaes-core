@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Planning Recommendation Tables</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Test Planning Recommendation Tables Syntax</h1>
+
+    <!-- Primary Application Test -->
+    <div class="section" x-data="testPrimaryApp()">
+        <h2>Primary Application Table Syntax Test</h2>
+        <div x-show="error" class="error" x-text="error"></div>
+        <div x-show="!error" class="success">✅ Alpine.js syntax is valid</div>
+        
+        <h3>Test Data Loading</h3>
+        <p>Dimensions loaded: <span x-text="dimensions.length"></span></p>
+        <p>Utilities loaded: <span x-text="utilities.length"></span></p>
+        
+        <h3>Test formatUtilityLabel Function</h3>
+        <p>Test 1: <span x-text="formatUtilityLabel('parking_lots')"></span> (should be: Parking Lots)</p>
+        <p>Test 2: <span x-text="formatUtilityLabel('swimming_pool')"></span> (should be: Swimming Pool)</p>
+        <p>Test 3: <span x-text="formatUtilityLabel('conference-room')"></span> (should be: Conference Room)</p>
+    </div>
+
+    <!-- Sub Application Test -->
+    <div class="section" x-data="testSubApp()">
+        <h2>Sub Application Table Syntax Test</h2>
+        <div x-show="error" class="error" x-text="error"></div>
+        <div x-show="!error" class="success">✅ Alpine.js syntax is valid</div>
+        
+        <h3>Test Data Loading</h3>
+        <p>Dimensions loaded: <span x-text="dimensions.length"></span></p>
+        <p>Utilities loaded: <span x-text="utilities.length"></span></p>
+        
+        <h3>Test formatUtilityLabel Function</h3>
+        <p>Test 1: <span x-text="formatUtilityLabel('hallways')"></span> (should be: Hallways)</p>
+        <p>Test 2: <span x-text="formatUtilityLabel('storage_room')"></span> (should be: Storage Room)</p>
+        <p>Test 3: <span x-text="formatUtilityLabel('lobby-area')"></span> (should be: Lobby Area)</p>
+    </div>
+
+    <script>
+        // Simulate Primary Application Alpine.js data structure
+        function testPrimaryApp() {
+            return {
+                applicationId: '2007',
+                dimensions: [
+                    { description: 'Unit 1', dimension: '50.5' },
+                    { description: 'Unit 2', dimension: '45.2' }
+                ],
+                utilities: [
+                    { utility_type: 'parking_lots', dimension: 0, count: 1 },
+                    { utility_type: 'swimming_pool', dimension: 0, count: 1 }
+                ],
+                error: '',
+
+                init() {
+                    try {
+                        // Test the formatUtilityLabel function
+                        this.formatUtilityLabel('test');
+                        console.log('Primary app Alpine.js initialized successfully');
+                    } catch (e) {
+                        this.error = 'Alpine.js syntax error: ' + e.message;
+                        console.error('Primary app error:', e);
+                    }
+                },
+
+                formatUtilityLabel(value) {
+                    if (value === undefined || value === null) {
+                        return '';
+                    }
+
+                    const normalized = String(value)
+                        .replace(/[_\-]+/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    if (!normalized) {
+                        return '';
+                    }
+
+                    return normalized
+                        .split(' ')
+                        .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+                        .join(' ');
+                }
+            }
+        }
+
+        // Simulate Sub Application Alpine.js data structure
+        function testSubApp() {
+            return {
+                applicationId: '45',
+                dimensions: [
+                    { description: 'Sub Unit A', dimension: '25.3' },
+                    { description: 'Sub Unit B', dimension: '30.7' }
+                ],
+                utilities: [
+                    { utility_type: 'hallways', dimension: 0, count: 1 },
+                    { utility_type: 'storage_room', dimension: 0, count: 1 }
+                ],
+                error: '',
+
+                init() {
+                    try {
+                        // Test the formatUtilityLabel function
+                        this.formatUtilityLabel('test');
+                        console.log('Sub app Alpine.js initialized successfully');
+                    } catch (e) {
+                        this.error = 'Alpine.js syntax error: ' + e.message;
+                        console.error('Sub app error:', e);
+                    }
+                },
+
+                formatUtilityLabel(value) {
+                    if (value === undefined || value === null) {
+                        return '';
+                    }
+
+                    const normalized = String(value)
+                        .replace(/[_\-]+/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    if (!normalized) {
+                        return '';
+                    }
+
+                    return normalized
+                        .split(' ')
+                        .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+                        .join(' ');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

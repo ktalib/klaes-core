@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Fix Test - File Tracker Save Function</title>
+</head>
+<body>
+    <h2>File Tracker Save Function Fix Summary</h2>
+    
+    <h3>Error Fixed:</h3>
+    <code>Cannot read properties of undefined (reading 'department')</code>
+    
+    <h3>Root Cause:</h3>
+    <p>The <code>currentTracker.office</code> object was not being properly set when creating a new tracker, causing the <code>saveFileTracker</code> function to fail when trying to access <code>currentTracker.office.department</code>.</p>
+    
+    <h3>Changes Made:</h3>
+    <ol>
+        <li><strong>Fixed currentTracker object creation:</strong>
+            <ul>
+                <li>Added <code>office: office</code> to store the complete office object</li>
+                <li>Added <code>notes: notes</code> to store notes at the tracker level</li>
+            </ul>
+        </li>
+        
+        <li><strong>Added defensive programming in saveFileTracker:</strong>
+            <ul>
+                <li>Added fallback logic: <code>const office = currentTracker.office || officeData[currentTracker.currentOfficeId] || {};</code></li>
+                <li>Added safe department access: <code>const department = office.department || 'Unknown Department';</code></li>
+                <li>Added safe office name access with fallbacks</li>
+                <li>Fixed data access for log entries using optional chaining</li>
+            </ul>
+        </li>
+        
+        <li><strong>Added validation and debugging:</strong>
+            <ul>
+                <li>Added office validation in createFileTracker function</li>
+                <li>Added console.log statements for debugging</li>
+                <li>Added error handling for invalid office selection</li>
+            </ul>
+        </li>
+    </ol>
+    
+    <h3>Test Steps:</h3>
+    <ol>
+        <li>Go to the File Tracker page</li>
+        <li>Fill in the required fields (File No, File Name, Office, Priority)</li>
+        <li>Click "Create File Tracker" button</li>
+        <li>Click "Save File Tracker" button</li>
+        <li>Verify no JavaScript errors occur</li>
+        <li>Check console for debugging information</li>
+    </ol>
+    
+    <h3>Fixed Code Structure:</h3>
+    <pre><code>
+currentTracker = {
+    fileNo,
+    fileName,
+    trackingId,
+    priority,
+    currentOffice: office.name,
+    currentOfficeId: officeId,
+    office: office, // ← ADDED: Complete office object
+    logEntries: [...],
+    notes: notes,   // ← ADDED: Notes at tracker level
+    createdAt: now.toISOString()
+};
+
+// In saveFileTracker function:
+const office = currentTracker.office || officeData[currentTracker.currentOfficeId] || {};
+const department = office.department || 'Unknown Department';
+    </code></pre>
+    
+    <h3>Status: ✅ FIXED</h3>
+    <p>The error should now be resolved. The save function will work properly with proper error handling and fallbacks.</p>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Title Fix Verification</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .before { background-color: #ffeeee; }
+        .after { background-color: #eeffee; }
+    </style>
+</head>
+<body>
+    <h1>File Title Fix Verification</h1>
+    <p><strong>Issue:</strong> File titles were being created with "Primary Application - " prefix</p>
+    <p><strong>Expected:</strong> File titles should only contain the applicant's name</p>
+    
+    <div class="test-section">
+        <h2>Problem Identification</h2>
+        <p>Found the issue in <code>PrimaryApplicationController.php</code> line 464:</p>
+        
+        <h3>Before Fix:</h3>
+        <div class="before">
+            <code>'file_title' => 'Primary Application - ' . ($validated['corporate_name'] ?? $validated['first_name'] . ' ' . $validated['surname'])</code>
+        </div>
+        
+        <h3>After Fix:</h3>
+        <div class="after">
+            <code>'file_title' => $validated['corporate_name'] ?? $validated['first_name'] . ' ' . $validated['surname']</code>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Current Database State</h2>
+        <p>Recent file indexing records showing the issue:</p>
+        
+        <?php
+        try {
+            $pdo = new PDO('sqlsrv:server=VMI2583396;Database=klas', 'klas', 'YourStrongPassword123!');
+            
+            echo "<table>";
+            echo "<tr><th>ID</th><th>App ID</th><th>File Number</th><th>File Title</th><th>Status</th></tr>";
+            
+            $stmt = $pdo->query('SELECT TOP 10 id, main_application_id, file_number, file_title, created_at FROM file_indexings ORDER BY created_at DESC');
+            
+            while ($row = $stmt->fetch()) {
+                $hasPrefix = strpos($row['file_title'], 'Primary Application - ') === 0;
+                $statusClass = $hasPrefix ? 'error' : 'success';
+                $status = $hasPrefix ? '❌ Has Prefix' : '✅ Clean';
+                
+                echo "<tr class='{$statusClass}'>";
+                echo "<td>{$row['id']}</td>";
+                echo "<td>{$row['main_application_id']}</td>";
+                echo "<td>{$row['file_number']}</td>";
+                echo "<td>{$row['file_title']}</td>";
+                echo "<td>{$status}</td>";
+                echo "</tr>";
+            }
+            echo "</table>";
+            
+        } catch (Exception $e) {
+            echo "<p class='error'>Database connection error: " . $e->getMessage() . "</p>";
+        }
+        ?>
+    </div>
+    
+    <div class="test-section">
+        <h2>Controller Comparison</h2>
+        <table>
+            <tr>
+                <th>Controller</th>
+                <th>Method</th>
+                <th>File Title Logic</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td>PrimaryApplicationController</td>
+                <td>store()</td>
+                <td><strong>FIXED:</strong> No prefix, just applicant name</td>
+                <td class="success">✅ Correct</td>
+            </tr>
+            <tr>
+                <td>PrimaryFormController</td>
+                <td>createFileIndexingRecord()</td>
+                <td>Already correct: No prefix, just applicant name</td>
+                <td class="success">✅ Correct</td>
+            </tr>
+            <tr>
+                <td>EdmsController</td>
+                <td>generateFileTitle()</td>
+                <td>Already correct: No prefix, just applicant name</td>
+                <td class="success">✅ Correct</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="test-section">
+        <h2>Expected Results After Fix</h2>
+        <p>New file indexing records should have clean titles:</p>
+        
+        <table>
+            <tr>
+                <th>Applicant Type</th>
+                <th>Sample Input</th>
+                <th>Expected File Title</th>
+            </tr>
+            <tr>
+                <td>Individual</td>
+                <td>first_name: "ABUBAKAR", surname: "SADIQ"</td>
+                <td><strong>ABUBAKAR SADIQ</strong></td>
+            </tr>
+            <tr>
+                <td>Corporate</td>
+                <td>corporate_name: "ABC COMPANY LTD"</td>
+                <td><strong>ABC COMPANY LTD</strong></td>
+            </tr>
+            <tr>
+                <td>Multiple</td>
+                <td>multiple_owners_names: ["Musa Ali", "JANE DOE"]</td>
+                <td><strong>Musa Ali et al.</strong></td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="test-section">
+        <h2>Testing Instructions</h2>
+        <div class="info">
+            <h3>To verify the fix:</h3>
+            <ol>
+                <li><strong>Submit a new primary application</strong> using either PrimaryApplicationController or PrimaryFormController</li>
+                <li><strong>Check the file_indexings table</strong> for the new record</li>
+                <li><strong>Verify the file_title</strong> contains only the applicant name without "Primary Application - " prefix</li>
+            </ol>
+            
+            <h3>SQL Query to check recent records:</h3>
+            <code>
+                SELECT TOP 5 id, main_application_id, file_number, file_title, created_at 
+                FROM file_indexings 
+                ORDER BY created_at DESC
+            </code>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Summary</h2>
+        <div class="success">
+            <h3>✅ Fix Applied Successfully</h3>
+            <ul>
+                <li><strong>Root Cause:</strong> PrimaryApplicationController was adding "Primary Application - " prefix</li>
+                <li><strong>Solution:</strong> Removed the prefix from line 464</li>
+                <li><strong>Impact:</strong> New file indexing records will have clean titles</li>
+                <li><strong>Consistency:</strong> All controllers now use the same clean title logic</li>
+            </ul>
+            
+            <p><strong>File titles will now show:</strong></p>
+            <ul>
+                <li>✅ <strong>ABUBAKAR SADIQ</strong> (instead of "Primary Application - ABUBAKAR SADIQ")</li>
+                <li>✅ <strong>ABC COMPANY LTD</strong> (instead of "Primary Application - ABC COMPANY LTD")</li>
+                <li>✅ <strong>Musa Ali et al.</strong> (instead of "Primary Application - Musa Ali et al.")</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

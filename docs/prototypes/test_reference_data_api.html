@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference Data API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-section h3 { margin-top: 0; color: #333; }
+        .result { margin: 10px 0; padding: 10px; background: #f9f9f9; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+        select, input { padding: 8px; margin: 5px; width: 200px; }
+        .json-output { font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Reference Data API Test</h1>
+    <p>Testing the District/LGA API endpoints and file number lookup integration.</p>
+
+    <!-- Test 1: LGA Endpoint -->
+    <div class="test-section">
+        <h3>Test 1: LGA List API</h3>
+        <button onclick="testLgaApi()">Test /api/reference/lgas</button>
+        <div id="lga-result" class="result"></div>
+    </div>
+
+    <!-- Test 2: Districts Endpoint -->
+    <div class="test-section">
+        <h3>Test 2: Districts List API</h3>
+        <button onclick="testDistrictsApi()">Test /api/reference/districts</button>
+        <div id="districts-result" class="result"></div>
+    </div>
+
+    <!-- Test 3: Districts Independent -->
+    <div class="test-section">
+        <h3>Test 3: Districts (Independent from LGA)</h3>
+        <p>Districts are now independent and not filtered by LGA</p>
+        <button onclick="testDistrictsIndependent()">Test /api/reference/districts (All)</button>
+        <div id="districts-independent-result" class="result"></div>
+    </div>
+
+    <!-- Test 4: File Number Lookup -->
+    <div class="test-section">
+        <h3>Test 4: File Number Lookup API</h3>
+        <input type="text" id="file-number-input" placeholder="Enter file number (MLS/KANGIS/NewKANGIS)">
+        <button onclick="testFileNumberLookup()">Test /api/file-numbers/lookup</button>
+        <div id="file-lookup-result" class="result"></div>
+    </div>
+
+    <!-- Test 5: Integration Test -->
+    <div class="test-section">
+        <h3>Test 5: Integration Test - Simulate File Indexing Dialog</h3>
+        <p>This simulates the file indexing dialog workflow:</p>
+        <div>
+            <label>File Number:</label>
+            <input type="text" id="integration-file-number" placeholder="Enter file number">
+            <button onclick="simulateIntegration()">Simulate Integration</button>
+        </div>
+        <div>
+            <label>LGA (Independent):</label>
+            <select id="integration-lga">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <div>
+            <label>District (Independent):</label>
+            <select id="integration-district">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <div>
+            <label>Tracking ID:</label>
+            <input type="text" id="integration-tracking" readonly>
+        </div>
+        <div>
+            <label>Title:</label>
+            <input type="text" id="integration-title" readonly>
+        </div>
+        <div>
+            <label>Location:</label>
+            <input type="text" id="integration-location" readonly>
+        </div>
+        <div id="integration-result" class="result"></div>
+    </div>
+
+    <script>
+        // Initialize integration test
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLgasForIntegration();
+            loadDistrictsForIntegration();
+        });
+
+        // Test 1: LGA API
+        async function testLgaApi() {
+            const resultDiv = document.getElementById('lga-result');
+            try {
+                const response = await fetch('/api/reference/lgas');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const lgas = data.data;
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Success</strong><br>
+                        Found ${lgas.length} LGAs<br>
+                        <div class="json-output">${JSON.stringify(lgas, null, 2)}</div>
+                    `;
+                    
+                    // LGAs no longer need to populate select for district filtering
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>✗ Error</strong><br>${error.message}`;
+            }
+        }
+
+        // Test 2: Districts API
+        async function testDistrictsApi() {
+            const resultDiv = document.getElementById('districts-result');
+            try {
+                const response = await fetch('/api/reference/districts');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const districts = data.data;
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Success</strong><br>
+                        Found ${districts.length} Districts<br>
+                        <div class="json-output">${JSON.stringify(districts.slice(0, 5), null, 2)}...(showing first 5)</div>
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>✗ Error</strong><br>${error.message}`;
+            }
+        }
+
+        // Test 3: Districts Independent
+        async function testDistrictsIndependent() {
+            const resultDiv = document.getElementById('districts-independent-result');
+
+            try {
+                const response = await fetch('/api/reference/districts');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const districts = data.data;
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Success</strong><br>
+                        Found ${districts.length} Independent Districts<br>
+                        <div class="json-output">${JSON.stringify(districts.slice(0, 10), null, 2)}...(showing first 10)</div>
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>✗ Error</strong><br>${error.message}`;
+            }
+        }
+
+        // Test 4: File Number Lookup
+        async function testFileNumberLookup() {
+            const fileNumber = document.getElementById('file-number-input').value.trim();
+            const resultDiv = document.getElementById('file-lookup-result');
+            
+            if (!fileNumber) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<strong>✗ Error</strong><br>Please enter a file number';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/file-numbers/lookup?file_number=${encodeURIComponent(fileNumber)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Success</strong><br>
+                        File number found<br>
+                        <div class="json-output">${JSON.stringify(data, null, 2)}</div>
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>✗ Error</strong><br>${error.message}`;
+            }
+        }
+
+        // Test 5: Integration simulation
+        async function simulateIntegration() {
+            const fileNumber = document.getElementById('integration-file-number').value.trim();
+            const resultDiv = document.getElementById('integration-result');
+            
+            if (!fileNumber) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<strong>✗ Error</strong><br>Please enter a file number';
+                return;
+            }
+
+            try {
+                // Simulate file number lookup
+                const response = await fetch(`/api/file-numbers/lookup?file_number=${encodeURIComponent(fileNumber)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Populate fields like the real dialog would
+                    document.getElementById('integration-tracking').value = data.tracking_id || '';
+                    document.getElementById('integration-title').value = data.title || '';
+                    document.getElementById('integration-location').value = data.location || '';
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Integration Successful</strong><br>
+                        File number lookup complete, fields populated automatically
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>✗ Integration Error</strong><br>${error.message}`;
+            }
+        }
+
+        // Load LGAs for integration test
+        async function loadLgasForIntegration() {
+            try {
+                const response = await fetch('/api/reference/lgas');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const lgaSelect = document.getElementById('integration-lga');
+                    lgaSelect.innerHTML = '<option value="">Select LGA...</option>';
+                    data.data.forEach(lga => {
+                        lgaSelect.innerHTML += `<option value="${lga.id}">${lga.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load LGAs for integration test:', error);
+            }
+        }
+
+        // Load Districts for integration test
+        async function loadDistrictsForIntegration() {
+            try {
+                const response = await fetch('/api/reference/districts');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const districtSelect = document.getElementById('integration-district');
+                    districtSelect.innerHTML = '<option value="">Select District...</option>';
+                    data.data.forEach(district => {
+                        districtSelect.innerHTML += `<option value="${district.id}">${district.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load Districts for integration test:', error);
+            }
+        }
+    </script>
+</body>
+</html>

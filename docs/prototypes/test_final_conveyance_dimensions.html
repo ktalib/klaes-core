@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Conveyance Dimension Update Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Final Conveyance Dimension Update - Test Results</h1>
+        
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold mb-2">✅ Changes Made</h2>
+            <ul class="list-disc list-inside space-y-1 text-sm text-gray-600">
+                <li>Added DIMENSION column to buyers list table</li>  
+                <li>Updated database query to include sum.dimension field</li>
+                <li>Modified table headers: SN | BUYER NAME | UNIT NO | DIMENSION | MEASUREMENT M²</li>
+                <li>Updated data rows to display dimension information</li>
+                <li>Fixed empty table rows to match new 5-column structure</li>
+                <li>Updated description text to mention dimensions</li>
+            </ul>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-2">📋 Table Structure</h2>
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <table class="w-full border-collapse border border-gray-300">
+                    <thead>
+                        <tr class="bg-blue-100">
+                            <th class="border border-gray-300 px-2 py-1 text-xs">SN</th>
+                            <th class="border border-gray-300 px-2 py-1 text-xs">BUYER NAME</th>
+                            <th class="border border-gray-300 px-2 py-1 text-xs">UNIT NO</th>
+                            <th class="border border-gray-300 px-2 py-1 text-xs">DIMENSION</th>
+                            <th class="border border-gray-300 px-2 py-1 text-xs">MEASUREMENT M²</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">1</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">Mr. Musa Ali</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">A001</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">10m x 12m</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">120.00</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">2</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">Mrs. Jane Smith</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">A002</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">8m x 15m</td>
+                            <td class="border border-gray-300 px-2 py-1 text-xs">120.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="text-xs text-gray-500 mt-2">Sample table structure showing new DIMENSION column</p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-2">🔍 Database Query Updates</h2>
+            <div class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm">
+                <div class="mb-2 text-white">// Old Query:</div>
+                <div class="text-red-400 line-through">->select('bl.buyer_title', 'bl.buyer_name', 'bl.unit_no', 'sum.measurement')</div>
+                <div class="mb-2 mt-2 text-white">// New Query:</div>
+                <div class="text-green-400">->select('bl.buyer_title', 'bl.buyer_name', 'bl.unit_no', 'sum.dimension', 'sum.measurement')</div>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibent mb-2">📊 st_unit_measurements Table Columns</h2>
+            <div class="bg-blue-50 p-4 rounded-lg">
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <span class="bg-blue-200 px-2 py-1 rounded">id</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">sub_application_id</span>
+                    <span class="bg-green-200 px-2 py-1 rounded font-bold">dimension ⭐</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">memo_id</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">application_id</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">buyer_id</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">unit_no</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">measurement</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">created_at</span>
+                    <span class="bg-blue-200 px-2 py-1 rounded">updated_at</span>
+                </div>
+                <p class="text-xs text-gray-600 mt-2">⭐ Highlighted: dimension column now included in buyers list</p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold mb-2">🧪 Testing Instructions</h2>
+            <div class="space-y-2">
+                <a href="http://localhost:8001/login" target="_blank" class="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Test Final Conveyance Document
+                </a>
+                <p class="text-sm text-gray-600">1. Login to KLAES system</p>
+                <p class="text-sm text-gray-600">2. Navigate to Sectional Titling → Conveyance</p>
+                <p class="text-sm text-gray-600">3. Generate Final Conveyance document</p>
+                <p class="text-sm text-gray-600">4. Check Page 2 buyers list for DIMENSION column</p>
+            </div>
+        </div>
+
+        <div class="border-t pt-4">
+            <h2 class="text-lg font-semibold mb-2">✅ Expected Results</h2>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Buyers list table has 5 columns: SN, BUYER NAME, UNIT NO, DIMENSION, MEASUREMENT M²</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Dimension data displays from st_unit_measurements.dimension field</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Empty rows have 5 columns to match table structure</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Description text mentions "dimensions" along with units and measurements</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-green-500 font-bold">✓</span>
+                    <span>Shows "N/A" if dimension data is not available for a buyer</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

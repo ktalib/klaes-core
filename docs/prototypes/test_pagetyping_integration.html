@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Typing Data Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        .button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Page Typing Data Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Database Connection</h3>
+        <button class="button" onclick="testConnection()">Test Connection</button>
+        <div id="connection-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Page Typing Data (ST)</h3>
+        <button class="button" onclick="testSTPageTyping()">Test ST Page Typing</button>
+        <div id="st-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Page Typing Data (General)</h3>
+        <button class="button" onclick="testGeneralPageTyping()">Test General Page Typing</button>
+        <div id="general-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Raw Database Tables</h3>
+        <button class="button" onclick="testRawTables()">Check Raw Tables</button>
+        <button class="button" onclick="createTables()">Create Tables</button>
+        <div id="tables-result"></div>
+    </div>
+
+    <script>
+        function showResult(elementId, data, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.className = isSuccess ? 'success' : 'error';
+            element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        function testConnection() {
+            fetch('/test-db-connection', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => showResult('connection-result', data, data.success))
+            .catch(error => showResult('connection-result', {error: error.message}, false));
+        }
+
+        function testSTPageTyping() {
+            fetch('/edms/get-page-typing-data', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => showResult('st-result', data, data.success))
+            .catch(error => showResult('st-result', {error: error.message}, false));
+        }
+
+        function testGeneralPageTyping() {
+            fetch('/pagetyping/get-typing-data', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => showResult('general-result', data, data.success))
+            .catch(error => showResult('general-result', {error: error.message}, false));
+        }
+
+        function testRawTables() {
+            fetch('/test-raw-tables', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => showResult('tables-result', data, data.success))
+            .catch(error => showResult('tables-result', {error: error.message}, false));
+        }
+
+        function createTables() {
+            fetch('/create-pagetyping-tables', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showResult('tables-result', data, data.success);
+                if (data.success) {
+                    alert('Tables created successfully! You can now test the raw tables again.');
+                }
+            })
+            .catch(error => showResult('tables-result', {error: error.message}, false));
+        }
+    </script>
+</body>
+</html>

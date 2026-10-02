@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Summary Test</title>
+</head>
+<body>
+    <h2>Test Payment Summary Functionality</h2>
+    
+    <!-- Test Form Fields -->
+    <div>
+        <label>Application Fee:</label>
+        <input type="text" name="application_fee" value="15,000.00" />
+    </div>
+    
+    <div>
+        <label>Processing Fee:</label>
+        <input type="text" name="processing_fee" value="25,000.00" />
+    </div>
+    
+    <div>
+        <label>Survey Fee (Residential):</label>
+        <select name="site_plan_fee">
+            <option value="50000.00">Block of Flat - ₦50,000.00</option>
+            <option value="70000.00">Apartment - ₦70,000.00</option>
+        </select>
+    </div>
+    
+    <div>
+        <label>Receipt Number:</label>
+        <input type="text" name="receipt_number" value="REC-12345" />
+    </div>
+    
+    <div>
+        <label>Payment Date:</label>
+        <input type="date" name="payment_date" value="2025-09-01" />
+    </div>
+    
+    <!-- Summary Display -->
+    <div style="margin-top: 20px; border: 1px solid #ccc; padding: 10px;">
+        <h3>Payment Summary</h3>
+        <p>Application Fee: <span id="applicationFeeDisplay">₦0</span></p>
+        <p>Processing Fee: <span id="processingFeeDisplay">₦0</span></p>
+        <p>Survey Fee: <span id="surveyFeeDisplay">₦0</span></p>
+        <p><strong>Total: <span id="totalFeeDisplay">₦0</span></strong></p>
+        <p>Receipt Number: <span id="receiptNumberDisplay">N/A</span></p>
+        <p>Payment Date: <span id="paymentDateDisplay">N/A</span></p>
+    </div>
+    
+    <button onclick="updatePaymentInformation()" style="margin-top: 10px;">Update Summary</button>
+    
+    <script>
+        // Copy the updatePaymentInformation function from our fixed code
+        function updatePaymentInformation() {
+          // Get values from form inputs - handle both text and select fields for survey fee
+          let applicationFee = 0;
+          let processingFee = 0;
+          let surveyFee = 0;
+          
+          const applicationFeeInput = document.querySelector('input[name="application_fee"]');
+          if (applicationFeeInput) {
+            const value = applicationFeeInput.value.replace(/,/g, ''); // Remove commas from formatted numbers
+            applicationFee = parseFloat(value) || 0;
+          }
+          
+          const processingFeeInput = document.querySelector('input[name="processing_fee"]');
+          if (processingFeeInput) {
+            const value = processingFeeInput.value.replace(/,/g, ''); // Remove commas from formatted numbers
+            processingFee = parseFloat(value) || 0;
+          }
+          
+          // Handle survey fee which could be either input or select field with name "site_plan_fee"
+          const surveyFeeInput = document.querySelector('input[name="site_plan_fee"]');
+          const surveyFeeSelect = document.querySelector('select[name="site_plan_fee"]');
+          
+          if (surveyFeeInput) {
+            const value = surveyFeeInput.value.replace(/,/g, ''); // Remove commas from formatted numbers
+            surveyFee = parseFloat(value) || 0;
+          } else if (surveyFeeSelect) {
+            surveyFee = parseFloat(surveyFeeSelect.value) || 0;
+          }
+          
+          document.getElementById('applicationFeeDisplay').textContent = '₦' + applicationFee.toLocaleString();
+          document.getElementById('processingFeeDisplay').textContent = '₦' + processingFee.toLocaleString();
+          document.getElementById('surveyFeeDisplay').textContent = '₦' + surveyFee.toLocaleString();
+          
+          const totalFee = applicationFee + processingFee + surveyFee;
+          document.getElementById('totalFeeDisplay').textContent = '₦' + totalFee.toLocaleString();
+          
+          document.getElementById('receiptNumberDisplay').textContent = document.querySelector('input[name="receipt_number"]')?.value || 'N/A';
+          
+          // Format date
+          const paymentDateInput = document.querySelector('input[name="payment_date"]')?.value;
+          let formattedDate = 'N/A';
+          if (paymentDateInput) {
+            const date = new Date(paymentDateInput);
+            formattedDate = new Intl.DateTimeFormat('en-US', {
+              month: 'numeric',
+              day: 'numeric',
+              year: 'numeric'
+            }).format(date);
+          }
+          document.getElementById('paymentDateDisplay').textContent = formattedDate;
+        }
+        
+        // Auto-update on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updatePaymentInformation();
+            
+            // Add event listeners
+            const fields = ['application_fee', 'processing_fee', 'site_plan_fee', 'receipt_number', 'payment_date'];
+            fields.forEach(fieldName => {
+                const inputField = document.querySelector(`input[name="${fieldName}"]`);
+                const selectField = document.querySelector(`select[name="${fieldName}"]`);
+                
+                if (inputField) {
+                    inputField.addEventListener('input', updatePaymentInformation);
+                    inputField.addEventListener('change', updatePaymentInformation);
+                }
+                
+                if (selectField) {
+                    selectField.addEventListener('change', updatePaymentInformation);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

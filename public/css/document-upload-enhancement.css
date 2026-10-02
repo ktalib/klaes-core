@@ -1,0 +1,191 @@
+/* Document Upload Enhancement Styles */
+
+/* Tab Animation */
+.tab-button {
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.tab-button:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Tab Content Animation */
+.tab-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scan Upload Drag Zone */
+.scan-upload-container #scan-drop-zone {
+    transition: all 0.3s ease;
+}
+
+.scan-upload-container #scan-drop-zone:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+}
+
+.scan-upload-container #scan-drop-zone.drag-over {
+    background-color: rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+    transform: scale(1.02);
+}
+
+/* File Preview Grid */
+.scan-file-item {
+    transition: all 0.2s ease;
+}
+
+.scan-file-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress Bar Animation */
+#scan-progress-bar {
+    transition: width 0.5s ease-in-out;
+}
+
+/* File Thumbnail Hover Effect */
+.scan-file-thumbnail:hover,
+.scan-file-icon:hover {
+    transform: scale(1.05);
+    transition: transform 0.2s ease;
+}
+
+/* Enhanced Document Upload Cards */
+.border-gray-200:hover {
+    border-color: #e5e7eb;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Upload Zone Hover States */
+.border-dashed:hover {
+    background-color: rgba(34, 197, 94, 0.05);
+}
+
+/* Success State for Uploaded Files */
+.upload-success {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: #22c55e;
+}
+
+.upload-success .text-gray-400 {
+    color: #22c55e !important;
+}
+
+/* File Type Icons */
+.file-type-pdf {
+    color: #dc2626;
+}
+
+.file-type-image {
+    color: #059669;
+}
+
+.file-type-document {
+    color: #2563eb;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .tab-button {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+    }
+    
+    .scan-file-item {
+        margin-bottom: 0.75rem;
+    }
+    
+    #scan-files-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+}
+
+@media (max-width: 640px) {
+    #scan-files-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Loading Animation */
+.upload-loading {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Modal Overlay Animation */
+.modal-overlay {
+    animation: modalFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Button Hover Effects */
+button:hover {
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
+
+/* File Status Indicators */
+.file-status-uploaded {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.file-status-error {
+    background-color: #fef2f2;
+    color: #dc2626;
+}
+
+.file-status-processing {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+/* Enhanced Visual Feedback */
+.upload-drop-active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border: 2px dashed #3b82f6;
+}
+
+.upload-drop-active .upload-icon {
+    animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 53%, 80%, 100% {
+        transform: translate3d(0, 0, 0);
+    }
+    40%, 43% {
+        transform: translate3d(0, -8px, 0);
+    }
+    70% {
+        transform: translate3d(0, -4px, 0);
+    }
+    90% {
+        transform: translate3d(0, -2px, 0);
+    }
+}

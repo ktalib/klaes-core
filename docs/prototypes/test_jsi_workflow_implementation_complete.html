@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSI Workflow Implementation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
+        .test-section h3 { color: #333; margin-top: 0; }
+        .success { color: #10B981; font-weight: bold; }
+        .error { color: #EF4444; font-weight: bold; }
+        .warning { color: #F59E0B; font-weight: bold; }
+        .info { color: #3B82F6; font-weight: bold; }
+        .step { margin: 10px 0; padding: 10px; background: white; border-left: 4px solid #3B82F6; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+        .button-demo { display: inline-block; margin: 5px; padding: 8px 16px; border-radius: 4px; text-decoration: none; color: white; font-weight: bold; }
+        .btn-save { background: #3B82F6; }
+        .btn-generate { background: #10B981; }
+        .btn-submit { background: #8B5CF6; }
+        .btn-disabled { background: #9CA3AF; cursor: not-allowed; opacity: 0.5; }
+        .workflow-status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .status-draft { background: #FEF3C7; color: #92400E; }
+        .status-saved { background: #DBEAFE; color: #1E40AF; }
+        .status-generated { background: #D1FAE5; color: #065F46; }
+        .status-submitted { background: #E0E7FF; color: #3730A3; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+        .test-url { background: #f8f9fa; padding: 8px; border-radius: 4px; font-family: monospace; color: #666; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 JSI Workflow Implementation - Complete Testing Guide</h1>
+        <p><strong>Test Date:</strong> October 8, 2025 | <strong>Implementation:</strong> Joint Site Inspection Report Workflow with Database Tracking</p>
+
+        <div class="test-section">
+            <h3>🔧 Implementation Summary</h3>
+            <div class="step">
+                <strong>✅ Database Changes:</strong>
+                <div class="code">
+-- Added workflow tracking columns
+ALTER TABLE joint_site_inspection_reports ADD is_generated BIT DEFAULT 0
+ALTER TABLE joint_site_inspection_reports ADD is_submitted BIT DEFAULT 0
+                </div>
+            </div>
+            <div class="step">
+                <strong>✅ Query Fix:</strong> Fixed sub-application JSI report retrieval (removed application_id constraint)
+            </div>
+            <div class="step">
+                <strong>✅ Controller Updates:</strong> Added generate/submit methods with mutual exclusivity for application_id/sub_application_id
+            </div>
+            <div class="step">
+                <strong>✅ Frontend Workflow:</strong> Replaced single "Save & Generate" button with proper workflow buttons
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 JSI Button Workflow Logic</h3>
+            <table>
+                <tr>
+                    <th>Stage</th>
+                    <th>Save Button</th>
+                    <th>Generate Button</th>
+                    <th>Submit Button</th>
+                    <th>Status Display</th>
+                </tr>
+                <tr>
+                    <td><strong>1. New Report</strong></td>
+                    <td><span class="button-demo btn-save">Save</span> (Enabled)</td>
+                    <td><span class="button-demo btn-disabled">Generate</span> (Disabled)</td>
+                    <td><span class="button-demo btn-disabled">Submit</span> (Disabled)</td>
+                    <td><span class="workflow-status status-draft">📝 Draft</span></td>
+                </tr>
+                <tr>
+                    <td><strong>2. After Save</strong></td>
+                    <td><span class="button-demo btn-save">Save</span> (Enabled)</td>
+                    <td><span class="button-demo btn-generate">Generate</span> (Enabled)</td>
+                    <td><span class="button-demo btn-disabled">Submit</span> (Disabled)</td>
+                    <td><span class="workflow-status status-saved">💾 Saved</span></td>
+                </tr>
+                <tr>
+                    <td><strong>3. After Generate</strong></td>
+                    <td><span class="button-demo btn-disabled">Save</span> (Disabled)</td>
+                    <td><span class="button-demo btn-disabled">Generate</span> (Disabled)</td>
+                    <td><span class="button-demo btn-submit">Submit</span> (Enabled)</td>
+                    <td><span class="workflow-status status-generated">📋 Generated</span></td>
+                </tr>
+                <tr>
+                    <td><strong>4. After Submit</strong></td>
+                    <td><span class="button-demo btn-disabled">Save</span> (Disabled)</td>
+                    <td><span class="button-demo btn-disabled">Generate</span> (Disabled)</td>
+                    <td><span class="button-demo btn-disabled">Submit</span> (Disabled)</td>
+                    <td><span class="workflow-status status-submitted">✅ Submitted</span></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Critical Bug Fix Testing</h3>
+            <div class="step">
+                <strong class="success">✅ FIXED: JSI Report Display Issue</strong>
+                <p><strong>Problem:</strong> Sub-application JSI reports showing "No Joint Site Inspection Report Available" after save</p>
+                <p><strong>Root Cause:</strong> Query was checking for both sub_application_id AND application_id, but after our mutual exclusivity fix, sub-app reports have application_id = NULL</p>
+                <p><strong>Solution:</strong> Updated query to only check sub_application_id for sub-applications</p>
+                <div class="code">
+// OLD (broken):
+$jointInspectionReport = JointSiteInspectionReport::where('sub_application_id', $application->id)
+    ->where('application_id', $application->main_application_id ?? $application->id)
+    ->first();
+
+// NEW (fixed):
+$jointInspectionReport = JointSiteInspectionReport::where('sub_application_id', $application->id)
+    ->first();
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Database Testing</h3>
+            <div class="step">
+                <strong>1. Verify Column Addition:</strong>
+                <div class="code">
+SELECT TOP 5 id, application_id, sub_application_id, is_generated, is_submitted, created_at 
+FROM joint_site_inspection_reports 
+ORDER BY id DESC
+                </div>
+                <p><strong>Expected:</strong> New columns present with default values (0)</p>
+            </div>
+            <div class="step">
+                <strong>2. Check Data Integrity Fix:</strong>
+                <div class="code">
+-- Before fix (Row 14): application_id=2, sub_application_id=2064 ❌
+-- After fix: application_id=NULL, sub_application_id=2064 ✅
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎮 Manual Testing Steps</h3>
+            
+            <div class="step">
+                <strong>Step 1: Test Sub-Application JSI Display Fix</strong>
+                <div class="test-url">URL: /sub-actions/recommendation/2064</div>
+                <p>1. Navigate to sub-application 2064</p>
+                <p>2. Click "Joint Site Inspection Report" tab</p>
+                <p><strong class="success">Expected:</strong> Should show JSI report content (not "No Joint Site Inspection Report Available")</p>
+                <p><strong class="info">Verify:</strong> Both "Existing site measurement" and "SN UNIT NO Dimension in M²" tables display data</p>
+            </div>
+
+            <div class="step">
+                <strong>Step 2: Test New JSI Workflow - Sub-Application</strong>
+                <div class="test-url">URL: /sub-actions/recommendation/[any-sub-id]</div>
+                <p>1. Click "Joint Site Inspection Report" tab</p>
+                <p>2. Click "Create New Report" button</p>
+                <p>3. Fill out JSI form and observe button states:</p>
+                <ul>
+                    <li><strong>Initial:</strong> Save=Enabled, Generate=Disabled, Submit=Disabled, Status="📝 Draft"</li>
+                    <li><strong>After Save:</strong> Save=Enabled, Generate=Enabled, Submit=Disabled, Status="💾 Saved"</li>
+                    <li><strong>After Generate:</strong> Save=Disabled, Generate=Disabled, Submit=Enabled, Status="📋 Generated"</li>
+                    <li><strong>After Submit:</strong> All=Disabled, Status="✅ Submitted"</li>
+                </ul>
+            </div>
+
+            <div class="step">
+                <strong>Step 3: Test Primary Application JSI Workflow</strong>
+                <div class="test-url">URL: /actions/recommendation/[primary-id]</div>
+                <p>Repeat Step 2 workflow with primary applications to ensure both paths work correctly</p>
+            </div>
+
+            <div class="step">
+                <strong>Step 4: Database Verification</strong>
+                <div class="code">
+-- Check workflow states after each action:
+SELECT id, application_id, sub_application_id, is_generated, is_submitted, created_at
+FROM joint_site_inspection_reports 
+WHERE sub_application_id = 2064 OR id IN (latest_test_ids)
+ORDER BY created_at DESC
+                </div>
+                <p><strong>Verify:</strong> is_generated and is_submitted flags update correctly with each workflow step</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚨 Troubleshooting Guide</h3>
+            <div class="step">
+                <strong class="error">Issue: Buttons not responding</strong>
+                <p><strong>Check:</strong> Browser console for JavaScript errors</p>
+                <p><strong>Fix:</strong> Ensure view:clear was run and page refreshed</p>
+            </div>
+            <div class="step">
+                <strong class="error">Issue: JSI report still not showing</strong>
+                <p><strong>Check:</strong> Database has records with correct sub_application_id</p>
+                <p><strong>Fix:</strong> Verify query fix was applied and caches cleared</p>
+            </div>
+            <div class="step">
+                <strong class="error">Issue: Workflow states not updating</strong>
+                <p><strong>Check:</strong> Network tab for API response errors</p>
+                <p><strong>Fix:</strong> Verify routes are registered and controller methods exist</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Success Criteria</h3>
+            <div class="step">
+                <strong class="success">✅ JSI Report Display Fixed:</strong> Sub-application 2064 shows JSI content instead of "No report available"
+            </div>
+            <div class="step">
+                <strong class="success">✅ Workflow Buttons Working:</strong> Save/Generate/Submit flow functions correctly with proper state management
+            </div>
+            <div class="step">
+                <strong class="success">✅ Database Integrity:</strong> application_id and sub_application_id are mutually exclusive in new records
+            </div>
+            <div class="step">
+                <strong class="success">✅ Status Tracking:</strong> is_generated and is_submitted flags update correctly throughout workflow
+            </div>
+            <div class="step">
+                <strong class="success">✅ UI Feedback:</strong> Button states and status indicators provide clear workflow guidance
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Implementation Complete ✅</h3>
+            <p><strong class="success">All components have been successfully implemented:</strong></p>
+            <ul>
+                <li>✅ Database schema updated with workflow tracking columns</li>
+                <li>✅ Critical query bug fixed for sub-application JSI display</li>
+                <li>✅ Controller methods added for generate/submit workflow</li>
+                <li>✅ Routes registered for new workflow endpoints</li>
+                <li>✅ Frontend updated with proper button workflow and state management</li>
+                <li>✅ Model updated to include new fillable fields and casts</li>
+                <li>✅ JavaScript functions added for workflow button handling</li>
+            </ul>
+            <p><strong class="info">Ready for testing and deployment!</strong></p>
+        </div>
+    </div>
+</body>
+</html>

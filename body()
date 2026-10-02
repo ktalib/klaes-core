@@ -1,0 +1,21 @@
+ 
+   Psy\Exception\ParseErrorException 
+
+  PHP Parse error: Syntax error, unexpected T_CONSTANT_ENCAPSED_STRING on line 1
+
+  at C:\xampp\htdocs\klas\vendor\psy\psysh\src\Exception\ParseErrorException.php:44
+     40▕      * @param \PhpParser\Error $e
+     41▕      */
+     42▕     public static function fromParseError(\PhpParser\Error $e): self
+     43▕     {
+  ➜  44▕         return new self($e->getRawMessage(), $e->getAttributes());
+     45▕     }
+     46▕ }
+     47▕
+
+  1   C:\xampp\htdocs\klas\vendor\psy\psysh\src\CodeCleaner.php:488
+      Psy\Exception\ParseErrorException::fromParseError(Object(PhpParser\Error))
+
+  2   C:\xampp\htdocs\klas\vendor\psy\psysh\src\CodeCleaner.php:269
+      Psy\CodeCleaner::parse("<?php '$k=config(''services.google_maps.geocoding_key'');
+")

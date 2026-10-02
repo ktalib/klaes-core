@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ST File Numbers Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .badge { padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block; }
+        .badge-st { background-color: #e0f2fe; color: #1e3a8a; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>ST File Numbers Debug Test</h1>
+    
+    <div id="results">
+        <p>Testing MLS FileNo Controller endpoints...</p>
+        
+        <h2>1. Debug Endpoint Test</h2>
+        <div id="debug-results">Loading...</div>
+        
+        <h2>2. Stats Endpoint Test</h2>
+        <div id="stats-results">Loading...</div>
+        
+        <h2>3. DataTable Endpoint Test</h2>
+        <div id="datatable-results">Loading...</div>
+    </div>
+
+    <script>
+        async function testEndpoint(url, containerId) {
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                let html = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                if (data.success === false) {
+                    html = '<div class="error">Error: ' + data.message + '</div>' + html;
+                } else {
+                    html = '<div class="success">Success!</div>' + html;
+                }
+                
+                document.getElementById(containerId).innerHTML = html;
+            } catch (error) {
+                document.getElementById(containerId).innerHTML = 
+                    '<div class="error">Fetch Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function testDataTableEndpoint() {
+            try {
+                const response = await fetch('/mls-fileno/datatable?start=0&length=10&draw=1');
+                const data = await response.json();
+                
+                let html = '<div class="success">DataTable Response:</div>';
+                html += '<p><strong>Total Records:</strong> ' + (data.recordsTotal || 0) + '</p>';
+                html += '<p><strong>Filtered Records:</strong> ' + (data.recordsFiltered || 0) + '</p>';
+                
+                if (data.data && data.data.length > 0) {
+                    html += '<table>';
+                    html += '<tr><th>ID</th><th>MLS File No</th><th>ST File No</th><th>Other Numbers</th><th>Source</th></tr>';
+                    
+                    data.data.forEach(record => {
+                        html += '<tr>';
+                        html += '<td>' + (record.id || 'N/A') + '</td>';
+                        html += '<td>' + (record.mlsfNo || 'N/A') + '</td>';
+                        html += '<td>' + (record.st_file_no || 'N/A') + '</td>';
+                        html += '<td>' + (record.OtherNumbers || 'N/A') + '</td>';
+                        html += '<td>' + (record.SOURCE || 'N/A') + '</td>';
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                } else {
+                    html += '<p>No data returned</p>';
+                }
+                
+                html += '<h4>Raw Response:</h4><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                document.getElementById('datatable-results').innerHTML = html;
+            } catch (error) {
+                document.getElementById('datatable-results').innerHTML = 
+                    '<div class="error">Fetch Error: ' + error.message + '</div>';
+            }
+        }
+
+        // Run tests
+        testEndpoint('/mls-fileno/debug', 'debug-results');
+        testEndpoint('/mls-fileno/stats', 'stats-results');
+        testDataTableEndpoint();
+    </script>
+</body>
+</html>

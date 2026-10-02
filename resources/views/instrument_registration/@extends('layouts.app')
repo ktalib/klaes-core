@@ -1,0 +1,1492 @@
+@extends('layouts.app')
+
+@section('page-title')
+    {{ $PageTitle ?? __('Instrument Registration (New Registration)') }}
+@endsection
+
+@section('content')
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
+    
+    <!-- Select2 & PDF Generation -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Inline script to make sure critical functions are defined early ---->
+    <script>
+        // Define global configuration and data FIRST
+        window.KlaesConfig = {
+            baseUrl: "{{ url('/') }}",
+            csrfToken: "{{ csrf_token() }}",
+            urls: {
+                base: "{{ url('instrument_registration') }}",
+                delete: "{{ url('instrument_registration/delete') }}",
+                batchPrintSessions: "{{ route('instrument_registration.batch-print-sessions') }}",
+                batchGenerateRds: "{{ route('instrument_registration.batch-generate-rds') }}",
+                batchDownloadRdsPdf: "{{ route('instrument_registration.batch-download-rds-pdf') }}",
+                batchGenerateCor: "{{ route('instrument_registration.batch-generate-cor') }}",
+                batchDownloadCorPdf: "{{ route('instrument_registration.batch-download-cor-pdf') }}",
+                batchPrintRunner: "{{ route('instrument_registration.batch-print-runner') }}",
+                generateRds: "{{ url('instrument_registration/generate-rds') }}",
+                viewRds: "{{ url('instrument_registration/view-rds') }}",
+                rdsStatus: "{{ url('instrument_registration/rds-status') }}",
+                corIndex: "{{ route('coroi.index') }}",
+                generateCor: "{{ url('coroi/generate') }}"
+            }
+        };
+
+        // Helper function to format multiple owner names
+        function formatMultipleOwners(ownerString) {
+            if (!ownerString) return '';  // Return empty string instead of '-' for null/empty values
+            if (typeof ownerString === 'string' && ownerString.trim().startsWith('[')) {
+                try {
+                    const owners = JSON.parse(ownerString);
+                    if (Array.isArray(owners) && owners.length > 0) {
+                        return owners.length > 1 ? `${owners[0]} +${owners.length - 1} more` : owners[0];
+                    }
+                } catch (e) { return ownerString; }
+            }
+            return ownerString;
+        }
+
+        // Pass PHP data to JavaScript globally
+        window.serverCofoData = @json($fullDataForJs)
+            .filter(function(item) {
+                // PUA units (Assignment + CofO for mother-application sub-units) are
+                // shown grouped in the ST Groups tab — exclude them from the flat list.
+                return (item.application_type || '').toUpperCase() !== 'PUA';
+            })
+            .map(item => {
+                // Format Grantor and Grantee if they contain JSON arrays
+                if (item.Grantor) item.Grantor = formatMultipleOwners(item.Grantor);
+                if (item.Grantee) item.Grantee = formatMultipleOwners(item.Grantee);
+                return item;
+            });
+
+        // ST group lookup: keyed by mother_app_id, includes unit count, fileno, and full units array
+        @php
+            $stGroupLookupData = [];
+            foreach ($stGroups ?? collect() as $g) {
+                if (($g['type'] ?? '') === 'mother_pua') {
+                    $mid = str_replace('grp_m_', '', $g['id'] ?? '');
+                    if ($mid !== '') {
+                        $stGroupLookupData[$mid] = [
+                            'unit_count'    => (int)($g['unit_count'] ?? 0),
+                            'display_fileno'=> $g['display_fileno'] ?? '',
+                            'is_mother'     => true,
+                            'units'         => $g['units'] ?? [],
+                            'group_id'      => $g['id'] ?? '',
+                        ];
+                    }
+                }
+            }
+        @endphp
+        window.stGroupLookup = @json($stGroupLookupData);
+
+        // Push mother-level aggregate records (one row per mother per instrument type)
+        @php
+        $motherAggregates = [];
+        foreach ($stGroups ?? [] as $group) {
+            if (($group['type'] ?? '') !== 'mother_pua') continue;
+            $mid = str_replace('grp_m_', '', $group['id'] ?? '');
+            if (!$mid) continue;
+
+            $assignTotal = (int)($group['assign_total'] ?? 0);
+            $assignReg   = (int)($group['assign_registered'] ?? 0);
+            $cofoTotal   = (int)($group['cofo_total'] ?? 0);
+            $cofoReg     = (int)($group['cofo_registered'] ?? 0);
+
+            $pendingAssignUnits = [];
+            $pendingCofoUnits   = [];
+            foreach ($group['units'] ?? [] as $unit) {
+                $isPrimaryUnit = (bool)($unit['is_primary_owner'] ?? false);
+
+                // Assignment: non-primary units only, not yet registered
+                if (!$isPrimaryUnit && ($unit['assignment_status'] ?? '') !== 'registered') {
+                    $pendingAssignUnits[] = [
+                        'subapp_id' => $unit['subapp_id'],
+                        'fileno'    => $unit['fileno'],
+                        'grantor'   => $unit['mother_applicant'] ?? ($group['applicant'] ?? ''),
+                        'grantee'   => $unit['applicant'] ?? '',
+                    ];
+                }
+
+                // CofO eligibility re-derived directly from raw data (bypasses cached cofo_enabled):
+                // - primary owner unit → needs its own unit-level fragmentation registered
+                // - non-primary unit   → needs assignment registered first
+                $unitCofoEligible = $isPrimaryUnit
+                    ? (bool)($unit['frag_registered'] ?? false)
+                    : ($unit['assignment_status'] ?? '') === 'registered';
+
+                if (($unit['cofo_status'] ?? '') !== 'registered' && $unitCofoEligible) {
+                    $pendingCofoUnits[] = [
+                        'subapp_id' => $unit['subapp_id'],
+                        'fileno'    => $unit['fileno'],
+                        'grantor'   => 'Kano State Government',
+                        'grantee'   => $unit['applicant'] ?? '',
+                    ];
+                }
+            }
+
+            // Group-level CofO enabled only when at least one unit is actually eligible
+            $cofoEnabled = count($pendingCofoUnits) > 0;
+
+            if ($assignTotal > 0) {
+                $motherAggregates[] = [
+                    'id'               => 'mother_assign_' . $mid,
+                    'fileno'           => $group['display_fileno'] ?? '',
+                    'instrument_type'  => 'ST Assignment (Transfer of Title)',
+                    'status'           => ($assignReg < $assignTotal) ? 'pending' : 'registered',
+                    'application_type' => 'MOTHER_ST',
+                    'Grantor'          => $group['applicant'] ?? '',
+                    'Grantee'          => $group['applicant'] ?? '',
+                    'captured_date'    => $group['captured_date'] ?? null,
+                    'reg_date'         => null,
+                    'reg_time'         => null,
+                    'Deeds_Serial_No'  => null,
+                    '_isAggregate'     => true,
+                    '_aggType'         => 'st_assignment',
+                    '_registeredCount' => $assignReg,
+                    '_totalCount'      => $assignTotal,
+                    '_pendingUnits'    => $pendingAssignUnits,
+                ];
+            }
+
+            if ($cofoTotal > 0) {
+                $motherAggregates[] = [
+                    'id'               => 'mother_cofo_' . $mid,
+                    'fileno'           => $group['display_fileno'] ?? '',
+                    'instrument_type'  => 'Sectional Titling CofO',
+                    'status'           => ($cofoReg < $cofoTotal) ? 'pending' : 'registered',
+                    'application_type' => 'MOTHER_ST',
+                    'Grantor'          => 'Kano State Government',
+                    'Grantee'          => $group['applicant'] ?? '',
+                    'captured_date'    => $group['captured_date'] ?? null,
+                    'reg_date'         => null,
+                    'reg_time'         => null,
+                    'Deeds_Serial_No'  => null,
+                    '_isAggregate'     => true,
+                    '_aggType'         => 'sectional_cofo',
+                    '_registeredCount' => $cofoReg,
+                    '_totalCount'      => $cofoTotal,
+                    '_pendingUnits'    => $pendingCofoUnits,
+                    '_cofoEnabled'     => $cofoEnabled,
+                ];
+            }
+        }
+        @endphp
+        @json($motherAggregates).forEach(function(rec) { window.serverCofoData.push(rec); });
+
+        // Base URL for instrument registration AJAX endpoints
+        window.baseUrl = "{{ url('') }}";
+        window.instrumentRegistrationBase = "{{ url('') }}";
+
+
+        // Define critical functions in the global scope first
+        function openBatchRegisterModal() {
+            // Opening batch registration modal from inline script
+
+            // Check if there are multiple instruments selected
+            const checkedBoxes = document.querySelectorAll('.main-table-checkbox:checked:not([disabled])');
+            const checkedCount = checkedBoxes.length;
+
+            if (checkedCount >= 2) {
+                // Multiple instruments selected - open quick batch modal
+                // Opening quick batch modal for selected instruments
+
+                // Get the selected instrument data
+                const selectedInstruments = Array.from(checkedBoxes).map(checkbox => {
+                    const id = checkbox.getAttribute('data-id');
+                    const status = checkbox.getAttribute('data-status');
+
+                    // Find the instrument data from serverCofoData
+                    const instrumentData = serverCofoData.find(item => String(item.id) === String(id));
+
+                    if (instrumentData) {
+                        return {
+                            id: instrumentData.id,
+                            fileNo: instrumentData.fileno,
+                            grantor: instrumentData.Grantor || '',
+                            grantee: instrumentData.Grantee || '',
+                            status: status,
+                            instrumentType: instrumentData.instrument_type || '',
+                            lga: instrumentData.lga || '',
+                            district: instrumentData.district || '',
+                            plotNumber: instrumentData.plotNumber || '',
+                            plotSize: instrumentData.size || '',
+                            plotDescription: instrumentData.propertyDescription || '',
+                            duration: instrumentData.duration || instrumentData.leasePeriod || '',
+                            deeds_date: instrumentData.deeds_date || instrumentData.instrumentDate || '',
+                            deeds_time: instrumentData.deeds_time || '',
+                            rootRegistrationNumber: instrumentData.rootRegistrationNumber || instrumentData.Deeds_Serial_No || '',
+                            solicitorName: instrumentData.solicitorName || '',
+                            solicitorAddress: instrumentData.solicitorAddress || '',
+                            landUseType: instrumentData.landUseType || instrumentData.land_use || ''
+                        };
+                    }
+                    return null;
+                }).filter(item => item !== null);
+
+                // Open quick batch modal with selected instruments
+                if (typeof window.openQuickBatchModal === 'function') {
+                    window.openQuickBatchModal(selectedInstruments);
+                } else {
+                    // Quick batch modal function not available
+                }
+            } else {
+                // No selection or single selection - open normal batch modal
+                // Opening normal batch modal
+                if (typeof window.openBatchRegisterModalImplementation === 'function') {
+                    window.openBatchRegisterModalImplementation();
+                } else {
+                    // Fallback implementation if main JS hasn't loaded yet
+                    document.getElementById('batchRegisterModal').style.display = 'block';
+                    // We'll reload the page after a slight delay to ensure JS is properly loaded
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                }
+            }
+        }
+    </script>
+    @include('instrument_registration.partials.css')
+
+    <div class="flex-1 overflow-auto">
+        <!-- Header -->
+        @include($headerPartial ?? 'admin.header')
+
+        <!-- Main Content -->
+        <div class="container mx-auto py-6 space-y-6 px-4">
+            <!-- Page Header -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <h1 class="text-2xl font-bold">{{ $PageTitle ?? 'Instrument Registration' }}</h1>
+                <div class="flex gap-2">
+                    @if(Auth::user()->assign_role == 'Supper Admin' && !($isStDeeds ?? false))
+                        <!-- Manage Instrument Types Button -->
+                        <div x-data="{ open: false }" class="relative">
+                            <button @click="$dispatch('open-instrument-types-modal')"
+                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg flex items-center gap-2 border border-gray-300">
+                                <i class="fas fa-list"></i>
+                                <span>Instrument Types</span>
+                            </button>
+                        </div>
+                    @endif
+
+                    {{-- Old Registration button hidden; kept for legacy JS references --}}
+                    <button id="batchRegisterBtn" onclick="openBatchRegisterModal()" style="display:none;"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2">
+                        <i class="fas fa-layer-group"></i>
+                        <span id="batchBtnText">Registration</span>
+                    </button>
+
+                    {{-- Batch mode toggle --}}
+                    <button id="batchModeToggleBtn" onclick="toggleBatchMode()"
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg flex items-center gap-2 border border-gray-300 transition-all duration-150">
+                        <i class="fas fa-check-square"></i>
+                        <span>Batch</span>
+                    </button>
+
+                    {{-- Batch Registration button (hidden until items are checked) --}}
+                    <button id="groupBatchRegBtn" onclick="openGroupBatchModal()" style="display:none;"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 shadow transition-all duration-150">
+                        <i class="fas fa-layer-group"></i>
+                        <span>Batch Registration</span>
+                        <span id="batchSelectedBadge" class="ml-1 bg-white text-indigo-700 rounded-full text-xs font-bold px-2 py-0.5">0</span>
+                    </button>
+                    <button id="exportRegistryBtn" onclick="openCaptureExportModal()"
+                        class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200">
+                        <i class="fas fa-file-export"></i>
+                        <span>Export Instruments</span>
+                    </button>
+
+                </div>
+            </div>
+
+            @if(Auth::user()->assign_role == 'Supper Admin')
+                <!-- Instrument Types Management Modal -->
+                @include('instrument_registration.modals.instrument_types_manager')
+                <script src="{{ asset('js/instrument-types-manager.js') }}"></script>
+            @endif
+
+            <!-- Stats Cards -->
+            @include('instrument_registration.partials.statistic_card')
+
+            <!-- Main Content Table -->
+            <div class="table-container">
+                <!-- Table tabs & controls -->
+                <div class="table-header px-6 py-4 flex justify-between items-center flex-wrap gap-4">
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <h2 class="text-lg font-semibold text-gray-900">Instruments</h2>
+                        <div class="flex items-center gap-2 text-sm text-gray-600">
+                            <i class="fas fa-database text-blue-500"></i>
+                            <span id="totalRecordsCount">{{ $totalCount ?? 0 }} Total Records</span>
+                        </div>
+                        @if(!($isStDeeds ?? false))
+                        <button type="button" onclick="openBatchPrintSessionModal()"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2">
+                            <i class="fas fa-print"></i>
+                            <span>Print Batch RDS and CoR</span>
+                        </button>
+                        @endif
+
+                        {{-- View toggle: List / Grouped --}}
+                        <div class="flex rounded-lg overflow-hidden border border-gray-300 shadow-sm" role="group">
+                            <button id="toggleListView"
+                                onclick="switchIRView('list')"
+                                class="ir-view-btn px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 bg-blue-600 text-white border-r border-blue-700">
+                                <i class="fas fa-list text-[11px]"></i>List
+                            </button>
+                            <button id="toggleGroupedView"
+                                onclick="switchIRView('grouped')"
+                                class="ir-view-btn px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 bg-white text-gray-600 hover:bg-gray-50"
+                                style="display:none;">
+                                <i class="fas fa-layer-group text-[11px]"></i>ST Groups
+                            </button>
+                        </div>
+                    </div>
+
+
+                    <!-- Search and Pagination Controls -->
+                    <div class="flex items-center gap-4">
+                        <!-- Records per page selector -->
+                        <div class="flex items-center gap-2">
+                            <label for="recordsPerPage" class="text-sm text-gray-600">Show:</label>
+                            <select id="recordsPerPage" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+
+                        <!-- Instrument Type Filter -->
+                        <div class="flex items-center gap-2">
+                            <label for="instrumentTypeFilter" class="text-sm text-gray-600">Type:</label>
+                            <select id="instrumentTypeFilter"
+                                class="border border-gray-300 rounded px-2 py-1 text-sm max-w-[200px]"
+                                onchange="filterTable()">
+                                <option value="">All Types</option>
+                                @if(isset($instrumentTypes) && count($instrumentTypes) > 0)
+                                    @foreach($instrumentTypes as $type)
+                                        <option value="{{ is_object($type) ? ($type->name ?? $type) : $type }}">
+                                            {{ is_object($type) ? ($type->name ?? $type) : $type }}
+                                        </option>
+                                    @endforeach
+                                @endif
+                            </select>
+                        </div>
+
+                        <!-- Volume Filter -->
+                        <div class="flex items-center gap-2">
+                            <label for="volumeFilter" class="text-sm font-semibold text-gray-700">Vol:</label>
+                            <select id="volumeFilter"
+                                class="border border-gray-300 rounded px-2 py-1.5 text-sm w-24 bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                                onchange="typeof filterTable === 'function' ? filterTable() : null">
+                                <option value="">All</option>
+                                @for ($i = 1; $i <= 999; $i++)
+                                    <option value="{{ $i }}">{{ $i }}</option>
+                                @endfor
+                            </select>
+                        </div>
+
+                        <!-- Search -->
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input id="searchInput" type="search" placeholder="Search by File No..."
+                                class="search-input pl-10 pr-4 py-2.5 text-sm w-80 rounded-lg">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ===== GROUPED VIEW (hidden by default) ===== --}}
+                <div id="irGroupedViewContainer" style="display: none;">
+                    @include('instrument_registration.partials.st_grouped_table')
+                </div>
+
+                {{-- ===== LIST VIEW (default) ===== --}}
+                <div id="irListViewContainer">
+
+                <!-- Table with Fixed Header -->
+                <div class="table-wrapper" style="max-height: 600px; overflow-y: auto;">
+                    <table class="min-w-full enhanced-table compact-table" id="instrumentTable">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <input type="checkbox" class="rounded" id="selectAll" onchange="toggleSelectAll(this)">
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(1)">
+                                    Reg Particulars
+                                    <span class="inline-block align-middle" id="sortIcon-1"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(2)">
+                                    Instrument Type
+                                    <span class="inline-block align-middle" id="sortIcon-2"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(3)">
+                                    Reg Time
+                                    <span class="inline-block align-middle" id="sortIcon-3"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(4)">
+                                    REG DATE
+                                    <span class="inline-block align-middle" id="sortIcon-4"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(5)">
+                                    Captured Time
+                                    <span class="inline-block align-middle" id="sortIcon-5"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(6)">
+                                    Captured Date
+                                    <span class="inline-block align-middle" id="sortIcon-6"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(7)">
+                                    FileNo
+                                    <span class="inline-block align-middle" id="sortIcon-7"></span>
+                                </th>
+                                <!-- <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                                                            onclick="sortTable(7)">
+                                                                            Parent FileNo
+                                                                            <span class="inline-block align-middle" id="sortIcon-7"></span>
+                                                                        </th> -->
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(8)">
+                                    Status
+                                    <span class="inline-block align-middle" id="sortIcon-8"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(9)">
+                                    Party 1
+                                    <span class="inline-block align-middle" id="sortIcon-9"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(10)">
+                                    Party 2
+                                    <span class="inline-block align-middle" id="sortIcon-10"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(11)">
+                                    LGA
+                                    <span class="inline-block align-middle" id="sortIcon-11"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(12)">
+                                    District
+                                    <span class="inline-block align-middle" id="sortIcon-12"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(13)">
+                                    Plot Number
+                                    <span class="inline-block align-middle" id="sortIcon-13"></span>
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    onclick="sortTable(14)">
+                                    Plot Size
+                                    <span class="inline-block align-middle" id="sortIcon-14"></span>
+                                </th>
+
+                                @if(!($isStDeeds ?? false))
+                                <th scope="col"
+                                    class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Action
+                                </th>
+                                @endif
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="cofoTableBody">
+                            @php
+                                // Build lookup: mother_application_id => group for Primary rows
+                                $groupByMotherId = [];
+                                foreach ($stGroups ?? collect() as $g) {
+                                    if (($g['type'] ?? '') === 'mother_pua') {
+                                        $mid = str_replace('grp_m_', '', $g['id'] ?? '');
+                                        if ($mid !== '') $groupByMotherId[$mid] = $g;
+                                    }
+                                }
+                            @endphp
+                            @forelse($approvedApplications as $app)
+                                @php $normAppType = strtoupper(trim($app->application_type ?? '')); @endphp
+                                @if($normAppType === 'PUA') @continue @endif
+                                <tr class="cofo-row" data-status="{{ $app->status }}" data-id="{{ $app->id }}">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @php
+                                            $isDisabled = ($app->status === 'registered') && !($app->status === 'pending' && $app->instrument_type === 'Sectional Titling CofO');
+                                        @endphp
+                                        <input type="checkbox" class="rounded main-table-checkbox" data-id="{{ $app->id }}"
+                                            data-status="{{ $app->status }}" data-instrument-type="{{ $app->instrument_type }}"
+                                            data-fileno="{{ $app->fileno }}" {{ $isDisabled ? 'disabled' : '' }}
+                                            onchange="handleMainTableCheckboxChange(this)">
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        @if($app->status === 'registered')
+                                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-md font-mono text-xs">{{ $app->Deeds_Serial_No ?? ($app->instrument_type === 'ST Fragmentation' ? '0/0/0' : '-') }}</span>
+                                        @else
+                                            <span class="text-gray-400 text-xs">-</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <div class="flex flex-col items-start space-y-1">
+                                            @php
+                                                $badgeTypeClass = match($app->instrument_type) {
+                                                    'ST Fragmentation' => 'badge-st-fragmentation',
+                                                    'ST Assignment (Transfer of Title)' => 'badge-st-assignment',
+                                                    'Sectional Titling CofO' => 'badge-sectional-titling',
+                                                    default => 'badge-other-instrument'
+                                                };
+                                                $badgeIcon = match($app->instrument_type) {
+                                                    'ST Fragmentation' => 'fa-puzzle-piece',
+                                                    'ST Assignment (Transfer of Title)' => 'fa-exchange-alt',
+                                                    'Sectional Titling CofO' => 'fa-building',
+                                                    default => 'fa-file-alt'
+                                                };
+                                            @endphp
+                                            <span class="badge {{ $badgeTypeClass }}"><i class="fas {{ $badgeIcon }} mr-1"></i>{{ $app->instrument_type ?? 'Other' }}</span>
+                                            @php
+                                                $normType = strtoupper(trim($app->application_type ?? ''));
+                                                $dispType = in_array($normType, ['PUA', 'SUA', 'PRIMARY']) ? $normType : 'DEEDS';
+                                                $typeClass = match($normType) {
+                                                    'PUA' => 'bg-blue-100 text-blue-800 border-blue-200',
+                                                    'SUA' => 'bg-green-100 text-green-800 border-green-200',
+                                                    'PRIMARY' => 'bg-orange-100 text-orange-800 border-orange-200',
+                                                    default => 'bg-gray-100 text-gray-800 border-gray-200'
+                                                };
+                                            @endphp
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border {{ $typeClass }}">{{ $dispType }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        @if($app->reg_time ?? null)<div class="flex items-center"><i class="fas fa-clock text-gray-400 mr-2"></i>{{ $app->reg_time }}</div>@else<span class="text-gray-400">-</span>@endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        @if($app->reg_date ?? null)<div class="flex items-center"><i class="fas fa-calendar-check text-green-400 mr-2"></i>{{ date('M d, Y', strtotime($app->reg_date)) }}</div>@else<span class="text-gray-400">-</span>@endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        @if($app->captured_date ?? null)<div class="flex items-center"><i class="fas fa-clock text-gray-400 mr-2"></i>{{ date('g:i A', strtotime($app->captured_date)) }}</div>@else<span class="text-gray-400">-</span>@endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        @if($app->captured_date ?? null)<div class="flex items-center"><i class="fas fa-calendar-plus text-blue-400 mr-2"></i>{{ date('M d, Y', strtotime($app->captured_date)) }}</div>@else<span class="text-gray-400">-</span>@endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        @php
+                                            $isPrimary = strtoupper(trim($app->application_type ?? '')) === 'PRIMARY';
+                                            $grpForRow = $isPrimary && isset($app->original_mother_app_id)
+                                                ? ($groupByMotherId[$app->original_mother_app_id] ?? null)
+                                                : null;
+                                        @endphp
+                                        @if($grpForRow)
+                                            <button class="st-fileno-link"
+                                                onclick="openUnitsModal('grp_m_{{ $app->original_mother_app_id }}')">
+                                                {{ $app->fileno ?? '-' }}
+                                            </button>
+                                            <div style="font-size:11px;color:#9ca3af;margin-top:3px;display:flex;align-items:center;gap:3px;">
+                                                <i class="fas fa-home" style="font-size:9px;"></i>
+                                                {{ $grpForRow['unit_count'] }} unit{{ $grpForRow['unit_count'] !== 1 ? 's' : '' }}
+                                            </div>
+                                        @else
+                                            <span class="file-number">{{ $app->fileno ?? '-' }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span class="status-badge badge-{{ $app->status }}">{{ ucfirst($app->status) }}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                        @php
+                                            $g1 = $app->Grantor ?? '-';
+                                            $g1Arr = is_string($g1) && str_starts_with(trim($g1), '[') ? json_decode($g1, true) : (is_array($g1) ? $g1 : [$g1]);
+                                            if (json_last_error() !== JSON_ERROR_NONE) $g1Arr = [$g1];
+                                        @endphp
+                                        @if(count($g1Arr) > 1)
+                                            <span class="cursor-pointer underline decoration-dotted" onclick="Swal.fire({title: 'Grantors', html: `{!! implode('<br>', array_map('e', $g1Arr)) !!}` , icon: 'info'})">{{ $g1Arr[0] }} +{{ count($g1Arr)-1 }} more</span>
+                                        @else
+                                            {{ $g1Arr[0] ?? '-' }}
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                        @php
+                                            $g2 = $app->Grantee ?? '-';
+                                            $g2Arr = is_string($g2) && str_starts_with(trim($g2), '[') ? json_decode($g2, true) : (is_array($g2) ? $g2 : [$g2]);
+                                            if (json_last_error() !== JSON_ERROR_NONE) $g2Arr = [$g2];
+                                        @endphp
+                                        @if(count($g2Arr) > 1)
+                                            <span class="cursor-pointer underline decoration-dotted" onclick="Swal.fire({title: 'Grantees', html: `{!! implode('<br>', array_map('e', $g2Arr)) !!}` , icon: 'info'})">{{ $g2Arr[0] }} +{{ count($g2Arr)-1 }} more</span>
+                                        @else
+                                            {{ $g2Arr[0] ?? '-' }}
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $app->lga ?? '-' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $app->district ?? '-' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $app->plotNumber ?? '-' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ $app->size ?? '-' }}</td>
+                                    @if(!($isStDeeds ?? false))
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                        <div class="dropdown-wrapper">
+                                            <button class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md transition-colors duration-200" onclick="toggleDropdown(this, '{{ $app->id }}')" type="button">
+                                                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    @endif
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="16" class="px-6 py-10 text-center text-gray-500">
+                                        No instrument registrations available.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Controls -->
+                <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                    <div class="flex items-center text-sm text-gray-700">
+                        <span>Showing</span>
+                        <span class="font-medium mx-1" id="showingStart">1</span>
+                        <span>to</span>
+                        <span class="font-medium mx-1" id="showingEnd">25</span>
+                        <span>of</span>
+                        <span class="font-medium mx-1" id="showingTotal">{{ $totalCount ?? 0 }}</span>
+                        <span>results</span>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <button id="prevPage"
+                            class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-chevron-left mr-1"></i>
+                            Previous
+                        </button>
+
+                        <div id="pageNumbers" class="flex items-center space-x-1">
+                            <!-- Page numbers will be dynamically generated -->
+                        </div>
+
+                        <button id="nextPage"
+                            class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Next
+                            <i class="fas fa-chevron-right ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                </div>{{-- /irListViewContainer --}}
+            </div>
+
+            <!-- Application Type Legend -->
+            <div class="bg-white border border-gray-200 rounded-lg px-6 py-4 flex flex-wrap items-center gap-6 shadow-sm">
+                <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <span class="inline-flex h-3 w-3 rounded-full"
+                        style="background-color: #dcfce7; border: 1px solid #bbf7d0;"></span>
+                    <span><span class="font-semibold text-gray-900">SUA</span> = Standalone Unit Application</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <span class="inline-flex h-3 w-3 rounded-full"
+                        style="background-color: #dbeafe; border: 1px solid #bfdbfe;"></span>
+                    <span><span class="font-semibold text-gray-900">PUA</span> = Parented Unit Application</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <span class="inline-flex h-3 w-3 rounded-full"
+                        style="background-color: #fed7aa; border: 1px solid #fdba74;"></span>
+                    <span><span class="font-semibold text-gray-900">Primary</span> = Primary Application</span>
+                </div>
+
+
+                <div class="flex items-center gap-2 text-sm text-gray-700">
+                    <span class="inline-flex h-3 w-3 rounded-full"
+                        style="background-color: #038018ff; border: 1px solid #077210ff;"></span>
+                    <span><span class="font-semibold text-gray-900">Deeds</span> = Other Instruments</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Dropdown Backdrop -->
+        <div id="dropdown-backdrop" class="dropdown-backdrop hidden"></div>
+
+        <!-- Dropdown Menu Container -->
+        <div id="dropdown-menu" class="dropdown-menu hidden">
+            <!-- Dynamic content will be populated here -->
+        </div>
+
+        <!-- Include Modals -->
+        @include('instrument_registration.partials.singleregistermodal')
+        @include('instrument_registration.partials.batchregistermodal')
+        @include('instrument_registration.partials.quickbatchmodal')
+        @include('instrument_registration.partials.batchprintmodal')
+
+        <!-- Page Footer -->
+        @include($footerPartial ?? 'admin.footer')
+    </div>
+
+    <script>
+        // Move #stUnitsModal to document.body so it's not hidden inside irGroupedViewContainer
+        document.addEventListener('DOMContentLoaded', function () {
+            var modal = document.getElementById('stUnitsModal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+        });
+
+        // --- Grouped / List view toggle ---
+        function switchIRView(view) {
+            var grouped = document.getElementById('irGroupedViewContainer');
+            var list    = document.getElementById('irListViewContainer');
+            var btnG    = document.getElementById('toggleGroupedView');
+            var btnL    = document.getElementById('toggleListView');
+            var isList  = view === 'list';
+
+            if (list)    list.style.display    = isList ? '' : 'none';
+            if (grouped) grouped.style.display = isList ? 'none' : '';
+
+            var activeClass   = 'ir-view-btn px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 bg-blue-600 text-white border-r border-blue-700';
+            var inactiveClass = 'ir-view-btn px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 bg-white text-gray-600 hover:bg-gray-50';
+
+            if (btnL) btnL.className = isList  ? activeClass : inactiveClass;
+            if (btnG) btnG.className = !isList ? activeClass : inactiveClass;
+
+            // When entering grouped view with batch mode on, expand all groups
+            // so CofO and Assignment checkboxes are immediately visible
+            if (!isList && window.batchModeActive) {
+                _expandAllSTGroups();
+            }
+        }
+
+        // Expand every collapsed group row in the ST grouped table
+        function _expandAllSTGroups() {
+            document.querySelectorAll('.st-group-row').forEach(function(row) {
+                var groupId = row.getAttribute('data-group-id');
+                if (!groupId) return;
+                var icon = document.getElementById('icon-' + groupId);
+                if (icon && !icon.classList.contains('open')) {
+                    if (typeof toggleSTGroup === 'function') toggleSTGroup(groupId);
+                }
+            });
+        }
+
+        // Initialize caches with the globally defined data
+        window.appData = window.appData || {};
+        window.instrumentLookup = window.instrumentLookup || new Map();
+
+        function populateInstrumentCaches(data) {
+            window.instrumentLookup.clear();
+            // Clear appData object without reassignment
+            for (let key in window.appData) {
+                if (window.appData.hasOwnProperty(key)) delete window.appData[key];
+            }
+
+            data.forEach(entry => {
+                const idKey = String(entry.id);
+                window.appData[idKey] = entry;
+                window.instrumentLookup.set(idKey, entry);
+                if (entry.registered_instrument_id !== null && entry.registered_instrument_id !== undefined) {
+                    window.instrumentLookup.set(String(entry.registered_instrument_id), entry);
+                }
+            });
+        }
+
+        if (window.serverCofoData) {
+            populateInstrumentCaches(window.serverCofoData);
+        }
+
+        let sortDirections = {};
+        function sortTable(colIndex) {
+            const table = document.getElementById('instrumentTable');
+            const tbody = table.tBodies[0];
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('td[colspan]'));
+            const numericColumns = [14]; // Plot Size
+            const dateColumns = [4, 6]; // REG DATE, Captured Date
+            const timeColumns = [3, 5]; // Reg Time, Captured Time
+            
+            sortDirections[colIndex] = !sortDirections[colIndex];
+            const direction = sortDirections[colIndex] ? 1 : -1;
+
+            rows.sort((a, b) => {
+                let aCell = a.children[colIndex];
+                let bCell = b.children[colIndex];
+                let aText = aCell ? aCell.innerText.trim() : '';
+                let bText = bCell ? bCell.innerText.trim() : '';
+                
+                if (numericColumns.includes(colIndex)) {
+                    let aNum = parseFloat(aText.replace(/,/g, '')) || 0;
+                    let bNum = parseFloat(bText.replace(/,/g, '')) || 0;
+                    return (aNum - bNum) * direction;
+                }
+                
+                if (dateColumns.includes(colIndex)) {
+                    let aDate = new Date(aText);
+                    let bDate = new Date(bText);
+                    if (isNaN(aDate)) aDate = new Date(0);
+                    if (isNaN(bDate)) bDate = new Date(0);
+                    return (aDate - bDate) * direction;
+                }
+
+                if (timeColumns.includes(colIndex)) {
+                    // Convert PM/AM to 24h for sorting
+                    const parseTime = (t) => {
+                        if (!t || t === '-') return 0;
+                        let [time, modifier] = t.split(' ');
+                        let [hours, minutes] = time.split(':');
+                        if (hours === '12') hours = '00';
+                        if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
+                        return parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+                    };
+                    return (parseTime(aText) - parseTime(bText)) * direction;
+                }
+                
+                return aText.localeCompare(bText) * direction;
+            });
+
+            // Update sort icons
+            document.querySelectorAll('[id^="sortIcon-"]').forEach(icon => icon.innerHTML = '');
+            const icon = document.getElementById(`sortIcon-${colIndex}`);
+            if (icon) {
+                icon.innerHTML = sortDirections[colIndex] ? ' <i class="fas fa-sort-up"></i>' : ' <i class="fas fa-sort-down"></i>';
+            }
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+
+    <!-- Include SweetAlert -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Include the external JavaScript file -->
+    <script src="{{ asset('js/instrument_registration.js') }}?v={{ time() }}"></script>
+
+    <!-- Include the updated JavaScript file for single registration modal -->
+    <script src="{{ asset('js/instrument_registration_updated.js') }}?v={{ time() }}"></script>
+
+    <!-- Include the FINAL batch registration handler -->
+    <script src="{{ asset('js/batch_registration_handler_final.js') }}?v={{ time() }}"></script>
+
+    <!-- Include the batch fix to handle empty selectedBatchProperties -->
+
+    <!-- Include the quick batch handler -->
+    <script src="{{ asset('js/quick_batch_handler.js') }}?v={{ time() }}">
+
+    </script>
+
+
+    @if(session('success'))
+        <script>
+            Swal.fire({
+                title: 'Success!',
+                text: "{{ session('success') }}",
+                icon: 'success',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        </script>
+    @endif
+
+    @if(session('error'))
+        <script>
+            Swal.fire({
+                title: 'Error!',
+                text: "{{ session('error') }}",
+                icon: 'error',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        </script>
+    @endif
+
+    <!-- Floating UI CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/dist/floating-ui.dom.min.js"></script>
+    @include('instrument_registration.modals.export_preview')
+
+    <script src="{{ asset('js/property-timeline-modal.js') }}"></script>
+    <script src="{{ asset('js/instrument_registration_index.js') }}"></script>
+    <script src="{{ asset('js/instrument_registration_batch_print.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/instrument_capture_export.js') }}?v={{ time() }}"></script>
+
+{{-- ===== GROUP BATCH REGISTRATION MODAL ===== --}}
+<style>
+#groupBatchModal { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; }
+.gbm-table th { padding:10px 14px; text-align:left; font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; background:#f9fafb; white-space:nowrap; border-bottom:1px solid #e5e7eb; }
+.gbm-table td { padding:10px 14px; font-size:13px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
+.gbm-table tr:last-child td { border-bottom:none; }
+.gbm-reg-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:5px; font-family:monospace; font-weight:700; font-size:12px; background:#dbeafe; color:#1e40af; }
+</style>
+
+<div id="groupBatchModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; width:94%; max-width:860px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 25px 50px rgba(0,0,0,0.25);">
+
+        {{-- Header --}}
+        <div style="padding:18px 24px 14px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+            <div>
+                <h3 style="font-size:16px; font-weight:700; color:#111827; margin:0; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-layer-group" style="color:#6366f1;"></i>
+                    Batch Registration
+                </h3>
+                <p id="gbmSubtitle" style="font-size:12px; color:#6b7280; margin:4px 0 0;"></p>
+            </div>
+            <button onclick="closeGroupBatchModal()" style="background:none; border:none; cursor:pointer; color:#9ca3af; font-size:20px; padding:2px 6px;"><i class="fas fa-times"></i></button>
+        </div>
+
+        {{-- Assigned-to notice --}}
+        <div style="padding:10px 24px; background:#f0fdf4; border-bottom:1px solid #dcfce7; font-size:12px; color:#166534; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <i class="fas fa-user-check" style="color:#22c55e;"></i>
+            This batch will be registered and assigned to: <strong>{{ Auth::user()->name ?? Auth::user()->username ?? 'You' }}</strong>
+        </div>
+
+        {{-- Registration Particulars Preview --}}
+        <div id="gbmSerialPreview" style="display:none; padding:10px 24px; background:#eff6ff; border-bottom:1px solid #bfdbfe; flex-shrink:0; gap:10px; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:12px; font-weight:600; color:#1e40af; display:flex; align-items:center; gap:5px;">
+                <i class="fas fa-tag" style="font-size:11px;"></i> Next Reg. Particulars:
+            </span>
+            <span id="gbmSerialPreviewContent" style="font-size:12px; color:#374151;">
+                <i class="fas fa-spinner fa-spin" style="color:#6366f1;"></i> Loading…
+            </span>
+        </div>
+
+        {{-- Body --}}
+        <div id="gbmBody" style="overflow:auto; flex:1; padding:0;">
+
+            {{-- Selection table (shown before registration) --}}
+            <div id="gbmSelectionView">
+                <div style="padding:16px 24px 8px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label style="font-size:13px; font-weight:600; color:#374151;">Reg Date:</label>
+                        <input type="date" id="gbmDeedsDate" style="border:1px solid #d1d5db; border-radius:6px; padding:6px 10px; font-size:13px; outline:none;" />
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label style="font-size:13px; font-weight:600; color:#374151;">Reg Time:</label>
+                        <input type="time" id="gbmDeedsTime" style="border:1px solid #d1d5db; border-radius:6px; padding:6px 10px; font-size:13px; outline:none;" />
+                    </div>
+                </div>
+                <div style="overflow:auto;">
+                    <table class="gbm-table" style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th style="width:36px; text-align:center;">#</th>
+                                <th>File No</th>
+                                <th>Instrument Type</th>
+                                <th>Party 1 (Grantor)</th>
+                                <th>Party 2 (Grantee)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gbmSelectionBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            {{-- Results view (shown after registration) --}}
+            <div id="gbmResultsView" style="display:none;">
+                {{-- Success banner --}}
+                <div style="margin:20px 24px 0; padding:14px 18px; background:linear-gradient(135deg,#f0fdf4,#dcfce7); border:1px solid #bbf7d0; border-radius:10px; display:flex; align-items:center; gap:12px;">
+                    <div style="width:42px;height:42px;background:#22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-check" style="color:#fff;font-size:18px;"></i>
+                    </div>
+                    <div>
+                        <div id="gbmResultsTitle" style="font-size:15px;font-weight:700;color:#166534;"></div>
+                        <div style="font-size:12px;color:#16a34a;margin-top:2px;">Registration particulars have been assigned and saved.</div>
+                        <div id="gbmResultsRange" style="display:none;margin-top:6px;"></div>
+                    </div>
+                </div>
+                {{-- Cards grid --}}
+                <div id="gbmResultsCards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; padding:16px 24px 20px;"></div>
+            </div>
+
+        </div>
+
+        {{-- Footer --}}
+        <div id="gbmFooter" style="padding:14px 24px; border-top:1px solid #e5e7eb; display:flex; justify-content:flex-end; gap:10px; flex-shrink:0;">
+            <button onclick="closeGroupBatchModal()" style="padding:8px 18px; border:1px solid #d1d5db; border-radius:7px; background:#fff; color:#374151; font-size:13px; font-weight:600; cursor:pointer;">Cancel</button>
+            <button id="gbmSubmitBtn" onclick="submitGroupBatch()"
+                style="padding:8px 22px; border:none; border-radius:7px; background:#6366f1; color:#fff; font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <i class="fas fa-file-signature"></i> Register All
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== BATCH MODE =====
+window.batchModeActive = false;
+
+function toggleBatchMode() {
+    window.batchModeActive = !window.batchModeActive;
+    var btn = document.getElementById('batchModeToggleBtn');
+    var table = document.getElementById('instrumentTable');
+
+    if (window.batchModeActive) {
+        btn.classList.remove('bg-gray-100','text-gray-700','border-gray-300');
+        btn.classList.add('bg-indigo-600','text-white','border-indigo-700');
+        btn.innerHTML = '<i class="fas fa-times-circle"></i><span>Exit Batch</span>';
+        if (table) table.classList.add('batch-mode-on');
+    } else {
+        btn.classList.remove('bg-indigo-600','text-white','border-indigo-700');
+        btn.classList.add('bg-gray-100','text-gray-700','border-gray-300');
+        btn.innerHTML = '<i class="fas fa-check-square"></i><span>Batch</span>';
+        if (table) table.classList.remove('batch-mode-on');
+        // Uncheck all main-table checkboxes and hide the batch button
+        document.querySelectorAll('.main-table-checkbox:checked').forEach(function(cb) {
+            cb.checked = false;
+        });
+        var groupBtn = document.getElementById('groupBatchRegBtn');
+        if (groupBtn) groupBtn.style.display = 'none';
+        var badge = document.getElementById('batchSelectedBadge');
+        if (badge) badge.textContent = '0';
+        var allChk = document.getElementById('selectAll');
+        if (allChk) allChk.checked = false;
+    }
+
+    // Toggle ST unit checkboxes (Assignment / CofO pending rows)
+    document.querySelectorAll('.st-batch-checkbox').forEach(function(cb) {
+        if (window.batchModeActive) {
+            cb.style.display = 'inline-block';
+            cb.disabled = false;
+            var regBtn = cb.parentElement ? cb.parentElement.querySelector('.st-register-btn') : null;
+            if (regBtn) regBtn.style.display = 'none';
+        } else {
+            cb.style.display = 'none';
+            cb.disabled = true;
+            cb.checked = false;
+            var regBtn = cb.parentElement ? cb.parentElement.querySelector('.st-register-btn') : null;
+            if (regBtn) regBtn.style.display = '';
+        }
+    });
+
+    // Show/hide "Select X pending" group-header buttons
+    document.querySelectorAll('.st-group-select-all').forEach(function(btn) {
+        if (window.batchModeActive) {
+            btn.style.display = 'inline-flex';
+        } else {
+            btn.style.display = 'none';
+            btn.classList.remove('all-selected');
+            // Reset label
+            var lbl = btn.getAttribute('data-pending-label');
+            if (lbl) btn.innerHTML = '<i class="fas fa-check-square" style="font-size:9px;"></i> ' + lbl;
+        }
+    });
+
+    // If the grouped view is currently visible and batch mode just turned on,
+    // expand all groups so CofO / Assignment checkboxes are immediately visible
+    var groupedContainer = document.getElementById('irGroupedViewContainer');
+    if (window.batchModeActive && groupedContainer && groupedContainer.style.display !== 'none') {
+        _expandAllSTGroups();
+    }
+
+    // Re-render table to apply/remove the batch-mode checkbox overrides
+    if (typeof window.updateTable === 'function') window.updateTable();
+}
+
+// ===== GROUP BATCH MODAL =====
+
+var _gbmItems = [];
+
+function openGroupBatchModal() {
+    var checkedBoxes   = document.querySelectorAll('.main-table-checkbox:checked:not([disabled])');
+    var stCheckedBoxes = document.querySelectorAll('.st-batch-checkbox:checked:not([disabled])');
+    if (!checkedBoxes.length && !stCheckedBoxes.length) return;
+
+    _gbmItems = [];
+
+    // Collect main-table instruments (aggregate records expand into individual units)
+    checkedBoxes.forEach(function(cb) {
+        var id = cb.getAttribute('data-id');
+        var rec = (window.serverCofoData || []).find(function(x) { return String(x.id) === String(id); });
+        if (rec) {
+            if (rec._isAggregate && (rec._pendingUnits || []).length) {
+                rec._pendingUnits.forEach(function(unit) {
+                    _gbmItems.push({
+                        application_id:      unit.subapp_id + '_' + rec._aggType,
+                        fileno:              unit.fileno || '-',
+                        instrument_type:     rec.instrument_type || '',
+                        grantor:             unit.grantor || rec.Grantor || '',
+                        grantee:             unit.grantee || rec.Grantee || '',
+                        status:              'pending',
+                        lga:                 '',
+                        district:            '',
+                        plotNumber:          '',
+                        size:                '',
+                        propertyDescription: '',
+                        duration:            '',
+                        file_no:             unit.fileno || '',
+                        op_type:             ''
+                    });
+                });
+            } else {
+                _gbmItems.push({
+                    application_id: rec.id,
+                    fileno: rec.fileno || '-',
+                    instrument_type: rec.instrument_type || '',
+                    grantor: rec.Grantor || '',
+                    grantee: rec.Grantee || '',
+                    status: rec.status || 'pending',
+                    lga: rec.lga || '',
+                    district: rec.district || '',
+                    plotNumber: rec.plotNumber || '',
+                    size: rec.size || '',
+                    propertyDescription: rec.propertyDescription || '',
+                    duration: rec.duration || rec.leasePeriod || '',
+                    file_no: rec.fileno || '',
+                    op_type: rec.op_type || ''
+                });
+            }
+        }
+    });
+
+    // Collect ST unit instruments (Assignment / CofO)
+    stCheckedBoxes.forEach(function(cb) {
+        var subappId  = cb.getAttribute('data-subapp-id');
+        var regType   = cb.getAttribute('data-reg-type');       // 'st_assignment' | 'sectional_cofo'
+        var instrType = cb.getAttribute('data-instrument-type');
+        var fileno    = cb.getAttribute('data-fileno') || '-';
+        var applicant = cb.getAttribute('data-applicant') || '';
+        var grantee   = cb.getAttribute('data-grantee') || '';
+        _gbmItems.push({
+            application_id:      subappId + '_' + regType,
+            fileno:              fileno,
+            instrument_type:     instrType,
+            grantor:             applicant,
+            grantee:             grantee,
+            status:              'pending',
+            lga:                 '',
+            district:            '',
+            plotNumber:          '',
+            size:                '',
+            propertyDescription: '',
+            duration:            '',
+            file_no:             fileno,
+            op_type:             ''
+        });
+    });
+
+    if (!_gbmItems.length) return;
+
+    // Reset to selection view
+    document.getElementById('gbmSelectionView').style.display = 'block';
+    document.getElementById('gbmResultsView').style.display  = 'none';
+    document.getElementById('gbmSubmitBtn').style.display    = 'flex';
+    document.getElementById('gbmSubmitBtn').disabled         = false;
+    document.getElementById('gbmSubmitBtn').innerHTML        = '<i class="fas fa-file-signature"></i> Register All';
+
+    // Set default date/time to now
+    var now = new Date();
+    document.getElementById('gbmDeedsDate').value = now.toISOString().split('T')[0];
+    document.getElementById('gbmDeedsTime').value = now.toTimeString().substring(0, 5);
+
+    // Build subtitle
+    document.getElementById('gbmSubtitle').textContent =
+        _gbmItems.length + ' instrument' + (_gbmItems.length !== 1 ? 's' : '') + ' selected for registration';
+
+    // Build selection table
+    var tbody = document.getElementById('gbmSelectionBody');
+    tbody.innerHTML = '';
+    _gbmItems.forEach(function(item, i) {
+        var statusHtml = item.status === 'pending'
+            ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fef9c3;color:#854d0e;"><i class="fas fa-clock"></i>Pending</span>'
+            : '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;"><i class="fas fa-check"></i>Registered</span>';
+        var grantor  = (item.grantor  || '-').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var grantee  = item.grantee ? item.grantee.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '<span style="color:#9ca3af;font-style:italic;">Not specified</span>';
+        tbody.insertAdjacentHTML('beforeend',
+            '<tr style="background:' + (i%2?'#fafafa':'#fff') + ';">'
+            + '<td style="text-align:center;color:#9ca3af;">' + (i+1) + '</td>'
+            + '<td style="font-family:monospace;font-weight:700;color:#1d4ed8;">' + item.fileno + '</td>'
+            + '<td>' + (item.instrument_type || '-') + '</td>'
+            + '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + grantor + '">' + grantor + '</td>'
+            + '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (item.grantee || 'Not specified') + '">' + grantee + '</td>'
+            + '<td>' + statusHtml + '</td>'
+            + '</tr>'
+        );
+    });
+
+    document.getElementById('groupBatchModal').style.display = 'flex';
+
+    // Fetch and show registration particulars preview
+    _gbmFetchSerialPreview();
+}
+
+// Compute the last serial in a range, respecting the 300-per-volume rollover
+function _gbmComputeEndSerial(startSerial, startVolume, count) {
+    var end = startSerial + count - 1;
+    var vol = startVolume;
+    while (end > 300) { end -= 300; vol++; }
+    return end + '/' + end + '/' + vol;
+}
+
+function _gbmFetchSerialPreview() {
+    var previewWrap    = document.getElementById('gbmSerialPreview');
+    var previewContent = document.getElementById('gbmSerialPreviewContent');
+    if (!previewWrap || !previewContent) return;
+
+    // Group pending items by instrument type
+    var typeGroups = {};
+    _gbmItems.forEach(function(item) {
+        if (item.status === 'registered') return;
+        var t = item.instrument_type || 'Unknown';
+        typeGroups[t] = (typeGroups[t] || 0) + 1;
+    });
+
+    var types = Object.keys(typeGroups);
+    if (!types.length) { previewWrap.style.display = 'none'; return; }
+
+    previewWrap.style.display = 'flex';
+    previewContent.innerHTML  = '<i class="fas fa-spinner fa-spin" style="color:#6366f1;"></i> Loading…';
+
+    var base = (window.KlaesConfig && window.KlaesConfig.urls && window.KlaesConfig.urls.base)
+        ? window.KlaesConfig.urls.base
+        : (window.baseUrl + '/instrument_registration');
+
+    var promises = types.map(function(type) {
+        return fetch(base + '/get-next-serial?instrument_type=' + encodeURIComponent(type), {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { return { type: type, count: typeGroups[type], data: data }; });
+    });
+
+    Promise.all(promises)
+        .then(function(results) {
+            var parts = results.map(function(r) {
+                var start  = r.data.deeds_serial_no || '—';
+                var startS = parseInt(r.data.serial_no, 10) || 1;
+                var startV = parseInt(r.data.volume_no, 10) || 1;
+                var count  = r.count;
+                var label  = count > 1 ? _gbmEsc(r.type) + ': ' : '';
+
+                if (count === 1) {
+                    return '<span style="font-family:monospace;font-weight:700;font-size:13px;color:#1d4ed8;background:#dbeafe;padding:2px 8px;border-radius:5px;">'
+                        + _gbmEsc(start) + '</span>'
+                        + '<span style="font-size:11px;color:#6b7280;margin-left:6px;">(' + count + ' instrument)</span>';
+                }
+
+                var end = _gbmComputeEndSerial(startS, startV, count);
+                return '<span style="font-size:11px;color:#6b7280;">' + label + '</span>'
+                    + '<span style="font-family:monospace;font-weight:700;font-size:13px;color:#1d4ed8;background:#dbeafe;padding:2px 8px;border-radius:5px;">'
+                    + _gbmEsc(start) + '</span>'
+                    + '<span style="font-size:13px;font-weight:700;color:#6366f1;margin:0 6px;">&rarr;</span>'
+                    + '<span style="font-family:monospace;font-weight:700;font-size:13px;color:#1d4ed8;background:#dbeafe;padding:2px 8px;border-radius:5px;">'
+                    + _gbmEsc(end) + '</span>'
+                    + '<span style="font-size:11px;color:#6b7280;margin-left:6px;">(' + count + ' instruments)</span>';
+            });
+            previewContent.innerHTML = parts.join('<span style="margin:0 12px;color:#d1d5db;">|</span>');
+        })
+        .catch(function() {
+            previewContent.innerHTML = '<span style="color:#dc2626;font-size:12px;"><i class="fas fa-exclamation-circle"></i> Preview unavailable</span>';
+        });
+}
+
+function closeGroupBatchModal() {
+    document.getElementById('groupBatchModal').style.display = 'none';
+    var p = document.getElementById('gbmSerialPreview');
+    if (p) p.style.display = 'none';
+}
+
+function submitGroupBatch() {
+    var deedsDate = document.getElementById('gbmDeedsDate').value;
+    var deedsTime = document.getElementById('gbmDeedsTime').value;
+
+    if (!deedsDate || !deedsTime) {
+        Swal.fire({ icon:'warning', title:'Missing Fields', text:'Please enter both Reg Date and Reg Time before registering.', confirmButtonColor:'#6366f1' });
+        return;
+    }
+
+    var pendingItems = _gbmItems.filter(function(x) { return x.status === 'pending'; });
+    if (!pendingItems.length) {
+        Swal.fire({ icon:'info', title:'No Pending Items', text:'All selected instruments are already registered.', confirmButtonColor:'#6366f1' });
+        return;
+    }
+
+    var batchEntries = pendingItems.map(function(item) {
+        return {
+            application_id:      item.application_id,
+            instrument_type:     item.instrument_type,
+            grantor:             item.grantor,
+            grantee:             item.grantee,
+            lga:                 item.lga,
+            district:            item.district,
+            plotNumber:          item.plotNumber,
+            size:                item.size,
+            propertyDescription: item.propertyDescription,
+            duration:            item.duration,
+            file_no:             item.file_no,
+            op_type:             item.op_type
+        };
+    });
+
+    var submitBtn = document.getElementById('gbmSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering…';
+
+    fetch('{{ url("instrument_registration/register-batch") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            batch_entries: batchEntries,
+            deeds_date: deedsDate,
+            deeds_time: deedsTime
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            _gbmShowResults(data.results || [], deedsDate, deedsTime);
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-file-signature"></i> Register All';
+            Swal.fire({ icon:'error', title:'Registration Failed', text: data.error || 'An error occurred.', confirmButtonColor:'#ef4444' });
+        }
+    })
+    .catch(function(err) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-file-signature"></i> Register All';
+        Swal.fire({ icon:'error', title:'Request Failed', text:'A network error occurred. Please try again.', confirmButtonColor:'#ef4444' });
+    });
+}
+
+function _gbmShowResults(results, deedsDate, deedsTime) {
+    var resultMap = {};
+    results.forEach(function(r) { resultMap[String(r.application_id)] = r; });
+
+    var fmtDate = deedsDate
+        ? new Date(deedsDate).toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'})
+        : '—';
+    var fmtTime = deedsTime || '—';
+
+    var grid = document.getElementById('gbmResultsCards');
+    grid.innerHTML = '';
+
+    _gbmItems.forEach(function(item) {
+        var res = resultMap[String(item.application_id)];
+        var particulars = res ? (res.deeds_serial_no || 'N/A') : null;
+        var typeName = (item.instrument_type || 'Instrument').replace('(Transfer of Title)','').trim();
+
+        // Pick accent colour per type
+        var accent = '#6366f1'; // indigo default
+        if (/Fragmentation/i.test(item.instrument_type)) accent = '#a855f7';
+        else if (/Assignment/i.test(item.instrument_type)) accent = '#2563eb';
+        else if (/CofO|Certificate/i.test(item.instrument_type)) accent = '#0d9488';
+
+        var cardHtml;
+        if (res && particulars) {
+            cardHtml = '<div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">'
+                // Coloured top strip
+                + '<div style="height:5px;background:' + accent + ';"></div>'
+                // Card body
+                + '<div style="padding:14px 16px;">'
+                    // File No row
+                    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+                        + '<span style="font-family:monospace;font-weight:700;font-size:13px;color:#1d4ed8;">' + _gbmEsc(item.fileno) + '</span>'
+                        + '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#166534;">'
+                            + '<i class="fas fa-check" style="font-size:8px;"></i>Registered'
+                        + '</span>'
+                    + '</div>'
+                    // Instrument type
+                    + '<div style="font-size:11px;color:#6b7280;margin-bottom:12px;">' + _gbmEsc(typeName) + '</div>'
+                    // Reg Particulars (large focal element)
+                    + '<div style="background:#f5f3ff;border:1.5px dashed ' + accent + ';border-radius:8px;padding:10px 14px;text-align:center;margin-bottom:10px;">'
+                        + '<div style="font-size:10px;font-weight:600;color:#7c3aed;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Reg Particulars</div>'
+                        + '<div style="font-family:monospace;font-size:20px;font-weight:800;color:' + accent + ';letter-spacing:0.03em;">' + _gbmEsc(particulars) + '</div>'
+                    + '</div>'
+                    // Date / Time row
+                    + '<div style="display:flex;gap:8px;font-size:11px;color:#6b7280;">'
+                        + '<div style="display:flex;align-items:center;gap:4px;">'
+                            + '<i class="fas fa-calendar-check" style="color:#34d399;"></i>'
+                            + '<span>' + fmtDate + '</span>'
+                        + '</div>'
+                        + '<div style="display:flex;align-items:center;gap:4px;">'
+                            + '<i class="fas fa-clock" style="color:#9ca3af;"></i>'
+                            + '<span>' + fmtTime + '</span>'
+                        + '</div>'
+                    + '</div>'
+                + '</div>'
+            + '</div>';
+        } else {
+            // Failed card
+            cardHtml = '<div style="border:1px solid #fecaca;border-radius:12px;overflow:hidden;">'
+                + '<div style="height:5px;background:#ef4444;"></div>'
+                + '<div style="padding:14px 16px;">'
+                    + '<div style="font-family:monospace;font-weight:700;font-size:13px;color:#1d4ed8;margin-bottom:6px;">' + _gbmEsc(item.fileno) + '</div>'
+                    + '<div style="font-size:11px;color:#6b7280;margin-bottom:10px;">' + _gbmEsc(typeName) + '</div>'
+                    + '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px;text-align:center;font-size:12px;color:#dc2626;">'
+                        + '<i class="fas fa-exclamation-circle" style="margin-right:4px;"></i>Not registered'
+                    + '</div>'
+                + '</div>'
+            + '</div>';
+        }
+
+        grid.insertAdjacentHTML('beforeend', cardHtml);
+    });
+
+    // Compute reg particulars range from successful results (in insertion order)
+    var successParticulars = [];
+    _gbmItems.forEach(function(item) {
+        var res = resultMap[String(item.application_id)];
+        if (res && res.deeds_serial_no) successParticulars.push(res.deeds_serial_no);
+    });
+
+    document.getElementById('gbmSelectionView').style.display = 'none';
+    document.getElementById('gbmResultsView').style.display  = 'block';
+    document.getElementById('gbmResultsTitle').textContent   =
+        results.length + ' instrument' + (results.length !== 1 ? 's' : '') + ' registered successfully';
+
+    var rangeEl = document.getElementById('gbmResultsRange');
+    if (rangeEl) {
+        if (successParticulars.length > 0) {
+            var first = successParticulars[0];
+            var last  = successParticulars[successParticulars.length - 1];
+            var rangeText = first === last ? first : first + ' – ' + last;
+            rangeEl.style.display = 'block';
+            rangeEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px;">'
+                + '<span style="font-size:10px;font-weight:600;color:#166534;text-transform:uppercase;letter-spacing:0.05em;">Reg Particulars:</span>'
+                + '<span style="font-family:monospace;font-size:14px;font-weight:800;color:#166534;background:#bbf7d0;padding:2px 10px;border-radius:6px;letter-spacing:0.04em;">'
+                + _gbmEsc(rangeText) + '</span></span>';
+        } else {
+            rangeEl.style.display = 'none';
+        }
+    }
+
+    // Hide Register button, replace Cancel with Close
+    document.getElementById('gbmSubmitBtn').style.display = 'none';
+    var footer = document.getElementById('gbmFooter');
+    footer.querySelector('button').textContent = 'Close';
+
+    // Exit batch mode and refresh table
+    if (window.batchModeActive) toggleBatchMode();
+    if (typeof window.updateTable === 'function') window.updateTable();
+}
+
+function _gbmEsc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Close on backdrop click
+document.addEventListener('DOMContentLoaded', function() {
+    var m = document.getElementById('groupBatchModal');
+    if (m) m.addEventListener('click', function(e) { if (e.target === this) closeGroupBatchModal(); });
+});
+</script>
+@endsection

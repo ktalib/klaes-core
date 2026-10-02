@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Controller Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; }
+        input, select { margin: 5px; padding: 8px; width: 200px; }
+        button { padding: 10px 20px; background: #007cba; color: white; border: none; cursor: pointer; }
+        .result { margin-top: 20px; padding: 10px; background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>Quick Controller Test</h1>
+    
+    <div class="form-section">
+        <h3>Test Form with Fixed Field Names</h3>
+        <form id="testForm">
+            <!-- Hidden ST API Fields -->
+            <input type="hidden" name="np_fileno" value="ST-RES-2025-1">
+            <input type="hidden" name="fileno" value="ST-RES-2025-1">
+            <input type="hidden" name="land_use" value="RESIDENTIAL">
+            <input type="hidden" name="applicant_type" value="corporate">
+            <input type="hidden" name="selected_file_data" value='{"file_number":"ST-RES-2025-1","land_use":"RESIDENTIAL","type":"corporate"}'>
+            
+            <!-- Visible Form Fields -->
+            <div>
+                <label>Title:</label>
+                <select name="title" required>
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Ms">Ms</option>
+                </select>
+            </div>
+            
+            <div>
+                <label>Corporate Name:</label>
+                <input type="text" name="corporate_name" value="P S MANDRIDES" required>
+            </div>
+            
+            <div>
+                <label>RC Number:</label>
+                <input type="text" name="rc_number" value="729" required>
+            </div>
+            
+            <div>
+                <label>Email:</label>
+                <input type="email" name="email" value="your.email+fakedata9f404@gmail.com" required>
+            </div>
+            
+            <div>
+                <label>Phone:</label>
+                <input type="tel" name="phone" value="927-712-4392" required>
+            </div>
+            
+            <div>
+                <label>Address:</label>
+                <input type="text" name="address" value="54312 TIARA CURVE, 970 HEATH THROUGHWAY, 8229 BEDNAR PINES, GWER EAST, BENUE" required>
+            </div>
+            
+            <div>
+                <label>Property House No:</label>
+                <input type="text" name="property_house_no" value="456">
+            </div>
+            
+            <div>
+                <label>Property Street:</label>
+                <input type="text" name="property_street_name" value="Test Avenue">
+            </div>
+            
+            <div>
+                <label>Property State:</label>
+                <input type="text" name="property_state" value="Lagos">
+            </div>
+            
+            <button type="submit">Test Submit</button>
+        </form>
+        
+        <div id="result" class="result" style="display:none;"></div>
+    </div>
+
+    <script>
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>Submitting...</p>';
+            
+            const formData = new FormData(this);
+            
+            // Debug: Log all form data
+            console.log('=== FORM DATA DEBUG ===');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
+            console.log('=== END DEBUG ===');
+            
+            try {
+                const response = await fetch('/primary-application', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    }
+                });
+                
+                const responseText = await response.text();
+                console.log('Response Status:', response.status);
+                console.log('Response Text:', responseText);
+                
+                if (response.ok) {
+                    try {
+                        const jsonResponse = JSON.parse(responseText);
+                        resultDiv.innerHTML = `
+                            <h4>Success!</h4>
+                            <p><strong>Status:</strong> ${jsonResponse.success}</p>
+                            <p><strong>Message:</strong> ${jsonResponse.message}</p>
+                            <p><strong>Application ID:</strong> ${jsonResponse.data?.id || 'N/A'}</p>
+                            <pre>${JSON.stringify(jsonResponse, null, 2)}</pre>
+                        `;
+                    } catch (parseError) {
+                        resultDiv.innerHTML = `
+                            <h4>Response (Non-JSON):</h4>
+                            <pre>${responseText.substring(0, 1000)}</pre>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <h4>Error (Status: ${response.status})</h4>
+                        <pre>${responseText.substring(0, 1000)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h4>Network Error:</h4>
+                    <p>${error.message}</p>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

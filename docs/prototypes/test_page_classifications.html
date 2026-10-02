@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test File Details API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; border: 1px solid #ccc; padding: 15px; }
+        .page-item { border-bottom: 1px solid #eee; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>File Details API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Page Classifications Display</h2>
+        <p>This test simulates what the file details modal should show:</p>
+        <div id="test-results">Loading...</div>
+        
+        <table id="results-table" style="margin-top: 20px;">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Page Type</th>
+                    <th>Subtype</th>
+                    <th>Serial</th>
+                    <th>Typed By</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Test the file details endpoint
+        fetch('/filearchive/file-details/9140')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('test-results').innerHTML = 
+                    '<strong>Success!</strong> Loaded ' + data.file.pagetypings.length + ' page typings.';
+                
+                const tableBody = document.getElementById('table-body');
+                
+                data.file.pagetypings.forEach((page, index) => {
+                    // Handle page type - check if it's an object or raw value
+                    let pageTypeDisplay = 'Unknown';
+                    if (page.page_type) {
+                        if (typeof page.page_type === 'object' && page.page_type !== null) {
+                            pageTypeDisplay = page.page_type.PageType || page.page_type.name || 'Unknown';
+                        } else {
+                            pageTypeDisplay = page.page_type.toString();
+                        }
+                    }
+                    
+                    // Handle page subtype - check if it's an object or raw value
+                    let pageSubtypeDisplay = '-';
+                    if (page.page_subtype) {
+                        if (typeof page.page_subtype === 'object' && page.page_subtype !== null) {
+                            pageSubtypeDisplay = page.page_subtype.PageSubType || page.page_subtype.name || 'Unknown';
+                        } else {
+                            pageSubtypeDisplay = page.page_subtype.toString();
+                        }
+                    }
+                    
+                    // Handle typed by
+                    let typedByDisplay = 'System';
+                    if (page.typed_by) {
+                        if (typeof page.typed_by === 'object' && page.typed_by !== null) {
+                            typedByDisplay = page.typed_by.name || 
+                                           (page.typed_by.first_name + ' ' + page.typed_by.last_name) || 
+                                           'Unknown User';
+                        } else {
+                            typedByDisplay = page.typed_by.toString();
+                        }
+                    }
+                    
+                    const row = tableBody.insertRow();
+                    row.innerHTML = `
+                        <td>${page.page_number || index + 1}</td>
+                        <td>${pageTypeDisplay}</td>
+                        <td>${pageSubtypeDisplay}</td>
+                        <td>${page.serial_number || '-'}</td>
+                        <td>${typedByDisplay}</td>
+                    `;
+                });
+            })
+            .catch(error => {
+                document.getElementById('test-results').innerHTML = 
+                    '<strong>Error:</strong> ' + error.message;
+                console.error('Error:', error);
+            });
+    </script>
+</body>
+</html>

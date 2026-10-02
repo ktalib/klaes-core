@@ -1,0 +1,9 @@
+id,file_number,field,old_value,new_value
+65663,RES-1990-68,registry,,1
+65663,RES-1990-68,general_registry,"Land  Registry","Lands Registry"
+200463,RES-2009-2510,general_registry,"Land  Registry","Lands Registry"
+200464,RES-2026-3749,registry,,2
+200464,RES-2026-3749,general_registry,,"Lands Registry"
+200464,RES-2026-3749,physical_registry,,"Registry 2 - Land"
+200465,RES-2009-7882,general_registry,"Land  Registry","Lands Registry"
+200466,RES-2009-935,general_registry,"Land  Registry","Lands Registry"

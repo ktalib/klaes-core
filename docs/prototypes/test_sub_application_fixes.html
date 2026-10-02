@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sub Application Fixes Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .button { background: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Sub Application Fixes Verification</h1>
+    
+    <div class="test-section info">
+        <h3>Fixed Issues Summary</h3>
+        <ul>
+            <li>✅ <strong>Land Use Validation:</strong> Added resolveLandUseValue() function to properly extract land_use from form</li>
+            <li>✅ <strong>Draft Autosave:</strong> Removed problematic reserveFileNumber() call that was causing ArgumentCountError</li>
+            <li>✅ <strong>UI Label:</strong> Changed "Current file number:" to "Current Draft ID:"</li>
+            <li>✅ <strong>Payment Fields:</strong> Split INITIAL BILL into separate payment sections for each fee</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h3>1. Land Use Resolution Test</h3>
+        <p><strong>Issue:</strong> "The land use field is required" validation error</p>
+        <p><strong>Fix:</strong> Added resolveLandUseValue() function that checks multiple sources:</p>
+        <pre>function resolveLandUseValue() {
+  // For SUA applications, check the hidden field first
+  const suaHidden = document.getElementById('sua_land_use_hidden');
+  if (suaHidden && suaHidden.value) {
+    return suaHidden.value;
+  }
+
+  // Check the SUA select field
+  const suaSelect = document.getElementById('sua_land_use');
+  if (suaSelect && !suaSelect.disabled && suaSelect.value) {
+    return suaSelect.value;
+  }
+
+  // For regular sub-applications, check mixed land use selector
+  const unitSelect = document.getElementById('unit_land_use');
+  if (unitSelect && unitSelect.value) {
+    return unitSelect.value;
+  }
+
+  // Check for any hidden land_use input
+  const fallbackInput = document.querySelector('#subApplicationForm input[name="land_use"]');
+  if (fallbackInput && fallbackInput.value) {
+    return fallbackInput.value;
+  }
+
+  // Get land use from URL parameter as fallback
+  const urlParams = new URLSearchParams(window.location.search);
+  const landUseFromUrl = urlParams.get('landuse');
+  if (landUseFromUrl) {
+    return landUseFromUrl;
+  }
+
+  return '';
+}</pre>
+        <p><strong>Integration:</strong> Function is called in both form submission and draft autosave</p>
+    </div>
+
+    <div class="test-section success">
+        <h3>2. Draft Autosave Fix</h3>
+        <p><strong>Issue:</strong> ArgumentCountError - Too few arguments to function reserveFileNumber()</p>
+        <p><strong>Fix:</strong> Removed the problematic reserveFileNumber() call from SubApplicationDraftController</p>
+        <pre>// REMOVED this problematic code:
+if ($unitFileNo && (!$draft->unit_file_no || $draft->unit_file_no !== $unitFileNo)) {
+    $this->reservationService->reserveFileNumber($unitFileNo);  // ❌ Wrong signature
+    Log::info('File number reserved for sub-application draft', [
+        'draft_id' => $draft->draft_id,
+        'unit_file_no' => $unitFileNo
+    ]);
+}</pre>
+        <p><strong>Result:</strong> Draft autosave should now work without errors</p>
+    </div>
+
+    <div class="test-section success">
+        <h3>3. UI Label Update</h3>
+        <p><strong>Change:</strong> "Current file number:" → "Current Draft ID:"</p>
+        <p>This better reflects what the field actually represents in the draft system.</p>
+    </div>
+
+    <div class="test-section success">
+        <h3>4. Enhanced Payment Fields</h3>
+        <p><strong>Previous:</strong> Single payment date and receipt number for all fees</p>
+        <p><strong>Now:</strong> Separate payment fields for each fee type:</p>
+        <ul>
+            <li><strong>Application Fee:</strong> application_payment_date, application_receipt_number</li>
+            <li><strong>Processing Fee:</strong> processing_payment_date, processing_receipt_number</li>
+            <li><strong>Survey Fee:</strong> survey_payment_date, survey_receipt_number</li>
+        </ul>
+        <p>Each section has its own visual container with proper icons and styling.</p>
+    </div>
+
+    <div class="test-section info">
+        <h3>Testing Instructions</h3>
+        <ol>
+            <li><strong>Test Land Use Validation:</strong>
+                <ul>
+                    <li>Go to SUA form with ?landuse=Commercial</li>
+                    <li>Fill out form and submit</li>
+                    <li>Should no longer get "land use field is required" error</li>
+                </ul>
+            </li>
+            <li><strong>Test Draft Autosave:</strong>
+                <ul>
+                    <li>Start filling out the form</li>
+                    <li>Wait for autosave (30 seconds)</li>
+                    <li>Check draft status - should show "Draft saved" instead of "Save failed"</li>
+                    <li>Check logs - should not see ArgumentCountError</li>
+                </ul>
+            </li>
+            <li><strong>Test Payment Fields:</strong>
+                <ul>
+                    <li>Go to Step 1 of the form</li>
+                    <li>Scroll to INITIAL BILL section</li>
+                    <li>Should see 3 separate payment sections with individual date/receipt fields</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="test-section info">
+        <h3>Files Modified</h3>
+        <ul>
+            <li><code>app/Http/Controllers/SubApplicationDraftController.php</code> - Removed problematic reserveFileNumber call</li>
+            <li><code>resources/views/sectionaltitling/sub_application.blade.php</code> - Added resolveLandUseValue function, updated UI labels, enhanced payment fields</li>
+        </ul>
+    </div>
+
+    <script>
+        // Test the resolveLandUseValue function if we're on the actual form page
+        if (typeof resolveLandUseValue === 'function') {
+            console.log('✅ resolveLandUseValue function is available');
+            console.log('Current resolved land use:', resolveLandUseValue());
+        } else {
+            console.log('ℹ️ resolveLandUseValue function not available (not on form page)');
+        }
+    </script>
+</body>
+</html>

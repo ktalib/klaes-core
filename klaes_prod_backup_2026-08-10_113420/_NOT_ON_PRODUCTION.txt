@@ -1,0 +1,7 @@
+﻿These paths did not exist on production at backup time (2026-08-10_113420).
+To roll this deployment back fully: copy the backup tree over production,
+then DELETE these files from production.
+
+NEW  database\migrations\2026_08_10_100000_add_party_2_gender_to_instrument_capture_table.php
+NEW  database\sql\2026_08_10_add_party_2_gender_to_instrument_capture.sql
+NEW  database\sql\2026_08_10_add_party_2_gender_to_instrument_capture_ledger.mysql.sql

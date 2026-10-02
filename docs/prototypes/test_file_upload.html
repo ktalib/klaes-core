@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test File Upload</title>
+    <style>
+        .file-upload-btn {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .file-upload-btn:hover {
+            background: #0056b3;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Upload Test</h1>
+    
+    <input id="file-input" type="file" accept="image/jpeg,image/png,application/pdf" class="hidden" />
+    <button id="file-upload-btn" class="file-upload-btn">Click to select a file</button>
+    <p id="file-status">No file selected</p>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('file-input');
+            const fileUploadBtn = document.getElementById('file-upload-btn');
+            const fileStatus = document.getElementById('file-status');
+            
+            fileUploadBtn.addEventListener('click', function() {
+                console.log('Button clicked');
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    fileStatus.textContent = `Selected: ${file.name} (${file.size} bytes)`;
+                    console.log('File selected:', file);
+                } else {
+                    fileStatus.textContent = 'No file selected';
+                }
+            });
+            
+            console.log('Event listeners set up');
+        });
+    </script>
+</body>
+</html>

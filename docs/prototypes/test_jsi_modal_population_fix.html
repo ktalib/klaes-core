@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSI Modal Population Fix - Testing Guide</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
+        .test-section h3 { color: #333; margin-top: 0; }
+        .success { color: #10B981; font-weight: bold; }
+        .error { color: #EF4444; font-weight: bold; }
+        .warning { color: #F59E0B; font-weight: bold; }
+        .info { color: #3B82F6; font-weight: bold; }
+        .step { margin: 10px 0; padding: 10px; background: white; border-left: 4px solid #3B82F6; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+        .test-url { background: #f8f9fa; padding: 8px; border-radius: 4px; font-family: monospace; color: #666; margin: 5px 0; }
+        .field-list { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin: 10px 0; }
+        .field-list h4 { margin-top: 0; color: #333; }
+        .field-list ul { list-style-type: none; padding: 0; }
+        .field-list li { padding: 5px 0; border-bottom: 1px solid #eee; }
+        .field-list li:last-child { border-bottom: none; }
+        .field-name { font-weight: bold; color: #555; }
+        .field-type { color: #888; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 JSI Modal Population Fix - Implementation Complete</h1>
+        <p><strong>Issue Fixed:</strong> JSI modal now properly loads saved report data instead of showing only default values</p>
+        <p><strong>Date:</strong> October 8, 2025</p>
+
+        <div class="test-section">
+            <h3>🐛 Problem Identified</h3>
+            <div class="step">
+                <strong class="error">Issue:</strong> When users opened the JSI modal for an existing saved report, the form was empty or showing only default values instead of the actual saved data.
+            </div>
+            <div class="step">
+                <strong class="warning">Root Cause:</strong> The <code>openJointInspectionModal()</code> function was calling <code>populateJointInspectionForm()</code> without passing the saved report data, so it only used defaults.
+            </div>
+            <div class="step">
+                <strong class="info">Impact:</strong> Users had to re-enter all JSI data every time they opened the modal, even for reports that were already saved.
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ Solution Implemented</h3>
+            <div class="step">
+                <strong>1. Added Saved Report Data to JavaScript:</strong>
+                <div class="code">
+// Added in recommendation.blade.php:
+window.jointInspectionSavedReport = @json($jointInspectionReport);
+                </div>
+                <p>This makes the saved JSI report data available to the frontend JavaScript.</p>
+            </div>
+            <div class="step">
+                <strong>2. Updated Modal Opening Logic:</strong>
+                <div class="code">
+// Updated openJointInspectionModal() in sub_recomm_js.blade.php:
+if (savedReport) {
+    const formData = {
+        inspection_date: savedReport.inspection_date,
+        lkn_number: savedReport.lkn_number,
+        // ... all JSI fields mapped ...
+    };
+    populateJointInspectionForm(formData);
+    updateJSIWorkflowButtons(savedReport);
+    updateJSIWorkflowStatus(savedReport);
+} else {
+    populateJointInspectionForm(); // Use defaults for new reports
+}
+                </div>
+                <p>Modal now checks for saved data and populates the form accordingly.</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 JSI Fields That Will Be Populated</h3>
+            <div class="field-list">
+                <h4>All JSI Form Fields Now Load Correctly:</h4>
+                <ul>
+                    <li><span class="field-name">inspection_date</span> <span class="field-type">(date)</span></li>
+                    <li><span class="field-name">lkn_number</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">applicant_name</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">location</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">plot_number</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">scheme_number</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">available_on_ground</span> <span class="field-type">(checkbox)</span></li>
+                    <li><span class="field-name">boundary_description</span> <span class="field-type">(textarea)</span></li>
+                    <li><span class="field-name">sections_count / unit_number</span> <span class="field-type">(number)</span></li>
+                    <li><span class="field-name">road_reservation</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">prevailing_land_use</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">applied_land_use</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">shared_utilities</span> <span class="field-type">(checkboxes)</span></li>
+                    <li><span class="field-name">compliance_status</span> <span class="field-type">(select)</span></li>
+                    <li><span class="field-name">has_additional_observations</span> <span class="field-type">(radio buttons)</span></li>
+                    <li><span class="field-name">additional_observations</span> <span class="field-type">(textarea)</span></li>
+                    <li><span class="field-name">inspection_officer</span> <span class="field-type">(text)</span></li>
+                    <li><span class="field-name">existing_site_measurement_summary</span> <span class="field-type">(textarea)</span></li>
+                    <li><span class="field-name">existing_site_measurement_entries</span> <span class="field-type">(dynamic table)</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Testing Instructions</h3>
+            
+            <div class="step">
+                <strong>Test Case 1: Existing JSI Report</strong>
+                <div class="test-url">Navigate to: /sub-actions/recommendation/2064 (or any sub-app with saved JSI)</div>
+                <p><strong>Steps:</strong></p>
+                <ol>
+                    <li>Go to JSI Report tab</li>
+                    <li>Click "Edit Report" or "Create New Report" button</li>
+                    <li><strong class="success">Expected:</strong> Modal opens with ALL saved data populated</li>
+                    <li>Verify all fields contain the previously saved values</li>
+                    <li>Check that workflow buttons show correct states (Save/Generate/Submit)</li>
+                </ol>
+            </div>
+
+            <div class="step">
+                <strong>Test Case 2: New JSI Report</strong>
+                <div class="test-url">Navigate to: /sub-actions/recommendation/[new-sub-id]</div>
+                <p><strong>Steps:</strong></p>
+                <ol>
+                    <li>Go to JSI Report tab</li>
+                    <li>Click "Create New Report" button</li>
+                    <li><strong class="success">Expected:</strong> Modal opens with default values (empty/template data)</li>
+                    <li>Save button enabled, Generate/Submit disabled</li>
+                    <li>Status shows "📝 Draft"</li>
+                </ol>
+            </div>
+
+            <div class="step">
+                <strong>Test Case 3: Workflow State Preservation</strong>
+                <p><strong>Steps:</strong></p>
+                <ol>
+                    <li>Open JSI modal for a generated report (is_generated = 1)</li>
+                    <li><strong class="success">Expected:</strong> Save/Generate buttons disabled, Submit button enabled</li>
+                    <li>Status shows "📋 Generated"</li>
+                    <li>All form data populated correctly</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Technical Details</h3>
+            <div class="step">
+                <strong>Data Flow:</strong>
+                <p>1. <code>$jointInspectionReport</code> (PHP) → 2. <code>window.jointInspectionSavedReport</code> (JS) → 3. <code>populateJointInspectionForm(formData)</code> → 4. Form fields populated</p>
+            </div>
+            <div class="step">
+                <strong>JavaScript Variables Available:</strong>
+                <div class="code">
+window.jointInspectionDefaults     // Default/template values
+window.jointInspectionSavedReport  // Actual saved report data (NEW)
+window.jointInspectionBoundarySegments  // Boundary data
+window.jointInspectionExistingReportUrl // Print URL
+                </div>
+            </div>
+            <div class="step">
+                <strong>Form Population Logic:</strong>
+                <div class="code">
+// Priority order:
+1. If savedReport exists → use saved data
+2. Otherwise → use defaults
+3. Merge with any override values
+4. Handle special field types (checkboxes, radios, arrays)
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚨 Potential Issues & Solutions</h3>
+            <div class="step">
+                <strong class="error">Issue: Form still shows defaults</strong>
+                <p><strong>Check:</strong> Browser console for JavaScript errors</p>
+                <p><strong>Fix:</strong> Ensure caches cleared and page refreshed</p>
+            </div>
+            <div class="step">
+                <strong class="error">Issue: Some fields not populating</strong>
+                <p><strong>Check:</strong> Field names match between database and form</p>
+                <p><strong>Fix:</strong> Verify field mapping in openJointInspectionModal() function</p>
+            </div>
+            <div class="step">
+                <strong class="error">Issue: Workflow buttons wrong state</strong>
+                <p><strong>Check:</strong> is_generated and is_submitted values in database</p>
+                <p><strong>Fix:</strong> Ensure updateJSIWorkflowButtons() is called with correct data</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ Success Criteria</h3>
+            <div class="step">
+                <strong class="success">✅ Saved Data Loading:</strong> Opening JSI modal for existing reports shows all previously saved data
+            </div>
+            <div class="step">
+                <strong class="success">✅ Field Types Handled:</strong> Text fields, checkboxes, radio buttons, selects, and textareas all populate correctly
+            </div>
+            <div class="step">
+                <strong class="success">✅ Workflow States:</strong> Button states and status indicators reflect actual report state
+            </div>
+            <div class="step">
+                <strong class="success">✅ New vs Existing:</strong> New reports use defaults, existing reports use saved data
+            </div>
+            <div class="step">
+                <strong class="success">✅ Special Fields:</strong> Arrays (shared utilities, measurements) and complex fields load correctly</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Implementation Complete!</h3>
+            <p><strong class="success">The JSI modal now properly loads saved report data!</strong></p>
+            <p>Users can now:</p>
+            <ul>
+                <li>✅ Open existing JSI reports and see all their saved data</li>
+                <li>✅ Edit existing reports without re-entering all information</li>
+                <li>✅ See correct workflow button states based on report status</li>
+                <li>✅ Distinguish between new reports (defaults) and existing reports (saved data)</li>
+            </ul>
+            <p><strong class="info">Ready for user testing!</strong></p>
+        </div>
+    </div>
+</body>
+</html>

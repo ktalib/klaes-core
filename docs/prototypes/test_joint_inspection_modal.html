@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joint Site Inspection Modal Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-8">
+        <h1 class="text-2xl font-bold mb-4">Joint Site Inspection Modal Test</h1>
+        
+        <div class="space-y-4">
+            <button class="joint-inspection-trigger bg-blue-500 text-white px-4 py-2 rounded" 
+                    data-application-id="123">
+                Open Primary Application Modal
+            </button>
+            
+            <button class="joint-inspection-trigger bg-green-500 text-white px-4 py-2 rounded" 
+                    data-application-id="123" 
+                    data-sub-application-id="456">
+                Open Unit Application Modal
+            </button>
+        </div>
+    </div>
+
+    <!-- Mock Laravel CSRF Token -->
+    <meta name="csrf-token" content="test-token">
+
+    <!-- Include the modal partial (simulate) -->
+    <div id="jointInspectionModal" class="fixed inset-0 z-50 hidden items-center justify-center">
+        <div class="absolute inset-0 bg-gray-900 bg-opacity-50" data-joint-inspection-dismiss></div>
+        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between px-5 py-3 border-b">
+                <h3 class="text-lg font-semibold text-gray-800">Joint Site Inspection Report Details</h3>
+                <button type="button" class="text-gray-500 hover:text-gray-700" data-joint-inspection-dismiss>
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="jointInspectionForm" class="p-6 space-y-6">
+                <input type="hidden" name="_token" value="test-token">
+                <input type="hidden" name="application_id" id="modal_application_id" value="">
+                <input type="hidden" name="sub_application_id" id="modal_sub_application_id" value="">
+                
+                <div class="text-center py-8">
+                    <p>Modal is working! Form fields would be here...</p>
+                    <div class="mt-4">
+                        <span class="font-semibold">Application ID:</span> <span id="display_app_id">-</span><br>
+                        <span class="font-semibold">Sub Application ID:</span> <span id="display_sub_app_id">-</span><br>
+                        <span class="font-semibold">Type:</span> <span id="display_type">-</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-end gap-3 border-t pt-4">
+                    <button type="button" class="px-4 py-2 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50" data-joint-inspection-dismiss>Cancel</button>
+                    <button type="submit" id="jointInspectionSubmit" class="px-4 py-2 text-sm font-semibold bg-green-600 text-white rounded-md hover:bg-green-700">Test Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let currentApplicationId = null;
+            let currentSubApplicationId = null;
+            let isUnitApplication = false;
+
+            function openJointInspectionModal(applicationId, subApplicationId = null) {
+                currentApplicationId = applicationId;
+                currentSubApplicationId = subApplicationId;
+                isUnitApplication = subApplicationId !== null;
+                
+                console.log('Opening Joint Inspection Modal:', { applicationId, subApplicationId, isUnitApplication });
+                
+                document.getElementById('modal_application_id').value = applicationId;
+                document.getElementById('modal_sub_application_id').value = subApplicationId || '';
+                
+                // Update display
+                document.getElementById('display_app_id').textContent = applicationId || '-';
+                document.getElementById('display_sub_app_id').textContent = subApplicationId || '-';
+                document.getElementById('display_type').textContent = isUnitApplication ? 'Unit Application' : 'Primary Application';
+                
+                const modal = document.getElementById('jointInspectionModal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            function closeJointInspectionModal() {
+                const modal = document.getElementById('jointInspectionModal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    document.body.style.overflow = '';
+                }
+            }
+
+            // Handle modal close events
+            document.querySelectorAll('[data-joint-inspection-dismiss]').forEach(element => {
+                element.addEventListener('click', closeJointInspectionModal);
+            });
+
+            // Handle "Enter Inspection Details" button clicks
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.joint-inspection-trigger')) {
+                    e.preventDefault();
+                    const button = e.target.closest('.joint-inspection-trigger');
+                    const applicationId = button.dataset.applicationId;
+                    const subApplicationId = button.dataset.subApplicationId || null;
+                    
+                    openJointInspectionModal(applicationId, subApplicationId);
+                }
+            });
+
+            // Form submission test
+            document.getElementById('jointInspectionForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                alert('Form submission test successful! This would normally submit to the backend.');
+            });
+
+            // Initialize Lucide icons
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

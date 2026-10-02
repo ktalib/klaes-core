@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Batch API Endpoints</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .result { background: #f4f4f4; padding: 10px; margin: 10px 0; border-radius: 3px; }
+        button { padding: 8px 16px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        input, select { padding: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Test EDMS Batch API Endpoints</h1>
+    
+    <div class="test-section">
+        <h3>Test Get Available Batches</h3>
+        <button onclick="testGetAvailableBatches()">Test Get Available Batches</button>
+        <div id="batches-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test Get Shelf for Batch</h3>
+        <input type="number" id="batch-number" placeholder="Enter batch number (e.g., 1)" value="1">
+        <button onclick="testGetShelfForBatch()">Test Get Shelf for Batch</button>
+        <div id="shelf-result" class="result"></div>
+    </div>
+
+    <script>
+        function testGetAvailableBatches() {
+            const resultDiv = document.getElementById('batches-result');
+            resultDiv.innerHTML = 'Loading...';
+            
+            fetch('/fileindexing/get-available-batches')
+                .then(response => response.json())
+                .then(data => {
+                    resultDiv.innerHTML = `
+                        <h4>Response:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `
+                        <h4>Error:</h4>
+                        <pre style="color: red;">${error.message}</pre>
+                    `;
+                });
+        }
+        
+        function testGetShelfForBatch() {
+            const batchNumber = document.getElementById('batch-number').value;
+            const resultDiv = document.getElementById('shelf-result');
+            
+            if (!batchNumber) {
+                resultDiv.innerHTML = '<span style="color: red;">Please enter a batch number</span>';
+                return;
+            }
+            
+            resultDiv.innerHTML = 'Loading...';
+            
+            fetch(`/fileindexing/get-shelf-for-batch/${batchNumber}`)
+                .then(response => response.json())
+                .then(data => {
+                    resultDiv.innerHTML = `
+                        <h4>Response for Batch ${batchNumber}:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `
+                        <h4>Error:</h4>
+                        <pre style="color: red;">${error.message}</pre>
+                    `;
+                });
+        }
+        
+        // Auto-test on page load
+        window.onload = function() {
+            testGetAvailableBatches();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Movement History</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #111111;
+            background: #ffffff;
+        }
+
+        .sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 12mm 15mm 10mm;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sheet-body {
+            flex: 1;
+        }
+
+        /* ---------- Header ---------- */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6mm;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+            padding: 0;
+        }
+
+        .header-table .logo-cell {
+            width: 22mm;
+            min-width: 22mm;
+            max-width: 22mm;
+        }
+
+        .header-table .logo-cell img {
+            width: 22mm;
+            height: 22mm;
+            object-fit: contain;
+            display: block;
+        }
+
+        .header-table .logo-cell-right {
+            text-align: right;
+        }
+
+        .header-table .logo-cell-right img {
+            margin-left: auto;
+        }
+
+        .header-table .title-cell {
+            text-align: center;
+            padding: 0 4mm;
+        }
+
+        .title-main {
+            margin: 0;
+            font-size: 4.6mm;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .title-doc {
+            margin: 2.5mm 0 0;
+            font-size: 4mm;
+            font-weight: 800;
+            text-transform: uppercase;
+            text-decoration: underline;
+        }
+
+        /* ---------- File info fields ---------- */
+        .file-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 12mm;
+            row-gap: 5mm;
+            margin: 4mm 0 7mm;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .info-label {
+            font-size: 3.8mm;
+            font-weight: 700;
+            white-space: nowrap;
+            padding-right: 3mm;
+            line-height: 1;
+        }
+
+        .info-line {
+            flex: 1;
+            border-bottom: 0.3mm solid #444444;
+            min-height: 5.5mm;
+            font-size: 3.8mm;
+            padding: 0 1.5mm 0.5mm;
+        }
+
+        /* ---------- Movement table ---------- */
+        .movement-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .movement-table th,
+        .movement-table td {
+            border: 0.35mm solid #333333;
+            font-size: 3.6mm;
+            padding: 2mm 2mm;
+        }
+
+        .movement-table th {
+            font-weight: 800;
+            text-transform: uppercase;
+            text-align: center;
+            background: #f1f1f1;
+        }
+
+        .movement-table td {
+            height: 10mm;
+            vertical-align: middle;
+        }
+
+        .movement-table .col-sn { width: 10mm; text-align: center; }
+        .movement-table .col-history { width: auto; }
+        .movement-table .col-date { width: 26mm; text-align: center; }
+        .movement-table .col-duration { width: 26mm; text-align: center; }
+        .movement-table .col-remarks { width: 30mm; }
+
+        .col-note {
+            display: block;
+            font-weight: 400;
+            font-size: 2.8mm;
+            text-transform: none;
+            margin-top: 0.8mm;
+        }
+
+        /* ---------- Footer ---------- */
+        .sheet-footer {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            margin-top: 8mm;
+        }
+
+        .footer-logo {
+            height: 16mm;
+            width: auto;
+            max-width: 45mm;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sheet">
+        <div class="sheet-body">
+            <table class="header-table">
+                <tr>
+                    <td class="logo-cell">
+                        <img src="http://app.klaes.ng/assets/logo/ministry2.png" alt="Left Logo" onerror="this.style.display='none'">
+                    </td>
+                    <td class="title-cell">
+                        <h1 class="title-main">MINISTRY OF LAND &amp; PHYSICAL PLANNING</h1>
+                        <h2 class="title-doc">FILE MOVEMENT HISTORY</h2>
+                    </td>
+                    <td class="logo-cell logo-cell-right">
+                        <img src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Right Logo" onerror="this.style.display='none'">
+                    </td>
+                </tr>
+            </table>
+
+            <div class="file-info">
+                <div class="info-row">
+                    <span class="info-label">File No:</span>
+                    <span class="info-line"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Tracking ID:</span>
+                    <span class="info-line"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">File Title:</span>
+                    <span class="info-line"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Registry:</span>
+                    <span class="info-line"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Shelf/Rack:</span>
+                    <span class="info-line"></span>
+                </div>
+            </div>
+
+            <table class="movement-table">
+                <thead>
+                    <tr>
+                        <th class="col-sn">S/N</th>
+                        <th class="col-history">File Movement History
+                            <span class="col-note">(Name &amp; Department)</span>
+                        </th>
+                        <th class="col-date">Date</th>
+                        <th class="col-duration">Duration</th>
+                        <th class="col-remarks">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td class="col-sn">1.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">2.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">3.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">4.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">5.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">6.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">7.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">8.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">9.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">10.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">11.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">12.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">13.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">14.</td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td class="col-sn">15.</td><td></td><td></td><td></td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="sheet-footer">
+            <img src="http://app.klaes.ng/storage/upload/logo/logo.png" alt="Left Footer Logo" class="footer-logo" onerror="this.style.display='none'">
+            <img src="http://app.klaes.ng/assets/logo/las.jpg" alt="Right Footer Logo" class="footer-logo" onerror="this.style.display='none'">
+        </div>
+    </div>
+</body>
+</html>

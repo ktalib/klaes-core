@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blind Scan Tabs Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header Section -->
+        <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
+            <div class="flex items-start space-x-4">
+                <div class="bg-blue-100 p-3 rounded-lg">
+                    <i class="fa-solid fa-cloud-arrow-up text-blue-600 text-2xl"></i>
+                </div>
+                <div class="flex-1">
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Blind Scanning Management System</h1>
+                    <div class="space-y-2 text-gray-600">
+                        <p class="text-base leading-relaxed">
+                            Manage your blind scanning workflow and view all uploaded documents in one centralized location.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="border-b border-gray-200">
+                <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                    <button id="tab-upload" class="tab-button active border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600" onclick="switchTab('upload')">
+                        <i class="fa-solid fa-cloud-arrow-up mr-2"></i>
+                        Upload & Migrate
+                    </button>
+                    <button id="tab-records" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300" onclick="switchTab('records')">
+                        <i class="fa-solid fa-table mr-2"></i>
+                        Blind Scanning Records
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-content-upload" class="tab-content p-6">
+                <!-- Upload & Migrate Tab Content -->
+                <div class="space-y-6">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="space-y-2 text-blue-800">
+                            <p class="text-base leading-relaxed">
+                                <span class="inline-flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm font-medium mr-2">Step 1</span>
+                                Enter the <strong>File Number</strong>
+                                <span class="mx-2">→</span>
+                                <span class="inline-flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm font-medium mr-2">Step 2</span>
+                                Pick the whole <strong>local folder</strong> you scanned (it must include A4/A3 subfolders)
+                                <span class="mx-2">→</span>
+                                <span class="inline-flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm font-medium">Step 3</span>
+                                Click <strong>Migrate</strong>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Simulated upload form -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Upload Workflow</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">File Number</label>
+                                <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Enter file number...">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Select Folder</label>
+                                <input type="file" webkitdirectory class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            </div>
+                            <button class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                                <i class="fa-solid fa-upload mr-2"></i>Start Migration
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-content-records" class="tab-content p-6 hidden">
+                <!-- Records Tab Content -->
+                <div class="space-y-6">
+                    <!-- Statistics Section -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-blue-600 font-medium">Total Records</p>
+                                    <p class="text-3xl font-bold text-blue-900">156</p>
+                                </div>
+                                <div class="bg-blue-100 p-3 rounded-lg">
+                                    <i class="fa-solid fa-database text-blue-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-green-600 font-medium">Completed</p>
+                                    <p class="text-3xl font-bold text-green-900">142</p>
+                                </div>
+                                <div class="bg-green-100 p-3 rounded-lg">
+                                    <i class="fa-solid fa-check-circle text-green-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-yellow-600 font-medium">Processing</p>
+                                    <p class="text-3xl font-bold text-yellow-900">12</p>
+                                </div>
+                                <div class="bg-yellow-100 p-3 rounded-lg">
+                                    <i class="fa-solid fa-sync-alt text-yellow-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-red-600 font-medium">Failed</p>
+                                    <p class="text-3xl font-bold text-red-900">2</p>
+                                </div>
+                                <div class="bg-red-100 p-3 rounded-lg">
+                                    <i class="fa-solid fa-exclamation-triangle text-red-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Records Table -->
+                    <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-900">Blind Scanning Records</h2>
+                                    <p class="text-sm text-gray-600 mt-1">View and manage all blind scanning operations</p>
+                                </div>
+                                <button class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                    <i class="fa-solid fa-refresh mr-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Number</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Original Filename</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document Type</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">KAN-2024-001</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">document_001.pdf</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">A4</td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Completed</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2024-01-15 10:30</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button class="text-blue-600 hover:text-blue-900 mr-2">View</button>
+                                                <button class="text-red-600 hover:text-red-900">Delete</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">KAN-2024-002</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">scan_batch_002.pdf</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">A3</td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Processing</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2024-01-15 11:15</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button class="text-blue-600 hover:text-blue-900 mr-2">View</button>
+                                                <button class="text-red-600 hover:text-red-900">Delete</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active', 'border-blue-500', 'text-blue-600');
+                button.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Show selected tab content
+            document.getElementById('tab-content-' + tabName).classList.remove('hidden');
+            
+            // Activate selected tab button
+            const activeButton = document.getElementById('tab-' + tabName);
+            activeButton.classList.add('active', 'border-blue-500', 'text-blue-600');
+            activeButton.classList.remove('border-transparent', 'text-gray-500');
+            
+            console.log('Switched to tab:', tabName);
+        }
+    </script>
+</body>
+</html>

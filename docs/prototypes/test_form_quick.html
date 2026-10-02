@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Form Test</title>
+</head>
+<body>
+    <h1>Quick Primary Form Test</h1>
+    
+    <form method="POST" action="http://localhost:8080/primaryform">
+        <input type="hidden" name="_token" value="test">
+        
+        <h3>Basic Info</h3>
+        <label>NP File No: <input type="text" name="np_fileno" value="ST-COM-2025-123"></label><br><br>
+        <label>File No: <input type="text" name="fileno" value="ST-COM-2025-123"></label><br><br>
+        <label>Land Use: <input type="text" name="land_use" value="COMMERCIAL"></label><br><br>
+        
+        <h3>Applicant Info</h3>
+        <label>Applicant Type: 
+            <select name="applicant_type">
+                <option value="Corporate">Corporate</option>
+                <option value="Individual">Individual</option>
+            </select>
+        </label><br><br>
+        
+        <label>Title: <input type="text" name="title" value="Mr"></label><br><br>
+        <label>First Name: <input type="text" name="fname" value="Test"></label><br><br>
+        <label>Last Name: <input type="text" name="lname" value="User"></label><br><br>
+        <label>Email: <input type="email" name="email" value="test@example.com"></label><br><br>
+        <label>Phone: <input type="text" name="phone" value="1234567890"></label><br><br>
+        
+        <h3>Property Info</h3>
+        <label>House No: <input type="text" name="property_house_no" value="123"></label><br><br>
+        <label>Street: <input type="text" name="property_street_name" value="Main Street"></label><br><br>
+        <label>Address: <input type="text" name="address" value="123 Main Street, City"></label><br><br>
+        
+        <br>
+        <button type="submit">Submit Test</button>
+    </form>
+
+    <h3>Test Results</h3>
+    <p><a href="http://localhost:8080/verify_database.php" target="_blank">Check Database After Submission</a></p>
+</body>
+</html>

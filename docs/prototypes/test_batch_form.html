@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Batch Data Submission</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+    <h1>Test Form with Batch Data</h1>
+    
+    <form id="testForm">
+        <p><strong>File Number:</strong> <input type="text" name="file_number" value="TEST-2024-001" required></p>
+        <p><strong>File Title:</strong> <input type="text" name="file_title" value="Test File" required></p>
+        <p><strong>Plot Number:</strong> <input type="text" name="plot_number" value="123" required></p>
+        <p><strong>District:</strong> <input type="text" name="district" value="Test District" required></p>
+        
+        <h3>Auto-Assignment Preview Data</h3>
+        <p><strong>Batch Number:</strong> <input type="text" name="batch_no" value="35" readonly></p>
+        <p><strong>Serial Number:</strong> <input type="text" name="serial_no" value="15" readonly></p>
+        <p><strong>Shelf Location:</strong> <input type="text" name="shelf_location" value="A37" readonly></p>
+        <p><strong>Batch ID:</strong> <input type="text" name="batch_id" value="35" readonly></p>
+        <p><strong>Shelf Label ID:</strong> <input type="text" name="shelf_label_id" value="37" readonly></p>
+        
+        <button type="button" onclick="submitForm()">Submit Test Form</button>
+    </form>
+    
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+
+    <script>
+        // Set CSRF token for AJAX requests
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+
+        function submitForm() {
+            const formData = new FormData(document.getElementById('testForm'));
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = '<p>Submitting...</p>';
+            
+            // Log what we're sending
+            console.log('Sending data:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
+            
+            fetch('/fileindexing', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultDiv.innerHTML = `
+                    <h3>Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+                if (data.success && data.batch_info) {
+                    const batchInfo = data.batch_info;
+                    const preserved = (
+                        batchInfo.batch_no == '35' &&
+                        batchInfo.serial_no == '15' &&
+                        batchInfo.shelf_location == 'A37'
+                    );
+                    
+                    resultDiv.innerHTML += `
+                        <h3>Batch Data Verification:</h3>
+                        <p><strong>Frontend sent:</strong> batch_no=35, serial_no=15, shelf_location=A37</p>
+                        <p><strong>Backend stored:</strong> batch_no=${batchInfo.batch_no}, serial_no=${batchInfo.serial_no}, shelf_location=${batchInfo.shelf_location}</p>
+                        <p><strong>Data preserved correctly:</strong> <span style="color: ${preserved ? 'green' : 'red'};">${preserved ? '✅ YES' : '❌ NO'}</span></p>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<h3>Error:</h3><pre>${error.message}</pre>`;
+            });
+        }
+    </script>
+    
+    <!-- Include jQuery if available -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</body>
+</html>

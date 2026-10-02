@@ -1,0 +1,16 @@
+Hey boss,
+
+Just finished uploading the fixes. Here's what I worked on:
+
+- Primary application form is working properly now
+- Buyer list is fully functional 
+- ST file indexing and initial upload are both working fine
+- Main blind scanning (BS) working smoothly
+- ST blind scanning also working fine
+- EDMS workflow cards - made them smaller, cleaner and better organized (they were too big before)
+
+Everything's been tested and pushed to the repo. Should be good to go.
+
+Let me know if you need me to check anything else.
+
+Thanks

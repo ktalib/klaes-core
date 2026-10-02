@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PuA Auto-Fill Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">PuA Auto-Fill Functionality Test</h1>
+        
+        <!-- Simulate the actual PuA form structure -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Parent Selection</h2>
+            
+            <!-- Parent selection dropdowns (same as actual form) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Filter by Land Use</label>
+                    <select id="pua_land_use_filter" class="w-full p-3 border rounded" onchange="loadPrimaryFileNumbers()">
+                        <option value="">All Land Uses</option>
+                        <option value="RES">Residential</option>
+                        <option value="COM">Commercial</option>
+                        <option value="IND">Industrial</option>
+                        <option value="MIXED">Mixed Use</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Primary File Number</label>
+                    <select id="pua_parent_file_number" class="w-full p-3 border rounded" 
+                            onchange="handleParentFileNumberChange(this.value)" disabled>
+                        <option value="">Select land use first...</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Parent Details (same as actual form) -->
+            <div id="pua_parent_details" class="hidden mt-3 p-3 bg-blue-50 rounded-md mb-6">
+                <h4 class="text-sm font-medium text-blue-800 mb-2">Selected Parent Details:</h4>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div><strong>File Number:</strong> <span id="parent_file_display">-</span></div>
+                    <div><strong>Land Use:</strong> <span id="parent_land_use_display">-</span></div>
+                    <div><strong>Applicant:</strong> <span id="parent_applicant_display">-</span></div>
+                    <div><strong>Status:</strong> <span id="parent_status_display">-</span></div>
+                </div>
+            </div>
+            
+            <!-- File Number Fields (same as actual form) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">NP FileNo (NPFN) (Auto-populated from Parent)</label>
+                    <input type="text" id="pua_np_fileno" readonly 
+                           class="w-full p-3 border rounded bg-blue-100 text-blue-700 cursor-not-allowed"
+                           value="Select parent file number first">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Unit FileNo (Auto-generated)</label>
+                    <input type="text" id="pua_unit_fileno" readonly 
+                           class="w-full p-3 border rounded bg-green-100 text-green-700 cursor-not-allowed"
+                           value="Will be generated automatically">
+                </div>
+            </div>
+            
+            <!-- Land Use Selection (same as actual form) -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-4">
+                    Land Use <span class="text-red-500">*</span> <span class="text-xs text-gray-500">(Auto-selected from parent)</span>
+                </label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <!-- Commercial -->
+                    <label class="relative flex items-center p-3 bg-gray-100 rounded-lg border-2 border-gray-300 cursor-not-allowed opacity-60 transition-all" id="pua_land_use_commercial">
+                        <input type="checkbox" name="pua_land_use" class="sr-only" value="COMMERCIAL" disabled>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                                <i data-lucide="building" class="w-3 h-3 text-blue-600"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500">Commercial</span>
+                        </div>
+                    </label>
+
+                    <!-- Residential -->
+                    <label class="relative flex items-center p-3 bg-gray-100 rounded-lg border-2 border-gray-300 cursor-not-allowed opacity-60 transition-all" id="pua_land_use_residential">
+                        <input type="checkbox" name="pua_land_use" class="sr-only" value="RESIDENTIAL" disabled>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                <i data-lucide="home" class="w-3 h-3 text-green-600"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500">Residential</span>
+                        </div>
+                    </label>
+
+                    <!-- Industrial -->
+                    <label class="relative flex items-center p-3 bg-gray-100 rounded-lg border-2 border-gray-300 cursor-not-allowed opacity-60 transition-all" id="pua_land_use_industrial">
+                        <input type="checkbox" name="pua_land_use" class="sr-only" value="INDUSTRIAL" disabled>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center">
+                                <i data-lucide="factory" class="w-3 h-3 text-orange-600"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500">Industrial</span>
+                        </div>
+                    </label>
+
+                    <!-- Mixed-Use -->
+                    <label class="relative flex items-center p-3 bg-gray-100 rounded-lg border-2 border-gray-300 cursor-not-allowed opacity-60 transition-all" id="pua_land_use_mixed">
+                        <input type="checkbox" name="pua_land_use" class="sr-only" value="MIXED" disabled>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                                <i data-lucide="layers" class="w-3 h-3 text-purple-600"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-500">Mixed-Use</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Test Controls -->
+            <div class="mt-6 pt-6 border-t">
+                <h3 class="text-lg font-semibold mb-4">Test Controls</h3>
+                <div class="flex gap-4">
+                    <button onclick="testParentSelection()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Test Parent Selection (ST-RES-2025-1)
+                    </button>
+                    <button onclick="resetPuaForm()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                        Reset Form
+                    </button>
+                </div>
+                
+                <div id="test_results" class="mt-4 p-3 bg-gray-50 rounded hidden">
+                    <h4 class="font-semibold">Test Results:</h4>
+                    <div id="test_output"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the PuA JavaScript functions -->
+    <script>
+        // Simulate parent selection for testing
+        function testParentSelection() {
+            const mockDetails = {
+                id: 12,
+                np_fileno: "ST-RES-2025-1",
+                fileno: "RES-1992-4131",
+                land_use: "Residential",
+                land_use_code: "RES",
+                file_no_type: "PRIMARY",
+                status: "USED",
+                applicant_type: "Corporate",
+                corporate_name: "P S MANDRIDES"
+            };
+            
+            // Manually populate the dropdown for testing
+            const parentSelect = document.getElementById('pua_parent_file_number');
+            parentSelect.innerHTML = '<option value="ST-RES-2025-1">ST-RES-2025-1 - Residential (P S MANDRIDES)</option>';
+            parentSelect.value = 'ST-RES-2025-1';
+            
+            // Store details for the selected option
+            const option = parentSelect.querySelector('option[value="ST-RES-2025-1"]');
+            option.dataset.details = JSON.stringify(mockDetails);
+            
+            // Call the parent selection handler
+            handleParentFileNumberChange('ST-RES-2025-1');
+            
+            // Show test results
+            const resultsDiv = document.getElementById('test_results');
+            const outputDiv = document.getElementById('test_output');
+            
+            resultsDiv.classList.remove('hidden');
+            outputDiv.innerHTML = `
+                <div class="text-sm space-y-1">
+                    <div><strong>NP FileNo:</strong> ${document.getElementById('pua_np_fileno').value}</div>
+                    <div><strong>Unit FileNo:</strong> ${document.getElementById('pua_unit_fileno').value}</div>
+                    <div><strong>Residential Selected:</strong> ${document.querySelector('#pua_land_use_residential input').checked ? 'Yes' : 'No'}</div>
+                    <div><strong>Parent Details Shown:</strong> ${document.getElementById('pua_parent_details').classList.contains('hidden') ? 'No' : 'Yes'}</div>
+                </div>
+            `;
+        }
+
+        // Dummy function for loading file numbers (would normally make API call)
+        function loadPrimaryFileNumbers() {
+            const fileSelect = document.getElementById('pua_parent_file_number');
+            fileSelect.innerHTML = '<option value="">No API connection in test</option>';
+            fileSelect.disabled = false;
+        }
+
+        // Include the actual PuA JavaScript functions
+        function handleParentFileNumberChange(selectedValue) {
+            const fileNumberSelect = document.getElementById('pua_parent_file_number');
+            const parentDetails = document.getElementById('pua_parent_details');
+            
+            if (!selectedValue) {
+                resetPuaForm();
+                parentDetails.classList.add('hidden');
+                return;
+            }
+            
+            try {
+                const selectedOption = fileNumberSelect.querySelector(`option[value="${selectedValue}"]`);
+                let details = null;
+                
+                if (selectedOption && selectedOption.dataset.details) {
+                    details = JSON.parse(selectedOption.dataset.details);
+                }
+                
+                if (details) {
+                    // Show parent details
+                    document.getElementById('parent_file_display').textContent = details.np_fileno;
+                    document.getElementById('parent_land_use_display').textContent = details.land_use;
+                    document.getElementById('parent_status_display').textContent = details.status;
+                    
+                    const applicantName = details.applicant_type === 'Corporate' 
+                        ? details.corporate_name 
+                        : `${details.first_name || ''} ${details.surname || ''}`.trim();
+                    document.getElementById('parent_applicant_display').textContent = applicantName || 'N/A';
+                    
+                    parentDetails.classList.remove('hidden');
+                    
+                    // Setup form
+                    onParentFileNumberSelected(selectedValue, details);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error handling parent selection:', error);
+                resetPuaForm();
+                parentDetails.classList.add('hidden');
+            }
+        }
+
+        function onParentFileNumberSelected(fileNumber, details) {
+            // Set NP File Number (same as parent)
+            const npFileNoInput = document.getElementById('pua_np_fileno');
+            if (npFileNoInput) {
+                npFileNoInput.value = fileNumber;
+                npFileNoInput.classList.remove('bg-blue-100', 'text-blue-700');
+                npFileNoInput.classList.add('bg-green-100', 'text-green-700');
+            }
+            
+            // Set Unit File Number preview
+            const unitFileNoInput = document.getElementById('pua_unit_fileno');
+            if (unitFileNoInput) {
+                unitFileNoInput.value = `${fileNumber}-001`;
+                unitFileNoInput.classList.remove('bg-green-100', 'text-green-700');
+                unitFileNoInput.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            
+            // Auto-fill and highlight the correct land use checkbox
+            const landUseCode = details.land_use_code;
+            selectPuaLandUse(landUseCode);
+            
+            console.log('✅ Form set up with parent:', fileNumber, 'Land Use:', details.land_use);
+        }
+
+        function selectPuaLandUse(landUseCode) {
+            const landUseMapping = {
+                'RES': 'pua_land_use_residential',
+                'COM': 'pua_land_use_commercial', 
+                'IND': 'pua_land_use_industrial',
+                'MIXED': 'pua_land_use_mixed'
+            };
+            
+            // Reset all land use options
+            Object.values(landUseMapping).forEach(elementId => {
+                const container = document.getElementById(elementId);
+                const checkbox = container?.querySelector('input[type="checkbox"]');
+                
+                if (container && checkbox) {
+                    checkbox.checked = false;
+                    checkbox.disabled = true;
+                    container.classList.remove('border-green-500', 'bg-green-50', 'border-blue-500', 'bg-blue-50', 'border-orange-500', 'bg-orange-50', 'border-purple-500', 'bg-purple-50');
+                    container.classList.add('border-gray-300', 'bg-gray-100', 'opacity-60', 'cursor-not-allowed');
+                }
+            });
+            
+            // Activate the selected land use
+            const selectedElementId = landUseMapping[landUseCode];
+            if (selectedElementId) {
+                const container = document.getElementById(selectedElementId);
+                const checkbox = container?.querySelector('input[type="checkbox"]');
+                
+                if (container && checkbox) {
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                    
+                    container.classList.remove('border-gray-300', 'bg-gray-100', 'opacity-60');
+                    container.classList.add('cursor-not-allowed');
+                    
+                    switch(landUseCode) {
+                        case 'RES':
+                            container.classList.add('border-green-500', 'bg-green-50');
+                            break;
+                        case 'COM':
+                            container.classList.add('border-blue-500', 'bg-blue-50');
+                            break;
+                        case 'IND':
+                            container.classList.add('border-orange-500', 'bg-orange-50');
+                            break;
+                        case 'MIXED':
+                            container.classList.add('border-purple-500', 'bg-purple-50');
+                            break;
+                    }
+                }
+            }
+        }
+
+        function resetPuaForm() {
+            // Reset NP File Number display
+            const npFileNoInput = document.getElementById('pua_np_fileno');
+            if (npFileNoInput) {
+                npFileNoInput.value = 'Select parent file number first';
+                npFileNoInput.classList.remove('bg-green-100', 'text-green-700');
+                npFileNoInput.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            
+            // Reset Unit File Number display
+            const unitFileNoInput = document.getElementById('pua_unit_fileno');
+            if (unitFileNoInput) {
+                unitFileNoInput.value = 'Will be generated automatically';
+                unitFileNoInput.classList.remove('bg-blue-100', 'text-blue-700');
+                unitFileNoInput.classList.add('bg-green-100', 'text-green-700');
+            }
+            
+            // Reset land use checkboxes
+            const landUseIds = ['pua_land_use_residential', 'pua_land_use_commercial', 'pua_land_use_industrial', 'pua_land_use_mixed'];
+            landUseIds.forEach(elementId => {
+                const container = document.getElementById(elementId);
+                const checkbox = container?.querySelector('input[type="checkbox"]');
+                
+                if (container && checkbox) {
+                    checkbox.checked = false;
+                    checkbox.disabled = true;
+                    container.classList.remove('border-green-500', 'bg-green-50', 'border-blue-500', 'bg-blue-50', 'border-orange-500', 'bg-orange-50', 'border-purple-500', 'bg-purple-50');
+                    container.classList.add('border-gray-300', 'bg-gray-100', 'opacity-60', 'cursor-not-allowed');
+                }
+            });
+            
+            // Hide parent details
+            const parentDetails = document.getElementById('pua_parent_details');
+            if (parentDetails) {
+                parentDetails.classList.add('hidden');
+            }
+        }
+    </script>
+    
+    <script>
+        // Initialize icons
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

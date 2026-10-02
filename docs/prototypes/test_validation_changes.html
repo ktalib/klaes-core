@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Number Validation Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Registration Number Validation Removed ✅</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Updated Validation Rules -->
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-green-600">Updated Backend Validation:</h3>
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <ul class="text-sm text-green-700 space-y-2">
+                        <li>✅ <strong>serialNo:</strong> 'nullable|string|max:50' (was required)</li>
+                        <li>✅ <strong>pageNo:</strong> 'nullable|string|max:50' (was required)</li>
+                        <li>✅ <strong>volumeNo:</strong> 'nullable|string|max:50' (was required)</li>
+                        <li>✅ <strong>regDate:</strong> 'nullable|date' (added)</li>
+                        <li>✅ <strong>regTime:</strong> 'nullable|string|max:10' (added)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Default Value Handling -->
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-blue-600">Default Value Handling:</h3>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <ul class="text-sm text-blue-700 space-y-2">
+                        <li>✅ <strong>serialNo:</strong> Uses "0" if null/empty</li>
+                        <li>✅ <strong>pageNo:</strong> Uses "0" if null/empty</li>
+                        <li>✅ <strong>volumeNo:</strong> Uses "0" if null/empty</li>
+                        <li>✅ <strong>regDate:</strong> Uses current date if null</li>
+                        <li>✅ <strong>regTime:</strong> Uses "00:00:00" if null</li>
+                        <li>✅ <strong>regNo:</strong> Generated as "0/0/0" if all empty</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Frontend Changes -->
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-purple-600">Frontend Updates:</h3>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <ul class="text-sm text-purple-700 space-y-2">
+                        <li>✅ Section title updated to "Registration Number (Optional)"</li>
+                        <li>✅ Page No. field made editable (removed readonly)</li>
+                        <li>✅ Auto-sync between Serial No. and Page No. removed</li>
+                        <li>✅ Placeholder text updated to "Optional"</li>
+                        <li>✅ All fields now independent</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Test Scenarios -->
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-orange-600">Test Scenarios Now Supported:</h3>
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <ul class="text-sm text-orange-700 space-y-2">
+                        <li>✅ Submit form with all registration fields empty</li>
+                        <li>✅ Submit with only some registration fields filled</li>
+                        <li>✅ Submit without regDate (uses current date)</li>
+                        <li>✅ Submit without regTime (uses 00:00:00)</li>
+                        <li>✅ Page No. can be different from Serial No.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">🎯 Implementation Summary</h3>
+            <p class="text-sm text-gray-600">
+                All Registration Number fields (Serial No., Page No., Volume No., Reg Date, Reg Time) are now optional. 
+                The backend automatically handles null values by using appropriate defaults ("0" for numbers, current date/time for dates). 
+                The frontend form has been updated to reflect this optional nature and removed automatic field syncing.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

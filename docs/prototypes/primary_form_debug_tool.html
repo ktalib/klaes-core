@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Primary Form Validation Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9; }
+        .field-check { margin: 10px 0; padding: 8px; border-left: 4px solid #ccc; }
+        .field-check.valid { border-left-color: #28a745; background: #d4edda; }
+        .field-check.invalid { border-left-color: #dc3545; background: #f8d7da; }
+        .error { color: #dc3545; font-weight: bold; }
+        .success { color: #28a745; font-weight: bold; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; border: none; }
+        .btn-success { background: #28a745; color: white; border: none; }
+        .btn-danger { background: #dc3545; color: white; border: none; }
+        pre { background: #f8f9fa; padding: 10px; border: 1px solid #dee2e6; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Primary Form Validation Debug Tool</h1>
+    
+    <div class="debug-section">
+        <h2>📋 Form Field Analysis</h2>
+        <button class="btn-primary" onclick="analyzeFormFields()">Analyze Form Fields</button>
+        <button class="btn-success" onclick="testAutoFill()">Test Auto-Fill</button>
+        <button class="btn-danger" onclick="simulateValidation()">Simulate Validation</button>
+        <div id="analysis-results"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>🧪 Form Data Testing</h2>
+        <button class="btn-primary" onclick="debugFormData()">Debug FormData</button>
+        <button class="btn-success" onclick="testSubmission()">Test Submission (Dry Run)</button>
+        <div id="formdata-results"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>🔧 Quick Fixes</h2>
+        <button class="btn-success" onclick="populateTestData()">Populate Test Data</button>
+        <button class="btn-primary" onclick="clearFormData()">Clear Form Data</button>
+        <div id="fix-results"></div>
+    </div>
+
+    <script>
+        function analyzeFormFields() {
+            const resultsDiv = document.getElementById('analysis-results');
+            resultsDiv.innerHTML = '<h3>📊 Field Analysis Results</h3>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            
+            if (!form) {
+                resultsDiv.innerHTML += '<div class="error">❌ Primary form not found! Make sure you have the main form open.</div>';
+                return;
+            }
+            
+            const requiredFields = [
+                { name: 'applicantType', label: 'Applicant Type' },
+                { name: 'scheme_no', label: 'Scheme Number' },
+                { name: 'property_street_name', label: 'Property Street Name' },
+                { name: 'property_lga', label: 'Property LGA' },
+                { name: 'property_state', label: 'Property State' }
+            ];
+            
+            requiredFields.forEach(fieldInfo => {
+                const field = form.querySelector(`[name="${fieldInfo.name}"]`);
+                let fieldCheck = `<div class="field-check `;
+                
+                if (field) {
+                    const hasValue = field.value && field.value.trim() !== '';
+                    const isVisible = field.offsetParent !== null;
+                    const isDisabled = field.disabled;
+                    
+                    if (hasValue && !isDisabled) {
+                        fieldCheck += 'valid">✅ ';
+                    } else {
+                        fieldCheck += 'invalid">❌ ';
+                    }
+                    
+                    fieldCheck += `<strong>${fieldInfo.label}</strong><br>`;
+                    fieldCheck += `Element: &lt;${field.tagName.toLowerCase()}&gt;<br>`;
+                    fieldCheck += `Type: ${field.type || 'text'}<br>`;
+                    fieldCheck += `Value: "${field.value}"<br>`;
+                    fieldCheck += `Visible: ${isVisible}<br>`;
+                    fieldCheck += `Disabled: ${isDisabled}<br>`;
+                    fieldCheck += `ID: ${field.id || 'No ID'}<br>`;
+                    fieldCheck += `Classes: ${field.className || 'No classes'}`;
+                } else {
+                    fieldCheck += 'invalid">❌ <strong>${fieldInfo.label}</strong><br>';
+                    fieldCheck += 'Field not found in form!';
+                }
+                
+                fieldCheck += '</div>';
+                resultsDiv.innerHTML += fieldCheck;
+            });
+        }
+        
+        function testAutoFill() {
+            const resultsDiv = document.getElementById('analysis-results');
+            resultsDiv.innerHTML += '<h3>🔄 Testing Auto-Fill Functionality</h3>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                resultsDiv.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            // Check if auto-fill functions exist
+            const autoFillFunctions = [
+                'autoFillAllFormFields',
+                'updateMainFormField',
+                'updateHiddenField'
+            ];
+            
+            autoFillFunctions.forEach(funcName => {
+                const exists = typeof parent[funcName] === 'function';
+                resultsDiv.innerHTML += `<div class="field-check ${exists ? 'valid' : 'invalid'}">
+                    ${exists ? '✅' : '❌'} ${funcName}: ${exists ? 'Available' : 'Not found'}
+                </div>`;
+            });
+            
+            // Check for global variables
+            const globalVars = ['PRIMARY_DRAFT_ENDPOINTS', 'FORM_SUBMIT_URL'];
+            globalVars.forEach(varName => {
+                const exists = typeof parent[varName] !== 'undefined';
+                resultsDiv.innerHTML += `<div class="field-check ${exists ? 'valid' : 'invalid'}">
+                    ${exists ? '✅' : '❌'} ${varName}: ${exists ? 'Available' : 'Not found'}
+                </div>`;
+            });
+        }
+        
+        function simulateValidation() {
+            const resultsDiv = document.getElementById('analysis-results');
+            resultsDiv.innerHTML += '<h3>🧪 Validation Simulation</h3>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                resultsDiv.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            // Simulate the exact validation logic from form-submission.js
+            const getFieldValue = (name) => {
+                const field = form.querySelector(`[name="${name}"]`);
+                return field ? field.value.trim() : '';
+            };
+            
+            const errors = [];
+            
+            const applicantType = getFieldValue('applicantType') || getFieldValue('applicant_type');
+            const schemeNo = getFieldValue('scheme_no');
+            const propertyStreet = getFieldValue('property_street_name');
+            const propertyLga = getFieldValue('property_lga');
+            const propertyState = getFieldValue('property_state');
+            
+            if (!applicantType) errors.push('Select an applicant type.');
+            if (!schemeNo) errors.push('Scheme number is required.');
+            if (!propertyStreet) errors.push('Property street name is required.');
+            if (!propertyLga) errors.push('Property LGA is required.');
+            if (!propertyState) errors.push('Property state is required.');
+            
+            const testResults = `
+                <div class="field-check">
+                    <strong>Field Values Found:</strong><br>
+                    applicantType: "${applicantType}"<br>
+                    scheme_no: "${schemeNo}"<br>
+                    property_street_name: "${propertyStreet}"<br>
+                    property_lga: "${propertyLga}"<br>
+                    property_state: "${propertyState}"
+                </div>
+            `;
+            
+            resultsDiv.innerHTML += testResults;
+            
+            if (errors.length > 0) {
+                resultsDiv.innerHTML += `<div class="field-check invalid">
+                    <strong>❌ Validation Errors:</strong><br>
+                    ${errors.map(err => `• ${err}`).join('<br>')}
+                </div>`;
+            } else {
+                resultsDiv.innerHTML += '<div class="field-check valid">✅ All fields pass validation!</div>';
+            }
+        }
+        
+        function debugFormData() {
+            const resultsDiv = document.getElementById('formdata-results');
+            resultsDiv.innerHTML = '<h3>📦 FormData Analysis</h3>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                resultsDiv.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            const formData = new FormData(form);
+            
+            let formDataHtml = '<pre>';
+            const entries = [];
+            for (let [key, value] of formData.entries()) {
+                entries.push(`${key}: ${value}`);
+            }
+            formDataHtml += entries.join('\\n');
+            formDataHtml += '</pre>';
+            
+            resultsDiv.innerHTML += formDataHtml;
+            
+            // Check for missing required fields
+            const requiredFields = ['applicantType', 'scheme_no', 'property_street_name', 'property_lga', 'property_state'];
+            const missingFields = requiredFields.filter(field => !formData.has(field));
+            
+            if (missingFields.length > 0) {
+                resultsDiv.innerHTML += `<div class="error">❌ Missing from FormData: ${missingFields.join(', ')}</div>`;
+            } else {
+                resultsDiv.innerHTML += '<div class="success">✅ All required fields present in FormData</div>';
+            }
+        }
+        
+        function testSubmission() {
+            const resultsDiv = document.getElementById('formdata-results');
+            resultsDiv.innerHTML += '<h3>🚀 Submission Test (Dry Run)</h3>';
+            
+            // This would simulate the actual submission process
+            Swal.fire({
+                title: 'Submission Test',
+                text: 'This would test the actual form submission. Continue?',
+                icon: 'question',
+                showCancelButton: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    resultsDiv.innerHTML += '<div class="field-check">🧪 Simulating submission... (Feature not implemented)</div>';
+                }
+            });
+        }
+        
+        function populateTestData() {
+            const resultsDiv = document.getElementById('fix-results');
+            resultsDiv.innerHTML = '<h3>🔧 Populating Test Data</h3>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                resultsDiv.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            // Populate test data
+            const testData = {
+                'applicantType': 'individual',
+                'scheme_no': 'TEST-SCHEME-001',
+                'property_street_name': 'TEST STREET',
+                'property_lga': 'TEST LGA',
+                'property_state': 'TEST STATE'
+            };
+            
+            Object.keys(testData).forEach(fieldName => {
+                const field = form.querySelector(`[name="${fieldName}"]`);
+                if (field) {
+                    field.value = testData[fieldName];
+                    resultsDiv.innerHTML += `<div class="field-check valid">✅ Set ${fieldName} = "${testData[fieldName]}"</div>`;
+                } else {
+                    resultsDiv.innerHTML += `<div class="field-check invalid">❌ Field ${fieldName} not found</div>`;
+                }
+            });
+            
+            // Trigger any change events
+            Object.keys(testData).forEach(fieldName => {
+                const field = form.querySelector(`[name="${fieldName}"]`);
+                if (field) {
+                    field.dispatchEvent(new Event('change'));
+                    field.dispatchEvent(new Event('input'));
+                }
+            });
+            
+            resultsDiv.innerHTML += '<div class="success">✅ Test data populated! Try submitting the form now.</div>';
+        }
+        
+        function clearFormData() {
+            const resultsDiv = document.getElementById('fix-results');
+            resultsDiv.innerHTML += '<h3>🧹 Clearing Form Data</h3>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                resultsDiv.innerHTML += '<div class="error">❌ Form not found!</div>';
+                return;
+            }
+            
+            const inputs = form.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.type !== 'hidden' && input.name !== '_token') {
+                    input.value = '';
+                }
+            });
+            
+            resultsDiv.innerHTML += '<div class="success">✅ Form data cleared!</div>';
+        }
+    </script>
+    
+    <div style="margin-top: 30px; padding: 15px; border: 1px solid #ffc107; background: #fff3cd;">
+        <h3>📝 Instructions:</h3>
+        <ol>
+            <li>Open this debug tool in a separate tab while working with the primary form</li>
+            <li>Use "Analyze Form Fields" to see what fields exist and their current state</li>
+            <li>Use "Simulate Validation" to test the exact same validation logic</li>
+            <li>Use "Populate Test Data" to fill the form with test values</li>
+            <li>Use "Debug FormData" to see what data would be sent to the server</li>
+        </ol>
+        <p><strong>Note:</strong> This tool accesses the parent window to interact with your main form.</p>
+    </div>
+</body>
+</html>

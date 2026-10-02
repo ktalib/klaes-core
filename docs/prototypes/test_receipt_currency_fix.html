@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt Number Currency Symbol Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        .test-section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-section h2 { color: #555; margin-top: 0; }
+        .input-group { margin: 15px 0; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .input-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #007bca; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a8b; }
+        .results { margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💰 Receipt Number Currency Fix Test</h1>
+        <p><strong>Issue:</strong> Receipt number inputs were automatically adding ₦ symbol when typing numbers</p>
+        <p><strong>Fix:</strong> Excluded receipt number inputs from currency formatting</p>
+        
+        <div class="test-section">
+            <h2>🧪 Test Input Fields</h2>
+            <p>Try typing numbers in these fields to test the currency formatting behavior:</p>
+            
+            <!-- Fee inputs (should get currency formatting) -->
+            <div class="input-group">
+                <label>Application Fee (should add ₦):</label>
+                <input type="text" name="application_fee" placeholder="Enter amount">
+                <small class="info">This should automatically add ₦ symbol and format numbers</small>
+            </div>
+            
+            <div class="input-group">
+                <label>Processing Fee (should add ₦):</label>
+                <input type="text" name="processing_fee" placeholder="Enter amount">
+                <small class="info">This should automatically add ₦ symbol and format numbers</small>
+            </div>
+            
+            <!-- Receipt number inputs (should NOT get currency formatting) -->
+            <div class="input-group">
+                <label>Application Fee Receipt Number (should NOT add ₦):</label>
+                <input type="text" name="application_fee_receipt_number" placeholder="Enter receipt number">
+                <small class="success">This should remain plain text - no ₦ symbol added</small>
+            </div>
+            
+            <div class="input-group">
+                <label>Processing Fee Receipt Number (should NOT add ₦):</label>
+                <input type="text" name="processing_fee_receipt_number" placeholder="Enter receipt number">
+                <small class="success">This should remain plain text - no ₦ symbol added</small>
+            </div>
+            
+            <div class="input-group">
+                <label>Site Plan Fee Receipt Number (should NOT add ₦):</label>
+                <input type="text" name="site_plan_fee_receipt_number" placeholder="Enter receipt number">
+                <small class="success">This should remain plain text - no ₦ symbol added</small>
+            </div>
+            
+            <!-- Amount inputs (should get currency formatting) -->
+            <div class="input-group">
+                <label>Any Amount Field (should add ₦):</label>
+                <input type="text" name="some_amount" placeholder="Enter amount">
+                <small class="info">This should automatically add ₦ symbol and format numbers</small>
+            </div>
+            
+            <!-- Regular text input (should not get currency formatting) -->
+            <div class="input-group">
+                <label>Regular Text Field (should NOT add ₦):</label>
+                <input type="text" name="applicant_name" placeholder="Enter name">
+                <small class="success">This should remain plain text - no formatting</small>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Test Instructions</h2>
+            <ol>
+                <li><strong>Test Fee Fields:</strong> Type "1000" in Application Fee and Processing Fee - should become "₦1,000"</li>
+                <li><strong>Test Receipt Fields:</strong> Type "RCT123" in any receipt number field - should stay "RCT123" (no ₦)</li>
+                <li><strong>Test Amount Fields:</strong> Type "5000" in Any Amount Field - should become "₦5,000"</li>
+                <li><strong>Test Regular Fields:</strong> Type "Musa Ali" in Regular Text Field - should stay "Musa Ali"</li>
+            </ol>
+
+            <button onclick="testValues()">🧪 Run Auto Test</button>
+            <button onclick="clearInputs()">🔄 Clear All</button>
+            
+            <div id="results" class="results" style="display: none;">
+                <h3>Test Results:</h3>
+                <div id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the updated utilities and init scripts -->
+    <script>
+        // Function to format currency input (copied from utilities.js)
+        function formatCurrency(input) {
+            let value = input.value.replace(/[^\d]/g, '');
+            if (value) {
+                value = parseInt(value).toLocaleString();
+                input.value = '₦' + value;
+            }
+        }
+
+        // Currency input handlers (updated version from init.js)
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 Setting up currency formatting...');
+            
+            // Updated selector that excludes receipt number inputs
+            const currencyInputs = document.querySelectorAll('input[type="text"][placeholder*="₦"], input[name*="amount"], input[name*="fee"]:not([name*="receipt"])');
+            
+            console.log(`Found ${currencyInputs.length} currency inputs:`, Array.from(currencyInputs).map(i => i.name));
+            
+            currencyInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    formatCurrency(this);
+                });
+            });
+            
+            // Receipt number inputs with currency symbol removal
+            const receiptInputs = document.querySelectorAll('input[name*="receipt"]');
+            console.log(`Found ${receiptInputs.length} receipt inputs:`, Array.from(receiptInputs).map(i => i.name));
+            
+            receiptInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    // Remove currency symbols from receipt numbers
+                    this.value = this.value.replace(/[₦$€£¥]/g, '');
+                });
+            });
+        });
+
+        function testValues() {
+            const tests = [
+                { name: 'application_fee', value: '1000', expected: '₦1,000', shouldFormat: true },
+                { name: 'processing_fee', value: '2500', expected: '₦2,500', shouldFormat: true },
+                { name: 'application_fee_receipt_number', value: 'RCT123', expected: 'RCT123', shouldFormat: false },
+                { name: 'processing_fee_receipt_number', value: 'ABC456', expected: 'ABC456', shouldFormat: false },
+                { name: 'site_plan_fee_receipt_number', value: 'XYZ789', expected: 'XYZ789', shouldFormat: false },
+                { name: 'some_amount', value: '5000', expected: '₦5,000', shouldFormat: true },
+                { name: 'applicant_name', value: 'Musa Ali', expected: 'Musa Ali', shouldFormat: false }
+            ];
+
+            let results = '<h4>Automated Test Results:</h4>';
+            let allPassed = true;
+
+            tests.forEach(test => {
+                const input = document.querySelector(`input[name="${test.name}"]`);
+                if (input) {
+                    // Clear and set value
+                    input.value = '';
+                    input.value = test.value;
+                    
+                    // Trigger input event to activate formatting
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    
+                    // Small delay to allow formatting
+                    setTimeout(() => {
+                        const actual = input.value;
+                        const passed = actual === test.expected;
+                        allPassed = allPassed && passed;
+                        
+                        const status = passed ? '✅' : '❌';
+                        const cssClass = passed ? 'success' : 'error';
+                        
+                        results += `<div class="${cssClass}">${status} ${test.name}: Expected "${test.expected}", Got "${actual}"</div>`;
+                        
+                        // Show results after all tests
+                        if (test === tests[tests.length - 1]) {
+                            results += `<hr><div class="${allPassed ? 'success' : 'error'}"><strong>${allPassed ? '🎉 All tests passed!' : '⚠️ Some tests failed'}</strong></div>`;
+                            showResults(results);
+                        }
+                    }, 100);
+                }
+            });
+        }
+
+        function clearInputs() {
+            document.querySelectorAll('input[type="text"]').forEach(input => {
+                input.value = '';
+            });
+            document.getElementById('results').style.display = 'none';
+        }
+
+        function showResults(content) {
+            const element = document.getElementById('results');
+            const contentElement = document.getElementById('resultContent');
+            element.style.display = 'block';
+            contentElement.innerHTML = content;
+        }
+    </script>
+</body>
+</html>

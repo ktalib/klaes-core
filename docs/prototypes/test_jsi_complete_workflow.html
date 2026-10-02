@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete JSI Report Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; border: none; }
+        .btn-success { background: #28a745; color: white; border: none; }
+        .btn-info { background: #17a2b8; color: white; border: none; }
+    </style>
+</head>
+<body>
+    <h1>Complete JSI Report & Shared Utilities Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Check API Endpoints</h3>
+        <button class="btn-info" onclick="testApiEndpoints()">Test API Endpoints</button>
+        <div id="api-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Submit JSI Report with Utilities</h3>
+        <button class="btn-primary" onclick="testJSIReportSubmission()">Submit Test JSI Report</button>
+        <div id="jsi-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Verify Database Synchronization</h3>
+        <button class="btn-success" onclick="verifyDatabaseSync()">Verify Database Sync</button>
+        <div id="sync-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 4: Test Frontend Data Loading</h3>
+        <button class="btn-info" onclick="testFrontendDataLoading()">Test Frontend Loading</button>
+        <div id="frontend-results"></div>
+    </div>
+
+    <script>
+        // Test 1: API Endpoints
+        async function testApiEndpoints() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="info">Testing API endpoints...</div>';
+            
+            try {
+                // Test primary application
+                const response1 = await fetch('/api/shared-utilities/1');
+                const data1 = await response1.json();
+                
+                // Test sub-application
+                const response2 = await fetch('/api/shared-utilities/1/1');
+                const data2 = await response2.json();
+                
+                resultsDiv.innerHTML = `
+                    <div class="success">✓ API endpoints working!</div>
+                    <h4>Primary Application Data:</h4>
+                    <pre>${JSON.stringify(data1, null, 2)}</pre>
+                    <h4>Sub-Application Data:</h4>
+                    <pre>${JSON.stringify(data2, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">✗ API test failed: ${error.message}</div>`;
+            }
+        }
+
+        // Test 2: JSI Report Submission
+        async function testJSIReportSubmission() {
+            const resultsDiv = document.getElementById('jsi-results');
+            resultsDiv.innerHTML = '<div class="info">Submitting test JSI report...</div>';
+
+            const testData = {
+                application_id: 1,
+                sub_application_id: null, // Test primary application first
+                inspection_date: new Date().toISOString().split('T')[0],
+                lkn_number: 'TEST-LKN-001',
+                applicant_name: 'Test Applicant',
+                location: 'Test Location',
+                plot_number: 'TEST-PLOT-001',
+                scheme_number: 'TEST-SCHEME-001',
+                boundary_description: 'Test boundary description',
+                unit_number: 1,
+                sections_count: 2,
+                road_reservation: 'Test road reservation',
+                prevailing_land_use: 'Residential',
+                applied_land_use: 'Commercial',
+                shared_utilities: ['Access Road', 'Drainage', 'Common Entrance'],
+                compliance_status: 'obtainable',
+                additional_observations: 'Test observations',
+                inspection_officer: 'Test Officer',
+                existing_site_measurement_summary: 'Test summary',
+                existing_site_measurement_entries: [
+                    { sn: 1, description: 'Access Road', dimension: '6.0' },
+                    { sn: 2, description: 'Drainage', dimension: '3.5' },
+                    { sn: 3, description: 'Common Entrance', dimension: '4.5' }
+                ],
+                available_on_ground: true,
+                has_additional_observations: true,
+                _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'test'
+            };
+
+            try {
+                const response = await fetch('/planning-recommendation/joint-site-inspection/store', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': testData._token
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="success">✓ JSI Report submitted successfully!</div>
+                        <h4>Response:</h4>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">✗ JSI Report submission failed</div>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">✗ JSI Report submission error: ${error.message}</div>`;
+            }
+        }
+
+        // Test 3: Verify Database Synchronization
+        async function verifyDatabaseSync() {
+            const resultsDiv = document.getElementById('sync-results');
+            resultsDiv.innerHTML = '<div class="info">Verifying database synchronization...</div>';
+
+            try {
+                // Check shared_utilities table after JSI report submission
+                const response = await fetch('/api/shared-utilities/1');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    resultsDiv.innerHTML = `
+                        <div class="success">✓ Database synchronization working!</div>
+                        <p>Found ${data.count} utilities in shared_utilities table:</p>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">✗ No data found in shared_utilities table</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">✗ Database sync verification failed: ${error.message}</div>`;
+            }
+        }
+
+        // Test 4: Frontend Data Loading
+        async function testFrontendDataLoading() {
+            const resultsDiv = document.getElementById('frontend-results');
+            resultsDiv.innerHTML = '<div class="info">Testing frontend data loading...</div>';
+
+            try {
+                // Simulate what the modal would do
+                const response = await fetch('/api/shared-utilities/1');
+                const data = await response.json();
+
+                if (data.success) {
+                    // Convert to the format the modal expects
+                    const measurementEntries = data.data.map((item, index) => ({
+                        sn: index + 1,
+                        description: item.utility_type,
+                        dimension: item.dimension
+                    }));
+
+                    resultsDiv.innerHTML = `
+                        <div class="success">✓ Frontend data loading working!</div>
+                        <h4>Converted data for modal form:</h4>
+                        <pre>${JSON.stringify(measurementEntries, null, 2)}</pre>
+                        <h4>Raw API data:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">✗ Frontend data loading failed</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">✗ Frontend test failed: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-run tests on page load
+        window.onload = function() {
+            console.log('JSI Report & Shared Utilities Test Page Loaded');
+        };
+    </script>
+
+    <!-- Add CSRF token if available -->
+    <meta name="csrf-token" content="test-token">
+</body>
+</html>

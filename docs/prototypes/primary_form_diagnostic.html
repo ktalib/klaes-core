@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Primary Form Field Diagnostic</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .found { background: #d4edda; }
+        .not-found { background: #f8d7da; }
+        button { padding: 10px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Primary Form Field Diagnostic</h1>
+    
+    <button onclick="checkFormExists()">Check Form Exists</button>
+    <button onclick="listAllFields()">List All Fields</button>
+    <button onclick="checkApplicantFields()">Check Applicant Fields</button>
+    <button onclick="checkFormStructure()">Check Form Structure</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function checkFormExists() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Form Existence Check</h2>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (form) {
+                results.innerHTML += `<div class="result found">✅ Form found: ${form.tagName} with ID "${form.id}"</div>`;
+                results.innerHTML += `<div class="result">Form action: ${form.action}</div>`;
+                results.innerHTML += `<div class="result">Form method: ${form.method}</div>`;
+                results.innerHTML += `<div class="result">Total child elements: ${form.children.length}</div>`;
+            } else {
+                results.innerHTML += '<div class="result not-found">❌ Form NOT FOUND</div>';
+            }
+        }
+        
+        function listAllFields() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>All Form Fields</h2>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                results.innerHTML += '<div class="result not-found">❌ Form not found</div>';
+                return;
+            }
+            
+            const inputs = form.querySelectorAll('input, select, textarea');
+            results.innerHTML += `<div class="result">Found ${inputs.length} form controls</div>`;
+            
+            let fieldsList = '<pre>';
+            inputs.forEach((input, index) => {
+                fieldsList += `${index + 1}. ${input.tagName}`;
+                if (input.id) fieldsList += `#${input.id}`;
+                if (input.name) fieldsList += `[name="${input.name}"]`;
+                if (input.type) fieldsList += `[type="${input.type}"]`;
+                fieldsList += ` = "${input.value}"\\n`;
+            });
+            fieldsList += '</pre>';
+            
+            results.innerHTML += fieldsList;
+        }
+        
+        function checkApplicantFields() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Applicant Field Check</h2>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                results.innerHTML += '<div class="result not-found">❌ Form not found</div>';
+                return;
+            }
+            
+            // Check different ways to find applicant type
+            const searches = [
+                { selector: '[name="applicantType"]', description: 'By name="applicantType"' },
+                { selector: '[name="applicant_type"]', description: 'By name="applicant_type"' },
+                { selector: '#applicantType', description: 'By id="applicantType"' },
+                { selector: '#hidden-applicant-type', description: 'By id="hidden-applicant-type"' },
+                { selector: 'input[id*="applicant"]', description: 'Any input with "applicant" in id' },
+                { selector: 'input[name*="applicant"]', description: 'Any input with "applicant" in name' }
+            ];
+            
+            searches.forEach(search => {
+                const field = form.querySelector(search.selector);
+                if (field) {
+                    results.innerHTML += `<div class="result found">✅ ${search.description}: ${field.tagName}#${field.id}[name="${field.name}"] = "${field.value}"</div>`;
+                } else {
+                    results.innerHTML += `<div class="result not-found">❌ ${search.description}: NOT FOUND</div>`;
+                }
+            });
+        }
+        
+        function checkFormStructure() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Form Structure Analysis</h2>';
+            
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                results.innerHTML += '<div class="result not-found">❌ Form not found</div>';
+                return;
+            }
+            
+            // Check for step divs
+            const steps = form.querySelectorAll('[id*="step"], .step, [class*="step"]');
+            results.innerHTML += `<div class="result">Found ${steps.length} step-related elements</div>`;
+            
+            // Check for applicant section
+            const applicantSections = form.querySelectorAll('[id*="applicant"], [class*="applicant"]');
+            results.innerHTML += `<div class="result">Found ${applicantSections.length} applicant-related elements</div>`;
+            
+            applicantSections.forEach((section, index) => {
+                results.innerHTML += `<div class="result">Applicant section ${index + 1}: ${section.tagName}#${section.id} classes="${section.className}"</div>`;
+            });
+            
+            // Check if corporate/individual fields are present
+            const corporateFields = form.querySelector('#corporateFields');
+            const individualFields = form.querySelector('#individualFields');
+            
+            if (corporateFields) {
+                results.innerHTML += `<div class="result found">✅ Corporate fields section found (display: ${window.getComputedStyle(corporateFields).display})</div>`;
+            } else {
+                results.innerHTML += '<div class="result not-found">❌ Corporate fields section not found</div>';
+            }
+            
+            if (individualFields) {
+                results.innerHTML += `<div class="result found">✅ Individual fields section found (display: ${window.getComputedStyle(individualFields).display})</div>`;
+            } else {
+                results.innerHTML += '<div class="result not-found">❌ Individual fields section not found</div>';
+            }
+        }
+    </script>
+    
+    <div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px;">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Open this diagnostic tool in a separate tab</li>
+            <li>Make sure you have the primary form open in another tab</li>
+            <li>Click each button to run diagnostics</li>
+            <li>This will help identify why the validation can't find the applicant type field</li>
+        </ol>
+    </div>
+</body>
+</html>

@@ -1,0 +1,292 @@
+.file-history-page {
+    --primary: #111827;
+    --primary-foreground: #ffffff;
+    --muted: #f9fafb;
+    --muted-foreground: #6b7280;
+    --border: #e5e7eb;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --secondary: #f3f4f6;
+    --secondary-foreground: #111827;
+    --bg-primary: #f5f5f5;
+    --bg-secondary: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #374151;
+    --text-muted: #6b7280;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    --amber-600: #d97706;
+    --green-50: #f0fdf4;
+    --green-600: #10b981;
+    --emerald-50: #ecfdf5;
+    --emerald-950: #022c22;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.file-history-page .card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--gray-200);
+    border-radius: 0.75rem;
+    box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+}
+
+.file-history-page .card-header {
+    padding: 1.5rem 1.5rem 0;
+}
+
+.file-history-page .card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.file-history-page .card-content {
+    padding: 1.5rem;
+}
+
+.file-history-page .gradient-card {
+    background: linear-gradient(to right, var(--gray-50), var(--gray-100));
+    border-color: transparent;
+}
+
+.file-history-page .green-gradient-card {
+    background: linear-gradient(120deg, var(--green-50), var(--emerald-50));
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.file-history-page .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.25rem 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.file-history-page .badge-outline {
+    background-color: transparent;
+    color: var(--gray-700);
+    border-color: var(--gray-300);
+}
+
+.file-history-page .badge-default {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+}
+
+.file-history-page .badge-secondary {
+    background-color: var(--secondary);
+    color: var(--secondary-foreground);
+}
+
+.file-history-page .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    gap: 0.5rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+.file-history-page .button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.file-history-page .button-outline {
+    border-color: var(--border);
+    background-color: transparent;
+}
+
+.file-history-page .button-primary {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+}
+
+.file-history-page .tabs-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    background-color: var(--muted);
+    border-radius: 0.75rem;
+    padding: 0.35rem;
+    gap: 0.35rem;
+}
+
+.file-history-page .tabs-trigger {
+    border: none;
+    border-radius: 0.65rem;
+    background-color: transparent;
+    padding: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.file-history-page .tabs-trigger.active {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
+}
+
+.file-history-page .tab-panel {
+    display: none;
+}
+
+.file-history-page .tab-panel.active {
+    display: block;
+}
+
+.file-history-page .timeline-container {
+    position: relative;
+    padding-left: 3rem;
+}
+
+.file-history-page .timeline-line {
+    position: absolute;
+    left: 1.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--gray-200), var(--gray-600));
+}
+
+.file-history-page .timeline-item {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.file-history-page .timeline-node {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.file-history-page .timeline-node-circle {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, var(--gray-700), var(--gray-900));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+    font-weight: 700;
+}
+
+.file-history-page .timeline-arrow {
+    position: absolute;
+    right: -1.25rem;
+    top: 1.5rem;
+    animation: fh-bounce 1.5s infinite;
+    color: var(--gray-400);
+}
+
+@keyframes fh-bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+.file-history-page .hover\:shadow-lg:hover {
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+}
+
+.file-history-page .transition-shadow {
+    transition: box-shadow 0.2s ease;
+}
+
+.file-history-page .header-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+}
+
+.file-history-page .icon,
+.file-history-page .icon-sm,
+.file-history-page .icon-md {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.file-history-page .icon-md {
+    width: 1.35rem;
+    height: 1.35rem;
+}
+
+.file-history-page .icon-sm {
+    width: 0.95rem;
+    height: 0.95rem;
+}
+
+.file-history-page .empty-state {
+    border: 1px dashed var(--gray-200);
+    border-radius: 0.75rem;
+    padding: 2rem;
+    text-align: center;
+    color: var(--gray-500);
+    font-size: 0.95rem;
+    background-color: rgba(249, 250, 251, 0.6);
+}
+
+@media (max-width: 768px) {
+    .file-history-page .timeline-container {
+        padding-left: 2rem;
+    }
+
+    .file-history-page .timeline-line {
+        left: 0.75rem;
+    }
+
+    .file-history-page .timeline-item {
+        flex-direction: column;
+        margin-left: -1rem;
+    }
+
+    .file-history-page .timeline-node-circle {
+        width: 3rem;
+        height: 3rem;
+        font-size: 0.8rem;
+    }
+
+    .file-history-page .tabs-list {
+        grid-template-columns: 1fr;
+    }
+
+    .file-history-page .button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .file-history-page .flex.justify-end {
+        flex-direction: column;
+    }
+}

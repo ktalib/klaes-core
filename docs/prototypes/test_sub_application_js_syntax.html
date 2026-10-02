@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Syntax Test - Sub Application</title>
+</head>
+<body>
+    <h1>Testing Sub Application JavaScript Syntax</h1>
+    <div id="results"></div>
+
+    <script>
+        // Test if we can access the sub application page
+        console.log('🔧 Testing Sub Application page access...');
+        
+        function testSubApplicationPage() {
+            const testUrl = '/sectionaltitling/sub_application';
+            
+            // Create a hidden iframe to load the page and check for JavaScript errors
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = testUrl;
+            
+            iframe.onload = function() {
+                console.log('✅ Sub Application page loaded successfully');
+                document.getElementById('results').innerHTML = 
+                    '<p style="color: green;">✅ Sub Application page loaded successfully</p>';
+            };
+            
+            iframe.onerror = function(error) {
+                console.error('❌ Error loading Sub Application page:', error);
+                document.getElementById('results').innerHTML = 
+                    '<p style="color: red;">❌ Error loading Sub Application page</p>';
+            };
+            
+            // Add a timeout to catch JavaScript errors
+            setTimeout(() => {
+                if (iframe.contentWindow) {
+                    const errors = iframe.contentWindow.console.errors || [];
+                    if (errors.length > 0) {
+                        console.log('⚠️ JavaScript errors detected:', errors);
+                        document.getElementById('results').innerHTML += 
+                            '<p style="color: orange;">⚠️ JavaScript errors detected - check console</p>';
+                    }
+                }
+            }, 3000);
+            
+            document.body.appendChild(iframe);
+        }
+        
+        // Run test when page loads
+        document.addEventListener('DOMContentLoaded', testSubApplicationPage);
+    </script>
+</body>
+</html>

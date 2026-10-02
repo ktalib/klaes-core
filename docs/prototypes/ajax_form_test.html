@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AJAX Form Submission Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background: #45a049;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .console-log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            font-family: monospace;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 AJAX Form Submission Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Form</h2>
+        <form id="testForm" method="POST" action="#">
+            <input type="hidden" name="_token" value="test-token">
+            
+            <div class="form-group">
+                <label>Owner Title:</label>
+                <select name="ownerTitle" required>
+                    <option value="">Select title</option>
+                    <option value="Mr.">Mr.</option>
+                    <option value="Mrs.">Mrs.</option>
+                    <option value="Dr.">Dr.</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>First Name:</label>
+                <input type="text" name="ownerFirstName" required placeholder="Enter first name">
+            </div>
+            
+            <div class="form-group">
+                <label>Surname:</label>
+                <input type="text" name="ownerSurname" required placeholder="Enter surname">
+            </div>
+            
+            <div class="form-group">
+                <label>State:</label>
+                <select name="ownerState" required>
+                    <option value="">Select state</option>
+                    <option value="Lagos">Lagos</option>
+                    <option value="Abuja">FCT</option>
+                    <option value="Kano">Kano</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>LGA:</label>
+                <select name="ownerLga" required>
+                    <option value="">Select LGA</option>
+                    <option value="Ikeja">Ikeja</option>
+                    <option value="Abuja Municipal">AMAC</option>
+                    <option value="Nassarawa">Nassarawa</option>
+                </select>
+            </div>
+            
+            <!-- Mock buyer row -->
+            <div class="buyer-row">
+                <h4>Buyer 1</h4>
+                <div class="form-group">
+                    <label>Buyer Title:</label>
+                    <select name="records[0][buyerTitle]">
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Mock summary fields -->
+            <div style="display: none;">
+                <span id="totalFees">₦50,000.00</span>
+                <span id="processingFee">₦5,000.00</span>
+                <span id="totalAmount">₦55,000.00</span>
+                <input id="contactAddressDisplay" value="Test Address, Lagos">
+                <input id="propertyAddressDisplay" value="Test Property, Lagos">
+            </div>
+        </form>
+        
+        <button class="button" onclick="testAjaxSubmission()">🚀 Test AJAX Submit</button>
+        <button class="button" onclick="testValidation()">✅ Test Validation</button>
+        <button class="button" onclick="clearLog()">🗑️ Clear Log</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Console Output</h2>
+        <div id="consoleOutput" class="console-log">Ready for testing...</div>
+    </div>
+
+    <script>
+        // Mock the form submission URL
+        window.FORM_SUBMIT_URL = "http://localhost:8083/primaryform/store";
+        
+        // Console logging function
+        function logToConsole(message) {
+            const output = document.getElementById('consoleOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // Override console.log to capture our logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            logToConsole(args.join(' '));
+        };
+        
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            logToConsole('ERROR: ' + args.join(' '));
+        };
+        
+        function clearLog() {
+            document.getElementById('consoleOutput').textContent = 'Console cleared...\n';
+        }
+        
+        function testValidation() {
+            logToConsole('🧪 Testing form validation...');
+            if (typeof window.FormSubmission !== 'undefined') {
+                const isValid = window.FormSubmission.validateForm();
+                logToConsole(`Validation result: ${isValid ? 'PASS' : 'FAIL'}`);
+            } else {
+                logToConsole('ERROR: FormSubmission not loaded!');
+            }
+        }
+        
+        function testAjaxSubmission() {
+            logToConsole('🚀 Testing AJAX submission...');
+            
+            // Fill form with test data
+            document.querySelector('[name="ownerTitle"]').value = 'Mr.';
+            document.querySelector('[name="ownerFirstName"]').value = 'John';
+            document.querySelector('[name="ownerSurname"]').value = 'Doe';
+            document.querySelector('[name="ownerState"]').value = 'Lagos';
+            document.querySelector('[name="ownerLga"]').value = 'Ikeja';
+            
+            logToConsole('✅ Test data filled');
+            
+            if (typeof window.FormSubmission !== 'undefined') {
+                // Override the AJAX call to prevent actual submission
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options) {
+                    logToConsole(`🌐 AJAX Request to: ${url}`);
+                    logToConsole(`📋 Method: ${options.method}`);
+                    logToConsole(`📦 Headers: ${JSON.stringify(options.headers)}`);
+                    logToConsole('✅ FormData collected successfully (mocked)');
+                    
+                    // Restore original fetch
+                    window.fetch = originalFetch;
+                    
+                    // Return a mock successful response
+                    return Promise.resolve({
+                        ok: true,
+                        status: 200,
+                        json: () => Promise.resolve({
+                            success: true,
+                            message: 'Mock submission successful!',
+                            redirect_url: '/sectional-titling'
+                        })
+                    });
+                };
+                
+                // Update the form ID for testing
+                document.getElementById('testForm').id = 'primaryApplicationForm';
+                
+                // Initialize and test
+                window.FormSubmission.form = document.getElementById('primaryApplicationForm');
+                window.FormSubmission.submitUrl = window.FORM_SUBMIT_URL;
+                window.FormSubmission.submitForm();
+                
+            } else {
+                logToConsole('ERROR: FormSubmission handler not loaded!');
+            }
+        }
+    </script>
+    
+    <!-- Load our AJAX handler -->
+    <script src="http://localhost:8083/js/primaryform/form-submission.js"></script>
+    
+    <script>
+        // Initialize after loading
+        setTimeout(() => {
+            logToConsole('🔧 Checking FormSubmission availability...');
+            if (typeof window.FormSubmission !== 'undefined') {
+                logToConsole('✅ FormSubmission loaded successfully!');
+            } else {
+                logToConsole('❌ FormSubmission failed to load');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug File Indexing Duplicate Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Debug: File Indexing Duplicate Detection</h1>
+        
+        <div class="mb-6">
+            <label for="test-file-number" class="block text-sm font-medium text-gray-700 mb-2">
+                Enter a file number to test duplicate detection:
+            </label>
+            <input
+                type="text"
+                id="test-file-number"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter file number (e.g., ST-COM-2024-001)"
+            >
+            <button
+                onclick="testDuplicateDetection()"
+                class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+                Test Duplicate Detection
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- API Response -->
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold mb-3">API Response</h3>
+                <div id="api-response" class="font-mono text-sm bg-white p-3 rounded border min-h-[100px] overflow-auto">
+                    Enter a file number and click test...
+                </div>
+            </div>
+
+            <!-- JavaScript State -->
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold mb-3">JavaScript State</h3>
+                <div id="js-state" class="font-mono text-sm bg-white p-3 rounded border min-h-[100px] overflow-auto">
+                    No state to display...
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <h3 class="text-lg font-medium text-yellow-800 mb-2">Debug Information</h3>
+            <div id="debug-info" class="text-yellow-700 font-mono text-sm">
+                This will show detailed debug information about the duplicate detection process.
+            </div>
+        </div>
+
+        <!-- Mock Form Button for Testing -->
+        <div class="mt-6 p-4 border border-dashed border-gray-300 rounded-lg">
+            <h3 class="text-lg font-semibold mb-3">Mock Form Button (for testing)</h3>
+            <button
+                type="button"
+                class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                id="create-file-btn"
+                data-default-label="Create File Index"
+                data-edit-label="Update File Index"
+                data-mode="create"
+            >
+                <span data-state="create">Create File Index</span>
+                <span data-state="edit" class="hidden">Update File Index</span>
+            </button>
+            <div id="button-state" class="mt-2 text-sm text-gray-600">
+                Button state: <span id="button-mode">create</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock the edit mode state for testing
+        let editModeState = {
+            isEditing: false,
+            recordId: null,
+            record: null,
+            fileNumber: null
+        };
+
+        let indexedFeedbackState = {
+            isDuplicate: false,
+            exists: false,
+            record: null,
+            currentFileNumber: null
+        };
+
+        function refreshSubmitButtonLabel() {
+            const createBtn = document.getElementById('create-file-btn');
+            if (!createBtn) {
+                return;
+            }
+
+            if (!createBtn.dataset.defaultLabel) {
+                createBtn.dataset.defaultLabel = createBtn.textContent?.trim() || 'Create File Index';
+            }
+            if (!createBtn.dataset.editLabel) {
+                createBtn.dataset.editLabel = 'Update File Index';
+            }
+
+            const createSpan = createBtn.querySelector('[data-state="create"]');
+            const editSpan = createBtn.querySelector('[data-state="edit"]');
+
+            if (createSpan) {
+                createSpan.textContent = createBtn.dataset.defaultLabel;
+            }
+            if (editSpan) {
+                editSpan.textContent = createBtn.dataset.editLabel;
+            }
+
+            if (createSpan && editSpan) {
+                if (editModeState.isEditing) {
+                    createSpan.classList.add('hidden');
+                    editSpan.classList.remove('hidden');
+                } else {
+                    editSpan.classList.add('hidden');
+                    createSpan.classList.remove('hidden');
+                }
+            } else {
+                createBtn.textContent = editModeState.isEditing
+                    ? createBtn.dataset.editLabel
+                    : createBtn.dataset.defaultLabel;
+            }
+
+            createBtn.dataset.mode = editModeState.isEditing ? 'edit' : 'create';
+            
+            // Update button state display
+            const buttonMode = document.getElementById('button-mode');
+            if (buttonMode) {
+                buttonMode.textContent = editModeState.isEditing ? 'edit' : 'create';
+            }
+        }
+
+        function enterEditMode(record) {
+            editModeState.isEditing = true;
+            editModeState.recordId = record?.id ?? null;
+            editModeState.record = record || null;
+            editModeState.fileNumber = record?.file_number
+                ? String(record.file_number).trim().toUpperCase()
+                : null;
+
+            refreshSubmitButtonLabel();
+            
+            // Update debug display
+            updateDebugInfo();
+        }
+
+        function exitEditMode() {
+            editModeState.isEditing = false;
+            editModeState.recordId = null;
+            editModeState.record = null;
+            editModeState.fileNumber = null;
+
+            refreshSubmitButtonLabel();
+            
+            // Update debug display
+            updateDebugInfo();
+        }
+
+        function applyExistingIndexedRecord(record) {
+            if (!record || !record.id) {
+                return;
+            }
+
+            enterEditMode(record);
+            updateDebugInfo();
+        }
+
+        async function testDuplicateDetection() {
+            const fileNumber = document.getElementById('test-file-number').value.trim();
+            
+            if (!fileNumber) {
+                alert('Please enter a file number to test');
+                return;
+            }
+
+            // Reset state
+            exitEditMode();
+            indexedFeedbackState = {
+                isDuplicate: false,
+                exists: false,
+                record: null,
+                currentFileNumber: fileNumber
+            };
+
+            const apiResponseEl = document.getElementById('api-response');
+            const debugInfoEl = document.getElementById('debug-info');
+            
+            apiResponseEl.textContent = 'Testing...';
+            debugInfoEl.textContent = `Testing file number: ${fileNumber}`;
+
+            try {
+                // Make API call to check if file is indexed
+                const response = await fetch(`/fileindex/check-indexed?fileno=${encodeURIComponent(fileNumber)}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                
+                // Display API response
+                apiResponseEl.textContent = JSON.stringify(data, null, 2);
+                
+                // Process the response like the real JavaScript would
+                if (response.ok && data && data.exists) {
+                    indexedFeedbackState.exists = true;
+                    indexedFeedbackState.isDuplicate = true;
+                    indexedFeedbackState.record = data.record;
+                    
+                    // This is the key part - apply the existing record
+                    applyExistingIndexedRecord(data.record);
+                    
+                    debugInfoEl.innerHTML = `
+                        <strong>✅ Duplicate detected!</strong><br>
+                        Record ID: ${data.record?.id}<br>
+                        File Number: ${data.record?.file_number}<br>
+                        Edit Mode Activated: ${editModeState.isEditing}<br>
+                        Button should show: "${editModeState.isEditing ? 'Update File Index' : 'Create File Index'}"
+                    `;
+                } else {
+                    indexedFeedbackState.exists = false;
+                    indexedFeedbackState.isDuplicate = false;
+                    indexedFeedbackState.record = null;
+                    
+                    exitEditMode();
+                    
+                    debugInfoEl.innerHTML = `
+                        <strong>ℹ️ No duplicate found</strong><br>
+                        File number is available for new indexing<br>
+                        Edit Mode: ${editModeState.isEditing}<br>
+                        Button should show: "Create File Index"
+                    `;
+                }
+
+                updateDebugInfo();
+                
+            } catch (error) {
+                apiResponseEl.textContent = `Error: ${error.message}`;
+                debugInfoEl.innerHTML = `<strong>❌ Error occurred:</strong><br>${error.message}`;
+            }
+        }
+
+        function updateDebugInfo() {
+            const jsStateEl = document.getElementById('js-state');
+            
+            jsStateEl.innerHTML = `
+editModeState: {
+    isEditing: ${editModeState.isEditing},
+    recordId: ${editModeState.recordId || 'null'},
+    fileNumber: "${editModeState.fileNumber || ''}"
+}
+
+indexedFeedbackState: {
+    exists: ${indexedFeedbackState.exists},
+    isDuplicate: ${indexedFeedbackState.isDuplicate},
+    currentFileNumber: "${indexedFeedbackState.currentFileNumber || ''}"
+}
+
+Button Text: "${document.getElementById('create-file-btn')?.textContent?.trim() || 'N/A'}"
+Button Mode: "${document.getElementById('create-file-btn')?.dataset?.mode || 'N/A'}"
+            `.trim();
+        }
+
+        // Initialize
+        refreshSubmitButtonLabel();
+        updateDebugInfo();
+    </script>
+</body>
+</html>

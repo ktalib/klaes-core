@@ -1,0 +1,282 @@
+  {{-- Hidden Fields --}}
+                    <input type="hidden" name="land_use" value="{{ request()->query('landuse', 'COMMERCIAL') }}">
+                    <input type="hidden" name="np_fileno" value="{{ $npFileNo ?? '' }}">
+                    <input type="hidden" name="serial_no" value="{{ $serialNo ?? '' }}">
+                    <input type="hidden" name="current_year" value="{{ $currentYear ?? date('Y') }}">
+                    <input type="hidden" name="draft_id" id="draftIdInput" value="{{ $draftMeta['draft_id'] ?? '' }}">
+                    <input type="hidden" name="draft_version" id="draftVersionInput" value="{{ $draftMeta['version'] ?? 1 }}">
+                    <input type="hidden" name="draft_last_completed_step" id="draftStepInput" value="{{ $draftMeta['last_completed_step'] ?? 1 }}">
+                    
+                      <div class="mb-6">
+      <div class="text-right text-sm text-gray-500">CODE: ST FORM - 1</div>
+      <hr class="my-4">
+      
+      <div class="space-y-6">
+        {{-- Applicant Type Selection Card --}}
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+          <div class="flex items-center mb-4">
+            <div class="bg-blue-500 p-2 rounded-lg mr-3">
+              <i data-lucide="users" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900">Applicant Information</h3>
+              <p class="text-sm text-gray-600">Select the type of applicant for this application</p>
+            </div>
+          </div>
+          
+          <div class="space-y-4">
+            <label class="block text-sm font-medium text-gray-700 mb-3">
+              Applicant Type <span class="text-red-500">*</span>
+            </label>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {{-- Individual Option --}}
+              <label class="relative flex items-center p-4 bg-white rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group">
+                <input type="radio" name="applicantType" class="mr-3 text-blue-600 focus:ring-blue-500" value="individual" onchange="handleApplicantTypeChange(this)">
+                <div class="flex-1">
+                  <div class="flex items-center">
+                    <i data-lucide="user" class="w-4 h-4 mr-2 text-gray-500 group-hover:text-blue-600"></i>
+                    <span class="font-medium text-gray-900">Individual</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Single person ownership</p>
+                </div>
+              </label>
+              
+              {{-- Corporate Option --}}
+              <label class="relative flex items-center p-4 bg-white rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group">
+                <input type="radio" name="applicantType" class="mr-3 text-blue-600 focus:ring-blue-500" value="corporate" onchange="handleApplicantTypeChange(this)">
+                <div class="flex-1">
+                  <div class="flex items-center">
+                    <i data-lucide="building" class="w-4 h-4 mr-2 text-gray-500 group-hover:text-blue-600"></i>
+                    <span class="font-medium text-gray-900">Corporate Body</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Company or organization</p>
+                </div>
+              </label>
+              
+              {{-- Multiple Owners Option --}}
+              <label class="relative flex items-center p-4 bg-white rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group">
+                <input type="radio" name="applicantType" class="mr-3 text-blue-600 focus:ring-blue-500" value="multiple" onchange="handleApplicantTypeChange(this)">
+                <div class="flex-1">
+                  <div class="flex items-center">
+                    <i data-lucide="users" class="w-4 h-4 mr-2 text-gray-500 group-hover:text-blue-600"></i>
+                    <span class="font-medium text-gray-900">Multiple Owners</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Joint ownership</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {{-- Date Information Card --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div class="flex items-center mb-4">
+            <div class="bg-green-500 p-2 rounded-lg mr-3">
+              <i data-lucide="calendar" class="w-5 h-5 text-white"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900">Application Dates</h3>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {{-- Application Date --}}
+            <div class="relative">
+              <label class="flex items-center text-sm font-medium text-gray-700 mb-2">
+                <i data-lucide="calendar-check" class="w-4 h-4 mr-2 text-green-600"></i>
+                Application Date
+              </label>
+              <div class="relative">
+                <input type="date" 
+                       class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all" 
+                       value="{{ date('Y-m-d') }}" 
+                       name="application_date">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <i data-lucide="calendar" class="w-4 h-4 text-gray-400"></i>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Date when the application was submitted</p>
+            </div>
+            
+            {{-- Date Captured --}}
+            <div class="relative">
+              <label class="flex items-center text-sm font-medium text-gray-700 mb-2">
+                <i data-lucide="calendar-clock" class="w-4 h-4 mr-2 text-blue-600"></i>
+                Date Captured
+              </label>
+              <div class="relative">
+                <input type="date" 
+                       class="w-full pl-10 pr-4 py-3 bg-blue-50 border border-blue-200 rounded-lg cursor-not-allowed" 
+                       value="{{ date('Y-m-d') }}"  name="created_at" 
+                       readonly
+                       disabled>
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <i data-lucide="lock" class="w-4 h-4 text-blue-400"></i>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">System capture date (auto-generated)</p>
+            </div>
+          </div>
+          
+          {{-- Info Alert --}}
+          <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="flex items-start">
+              <i data-lucide="info" class="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0"></i>
+              <p class="text-xs text-blue-800">
+                The application date can be backdated if needed. The capture date is automatically set by the system.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{-- Hidden Land Use Input --}}
+      <input type="hidden" name="land_use" value="{{ request()->query('landuse') === 'Commercial' ? 'Commercial' : (request()->query('landuse') === 'Residential' ? 'Residential' : (request()->query('landuse') === 'Industrial' ? 'Industrial' : 'Mixed Use')) }}">
+      
+      {{-- File Numbers Section --}}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-6 px-4">
+        {{-- New Primary FileNo (NPFN) Card --}}
+        <div class="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 border border-blue-200 rounded-xl p-10 shadow-lg min-h-[450px] w-full max-w-none">
+          <div class="flex items-center mb-4">
+            <div class="bg-blue-500 p-3 rounded-full mr-4 shadow-md">
+              <i data-lucide="file-text" class="w-6 h-6 text-white"></i>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold text-gray-900">New Primary FileNo</h3>
+              <p class="text-sm text-gray-600">Auto-generated identifier</p>
+            </div>
+            <div class="bg-green-500 px-3 py-1 rounded-full shadow-sm">
+              <span class="text-white text-xs font-medium">AUTO</span>
+            </div>
+          </div>
+          
+          <div class="bg-white rounded-lg border border-blue-100 p-6 shadow-inner">
+            <label class="block text-sm font-medium text-gray-700 mb-3">Generated FileNo (NPFN)</label>
+            <div class="relative">
+              <input type="text" 
+                     class="w-full px-4 py-4 bg-blue-50 border-2 border-blue-200 rounded-lg text-blue-900 font-mono text-xl font-bold cursor-not-allowed transition-all" 
+                     value="{{ $npFileNo ?? 'ST-COM-'.date('Y').'-01' }}" 
+                     readonly
+                     title="New Primary FileNo - Auto Generated">
+              <div class="absolute inset-y-0 right-0 flex items-center pr-4">
+                <i data-lucide="lock" class="w-6 h-6 text-blue-500"></i>
+              </div>
+            </div>
+            
+            {{-- Components Display --}}
+            <div class="mt-6 space-y-3">
+              <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                <span class="text-gray-600">Prefix:</span>
+                <span class="font-semibold text-blue-700">ST</span>
+              </div>
+              <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                <span class="text-gray-600">Land Use:</span>
+                <span class="font-semibold text-blue-700">
+                  @php
+                    $landUse = strtoupper(request()->query('landuse', 'COMMERCIAL'));
+                  @endphp
+                  @if ($landUse === 'COMMERCIAL') COM
+                  @elseif ($landUse === 'INDUSTRIAL') IND
+                  @elseif ($landUse === 'RESIDENTIAL') RES
+                  @elseif ($landUse === 'MIXED') MIXED
+                  @else COM @endif
+                </span>
+              </div>
+              <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                <span class="text-gray-600">Year:</span>
+                <span class="font-semibold text-blue-700">{{ $currentYear ?? date('Y') }}</span>
+              </div>
+              <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                <span class="text-gray-600">Serial:</span>
+                <span class="font-semibold text-blue-700">{{ $serialNo ?? '1' }}</span>
+              </div>
+            </div>
+            
+            <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div class="flex items-start">
+                <i data-lucide="info" class="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0"></i>
+                <p class="text-xs text-blue-800">
+                  Primary identifier for this application and all unit applications.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {{-- File Number Information Card --}}
+        <div class="bg-gradient-to-br from-green-50 via-emerald-50 to-green-100 border border-green-200 rounded-xl p-10 shadow-lg min-h-[450px]">
+          <div class="flex items-center mb-4">
+            <div class="bg-green-500 p-3 rounded-full mr-4 shadow-md">
+              <i data-lucide="search" class="w-6 h-6 text-white"></i>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold text-gray-900">File Number Information</h3>
+              <p class="text-sm text-gray-600">Select existing file number</p>
+            </div>
+            <div class="bg-orange-500 px-3 py-1 rounded-full shadow-sm">
+              <span class="text-white text-xs font-medium">SELECT</span>
+            </div>
+          </div>
+          
+          <div class="bg-white rounded-lg border border-green-100 p-6 shadow-inner">
+            <div class="flex items-center justify-between mb-4">
+              <label class="block text-sm font-medium text-gray-700">
+                <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
+                Applied File Number
+              </label>
+              <button type="button" 
+                      id="open-fileno-modal-btn" 
+                      class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-all shadow-sm"
+                      onclick="openFileNumberModal()">
+                <i data-lucide="search" class="w-4 h-4 mr-2"></i>
+                Browse Files
+              </button>
+            </div>
+            
+            <div class="relative">
+              <input type="text" 
+                     id="applied-file-number" 
+                     name="applied_file_number"
+                     class="w-full px-4 py-4 bg-gray-50 border-2 border-green-200 rounded-lg text-gray-900 font-mono text-lg cursor-pointer hover:bg-gray-100 transition-all"
+                     placeholder="Click 'Browse Files' to select..."
+                     readonly
+                     onclick="openFileNumberModal()"
+                     title="Click to select file number">
+              <div class="absolute inset-y-0 right-0 flex items-center pr-4">
+                <i data-lucide="file-search" class="w-6 h-6 text-green-500"></i>
+              </div>
+            </div>
+            
+            {{-- File Number Details --}}
+            <div id="file-number-details" class="mt-6 hidden">
+              <div class="space-y-3">
+                <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                  <span class="text-gray-600">Type:</span>
+                  <span id="file-type" class="font-semibold text-green-700">-</span>
+                </div>
+                <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                  <span class="text-gray-600">Status:</span>
+                  <span id="file-status" class="font-semibold text-green-700">-</span>
+                </div>
+                <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                  <span class="text-gray-600">Owner:</span>
+                  <span id="file-owner" class="font-semibold text-green-700">-</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div class="flex items-start">
+                <i data-lucide="info" class="w-4 h-4 text-green-600 mr-2 mt-0.5 flex-shrink-0"></i>
+                <p class="text-xs text-green-800">
+                  Link this application to an existing file number from the registry.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+ @include('primaryform.applicant')
+
+ npfn.blade.php
+ Generated FileNo (NPFN)

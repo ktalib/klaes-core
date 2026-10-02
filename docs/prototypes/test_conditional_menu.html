@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conditional Menu Logic Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 700px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .scenario { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 6px; }
+        .scenario.enabled { background: #d4edda; border-color: #c3e6cb; }
+        .scenario.disabled { background: #f8d7da; border-color: #f5c6cb; }
+        .menu-item { padding: 10px; margin: 8px 0; border-radius: 4px; display: flex; align-items: center; }
+        .menu-item.active { background: #e3f2fd; color: #1976d2; cursor: pointer; }
+        .menu-item.inactive { background: #f5f5f5; color: #9e9e9e; cursor: not-allowed; }
+        .icon { margin-right: 8px; width: 16px; }
+        .status { font-weight: bold; margin-bottom: 10px; }
+        .logic { background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🎯 Conditional Menu Logic Implementation</h2>
+        <p>Testing the conditional enable/disable logic for recommended site plan sketch menu items.</p>
+        
+        <div class="scenario enabled">
+            <div class="status">✅ Scenario 1: No Recommended Site Plan Uploaded</div>
+            <div class="logic">$recommendedSitePlanUploaded = false</div>
+            
+            <div class="menu-item active">
+                <span class="icon">📤</span>
+                <strong>Upload Recommended Site Plan Sketch</strong> - ENABLED
+            </div>
+            
+            <div class="menu-item inactive">
+                <span class="icon">👁️</span>
+                <span>View Recommended Site Plan Sketch</span> - DISABLED
+            </div>
+            
+            <p><strong>Logic:</strong> User can upload but cannot view (no file exists)</p>
+        </div>
+        
+        <div class="scenario disabled">
+            <div class="status">🔒 Scenario 2: Recommended Site Plan Already Uploaded</div>
+            <div class="logic">$recommendedSitePlanUploaded = true</div>
+            
+            <div class="menu-item inactive">
+                <span class="icon">📤</span>
+                <span>Upload Recommended Site Plan Sketch</span> - DISABLED
+            </div>
+            
+            <div class="menu-item active">
+                <span class="icon">👁️</span>
+                <strong>View Recommended Site Plan Sketch</strong> - ENABLED
+            </div>
+            
+            <p><strong>Logic:</strong> User can view existing file but cannot upload (already exists)</p>
+        </div>
+        
+        <h3>🔧 Implementation Details:</h3>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <h4>Database Check Logic:</h4>
+            <pre style="background: #e9ecef; padding: 10px; border-radius: 4px; overflow-x: auto;">
+// Check if recommended site plan sketch is uploaded
+$recommendedSitePlanUploaded = false;
+try {
+    // Check if table exists first
+    $tableExists = DB::connection('sqlsrv')->select(
+        "SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
+         WHERE TABLE_NAME = 'recommended_site_plans'"
+    );
+    
+    if ($tableExists) {
+        $recommendedSitePlan = DB::connection('sqlsrv')
+            ->table('recommended_site_plans')
+            ->where('application_id', $PrimaryApplication->id)
+            ->first();
+        $recommendedSitePlanUploaded = $recommendedSitePlan ? true : false;
+    }
+} catch (Exception $e) {
+    // If there's an error, assume not uploaded
+    $recommendedSitePlanUploaded = false;
+}</pre>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <h4>Conditional Styling:</h4>
+            <pre style="background: #e9ecef; padding: 10px; border-radius: 4px; overflow-x: auto;">
+// Upload Button (disabled if already uploaded)
+class="{{ $recommendedSitePlanUploaded ? 
+    'text-gray-400 cursor-not-allowed bg-gray-50' : 
+    'text-gray-700 hover:bg-gray-100' }}"
+
+// View Button (disabled if not uploaded)
+class="{{ $recommendedSitePlanUploaded ? 
+    'text-gray-700 hover:bg-gray-100' : 
+    'text-gray-400 cursor-not-allowed bg-gray-50' }}"</pre>
+        </div>
+        
+        <h3>✨ Features Added:</h3>
+        <ul>
+            <li><strong>Smart State Detection:</strong> Automatically checks database for existing files</li>
+            <li><strong>Graceful Error Handling:</strong> Handles missing database table scenarios</li>
+            <li><strong>Visual Feedback:</strong> Disabled items are grayed out and non-clickable</li>
+            <li><strong>Accessibility:</strong> Proper ARIA attributes and tab indexing</li>
+            <li><strong>Consistent UX:</strong> Follows same pattern as existing site plan menu items</li>
+        </ul>
+        
+        <h3>🎯 User Experience:</h3>
+        <ul>
+            <li>Users can only upload if no file exists (prevents overwriting)</li>
+            <li>Users can only view if a file has been uploaded</li>
+            <li>Clear visual indicators show which actions are available</li>
+            <li>Prevents confusion and accidental actions</li>
+        </ul>
+        
+        <div style="background: #d1ecf1; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <strong>📋 Status:</strong> Conditional menu logic has been successfully implemented!<br>
+            <strong>🧪 Testing:</strong> Navigate to any application's Site Plan tab to see the conditional menu in action.<br>
+            <strong>🔄 Updates:</strong> Menu items will automatically enable/disable based on upload status.
+        </div>
+    </div>
+</body>
+</html>

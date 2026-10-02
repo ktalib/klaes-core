@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend Utilities</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .utilities-table { width: 100%; border-collapse: collapse; }
+        .utilities-table th, .utilities-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .utilities-table th { background-color: #f2f2f2; }
+        .error { color: red; }
+        .success { color: green; }
+        .loading { color: blue; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Frontend Utilities Loading</h1>
+        
+        <!-- Primary Application Test -->
+        <div class="section" x-data="utilitiesTest(2007, 'primary')">
+            <h2>Primary Application 2007 Utilities</h2>
+            <div x-show="loading" class="loading">Loading utilities...</div>
+            <div x-show="error" class="error" x-text="error"></div>
+            <div x-show="!loading && !error">
+                <p class="success" x-text="`Found ${utilities.length} utilities`"></p>
+                <table class="utilities-table" x-show="utilities.length > 0">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Utility Type</th>
+                            <th>Dimension</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="utility in utilities" :key="utility.order">
+                            <tr>
+                                <td x-text="utility.order"></td>
+                                <td x-text="utility.utility_type.toUpperCase()"></td>
+                                <td x-text="utility.dimension"></td>
+                                <td x-text="utility.count"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Sub Application Test -->
+        <div class="section" x-data="utilitiesTest(45, 'sub')">
+            <h2>Sub Application 45 Utilities</h2>
+            <div x-show="loading" class="loading">Loading utilities...</div>
+            <div x-show="error" class="error" x-text="error"></div>
+            <div x-show="!loading && !error">
+                <p class="success" x-text="`Found ${utilities.length} utilities`"></p>
+                <table class="utilities-table" x-show="utilities.length > 0">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Utility Type</th>
+                            <th>Dimension</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="utility in utilities" :key="utility.order">
+                            <tr>
+                                <td x-text="utility.order"></td>
+                                <td x-text="utility.utility_type.toUpperCase()"></td>
+                                <td x-text="utility.dimension"></td>
+                                <td x-text="utility.count"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Raw API Test -->
+        <div class="section">
+            <h2>Raw API Test</h2>
+            <button onclick="testRawAPI()">Test Raw API Calls</button>
+            <div id="rawApiResults"></div>
+        </div>
+    </div>
+
+    <script>
+        function utilitiesTest(applicationId, type) {
+            return {
+                utilities: [],
+                loading: true,
+                error: '',
+                
+                init() {
+                    this.loadUtilities();
+                },
+                
+                async loadUtilities() {
+                    try {
+                        this.loading = true;
+                        this.error = '';
+                        
+                        const url = type === 'sub' 
+                            ? `/planning-tables/sub/utilities/${applicationId}`
+                            : `/planning-tables/utilities/${applicationId}`;
+                        
+                        console.log(`Fetching utilities from: ${url}`);
+                        
+                        const response = await fetch(url, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log(`Utilities loaded:`, data);
+                        
+                        this.utilities = Array.isArray(data) ? data : [];
+                        
+                    } catch (err) {
+                        console.error('Error loading utilities:', err);
+                        this.error = `Failed to load utilities: ${err.message}`;
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+        
+        async function testRawAPI() {
+            const resultsDiv = document.getElementById('rawApiResults');
+            resultsDiv.innerHTML = '<p>Testing API endpoints...</p>';
+            
+            try {
+                // Test primary endpoint
+                const primaryResponse = await fetch('/planning-tables/utilities/2007');
+                const primaryData = await primaryResponse.json();
+                
+                // Test sub endpoint
+                const subResponse = await fetch('/planning-tables/sub/utilities/45');
+                const subData = await subResponse.json();
+                
+                resultsDiv.innerHTML = `
+                    <h3>Primary Endpoint Results:</h3>
+                    <pre>${JSON.stringify(primaryData, null, 2)}</pre>
+                    <h3>Sub Endpoint Results:</h3>
+                    <pre>${JSON.stringify(subData, null, 2)}</pre>
+                `;
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<p class="error">API Test Failed: ${err.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

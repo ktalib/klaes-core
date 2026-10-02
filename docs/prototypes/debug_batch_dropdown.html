@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Batch Dropdown</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        select { width: 300px; margin: 10px 0; }
+        button { margin: 5px; padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <h1>Batch Dropdown Debug Test</h1>
+    
+    <div class="debug-section">
+        <h3>Library Check</h3>
+        <div id="library-status"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>API Test</h3>
+        <button onclick="testAPI()">Test Batch API</button>
+        <div id="api-result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Select2 Test</h3>
+        <select id="test-batch-select">
+            <option value="">Select batch...</option>
+        </select>
+        <button onclick="initSelect2()">Initialize Select2</button>
+        <div id="select2-result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Console Log</h3>
+        <div id="console-log" style="background: black; color: green; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace;"></div>
+    </div>
+
+    <script>
+        // Override console.log to display in page
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const logDiv = document.getElementById('console-log');
+            logDiv.innerHTML += args.join(' ') + '\n';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        // Check libraries on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const status = document.getElementById('library-status');
+            status.innerHTML = `
+                <strong>jQuery:</strong> ${typeof $ !== 'undefined' ? 'Available ✓' : 'Missing ✗'}<br>
+                <strong>Select2:</strong> ${typeof $ !== 'undefined' && typeof $.fn.select2 !== 'undefined' ? 'Available ✓' : 'Missing ✗'}
+            `;
+            
+            console.log('Page loaded');
+            console.log('jQuery available:', typeof $ !== 'undefined');
+            console.log('Select2 available:', typeof $ !== 'undefined' && typeof $.fn.select2 !== 'undefined');
+        });
+
+        function testAPI() {
+            console.log('Testing API endpoint...');
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.innerHTML = 'Loading...';
+            
+            fetch('/fileindexing/get-available-batches')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('API Response:', data);
+                    resultDiv.innerHTML = `
+                        <strong>Success:</strong> ${data.success}<br>
+                        <strong>Batches Found:</strong> ${data.batches ? data.batches.length : 0}<br>
+                        <strong>Message:</strong> ${data.message}<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    resultDiv.innerHTML = `<strong style="color: red;">Error:</strong> ${error.message}`;
+                });
+        }
+
+        function initSelect2() {
+            console.log('Initializing Select2...');
+            const resultDiv = document.getElementById('select2-result');
+            const $select = $('#test-batch-select');
+            
+            try {
+                // Destroy existing instance
+                if ($select.hasClass('select2-hidden-accessible')) {
+                    $select.select2('destroy');
+                }
+                
+                $select.select2({
+                    placeholder: 'Select or search batch number',
+                    allowClear: true,
+                    minimumInputLength: 0,
+                    width: '100%',
+                    ajax: {
+                        url: '/fileindexing/get-available-batches',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            console.log('Select2 requesting data with params:', params);
+                            return {
+                                q: params.term || '',
+                                page: params.page || 1,
+                                _t: Date.now()
+                            };
+                        },
+                        processResults: function (data, params) {
+                            console.log('Select2 processing results:', data);
+                            
+                            if (data.success && data.batches) {
+                                const mappedBatches = data.batches.map(function(batch) {
+                                    return {
+                                        id: batch.id,
+                                        text: `Batch ${batch.id} (${batch.available_shelves}/${batch.total_shelves} available)`
+                                    };
+                                });
+                                
+                                console.log('Mapped batches:', mappedBatches);
+                                
+                                return {
+                                    results: mappedBatches,
+                                    pagination: {
+                                        more: data.pagination && data.pagination.more
+                                    }
+                                };
+                            } else {
+                                console.warn('No batches in response');
+                                return { results: [], pagination: { more: false } };
+                            }
+                        },
+                        cache: true
+                    }
+                });
+                
+                $select.on('select2:select', function (e) {
+                    console.log('Batch selected:', e.params.data);
+                    resultDiv.innerHTML = `Selected: ${e.params.data.text}`;
+                });
+                
+                resultDiv.innerHTML = 'Select2 initialized successfully!';
+                console.log('Select2 initialization complete');
+                
+            } catch(error) {
+                console.error('Select2 initialization failed:', error);
+                resultDiv.innerHTML = `<strong style="color: red;">Error:</strong> ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

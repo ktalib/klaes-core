@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Areas Enhancement - Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="bg-white rounded-lg p-6 shadow">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">✨ Shared Areas Enhancement</h1>
+            <p class="text-gray-600">Enhanced selection interface with search, counter, and conditional displays</p>
+        </div>
+
+        <!-- Feature Highlights -->
+        <div class="grid md:grid-cols-3 gap-4">
+            <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="search" class="w-5 h-5 text-blue-600"></i>
+                    <h3 class="font-semibold text-blue-900">Search Function</h3>
+                </div>
+                <p class="text-sm text-blue-700">Real-time filtering with keyword matching</p>
+            </div>
+            <div class="bg-green-50 border border-green-200 rounded-md p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="layers" class="w-5 h-5 text-green-600"></i>
+                    <h3 class="font-semibold text-green-900">Compound Details</h3>
+                </div>
+                <p class="text-sm text-green-700">Conditional panel for compound locations</p>
+            </div>
+            <div class="bg-purple-50 border border-purple-200 rounded-md p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-lucide="hash" class="w-5 h-5 text-purple-600"></i>
+                    <h3 class="font-semibold text-purple-900">Selection Counter</h3>
+                </div>
+                <p class="text-sm text-purple-700">Live count of selected items</p>
+            </div>
+        </div>
+
+        <!-- Main Demo -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Interactive Demo</h2>
+            
+            <!-- Search Box -->
+            <div class="mb-4">
+                <div class="relative">
+                    <input type="text" id="sharedAreasSearch" 
+                           class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" 
+                           placeholder="🔍 Try searching: gym, parking, playground, tennis..."
+                           onkeyup="filterSharedAreas()">
+                    <i data-lucide="search" class="w-5 h-5 text-gray-400 absolute left-3 top-2.5"></i>
+                </div>
+            </div>
+            
+            <!-- Controls -->
+            <div class="mb-4 flex gap-2">
+                <button type="button" class="px-3 py-1 bg-green-100 text-green-800 rounded text-sm border border-green-200 hover:bg-green-200" onclick="checkAllSharedAreas()">✓ Check All</button>
+                <button type="button" class="px-3 py-1 bg-red-100 text-red-800 rounded text-sm border border-red-200 hover:bg-red-200" onclick="uncheckAllSharedAreas()">✗ Uncheck All</button>
+                <span id="selectedCount" class="ml-auto px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm font-semibold">0 selected</span>
+            </div>
+            
+            <!-- Shared Areas Grid -->
+            <div class="grid grid-cols-3 gap-4 mb-4" id="sharedAreasGrid">
+                <div class="flex items-center shared-area-item" data-search-term="hallways corridors passages">
+                    <input type="checkbox" id="hallways" name="shared_areas[]" value="hallways" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="hallways" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="door-open" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Hallways
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="parking lots carport garage">
+                    <input type="checkbox" id="parking_lots" name="shared_areas[]" value="parking_lots" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="parking_lots" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="car" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Parking Lots
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="gym fitness center workout exercise">
+                    <input type="checkbox" id="gym" name="shared_areas[]" value="gym" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="gym" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="dumbbell" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Gym/Fitness Center
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="swimming pool aquatic center">
+                    <input type="checkbox" id="swimming_pool" name="shared_areas[]" value="swimming_pool" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="swimming_pool" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="droplets" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Swimming Pool
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="playground children kids recreation">
+                    <input type="checkbox" id="playground" name="shared_areas[]" value="playground" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="playground" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="sparkles" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Playground
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="tennis court sports recreation">
+                    <input type="checkbox" id="tennis_court" name="shared_areas[]" value="tennis_court" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="tennis_court" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="circle" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Tennis Court
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="shared compounds outdoor yard">
+                    <input type="checkbox" id="shared_compounds" name="shared_areas[]" value="shared_compounds" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount(); toggleCompoundDetails()">
+                    <label for="shared_compounds" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="layers" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Shared Compounds
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="library reading room study">
+                    <input type="checkbox" id="library" name="shared_areas[]" value="library" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="library" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="book-open" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Library
+                    </label>
+                </div>
+                
+                <div class="flex items-center shared-area-item" data-search-term="cinema theater movie room">
+                    <input type="checkbox" id="cinema_room" name="shared_areas[]" value="cinema_room" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updateSelectedCount()">
+                    <label for="cinema_room" class="ml-2 text-gray-700 flex items-center cursor-pointer">
+                        <i data-lucide="film" class="w-4 h-4 mr-1 text-gray-500"></i>
+                        Cinema Room
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Compound Details Panel -->
+            <div id="compound_details_container" class="mt-4 p-4 bg-green-50 border border-green-200 rounded-md animate-fadeIn" style="display: none;">
+                <h4 class="text-sm font-semibold text-green-900 mb-3 flex items-center">
+                    <i data-lucide="layers" class="w-4 h-4 mr-2"></i>
+                    Compound Location Details
+                </h4>
+                <p class="text-xs text-green-700 mb-3">👇 Please select the location(s) of the shared compound:</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="compound_outside" name="compound_locations[]" value="outside" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <label for="compound_outside" class="ml-2 text-gray-700 text-sm cursor-pointer">Outside</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="compound_inside_front" name="compound_locations[]" value="inside_front" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <label for="compound_inside_front" class="ml-2 text-gray-700 text-sm cursor-pointer">Inside Front</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="compound_inside_back" name="compound_locations[]" value="inside_back" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <label for="compound_inside_back" class="ml-2 text-gray-700 text-sm cursor-pointer">Inside Back</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="compound_inside_side" name="compound_locations[]" value="inside_side" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <label for="compound_inside_side" class="ml-2 text-gray-700 text-sm cursor-pointer">Inside Side</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">📊 Enhancements Summary</h2>
+            <div class="grid md:grid-cols-4 gap-4">
+                <div class="text-center p-4 bg-blue-50 rounded-md">
+                    <div class="text-3xl font-bold text-blue-600">29</div>
+                    <div class="text-sm text-gray-600">Total Areas</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-md">
+                    <div class="text-3xl font-bold text-green-600">+13</div>
+                    <div class="text-sm text-gray-600">New Areas</div>
+                </div>
+                <div class="text-center p-4 bg-purple-50 rounded-md">
+                    <div class="text-3xl font-bold text-purple-600">4</div>
+                    <div class="text-sm text-gray-600">Compound Locations</div>
+                </div>
+                <div class="text-center p-4 bg-orange-50 rounded-md">
+                    <div class="text-3xl font-bold text-orange-600">100+</div>
+                    <div class="text-sm text-gray-600">Search Keywords</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature List -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">✨ New Features</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold">✓</span>
+                        <div>
+                            <strong>Real-time Search</strong>
+                            <p class="text-sm text-gray-600">Filter 29 areas instantly with keyword matching</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold">✓</span>
+                        <div>
+                            <strong>Selection Counter</strong>
+                            <p class="text-sm text-gray-600">Live badge showing number of selected areas</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold">✓</span>
+                        <div>
+                            <strong>Compound Locations</strong>
+                            <p class="text-sm text-gray-600">Conditional panel with 4 location options</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold">✓</span>
+                        <div>
+                            <strong>Enhanced Icons</strong>
+                            <p class="text-sm text-gray-600">Lucide icons for better visual recognition</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold">✓</span>
+                        <div>
+                            <strong>Smart Check All</strong>
+                            <p class="text-sm text-gray-600">Respects search filter when checking all</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold">✓</span>
+                        <div>
+                            <strong>Responsive Design</strong>
+                            <p class="text-sm text-gray-600">Works perfectly on mobile and desktop</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function filterSharedAreas() {
+            const searchInput = document.getElementById('sharedAreasSearch');
+            const searchTerm = searchInput.value.toLowerCase();
+            const areaItems = document.querySelectorAll('.shared-area-item');
+            let visibleCount = 0;
+
+            areaItems.forEach(item => {
+                const searchTerms = item.getAttribute('data-search-term') || '';
+                if (searchTerms.toLowerCase().includes(searchTerm)) {
+                    item.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            const grid = document.getElementById('sharedAreasGrid');
+            let noResultsMsg = document.getElementById('noResultsMessage');
+            
+            if (visibleCount === 0 && searchTerm !== '') {
+                if (!noResultsMsg) {
+                    noResultsMsg = document.createElement('div');
+                    noResultsMsg.id = 'noResultsMessage';
+                    noResultsMsg.className = 'col-span-3 text-center py-8 text-gray-500';
+                    noResultsMsg.innerHTML = '<i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 text-gray-400"></i><p>No shared areas found matching "' + searchTerm + '"</p>';
+                    grid.appendChild(noResultsMsg);
+                    lucide.createIcons();
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
+        }
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('input[name="shared_areas[]"]:checked');
+            const count = checkboxes.length;
+            document.getElementById('selectedCount').textContent = count + ' selected';
+            toggleCompoundDetails();
+        }
+
+        function toggleCompoundDetails() {
+            const checkbox = document.getElementById('shared_compounds');
+            const container = document.getElementById('compound_details_container');
+            
+            if (checkbox && checkbox.checked) {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+                document.querySelectorAll('input[name="compound_locations[]"]').forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        }
+
+        function checkAllSharedAreas() {
+            document.querySelectorAll('input[name="shared_areas[]"]').forEach(cb => {
+                if (cb.closest('.shared-area-item').style.display !== 'none') { 
+                    cb.checked = true;
+                }
+            });
+            updateSelectedCount();
+        }
+
+        function uncheckAllSharedAreas() {
+            document.querySelectorAll('input[name="shared_areas[]"]').forEach(cb => {
+                cb.checked = false;
+            });
+            updateSelectedCount();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+            updateSelectedCount();
+        });
+    </script>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</body>
+</html>

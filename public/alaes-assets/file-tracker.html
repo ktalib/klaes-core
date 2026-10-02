@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f4f5fb">
+  <title>ALAES File Tracker — UI Clone</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <link rel="stylesheet" href="file-tracker.css">
+
+  <!-- Set the theme before paint so there is no flash of the wrong palette. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('alaes-theme') ||
+                ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+
+<!-- ═══ SPLASH — shown once per browser session ═══ -->
+<div id="alaes-splash" role="status" aria-label="ALAES" style="display:none;">
+  <div class="alaes-splash-inner">
+    <div class="alaes-splash-mark"><img src="logos/alaes.jpeg" alt="ALAES"></div>
+    <div class="alaes-splash-title">ALAES</div>
+    <div class="alaes-splash-sub">File Tracking Mobile</div>
+    <div class="alaes-splash-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div id="successToast" class="success-toast"></div>
+<div id="errorToast"   class="error-toast"></div>
+
+<!-- ═══ FILE DIGITAL LIBRARY — fullscreen gallery ═══ -->
+<div class="dig-viewer" id="digViewer">
+  <div class="dig-viewer-bar">
+    <div class="dig-vtitle">
+      <div class="dig-vname" id="digVName">—</div>
+      <div class="dig-vcount" id="digVCount">—</div>
+    </div>
+    <button id="digRotateLeft"  onclick="digRotate(-1)" title="Rotate left"><i class="fas fa-rotate-left"></i></button>
+    <button id="digRotateRight" onclick="digRotate(1)"  title="Rotate right"><i class="fas fa-rotate-right"></i></button>
+    <button onclick="closeDigViewer()" title="Close"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="dig-stage" id="digStage">
+    <button class="dig-nav prev" id="digNavPrev" onclick="digPrev()" title="Previous"><span class="dig-nav-ic"><i class="fas fa-chevron-left"></i></span></button>
+    <div id="digStageInner"></div>
+    <button class="dig-nav next" id="digNavNext" onclick="digNext()" title="Next"><span class="dig-nav-ic"><i class="fas fa-chevron-right"></i></span></button>
+  </div>
+  <div class="dig-strip" id="digStrip"></div>
+</div>
+
+<div id="app">
+
+  <!-- ═══════════════════════ DASHBOARD SCREEN ═══════════════════════ -->
+  <div id="dashboard-screen" class="screen">
+    <div class="topbar">
+      <div>
+        <h1>Dashboard</h1>
+        <div class="greeting-text" id="greetingMsg"></div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-circle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+          <i id="themeToggleIcon" class="fas fa-moon"></i>
+        </button>
+        <div class="notification-wrapper">
+          <button class="icon-circle" id="notificationBell">
+            <i class="fas fa-bell"></i>
+            <span class="notification-badge" id="notificationBadge"></span>
+          </button>
+          <div class="notification-panel" id="notificationPanel">
+            <div class="notification-header">
+              <span>Notifications</span>
+              <button class="mark-read" id="markAllRead">Mark all read</button>
+            </div>
+            <div class="notification-list" id="notificationList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Requests Today — SCB Monitors only. Lives here rather than on the File
+         Requests screen so that screen stays a compact working queue. -->
+    <div id="fsTodayCard" class="fs-today" onclick="setActiveTab('requests')" hidden>
+      <div class="fs-today-head">
+        <div>
+          <div class="fs-today-label">Requests Today</div>
+          <div id="fsToday" class="fs-today-value">—</div>
+        </div>
+        <span class="fs-today-ic"><i class="fas fa-inbox"></i></span>
+      </div>
+      <div class="fs-today-body">
+        <div class="fs-today-row"><span><span class="fs-dot"></span>Found</span><b id="fsTodayFound">—</b></div>
+        <div class="fs-today-row"><span><span class="fs-dot"></span>Not Found</span><b id="fsTodayNotFound">—</b></div>
+        <div class="fs-today-row"><span><span class="fs-dot"></span>Awaiting</span><b id="fsTodayAwaiting">—</b></div>
+      </div>
+    </div>
+
+    <div class="section-title">Quick Actions</div>
+    <div class="quick-actions-grid">
+      <div class="quick-action-btn" onclick="setActiveTab('scanner')">
+        <div class="qa-ic"><i class="fas fa-qrcode"></i></div><span>Scan QR</span>
+      </div>
+      <!-- SCB Monitors don't raise searches — they work the request queue — so the
+           Quick Search shortcut is replaced by one into their File Requests View. -->
+      <div class="quick-action-btn" data-qa="search" onclick="setActiveTab('files')">
+        <div class="qa-ic"><i class="fas fa-magnifying-glass"></i></div><span>Quick Search</span>
+      </div>
+      <div class="quick-action-btn" data-qa="scb" onclick="setActiveTab('requests')" hidden>
+        <div class="qa-ic"><i class="fas fa-inbox"></i></div><span>SCB View</span>
+      </div>
+    </div>
+
+    <div class="card panel">
+      <div class="panel-title"><i class="fas fa-chart-line"></i> Weekly Activity</div>
+      <canvas id="weeklyChart"></canvas>
+    </div>
+
+    <div class="card panel">
+      <div class="panel-title"><i class="fas fa-chart-pie"></i> Priority Distribution</div>
+      <div id="priorityDistribution"></div>
+    </div>
+
+    <div class="card panel">
+      <div class="panel-title"><i class="fas fa-clock-rotate-left"></i> <span id="activityPanelTitle">Recent Activity</span></div>
+      <div id="recentActivityList" class="activity-list"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ LOG A FILE SCREEN ══════════════════════ -->
+  <div id="create-screen" class="screen">
+    <div class="page-header" style="margin-bottom:18px;"><h1>Log a File</h1><p>Create a new file tracker</p></div>
+
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-icon"><i class="fas fa-file-circle-plus"></i></span>
+        <div><h2>File Details</h2><p>Enter the file information</p></div>
+      </div>
+      <div class="field-wrap">
+        <label>File Number</label>
+        <input type="text" id="createFileNumber" placeholder="e.g. LUAC/AB/14827/AB" autocomplete="off">
+      </div>
+      <div class="field-wrap">
+        <label>File Title *</label>
+        <input type="text" id="createFileName" placeholder="e.g. Chief Okezie Nwachukwu" autocomplete="off">
+      </div>
+      <div class="grid-2">
+        <div class="field-wrap">
+          <label>Tracking ID</label>
+          <input type="text" id="trackingIdField" readonly>
+        </div>
+        <div class="field-wrap">
+          <label>Log ID</label>
+          <input type="text" id="logIdField" readonly>
+        </div>
+      </div>
+      <div class="field-wrap">
+        <label>Priority</label>
+        <div class="priority-selector">
+          <span class="prio-chip" data-prio="LOW">Low</span>
+          <span class="prio-chip active" data-prio="MEDIUM">Medium</span>
+          <span class="prio-chip" data-prio="HIGH">High</span>
+        </div>
+      </div>
+      <div class="field-wrap">
+        <label>Status</label>
+        <select id="fileStatus">
+          <option value="Log-in" selected>Log-in</option>
+          <option value="Log-out">Log-out</option>
+          <option value="Canceled">Canceled</option>
+        </select>
+      </div>
+      <div class="field-wrap">
+        <label>Notes / Remarks</label>
+        <textarea id="createNotes" rows="2" placeholder="Reason the file is in this office..."></textarea>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-icon"><i class="fas fa-building"></i></span>
+        <div><h2>Office Details</h2><p>Select department and offices</p></div>
+      </div>
+      <div class="field-wrap">
+        <label>Department *</label>
+        <select id="department"><option value="">Select department</option></select>
+      </div>
+      <div class="field-wrap">
+        <label>Origin Office *</label>
+        <select id="originOffice"><option value="">Select origin office</option></select>
+      </div>
+      <div class="field-wrap">
+        <label>Receiving Office *</label>
+        <select id="receivingOffice"><option value="">Select receiving office</option></select>
+      </div>
+      <div class="field-wrap">
+        <label>Receiving Officer *</label>
+        <select id="receivingOfficer"><option value="">Select receiving officer</option></select>
+        <!-- Picture of the officer picked to receive the file. -->
+        <div id="receivingOfficerProfile" style="display:none;margin-top:9px;"></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-icon"><i class="fas fa-clock"></i></span>
+        <div><h2>Movement Log</h2><p>Log in / log out date &amp; time</p></div>
+      </div>
+      <div class="grid-2">
+        <div class="field-wrap"><label>Log In Date</label><input type="date" id="logInDate"></div>
+        <div class="field-wrap"><label>Log In Time</label><input type="time" id="logInTime"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field-wrap"><label>Log Out Date</label><input type="date" id="logOutDate"></div>
+        <div class="field-wrap"><label>Log Out Time</label><input type="time" id="logOutTime"></div>
+      </div>
+    </div>
+
+    <button id="submitCreateBtn" class="btn" onclick="createNewFile()">
+      <i class="fas fa-file-circle-plus"></i> Log a File
+    </button>
+  </div>
+
+  <!-- ═══════════════════════ FILE SEARCH SCREEN ═════════════════════ -->
+  <div id="files-screen" class="screen">
+    <div class="page-header" style="margin-bottom:16px;"><h1>File Search</h1><p>Look up a file's movement history</p></div>
+
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-icon"><i class="fas fa-search"></i></span>
+        <div><h2>Search File</h2><p>Enter a file number or tracking ID</p></div>
+      </div>
+      <div class="field-wrap">
+        <label>File No / Tracking ID</label>
+        <div class="fs-picker">
+          <select id="fileSearchSelect"></select>
+          <input id="fileSearchManual" type="text" placeholder="Type file number…" autocomplete="off" style="display:none;">
+          <button id="fileSearchBtn" type="button" class="btn"><i class="fas fa-search"></i></button>
+        </div>
+        <label for="fsBlindToggle" class="fs-blind-label">
+          <input id="fsBlindToggle" type="checkbox" onchange="toggleBlindSearch()">
+          Blind request — file not yet indexed (type the file number manually)
+        </label>
+      </div>
+    </div>
+
+    <div id="fileSearchResult" style="margin-top:4px;"></div>
+  </div>
+
+  <!-- ═══════════════════════ QR SCANNER SCREEN ══════════════════════ -->
+  <div id="scanner-screen" class="screen">
+    <div class="page-header" style="margin-bottom:16px;"><h1>QR Scanner</h1><p>Scan a file QR to log movement</p></div>
+    <div class="form-section">
+      <div class="scanner-container">
+        <div id="qr-reader"></div>
+        <div class="scan-placeholder" id="scanPlaceholder">
+          <div class="scan-frame"></div>
+          <div>Camera preview</div>
+        </div>
+      </div>
+      <div class="camera-controls">
+        <button id="startCameraBtn"><i class="fas fa-play"></i> Start</button>
+        <button id="stopCameraBtn"><i class="fas fa-stop"></i> Stop</button>
+        <button id="flashToggleBtn"><i class="fas fa-bolt"></i> Flash</button>
+      </div>
+      <div id="scannerStatus" class="scanner-status">
+        <i class="fas fa-camera"></i> <span>Click Start to begin scanning</span>
+      </div>
+      <button class="btn ghost-btn" style="margin-top:10px;" onclick="simulateScan()">
+        <i class="fas fa-wand-magic-sparkles"></i> Simulate a scan (demo)
+      </button>
+    </div>
+
+    <!-- Manual entry fallback -->
+    <div class="form-section" style="margin-top:4px;">
+      <div class="section-header">
+        <span class="section-icon"><i class="fas fa-keyboard"></i></span>
+        <div><h2>Manual Entry</h2><p>Type a Tracking ID if camera is unavailable</p></div>
+      </div>
+      <div class="field-wrap">
+        <label>Tracking ID / File Number</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="manualScanInput" placeholder="e.g. TRK-8F2A11" style="flex:1;">
+          <button id="manualScanBtn" class="btn" style="width:auto;padding:0 16px;flex-shrink:0;white-space:nowrap;">
+            <i class="fas fa-search"></i> Look up
+          </button>
+        </div>
+      </div>
+      <div id="manualScanResult"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ OFS — MY FILE REQUESTS SCREEN ══════════════════ -->
+  <div id="myreq-screen" class="screen">
+    <div class="page-header" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;">
+      <div><h1>My File Requests</h1><p>What you sent, SCB status &amp; where the file is</p></div>
+      <button class="icon-circle" id="myReqRefreshBtn" title="Refresh" onclick="loadMyRequests()"><i class="fas fa-rotate-right"></i></button>
+    </div>
+    <div id="myReqContainer"></div>
+  </div>
+
+  <!-- ═══════════ SCB MONITOR — FILE REQUESTS SCREEN ═════════════════ -->
+  <div id="requests-screen" class="screen">
+    <div class="page-header" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;">
+      <div><h1 id="frScreenTitle">File Request</h1><p>Physical searches &amp; FSR History</p></div>
+      <button class="icon-circle" id="frRefreshBtn" title="Refresh"><i class="fas fa-rotate-right"></i></button>
+    </div>
+
+    <div class="fr-seg">
+      <button type="button" class="fr-seg-btn active" data-frview="open" onclick="setFrView('open')">Open <span class="fr-count" id="frCountOpen">0</span></button>
+      <button type="button" class="fr-seg-btn"        data-frview="log"  onclick="setFrView('log')">FSR History <span class="fr-count" id="frCountLog">0</span></button>
+    </div>
+    <div class="fr-search">
+      <i class="fas fa-search"></i>
+      <input type="text" id="frSearch" placeholder="Search file no, title, requester…" oninput="onFrSearch()" autocomplete="off">
+      <button type="button" id="frSearchClear" onclick="clearFrSearch()" title="Clear"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="frListContainer"></div>
+    <div id="frLogContainer" style="display:none;"></div>
+  </div>
+
+  <!-- ═══════════════════════ PROFILE SCREEN ═════════════════════════ -->
+  <div id="profile-screen" class="screen">
+    <div class="page-header" style="margin-bottom:16px;"><h1>Profile</h1></div>
+    <div class="form-section" style="text-align:center;">
+      <div class="avatar-large"><i class="fas fa-user fa-2x" style="color:#fff;"></i></div>
+      <div class="profile-name" id="profileName">—</div>
+      <div class="profile-username" id="profileUsername">—</div>
+      <div class="role-pill" id="profileRole">USER</div>
+    </div>
+
+    <!-- Demo-only: the live app derives these flags server-side from the signed-in
+         user (isSuperAdmin / fr_permissions === 'SCB' / isOfs). Here they are a
+         switch so every role's tab set can be inspected. -->
+    <div class="form-section">
+      <div class="section-header">
+        <span class="section-icon"><i class="fas fa-user-gear"></i></span>
+        <div><h2>Demo Role</h2><p>Switch the role this clone renders for</p></div>
+      </div>
+      <div class="demo-note">
+        <i class="fas fa-circle-info" style="margin-top:2px;"></i>
+        <div>Static UI clone — no backend. The role picker stands in for the server-side
+        flags that decide which tabs and actions appear.</div>
+      </div>
+      <div class="role-grid">
+        <span class="role-chip" data-role="officer">Officer</span>
+        <span class="role-chip" data-role="ofs">OFS Officer</span>
+        <span class="role-chip" data-role="scb">SCB Monitor</span>
+        <span class="role-chip active" data-role="admin">Super Admin</span>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="menu-item" onclick="toggleTheme()">
+        <i class="fas fa-circle-half-stroke"></i><span>Toggle Light / Dark</span>
+        <i class="fas fa-chevron-right" style="margin-left:auto;color:var(--faint);"></i>
+      </div>
+      <div class="divider"></div>
+      <div class="menu-item" onclick="setActiveTab('dashboard');document.getElementById('notificationBell').click();">
+        <i class="fas fa-bell"></i><span>Notifications</span>
+        <i class="fas fa-chevron-right" style="margin-left:auto;color:var(--faint);"></i>
+      </div>
+      <div class="divider"></div>
+      <div class="menu-item" onclick="setActiveTab('create')">
+        <i class="fas fa-file-circle-plus"></i><span>Log a File</span>
+        <i class="fas fa-chevron-right" style="margin-left:auto;color:var(--faint);"></i>
+      </div>
+    </div>
+
+    <button type="button" class="btn ghost-btn" onclick="demoLogout()">
+      <i class="fas fa-right-from-bracket"></i> Logout
+    </button>
+    <div style="text-align:center;margin-top:16px;font-size:10px;color:var(--faint);">ALAES File Tracker v1.0 · static UI clone</div>
+  </div>
+
+  <!-- ═══════════════════════════ TAB BAR ════════════════════════════ -->
+  <div class="tab-bar">
+    <button class="tab-item" data-tab="dashboard"><i class="fas fa-house"></i><span>Home</span></button>
+    <button class="tab-item" data-tab="files"><i class="fas fa-magnifying-glass"></i><span>Search</span></button>
+    <button class="tab-item" data-tab="myreq"><i class="fas fa-list-check"></i><span>My FRs</span></button>
+    <button class="tab-item" data-tab="requests"><i class="fas fa-clipboard-list"></i><span>FSR</span></button>
+    <button class="tab-item" data-tab="requests-scb"><i class="fas fa-eye"></i><span>SCB View</span></button>
+    <button class="tab-item" data-tab="scanner"><i class="fas fa-qrcode"></i><span>Scan</span></button>
+    <button class="tab-item" data-tab="profile"><i class="fas fa-user"></i><span>Profile</span></button>
+  </div>
+</div>
+
+<script src="file-tracker.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Fix Test</title>
+</head>
+<body>
+    <h1>Quick Fix for JavaScript Error</h1>
+    
+    <p><strong>Copy this script tag and paste it at the very beginning of your add_property_record.blade.php file:</strong></p>
+    
+    <textarea style="width: 100%; height: 200px; font-family: monospace;">
+<script>
+// CRITICAL FIX: Override problematic validatePropertyForm function
+window.validatePropertyForm = function(formId, submitButtonId) {
+    console.log('OVERRIDE validatePropertyForm called for:', formId);
+    const submitButton = document.getElementById(submitButtonId);
+    if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+    return true;
+};
+console.log('validatePropertyForm override loaded');
+</script>
+    </textarea>
+    
+    <h2>Instructions:</h2>
+    <ol>
+        <li>Copy the script tag above</li>
+        <li>Open your add_property_record.blade.php file</li>
+        <li>Paste it right after the opening @php block, before any HTML</li>
+        <li>Save the file</li>
+        <li>Refresh your browser and test</li>
+    </ol>
+    
+    <h2>Alternative: Add to main layout</h2>
+    <p>If the above doesn't work, add this to your main layout file (app.blade.php or similar) in the head section:</p>
+    
+    <textarea style="width: 100%; height: 100px; font-family: monospace;">
+<script>
+window.validatePropertyForm = function(a,b) { 
+    const c = document.getElementById(b); 
+    if(c) { c.disabled = false; c.classList.remove('opacity-50', 'cursor-not-allowed'); } 
+    return true; 
+};
+</script>
+    </textarea>
+</body>
+</html>

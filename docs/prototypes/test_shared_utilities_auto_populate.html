@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joint Inspection Modal - Shared Utilities Auto-Population Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        h2 { color: #333; margin-top: 0; }
+        code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+        ul { margin: 10px 0; }
+        li { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Joint Inspection Modal - Shared Utilities Auto-Population Test</h1>
+    
+    <div class="test-section info">
+        <h2>🔍 Test Overview</h2>
+        <p>This test verifies that the Joint Site Inspection modal automatically populates measurement entries based on shared utilities from application data.</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Manual Testing Steps</h2>
+        
+        <h3>1. Primary Application Test</h3>
+        <ul>
+            <li>Navigate to Planning Recommendations page</li>
+            <li>Find a primary application with shared utilities</li>
+            <li>Click "Enter Inspection Details" button</li>
+            <li><strong>Expected:</strong> Modal opens with shared utilities checkboxes checked and measurement entries auto-created</li>
+        </ul>
+
+        <h3>2. Unit Application Test</h3>
+        <ul>
+            <li>Find a unit application (sub-application)</li>
+            <li>Click "Enter Inspection Details" button</li>
+            <li><strong>Expected:</strong> Modal opens with parent application's shared utilities populated</li>
+        </ul>
+
+        <h3>3. Interactive Checkbox Test</h3>
+        <ul>
+            <li>In the modal, manually check an unchecked shared utility</li>
+            <li><strong>Expected:</strong> A new measurement entry row is automatically added</li>
+            <li>Uncheck a checked shared utility</li>
+            <li><strong>Expected:</strong> The corresponding measurement entry row is automatically removed</li>
+        </ul>
+
+        <h3>4. Data Population Test</h3>
+        <ul>
+            <li>Open modal for application with existing site measurements</li>
+            <li><strong>Expected:</strong> Measurement values are populated in the corresponding utility rows</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h2>✅ Expected Behavior</h2>
+        <ul>
+            <li><strong>Auto-Population:</strong> Shared utilities from application data automatically create measurement entry rows</li>
+            <li><strong>Pre-filled Utilities:</strong> Utility type field is populated, measurement field is empty for user input</li>
+            <li><strong>Checkbox Sync:</strong> Shared utilities checkboxes are automatically checked</li>
+            <li><strong>Interactive Management:</strong> Checking/unchecking utilities adds/removes measurement rows</li>
+            <li><strong>Existing Data:</strong> Previously saved measurements populate the measurement fields</li>
+            <li><strong>Clean State:</strong> Each modal opening starts with fresh auto-populated data</li>
+        </ul>
+    </div>
+
+    <div class="test-section warning">
+        <h2>⚠️ Things to Watch For</h2>
+        <ul>
+            <li><strong>Duplicate Entries:</strong> Ensure no duplicate measurement rows are created</li>
+            <li><strong>Orphaned Entries:</strong> Unchecking utilities should remove corresponding rows</li>
+            <li><strong>Data Consistency:</strong> Utility names should match between checkboxes and measurement entries</li>
+            <li><strong>Modal Reopen:</strong> Closing and reopening modal should maintain consistent behavior</li>
+            <li><strong>Mixed Data:</strong> Applications with both new and existing utilities should handle correctly</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🛠️ Debug Information</h2>
+        <p>If issues occur, check browser console for:</p>
+        <ul>
+            <li><code>Loading existing data for:</code> - Data loading attempts</li>
+            <li><code>Error loading existing data:</code> - Data loading failures</li>
+            <li>JavaScript errors related to <code>addMeasurementEntry</code> or <code>setupSharedUtilitiesAutoMeasurement</code></li>
+        </ul>
+        
+        <p><strong>Key Functions:</strong></p>
+        <ul>
+            <li><code>loadExistingJointInspectionData()</code> - Handles data loading and auto-population</li>
+            <li><code>setupSharedUtilitiesAutoMeasurement()</code> - Sets up checkbox event listeners</li>
+            <li><code>addMeasurementEntry(utilityType, measurement)</code> - Creates measurement entry rows</li>
+            <li><code>removeMeasurementEntryByUtility(utilityType)</code> - Removes entries by utility type</li>
+        </ul>
+    </div>
+
+    <div class="test-section info">
+        <h2>📊 Test Results Template</h2>
+        <p>Use this checklist to document test results:</p>
+        
+        <h3>Auto-Population Tests:</h3>
+        <ul>
+            <li>□ Primary application - utilities auto-populate</li>
+            <li>□ Unit application - parent utilities auto-populate</li>
+            <li>□ No utilities - no auto-entries created</li>
+        </ul>
+
+        <h3>Interactive Tests:</h3>
+        <ul>
+            <li>□ Check utility - measurement entry added</li>
+            <li>□ Uncheck utility - measurement entry removed</li>
+            <li>□ Multiple utilities - all handle correctly</li>
+        </ul>
+
+        <h3>Data Loading Tests:</h3>
+        <ul>
+            <li>□ Existing measurements - values populate</li>
+            <li>□ New application - fields empty for input</li>
+            <li>□ Mixed data - partial population works</li>
+        </ul>
+
+        <h3>Integration Tests:</h3>
+        <ul>
+            <li>□ Form submission - all data included</li>
+            <li>□ Modal close/reopen - consistent behavior</li>
+            <li>□ No JavaScript errors in console</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h2>🎯 Success Criteria</h2>
+        <p>The implementation is successful when:</p>
+        <ul>
+            <li>Users can open the modal and immediately see measurement entries for known utilities</li>
+            <li>Users only need to fill in measurement values, not create entries manually</li>
+            <li>Checkbox interactions seamlessly add/remove measurement entries</li>
+            <li>Existing measurement data populates correctly</li>
+            <li>The system handles edge cases gracefully (no utilities, missing data, etc.)</li>
+        </ul>
+    </div>
+
+    <hr>
+    <p><em>Test completed on: <span id="testDate"></span></em></p>
+    <script>
+        document.getElementById('testDate').textContent = new Date().toLocaleString();
+    </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapping Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-row { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .matched { background-color: #d4edda; }
+        .pending { background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h1>Mapping Debug Test</h1>
+    <div id="results"></div>
+
+    <script>
+        async function testMapping() {
+            try {
+                const response = await fetch('/api/grouping-analytics/preview?limit=10');
+                const data = await response.json();
+                
+                console.log('API Response:', data);
+                
+                const resultsDiv = document.getElementById('results');
+                
+                if (!data.success || !data.data) {
+                    resultsDiv.innerHTML = '<p>Failed to fetch data or no data available</p>';
+                    return;
+                }
+                
+                data.data.forEach((row, index) => {
+                    const mappingRaw = row.mapping ?? row.is_matched ?? row.matched ?? row.matching ?? 0;
+                    const mappingNumber = Number(mappingRaw);
+                    const mappingText = String(mappingRaw).trim().toLowerCase();
+                    const isMatched = (Number.isFinite(mappingNumber) && mappingNumber >= 1)
+                        || ['true', 'yes', 'matched', 'match', 'y'].includes(mappingText);
+                    
+                    const debugDiv = document.createElement('div');
+                    debugDiv.className = `debug-row ${isMatched ? 'matched' : 'pending'}`;
+                    debugDiv.innerHTML = `
+                        <strong>Row ${index + 1}:</strong><br>
+                        Awaiting File No: ${row.awaiting_fileno || 'N/A'}<br>
+                        MLS File No: ${row.mls_fileno || 'N/A'}<br>
+                        Raw mapping value: "${mappingRaw}" (type: ${typeof mappingRaw})<br>
+                        Parsed number: ${mappingNumber}<br>
+                        Parsed text: "${mappingText}"<br>
+                        Is matched: ${isMatched}<br>
+                        Badge should show: ${isMatched ? 'Matched' : 'Pending'}
+                    `;
+                    resultsDiv.appendChild(debugDiv);
+                });
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test when page loads
+        testMapping();
+    </script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Number Modal Integration</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-container { max-width: 600px; margin: 0 auto; }
+        .file-input-group { position: relative; margin: 20px 0; }
+        .file-input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .select-btn { 
+            position: absolute; 
+            right: 5px; 
+            top: 50%; 
+            transform: translateY(-50%);
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 3px; 
+            cursor: pointer;
+        }
+        .select-btn:hover { background: #0056b3; }
+        .result { 
+            margin: 20px 0; 
+            padding: 10px; 
+            background: #f8f9fa; 
+            border: 1px solid #dee2e6; 
+            border-radius: 4px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>File Number Modal Integration Test</h1>
+        
+        <div class="file-input-group">
+            <label for="test-file-number">File Number:</label>
+            <input type="text" id="test-file-number" name="file_number" class="file-input" placeholder="Click the button to select a file number">
+            <button type="button" id="test-select-btn" class="select-btn">Select</button>
+        </div>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>Result:</h3>
+            <p id="result-text"></p>
+        </div>
+        
+        <div>
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Click the "Select" button to open the file number modal</li>
+                <li>Choose a file number from any tab (MLS, KANGIS, New KANGIS)</li>
+                <li>Click "Apply File Number"</li>
+                <li>The selected file number should appear in the input field</li>
+            </ol>
+        </div>
+        
+        <div>
+            <h3>Debug Info:</h3>
+            <div id="debug-info">
+                <p>Checking for GlobalFileNoModal...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Check if we're running from Laravel and include the modal -->
+    <script>
+        // Wait for document ready
+        $(document).ready(function() {
+            // Check if running from Laravel (has the modal)
+            if ($('#global-fileno-modal').length > 0) {
+                $('#debug-info').html('<p style="color: green;">✅ Global File Number Modal found in DOM</p>');
+                
+                // Try to load the GlobalFileNoModal script
+                if (typeof GlobalFileNoModal !== 'undefined') {
+                    $('#debug-info').append('<p style="color: green;">✅ GlobalFileNoModal JavaScript loaded</p>');
+                    
+                    // Initialize
+                    GlobalFileNoModal.init();
+                    
+                    // Set up the test button
+                    $('#test-select-btn').on('click', function() {
+                        GlobalFileNoModal.open({
+                            targetFields: ['file_number'],
+                            callback: function(data) {
+                                $('#test-file-number').val(data.fileNumber);
+                                $('#result-text').text(`Selected: ${data.fileNumber} (from ${data.system})`);
+                                $('#result').show();
+                            }
+                        });
+                    });
+                    
+                    $('#debug-info').append('<p style="color: green;">✅ Test button initialized</p>');
+                } else {
+                    $('#debug-info').append('<p style="color: orange;">⚠️ GlobalFileNoModal JavaScript not loaded yet</p>');
+                    
+                    // Try to load it manually for testing
+                    var script = document.createElement('script');
+                    script.src = '/js/global-fileno-modal.js';
+                    script.onload = function() {
+                        $('#debug-info').append('<p style="color: green;">✅ GlobalFileNoModal loaded manually</p>');
+                        location.reload(); // Reload to reinitialize
+                    };
+                    script.onerror = function() {
+                        $('#debug-info').append('<p style="color: red;">❌ Failed to load GlobalFileNoModal script</p>');
+                    };
+                    document.head.appendChild(script);
+                }
+            } else {
+                $('#debug-info').html('<p style="color: red;">❌ Global File Number Modal not found in DOM</p>');
+                $('#debug-info').append('<p>This test page needs to be accessed through Laravel to include the modal component.</p>');
+                $('#debug-info').append('<p>Try accessing: <code>http://127.0.0.1:8002/create-file-tracker</code></p>');
+            }
+        });
+    </script>
+</body>
+</html>

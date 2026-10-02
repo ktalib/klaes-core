@@ -1,0 +1,595 @@
+/* PRS Annual Progress Report Page Styling - Polished Executive Professional Look */
+
+.flex-1.overflow-auto {
+    background-color: #f8fafc;
+}
+
+/* Base styling enhancements */
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+}
+
+/* Beautiful custom card styling for Sections */
+.prs-section {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+    overflow: hidden;
+    border-left-width: 6px !important;
+}
+
+.prs-section:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -4px rgba(0, 0, 0, 0.07);
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.prs-section[data-dept="survey"] {
+    background: linear-gradient(180deg, #f7fffc 0%, #ffffff 28%);
+    border-color: #a7f3d0;
+    border-left-color: #10b981 !important;
+}
+
+.prs-section[data-dept="deeds"] {
+    background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 28%);
+    border-color: #bfdbfe;
+    border-left-color: #3b82f6 !important;
+}
+
+.prs-section[data-dept="lands"] {
+    background: linear-gradient(180deg, #faf7ff 0%, #ffffff 28%);
+    border-color: #ddd6fe;
+    border-left-color: #8b5cf6 !important;
+}
+
+.prs-section[data-dept="survey"] header {
+    background: linear-gradient(to right, #ecfdf5, #ffffff 70%);
+}
+
+.prs-section[data-dept="deeds"] header {
+    background: linear-gradient(to right, #eff6ff, #ffffff 70%);
+}
+
+.prs-section[data-dept="lands"] header {
+    background: linear-gradient(to right, #f5f3ff, #ffffff 70%);
+}
+
+/* Custom modern headers for each card */
+.prs-section header {
+    background: linear-gradient(to right, #ffffff, #f8fafc);
+    border-bottom: 1px solid #f1f5f9;
+    padding: 1.5rem 1.5rem 1.25rem 1.5rem;
+}
+
+/* Department chips */
+.dept-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s ease;
+}
+
+.prs-section[data-dept="survey"] .dept-tag {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
+
+.prs-section[data-dept="deeds"] .dept-tag {
+    background-color: #dbeafe;
+    color: #1e3a8a;
+    border: 1px solid #93c5fd;
+}
+
+.prs-section[data-dept="lands"] .dept-tag {
+    background-color: #ede9fe;
+    color: #581c87;
+    border: 1px solid #c4b5fd;
+}
+
+.dept-survey {
+    background-color: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.dept-deeds {
+    background-color: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.dept-lands {
+    background-color: #faf5ff;
+    color: #6b21a8;
+    border: 1px solid #e9d5ff;
+}
+
+/* Filter buttons styling */
+.dept-btn {
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dept-btn-active {
+    background-color: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+.dept-btn-inactive {
+    color: #475569;
+}
+
+.dept-btn-inactive:hover {
+    color: #0f172a;
+    background-color: #f1f5f9;
+}
+
+/* Spotlight annual total metric block */
+.metric-highlight-card {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-highlight-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background-color: #3b82f6; 
+}
+
+.dept-survey-line::before { background-color: #10b981; }
+.dept-deeds-line::before { background-color: #3b82f6; }
+.dept-lands-line::before { background-color: #8b5cf6; }
+
+/* Customizing charts to stand out further */
+.chart-container-wrapper {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+/* Modern tables styling */
+.prs-table-scroll {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    background-color: #ffffff;
+}
+
+.prs-table-scroll table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.prs-table-scroll th {
+    background-color: #f8fafc;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.prs-table-scroll td {
+    padding: 10px 16px;
+    font-size: 0.8125rem;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+    white-space: nowrap;
+}
+
+.prs-table-scroll tr:hover td {
+    background-color: #f1f5f9;
+}
+
+.prs-table-scroll tfoot tr {
+    background-color: #f8fafc;
+    font-weight: 700;
+    border-top: 2px solid #e2e8f0;
+}
+
+.prs-table-scroll tfoot td {
+    color: #0f172a;
+    font-weight: 700;
+    padding: 12px 16px;
+}
+
+/* Frozen sticky column styling */
+.prs-sticky-col {
+    position: sticky;
+    left: 0;
+    background-color: #ffffff;
+    z-index: 10;
+    box-shadow: 4px 0 8px -3px rgba(0, 0, 0, 0.1);
+}
+
+tr:hover .prs-sticky-col {
+    background-color: #f1f5f9;
+}
+
+th.prs-sticky-col {
+    background-color: #f8fafc;
+    z-index: 11;
+}
+
+tfoot td.prs-sticky-col {
+    background-color: #f8fafc;
+    z-index: 11;
+}
+
+/* Beautiful stats grids */
+.stats-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .stats-cards-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.stat-glow-card {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    border-top-width: 4px !important;
+}
+
+.stat-glow-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+    border-color: #cbd5e1;
+}
+
+.stat-glow-card.metric-card,
+.stat-glow-card[class*="metric-card-"] {
+    --metric-surface: #f8fafc;
+    --metric-border: #cbd5e1;
+    --metric-accent: #64748b;
+    --metric-ink: #1e293b;
+    --metric-icon-bg: #e2e8f0;
+    --metric-shadow: rgba(100, 116, 139, 0.25);
+    background-color: var(--metric-surface);
+    border-color: var(--metric-border);
+    border-top-color: var(--metric-accent) !important;
+}
+
+.stat-glow-card.metric-card .bg-slate-50,
+.stat-glow-card[class*="metric-card-"] .bg-slate-50 {
+    background-color: var(--metric-icon-bg);
+}
+
+.stat-glow-card.metric-card .text-slate-400,
+.stat-glow-card[class*="metric-card-"] .text-slate-400 {
+    color: var(--metric-accent);
+}
+
+.stat-glow-card.metric-card .text-slate-800,
+.stat-glow-card[class*="metric-card-"] .text-slate-800 {
+    color: var(--metric-ink);
+}
+
+.stat-glow-card.metric-card:hover,
+.stat-glow-card[class*="metric-card-"]:hover {
+    border-color: var(--metric-accent);
+    box-shadow: 0 12px 20px -8px var(--metric-shadow);
+}
+
+.metric-card-survey-plots-laid-out {
+    --metric-surface: #f0fdf8;
+    --metric-border: #a7f3d0;
+    --metric-accent: #059669;
+    --metric-ink: #065f46;
+    --metric-icon-bg: #d1fae5;
+    --metric-shadow: rgba(5, 150, 105, 0.26);
+}
+
+.metric-card-occupancy-permits {
+    --metric-surface: #eff6ff;
+    --metric-border: #bfdbfe;
+    --metric-accent: #2563eb;
+    --metric-ink: #1e3a8a;
+    --metric-icon-bg: #dbeafe;
+    --metric-shadow: rgba(37, 99, 235, 0.24);
+}
+
+.metric-card-direct-allocation-apps {
+    --metric-surface: #faf5ff;
+    --metric-border: #ddd6fe;
+    --metric-accent: #7c3aed;
+    --metric-ink: #581c87;
+    --metric-icon-bg: #ede9fe;
+    --metric-shadow: rgba(124, 58, 237, 0.24);
+}
+
+.metric-card-conversion-applications {
+    --metric-surface: #fff7ed;
+    --metric-border: #fed7aa;
+    --metric-accent: #ea580c;
+    --metric-ink: #9a3412;
+    --metric-icon-bg: #ffedd5;
+    --metric-shadow: rgba(234, 88, 12, 0.26);
+}
+
+.metric-card-oss-applications {
+    --metric-surface: #fdf2f8;
+    --metric-border: #fbcfe8;
+    --metric-accent: #db2777;
+    --metric-ink: #9d174d;
+    --metric-icon-bg: #fce7f3;
+    --metric-shadow: rgba(219, 39, 119, 0.24);
+}
+
+.metric-card-deeds-of-assignment {
+    --metric-surface: #ecfeff;
+    --metric-border: #a5f3fc;
+    --metric-accent: #0891b2;
+    --metric-ink: #155e75;
+    --metric-icon-bg: #cffafe;
+    --metric-shadow: rgba(8, 145, 178, 0.24);
+}
+
+.metric-card-certificates-of-occupancy {
+    --metric-surface: #fefce8;
+    --metric-border: #fde68a;
+    --metric-accent: #ca8a04;
+    --metric-ink: #854d0e;
+    --metric-icon-bg: #fef3c7;
+    --metric-shadow: rgba(202, 138, 4, 0.24);
+}
+
+.metric-card-mortgages {
+    --metric-surface: #fff1f2;
+    --metric-border: #fecdd3;
+    --metric-accent: #e11d48;
+    --metric-ink: #9f1239;
+    --metric-icon-bg: #ffe4e6;
+    --metric-shadow: rgba(225, 29, 72, 0.24);
+}
+
+/* Beautiful custom toggle switcher */
+.js-toggle-table {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.8125rem;
+    transition: all 0.2s ease;
+}
+
+.js-toggle-table:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
+
+/* Soft badge styles */
+.badge-soft {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border-width: 1px;
+}
+
+.badge-soft-blue {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    border-color: #dbeafe;
+}
+
+.badge-soft-emerald {
+    background-color: #ecfdf5;
+    color: #047857;
+    border-color: #d1fae5;
+}
+
+.badge-soft-violet {
+    background-color: #faf5ff;
+    color: #6d28d9;
+    border-color: #f3e8ff;
+}
+
+/* Progress bar style */
+.insight-progress-bar {
+    height: 6px;
+    border-radius: 9999px;
+    background-color: #f1f5f9;
+    overflow: hidden;
+}
+
+.insight-progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Page action buttons */
+.btn-action-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #0284c7;
+    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.btn-action-primary:hover {
+    background-color: #0369a1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.btn-action-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #ffffff;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.btn-action-secondary:hover {
+    color: #0f172a;
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+/* Year switcher styles */
+.dropdown-combo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.dropdown-combo select {
+    appearance: none;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.5rem 2.25rem 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    outline: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.dropdown-combo select:focus {
+    border-color: #cbd5e1;
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.12);
+}
+
+.dropdown-combo-icon {
+    position: absolute;
+    right: 0.75rem;
+    pointer-events: none;
+    color: #64748b;
+}
+
+/* Minor category card view overlay */
+.secondary-insight-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.secondary-insight-alert p {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #475569;
+}
+
+.secondary-chart-wrapper {
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+/* Table container styling for responsive tables */
+.js-table-wrap.hidden {
+    display: none !important;
+}
+
+/* Print Overrides */
+@media print {
+    body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    .flex-1.overflow-auto {
+        background-color: #ffffff !important;
+    }
+    .prs-section {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+        margin-bottom: 2rem !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    .stat-glow-card {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+    }
+    .btn-action-primary,
+    .btn-action-secondary,
+    .dropdown-combo,
+    .js-toggle-table,
+    .inline-flex.items-center.gap-1.p-1 {
+        display: none !important;
+    }
+    .js-table-wrap {
+        display: block !important;
+    }
+    .js-table-wrap.hidden {
+        display: block !important;
+    }
+}

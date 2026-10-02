@@ -1,0 +1,7 @@
+id,file_number,field,old_value,new_value
+200508,RES-2009-904,registry,,2
+200508,RES-2009-904,general_registry,"Land  Registry","Lands Registry"
+200532,CON-RES-1983-148,general_registry,"Land  Registry","Lands Registry"
+200535,CON-COM-2026-657,registry,,3
+200535,CON-COM-2026-657,general_registry,,"Lands Registry"
+200535,CON-COM-2026-657,physical_registry,,"Registry 3 - Land"

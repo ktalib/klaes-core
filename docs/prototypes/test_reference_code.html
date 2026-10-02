@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference Code Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        select, input { padding: 8px; width: 200px; border: 1px solid #ccc; border-radius: 4px; }
+        .page-code-preview { background: #f0f0f0; padding: 10px; border-radius: 4px; margin-top: 10px; }
+        .badge { background: #007bff; color: white; padding: 8px 12px; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Reference Code Test</h1>
+    
+    <div class="page-form" data-page-index="0">
+        <div class="form-group">
+            <label>Cover Type</label>
+            <select class="cover-type-select" data-page-index="0">
+                <option value="">Select cover type</option>
+                <option value="1">FC - Front Cover</option>
+                <option value="2">BC - Back Cover</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Page Type</label>
+            <select class="page-type-select" data-page-index="0">
+                <option value="">Select page type</option>
+                <option value="1">FC - File Cover</option>
+                <option value="2">APP - Application</option>
+                <option value="3">BN - Bill Notice</option>
+                <option value="4">COR - Correspondence</option>
+                <option value="5">LT - Land Title</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Page Subtype</label>
+            <select class="page-subtype-select" data-page-index="0">
+                <option value="">Select page subtype</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Serial Number</label>
+            <input type="text" class="serial-input" value="01" data-page-index="0">
+        </div>
+        
+        <div class="form-group">
+            <label>Reference Code Preview</label>
+            <div class="page-code-preview">
+                <span class="badge" id="page-code-preview-0">Select options to generate code</span>
+            </div>
+            <input type="text" class="page-code-input" readonly data-page-index="0" placeholder="Generated code will appear here">
+        </div>
+    </div>
+
+    <script>
+        // Test data
+        const coverTypes = [
+            { id: '1', code: "FC", name: "Front Cover" },
+            { id: '2', code: "BC", name: "Back Cover" }
+        ];
+        
+        const pageTypes = [
+            { id: '1', code: "FC", name: "File Cover" },
+            { id: '2', code: "APP", name: "Application" },
+            { id: '3', code: "BN", name: "Bill Notice" },
+            { id: '4', code: "COR", name: "Correspondence" },
+            { id: '5', code: "LT", name: "Land Title" }
+        ];
+
+        const pageSubTypes = {
+            '1': [
+                { id: '1', code: "NFC", name: "New File Cover" }, 
+                { id: '2', code: "OFC", name: "Old File Cover" }
+            ],
+            '2': [
+                { id: '3', code: "CO", name: "Certificate of Occupancy" }, 
+                { id: '4', code: "REV", name: "Revalidation" }
+            ]
+        };
+
+        // Update page code function
+        function updatePageCode(pageIndex) {
+            const codeInput = document.querySelector(`.page-code-input[data-page-index="${pageIndex}"]`);
+            const codePreview = document.querySelector(`#page-code-preview-${pageIndex}`);
+            
+            if (!codeInput) return;
+
+            const form = document.querySelector(`.page-form[data-page-index="${pageIndex}"]`);
+            if (!form) return;
+
+            const coverType = form.querySelector('.cover-type-select').value;
+            const pageType = form.querySelector('.page-type-select').value;
+            const pageSubtype = form.querySelector('.page-subtype-select').value;
+            const serialNo = form.querySelector('.serial-input').value;
+
+            console.log('Form values:', { coverType, pageType, pageSubtype, serialNo });
+
+            if (coverType && pageType && serialNo) {
+                const coverCode = getCoverTypeById(coverType)?.code || 'XX';
+                const pageCode = getPageTypeCode(pageType);
+                const subtypeCode = getPageSubTypeCode(pageType, pageSubtype);
+                
+                const fullCode = `${coverCode}-${pageCode}${subtypeCode ? '-' + subtypeCode : ''}-${serialNo}`;
+                codeInput.value = fullCode;
+                
+                // Also update the visible badge preview
+                if (codePreview) {
+                    codePreview.textContent = fullCode;
+                }
+                
+                console.log('Generated code:', fullCode);
+            } else {
+                // Clear the preview if form is incomplete
+                if (codePreview) {
+                    codePreview.textContent = 'Incomplete form';
+                }
+                console.log('Form incomplete');
+            }
+        }
+
+        function getCoverTypeById(id) {
+            return coverTypes.find(ct => ct.id === id);
+        }
+
+        function getPageTypeCode(pageTypeId) {
+            const pageType = pageTypes.find(pt => pt.id === pageTypeId);
+            return pageType ? pageType.code : 'XX';
+        }
+
+        function getPageSubTypeCode(pageTypeId, subtypeId) {
+            if (pageSubTypes[pageTypeId]) {
+                const subtype = pageSubTypes[pageTypeId].find(st => st.id === subtypeId);
+                return subtype ? subtype.code : '';
+            }
+            return '';
+        }
+
+        function updatePageSubtypes(pageIndex) {
+            const subtypeSelect = document.querySelector(`.page-subtype-select[data-page-index="${pageIndex}"]`);
+            const pageTypeSelect = document.querySelector(`.page-type-select[data-page-index="${pageIndex}"]`);
+            
+            if (!subtypeSelect || !pageTypeSelect) return;
+
+            const selectedPageType = pageTypeSelect.value;
+            subtypeSelect.innerHTML = '<option value="">Select page subtype</option>';
+
+            if (selectedPageType && pageSubTypes[selectedPageType]) {
+                pageSubTypes[selectedPageType].forEach(st => {
+                    const option = document.createElement('option');
+                    option.value = st.id;
+                    option.textContent = `${st.code} - ${st.name}`;
+                    subtypeSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('page-type-select')) {
+                const pageIndex = e.target.dataset.pageIndex;
+                updatePageSubtypes(pageIndex);
+                updatePageCode(pageIndex);
+            }
+            
+            if (e.target.classList.contains('page-subtype-select') || 
+                e.target.classList.contains('cover-type-select')) {
+                const pageIndex = e.target.dataset.pageIndex;
+                updatePageCode(pageIndex);
+            }
+        });
+        
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('serial-input')) {
+                const pageIndex = e.target.dataset.pageIndex;
+                updatePageCode(pageIndex);
+            }
+        });
+
+        // Initialize
+        updatePageCode(0);
+    </script>
+</body>
+</html>

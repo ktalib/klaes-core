@@ -1,0 +1,328 @@
+.dialog-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 50;
+}
+
+.dialog-overlay.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Global File Number Modal Override */
+#global-fileno-modal {
+    z-index: 2000000 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+}
+
+/* Hidden state - ensure it's hidden */
+#global-fileno-modal.hidden {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Visible state - only when flex class is added and hidden is removed */
+#global-fileno-modal.flex {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Ensure modal starts hidden by default */
+#global-fileno-modal:not(.flex) {
+    display: none !important;
+}
+
+/* Tab Content Visibility Fix */
+.main-tab-content {
+    display: none;
+}
+
+.main-tab-content.active {
+    display: block !important;
+}
+
+.main-tab-content.hidden {
+    display: none !important;
+}
+
+/* Ensure logs tab content is properly displayed */
+#content-logs.active {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Ensure modal content is properly centered */
+#global-fileno-modal > div {
+    margin: auto !important;
+}
+
+.dialog-content {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    max-width: 700px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.priority-LOW {
+    background-color: #10B981;
+    color: white;
+}
+
+.priority-MEDIUM {
+    background-color: #F59E0B;
+    color: white;
+}
+
+.priority-HIGH {
+    background-color: #EF4444;
+    color: white;
+}
+
+.details-dialog {
+    max-width: 800px;
+    width: 95%;
+}
+
+.log-entry {
+    border-left: 3px solid #3B82F6;
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+}
+
+.log-entry-active {
+    border-left-color: #10B981;
+    background-color: #F0F9FF;
+}
+
+.log-entry-completed {
+    border-left-color: #6B7280;
+}
+
+/* Tab Styles */
+.tracker-tab {
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.tracker-tab.active {
+    border-bottom-color: #3B82F6 !important;
+    color: #3B82F6 !important;
+}
+
+.tracker-tab:hover:not(.active) {
+    border-bottom-color: #D1D5DB !important;
+    color: #374151 !important;
+}
+
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Main Tab Styles */
+.main-tab {
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.main-tab.active {
+    border-bottom-color: #3B82F6 !important;
+    color: #3B82F6 !important;
+}
+
+.main-tab:hover:not(.active) {
+    border-bottom-color: #D1D5DB !important;
+    color: #374151 !important;
+}
+
+.main-tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.main-tab-content.active {
+    display: block;
+}
+
+/* Enhanced card hover effects */
+.bg-blue-50:hover,
+.bg-yellow-50:hover,
+.bg-green-50:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+/* Search input styling */
+#search-files:focus,
+#search-logs:focus {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.tracking-id-locked {
+    color: #DC2626;
+    font-weight: 600;
+}
+
+input.tracking-id-locked[disabled] {
+    opacity: 1;
+}
+
+.metadata-locked {
+    cursor: not-allowed;
+    background-color: #F3F4F6;
+    color: #1F2937;
+}
+
+input.metadata-locked[disabled] {
+    opacity: 1;
+}
+
+.metadata-loading {
+    position: relative;
+    padding-right: 2.5rem !important;
+}
+
+.metadata-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 9999px;
+    border: 2px solid rgba(96, 165, 250, 0.4);
+    border-top-color: #3B82F6;
+    animation: metadata-spinner 0.6s linear infinite;
+    transform: translateY(-50%);
+}
+
+@keyframes metadata-spinner {
+    to {
+        transform: translateY(-50%) rotate(360deg);
+    }
+}
+
+.tracker-card-header {
+    background-color: #1d4ed8;
+    color: #fff;
+}
+
+.tracker-card-header--owned {
+    background-color: #047857;
+}
+
+.tracker-card-header--other {
+    background-color: #b91c1c;
+}
+
+.tracker-card-action-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.tracker-card-action-group button {
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    padding: 0.35rem 1rem;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.tracker-card-action-group button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.tracker-card-action-accept {
+    background-color: #22c55e;
+    color: #fff;
+    border: 1px solid rgba(4, 120, 87, 0.4);
+    box-shadow: 0 8px 16px rgba(4, 120, 87, 0.35);
+}
+
+.tracker-card-action-accept:hover:not(:disabled) {
+    background-color: #16a34a;
+}
+
+.tracker-card-action-reject {
+    background-color: #b91c1c;
+    color: #fff;
+    border: 1px solid rgba(185, 28, 28, 0.4);
+    box-shadow: 0 8px 16px rgba(185, 28, 28, 0.3);
+}
+
+.tracker-card-action-reject:hover:not(:disabled) {
+    background-color: #dc2626;
+}
+
+.tracker-card-action-wrapper {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.tracker-card-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: #475467;
+}
+
+.tracker-card-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tracker-card-legend__dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 9999px;
+    display: inline-block;
+}
+
+.tracker-card-legend__dot--owned {
+    background-color: #047857;
+}
+
+.tracker-card-legend__dot--other {
+    background-color: #b91c1c;
+}

@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ST File Numbers API - Complete Test Suite</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .control-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #34495e;
+        }
+        
+        .control-group input, .control-group select {
+            padding: 10px 15px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .control-group input:focus, .control-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+        
+        .results {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .results-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 2px solid #ecf0f1;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .results-content {
+            padding: 20px;
+        }
+        
+        .file-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .file-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+        
+        .file-item h4 {
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .file-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+        
+        .dropdown-section {
+            margin-top: 20px;
+        }
+        
+        .form-demo {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #3498db;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        .endpoint-card {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            background: #27ae60;
+        }
+        
+        .endpoint-url {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        .json-display {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i data-lucide="database" class="inline h-8 w-8"></i> ST File Numbers API - Complete Test Suite</h1>
+            <p>Comprehensive testing interface for the global ST file numbers API endpoints</p>
+        </div>
+        
+        <div class="content">
+            <!-- API Documentation -->
+            <div class="section">
+                <h2><i data-lucide="book" class="h-6 w-6"></i> API Documentation</h2>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-method">GET</div>
+                    <strong>Get All ST File Numbers</strong>
+                    <div class="endpoint-url">/api/file-numbers/st-all</div>
+                    <p style="color: #7f8c8d; margin-bottom: 10px;">Fetch all ST file numbers with optional filtering support</p>
+                    <p><strong>Parameters:</strong> search, land_use, file_no_type, year, status, limit</p>
+                </div>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-method">GET</div>
+                    <strong>Get ST File Numbers Statistics</strong>
+                    <div class="endpoint-url">/api/file-numbers/st-stats</div>
+                    <p style="color: #7f8c8d; margin-bottom: 10px;">Get comprehensive statistics and summary data</p>
+                    <p><strong>Returns:</strong> Total counts by type, land use, status, and year ranges</p>
+                </div>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-method">GET</div>
+                    <strong>Get Dropdown Data</strong>
+                    <div class="endpoint-url">/api/file-numbers/st-dropdown-data</div>
+                    <p style="color: #7f8c8d; margin-bottom: 10px;">Get formatted data for dropdowns and form selects</p>
+                    <p><strong>Returns:</strong> Structured data optimized for UI components</p>
+                </div>
+            </div>
+            
+            <!-- Fetch All ST File Numbers -->
+            <div class="section">
+                <h2><i data-lucide="list" class="h-6 w-6"></i> Fetch All ST File Numbers</h2>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Search</label>
+                        <input type="text" id="search" placeholder="Search file numbers, names, etc.">
+                    </div>
+                    <div class="control-group">
+                        <label>Land Use</label>
+                        <select id="landUse">
+                            <option value="">All Land Uses</option>
+                            <option value="RESIDENTIAL">Residential</option>
+                            <option value="COMMERCIAL">Commercial</option>
+                            <option value="INDUSTRY">Industry</option>
+                            <option value="MIXED-USE">Mixed-Use</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>File Type</label>
+                        <select id="fileType">
+                            <option value="">All Types</option>
+                            <option value="PRIMARY">Primary</option>
+                            <option value="SUA">SuA</option>
+                            <option value="PUA">PuA</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Year</label>
+                        <select id="year">
+                            <option value="">All Years</option>
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2023">2023</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Status</label>
+                        <select id="status">
+                            <option value="">All Status</option>
+                            <option value="generated">Generated</option>
+                            <option value="reserved">Reserved</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Limit</label>
+                        <input type="number" id="limit" value="100" min="1" max="1000">
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn" onclick="fetchAllFileNumbers()">
+                        <i data-lucide="search" class="h-4 w-4"></i> Fetch File Numbers
+                    </button>
+                    <button class="btn btn-warning" onclick="clearFilters()">
+                        <i data-lucide="x" class="h-4 w-4"></i> Clear Filters
+                    </button>
+                    <button class="btn btn-success" onclick="exportToCSV()">
+                        <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+                    </button>
+                </div>
+                
+                <div class="loading" id="loadingAll">
+                    <i data-lucide="loader-2" class="h-8 w-8 spinner"></i>
+                    <p>Loading file numbers...</p>
+                </div>
+                
+                <div class="results" id="allResults">
+                    <div class="results-header">
+                        <span id="resultsCount">No results yet</span>
+                    </div>
+                    <div class="results-content" id="allResultsContent">
+                        Click "Fetch File Numbers" to load data
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="section">
+                <h2><i data-lucide="bar-chart" class="h-6 w-6"></i> ST File Numbers Statistics</h2>
+                
+                <button class="btn btn-success" onclick="fetchStats()">
+                    <i data-lucide="trending-up" class="h-4 w-4"></i> Load Statistics
+                </button>
+                
+                <div class="loading" id="loadingStats">
+                    <i data-lucide="loader-2" class="h-8 w-8 spinner"></i>
+                    <p>Loading statistics...</p>
+                </div>
+                
+                <div class="stats-grid" id="statsGrid" style="margin-top: 20px;">
+                    <!-- Stats will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Dropdown Integration Demo -->
+            <div class="section">
+                <h2><i data-lucide="mouse-pointer-click" class="h-6 w-6"></i> Dropdown Integration Demo</h2>
+                
+                <button class="btn btn-success" onclick="loadDropdownData()">
+                    <i data-lucide="download" class="h-4 w-4"></i> Load Dropdown Data
+                </button>
+                
+                <div class="dropdown-section">
+                    <div class="form-demo">
+                        <h3 style="margin-bottom: 15px; color: #2c3e50;">Auto-Fill Form Demo</h3>
+                        
+                        <div class="form-row">
+                            <div class="control-group">
+                                <label>Select File Number</label>
+                                <select id="fileNumberDropdown" onchange="autoFillForm()">
+                                    <option value="">Choose a file number...</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="control-group">
+                                <label>Land Use</label>
+                                <input type="text" id="autoLandUse" readonly>
+                            </div>
+                            <div class="control-group">
+                                <label>Year</label>
+                                <input type="text" id="autoYear" readonly>
+                            </div>
+                            <div class="control-group">
+                                <label>File Type</label>
+                                <input type="text" id="autoFileType" readonly>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="control-group">
+                                <label>Applicant Name</label>
+                                <input type="text" id="autoApplicantName" readonly>
+                            </div>
+                            <div class="control-group">
+                                <label>Status</label>
+                                <input type="text" id="autoStatus" readonly>
+                            </div>
+                            <div class="control-group">
+                                <label>Created Date</label>
+                                <input type="text" id="autoCreatedDate" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Raw JSON Response Viewer -->
+            <div class="section">
+                <h2><i data-lucide="code" class="h-6 w-6"></i> Raw JSON Response Viewer</h2>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn" onclick="showRawResponse('st-all')">
+                        <i data-lucide="file-text" class="h-4 w-4"></i> Show All Files JSON
+                    </button>
+                    <button class="btn" onclick="showRawResponse('st-stats')">
+                        <i data-lucide="bar-chart" class="h-4 w-4"></i> Show Stats JSON
+                    </button>
+                    <button class="btn" onclick="showRawResponse('st-dropdown-data')">
+                        <i data-lucide="list" class="h-4 w-4"></i> Show Dropdown JSON
+                    </button>
+                </div>
+                
+                <div class="json-display" id="jsonDisplay">
+                    Click a button above to view raw JSON responses
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        // Global variables
+        let allFileNumbersData = [];
+        
+        // Fetch all ST file numbers with filters
+        async function fetchAllFileNumbers() {
+            const loading = document.getElementById('loadingAll');
+            const results = document.getElementById('allResults');
+            const resultsContent = document.getElementById('allResultsContent');
+            const resultsCount = document.getElementById('resultsCount');
+            
+            // Show loading
+            loading.classList.add('show');
+            results.style.display = 'none';
+            
+            // Build query parameters
+            const params = new URLSearchParams();
+            
+            const search = document.getElementById('search').value;
+            const landUse = document.getElementById('landUse').value;
+            const fileType = document.getElementById('fileType').value;
+            const year = document.getElementById('year').value;
+            const status = document.getElementById('status').value;
+            const limit = document.getElementById('limit').value;
+            
+            if (search) params.append('search', search);
+            if (landUse) params.append('land_use', landUse);
+            if (fileType) params.append('file_no_type', fileType);
+            if (year) params.append('year', year);
+            if (status) params.append('status', status);
+            if (limit) params.append('limit', limit);
+            
+            try {
+                const response = await fetch(`/api/file-numbers/st-all?${params.toString()}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    allFileNumbersData = data.data;
+                    displayFileNumbers(data.data, data.count);
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: `Loaded ${data.count} file numbers successfully`,
+                        confirmButtonColor: '#27ae60'
+                    });
+                } else {
+                    throw new Error(data.message || 'Failed to fetch file numbers');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultsContent.innerHTML = `<div style="color: #e74c3c; text-align: center; padding: 20px;">
+                    <i data-lucide="alert-circle" class="h-8 w-8"></i>
+                    <p>Error: ${error.message}</p>
+                </div>`;
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message,
+                    confirmButtonColor: '#e74c3c'
+                });
+            } finally {
+                loading.classList.remove('show');
+                results.style.display = 'block';
+                lucide.createIcons();
+            }
+        }
+        
+        // Display file numbers in results
+        function displayFileNumbers(fileNumbers, count) {
+            const resultsContent = document.getElementById('allResultsContent');
+            const resultsCount = document.getElementById('resultsCount');
+            
+            resultsCount.textContent = `${count} file numbers found`;
+            
+            if (fileNumbers.length === 0) {
+                resultsContent.innerHTML = `<div style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <i data-lucide="file-x" class="h-12 w-12"></i>
+                    <p>No file numbers found matching your criteria</p>
+                </div>`;
+                return;
+            }
+            
+            const html = fileNumbers.map((file, index) => {
+                const applicantName = file.corporate_name || 
+                    `${file.first_name || ''} ${file.middle_name || ''} ${file.surname || ''}`.trim() || 
+                    'N/A';
+                
+                return `
+                    <div class="file-item" onclick="selectFileForDetails(${index})">
+                        <h4>${file.full_file_number || file.np_fileno || 'No File Number'}</h4>
+                        <div class="file-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Land Use:</span>
+                                <span class="detail-value">${file.land_use || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Type:</span>
+                                <span class="detail-value">${file.file_no_type || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Year:</span>
+                                <span class="detail-value">${file.year || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value">${file.status || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Applicant:</span>
+                                <span class="detail-value">${applicantName}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Created:</span>
+                                <span class="detail-value">${file.created_at ? new Date(file.created_at).toLocaleDateString() : 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            resultsContent.innerHTML = html;
+        }
+        
+        // Select file for detailed view
+        function selectFileForDetails(index) {
+            const file = allFileNumbersData[index];
+            if (!file) return;
+            
+            Swal.fire({
+                title: file.full_file_number || file.np_fileno,
+                html: `
+                    <div style="text-align: left;">
+                        <p><strong>NP File No:</strong> ${file.np_fileno || 'N/A'}</p>
+                        <p><strong>File No:</strong> ${file.fileno || 'N/A'}</p>
+                        <p><strong>MLS File No:</strong> ${file.mls_fileno || 'N/A'}</p>
+                        <p><strong>Land Use:</strong> ${file.land_use || 'N/A'}</p>
+                        <p><strong>Land Use Code:</strong> ${file.land_use_code || 'N/A'}</p>
+                        <p><strong>Serial No:</strong> ${file.serial_no || 'N/A'}</p>
+                        <p><strong>Year:</strong> ${file.year || 'N/A'}</p>
+                        <p><strong>File Type:</strong> ${file.file_no_type || 'N/A'}</p>
+                        <p><strong>Status:</strong> ${file.status || 'N/A'}</p>
+                        <p><strong>Applicant Type:</strong> ${file.applicant_type || 'N/A'}</p>
+                        <p><strong>Created By:</strong> ${file.created_by || 'N/A'}</p>
+                        <p><strong>Created Date:</strong> ${file.created_at ? new Date(file.created_at).toLocaleString() : 'N/A'}</p>
+                    </div>
+                `,
+                confirmButtonColor: '#3498db',
+                width: '600px'
+            });
+        }
+        
+        // Fetch statistics
+        async function fetchStats() {
+            const loading = document.getElementById('loadingStats');
+            const statsGrid = document.getElementById('statsGrid');
+            
+            loading.classList.add('show');
+            statsGrid.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/file-numbers/st-stats');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    displayStats(data.data);
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: 'Statistics loaded successfully',
+                        confirmButtonColor: '#27ae60'
+                    });
+                } else {
+                    throw new Error(data.message || 'Failed to fetch statistics');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                statsGrid.innerHTML = `<div style="color: #e74c3c; text-align: center; padding: 20px;">
+                    <i data-lucide="alert-circle" class="h-8 w-8"></i>
+                    <p>Error: ${error.message}</p>
+                </div>`;
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message,
+                    confirmButtonColor: '#e74c3c'
+                });
+            } finally {
+                loading.classList.remove('show');
+                lucide.createIcons();
+            }
+        }
+        
+        // Display statistics
+        function displayStats(stats) {
+            const statsGrid = document.getElementById('statsGrid');
+            
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${stats.total_records || 0}</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.primary_count || 0}</div>
+                    <div class="stat-label">Primary Applications</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.sua_count || 0}</div>
+                    <div class="stat-label">SuA Applications</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.pua_count || 0}</div>
+                    <div class="stat-label">PuA Applications</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.residential_count || 0}</div>
+                    <div class="stat-label">Residential</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.commercial_count || 0}</div>
+                    <div class="stat-label">Commercial</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.industry_count || 0}</div>
+                    <div class="stat-label">Industry</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.generated_count || 0}</div>
+                    <div class="stat-label">Generated</div>
+                </div>
+            `;
+            
+            statsGrid.innerHTML = statsHtml;
+        }
+        
+        // Load dropdown data
+        async function loadDropdownData() {
+            try {
+                // Use the existing data if available, otherwise fetch new data
+                let data = allFileNumbersData;
+                
+                if (data.length === 0) {
+                    const response = await fetch('/api/file-numbers/st-all?limit=50');
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        data = result.data;
+                    } else {
+                        throw new Error(result.message || 'Failed to fetch dropdown data');
+                    }
+                }
+                
+                populateDropdown(data);
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: `Dropdown populated with ${data.length} file numbers`,
+                    confirmButtonColor: '#27ae60'
+                });
+                
+            } catch (error) {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message,
+                    confirmButtonColor: '#e74c3c'
+                });
+            }
+        }
+        
+        // Populate dropdown with file numbers
+        function populateDropdown(fileNumbers) {
+            const dropdown = document.getElementById('fileNumberDropdown');
+            
+            // Clear existing options (except the first one)
+            dropdown.innerHTML = '<option value="">Choose a file number...</option>';
+            
+            fileNumbers.forEach((file, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${file.full_file_number || file.np_fileno} - ${file.land_use} (${file.file_no_type})`;
+                dropdown.appendChild(option);
+            });
+        }
+        
+        // Auto-fill form when dropdown selection changes
+        function autoFillForm() {
+            const dropdown = document.getElementById('fileNumberDropdown');
+            const selectedIndex = dropdown.value;
+            
+            if (selectedIndex === '') {
+                clearAutoFillForm();
+                return;
+            }
+            
+            const selectedFile = allFileNumbersData[selectedIndex];
+            
+            if (selectedFile) {
+                document.getElementById('autoLandUse').value = selectedFile.land_use || '';
+                document.getElementById('autoYear').value = selectedFile.year || '';
+                document.getElementById('autoFileType').value = selectedFile.file_no_type || '';
+                
+                const applicantName = selectedFile.corporate_name || 
+                    `${selectedFile.first_name || ''} ${selectedFile.middle_name || ''} ${selectedFile.surname || ''}`.trim() || 
+                    'N/A';
+                document.getElementById('autoApplicantName').value = applicantName;
+                document.getElementById('autoStatus').value = selectedFile.status || '';
+                document.getElementById('autoCreatedDate').value = selectedFile.created_at ? 
+                    new Date(selectedFile.created_at).toLocaleDateString() : '';
+                
+                // Show success toast
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Form auto-filled!',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+            }
+        }
+        
+        // Clear auto-fill form
+        function clearAutoFillForm() {
+            document.getElementById('autoLandUse').value = '';
+            document.getElementById('autoYear').value = '';
+            document.getElementById('autoFileType').value = '';
+            document.getElementById('autoApplicantName').value = '';
+            document.getElementById('autoStatus').value = '';
+            document.getElementById('autoCreatedDate').value = '';
+        }
+        
+        // Clear all filters
+        function clearFilters() {
+            document.getElementById('search').value = '';
+            document.getElementById('landUse').value = '';
+            document.getElementById('fileType').value = '';
+            document.getElementById('year').value = '';
+            document.getElementById('status').value = '';
+            document.getElementById('limit').value = '100';
+            
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: 'Filters cleared',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        }
+        
+        // Show raw JSON response
+        async function showRawResponse(endpoint) {
+            const jsonDisplay = document.getElementById('jsonDisplay');
+            jsonDisplay.textContent = 'Loading...';
+            
+            try {
+                let url = '';
+                switch(endpoint) {
+                    case 'st-all':
+                        url = '/api/file-numbers/st-all?limit=5';
+                        break;
+                    case 'st-stats':
+                        url = '/api/file-numbers/st-stats';
+                        break;
+                    case 'st-dropdown-data':
+                        url = '/api/file-numbers/st-dropdown-data';
+                        break;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                jsonDisplay.textContent = JSON.stringify(data, null, 2);
+                
+            } catch (error) {
+                jsonDisplay.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Export to CSV
+        function exportToCSV() {
+            if (allFileNumbersData.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No Data',
+                    text: 'Please fetch file numbers first before exporting',
+                    confirmButtonColor: '#f39c12'
+                });
+                return;
+            }
+            
+            // Create CSV content
+            const headers = ['File Number', 'Land Use', 'Type', 'Year', 'Status', 'Applicant', 'Created Date'];
+            let csvContent = headers.join(',') + '\n';
+            
+            allFileNumbersData.forEach(file => {
+                const applicantName = file.corporate_name || 
+                    `${file.first_name || ''} ${file.middle_name || ''} ${file.surname || ''}`.trim() || 
+                    'N/A';
+                
+                const row = [
+                    `"${file.full_file_number || file.np_fileno || 'N/A'}"`,
+                    `"${file.land_use || 'N/A'}"`,
+                    `"${file.file_no_type || 'N/A'}"`,
+                    `"${file.year || 'N/A'}"`,
+                    `"${file.status || 'N/A'}"`,
+                    `"${applicantName}"`,
+                    `"${file.created_at ? new Date(file.created_at).toLocaleDateString() : 'N/A'}"`
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+            
+            // Download CSV
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'st_file_numbers.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Exported!',
+                text: 'CSV file has been downloaded',
+                confirmButtonColor: '#27ae60'
+            });
+        }
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('ST File Numbers API Complete Test Suite Loaded');
+            
+            // Show welcome message
+            Swal.fire({
+                icon: 'info',
+                title: 'Welcome!',
+                text: 'ST File Numbers API complete test suite is ready. Use the interface to test all endpoints and features.',
+                confirmButtonColor: '#3498db'
+            });
+        });
+    </script>
+</body>
+</html>

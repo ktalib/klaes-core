@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test JSON Loading</title>
+</head>
+<body>
+    <h1>Testing JSON File Access</h1>
+    <div id="result"></div>
+    
+    <script>
+        async function testJsonLoad() {
+            try {
+                console.log('Testing JSON file access...');
+                const response = await fetch('/js/primaryform/nigerian_states.json');
+                console.log('Response status:', response.status);
+                console.log('Response headers content-type:', response.headers.get('content-type'));
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const text = await response.text();
+                console.log('Response text length:', text.length);
+                console.log('First 200 characters:', text.substring(0, 200));
+                
+                const data = JSON.parse(text);
+                console.log('JSON parsed successfully. States count:', data.length);
+                
+                document.getElementById('result').innerHTML = `
+                    <div style="color: green;">
+                        <h2>Success!</h2>
+                        <p>JSON file loaded successfully</p>
+                        <p>Number of states: ${data.length}</p>
+                        <p>Response content-type: ${response.headers.get('content-type')}</p>
+                        <p>Response size: ${text.length} characters</p>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = `
+                    <div style="color: red;">
+                        <h2>Error!</h2>
+                        <p>Error: ${error.message}</p>
+                        <p>Error name: ${error.name}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Test when page loads
+        testJsonLoad();
+    </script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Property Record Form</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Add Property Record - Simple Version</h1>
+        
+        <form id="propertyForm" class="space-y-6">
+            <!-- Basic Property Info -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Title Type</label>
+                    <div class="flex space-x-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="titleType" value="Customary" checked class="mr-2">
+                            Customary
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="titleType" value="Statutory" class="mr-2">
+                            Statutory
+                        </label>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">File Number</label>
+                    <input type="text" name="fileNumber" class="w-full p-2 border rounded-md" placeholder="Enter file number">
+                </div>
+            </div>
+            
+            <!-- Property Details -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Plot Number</label>
+                    <input type="text" name="plotNumber" class="w-full p-2 border rounded-md" placeholder="Enter plot number">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">LGA/City</label>
+                    <select name="lga" class="w-full p-2 border rounded-md">
+                        <option value="">Select LGA</option>
+                        <option value="Kano Municipal">Kano Municipal</option>
+                        <option value="Fagge">Fagge</option>
+                        <option value="Dala">Dala</option>
+                        <option value="Gwale">Gwale</option>
+                        <option value="Tarauni">Tarauni</option>
+                        <option value="Nasarawa">Nasarawa</option>
+                        <option value="Ungogo">Ungogo</option>
+                        <option value="Kumbotso">Kumbotso</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Transaction Type -->
+            <div>
+                <label class="block text-sm font-medium mb-2">Transaction Type</label>
+                <select name="transactionType" id="transactionType" class="w-full p-2 border rounded-md">
+                    <option value="">Select Transaction Type</option>
+                    <option value="Power of Attorney">Power of Attorney</option>
+                    <option value="Deed of Assignment">Deed of Assignment</option>
+                    <option value="Deed of Mortgage">Deed of Mortgage</option>
+                    <option value="Certificate of Occupancy">Certificate of Occupancy</option>
+                    <option value="Deed of Transfer">Deed of Transfer</option>
+                    <option value="Deed of Gift">Deed of Gift</option>
+                    <option value="Deed of Lease">Deed of Lease</option>
+                </select>
+            </div>
+            
+            <!-- Transaction Details Section -->
+            <div id="transactionDetails" class="bg-green-50 border-2 border-green-200 rounded-lg p-4" style="display: none;">
+                <h3 class="text-lg font-semibold mb-4 text-green-800">Transaction Details</h3>
+                
+                <!-- Party Fields -->
+                <div id="partyFields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label id="firstPartyLabel" class="block text-sm font-medium mb-2">First Party</label>
+                        <input type="text" id="firstParty" name="firstParty" class="w-full p-2 border rounded-md" placeholder="Enter first party name">
+                    </div>
+                    
+                    <div>
+                        <label id="secondPartyLabel" class="block text-sm font-medium mb-2">Second Party</label>
+                        <input type="text" id="secondParty" name="secondParty" class="w-full p-2 border rounded-md" placeholder="Enter second party name">
+                    </div>
+                </div>
+                
+                <!-- Transaction Date -->
+                <div class="mt-4">
+                    <label class="block text-sm font-medium mb-2">Transaction Date</label>
+                    <input type="date" name="transactionDate" class="w-full p-2 border rounded-md">
+                </div>
+            </div>
+            
+            <!-- Property Description -->
+            <div>
+                <label class="block text-sm font-medium mb-2">Property Description</label>
+                <textarea name="propertyDescription" rows="4" class="w-full p-2 border rounded-md" placeholder="Enter property description"></textarea>
+            </div>
+            
+            <!-- Submit Button -->
+            <div class="flex justify-end">
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">
+                    Save Property Record
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Simple, clean JavaScript - no complex dependencies
+        document.addEventListener('DOMContentLoaded', function() {
+            const transactionSelect = document.getElementById('transactionType');
+            const transactionDetails = document.getElementById('transactionDetails');
+            const firstPartyLabel = document.getElementById('firstPartyLabel');
+            const secondPartyLabel = document.getElementById('secondPartyLabel');
+            const firstPartyInput = document.getElementById('firstParty');
+            const secondPartyInput = document.getElementById('secondParty');
+            
+            // Party labels for different transaction types
+            const partyLabels = {
+                'Power of Attorney': { first: 'Grantor', second: 'Grantee' },
+                'Deed of Assignment': { first: 'Assignor', second: 'Assignee' },
+                'Deed of Mortgage': { first: 'Mortgagor', second: 'Mortgagee' },
+                'Certificate of Occupancy': { first: 'Grantor', second: 'Grantee' },
+                'Deed of Transfer': { first: 'Transferor', second: 'Transferee' },
+                'Deed of Gift': { first: 'Donor', second: 'Donee' },
+                'Deed of Lease': { first: 'Lessor', second: 'Lessee' }
+            };
+            
+            // Handle transaction type change
+            transactionSelect.addEventListener('change', function() {
+                const selectedType = this.value;
+                console.log('Selected transaction type:', selectedType);
+                
+                if (selectedType) {
+                    // Show transaction details section
+                    transactionDetails.style.display = 'block';
+                    
+                    // Update party labels
+                    const labels = partyLabels[selectedType] || { first: 'First Party', second: 'Second Party' };
+                    firstPartyLabel.textContent = labels.first;
+                    secondPartyLabel.textContent = labels.second;
+                    firstPartyInput.placeholder = `Enter ${labels.first.toLowerCase()} name`;
+                    secondPartyInput.placeholder = `Enter ${labels.second.toLowerCase()} name`;
+                    
+                    // Auto-fill for government transactions
+                    if (selectedType === 'Certificate of Occupancy') {
+                        firstPartyInput.value = 'KANO STATE GOVERNMENT';
+                        firstPartyInput.readOnly = true;
+                        firstPartyInput.classList.add('bg-gray-100');
+                    } else {
+                        firstPartyInput.value = '';
+                        firstPartyInput.readOnly = false;
+                        firstPartyInput.classList.remove('bg-gray-100');
+                    }
+                    
+                    console.log('Transaction details shown with labels:', labels);
+                } else {
+                    // Hide transaction details section
+                    transactionDetails.style.display = 'none';
+                    console.log('Transaction details hidden');
+                }
+            });
+            
+            // Handle form submission
+            document.getElementById('propertyForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Collect form data
+                const formData = new FormData(this);
+                const data = {};
+                for (let [key, value] of formData.entries()) {
+                    data[key] = value;
+                }
+                
+                console.log('Form submitted with data:', data);
+                alert('Form submitted successfully! Check console for data.');
+            });
+            
+            console.log('Simple property form loaded successfully!');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,418 @@
+/**
+ * Commission New ST - Main Styles
+ * Master CSS file for ST File Number Commissioning interface
+ */
+
+/* Import tab-specific styles */
+@import url('./primary.css');
+@import url('./sua.css'); 
+@import url('./pua.css');
+
+/* Global Commission New ST Styles */
+.commission-new-st-container {
+    background-color: #f9fafb;
+    min-height: 100vh;
+}
+
+/* Tab Navigation Styles */
+.st-tab-navigation {
+    background: white;
+    border-radius: 0.5rem 0.5rem 0 0;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.st-tab-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    border: 2px solid transparent;
+    transition: all 0.2s ease-in-out;
+    min-width: 120px;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.st-tab-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.st-tab-button:active {
+    transform: translateY(0);
+}
+
+.st-tab-button i {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.75rem;
+}
+
+/* Primary Tab Button */
+.st-tab-button.primary-active {
+    background-color: #3b82f6;
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    border-color: #3b82f6;
+}
+
+.st-tab-button.primary-inactive {
+    background-color: white;
+    color: #6b7280;
+    border-color: #d1d5db;
+}
+
+.st-tab-button.primary-inactive:hover {
+    background-color: #f8fafc;
+    color: #3b82f6;
+    border-color: #93c5fd;
+}
+
+/* SuA Tab Button */
+.st-tab-button.sua-active {
+    background-color: #10b981;
+    color: white;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    border-color: #10b981;
+}
+
+.st-tab-button.sua-inactive {
+    background-color: white;
+    color: #6b7280;
+    border-color: #d1d5db;
+}
+
+.st-tab-button.sua-inactive:hover {
+    background-color: #f0fdf4;
+    color: #10b981;
+    border-color: #86efac;
+}
+
+/* PuA Tab Button */
+.st-tab-button.pua-active {
+    background-color: #8b5cf6;
+    color: white;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    border-color: #8b5cf6;
+}
+
+.st-tab-button.pua-inactive {
+    background-color: white;
+    color: #6b7280;
+    border-color: #d1d5db;
+}
+
+.st-tab-button.pua-inactive:hover {
+    background-color: #faf5ff;
+    color: #8b5cf6;
+    border-color: #c4b5fd;
+}
+
+/* Tab Content Container */
+.st-tab-content {
+    background: white;
+    border-radius: 0 0 0.5rem 0.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* Common Statistics Grid */
+.st-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.st-stat-card {
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.st-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Common Filter Section */
+.st-filter-section {
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+}
+
+.st-filter-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.st-filter-input,
+.st-filter-select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    background-color: white;
+    transition: all 0.2s ease-in-out;
+}
+
+.st-filter-input:focus,
+.st-filter-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Common Table Styles */
+.st-table {
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.st-table th {
+    padding: 0.75rem 1.5rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background-color: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.st-table td {
+    padding: 1rem 1.5rem;
+    font-size: 0.875rem;
+    color: #1f2937;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.st-table tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Common Button Styles */
+.st-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    text-decoration: none;
+}
+
+.st-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.st-btn-primary {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.st-btn-primary:hover {
+    background-color: #2563eb;
+}
+
+.st-btn-success {
+    background-color: #10b981;
+    color: white;
+}
+
+.st-btn-success:hover {
+    background-color: #059669;
+}
+
+.st-btn-warning {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.st-btn-warning:hover {
+    background-color: #d97706;
+}
+
+.st-btn-danger {
+    background-color: #ef4444;
+    color: white;
+}
+
+.st-btn-danger:hover {
+    background-color: #dc2626;
+}
+
+.st-btn-secondary {
+    background-color: white;
+    color: #6b7280;
+    border-color: #d1d5db;
+}
+
+.st-btn-secondary:hover {
+    background-color: #f9fafb;
+    border-color: #9ca3af;
+}
+
+/* Common Badge Styles */
+.st-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Loading States */
+.st-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.st-spinner {
+    border: 2px solid #f3f4f6;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: st-spin 1s linear infinite;
+}
+
+@keyframes st-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Empty States */
+.st-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6b7280;
+}
+
+.st-empty-state i {
+    font-size: 3rem;
+    color: #d1d5db;
+    margin-bottom: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .st-filter-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .st-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .st-tab-button {
+        padding: 0.5rem 1rem;
+        min-width: 100px;
+        font-size: 0.75rem;
+    }
+    
+    .st-tab-button i {
+        width: 1rem;
+        height: 1rem;
+        margin-right: 0.5rem;
+    }
+    
+    .st-table {
+        font-size: 0.75rem;
+    }
+    
+    .st-table th,
+    .st-table td {
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .st-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .st-tab-navigation {
+        padding: 0.75rem;
+    }
+    
+    .st-tab-button {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .st-tab-navigation,
+    .st-btn,
+    .no-print {
+        display: none !important;
+    }
+    
+    .st-tab-content {
+        box-shadow: none;
+        border: none;
+    }
+    
+    .st-table {
+        font-size: 0.75rem;
+    }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+    .st-tab-button {
+        border-width: 2px;
+    }
+    
+    .st-table tr:hover {
+        background-color: #e5e7eb;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .commission-new-st-container {
+        background-color: #111827;
+    }
+    
+    .st-tab-navigation,
+    .st-tab-content {
+        background-color: #1f2937;
+        border-color: #374151;
+    }
+    
+    .st-table th {
+        background-color: #374151;
+        color: #d1d5db;
+    }
+    
+    .st-table td {
+        color: #f3f4f6;
+        border-color: #374151;
+    }
+    
+    .st-table tr:hover {
+        background-color: #374151;
+    }
+}

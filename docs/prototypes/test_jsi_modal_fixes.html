@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSI Modal Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .btn-test { background: #007bff; color: white; border: none; }
+    </style>
+</head>
+<body>
+    <h1>JSI Modal Fix Verification</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Save Button Initial State</h3>
+        <button class="btn-test" onclick="testSaveButtonInitialState()">Check Save Button Initial State</button>
+        <div id="save-button-initial-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Measurement Entries Container</h3>
+        <button class="btn-test" onclick="testMeasurementEntries()">Check Measurement Entries Display</button>
+        <div id="measurement-entries-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Button State Functions</h3>
+        <button class="btn-test" onclick="testButtonFunctions()">Test Button Functions</button>
+        <div id="button-functions-results"></div>
+    </div>
+
+    <script>
+        function testSaveButtonInitialState() {
+            const resultsDiv = document.getElementById('save-button-initial-results');
+            
+            const saveBtn = document.getElementById('jointInspectionSave');
+            
+            if (!saveBtn) {
+                resultsDiv.innerHTML = '<div class="error">❌ Save button not found</div>';
+                return;
+            }
+
+            let statusHtml = '<div class="success">✅ Save button found</div>';
+            
+            // Check initial disabled state
+            if (saveBtn.disabled) {
+                statusHtml += '<div class="success">✅ Save button is correctly DISABLED initially</div>';
+            } else {
+                statusHtml += '<div class="error">❌ Save button should be DISABLED initially</div>';
+            }
+            
+            // Check disabled styling
+            const classes = Array.from(saveBtn.classList);
+            if (classes.includes('bg-gray-400') && classes.includes('cursor-not-allowed')) {
+                statusHtml += '<div class="success">✅ Save button has correct disabled styling</div>';
+            } else {
+                statusHtml += '<div class="error">❌ Save button does not have disabled styling</div>';
+            }
+            
+            statusHtml += '<div class="info">Button classes: ' + classes.join(', ') + '</div>';
+            
+            resultsDiv.innerHTML = statusHtml;
+        }
+
+        function testMeasurementEntries() {
+            const resultsDiv = document.getElementById('measurement-entries-results');
+            
+            const container = document.getElementById('measurementEntriesContainer');
+            
+            if (!container) {
+                resultsDiv.innerHTML = '<div class="error">❌ Measurement entries container not found</div>';
+                return;
+            }
+
+            let statusHtml = '<div class="success">✅ Measurement entries container found</div>';
+            
+            // Check if container has content
+            const hasContent = container.innerHTML && container.innerHTML.trim() !== '';
+            if (hasContent) {
+                statusHtml += '<div class="success">✅ Measurement entries container has content</div>';
+                
+                // Count entries
+                const entries = container.querySelectorAll('[data-entry-index]');
+                statusHtml += '<div class="info">Found ' + entries.length + ' measurement entries</div>';
+                
+                // Check for input fields
+                const inputs = container.querySelectorAll('input[data-measurement-input]');
+                statusHtml += '<div class="info">Found ' + inputs.length + ' measurement input fields</div>';
+            } else {
+                statusHtml += '<div class="error">❌ Measurement entries container is empty</div>';
+            }
+            
+            // Check for Add Entry button
+            const addBtn = document.getElementById('addMeasurementEntry');
+            if (addBtn) {
+                statusHtml += '<div class="success">✅ Add Entry button found</div>';
+            } else {
+                statusHtml += '<div class="error">❌ Add Entry button not found</div>';
+            }
+            
+            resultsDiv.innerHTML = statusHtml;
+        }
+
+        function testButtonFunctions() {
+            const resultsDiv = document.getElementById('button-functions-results');
+            
+            let statusHtml = '<h4>Testing Button Functions:</h4>';
+            
+            // Test function existence
+            const functions = ['enableSaveButton', 'disableSaveButton', 'enableGenerateButton', 'disableGenerateButton'];
+            functions.forEach(func => {
+                if (typeof window[func] === 'function') {
+                    statusHtml += '<div class="success">✅ ' + func + ' function exists</div>';
+                } else {
+                    statusHtml += '<div class="error">❌ ' + func + ' function not found</div>';
+                }
+            });
+            
+            // Test save button state changes
+            const saveBtn = document.getElementById('jointInspectionSave');
+            if (saveBtn && typeof enableSaveButton === 'function' && typeof disableSaveButton === 'function') {
+                try {
+                    // Test enable
+                    enableSaveButton();
+                    if (!saveBtn.disabled && saveBtn.classList.contains('bg-blue-600')) {
+                        statusHtml += '<div class="success">✅ enableSaveButton() works correctly</div>';
+                    } else {
+                        statusHtml += '<div class="error">❌ enableSaveButton() not working properly</div>';
+                    }
+                    
+                    // Test disable
+                    disableSaveButton();
+                    if (saveBtn.disabled && saveBtn.classList.contains('bg-gray-400')) {
+                        statusHtml += '<div class="success">✅ disableSaveButton() works correctly</div>';
+                    } else {
+                        statusHtml += '<div class="error">❌ disableSaveButton() not working properly</div>';
+                    }
+                } catch (error) {
+                    statusHtml += '<div class="error">❌ Error testing button functions: ' + error.message + '</div>';
+                }
+            }
+            
+            resultsDiv.innerHTML = statusHtml;
+        }
+
+        // Auto-test on page load
+        window.onload = function() {
+            console.log('JSI Modal Fix Test Page Loaded');
+            
+            setTimeout(() => {
+                testSaveButtonInitialState();
+                testMeasurementEntries();
+                testButtonFunctions();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

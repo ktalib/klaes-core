@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Classification Dropdown Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .required { color: red; }
+        .test-results { margin-top: 20px; padding: 15px; background-color: #f0f0f0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Page Classification Dropdown Test</h1>
+    
+    <div class="page-form" data-page-index="0">
+        <div class="form-group">
+            <label class="form-label">Cover Type <span class="required">*</span></label>
+            <select class="form-select cover-type-select" required data-page-index="0">
+                <option value="">Select cover type</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Page Type <span class="required">*</span></label>
+            <select class="form-select page-type-select" required data-page-index="0">
+                <option value="">Select page type</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Page Subtype</label>
+            <select class="form-select page-subtype-select" data-page-index="0">
+                <option value="">Select page subtype</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="test-results" id="testResults">
+        <h3>Test Results:</h3>
+        <div id="resultsContent">Loading...</div>
+    </div>
+
+    <script>
+        // Global variables for page typing data
+        let coverTypes = [];
+        let pageTypes = [];
+        let pageSubTypes = {};
+        
+        // Mock function for toggleOthersInput since it's called in updatePageSubtypes
+        function toggleOthersInput(selectElement, containerSelector) {
+            console.log('toggleOthersInput called for:', selectElement.className);
+        }
+        
+        // Set default data
+        function setDefaultPageTypingData() {
+            coverTypes = [
+                { id: '1', code: "FC", name: "Front Cover" },
+                { id: '2', code: "BC", name: "Back Cover" }
+            ];
+            
+            pageTypes = [
+                { id: '1', code: "FC", name: "File Cover" },
+                { id: '2', code: "APP", name: "Application" },
+                { id: '3', code: "BN", name: "Bill Notice" },
+                { id: '4', code: "COR", name: "Correspondence" },
+                { id: 'others', code: "OTH", name: "Others" }
+            ];
+
+            pageSubTypes = {
+                '1': [
+                    { id: '1', code: "NFC", name: "New File Cover" }, 
+                    { id: '2', code: "OFC", name: "Old File Cover" },
+                    { id: 'others', code: "OTH", name: "Others" }
+                ],
+                '2': [
+                    { id: '3', code: "CO", name: "Certificate of Occupancy" }, 
+                    { id: '4', code: "REV", name: "Revalidation" },
+                    { id: 'others', code: "OTH", name: "Others" }
+                ]
+            };
+        }
+
+        // Initialize form options
+        function initializeFormOptions() {
+            // Populate cover type selects
+            document.querySelectorAll('.cover-type-select').forEach(select => {
+                select.innerHTML = '<option value="">Select cover type</option>';
+                coverTypes.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.id;
+                    option.textContent = `${type.name} (${type.code})`;
+                    select.appendChild(option);
+                });
+            });
+
+            // Populate page type selects
+            document.querySelectorAll('.page-type-select').forEach(select => {
+                select.innerHTML = '<option value="">Select page type</option>';
+                pageTypes.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.id;
+                    option.textContent = `${type.name} (${type.code})`;
+                    select.appendChild(option);
+                });
+            });
+
+            // Initialize page type change handlers
+            initializePageTypeHandlers();
+        }
+
+        // Update page subtypes based on selected page type
+        function updatePageSubtypes(pageIndex) {
+            const subtypeSelect = document.querySelector(`.page-subtype-select[data-page-index="${pageIndex}"]`);
+            const pageTypeSelect = document.querySelector(`.page-type-select[data-page-index="${pageIndex}"]`);
+            
+            if (!subtypeSelect || !pageTypeSelect) return;
+
+            const selectedPageType = pageTypeSelect.value;
+            const initialValue = subtypeSelect.dataset.initialValue ?? '';
+            let selectedValue = subtypeSelect.value || initialValue;
+            subtypeSelect.innerHTML = '<option value="">Select page subtype</option>';
+
+            if (selectedPageType && pageSubTypes[selectedPageType]) {
+                pageSubTypes[selectedPageType].forEach(st => {
+                    const option = document.createElement('option');
+                    option.value = st.id;
+                    option.textContent = `${st.code} - ${st.name}`;
+                    subtypeSelect.appendChild(option);
+                });
+            }
+
+            if (selectedValue) {
+                subtypeSelect.value = selectedValue;
+            }
+
+            // Ensure the "others" input visibility is synced after value assignment
+            toggleOthersInput(subtypeSelect, '.page-subtype-others-container');
+            
+            // Update test results
+            updateTestResults();
+        }
+
+        // Initialize page type change handlers
+        function initializePageTypeHandlers() {
+            // Page type change handlers
+            document.querySelectorAll('.page-type-select').forEach(select => {
+                select.addEventListener('change', function() {
+                    const pageIndex = parseInt(this.dataset.pageIndex);
+                    updatePageSubtypes(pageIndex);
+                });
+            });
+
+            // Cover type and page type change handlers for test results
+            document.querySelectorAll('.cover-type-select, .page-type-select, .page-subtype-select').forEach(select => {
+                select.addEventListener('change', updateTestResults);
+            });
+        }
+
+        // Update test results display
+        function updateTestResults() {
+            const coverSelect = document.querySelector('.cover-type-select');
+            const pageTypeSelect = document.querySelector('.page-type-select');
+            const subtypeSelect = document.querySelector('.page-subtype-select');
+            
+            const resultsContent = document.getElementById('resultsContent');
+            
+            let html = '<ul>';
+            html += `<li><strong>Cover Types Available:</strong> ${coverTypes.length} options</li>`;
+            html += `<li><strong>Page Types Available:</strong> ${pageTypes.length} options</li>`;
+            html += `<li><strong>Selected Cover Type:</strong> ${coverSelect.value || 'None'}</li>`;
+            html += `<li><strong>Selected Page Type:</strong> ${pageTypeSelect.value || 'None'}</li>`;
+            html += `<li><strong>Selected Subtype:</strong> ${subtypeSelect.value || 'None'}</li>`;
+            
+            if (pageTypeSelect.value && pageSubTypes[pageTypeSelect.value]) {
+                html += `<li><strong>Available Subtypes:</strong> ${pageSubTypes[pageTypeSelect.value].length} options</li>`;
+            } else {
+                html += `<li><strong>Available Subtypes:</strong> 0 options (select a page type first)</li>`;
+            }
+            html += '</ul>';
+            
+            resultsContent.innerHTML = html;
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setDefaultPageTypingData();
+            initializeFormOptions();
+            updateTestResults();
+        });
+    </script>
+</body>
+</html>

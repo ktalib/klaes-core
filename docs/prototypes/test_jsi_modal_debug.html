@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSI Modal Population Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
+        .step { margin: 10px 0; padding: 10px; background: white; border-left: 4px solid #3B82F6; }
+        .success { color: #10B981; font-weight: bold; }
+        .error { color: #EF4444; font-weight: bold; }
+        .warning { color: #F59E0B; font-weight: bold; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+        .test-url { background: #f8f9fa; padding: 8px; border-radius: 4px; font-family: monospace; color: #666; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 JSI Modal Population - Debug Test Results</h1>
+        <p><strong>Test Date:</strong> October 8, 2025</p>
+        <p><strong>Issue Status:</strong> <span class="warning">Under Investigation</span></p>
+
+        <div class="test-section">
+            <h3>🐛 Current Issues</h3>
+            <div class="step">
+                <strong class="error">Error 1:</strong> JSI records not displaying in modal
+            </div>
+            <div class="step">
+                <strong class="error">Error 2:</strong> SyntaxError: Unexpected token '&lt;', "&lt;!DOCTYPE "... is not valid JSON
+                <div class="code">
+loadExistingInspectionReport @ planning_recomm?url=view:4058
+                </div>
+                <p><strong>Root Cause:</strong> AJAX call expecting JSON but receiving HTML</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ Fixes Applied</h3>
+            <div class="step">
+                <strong class="success">✅ Controller JSON Response Added:</strong>
+                <p>Updated <code>showJointSiteInspectionReport</code> and <code>showSubJointSiteInspectionReport</code> methods to return JSON for AJAX requests</p>
+                <div class="code">
+// Added to both methods:
+if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+    return response()->json([
+        'success' => true,
+        'data' => $report,
+        'dimensions' => $dimensions,
+        'utilities' => $utilities,
+        'unitMeasurements' => $unitMeasurements,
+        'sharedAreasList' => $sharedAreasList,
+    ]);
+}
+                </div>
+            </div>
+            <div class="step">
+                <strong class="success">✅ Modal Population Logic Added:</strong>
+                <p>Enhanced <code>openJointInspectionModal()</code> to use saved report data from <code>window.jointInspectionSavedReport</code></p>
+            </div>
+            <div class="step">
+                <strong class="success">✅ Debug Code Cleaned:</strong>
+                <p>Removed temporary debug console logs and HTML elements</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Testing Instructions</h3>
+            
+            <div class="step">
+                <strong>Step 1: Verify Data Availability</strong>
+                <div class="test-url">URL: /sub-actions/recommendation/2064</div>
+                <p>1. Open browser console (F12)</p>
+                <p>2. Navigate to the page</p>
+                <p>3. In console, type: <code>window.jointInspectionSavedReport</code></p>
+                <p><strong>Expected:</strong> Should show the saved JSI report object with ID 16</p>
+            </div>
+
+            <div class="step">
+                <strong>Step 2: Test Modal Opening</strong>
+                <p>1. Click "Joint Site Inspection Report" tab</p>
+                <p>2. Click "Edit Report" or "Create New Report" button</p>
+                <p>3. Check if modal opens with populated data</p>
+                <p><strong>Expected:</strong> Form fields should contain saved data</p>
+            </div>
+
+            <div class="step">
+                <strong>Step 3: Database Verification</strong>
+                <div class="code">
+-- Verify the JSI record exists:
+SELECT id, sub_application_id, inspection_date, applicant_name, 
+       is_generated, is_submitted
+FROM joint_site_inspection_reports 
+WHERE sub_application_id = 2064
+                </div>
+                <p><strong>Expected:</strong> Should return record ID 16 with data</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚨 Known Issues to Watch For</h3>
+            <div class="step">
+                <strong class="warning">Issue: AJAX Error Still Occurring</strong>
+                <p><strong>If error persists:</strong> The AJAX call might be coming from a different JavaScript file</p>
+                <p><strong>Solution:</strong> Check browser Network tab to see which endpoint is being called</p>
+            </div>
+            <div class="step">
+                <strong class="warning">Issue: Modal Still Empty</strong>
+                <p><strong>Possible cause:</strong> JavaScript variable <code>window.jointInspectionSavedReport</code> is null</p>
+                <p><strong>Check:</strong> Console should show the saved report data</p>
+            </div>
+            <div class="step">
+                <strong class="warning">Issue: Form Fields Not Populating</strong>
+                <p><strong>Possible cause:</strong> Field name mismatch between database and form</p>
+                <p><strong>Check:</strong> Verify field names in <code>populateJointInspectionForm</code> function</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔬 Debug Steps</h3>
+            <div class="step">
+                <strong>1. Check JavaScript Variables:</strong>
+                <div class="code">
+// In browser console:
+console.log('Defaults:', window.jointInspectionDefaults);
+console.log('Saved Report:', window.jointInspectionSavedReport);
+console.log('Boundary Segments:', window.jointInspectionBoundarySegments);
+                </div>
+            </div>
+            <div class="step">
+                <strong>2. Monitor Network Requests:</strong>
+                <p>Open Network tab in browser dev tools and watch for any AJAX requests when opening the modal</p>
+            </div>
+            <div class="step">
+                <strong>3. Check Form Population:</strong>
+                <p>After opening modal, inspect form fields to see if they have values</p>
+                <div class="code">
+// Check specific fields:
+document.querySelector('[name="applicant_name"]').value
+document.querySelector('[name="inspection_date"]').value
+document.querySelector('[name="lkn_number"]').value
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Expected Results After Fixes</h3>
+            <div class="step">
+                <strong class="success">✅ No AJAX Errors:</strong> Should not see JSON parsing errors in console
+            </div>
+            <div class="step">
+                <strong class="success">✅ Modal Populated:</strong> JSI modal should open with all saved data filled in
+            </div>
+            <div class="step">
+                <strong class="success">✅ Workflow Buttons:</strong> Buttons should reflect correct state (Generate enabled if saved, Submit enabled if generated)
+            </div>
+            <div class="step">
+                <strong class="success">✅ Status Display:</strong> Should show correct status (💾 Saved, 📋 Generated, or ✅ Submitted)
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Next Steps</h3>
+            <p><strong>Please test and report:</strong></p>
+            <ol>
+                <li>What shows when you type <code>window.jointInspectionSavedReport</code> in console?</li>
+                <li>Does the modal open with populated data?</li>
+                <li>Are there any errors in the browser console?</li>
+                <li>What shows in the Network tab when opening the modal?</li>
+            </ol>
+            <p><strong class="warning">If issues persist:</strong> We may need to add more specific debugging or check for JavaScript conflicts.</p>
+        </div>
+    </div>
+</body>
+</html>

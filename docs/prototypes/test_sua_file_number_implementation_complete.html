@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUA File Number Generation Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .success { color: #16a34a; background: #dcfce7; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; }
+        .error { color: #dc2626; background: #fef2f2; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; }
+        .info { color: #0ea5e9; background: #e0f2fe; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; }
+        .test-case { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin: 1rem 0; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">🧱 SUA File Number Generation Test</h1>
+        
+        <div class="info">
+            <h2>✅ SUA File Number Generation Implementation Complete</h2>
+            <p><strong>Updated Components:</strong></p>
+            <ul class="list-disc ml-6 mt-2">
+                <li>Created <code>sua_file_numbers</code> database table</li>
+                <li>Implemented <code>SUAFileNumberService</code> class</li>
+                <li>Updated <code>SUAController</code> to use the new service</li>
+                <li>New file number format: <strong>ST-[LAND_USE]-[YEAR]-[SEQUENCE]-[UNIT_SEQUENCE]</strong></li>
+            </ul>
+        </div>
+
+        <div class="test-case">
+            <h3 class="text-xl font-semibold mb-4">📋 Implementation Summary</h3>
+            
+            <h4 class="font-semibold text-lg mb-2">🧱 1. Main File Number Format</h4>
+            <div class="bg-gray-50 p-4 rounded mb-4">
+                <p><strong>Format:</strong> <code>ST-[LAND_USE]-[YEAR]-[SEQUENCE]</code></p>
+                <p><strong>Examples:</strong></p>
+                <ul class="list-disc ml-6">
+                    <li><code>ST-RES-2025-1</code> (First residential application)</li>
+                    <li><code>ST-COM-2025-1</code> (First commercial application)</li>
+                    <li><code>ST-IND-2025-1</code> (First industrial application)</li>
+                </ul>
+                <p class="mt-2"><strong>Rules:</strong></p>
+                <ul class="list-disc ml-6">
+                    <li>Land use specific sequences (RES, COM, IND)</li>
+                    <li>Current year always used</li>
+                    <li>Sequence increments within each land use group</li>
+                </ul>
+            </div>
+
+            <h4 class="font-semibold text-lg mb-2">🧩 2. SUA File Number Format</h4>
+            <div class="bg-gray-50 p-4 rounded mb-4">
+                <p><strong>Format:</strong> <code>ST-[LAND_USE]-[YEAR]-[SEQUENCE]-[UNIT_SEQUENCE]</code></p>
+                <p><strong>Examples:</strong></p>
+                <ul class="list-disc ml-6">
+                    <li><code>ST-RES-2025-1-001</code> (First unit of first residential application)</li>
+                    <li><code>ST-COM-2025-2-001</code> (First unit of second commercial application)</li>
+                    <li><code>ST-IND-2025-1-001</code> (First unit of first industrial application)</li>
+                </ul>
+                <p class="mt-2"><strong>Rules:</strong></p>
+                <ul class="list-disc ml-6">
+                    <li>Extends main file number with 3-digit unit suffix</li>
+                    <li>Unit sequence starts at 001 for each new SUA</li>
+                    <li>Consistent between FileNo and MLS FileNo</li>
+                </ul>
+            </div>
+
+            <h4 class="font-semibold text-lg mb-2">⚙️ 3. Technical Implementation</h4>
+            <div class="bg-gray-50 p-4 rounded mb-4">
+                <p><strong>Database Table:</strong> <code>sua_file_numbers</code></p>
+                <ul class="list-disc ml-6">
+                    <li>Tracks main and SUA file numbers</li>
+                    <li>Land use specific sequences</li>
+                    <li>References to subapplications table</li>
+                    <li>Audit trail and metadata</li>
+                </ul>
+                
+                <p class="mt-3"><strong>Service Class:</strong> <code>SUAFileNumberService</code></p>
+                <ul class="list-disc ml-6">
+                    <li>Handles file number generation logic</li>
+                    <li>Ensures sequence consistency</li>
+                    <li>Manages database storage</li>
+                    <li>Error handling and logging</li>
+                </ul>
+                
+                <p class="mt-3"><strong>Controller Updates:</strong> <code>SUAController</code></p>
+                <ul class="list-disc ml-6">
+                    <li>Uses service for file number generation</li>
+                    <li>Stores file numbers in tracking table</li>
+                    <li>Updated API endpoints</li>
+                    <li>Consistent response format</li>
+                </ul>
+            </div>
+
+            <h4 class="font-semibold text-lg mb-2">🔍 4. Testing Checklist</h4>
+            <div class="bg-gray-50 p-4 rounded">
+                <p><strong>Manual Testing Steps:</strong></p>
+                <ol class="list-decimal ml-6">
+                    <li>Create SUA applications for different land uses</li>
+                    <li>Verify file number format follows specification</li>
+                    <li>Check sequence increments correctly within land use groups</li>
+                    <li>Confirm consistency between FileNo and MLS FileNo</li>
+                    <li>Test that existing non-SUA file numbering remains unchanged</li>
+                </ol>
+                
+                <p class="mt-3"><strong>Database Verification:</strong></p>
+                <ul class="list-disc ml-6">
+                    <li>Check <code>sua_file_numbers</code> table records</li>
+                    <li>Verify <code>subapplications</code> table updates</li>
+                    <li>Confirm foreign key relationships</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="success">
+            <h3><strong>✅ Implementation Status: COMPLETE</strong></h3>
+            <p>
+                The SUA file number auto-generation system has been successfully implemented according to the specifications:
+            </p>
+            <ul class="list-disc ml-6 mt-2">
+                <li>✅ Main file number format: <code>ST-[LAND_USE]-[YEAR]-[SEQUENCE]</code></li>
+                <li>✅ SUA file number format: <code>ST-[LAND_USE]-[YEAR]-[SEQUENCE]-[UNIT_SEQUENCE]</code></li>
+                <li>✅ Land use specific sequencing (RES, COM, IND)</li>
+                <li>✅ Created <code>sua_file_numbers</code> tracking table</li>
+                <li>✅ Implemented service-based architecture</li>
+                <li>✅ Updated controller and API endpoints</li>
+                <li>✅ Non-SUA applications remain unchanged</li>
+            </ul>
+        </div>
+
+        <div class="test-case">
+            <h3 class="text-xl font-semibold mb-4">🚀 Next Steps</h3>
+            <ol class="list-decimal ml-6">
+                <li><strong>Test the implementation:</strong> Create SUA applications to verify file number generation</li>
+                <li><strong>Clear caches:</strong> Run <code>php artisan config:clear; php artisan cache:clear</code></li>
+                <li><strong>Monitor logs:</strong> Check for any errors during file number generation</li>
+                <li><strong>Validate database:</strong> Ensure records are created correctly in both tables</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

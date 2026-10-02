@@ -1,0 +1,184 @@
+.file-tracker-dashboard {
+    background-color: #f9fafb;
+    min-height: calc(100vh - 3rem);
+}
+
+.file-tracker-dashboard .dialog-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 50;
+}
+
+.file-tracker-dashboard .dialog-overlay.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-tracker-dashboard .dialog-content {
+    background: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    max-width: 700px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.file-tracker-dashboard .priority-LOW {
+    background-color: #10b981;
+    color: #ffffff;
+}
+
+.file-tracker-dashboard .priority-MEDIUM {
+    background-color: #f59e0b;
+    color: #ffffff;
+}
+
+.file-tracker-dashboard .priority-HIGH {
+    background-color: #ef4444;
+    color: #ffffff;
+}
+
+.file-tracker-dashboard .details-dialog {
+    max-width: 800px;
+    width: 95%;
+}
+
+.file-tracker-dashboard .log-entry {
+    border-left: 3px solid #3b82f6;
+    padding-left: 1rem;
+    margin-bottom: 1rem;
+}
+
+.file-tracker-dashboard .log-entry-active {
+    border-left-color: #10b981;
+    background-color: #f0f9ff;
+}
+
+.file-tracker-dashboard .log-entry-completed {
+    border-left-color: #6b7280;
+}
+
+.file-tracker-dashboard .dashboard-card {
+    transition: all 0.3s ease;
+}
+
+.file-tracker-dashboard .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.file-tracker-dashboard .file-status-active {
+    background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.file-tracker-dashboard .file-status-completed {
+    background: linear-gradient(90deg, #6b7280, #4b5563);
+}
+
+.file-tracker-dashboard .file-status-pending {
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.file-tracker-dashboard .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+/* Status indicator colors */
+.file-tracker-dashboard .status-active {
+    background-color: #10b981; /* Green */
+}
+
+.file-tracker-dashboard .status-pending {
+    background-color: #f59e0b; /* Orange */
+}
+
+.file-tracker-dashboard .status-in-progress {
+    background-color: #3b82f6; /* Blue */
+}
+
+.file-tracker-dashboard .status-completed {
+    background-color: #6b7280; /* Gray */
+}
+
+.file-tracker-dashboard .status-on-hold {
+    background-color: #ef4444; /* Red */
+}
+
+.file-tracker-dashboard .status-review {
+    background-color: #8b5cf6; /* Purple */
+}
+
+.file-tracker-dashboard .status-approved {
+    background-color: #059669; /* Dark Green */
+}
+
+.file-tracker-dashboard .status-rejected {
+    background-color: #dc2626; /* Dark Red */
+}
+
+.file-tracker-dashboard .status-unknown {
+    background-color: #9ca3af; /* Light Gray */
+}
+
+.file-tracker-dashboard .chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.file-tracker-dashboard .fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.file-tracker-dashboard .file-row {
+    transition: all 0.3s ease;
+}
+
+.file-tracker-dashboard .file-row:hover {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), transparent);
+    transform: translateY(-2px);
+}
+
+.file-tracker-dashboard #charts-section {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s ease;
+}
+
+.file-tracker-dashboard #charts-section.show {
+    max-height: 1000px;
+}
+
+.file-tracker-dashboard .toggle-charts-btn {
+    transition: all 0.3s ease;
+}
+
+.file-tracker-dashboard .toggle-charts-btn:hover {
+    transform: scale(1.05);
+}

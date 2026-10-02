@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpine.js Property Form</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6" 
+         x-data="propertyForm()">
+        
+        <h1 class="text-2xl font-bold mb-6">Add Property Record - Alpine.js Version</h1>
+        
+        <form @submit.prevent="submitForm" class="space-y-6">
+            <!-- Basic Property Info -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Title Type</label>
+                    <div class="flex space-x-4">
+                        <label class="flex items-center">
+                            <input type="radio" x-model="titleType" value="Customary" class="mr-2">
+                            Customary
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" x-model="titleType" value="Statutory" class="mr-2">
+                            Statutory
+                        </label>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">File Number</label>
+                    <input type="text" x-model="fileNumber" class="w-full p-2 border rounded-md" placeholder="Enter file number">
+                </div>
+            </div>
+            
+            <!-- Property Details -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Plot Number</label>
+                    <input type="text" x-model="plotNumber" class="w-full p-2 border rounded-md" placeholder="Enter plot number">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">LGA/City</label>
+                    <select x-model="lga" class="w-full p-2 border rounded-md">
+                        <option value="">Select LGA</option>
+                        <option value="Kano Municipal">Kano Municipal</option>
+                        <option value="Fagge">Fagge</option>
+                        <option value="Dala">Dala</option>
+                        <option value="Gwale">Gwale</option>
+                        <option value="Tarauni">Tarauni</option>
+                        <option value="Nasarawa">Nasarawa</option>
+                        <option value="Ungogo">Ungogo</option>
+                        <option value="Kumbotso">Kumbotso</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Transaction Type -->
+            <div>
+                <label class="block text-sm font-medium mb-2">Transaction Type</label>
+                <select x-model="transactionType" class="w-full p-2 border rounded-md">
+                    <option value="">Select Transaction Type</option>
+                    <option value="Power of Attorney">Power of Attorney</option>
+                    <option value="Deed of Assignment">Deed of Assignment</option>
+                    <option value="Deed of Mortgage">Deed of Mortgage</option>
+                    <option value="Certificate of Occupancy">Certificate of Occupancy</option>
+                    <option value="Deed of Transfer">Deed of Transfer</option>
+                    <option value="Deed of Gift">Deed of Gift</option>
+                    <option value="Deed of Lease">Deed of Lease</option>
+                    <option value="Deed of Release">Deed of Release</option>
+                    <option value="Deed of Surrender">Deed of Surrender</option>
+                </select>
+            </div>
+            
+            <!-- Debug Info -->
+            <div x-show="transactionType" class="bg-yellow-100 border border-yellow-300 rounded p-3 text-sm">
+                <strong>Debug Info:</strong><br>
+                Selected Transaction: <span x-text="transactionType"></span><br>
+                Party Labels: <span x-text="currentPartyLabels.first"></span> / <span x-text="currentPartyLabels.second"></span><br>
+                Show Transaction Details: <span x-text="showTransactionDetails"></span>
+            </div>
+            
+            <!-- Transaction Details Section -->
+            <div x-show="showTransactionDetails" 
+                 x-transition
+                 class="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                <h3 class="text-lg font-semibold mb-4 text-green-800">Transaction Details</h3>
+                
+                <!-- Party Fields -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2" x-text="currentPartyLabels.first"></label>
+                        <input type="text" 
+                               x-model="firstParty" 
+                               class="w-full p-2 border rounded-md"
+                               :class="isGovernmentTransaction ? 'bg-gray-100' : ''"
+                               :readonly="isGovernmentTransaction"
+                               :placeholder="`Enter ${currentPartyLabels.first.toLowerCase()} name`">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2" x-text="currentPartyLabels.second"></label>
+                        <input type="text" 
+                               x-model="secondParty" 
+                               class="w-full p-2 border rounded-md"
+                               :placeholder="`Enter ${currentPartyLabels.second.toLowerCase()} name`">
+                    </div>
+                </div>
+                
+                <!-- Transaction Date -->
+                <div class="mt-4">
+                    <label class="block text-sm font-medium mb-2">Transaction Date</label>
+                    <input type="date" x-model="transactionDate" class="w-full p-2 border rounded-md">
+                </div>
+                
+                <!-- Registration Number -->
+                <div class="mt-4 grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Serial No.</label>
+                        <input type="text" x-model="serialNo" class="w-full p-2 border rounded-md" placeholder="e.g. 1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Page No.</label>
+                        <input type="text" x-model="pageNo" class="w-full p-2 border rounded-md" placeholder="e.g. 1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Volume No.</label>
+                        <input type="text" x-model="volumeNo" class="w-full p-2 border rounded-md" placeholder="e.g. 2">
+                    </div>
+                </div>
+                
+                <!-- Registration Number Preview -->
+                <div x-show="regNumberPreview" class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <strong>Registration Number:</strong> <span x-text="regNumberPreview"></span>
+                </div>
+            </div>
+            
+            <!-- Property Description -->
+            <div>
+                <label class="block text-sm font-medium mb-2">Property Description</label>
+                <textarea x-model="propertyDescription" rows="4" class="w-full p-2 border rounded-md" placeholder="Enter property description"></textarea>
+            </div>
+            
+            <!-- Submit Button -->
+            <div class="flex justify-end space-x-3">
+                <button type="button" @click="resetForm" class="bg-gray-500 text-white px-6 py-2 rounded-md hover:bg-gray-600">
+                    Reset
+                </button>
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">
+                    Save Property Record
+                </button>
+            </div>
+        </form>
+        
+        <!-- Form Data Preview -->
+        <div class="mt-8 p-4 bg-gray-50 rounded-lg">
+            <h3 class="font-semibold mb-2">Form Data Preview:</h3>
+            <pre x-text="JSON.stringify(getFormData(), null, 2)" class="text-xs bg-white p-2 rounded border overflow-auto max-h-40"></pre>
+        </div>
+    </div>
+
+    <script>
+        function propertyForm() {
+            return {
+                // Form fields
+                titleType: 'Customary',
+                fileNumber: '',
+                plotNumber: '',
+                lga: '',
+                transactionType: '',
+                firstParty: '',
+                secondParty: '',
+                transactionDate: '',
+                serialNo: '',
+                pageNo: '',
+                volumeNo: '',
+                propertyDescription: '',
+                
+                // Party labels for different transaction types
+                partyLabels: {
+                    'Power of Attorney': { first: 'Grantor', second: 'Grantee' },
+                    'Deed of Assignment': { first: 'Assignor', second: 'Assignee' },
+                    'Deed of Mortgage': { first: 'Mortgagor', second: 'Mortgagee' },
+                    'Certificate of Occupancy': { first: 'Grantor', second: 'Grantee' },
+                    'Deed of Transfer': { first: 'Transferor', second: 'Transferee' },
+                    'Deed of Gift': { first: 'Donor', second: 'Donee' },
+                    'Deed of Lease': { first: 'Lessor', second: 'Lessee' },
+                    'Deed of Release': { first: 'Releasor', second: 'Releasee' },
+                    'Deed of Surrender': { first: 'Surrenderor', second: 'Surrenderee' }
+                },
+                
+                // Computed properties
+                get showTransactionDetails() {
+                    return this.transactionType !== '';
+                },
+                
+                get currentPartyLabels() {
+                    return this.partyLabels[this.transactionType] || { first: 'First Party', second: 'Second Party' };
+                },
+                
+                get isGovernmentTransaction() {
+                    return this.transactionType === 'Certificate of Occupancy';
+                },
+                
+                get regNumberPreview() {
+                    const parts = [this.serialNo, this.pageNo, this.volumeNo].filter(Boolean);
+                    return parts.length > 0 ? parts.join('/') : '';
+                },
+                
+                // Watchers
+                init() {
+                    console.log('Alpine.js Property Form initialized');
+                    
+                    // Watch for transaction type changes
+                    this.$watch('transactionType', (value) => {
+                        console.log('Transaction type changed to:', value);
+                        
+                        // Auto-fill for government transactions
+                        if (this.isGovernmentTransaction) {
+                            this.firstParty = 'KANO STATE GOVERNMENT';
+                        } else {
+                            this.firstParty = '';
+                        }
+                    });
+                    
+                    // Auto-sync page number with serial number
+                    this.$watch('serialNo', (value) => {
+                        this.pageNo = value;
+                    });
+                },
+                
+                // Methods
+                getFormData() {
+                    return {
+                        titleType: this.titleType,
+                        fileNumber: this.fileNumber,
+                        plotNumber: this.plotNumber,
+                        lga: this.lga,
+                        transactionType: this.transactionType,
+                        firstParty: this.firstParty,
+                        secondParty: this.secondParty,
+                        transactionDate: this.transactionDate,
+                        serialNo: this.serialNo,
+                        pageNo: this.pageNo,
+                        volumeNo: this.volumeNo,
+                        regNumber: this.regNumberPreview,
+                        propertyDescription: this.propertyDescription
+                    };
+                },
+                
+                submitForm() {
+                    const formData = this.getFormData();
+                    console.log('Form submitted with data:', formData);
+                    
+                    // Here you would normally send to your Laravel backend
+                    alert('Form submitted successfully! Check console for data.');
+                },
+                
+                resetForm() {
+                    this.titleType = 'Customary';
+                    this.fileNumber = '';
+                    this.plotNumber = '';
+                    this.lga = '';
+                    this.transactionType = '';
+                    this.firstParty = '';
+                    this.secondParty = '';
+                    this.transactionDate = '';
+                    this.serialNo = '';
+                    this.pageNo = '';
+                    this.volumeNo = '';
+                    this.propertyDescription = '';
+                    
+                    console.log('Form reset');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

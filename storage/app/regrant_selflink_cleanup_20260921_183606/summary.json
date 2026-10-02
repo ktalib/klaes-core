@@ -1,0 +1,26 @@
+{
+    "tsa": [
+        {
+            "id": 948,
+            "before": {
+                "id": "948",
+                "file_no": "RES-RC-1982-52",
+                "see_fileno": "RES-RC-1982-52",
+                "title_type": "Re-granted To",
+                "reason": null,
+                "remark": "This File has been Re-granted to RES-RC-1982-52",
+                "is_deleted": "0"
+            },
+            "after": {
+                "id": "948",
+                "is_deleted": "1",
+                "deleted_at": "2026-09-21 18:36:06.857"
+            }
+        }
+    ],
+    "indexing": {
+        "scanned": 73,
+        "changed": 73,
+        "backup_file": "C:\\xampp\\htdocs\\klas\\storage\\app\/regrant_selflink_cleanup_20260921_183606\/file_indexings_related_fileno_before.json"
+    }
+}

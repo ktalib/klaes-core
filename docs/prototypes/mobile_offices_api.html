@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mobile Offices Directory API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #111827; }
+        code, pre { background: #f3f4f6; padding: 0.35rem 0.5rem; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.95rem; }
+        th, td { border: 1px solid #e5e7eb; padding: 0.6rem; text-align: left; }
+        th { background: #f9fafb; font-weight: 600; }
+        h1, h2, h3 { color: #0f172a; }
+        .note { font-size: 0.9rem; color: #475569; }
+    </style>
+</head>
+<body>
+    <h1>Offices Directory API</h1>
+    <p>
+        This document explains the REST endpoints that return the list of active offices for the Create File Tracker experience
+        and the React Native mobile client. Both endpoints expose the same public, read-only data sourced from the
+        <code>offices</code> table.
+    </p>
+
+    <h2>Highlights</h2>
+    <ul>
+        <li>Always returns the current set of active offices with no query parameters or filtering.</li>
+        <li>Identical JSON structure for web and mobile consumers.</li>
+        <li>No authentication required on either endpoint.</li>
+        <li>Each record contains only the fields required for dropdown population.</li>
+    </ul>
+
+    <h2>Endpoints</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Method &amp; Path</th>
+                <th>Description</th>
+                <th>Auth</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>GET /api/offices</code></td>
+                                <td>Returns the current list of active offices for web clients (used by Create File Tracker).</td>
+                                <td>Public</td>
+            </tr>
+            <tr>
+                <td><code>GET /api/mobile/offices</code></td>
+                                <td>Mobile-friendly mirror endpoint.</td>
+                                <td>Public</td>
+            </tr>
+        </tbody>
+    </table>
+
+        <h2>Query Parameters</h2>
+        <p>No query parameters are supported. Every request returns the complete list of active offices.</p>
+
+    <h2>Sample Response</h2>
+    <pre>{
+  "success": true,
+  "data": [
+    {
+            "id": 12,
+            "code": "LND-ADM-001",
+            "name": "Lands Administration",
+            "abbreviation": "LANDS"
+    },
+    {
+            "id": 13,
+            "code": "GIS-MAP-101",
+            "name": "GIS Mapping",
+            "abbreviation": "GIS"
+    }
+  ]
+}</pre>
+
+    <h2>Usage Example (React Native)</h2>
+        <pre>const fetchOffices = async () =&gt; {
+    const res = await fetch(`${API_URL}/mobile/offices`, {
+    method: 'GET',
+        headers: {
+            'Accept': 'application/json'
+        }
+  });
+
+  if (!res.ok) {
+    throw new Error('Unable to retrieve offices');
+  }
+
+  const payload = await res.json();
+  return payload.data || [];
+};</pre>
+
+    <h2>Implementation Notes</h2>
+    <ul>
+        <li><strong>Controller:</strong> <code>App\Http\Controllers\Api\OfficeController</code></li>
+        <li><strong>Routes:</strong> <code>routes/api.php</code> and <code>routes/mobile/offices.php</code></li>
+        <li><strong>Model:</strong> <code>App\Models\Office</code> (SQL Server connection enforced)</li>
+        <li><strong>Front-end integration:</strong> Create File Tracker now fetches offices via AJAX and hydrates dropdowns dynamically.</li>
+    </ul>
+
+    <p class="note">Always prefer HTTPS when consuming the API from mobile clients and cache the results client side where appropriate.</p>
+</body>
+</html>

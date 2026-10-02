@@ -1,0 +1,137 @@
+<script>
+// INLINE STEP NAVIGATION FIX - DIRECT IMPLEMENTATION
+console.log('🚀 Loading Inline Step Navigation Fix...');
+
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 Initializing inline step navigation...');
+    
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    // Clear any existing navigation functions to prevent conflicts
+    window.goToStep = null;
+    
+    // Simple, reliable navigation function
+    function goToStep(stepNumber) {
+        console.log(`🚀 Navigating to step ${stepNumber}`);
+        
+        // Hide all steps
+        const allSteps = document.querySelectorAll('.form-section');
+        console.log(`Found ${allSteps.length} steps to manage`);
+        
+        allSteps.forEach((step, index) => {
+            step.classList.remove('active-tab');
+            step.style.display = 'none';
+            console.log(`Hidden step ${index + 1}: ${step.id}`);
+        });
+        
+        // Show target step
+        const targetStep = document.getElementById(`step${stepNumber}`);
+        if (targetStep) {
+            targetStep.classList.add('active-tab');
+            targetStep.style.display = 'block';
+            
+            // Force visibility for step 3 and 4 specifically
+            if (stepNumber === 3 || stepNumber === 4) {
+                targetStep.style.visibility = 'visible';
+                targetStep.style.opacity = '1';
+                targetStep.style.position = 'static';
+                
+                // Ensure all child elements are visible
+                const children = targetStep.querySelectorAll('*');
+                children.forEach(child => {
+                    if (child.style.display === 'none') {
+                        child.style.display = '';
+                    }
+                });
+            }
+            
+            console.log(`✅ Showed step ${stepNumber}`);
+            
+            // Update step circles
+            updateStepCircles(stepNumber);
+            
+            // Update step text
+            updateStepText(stepNumber);
+            
+        } else {
+            console.error(`❌ Step not found: step${stepNumber}`);
+        }
+    }
+    
+    function updateStepCircles(currentStep) {
+        const stepCircles = document.querySelectorAll('.step-circle');
+        stepCircles.forEach((circle, index) => {
+            const stepNum = index + 1;
+            circle.classList.remove('active-tab', 'inactive-tab');
+            
+            if (stepNum === currentStep) {
+                circle.classList.add('active-tab');
+            } else {
+                circle.classList.add('inactive-tab');
+            }
+        });
+    }
+    
+    function updateStepText(currentStep) {
+        const stepTexts = document.querySelectorAll('[class*="Step"][class*="of"]');
+        stepTexts.forEach(text => {
+            text.textContent = `Step ${currentStep} of 4`;
+        });
+    }
+    
+    // Make function globally accessible
+    window.goToStep = goToStep;
+    
+    // Remove onclick attributes and attach clean event listeners
+    setTimeout(() => {
+        // Step circles
+        document.querySelectorAll('.step-circle').forEach((circle, index) => {
+            const stepNum = index + 1;
+            
+            // Remove any existing onclick attributes
+            circle.removeAttribute('onclick');
+            
+            // Add clean event listener
+            circle.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log(`🔘 Step circle ${stepNum} clicked`);
+                goToStep(stepNum);
+            });
+        });
+        
+        // Navigation buttons
+        const buttons = [
+            { id: 'nextStep1', target: 2 },
+            { id: 'nextStep2', target: 3 },
+            { id: 'nextStep3', target: 4 },
+            { id: 'backStep2', target: 1 },
+            { id: 'backStep3', target: 2 },
+            { id: 'backStep4', target: 3 }
+        ];
+        
+        buttons.forEach(btn => {
+            const element = document.getElementById(btn.id);
+            if (element) {
+                element.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    goToStep(btn.target);
+                });
+            }
+        });
+        
+        console.log('✅ All event listeners attached');
+    }, 1000);
+    
+    // Ensure step 1 is visible initially
+    setTimeout(() => {
+        goToStep(1);
+    }, 500);
+    
+    console.log('🎉 Inline step navigation initialized!');
+});
+</script>

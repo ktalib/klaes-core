@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PuA Buyer Autofill Enhanced Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 2px solid #ddd; border-radius: 8px; }
+        .form-group { margin: 10px 0; }
+        label { display: inline-block; width: 150px; font-weight: bold; }
+        input, select { margin: 5px; padding: 8px; width: 200px; border: 1px solid #ccc; border-radius: 4px; }
+        .hidden { display: none; }
+        .result { background: #f0f8ff; padding: 10px; margin: 10px 0; border-radius: 4px; border: 1px solid #007cba; }
+        .success { background: #f0fff0; border-color: #008000; }
+        .error { background: #fff0f0; border-color: #ff0000; }
+        button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #005a8b; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .highlight { background: yellow; padding: 2px 4px; }
+        
+        /* Enhanced styling for disabled Individual fields */
+        .pua-field-disabled {
+            background-color: #f3f4f6 !important;
+            color: #6b7280 !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
+            border-color: #d1d5db !important;
+        }
+        
+        .pua-field-disabled:focus {
+            outline: none !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+        }
+        
+        /* Disabled field indicator */
+        .field-disabled-indicator {
+            font-size: 11px;
+            color: #ef4444;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PuA Buyer Autofill Enhanced Test</h1>
+        <p><strong>Updated:</strong> Enhanced autofill functionality for Individual, Corporate, and Multiple Owners applicant types</p>
+        
+        <!-- Test Buyer Selection -->
+        <div class="test-section">
+            <h2>🔍 Test Buyer Selection</h2>
+            <div class="form-group">
+                <label>Select Buyer:</label>
+                <select id="pua_buyer_select" onchange="handlePuaBuyerSelection(this)">
+                    <option value="">-- No buyer selected --</option>
+                    <option value="1" 
+                            data-buyer-title="Mr" 
+                            data-buyer-name="Mr. JOHN MICHAEL DOE">
+                        Mr. JOHN MICHAEL DOE (Unit: A101)
+                    </option>
+                    <option value="2" 
+                            data-buyer-title="Mrs" 
+                            data-buyer-name="Mrs. JANE ELIZABETH SMITH">
+                        Mrs. JANE ELIZABETH SMITH (Unit: B202)
+                    </option>
+                    <option value="3" 
+                            data-buyer-title="" 
+                            data-buyer-name="ACME CONSTRUCTION LIMITED">
+                        ACME CONSTRUCTION LIMITED (Unit: C301)
+                    </option>
+                    <option value="4" 
+                            data-buyer-title="Dr" 
+                            data-buyer-name="Dr. ROBERT WILSON">
+                        Dr. ROBERT WILSON (Unit: D401)
+                    </option>
+                    <option value="5" 
+                            data-buyer-title="Ms" 
+                            data-buyer-name="MARY ANN JOHNSON">
+                        MARY ANN JOHNSON (Unit: E501)
+                    </option>
+                    <option value="6" 
+                            data-buyer-title="Eng" 
+                            data-buyer-name="Eng. PETER ALEXANDER BROWN">
+                        Eng. PETER ALEXANDER BROWN (Unit: F601)
+                    </option>
+                </select>
+            </div>
+            
+            <!-- Hidden field for buyer ID -->
+            <input type="hidden" id="pua_selected_buyer_id" value="">
+            
+            <!-- Buyer info display -->
+            <div id="pua_selected_buyer_info" class="hidden result">
+                <h3>📋 Selected Buyer Info:</h3>
+                <p><strong>Name:</strong> <span id="pua_buyer_name_display">-</span></p>
+            </div>
+        </div>
+        
+        <!-- Applicant Type Selection -->
+        <div class="test-section">
+            <h2>👤 Applicant Type Selection</h2>
+            <div class="form-group">
+                <label>
+                    <input type="radio" name="pua_applicant_type" value="Individual" checked>
+                    Individual
+                </label>
+                <label>
+                    <input type="radio" name="pua_applicant_type" value="Corporate">
+                    Corporate
+                </label>
+                <label>
+                    <input type="radio" name="pua_applicant_type" value="Multiple">
+                    Multiple Owners
+                </label>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <!-- Individual Fields -->
+            <div id="pua_individual_fields" class="test-section">
+                <h2>🧑 Individual Applicant Fields</h2>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <select id="pua_title">
+                        <option value="">Select Title</option>
+                        <option value="Mr">Mr</option>
+                        <option value="Mrs">Mrs</option>
+                        <option value="Miss">Miss</option>
+                        <option value="Ms">Ms</option>
+                        <option value="Dr">Dr</option>
+                        <option value="Prof">Prof</option>
+                        <option value="Eng">Eng</option>
+                        <option value="Arch">Arch</option>
+                    </select>
+                    <span id="pua_title_indicator" class="field-disabled-indicator" style="display: none;">🔒 Auto-filled</span>
+                </div>
+                <div class="form-group">
+                    <label>First Name:</label>
+                    <input type="text" id="pua_first_name">
+                    <span id="pua_first_name_indicator" class="field-disabled-indicator" style="display: none;">🔒 Auto-filled</span>
+                </div>
+                <div class="form-group">
+                    <label>Middle Name:</label>
+                    <input type="text" id="pua_middle_name">
+                    <span id="pua_middle_name_indicator" class="field-disabled-indicator" style="display: none;">🔒 Auto-filled</span>
+                </div>
+                <div class="form-group">
+                    <label>Last Name:</label>
+                    <input type="text" id="pua_last_name">
+                    <span id="pua_last_name_indicator" class="field-disabled-indicator" style="display: none;">🔒 Auto-filled</span>
+                </div>
+            </div>
+            
+            <!-- Corporate Fields -->
+            <div id="pua_corporate_fields" class="test-section" style="display: none;">
+                <h2>🏢 Corporate Applicant Fields</h2>
+                <div class="form-group">
+                    <label>Company Name:</label>
+                    <input type="text" id="pua_corporate_name">
+                </div>
+                <div class="form-group">
+                    <label>RC Number:</label>
+                    <input type="text" id="pua_rc_number">
+                </div>
+            </div>
+            
+            <!-- Multiple Owners Fields -->
+            <div id="pua_multiple_fields" class="test-section" style="display: none;">
+                <h2>👥 Multiple Owners Fields</h2>
+                <h3>👑 Primary Owner (Owner 1)</h3>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <select id="pua_owner_title">
+                        <option value="">Select Title</option>
+                        <option value="Mr">Mr</option>
+                        <option value="Mrs">Mrs</option>
+                        <option value="Miss">Miss</option>
+                        <option value="Ms">Ms</option>
+                        <option value="Dr">Dr</option>
+                        <option value="Prof">Prof</option>
+                        <option value="Eng">Eng</option>
+                        <option value="Arch">Arch</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>First Name:</label>
+                    <input type="text" id="pua_owner_first_name">
+                </div>
+                <div class="form-group">
+                    <label>Middle Name:</label>
+                    <input type="text" id="pua_owner_middle_name">
+                </div>
+                <div class="form-group">
+                    <label>Last Name:</label>
+                    <input type="text" id="pua_owner_last_name">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h2>🧪 Test Controls</h2>
+            <button onclick="runAutomatedTests()">🚀 Run Automated Tests</button>
+            <button onclick="clearAllFields()">🧹 Clear All Fields</button>
+            <button onclick="testNameParsing()">📝 Test Name Parsing</button>
+            <button onclick="testDisableFunction()">🔒 Test Disable/Enable</button>
+            <button onclick="showConsoleLog()">📊 Show Console Log</button>
+        </div>
+        
+        <!-- Test Results -->
+        <div class="test-section">
+            <h2>📊 Test Results</h2>
+            <div id="test_results" class="result">
+                Select a buyer and applicant type to see auto-fill results, or click "Run Automated Tests" for comprehensive testing.
+            </div>
+        </div>
+        
+        <!-- Console Log Display -->
+        <div id="console_log_section" class="test-section" style="display: none;">
+            <h2>📄 Console Log</h2>
+            <div id="console_output" class="result">
+                <pre id="console_pre"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Capture console.log for display
+        let consoleMessages = [];
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            consoleMessages.push(args.join(' '));
+            originalConsoleLog.apply(console, arguments);
+        };
+        
+        // Copy the enhanced functions from pua.js for testing
+        
+        function handlePuaBuyerSelection(selectElement) {
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            const buyerId = selectElement.value;
+            
+            // Store selected buyer ID
+            const buyerIdField = document.getElementById('pua_selected_buyer_id');
+            if (buyerIdField) {
+                buyerIdField.value = buyerId;
+            }
+            
+            const buyerInfo = document.getElementById('pua_selected_buyer_info');
+            
+            if (buyerId && buyerInfo) {
+                // Show buyer info
+                buyerInfo.classList.remove('hidden');
+                
+                // Update display fields
+                const nameDisplay = document.getElementById('pua_buyer_name_display');
+                if (nameDisplay) nameDisplay.textContent = selectedOption.dataset.buyerName || '-';
+                
+                // Auto-fill applicant fields
+                autofillPuaApplicantFields(selectedOption.dataset);
+            } else if (buyerInfo) {
+                // Hide buyer info
+                buyerInfo.classList.add('hidden');
+                // Clear applicant fields
+                clearPuaApplicantFields();
+            }
+        }
+
+        function autofillPuaApplicantFields(buyerData) {
+            // Get the selected applicant type
+            const selectedApplicantType = document.querySelector('input[name="pua_applicant_type"]:checked');
+            if (!selectedApplicantType) {
+                console.log('No applicant type selected');
+                return;
+            }
+            
+            const applicantType = selectedApplicantType.value;
+            console.log('Auto-filling for applicant type:', applicantType);
+            console.log('Buyer data:', buyerData);
+            
+            if (applicantType === 'Individual') {
+                autofillIndividualFields(buyerData);
+            } else if (applicantType === 'Corporate') {
+                autofillCorporateFields(buyerData);
+            } else if (applicantType === 'Multiple') {
+                autofillMultipleOwnersFields(buyerData);
+            }
+        }
+
+        function autofillIndividualFields(buyerData) {
+            // Parse buyer_name which might include title (e.g., "Mr. JOHN MICHAEL DOE")
+            if (buyerData.buyerName) {
+                const parsedName = parseFullNameWithTitle(buyerData.buyerName, buyerData.buyerTitle);
+                
+                // Fill title
+                const titleSelect = document.getElementById('pua_title');
+                if (titleSelect && parsedName.title) {
+                    // Try to match with available options
+                    for (let option of titleSelect.options) {
+                        if (option.value.toLowerCase() === parsedName.title.toLowerCase()) {
+                            titleSelect.value = option.value;
+                            break;
+                        }
+                    }
+                }
+                
+                // Fill first name
+                const firstNameField = document.getElementById('pua_first_name');
+                if (firstNameField && parsedName.firstName) {
+                    firstNameField.value = parsedName.firstName;
+                }
+                
+                // Fill middle name
+                const middleNameField = document.getElementById('pua_middle_name');
+                if (middleNameField && parsedName.middleName) {
+                    middleNameField.value = parsedName.middleName;
+                }
+                
+                // Fill last name
+                const lastNameField = document.getElementById('pua_last_name');
+                if (lastNameField && parsedName.lastName) {
+                    lastNameField.value = parsedName.lastName;
+                }
+                
+                // Disable and grey out Individual fields when buyer is selected
+                disableIndividualFields(true);
+                
+                console.log('Individual fields filled and disabled:', parsedName);
+            }
+        }
+
+        function disableIndividualFields(disable = true) {
+            const individualFields = ['pua_title', 'pua_first_name', 'pua_middle_name', 'pua_last_name'];
+            
+            individualFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                const indicator = document.getElementById(fieldId + '_indicator');
+                
+                if (field) {
+                    if (disable) {
+                        // Disable field and add disabled styling
+                        field.disabled = true;
+                        field.style.backgroundColor = '#f3f4f6'; // Light gray background
+                        field.style.color = '#6b7280'; // Gray text
+                        field.style.cursor = 'not-allowed';
+                        field.style.opacity = '0.6';
+                        field.setAttribute('readonly', 'readonly');
+                        field.title = 'Auto-filled from selected buyer - cannot edit';
+                        
+                        // Add disabled class for consistent styling
+                        field.classList.add('pua-field-disabled');
+                        
+                        // Show disabled indicator
+                        if (indicator) indicator.style.display = 'inline';
+                    } else {
+                        // Enable field and restore normal styling
+                        field.disabled = false;
+                        field.style.backgroundColor = '';
+                        field.style.color = '';
+                        field.style.cursor = '';
+                        field.style.opacity = '';
+                        field.removeAttribute('readonly');
+                        field.title = '';
+                        
+                        // Remove disabled class
+                        field.classList.remove('pua-field-disabled');
+                        
+                        // Hide disabled indicator
+                        if (indicator) indicator.style.display = 'none';
+                    }
+                }
+            });
+            
+            console.log('Individual fields', disable ? 'disabled' : 'enabled');
+        }
+
+        function autofillCorporateFields(buyerData) {
+            // For corporate, use the full buyer_name as company name
+            const corporateNameField = document.getElementById('pua_corporate_name');
+            if (corporateNameField && buyerData.buyerName) {
+                corporateNameField.value = buyerData.buyerName;
+                console.log('Corporate name filled:', buyerData.buyerName);
+            }
+        }
+
+        function autofillMultipleOwnersFields(buyerData) {
+            // Fill the Primary Owner (Owner 1) fields
+            if (buyerData.buyerName) {
+                const parsedName = parseFullNameWithTitle(buyerData.buyerName, buyerData.buyerTitle);
+                
+                // Fill primary owner title
+                const ownerTitleSelect = document.getElementById('pua_owner_title');
+                if (ownerTitleSelect && parsedName.title) {
+                    // Try to match with available options
+                    for (let option of ownerTitleSelect.options) {
+                        if (option.value.toLowerCase() === parsedName.title.toLowerCase()) {
+                            ownerTitleSelect.value = option.value;
+                            break;
+                        }
+                    }
+                }
+                
+                // Fill primary owner first name
+                const ownerFirstNameField = document.getElementById('pua_owner_first_name');
+                if (ownerFirstNameField && parsedName.firstName) {
+                    ownerFirstNameField.value = parsedName.firstName;
+                }
+                
+                // Fill primary owner middle name
+                const ownerMiddleNameField = document.getElementById('pua_owner_middle_name');
+                if (ownerMiddleNameField && parsedName.middleName) {
+                    ownerMiddleNameField.value = parsedName.middleName;
+                }
+                
+                // Fill primary owner last name
+                const ownerLastNameField = document.getElementById('pua_owner_last_name');
+                if (ownerLastNameField && parsedName.lastName) {
+                    ownerLastNameField.value = parsedName.lastName;
+                }
+                
+                console.log('Multiple owners primary owner fields filled:', parsedName);
+            }
+        }
+
+        function parseFullNameWithTitle(fullName, separateTitle = null) {
+            if (!fullName) {
+                return { title: '', firstName: '', middleName: '', lastName: '' };
+            }
+            
+            let title = separateTitle || '';
+            let nameWithoutTitle = fullName.trim();
+            
+            // Common titles to look for at the beginning
+            const titlePrefixes = ['Mr.', 'Mrs.', 'Miss.', 'Ms.', 'Dr.', 'Prof.', 'Eng.', 'Arch.', 'Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof', 'Eng', 'Arch'];
+            
+            // Check if the name starts with a title
+            for (let titlePrefix of titlePrefixes) {
+                const regex = new RegExp(`^${titlePrefix.replace('.', '\\.')}\\s+`, 'i');
+                if (regex.test(nameWithoutTitle)) {
+                    title = titlePrefix.replace('.', ''); // Remove dot for consistency
+                    nameWithoutTitle = nameWithoutTitle.replace(regex, '');
+                    break;
+                }
+            }
+            
+            // Split remaining name into parts
+            const nameParts = nameWithoutTitle.trim().split(/\s+/).filter(part => part.length > 0);
+            
+            let firstName = '';
+            let middleName = '';
+            let lastName = '';
+            
+            if (nameParts.length === 1) {
+                // Only one name part
+                firstName = nameParts[0];
+            } else if (nameParts.length === 2) {
+                // First and last name
+                firstName = nameParts[0];
+                lastName = nameParts[1];
+            } else if (nameParts.length >= 3) {
+                // First, middle, and last name
+                firstName = nameParts[0];
+                // All middle parts (in case there are multiple middle names)
+                middleName = nameParts.slice(1, -1).join(' ');
+                lastName = nameParts[nameParts.length - 1];
+            }
+            
+            return {
+                title: title,
+                firstName: firstName,
+                middleName: middleName,
+                lastName: lastName
+            };
+        }
+
+        function clearPuaApplicantFields() {
+            // Individual fields
+            const individualFields = ['pua_title', 'pua_first_name', 'pua_middle_name', 'pua_last_name'];
+            individualFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    if (field.tagName === 'SELECT') {
+                        field.selectedIndex = 0;
+                    } else {
+                        field.value = '';
+                    }
+                }
+            });
+            
+            // Re-enable Individual fields when clearing
+            disableIndividualFields(false);
+            
+            // Corporate fields
+            const corporateFields = ['pua_corporate_name', 'pua_rc_number'];
+            corporateFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) field.value = '';
+            });
+            
+            // Multiple owners fields (primary owner)
+            const multipleFields = ['pua_owner_title', 'pua_owner_first_name', 'pua_owner_middle_name', 'pua_owner_last_name'];
+            multipleFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    if (field.tagName === 'SELECT') {
+                        field.selectedIndex = 0;
+                    } else {
+                        field.value = '';
+                    }
+                }
+            });
+            
+            console.log('All PuA applicant fields cleared and Individual fields re-enabled');
+        }
+
+        // Handle applicant type changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const puaRadios = document.querySelectorAll('input[name="pua_applicant_type"]');
+            
+            puaRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    // Hide all sections
+                    document.getElementById('pua_individual_fields').style.display = 'none';
+                    document.getElementById('pua_corporate_fields').style.display = 'none';
+                    document.getElementById('pua_multiple_fields').style.display = 'none';
+                    
+                    // Clear all fields when switching types
+                    clearPuaApplicantFields();
+                    
+                    // Show selected section
+                    if (this.value === 'Individual') {
+                        document.getElementById('pua_individual_fields').style.display = 'block';
+                    } else if (this.value === 'Corporate') {
+                        document.getElementById('pua_corporate_fields').style.display = 'block';
+                    } else if (this.value === 'Multiple') {
+                        document.getElementById('pua_multiple_fields').style.display = 'block';
+                    }
+                    
+                    // Re-autofill if buyer is selected
+                    const selectedBuyerSelect = document.getElementById('pua_buyer_select');
+                    if (selectedBuyerSelect && selectedBuyerSelect.value) {
+                        const selectedOption = selectedBuyerSelect.options[selectedBuyerSelect.selectedIndex];
+                        if (selectedOption && selectedOption.dataset) {
+                            console.log('Re-autofilling fields after applicant type change to:', this.value);
+                            autofillPuaApplicantFields(selectedOption.dataset);
+                        }
+                    } else {
+                        // If no buyer is selected, ensure Individual fields are enabled
+                        if (this.value === 'Individual') {
+                            disableIndividualFields(false);
+                        }
+                    }
+                });
+            });
+        });
+
+        // Test functions
+        function runAutomatedTests() {
+            const results = [];
+            consoleMessages = []; // Clear console messages
+            
+            results.push('🧪 <span class="highlight">AUTOMATED TESTS STARTED</span>');
+            results.push('==================================================');
+            
+            // Test 1: Individual with Mr. JOHN MICHAEL DOE
+            results.push('\n🧑 <strong>Test 1 - Individual (Mr. JOHN MICHAEL DOE):</strong>');
+            document.getElementById('pua_individual').checked = true;
+            document.getElementById('pua_individual').dispatchEvent(new Event('change'));
+            document.getElementById('pua_buyer_select').value = '1';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            
+            const titleField = document.getElementById('pua_title');
+            const firstNameField = document.getElementById('pua_first_name');
+            results.push(`  ✅ Title: <strong>${titleField.value || 'EMPTY'}</strong> (disabled: ${titleField.disabled})`);
+            results.push(`  ✅ First Name: <strong>${firstNameField.value || 'EMPTY'}</strong> (disabled: ${firstNameField.disabled})`);
+            results.push(`  ✅ Middle Name: <strong>${document.getElementById('pua_middle_name').value || 'EMPTY'}</strong>`);
+            results.push(`  ✅ Last Name: <strong>${document.getElementById('pua_last_name').value || 'EMPTY'}</strong>`);
+            
+            // Test 2: Corporate with ACME CONSTRUCTION LIMITED
+            results.push('\n🏢 <strong>Test 2 - Corporate (ACME CONSTRUCTION LIMITED):</strong>');
+            document.getElementById('pua_corporate').checked = true;
+            document.getElementById('pua_corporate').dispatchEvent(new Event('change'));
+            document.getElementById('pua_buyer_select').value = '3';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            
+            results.push(`  ✅ Company Name: <strong>${document.getElementById('pua_corporate_name').value || 'EMPTY'}</strong>`);
+            
+            // Test 3: Multiple with Mrs. JANE ELIZABETH SMITH
+            results.push('\n👥 <strong>Test 3 - Multiple Owners (Mrs. JANE ELIZABETH SMITH):</strong>');
+            document.getElementById('pua_multiple').checked = true;
+            document.getElementById('pua_multiple').dispatchEvent(new Event('change'));
+            document.getElementById('pua_buyer_select').value = '2';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            
+            results.push(`  👑 Primary Owner Title: <strong>${document.getElementById('pua_owner_title').value || 'EMPTY'}</strong>`);
+            results.push(`  👑 Primary Owner First Name: <strong>${document.getElementById('pua_owner_first_name').value || 'EMPTY'}</strong>`);
+            results.push(`  👑 Primary Owner Middle Name: <strong>${document.getElementById('pua_owner_middle_name').value || 'EMPTY'}</strong>`);
+            results.push(`  👑 Primary Owner Last Name: <strong>${document.getElementById('pua_owner_last_name').value || 'EMPTY'}</strong>`);
+            
+            // Test 4: Engineer title test
+            results.push('\n⚙️ <strong>Test 4 - Individual (Eng. PETER ALEXANDER BROWN):</strong>');
+            document.getElementById('pua_individual').checked = true;
+            document.getElementById('pua_individual').dispatchEvent(new Event('change'));
+            document.getElementById('pua_buyer_select').value = '6';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            
+            results.push(`  ✅ Title: <strong>${document.getElementById('pua_title').value || 'EMPTY'}</strong>`);
+            results.push(`  ✅ First Name: <strong>${document.getElementById('pua_first_name').value || 'EMPTY'}</strong>`);
+            results.push(`  ✅ Middle Name: <strong>${document.getElementById('pua_middle_name').value || 'EMPTY'}</strong>`);
+            results.push(`  ✅ Last Name: <strong>${document.getElementById('pua_last_name').value || 'EMPTY'}</strong>`);
+            
+            results.push('\n==================================================');
+            results.push('🎉 <span class="highlight">ALL TESTS COMPLETED</span>');
+            results.push(`📊 Console messages captured: ${consoleMessages.length}`);
+            
+            document.getElementById('test_results').innerHTML = results.join('<br>');
+            document.getElementById('test_results').className = 'result success';
+        }
+
+        function testNameParsing() {
+            const testNames = [
+                { input: "Mr. JOHN MICHAEL DOE", title: "Mr" },
+                { input: "Mrs. JANE ELIZABETH SMITH", title: "Mrs" },
+                { input: "ACME CONSTRUCTION LIMITED", title: "" },
+                { input: "Dr. ROBERT WILSON", title: "Dr" },
+                { input: "MARY ANN JOHNSON", title: "Ms" },
+                { input: "Eng. PETER ALEXANDER BROWN", title: "Eng" },
+                { input: "Prof. Sarah Jessica Parker", title: "Prof" },
+                { input: "SINGLE_NAME", title: "" }
+            ];
+            
+            const results = [];
+            results.push('📝 <span class="highlight">NAME PARSING TEST</span>');
+            results.push('==================================================');
+            
+            testNames.forEach((test, index) => {
+                const parsed = parseFullNameWithTitle(test.input, test.title);
+                results.push(`\n<strong>Test ${index + 1}:</strong> "${test.input}" (title: "${test.title}")`);
+                results.push(`  → Title: <strong>${parsed.title}</strong>`);
+                results.push(`  → First: <strong>${parsed.firstName}</strong>`);
+                results.push(`  → Middle: <strong>${parsed.middleName}</strong>`);
+                results.push(`  → Last: <strong>${parsed.lastName}</strong>`);
+            });
+            
+            document.getElementById('test_results').innerHTML = results.join('<br>');
+            document.getElementById('test_results').className = 'result';
+        }
+
+        function clearAllFields() {
+            document.getElementById('pua_buyer_select').value = '';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            document.getElementById('test_results').innerHTML = '🧹 All fields cleared.';
+            document.getElementById('test_results').className = 'result';
+            consoleMessages = [];
+        }
+
+        function testDisableFunction() {
+            const results = [];
+            results.push('🔒 <span class="highlight">DISABLE/ENABLE FUNCTIONALITY TEST</span>');
+            results.push('==================================================');
+            
+            // Set to Individual type first
+            document.getElementById('pua_individual').checked = true;
+            document.getElementById('pua_individual').dispatchEvent(new Event('change'));
+            
+            // Test 1: Manual disable
+            results.push('\n<strong>Test 1 - Manual Disable:</strong>');
+            disableIndividualFields(true);
+            const titleField = document.getElementById('pua_title');
+            const firstNameField = document.getElementById('pua_first_name');
+            results.push(`  ✅ Title field disabled: <strong>${titleField.disabled}</strong>`);
+            results.push(`  ✅ First name field disabled: <strong>${firstNameField.disabled}</strong>`);
+            results.push(`  ✅ Title field background: <strong>${titleField.style.backgroundColor}</strong>`);
+            
+            // Test 2: Manual enable
+            results.push('\n<strong>Test 2 - Manual Enable:</strong>');
+            disableIndividualFields(false);
+            results.push(`  ✅ Title field enabled: <strong>${!titleField.disabled}</strong>`);
+            results.push(`  ✅ First name field enabled: <strong>${!firstNameField.disabled}</strong>`);
+            
+            // Test 3: Autofill with disable (using buyer 1)
+            results.push('\n<strong>Test 3 - Autofill with Auto-Disable:</strong>');
+            document.getElementById('pua_buyer_select').value = '1';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            results.push(`  ✅ Fields autofilled and disabled after buyer selection`);
+            results.push(`  ✅ Title value: <strong>${titleField.value}</strong> (disabled: ${titleField.disabled})`);
+            results.push(`  ✅ First name value: <strong>${firstNameField.value}</strong> (disabled: ${firstNameField.disabled})`);
+            
+            // Test 4: Clear and re-enable
+            results.push('\n<strong>Test 4 - Clear and Re-enable:</strong>');
+            document.getElementById('pua_buyer_select').value = '';
+            handlePuaBuyerSelection(document.getElementById('pua_buyer_select'));
+            results.push(`  ✅ Fields cleared and re-enabled after clearing buyer`);
+            results.push(`  ✅ Title enabled: <strong>${!titleField.disabled}</strong>`);
+            results.push(`  ✅ First name enabled: <strong>${!firstNameField.disabled}</strong>`);
+            
+            results.push('\n==================================================');
+            results.push('🎉 <span class="highlight">DISABLE/ENABLE TESTS COMPLETED</span>');
+            
+            document.getElementById('test_results').innerHTML = results.join('<br>');
+            document.getElementById('test_results').className = 'result success';
+        }
+
+        function showConsoleLog() {
+            const consoleSection = document.getElementById('console_log_section');
+            const consolePre = document.getElementById('console_pre');
+            
+            if (consoleSection.style.display === 'none') {
+                consoleSection.style.display = 'block';
+                consolePre.textContent = consoleMessages.join('\n') || 'No console messages captured yet.';
+            } else {
+                consoleSection.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

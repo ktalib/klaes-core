@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Processing System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 1.5rem;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        /* File Pages Card (First View) */
+        .file-pages-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        .file-pages-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .file-pages-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .file-badge {
+            background: #007bff;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .pdf-preview-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .pdf-icon {
+            font-size: 4rem;
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+        
+        .pdf-filename {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .pdf-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .pages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .page-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .page-card:hover {
+            border-color: #007bff;
+            box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .page-thumbnail {
+            width: 100%;
+            height: 120px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        
+        .page-thumbnail img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .page-thumbnail .loading {
+            color: #6c757d;
+            font-size: 0.8rem;
+        }
+        
+        .page-number {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .page-format {
+            font-size: 0.75rem;
+            color: #007bff;
+            font-weight: 500;
+        }
+        
+        /* Categorization Card (Second View) */
+        .categorization-card {
+            display: none;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        .categorization-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .categorization-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .back-btn:hover {
+            background: #545b62;
+        }
+        
+        .categorization-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+        }
+        
+        .document-preview {
+            text-align: center;
+        }
+        
+        .page-preview-container {
+            margin-top: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+            max-height: 400px;
+            overflow: auto;
+        }
+        
+        #page-preview-canvas {
+            max-width: 100%;
+            max-height: 350px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+        
+        .document-icon {
+            font-size: 6rem;
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+        
+        .document-filename {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .preview-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .categorization-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        
+        .form-select, .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background: white;
+        }
+        
+        .form-select:focus, .form-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        
+        .form-note {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .page-code-preview {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .code-label {
+            font-size: 0.8rem;
+            color: #1976d2;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        
+        .code-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #1976d2;
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        .process-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .process-btn:hover {
+            background: #0056b3;
+        }
+        
+        /* Preview Modal */
+        .preview-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            text-align: center;
+        }
+        
+        .modal-content canvas {
+            max-width: 100%;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .close-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .close-btn:hover {
+            background: #c82333;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .categorization-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .pages-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MLKN 000697 - COM_2014_170.pdf</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary">
+                <i class="fas fa-layer-group"></i> Batch Mode
+            </button>
+            <button class="btn btn-primary">
+                Back to Dashboard
+            </button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <!-- File Pages Card (Initial View) -->
+        <div class="file-pages-card" id="file-pages-card">
+            <div class="file-pages-header">
+                <div class="file-pages-title">File Pages</div>
+                <div class="file-badge">MLKN 000697</div>
+            </div>
+            
+            <div class="pdf-preview-section">
+                <div class="pdf-icon">
+                    <i class="fas fa-file-pdf"></i>
+                </div>
+                <div class="pdf-filename">COM_2014_170.pdf</div>
+                <div class="pdf-actions">
+                    <button class="btn btn-primary" id="split-preview-btn">
+                        <i class="fas fa-cut"></i> Split & Preview
+                    </button>
+                    <button class="btn btn-secondary" id="open-pdf-btn">
+                        <i class="fas fa-external-link-alt"></i> Open PDF
+                    </button>
+                </div>
+                <button class="btn btn-primary" id="split-preview-pages-btn">
+                    <i class="fas fa-cut"></i> Split & Preview Pages
+                </button>
+            </div>
+            
+            <div class="pages-grid" id="pages-grid">
+                <!-- Pages will be dynamically generated here -->
+            </div>
+        </div>
+
+        <!-- Categorization Card (Second View) -->
+        <div class="categorization-card" id="categorization-card">
+            <div class="categorization-header">
+                <div class="categorization-title">Categorize Page 1</div>
+                <div class="file-badge">MLKN 000697</div>
+                <button class="back-btn" id="back-to-pages">
+                    Back to Folder
+                </button>
+            </div>
+            
+            <div class="categorization-content">
+                <div class="document-preview">
+                    <div class="document-filename">COM_2014_170.pdf</div>
+                    <div class="page-preview-container">
+                        <canvas id="page-preview-canvas"></canvas>
+                    </div>
+                </div>
+                
+                <div class="categorization-form">
+                    <div class="form-group">
+                        <label class="form-label">Cover Type</label>
+                        <select class="form-select" id="cover-type">
+                            <option value="back-cover">Back Cover (BC)</option>
+                            <option value="front-cover">Front Cover</option>
+                        </select>
+                        <div class="form-note">Front Cover: Main documents with pagination | Back Cover: Supporting documents without pagination</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Page Type</label>
+                        <select class="form-select" id="page-type">
+                            <option value="land-title">Land Title (LT)</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Page Subtype</label>
+                        <select class="form-select" id="page-subtype">
+                            <option value="lofr">Letter of First Registration (LOFR)</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Serial Number</label>
+                        <input type="text" class="form-input" id="serial-number" value="01">
+                        <div class="form-note">Auto-calculated: 01</div>
+                    </div>
+                    
+                    <div class="page-code-preview">
+                        <div class="code-label">Page Code Preview</div>
+                        <div class="code-value" id="page-code">BC-LT-LOFR-01</div>
+                        <div class="form-note">Format: CoverType-PageType-SubType-SerialNo<br>This code will be assigned to the page for easy identification and retrieval.</div>
+                    </div>
+                    
+                    <button class="process-btn" id="process-page-btn">
+                        Process Page
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="preview-modal" id="preview-modal">
+        <div class="modal-content">
+            <canvas id="pdf-canvas"></canvas>
+            <button class="close-btn" id="close-btn">Close Preview</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // PDF URLs
+            const PDF_URL = './sample.pdf';
+            const JPG_URL = 'http://klaes.com.ng/storage/app/public/unindexed_scans/1756536144_0_68b29d50beab7.jpg';
+            
+            // Elements
+            const filePagesCard = document.getElementById('file-pages-card');
+            const categorizationCard = document.getElementById('categorization-card');
+            const pagesGrid = document.getElementById('pages-grid');
+            const splitPreviewBtn = document.getElementById('split-preview-btn');
+            const splitPreviewPagesBtn = document.getElementById('split-preview-pages-btn');
+            const openPdfBtn = document.getElementById('open-pdf-btn');
+            const backToPagesBtn = document.getElementById('back-to-pages');
+            const previewModal = document.getElementById('preview-modal');
+            const pdfCanvas = document.getElementById('pdf-canvas');
+            const closeBtn = document.getElementById('close-btn');
+            const processPageBtn = document.getElementById('process-page-btn');
+            
+            // Form elements
+            const coverTypeSelect = document.getElementById('cover-type');
+            const pageTypeSelect = document.getElementById('page-type');
+            const pageSubtypeSelect = document.getElementById('page-subtype');
+            const serialNumberInput = document.getElementById('serial-number');
+            const pageCodeDiv = document.getElementById('page-code');
+            
+            // Variables
+            let pdfDoc = null;
+            let currentPageNumber = 1;
+            let pdfPages = [];
+            
+            // Event Listeners
+            splitPreviewBtn.addEventListener('click', loadAndSplitPDF);
+            splitPreviewPagesBtn.addEventListener('click', loadAndSplitPDF);
+            openPdfBtn.addEventListener('click', () => window.open(PDF_URL, '_blank'));
+            backToPagesBtn.addEventListener('click', showFilePagesCard);
+            closeBtn.addEventListener('click', () => previewModal.style.display = 'none');
+            processPageBtn.addEventListener('click', processPage);
+            
+            // Form event listeners for dynamic page code generation
+            [coverTypeSelect, pageTypeSelect, pageSubtypeSelect, serialNumberInput].forEach(element => {
+                element.addEventListener('change', updatePageCode);
+            });
+            
+            // Initialize the app by automatically loading the PDF
+            loadAndSplitPDF();
+            
+            async function loadAndSplitPDF() {
+                try {
+                    splitPreviewBtn.innerHTML = '<span class="loading-spinner"></span> Loading...';
+                    splitPreviewBtn.disabled = true;
+                    
+                    // Load PDF from local file
+                    const loadingTask = pdfjsLib.getDocument({
+                        url: PDF_URL
+                    });
+                    
+                    pdfDoc = await loadingTask.promise;
+                    console.log('PDF loaded successfully. Pages:', pdfDoc.numPages);
+                    
+                    // Generate page cards
+                    await generatePageCards();
+                    
+                    splitPreviewBtn.innerHTML = '<i class="fas fa-cut"></i> Split & Preview';
+                    splitPreviewBtn.disabled = false;
+                    
+                } catch (error) {
+                    console.error('Error loading PDF:', error);
+                    splitPreviewBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error Loading';
+                    splitPreviewBtn.disabled = false;
+                    
+                    // Fallback: show dummy pages for demonstration
+                    generateDummyPages();
+                }
+            }
+            
+            async function generatePageCards() {
+                pagesGrid.innerHTML = '';
+                pdfPages = [];
+                
+                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                    try {
+                        const page = await pdfDoc.getPage(pageNum);
+                        pdfPages.push(page);
+                        
+                        const pageCard = createPageCard(pageNum);
+                        pagesGrid.appendChild(pageCard);
+                        
+                        // Generate thumbnail asynchronously
+                        generateThumbnail(page, pageCard.querySelector('.page-thumbnail'));
+                        
+                    } catch (error) {
+                        console.error(`Error processing page ${pageNum}:`, error);
+                    }
+                }
+            }
+            
+            function generateDummyPages() {
+                pagesGrid.innerHTML = '';
+                
+                // Create dummy pages for demonstration
+                for (let i = 1; i <= 5; i++) {
+                    const pageCard = createPageCard(i);
+                    pagesGrid.appendChild(pageCard);
+                    
+                    // Set a placeholder thumbnail
+                    const thumbnail = pageCard.querySelector('.page-thumbnail');
+                    thumbnail.innerHTML = `<i class="fas fa-file-pdf" style="font-size: 3rem; color: #007bff;"></i>`;
+                }
+            }
+            
+            function createPageCard(pageNumber) {
+                const pageCard = document.createElement('div');
+                pageCard.className = 'page-card';
+                pageCard.innerHTML = `
+                    <div class="page-thumbnail">
+                        <div class="loading">Loading...</div>
+                    </div>
+                    <div class="page-number">Page ${pageNumber}</div>
+                    <div class="page-format">PDF</div>
+                `;
+                
+                pageCard.addEventListener('click', () => showCategorizationCard(pageNumber));
+                
+                return pageCard;
+            }
+            
+            async function generateThumbnail(page, thumbnailContainer) {
+                try {
+                    const scale = 0.5;
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    
+                    await page.render(renderContext).promise;
+                    
+                    const img = document.createElement('img');
+                    img.src = canvas.toDataURL('image/jpeg', 0.7);
+                    img.alt = `Page thumbnail`;
+                    
+                    thumbnailContainer.innerHTML = '';
+                    thumbnailContainer.appendChild(img);
+                    
+                } catch (error) {
+                    console.error('Error generating thumbnail:', error);
+                    thumbnailContainer.innerHTML = `<i class="fas fa-file-pdf" style="font-size: 2rem; color: #007bff;"></i>`;
+                }
+            }
+            
+            function showCategorizationCard(pageNumber) {
+                currentPageNumber = pageNumber;
+                
+                // Update categorization card title
+                document.querySelector('.categorization-title').textContent = `Categorize Page ${pageNumber}`;
+                
+                // Hide file pages card and show categorization card
+                filePagesCard.style.display = 'none';
+                categorizationCard.style.display = 'block';
+                
+                // Update page code
+                updatePageCode();
+                
+                // Automatically render page preview
+                renderPagePreview();
+            }
+            
+            function showFilePagesCard() {
+                filePagesCard.style.display = 'block';
+                categorizationCard.style.display = 'none';
+            }
+            
+            async function renderPagePreview() {
+                if (!pdfDoc || !pdfPages[currentPageNumber - 1]) {
+                    const previewCanvas = document.getElementById('page-preview-canvas');
+                    const previewContainer = document.querySelector('.page-preview-container');
+                    previewContainer.innerHTML = '<div style="padding: 20px; color: #6c757d;">Page preview not available</div>';
+                    return;
+                }
+                
+                try {
+                    const page = pdfPages[currentPageNumber - 1];
+                    const scale = 1.0; // Smaller scale for the preview
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    const previewCanvas = document.getElementById('page-preview-canvas');
+                    previewCanvas.height = viewport.height;
+                    previewCanvas.width = viewport.width;
+                    
+                    const renderContext = {
+                        canvasContext: previewCanvas.getContext('2d'),
+                        viewport: viewport
+                    };
+                    
+                    await page.render(renderContext).promise;
+                    
+                } catch (error) {
+                    console.error('Error rendering page preview:', error);
+                    const previewContainer = document.querySelector('.page-preview-container');
+                    previewContainer.innerHTML = '<div style="padding: 20px; color: #dc3545;">Error loading page preview</div>';
+                }
+            }
+            
+            async function previewCurrentPage() {
+                if (!pdfDoc || !pdfPages[currentPageNumber - 1]) {
+                    alert('PDF page not available for preview');
+                    return;
+                }
+                
+                try {
+                    previewModal.style.display = 'flex';
+                    
+                    const page = pdfPages[currentPageNumber - 1];
+                    const scale = 1.5;
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    pdfCanvas.height = viewport.height;
+                    pdfCanvas.width = viewport.width;
+                    
+                    const renderContext = {
+                        canvasContext: pdfCanvas.getContext('2d'),
+                        viewport: viewport
+                    };
+                    
+                    await page.render(renderContext).promise;
+                    
+                } catch (error) {
+                    console.error('Error rendering preview:', error);
+                    alert('Error loading preview');
+                    previewModal.style.display = 'none';
+                }
+            }
+            
+            function updatePageCode() {
+                const coverType = coverTypeSelect.value === 'back-cover' ? 'BC' : 'FC';
+                const pageType = pageTypeSelect.value === 'land-title' ? 'LT' : 'OT';
+                const subtype = pageSubtypeSelect.value === 'lofr' ? 'LOFR' : 'OTHER';
+                const serialNo = serialNumberInput.value.padStart(2, '0');
+                
+                const pageCode = `${coverType}-${pageType}-${subtype}-${serialNo}`;
+                pageCodeDiv.textContent = pageCode;
+            }
+            
+            function processPage() {
+                const pageCode = pageCodeDiv.textContent;
+                alert(`Page ${currentPageNumber} processed with code: ${pageCode}`);
+                
+                // Here you would typically send the data to your backend
+                // For now, just show success message and go back to pages
+                showFilePagesCard();
+            }
+            
+            // Initialize page code on load
+            updatePageCode();
+        });
+    </script>
+</body>
+</html>

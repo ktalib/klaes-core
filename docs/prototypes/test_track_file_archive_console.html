@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track File Archive Console Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Track File Archive Console Test</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">API Test</h2>
+            <button id="testApiBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Test API with CON-RES-1981-1
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Console Output</h2>
+            <div id="console-output" class="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm h-96 overflow-y-scroll">
+                <div>Console output will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Capture console logs
+        const consoleOutput = document.getElementById('console-output');
+        const originalConsole = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn
+        };
+
+        function addToConsole(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const div = document.createElement('div');
+            div.innerHTML = `<span class="text-gray-400">[${timestamp}]</span> <span class="text-${type === 'error' ? 'red' : type === 'warn' ? 'yellow' : 'green'}-400">${type.toUpperCase()}:</span> ${message}`;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        console.log = (...args) => {
+            originalConsole.log(...args);
+            addToConsole('log', ...args);
+        };
+
+        console.error = (...args) => {
+            originalConsole.error(...args);
+            addToConsole('error', ...args);
+        };
+
+        console.warn = (...args) => {
+            originalConsole.warn(...args);
+            addToConsole('warn', ...args);
+        };
+
+        // Test API function
+        async function testApi() {
+            console.log('Starting API test...');
+            
+            try {
+                const fileNumber = 'CON-RES-1981-1';
+                console.log('Testing with file number:', fileNumber);
+                
+                const response = await fetch(`/api/track-file-archive/label-metadata?file_number=${encodeURIComponent(fileNumber)}`);
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (data.success) {
+                    console.log('API Success! Data received:', data.data);
+                } else {
+                    console.warn('API returned success=false:', data.message);
+                }
+            } catch (error) {
+                console.error('API test failed:', error);
+            }
+        }
+
+        // Setup test button
+        document.getElementById('testApiBtn').addEventListener('click', testApi);
+        
+        // Auto-run test on page load
+        console.log('Page loaded, auto-running API test...');
+        setTimeout(testApi, 1000);
+    </script>
+</body>
+</html>

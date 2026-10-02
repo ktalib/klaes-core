@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Shared Utilities API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { background: #f5f5f5; padding: 10px; margin-top: 10px; border-radius: 3px; white-space: pre-wrap; }
+        .error { background: #ffe6e6; color: #d00; }
+        .success { background: #e6ffe6; color: #0a0; }
+        button { padding: 8px 16px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        input, select { padding: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Test Shared Utilities API</h1>
+    
+    <div class="test-section">
+        <h3>Test API Endpoint</h3>
+        <label>Application ID: <input type="number" id="appId" value="1" placeholder="Enter application ID"></label>
+        <label>Sub Application ID: <input type="number" id="subAppId" placeholder="Enter sub application ID (optional)"></label>
+        <button onclick="testFetchUtilities()">Fetch Shared Utilities</button>
+        <div id="fetchResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Database Connection</h3>
+        <button onclick="testDatabaseConnection()">Test Database Connection</button>
+        <div id="dbResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Insert Sample Data</h3>
+        <label>Application ID: <input type="number" id="insertAppId" value="1"></label>
+        <label>Sub Application ID: <input type="number" id="insertSubAppId" placeholder="Optional"></label>
+        <label>Utility Type: <input type="text" id="insertUtilityType" value="Access Road" placeholder="e.g., Access Road"></label>
+        <label>Dimension: <input type="text" id="insertDimension" value="6.0" placeholder="e.g., 6.0"></label>
+        <button onclick="insertSampleData()">Insert Sample Data</button>
+        <div id="insertResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testFetchUtilities() {
+            const appId = document.getElementById('appId').value;
+            const subAppId = document.getElementById('subAppId').value;
+            const resultDiv = document.getElementById('fetchResult');
+            
+            if (!appId) {
+                resultDiv.innerHTML = '<span class="error">Please enter an Application ID</span>';
+                return;
+            }
+            
+            try {
+                const url = `/api/shared-utilities/${appId}${subAppId ? `/${subAppId}` : ''}`;
+                console.log('Fetching from URL:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span class="success">Success!</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">Error ${response.status}:</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Network Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function testDatabaseConnection() {
+            const resultDiv = document.getElementById('dbResult');
+            
+            try {
+                const response = await fetch('/api/get-application-data?application_id=1', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<span class="success">Database Connection OK!</span>\nTest API Response:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">Database Connection Issue:</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Connection Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function insertSampleData() {
+            const appId = document.getElementById('insertAppId').value;
+            const subAppId = document.getElementById('insertSubAppId').value;
+            const utilityType = document.getElementById('insertUtilityType').value;
+            const dimension = document.getElementById('insertDimension').value;
+            const resultDiv = document.getElementById('insertResult');
+            
+            if (!appId || !utilityType) {
+                resultDiv.innerHTML = '<span class="error">Please fill in required fields (App ID and Utility Type)</span>';
+                return;
+            }
+            
+            try {
+                // First, let's manually insert via a simple API call
+                // Since we don't have a direct insert API, we'll show the SQL that should be run
+                const sql = `
+INSERT INTO [shared_utilities] 
+(application_id, sub_application_id, utility_type, dimension, count, [order], created_at, updated_at)
+VALUES 
+(${appId}, ${subAppId || 'NULL'}, '${utilityType}', '${dimension}', 1, 1, GETDATE(), GETDATE());`;
+                
+                resultDiv.innerHTML = `<span class="success">SQL to insert sample data:</span>\n${sql}`;
+                
+                // Now test fetching after showing the SQL
+                setTimeout(() => {
+                    document.getElementById('appId').value = appId;
+                    if (subAppId) document.getElementById('subAppId').value = subAppId;
+                    testFetchUtilities();
+                }, 1000);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Error:</span>\n${error.message}`;
+            }
+        }
+
+        // Auto-test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Testing Shared Utilities API...');
+            setTimeout(() => {
+                testDatabaseConnection();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

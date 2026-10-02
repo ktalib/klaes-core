@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test JSI Status Update API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input, select { padding: 8px; margin: 5px; }
+        .container { max-width: 800px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test JSI Status Update API</h1>
+        
+        <div class="status info">
+            <strong>Endpoint:</strong> POST /joint-inspection/update-status
+        </div>
+
+        <h3>Test Form</h3>
+        <div>
+            <label>Application ID: <input type="number" id="applicationId" value="2" min="1"></label><br>
+            <label>Sub Application ID: <input type="number" id="subApplicationId" placeholder="Optional"></label><br>
+            <label>Action: 
+                <select id="action">
+                    <option value="generate">Mark as Generated</option>
+                    <option value="submit">Mark as Submitted</option>
+                </select>
+            </label><br>
+            <button onclick="testStatusUpdate()">Test API</button>
+            <button onclick="checkCurrentStatus()">Check Current Status</button>
+        </div>
+
+        <div id="results"></div>
+
+        <h3>API Documentation</h3>
+        <pre>
+POST /joint-inspection/update-status
+Content-Type: application/x-www-form-urlencoded
+
+Parameters:
+- _token: CSRF token (required)
+- application_id: Application ID (required)
+- sub_application_id: Sub Application ID (optional)
+- is_generated: 1 to mark as generated (optional)
+- is_submitted: 1 to mark as submitted (optional)
+- generated_at: Timestamp for generation (optional, defaults to now)
+- submitted_at: Timestamp for submission (optional, defaults to now)
+
+Response:
+{
+    "success": true/false,
+    "message": "Status message",
+    "data": { ... updated fields ... }
+}
+        </pre>
+    </div>
+
+    <script>
+        // Get CSRF token
+        async function getCSRFToken() {
+            try {
+                const response = await fetch('/');
+                const html = await response.text();
+                const match = html.match(/name="_token" value="([^"]+)"/);
+                return match ? match[1] : null;
+            } catch (e) {
+                console.error('Failed to get CSRF token:', e);
+                return null;
+            }
+        }
+
+        async function testStatusUpdate() {
+            const applicationId = document.getElementById('applicationId').value;
+            const subApplicationId = document.getElementById('subApplicationId').value;
+            const action = document.getElementById('action').value;
+            
+            if (!applicationId) {
+                showResult('Please enter an Application ID', 'error');
+                return;
+            }
+
+            const token = await getCSRFToken();
+            if (!token) {
+                showResult('Failed to get CSRF token', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('_token', token);
+            formData.append('application_id', applicationId);
+            
+            if (subApplicationId) {
+                formData.append('sub_application_id', subApplicationId);
+            }
+
+            if (action === 'generate') {
+                formData.append('is_generated', '1');
+            } else if (action === 'submit') {
+                formData.append('is_submitted', '1');
+            }
+
+            try {
+                showResult('Sending request...', 'info');
+                
+                const response = await fetch('/joint-inspection/update-status', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showResult(`✅ Success: ${result.message}<br><strong>Updated data:</strong><pre>${JSON.stringify(result.data, null, 2)}</pre>`, 'success');
+                } else {
+                    showResult(`❌ Error: ${result.message}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult(`❌ Network Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function checkCurrentStatus() {
+            const applicationId = document.getElementById('applicationId').value;
+            const subApplicationId = document.getElementById('subApplicationId').value;
+            
+            if (!applicationId) {
+                showResult('Please enter an Application ID', 'error');
+                return;
+            }
+
+            try {
+                showResult('Checking current status...', 'info');
+                
+                // This would need a separate GET endpoint to fetch current status
+                // For now, just show that we'd need this
+                showResult('ℹ️ Note: To check current status, we would need a GET endpoint like:<br><code>GET /joint-inspection/status/{applicationId}/{subApplicationId?}</code>', 'info');
+                
+            } catch (error) {
+                showResult(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            showResult('Ready to test JSI Status Update API', 'info');
+        });
+    </script>
+</body>
+</html>

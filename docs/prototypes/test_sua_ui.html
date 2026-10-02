@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUA Index Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="p-6">
+        <div class="bg-white rounded-md shadow-sm border border-gray-200">
+            <div class="p-6">
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Standalone Unit Applications (SUA)</h1>
+                        <p class="text-gray-600">Manage standalone unit applications without mother applications</p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <!-- Create SUA Button with Land Use Selection -->
+                        <div class="relative">
+                            <button id="createSUABtn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center">
+                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                                Create SUA
+                            </button>
+                            
+                            <!-- Land Use Selection Modal -->
+                            <div id="landUseModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                                <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                                    <div class="mt-3">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h3 class="text-lg font-medium text-gray-900">Select Land Use for SUA</h3>
+                                            <button id="closeLandUseModal" class="text-gray-400 hover:text-gray-600">
+                                                <i data-lucide="x" class="w-5 h-5"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <p class="text-sm text-gray-500 mb-4">Choose the land use type for your Standalone Unit Application:</p>
+                                        
+                                        <div class="space-y-3">
+                                            <button onclick="createSUAWithLandUse('Residential')" class="w-full text-left p-3 border border-gray-200 rounded-md hover:bg-gray-50 hover:border-blue-300 transition-colors">
+                                                <div class="flex items-center">
+                                                    <div class="p-2 bg-green-100 rounded-lg mr-3">
+                                                        <i data-lucide="home" class="w-5 h-5 text-green-600"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-medium text-gray-900">Residential</div>
+                                                        <div class="text-sm text-gray-500">Apartment blocks, residential units</div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                            
+                                            <button onclick="createSUAWithLandUse('Commercial')" class="w-full text-left p-3 border border-gray-200 rounded-md hover:bg-gray-50 hover:border-blue-300 transition-colors">
+                                                <div class="flex items-center">
+                                                    <div class="p-2 bg-blue-100 rounded-lg mr-3">
+                                                        <i data-lucide="building-2" class="w-5 h-5 text-blue-600"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-medium text-gray-900">Commercial</div>
+                                                        <div class="text-sm text-gray-500">Shops, offices, commercial spaces</div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                            
+                                            <button onclick="createSUAWithLandUse('Industrial')" class="w-full text-left p-3 border border-gray-200 rounded-md hover:bg-gray-50 hover:border-blue-300 transition-colors">
+                                                <div class="flex items-center">
+                                                    <div class="p-2 bg-yellow-100 rounded-lg mr-3">
+                                                        <i data-lucide="factory" class="w-5 h-5 text-yellow-600"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-medium text-gray-900">Industrial</div>
+                                                        <div class="text-sm text-gray-500">Factories, warehouses, industrial units</div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button onclick="exportSUA()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center">
+                            <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+                            Export
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-blue-100 rounded-lg">
+                                <i data-lucide="file-text" class="w-6 h-6 text-blue-600"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-blue-600">Total SUA</p>
+                                <p class="text-2xl font-bold text-blue-900">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-green-100 rounded-lg">
+                                <i data-lucide="check-circle" class="w-6 h-6 text-green-600"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-green-600">Approved</p>
+                                <p class="text-2xl font-bold text-green-900">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-yellow-100 rounded-lg">
+                                <i data-lucide="clock" class="w-6 h-6 text-yellow-600"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-yellow-600">Pending</p>
+                                <p class="text-2xl font-bold text-yellow-900">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-red-100 rounded-lg">
+                                <i data-lucide="x-circle" class="w-6 h-6 text-red-600"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-red-600">Rejected</p>
+                                <p class="text-2xl font-bold text-red-900">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="text-center py-12">
+                    <i data-lucide="file-x" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No SUA Applications Found</h3>
+                    <p class="text-gray-500 mb-4">Get started by creating your first Standalone Unit Application.</p>
+                    <button id="createFirstSUA" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        Create First SUA
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        // Modal functionality
+        const createSUABtn = document.getElementById('createSUABtn');
+        const createFirstSUA = document.getElementById('createFirstSUA');
+        const landUseModal = document.getElementById('landUseModal');
+        const closeLandUseModal = document.getElementById('closeLandUseModal');
+        
+        // Open modal
+        function openLandUseModal() {
+            landUseModal.classList.remove('hidden');
+        }
+        
+        // Close modal
+        function closeLandUseModalFn() {
+            landUseModal.classList.add('hidden');
+        }
+        
+        // Event listeners
+        createSUABtn.addEventListener('click', openLandUseModal);
+        createFirstSUA.addEventListener('click', openLandUseModal);
+        closeLandUseModal.addEventListener('click', closeLandUseModalFn);
+        
+        // Close modal when clicking outside
+        landUseModal.addEventListener('click', function(e) {
+            if (e.target === landUseModal) {
+                closeLandUseModalFn();
+            }
+        });
+        
+        // Create SUA with selected land use
+        function createSUAWithLandUse(landUse) {
+            alert(`Creating SUA with land use: ${landUse}`);
+            // In real implementation: window.location.href = `/sua/create?landuse=${landUse}`;
+        }
+        
+        // Export functionality
+        function exportSUA() {
+            alert('Export functionality would be implemented here');
+        }
+    </script>
+</body>
+</html>

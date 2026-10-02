@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Current Batch Status</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d2e; }
+    </style>
+</head>
+<body>
+    <h1>Test Current Batch Status API</h1>
+    <button onclick="testBatchStatus()">Test /fileindexing/get-current-batch-status</button>
+    <div id="result"></div>
+
+    <script>
+        async function testBatchStatus() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="result">Testing...</div>';
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/fileindexing/get-current-batch-status');
+                const data = await response.json();
+
+                let resultClass = response.ok ? 'success' : 'error';
+                let resultHtml = `
+                    <div class="result ${resultClass}">
+                        <h3>API Response (${response.status})</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+
+                if (data.success && data.current_batch) {
+                    resultHtml += `
+                        <div class="result success">
+                            <h3>Parsed Current Batch Info:</h3>
+                            <p><strong>Batch Number:</strong> ${data.current_batch.batch_no}</p>
+                            <p><strong>Current Count:</strong> ${data.current_batch.current_count}</p>
+                            <p><strong>Next Serial:</strong> ${data.current_batch.current_count + 1}</p>
+                            <p><strong>Shelf Location:</strong> ${data.current_batch.shelf_location}</p>
+                            <p><strong>Remaining Slots:</strong> ${100 - data.current_batch.current_count}</p>
+                        </div>
+                    `;
+                }
+
+                resultDiv.innerHTML = resultHtml;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>Error:</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

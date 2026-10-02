@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning Recommendation Tables Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-section h3 { color: #333; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .error { color: red; }
+        .success { color: green; }
+        .loading { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Planning Recommendation Tables Test</h1>
+    <p>This page tests the planning recommendation table data loading for both primary and sub-applications.</p>
+    <p><strong>Updated:</strong> Now uses the SAME query logic as Joint Site Inspection reports for consistent data display.</p>
+    <p><strong>Latest Update:</strong> Table B utilities now come directly from JSI report data (shared_utilities JSON field) to show the exact utilities that were entered during Joint Site Inspection.</p>
+    
+    <!-- Primary Application Test -->
+    <div class="test-section">
+        <h3>Primary Application Test</h3>
+        <div>
+            <label>Primary Application ID: <input type="number" id="primaryAppId" value="2007" /></label>
+            <button onclick="testPrimaryDimensions()">Test Dimensions</button>
+            <button onclick="testPrimaryUtilities()">Test Utilities</button>
+        </div>
+        
+        <div id="primaryDimensionsResult">
+            <h4>Dimensions (Table A)</h4>
+            <div id="primaryDimensionsStatus" class="loading">Click "Test Dimensions" to load data...</div>
+            <table id="primaryDimensionsTable" style="display: none;">
+                <thead>
+                    <tr><th>SN</th><th>UNIT/SECTION NO</th><th>DIMENSIONS IN M²</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div id="primaryUtilitiesResult">
+            <h4>Utilities (Table B)</h4>
+            <div id="primaryUtilitiesStatus" class="loading">Click "Test Utilities" to load data...</div>
+            <table id="primaryUtilitiesTable" style="display: none;">
+                <thead>
+                    <tr><th>SN</th><th>UTILITY TYPE</th><th>DIMENSION</th><th>COUNT</th><th>BLOCK</th><th>SECTION</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Sub Application Test -->
+    <div class="test-section">
+        <h3>Sub Application Test</h3>
+        <div>
+            <label>Sub Application ID: <input type="number" id="subAppId" value="1001" /></label>
+            <button onclick="testSubDimensions()">Test Dimensions</button>
+            <button onclick="testSubUtilities()">Test Utilities</button>
+        </div>
+        
+        <div id="subDimensionsResult">
+            <h4>Dimensions (Table A)</h4>
+            <div id="subDimensionsStatus" class="loading">Click "Test Dimensions" to load data...</div>
+            <table id="subDimensionsTable" style="display: none;">
+                <thead>
+                    <tr><th>SN</th><th>UNIT/SECTION NO</th><th>DIMENSIONS IN M²</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div id="subUtilitiesResult">
+            <h4>Utilities (Table B)</h4>
+            <div id="subUtilitiesStatus" class="loading">Click "Test Utilities" to load data...</div>
+            <table id="subUtilitiesTable" style="display: none;">
+                <thead>
+                    <tr><th>SN</th><th>UTILITY TYPE</th><th>DIMENSION</th><th>COUNT</th><th>BLOCK</th><th>SECTION</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Test Primary Application Dimensions
+        function testPrimaryDimensions() {
+            const appId = document.getElementById('primaryAppId').value;
+            const statusDiv = document.getElementById('primaryDimensionsStatus');
+            const table = document.getElementById('primaryDimensionsTable');
+            const tbody = table.querySelector('tbody');
+            
+            statusDiv.textContent = 'Loading dimensions...';
+            statusDiv.className = 'loading';
+            table.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            axios.get(`/planning-tables/dimensions/${appId}`)
+                .then(response => {
+                    const data = response.data;
+                    statusDiv.textContent = `Success! Found ${data.length} dimension records.`;
+                    statusDiv.className = 'success';
+                    
+                    if (data.length > 0) {
+                        data.forEach((dimension, index) => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = index + 1;
+                            row.insertCell(1).textContent = dimension.description || dimension.unit_no || `Unit ${index + 1}`;
+                            row.insertCell(2).textContent = parseFloat(dimension.dimension || dimension.measurement || 0).toFixed(2);
+                        });
+                        table.style.display = 'table';
+                    }
+                })
+                .catch(error => {
+                    statusDiv.textContent = `Error: ${error.response ? error.response.data.message || error.response.statusText : error.message}`;
+                    statusDiv.className = 'error';
+                    console.error('Error loading dimensions:', error);
+                });
+        }
+        
+        // Test Primary Application Utilities
+        function testPrimaryUtilities() {
+            const appId = document.getElementById('primaryAppId').value;
+            const statusDiv = document.getElementById('primaryUtilitiesStatus');
+            const table = document.getElementById('primaryUtilitiesTable');
+            const tbody = table.querySelector('tbody');
+            
+            statusDiv.textContent = 'Loading utilities...';
+            statusDiv.className = 'loading';
+            table.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            axios.get(`/planning-tables/utilities/${appId}`)
+                .then(response => {
+                    const data = response.data;
+                    statusDiv.textContent = `Success! Found ${data.length} utility records.`;
+                    statusDiv.className = 'success';
+                    
+                    if (data.length > 0) {
+                        data.forEach((utility, index) => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = index + 1;
+                            row.insertCell(1).textContent = (utility.utility_type || `Utility ${index + 1}`).toUpperCase();
+                            row.insertCell(2).textContent = parseFloat(utility.dimension || 0).toFixed(1);
+                            row.insertCell(3).textContent = utility.count || 1;
+                            row.insertCell(4).textContent = utility.block || '1';
+                            row.insertCell(5).textContent = utility.section || '1';
+                        });
+                        table.style.display = 'table';
+                    }
+                })
+                .catch(error => {
+                    statusDiv.textContent = `Error: ${error.response ? error.response.data.message || error.response.statusText : error.message}`;
+                    statusDiv.className = 'error';
+                    console.error('Error loading utilities:', error);
+                });
+        }
+        
+        // Test Sub Application Dimensions
+        function testSubDimensions() {
+            const appId = document.getElementById('subAppId').value;
+            const statusDiv = document.getElementById('subDimensionsStatus');
+            const table = document.getElementById('subDimensionsTable');
+            const tbody = table.querySelector('tbody');
+            
+            statusDiv.textContent = 'Loading sub-application dimensions...';
+            statusDiv.className = 'loading';
+            table.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            axios.get(`/planning-tables/sub/dimensions/${appId}`)
+                .then(response => {
+                    const data = response.data;
+                    statusDiv.textContent = `Success! Found ${data.length} dimension records.`;
+                    statusDiv.className = 'success';
+                    
+                    if (data.length > 0) {
+                        data.forEach((dimension, index) => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = index + 1;
+                            row.insertCell(1).textContent = dimension.description || dimension.unit_no || `Unit ${index + 1}`;
+                            row.insertCell(2).textContent = parseFloat(dimension.dimension || dimension.measurement || 0).toFixed(2);
+                        });
+                        table.style.display = 'table';
+                    }
+                })
+                .catch(error => {
+                    statusDiv.textContent = `Error: ${error.response ? error.response.data.message || error.response.statusText : error.message}`;
+                    statusDiv.className = 'error';
+                    console.error('Error loading sub dimensions:', error);
+                });
+        }
+        
+        // Test Sub Application Utilities
+        function testSubUtilities() {
+            const appId = document.getElementById('subAppId').value;
+            const statusDiv = document.getElementById('subUtilitiesStatus');
+            const table = document.getElementById('subUtilitiesTable');
+            const tbody = table.querySelector('tbody');
+            
+            statusDiv.textContent = 'Loading sub-application utilities...';
+            statusDiv.className = 'loading';
+            table.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            axios.get(`/planning-tables/sub/utilities/${appId}`)
+                .then(response => {
+                    const data = response.data;
+                    statusDiv.textContent = `Success! Found ${data.length} utility records.`;
+                    statusDiv.className = 'success';
+                    
+                    if (data.length > 0) {
+                        data.forEach((utility, index) => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = index + 1;
+                            row.insertCell(1).textContent = (utility.utility_type || `Utility ${index + 1}`).toUpperCase();
+                            row.insertCell(2).textContent = parseFloat(utility.dimension || 0).toFixed(1);
+                            row.insertCell(3).textContent = utility.count || 1;
+                            row.insertCell(4).textContent = utility.block || '1';
+                            row.insertCell(5).textContent = utility.section || '1';
+                        });
+                        table.style.display = 'table';
+                    }
+                })
+                .catch(error => {
+                    statusDiv.textContent = `Error: ${error.response ? error.response.data.message || error.response.statusText : error.message}`;
+                    statusDiv.className = 'error';
+                    console.error('Error loading sub utilities:', error);
+                });
+        }
+    </script>
+</body>
+</html>

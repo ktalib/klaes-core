@@ -1,0 +1,156 @@
+     /* Custom Select2 styling for batch selection */
+        .select2-container--default .select2-selection--single {
+            height: 42px !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 0.375rem !important;
+            padding: 0 12px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            color: #374151 !important;
+            line-height: 42px !important;
+            padding-left: 0 !important;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 40px !important;
+            right: 8px !important;
+        }
+
+        .select2-dropdown {
+            border: 1px solid #d1d5db !important;
+            border-radius: 0.375rem !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #3b82f6 !important;
+            color: white !important;
+        }
+
+        .select2-container--default .select2-results__option[aria-selected=true] {
+            background-color: #eff6ff !important;
+            color: #1d4ed8 !important;
+        }
+
+        .cofo-status-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .cofo-status-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            font-size: 0.75rem;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(37, 99, 235, 0.3);
+            border-top-color: rgba(37, 99, 235, 0.9);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .autofill-locked {
+            background-color: #fdf2f8 !important;
+            color: #b91c1c !important;
+            border-color: #f87171 !important;
+            cursor: not-allowed !important;
+        }
+
+        .autofill-locked::placeholder {
+            color: #fca5a5 !important;
+        }
+
+        select.autofill-locked {
+            pointer-events: none !important;
+        }
+
+        input.autofill-locked:focus,
+        select.autofill-locked:focus,
+        textarea.autofill-locked:focus {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+        .property-address-mirrored {
+            background-color: #f3f4f6 !important;
+            color: #6b7280 !important;
+        }
+
+        /* Shelf location input styling */
+        #shelf-location {
+            transition: all 0.2s ease-in-out;
+        }
+
+        #shelf-location:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Loading state for shelf input */
+        #shelf-location.loading {
+            background-image: url("data:image/svg+xml,%3csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M10 3V6M10 14V17M17 10H14M6 10H3M15.364 4.636L13.536 6.464M6.464 13.536L4.636 15.364M15.364 15.364L13.536 13.536M6.464 6.464L4.636 4.636' stroke='%236b7280' stroke-width='2' stroke-linecap='round'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Success state styling */
+        .success-border {
+            border-color: #10b981 !important;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+        }
+
+        /* Error state styling */
+        .error-border {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+        }
+
+        /* Select2 loading and result states */
+        .select2-results__message {
+            color: #6b7280 !important;
+            font-style: italic !important;
+            padding: 8px 12px !important;
+        }
+
+        .select2-results__option.loading-results {
+            color: #6b7280 !important;
+            font-style: italic !important;
+        }
+
+        /* Batch selection feedback */
+        .batch-selection-feedback {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .batch-selection-feedback.success {
+            color: #10b981;
+        }
+
+        .batch-selection-feedback.error {
+            color: #ef4444;
+        }
+  

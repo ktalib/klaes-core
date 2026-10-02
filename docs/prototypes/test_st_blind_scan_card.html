@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ST Blind Scan Card - EDMS Workflow</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .info {
+            background: #cce7ff;
+            border-color: #99d6ff;
+            color: #004085;
+        }
+        .code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        
+        /* Mock EDMS Card Styles */
+        .workflow-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+            padding: 2rem;
+            border-radius: 1rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .workflow-step:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .st-blind-scan-card {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        .st-blind-scan-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            transform: translate(30px, -30px);
+        }
+        .step-circle {
+            width: 3.5rem;
+            height: 3.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+        }
+        .step-description {
+            font-size: 1rem;
+            margin: 0 0 1rem 0;
+            opacity: 0.9;
+        }
+        .step-status {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        .step-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: white;
+            color: #10b981;
+            border: 1px solid white;
+        }
+        .btn-primary:hover {
+            background: #f8fafc;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            backdrop-filter: blur(10px);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .info-box {
+            background: rgba(255,255,255,0.1);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            line-height: 1.4;
+            margin-top: 1rem;
+        }
+        .verification-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .verification-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .verification-list li:before {
+            content: "✅ ";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏢 ST Blind Scan Card - EDMS Integration</h1>
+            <p>New workflow card added to Primary Form EDMS page</p>
+        </div>
+
+        <div class="section success">
+            <h2>✅ ST Blind Scan Card Added</h2>
+            <p><strong>New card integrated into EDMS workflow:</strong></p>
+            <ul class="verification-list">
+                <li>Positioned before existing "Document Scanning" step</li>
+                <li>Green gradient theme matching ST branding</li>
+                <li>Direct link to blind scanning with application context</li>
+                <li>Two-stage process explanation included</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🎨 Card Preview</h2>
+            <div class="workflow-step st-blind-scan-card">
+                <div class="step-circle">
+                    <span style="font-size: 1.5rem;">🏢</span>
+                </div>
+                
+                <div class="step-content">
+                    <h3 class="step-title">ST Blind Scan</h3>
+                    <p class="step-description">Process Sectional Titling documents through blind scanning workflow</p>
+                    
+                    <div class="step-status">
+                        <span style="margin-right: 0.5rem;">📄</span>
+                        Ready for ST Document Processing
+                    </div>
+                    <div class="step-actions">
+                        <a href="#" class="btn btn-secondary">
+                            <span>🔗</span>
+                            Launch ST Blind Scan
+                        </a>
+                        <a href="#" class="btn btn-primary">
+                            <span>📄</span>
+                            Start Blind Scanning
+                        </a>
+                    </div>
+                    
+                    <div class="info-box">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <span>ℹ️</span>
+                            <strong>Two-Stage Process:</strong>
+                        </div>
+                        <div style="margin-left: 1.5rem;">
+                            1. Documents processed to BLIND_SCAN folder<br>
+                            2. Files moved to SCAN_UPLOAD/ST-COM-2025-001
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section info">
+            <h2>🔧 Implementation Details</h2>
+            
+            <h3>Card Structure:</h3>
+            <div class="code">
+&lt;!-- ST Blind Scan Card --&gt;
+&lt;div class="workflow-step st-blind-scan-card" 
+     style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+            border: none; color: white; margin-bottom: 1.5rem;"&gt;
+    
+    &lt;div class="step-circle" 
+         style="background: rgba(255,255,255,0.2); color: white; 
+                border: 2px solid rgba(255,255,255,0.3);"&gt;
+        &lt;i data-lucide="building" style="width: 1.5rem; height: 1.5rem;"&gt;&lt;/i&gt;
+    &lt;/div&gt;
+    
+    &lt;div class="step-content" style="color: white;"&gt;
+        &lt;h3 class="step-title" style="color: white;"&gt;ST Blind Scan&lt;/h3&gt;
+        &lt;p class="step-description" style="color: rgba(255,255,255,0.9);"&gt;
+            Process Sectional Titling documents through blind scanning workflow
+        &lt;/p&gt;
+        
+        &lt;div class="step-status" style="color: rgba(255,255,255,0.9);"&gt;
+            &lt;i data-lucide="scan-line" style="width: 0.75rem; height: 0.75rem; margin-right: 0.25rem;"&gt;&lt;/i&gt;
+            Ready for ST Document Processing
+        &lt;/div&gt;
+        
+        &lt;div class="step-actions"&gt;
+            &lt;a href="/blind-scanning?url=st_edms&app_id={{ $application-&gt;id }}" 
+               class="btn" style="background: rgba(255,255,255,0.2); color: white; 
+                              border: 1px solid rgba(255,255,255,0.3); 
+                              backdrop-filter: blur(10px);"&gt;
+                &lt;i data-lucide="external-link" style="width: 0.875rem; height: 0.875rem;"&gt;&lt;/i&gt;
+                Launch ST Blind Scan
+            &lt;/a&gt;
+            &lt;a href="/blind-scanning?url=st_edms&app_id={{ $application-&gt;id }}" 
+               class="btn" style="background: white; color: #10b981; border: 1px solid white;"&gt;
+                &lt;i data-lucide="scan-line" style="width: 0.875rem; height: 0.875rem;"&gt;&lt;/i&gt;
+                Start Blind Scanning
+            &lt;/a&gt;
+        &lt;/div&gt;
+        
+        &lt;div class="mt-3" style="background: rgba(255,255,255,0.1); padding: 0.75rem; 
+                                border-radius: 0.5rem; font-size: 0.875rem;"&gt;
+            &lt;div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;"&gt;
+                &lt;i data-lucide="info" style="width: 1rem; height: 1rem;"&gt;&lt;/i&gt;
+                &lt;strong&gt;Two-Stage Process:&lt;/strong&gt;
+            &lt;/div&gt;
+            &lt;div style="margin-left: 1.5rem; line-height: 1.4;"&gt;
+                1. Documents processed to BLIND_SCAN folder&lt;br&gt;
+                2. Files moved to SCAN_UPLOAD/{{ $application-&gt;np_fileno ?? 'NP-FILE-NUMBER' }}
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Features & Benefits</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                <div>
+                    <h4>🎨 Visual Design:</h4>
+                    <ul class="verification-list" style="font-size: 14px;">
+                        <li>Green gradient matching ST branding</li>
+                        <li>Semi-transparent elements for depth</li>
+                        <li>Hover effects and smooth transitions</li>
+                        <li>Building icon for ST context</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>🔗 Functionality:</h4>
+                    <ul class="verification-list" style="font-size: 14px;">
+                        <li>Direct navigation to blind scanning</li>
+                        <li>Application ID automatically included</li>
+                        <li>Two action buttons for flexibility</li>
+                        <li>Process explanation included</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📍 Workflow Position</h2>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <div style="font-family: monospace; font-size: 14px; line-height: 1.6;">
+                    <div style="color: #6c757d;">EDMS Workflow Steps:</div>
+                    <div>1. File Indexing</div>
+                    <div style="background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; display: inline-block; margin: 4px 0;">
+                        <strong>→ NEW: ST Blind Scan ←</strong>
+                    </div>
+                    <div>2. Document Scanning</div>
+                    <div>3. Page Typing</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section success">
+            <h2>🚀 Integration Complete</h2>
+            <p><strong>The ST Blind Scan card is now integrated and provides:</strong></p>
+            <ul class="verification-list">
+                <li><strong>Seamless Access:</strong> Direct link to ST-specific blind scanning</li>
+                <li><strong>Context Awareness:</strong> Application ID automatically passed</li>
+                <li><strong>Clear Process:</strong> Two-stage workflow explained</li>
+                <li><strong>Visual Consistency:</strong> Matches existing EDMS card design</li>
+                <li><strong>User Guidance:</strong> Clear call-to-action buttons</li>
+            </ul>
+        </div>
+
+        <div class="section info">
+            <h2>🧪 Testing</h2>
+            <ol>
+                <li><strong>Navigate to EDMS page:</strong> <code>/edms/{application_id}</code></li>
+                <li><strong>Verify card appears:</strong> Should show before "Document Scanning" step</li>
+                <li><strong>Test buttons:</strong> Both should link to <code>/blind-scanning?url=st_edms&app_id={id}</code></li>
+                <li><strong>Check styling:</strong> Green gradient, proper hover effects</li>
+                <li><strong>Verify NP file number:</strong> Should display in process explanation</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

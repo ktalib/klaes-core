@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NP File Number EDMS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .info {
+            background: #cce7ff;
+            border-color: #99d6ff;
+            color: #004085;
+        }
+        .warning {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .test-button {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #218838;
+        }
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+        .verification-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .verification-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .verification-list li:before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗂️ NP File Number EDMS Integration Test</h1>
+            <p>Testing EDMS workflow using NP File Number for folder creation and scanning table insertion</p>
+        </div>
+
+        <div class="section success">
+            <h2>✅ Implementation Summary</h2>
+            <p><strong>EDMS now uses NP File Number instead of regular file number for:</strong></p>
+            <ul class="verification-list">
+                <li>EDMS folder structure: <code>EDMS/SCAN_UPLOAD/{NP_FILE_NUMBER}/</code></li>
+                <li>Sequential filename generation: <code>{NP_FILE_NUMBER}_0001.pdf</code></li>
+                <li>Scanning table file references</li>
+                <li>Collision handling for duplicate files</li>
+                <li>Logging and audit trail</li>
+            </ul>
+        </div>
+
+        <div class="section info">
+            <h2>🔄 Changes Made</h2>
+            <div class="code">
+// OLD: Using regular file number
+$this->processDocumentsForEDMS($fileIndexingId, $edmsDocuments, $validated['fileno']);
+
+// NEW: Using NP file number
+$this->processDocumentsForEDMS($fileIndexingId, $edmsDocuments, $validated['np_fileno']);
+            </div>
+            <div class="code">
+// OLD: Method signature
+private function processDocumentsForEDMS($fileIndexingId, $documents, $fileNumber)
+
+// NEW: Method signature
+private function processDocumentsForEDMS($fileIndexingId, $documents, $npFileNumber)
+            </div>
+            <div class="code">
+// OLD: Folder and filename generation
+$edmsBasePath = "EDMS/SCAN_UPLOAD/{$fileNumber}";
+$newFilename = "{$fileNumber}_{$sequenceStr}.{$extension}";
+
+// NEW: Using NP file number
+$edmsBasePath = "EDMS/SCAN_UPLOAD/{$npFileNumber}";
+$newFilename = "{$npFileNumber}_{$sequenceStr}.{$extension}";
+            </div>
+        </div>
+
+        <div class="section warning">
+            <h2>🧪 Testing Instructions</h2>
+            <ol>
+                <li><strong>Submit a Primary Application</strong> with the following:
+                    <ul>
+                        <li>Valid NP File Number (e.g., ST-COM-2025-001)</li>
+                        <li>Upload some test documents (passport, ID, RC document)</li>
+                        <li>Complete all required fields</li>
+                    </ul>
+                </li>
+                <li><strong>Check EDMS Folder Structure:</strong>
+                    <div class="code">storage/app/public/EDMS/SCAN_UPLOAD/{NP_FILE_NUMBER}/</div>
+                </li>
+                <li><strong>Verify Scanning Table:</strong>
+                    <div class="code">SELECT * FROM scannings WHERE file_indexing_id = [your_id] ORDER BY display_order;</div>
+                </li>
+                <li><strong>Check File Names:</strong> Should be <code>{NP_FILE_NUMBER}_0001.pdf</code>, <code>{NP_FILE_NUMBER}_0002.pdf</code>, etc.</li>
+                <li><strong>Review Laravel Logs:</strong> Look for "Processing documents for EDMS workflow" messages</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Verification Tools</h2>
+            <button class="test-button" onclick="checkFolderStructure()">Check EDMS Folder Structure</button>
+            <button class="test-button" onclick="checkScanningTable()">Check Scanning Table</button>
+            <button class="test-button" onclick="checkLaravelLogs()">Check Laravel Logs</button>
+            <button class="test-button" onclick="testFormSubmission()">Test Form Submission</button>
+        </div>
+
+        <div class="test-results" id="testResults">
+            <h3>Test Results:</h3>
+            <p>Click any button above to run tests and see results here...</p>
+        </div>
+
+        <div class="section info">
+            <h2>📋 Expected Behavior</h2>
+            <h3>Before (Using regular file number):</h3>
+            <div class="code">
+Folder: EDMS/SCAN_UPLOAD/2025-001/
+Files: 2025-001_0001.pdf, 2025-001_0002.pdf
+            </div>
+            
+            <h3>After (Using NP file number):</h3>
+            <div class="code">
+Folder: EDMS/SCAN_UPLOAD/ST-COM-2025-001/
+Files: ST-COM-2025-001_0001.pdf, ST-COM-2025-001_0002.pdf
+            </div>
+        </div>
+
+        <div class="section success">
+            <h2>🎯 Benefits of Using NP File Number</h2>
+            <ul class="verification-list">
+                <li><strong>Consistency:</strong> Same file number used throughout the system</li>
+                <li><strong>Traceability:</strong> Easier to track documents by NP file number</li>
+                <li><strong>Organization:</strong> Clearer folder structure with descriptive file numbers</li>
+                <li><strong>Integration:</strong> Better integration with ST file number system</li>
+                <li><strong>User-Friendly:</strong> File numbers match what users see in the interface</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function checkFolderStructure() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <h3>🗂️ EDMS Folder Structure Check</h3>
+                <p><strong>To manually verify:</strong></p>
+                <ol>
+                    <li>Navigate to: <code>storage/app/public/EDMS/SCAN_UPLOAD/</code></li>
+                    <li>Look for folders named with NP file numbers (e.g., ST-COM-2025-001)</li>
+                    <li>Check that files inside follow pattern: <code>{NP_FILE_NUMBER}_0001.pdf</code></li>
+                </ol>
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                    <strong>Expected Structure:</strong><br>
+                    📁 EDMS/<br>
+                    &nbsp;&nbsp;📁 SCAN_UPLOAD/<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;📁 ST-COM-2025-001/<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 ST-COM-2025-001_0001.pdf<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 ST-COM-2025-001_0002.pdf<br>
+                </div>
+            `;
+        }
+
+        function checkScanningTable() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <h3>🗄️ Scanning Table Check</h3>
+                <p><strong>SQL Query to run:</strong></p>
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace;">
+SELECT 
+    s.*,
+    fi.fileno,
+    fi.np_fileno
+FROM scannings s 
+JOIN file_indexings fi ON s.file_indexing_id = fi.id 
+WHERE fi.np_fileno LIKE 'ST-%'
+ORDER BY s.created_at DESC 
+LIMIT 10;
+                </div>
+                <p><strong>What to look for:</strong></p>
+                <ul>
+                    <li>document_path should contain NP file number in path</li>
+                    <li>Files should be in EDMS/SCAN_UPLOAD/{NP_FILE_NUMBER}/ folders</li>
+                    <li>Filenames should follow {NP_FILE_NUMBER}_0001.pdf pattern</li>
+                    <li>Display order should be sequential</li>
+                </ul>
+            `;
+        }
+
+        function checkLaravelLogs() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <h3>📋 Laravel Logs Check</h3>
+                <p><strong>PowerShell command to check logs:</strong></p>
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace;">
+Get-Content 'storage\\logs\\laravel.log' -Tail 50 | Select-String -Pattern 'np_file_number|EDMS|processDocumentsForEDMS' -Context 2,2
+                </div>
+                <p><strong>Look for these log messages:</strong></p>
+                <ul>
+                    <li>"Processing documents for EDMS workflow" with np_file_number</li>
+                    <li>"Created EDMS directory" with NP file number path</li>
+                    <li>"Document processed successfully for EDMS" messages</li>
+                    <li>"EDMS document processing completed" with correct counts</li>
+                </ul>
+            `;
+        }
+
+        function testFormSubmission() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <h3>📝 Form Submission Test</h3>
+                <p><strong>Steps to test:</strong></p>
+                <ol>
+                    <li>Go to the primary application form</li>
+                    <li>Fill in all required fields including a valid NP file number</li>
+                    <li>Upload test documents (passport, ID document, RC document)</li>
+                    <li>Submit the form</li>
+                    <li>Check the results using the other verification tools</li>
+                </ol>
+                <p><strong>Success indicators:</strong></p>
+                <ul>
+                    <li>✅ Form submits successfully</li>
+                    <li>✅ EDMS folder created with NP file number</li>
+                    <li>✅ Files stored with NP file number prefix</li>
+                    <li>✅ Scanning table records created</li>
+                    <li>✅ Laravel logs show successful processing</li>
+                </ul>
+                <div style="background: #d4edda; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                    <strong>💡 Tip:</strong> Use a distinctive NP file number like "ST-TEST-2025-999" to easily find your test data
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

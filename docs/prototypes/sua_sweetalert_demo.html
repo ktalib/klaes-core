@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SUA SweetAlert Demo</title>
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
+    <!-- Animate.css for SweetAlert animations -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+        }
+        .demo-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .demo-btn {
+            background: #10B981;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: block;
+            width: 100%;
+        }
+        .demo-btn:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(16, 185, 129, 0.3);
+        }
+        .step {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #10B981;
+        }
+        .step h3 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .step p {
+            margin: 0;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <h1>🎉 SUA Application SweetAlert Demo</h1>
+        
+        <div class="step">
+            <h3>Step 1: Loading State</h3>
+            <p>Shows when form is being submitted</p>
+            <button class="demo-btn" onclick="demoLoading()">Demo Loading Alert</button>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Success State</h3>
+            <p>Shows "SUA Application created successfully!" with redirect</p>
+            <button class="demo-btn" onclick="demoSuccess()">Demo Success Alert</button>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Error State</h3>
+            <p>Shows error messages for failed submissions</p>
+            <button class="demo-btn" onclick="demoError()" style="background: #EF4444;">Demo Error Alert</button>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background: #ecfdf5; border-radius: 8px;">
+            <p style="margin: 0; color: #065f46; font-weight: 600;">
+                ✅ Implementation Complete!<br>
+                SUA forms now use SweetAlert with redirect to /sua index page.
+            </p>
+        </div>
+    </div>
+
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    
+    <script>
+        function demoLoading() {
+            Swal.fire({
+                title: 'Processing...',
+                text: 'Please wait while we process your SUA application.',
+                icon: 'info',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            // Auto close after 3 seconds for demo
+            setTimeout(() => {
+                Swal.close();
+            }, 3000);
+        }
+        
+        function demoSuccess() {
+            Swal.fire({
+                title: 'Success!',
+                text: 'SUA Application created successfully!',
+                icon: 'success',
+                confirmButtonText: 'Continue',
+                confirmButtonColor: '#10B981',
+                showClass: {
+                    popup: 'animate__animated animate__fadeInDown'
+                },
+                hideClass: {
+                    popup: 'animate__animated animate__fadeOutUp'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    alert('Would redirect to /sua index page in real application');
+                }
+            });
+        }
+        
+        function demoError() {
+            Swal.fire({
+                title: 'Submission Failed!',
+                text: 'An error occurred while processing your SUA application.',
+                icon: 'error',
+                confirmButtonText: 'Try Again',
+                confirmButtonColor: '#EF4444'
+            });
+        }
+    </script>
+</body>
+</html>

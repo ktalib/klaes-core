@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Land Use Auto-Fill & Disable Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 15px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        select:disabled { background-color: #f3f4f6; color: #6b7280; cursor: not-allowed; }
+        .status { padding: 5px; margin: 5px 0; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Land Use Auto-Fill & Disable Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Scenario: Mixed Use Application</h3>
+        <p><strong>Expected Behavior:</strong></p>
+        <ol>
+            <li>When no buyer is selected: Land Use dropdown is <strong>enabled</strong></li>
+            <li>When buyer with land use is selected: Land Use dropdown is <strong>auto-filled and disabled</strong></li>
+            <li>When buyer without land use is selected: Land Use dropdown remains <strong>enabled</strong> with warning message</li>
+            <li>When buyer selection is cleared: Land Use dropdown is <strong>re-enabled</strong></li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>Simulate Mixed Use Application Form</h3>
+        
+        <!-- Buyer Selection -->
+        <div style="margin-bottom: 15px;">
+            <label><strong>Select Existing Buyer:</strong></label><br>
+            <select id="testBuyerSelect" style="width: 100%; padding: 5px;">
+                <option value="">Type to search buyer name...</option>
+                <option value="1_A01" 
+                        data-buyer-title="Mr"
+                        data-buyer-name="Musa Ali"
+                        data-unit-no="A01"
+                        data-land-use="Residential"
+                        data-measurement="150 sqm">
+                    Mr Musa Ali (Unit: A01) - Residential - 150 sqm
+                </option>
+                <option value="2_A02" 
+                        data-buyer-title="Ms"
+                        data-buyer-name="Jane Smith"
+                        data-unit-no="A02"
+                        data-land-use="Commercial"
+                        data-measurement="200 sqm">
+                    Ms Jane Smith (Unit: A02) - Commercial - 200 sqm
+                </option>
+                <option value="3_A03" 
+                        data-buyer-title="Dr"
+                        data-buyer-name="Mike Johnson"
+                        data-unit-no="A03"
+                        data-land-use=""
+                        data-measurement="180 sqm">
+                    Dr Mike Johnson (Unit: A03) - (No Land Use) - 180 sqm
+                </option>
+            </select>
+        </div>
+
+        <!-- Land Use Selection -->
+        <div style="margin-bottom: 15px;">
+            <label><strong>Select Land Use:</strong></label><br>
+            <select id="testLandUseSelect" style="width: 100%; padding: 5px;">
+                <option value="">Select Land Use</option>
+                <option value="Residential">Residential</option>
+                <option value="Commercial">Commercial</option>
+                <option value="Industrial">Industrial</option>
+                <option value="Mixed Use">Mixed Use</option>
+            </select>
+        </div>
+
+        <!-- Status Display -->
+        <div id="testStatus" class="status" style="background: #f0f0f0;">
+            Status: No buyer selected - Land Use dropdown is enabled
+        </div>
+
+        <!-- Selected Land Use Display -->
+        <div style="margin-top: 10px;">
+            <strong>Selected Land Use:</strong> 
+            <span id="testSelectedLandUse" style="color: orange;">Not selected</span>
+        </div>
+
+        <!-- Clear Button -->
+        <button id="testClearBtn" onclick="clearTestBuyer()" style="margin-top: 10px; padding: 5px 10px;">
+            Clear Selection
+        </button>
+    </div>
+
+    <div class="test-section">
+        <h3>Test Results Log</h3>
+        <div id="testLog" style="background: #f9f9f9; padding: 10px; height: 200px; overflow-y: auto; border: 1px solid #ddd;">
+            <p><em>Test actions will be logged here...</em></p>
+        </div>
+    </div>
+
+    <script>
+        const buyerSelect = document.getElementById('testBuyerSelect');
+        const landUseSelect = document.getElementById('testLandUseSelect');
+        const statusDiv = document.getElementById('testStatus');
+        const selectedLandUse = document.getElementById('testSelectedLandUse');
+        const testLog = document.getElementById('testLog');
+
+        function logTest(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                'success': '#28a745',
+                'error': '#dc3545', 
+                'warning': '#ffc107',
+                'info': '#17a2b8'
+            };
+            
+            const logEntry = document.createElement('p');
+            logEntry.innerHTML = `<span style="color: ${colors[type]};">[${timestamp}]</span> ${message}`;
+            testLog.appendChild(logEntry);
+            testLog.scrollTop = testLog.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const colors = {
+                'success': '#d4edda',
+                'error': '#f8d7da',
+                'warning': '#fff3cd',
+                'info': '#d1ecf1'
+            };
+            statusDiv.style.background = colors[type];
+            statusDiv.textContent = `Status: ${message}`;
+        }
+
+        function applyTestBuyer(optionEl) {
+            if (!optionEl || !optionEl.value) {
+                // Clear selection
+                landUseSelect.disabled = false;
+                landUseSelect.style.backgroundColor = '';
+                landUseSelect.style.color = '';
+                landUseSelect.style.cursor = '';
+                landUseSelect.selectedIndex = 0;
+                
+                selectedLandUse.textContent = 'Not selected';
+                selectedLandUse.style.color = 'orange';
+                
+                updateStatus('No buyer selected - Land Use dropdown is enabled', 'info');
+                logTest('Buyer selection cleared - Land Use dropdown re-enabled', 'success');
+                return;
+            }
+
+            const buyerName = optionEl.getAttribute('data-buyer-name');
+            const landUse = optionEl.getAttribute('data-land-use');
+            const unitNo = optionEl.getAttribute('data-unit-no');
+
+            logTest(`Buyer selected: ${buyerName} (Unit: ${unitNo})`);
+
+            if (landUse) {
+                // Auto-fill and disable
+                landUseSelect.value = landUse;
+                landUseSelect.disabled = true;
+                landUseSelect.style.backgroundColor = '#f3f4f6';
+                landUseSelect.style.color = '#6b7280';
+                landUseSelect.style.cursor = 'not-allowed';
+                
+                selectedLandUse.textContent = `${landUse} (Auto-filled from buyer)`;
+                selectedLandUse.style.color = 'green';
+                
+                updateStatus(`Buyer has land use: ${landUse} - Land Use dropdown auto-filled and disabled`, 'success');
+                logTest(`✅ Land use auto-filled: ${landUse} - Dropdown disabled`, 'success');
+                
+            } else {
+                // No land use - keep enabled
+                landUseSelect.disabled = false;
+                landUseSelect.selectedIndex = 0;
+                
+                selectedLandUse.textContent = 'Please select manually (buyer has no land use)';
+                selectedLandUse.style.color = 'orange';
+                
+                updateStatus('Buyer has no land use - Land Use dropdown remains enabled for manual selection', 'warning');
+                logTest('⚠️ Buyer has no land use data - Manual selection required', 'warning');
+            }
+        }
+
+        function clearTestBuyer() {
+            buyerSelect.selectedIndex = 0;
+            applyTestBuyer(null);
+        }
+
+        // Event listener
+        buyerSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            applyTestBuyer(selectedOption.value ? selectedOption : null);
+        });
+
+        // Initialize log
+        logTest('Land Use Auto-Fill & Disable Test initialized');
+        logTest('Select a buyer to test the functionality');
+    </script>
+</body>
+</html>

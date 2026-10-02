@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Commissioning Sheet - Line Spacing Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .comparison {
+            background: #f9f9f9;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #10b981;
+        }
+        
+        .old-spacing {
+            background: #fef2f2;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #ef4444;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .new-spacing {
+            background: #f0fdf4;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #10b981;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .spacing-demo {
+            white-space: pre;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Commissioning Sheet - Line Spacing Adjustment</h1>
+    
+    <div class="comparison">
+        <h3>🔧 Spacing Adjustment Made</h3>
+        <p><strong>Issue:</strong> Too much gap between field labels and their underlines</p>
+        <p><strong>Solution:</strong> Reduced labelWidth from 40px to 30px for tighter spacing</p>
+    </div>
+    
+    <div class="old-spacing">
+        <h4>❌ Previous Spacing (labelWidth = 40px):</h4>
+        <div class="spacing-demo">File No:          ________________________________
+File Name:        ________________________________
+Allottee:         ________________________________
+Plot No:          ________________________________
+TP No:            ________________________________
+Location:         ________________________________
+Date Created:     ________________________________
+Created by:       ________________________________</div>
+        <p><strong>Gap:</strong> 15-20 spaces between labels and lines (too wide)</p>
+    </div>
+    
+    <div class="new-spacing">
+        <h4>✅ New Spacing (labelWidth = 30px):</h4>
+        <div class="spacing-demo">File No:     ________________________________
+File Name:   ________________________________
+Allottee:    ________________________________
+Plot No:     ________________________________
+TP No:       ________________________________
+Location:    ________________________________
+Date Created:________________________________
+Created by:  ________________________________</div>
+        <p><strong>Gap:</strong> 5-10 spaces between labels and lines (much better)</p>
+    </div>
+    
+    <div class="comparison">
+        <h3>📊 Technical Changes:</h3>
+        <ul>
+            <li><strong>labelWidth:</strong> Reduced from 40px to 30px (25% reduction)</li>
+            <li><strong>lineStartX:</strong> Now starts at position 55 instead of 65</li>
+            <li><strong>textStartX:</strong> Now starts at position 57 instead of 67</li>
+            <li><strong>Result:</strong> 10px less gap between labels and underlines</li>
+        </ul>
+        
+        <h3>✅ Benefits:</h3>
+        <ul>
+            <li>More professional, tighter layout</li>
+            <li>Better visual balance</li>
+            <li>Consistent spacing for all fields</li>
+            <li>Improved readability</li>
+        </ul>
+    </div>
+    
+    <div style="background: #e0f2fe; padding: 15px; margin: 20px 0; border-left: 4px solid #0ea5e9;">
+        <h3>📋 Position Summary:</h3>
+        <p><strong>Before:</strong> Label → 40px gap → Line/Text</p>
+        <p><strong>After:</strong> Label → 30px gap → Line/Text</p>
+        <p><em>The 10px reduction creates much better visual proportion.</em></p>
+    </div>
+</body>
+</html>

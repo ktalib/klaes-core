@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0c0e15">
+  <title>ALAES File Tracker - Login</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="{{ asset('alaes-assets/login.css') }}">
+</head>
+<body>
+
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+  <div class="bg-blob blob-3"></div>
+
+  <div class="login-container">
+    <div class="login-card">
+      <div class="logo-section">
+        <div class="logo-icon"><img src="{{ asset('alaes-assets/logos/alaes.jpeg') }}" alt="ALAES"></div>
+        <div class="logo-text">ALAES</div>
+        <div class="logo-subtitle">File Tracking Mobile</div>
+      </div>
+
+      <div class="welcome-text">
+        <h2>Welcome Back</h2>
+        <p>Sign in to access your file tracking dashboard</p>
+      </div>
+
+      <div class="error-box" id="errorBox" hidden>
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="errorText"></span>
+      </div>
+
+      <form id="loginForm" autocomplete="on">
+        <div class="form-group">
+          <label class="input-label" for="identifier">Username</label>
+          <div class="input-wrapper">
+            <i class="fas fa-user icon-left"></i>
+            <input type="text" name="identifier" id="identifier" placeholder="Enter your username" autocomplete="username" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="input-label" for="password">Password</label>
+          <div class="input-wrapper">
+            <i class="fas fa-lock icon-left"></i>
+            <input type="password" name="password" id="password" placeholder="Enter your password" autocomplete="current-password" required>
+            <i class="fas fa-eye-slash password-toggle" id="togglePassword"></i>
+          </div>
+        </div>
+
+        <div class="options-row">
+          <label class="remember-me">
+            <input type="checkbox" name="remember" id="rememberMe">
+            <span>Remember me</span>
+          </label>
+        </div>
+
+        <button type="submit" class="login-btn" id="loginBtn">
+          <i class="fas fa-arrow-right-to-bracket"></i>
+          Sign In
+        </button>
+      </form>
+
+      <div class="footer">
+        <p>© <span id="yearNow"></span> ALAES - Land Administration Enterprise System</p>
+        <p style="margin-top:4px;">File Tracker v1.0 · static UI clone</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ asset('alaes-assets/login.js') }}"></script>
+</body>
+</html>

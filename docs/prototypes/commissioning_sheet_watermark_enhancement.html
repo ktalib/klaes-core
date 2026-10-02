@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Commissioning Sheet - Watermark Centering & Opacity Update</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .comparison {
+            background: #f9f9f9;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #10b981;
+        }
+        
+        .before-after {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .page-demo {
+            width: 150px;
+            height: 200px;
+            border: 2px solid #333;
+            position: relative;
+            background: white;
+        }
+        
+        .watermark-old {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 100, 200, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .watermark-new {
+            position: absolute;
+            top: 25px;
+            left: 22.5px;
+            width: 105px;
+            height: 140px;
+            background: rgba(0, 100, 200, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .old-implementation {
+            background: #fef2f2;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .new-implementation {
+            background: #f0fdf4;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #10b981;
+        }
+        
+        .code {
+            font-family: 'Courier New', monospace;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .text-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 8px;
+            color: #333;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Commissioning Sheet - Watermark Enhancement</h1>
+    
+    <div class="comparison">
+        <h3>🎯 Changes Made</h3>
+        <ul>
+            <li><strong>Opacity:</strong> Increased from 0.25 (25%) to 0.35 (35%) - 40% more visible</li>
+            <li><strong>Positioning:</strong> Changed from full-page stretch to centered placement</li>
+            <li><strong>Size:</strong> Reduced to 150x200mm for better proportion and centering</li>
+            <li><strong>Centering:</strong> Calculated center position using page dimensions</li>
+        </ul>
+    </div>
+    
+    <div class="before-after">
+        <div>
+            <h4>❌ Before (Opacity: 0.25, Full Page)</h4>
+            <div class="page-demo">
+                <div class="watermark-old">WATERMARK</div>
+                <div class="text-overlay">Content here</div>
+            </div>
+            <p><small>• Covers entire page<br>• Too subtle (25% opacity)<br>• Not well-centered</small></p>
+        </div>
+        
+        <div>
+            <h4>✅ After (Opacity: 0.35, Centered)</h4>
+            <div class="page-demo">
+                <div class="watermark-new">WATERMARK</div>
+                <div class="text-overlay">Content here</div>
+            </div>
+            <p><small>• Properly centered<br>• More visible (35% opacity)<br>• Better proportioned</small></p>
+        </div>
+    </div>
+    
+    <div class="old-implementation">
+        <h4>🔴 Previous Implementation:</h4>
+        <div class="code">
+// Old: Full page, low opacity
+doc.setGState(doc.GState({opacity: 0.25}));
+doc.addImage(watermarkBase64, 'JPEG', 0, 0, 210, 297);
+        </div>
+        <p><strong>Issues:</strong> Too subtle, stretched across entire page, not centered</p>
+    </div>
+    
+    <div class="new-implementation">
+        <h4>✅ New Implementation:</h4>
+        <div class="code">
+// New: Centered, higher opacity
+doc.setGState(doc.GState({opacity: 0.35}));
+
+// Calculate center position
+const pageWidth = 210;
+const pageHeight = 297;
+const watermarkWidth = 150;
+const watermarkHeight = 200;
+const xPos = (pageWidth - watermarkWidth) / 2;  // 30mm from left
+const yPos = (pageHeight - watermarkHeight) / 2; // 48.5mm from top
+
+doc.addImage(watermarkBase64, 'JPEG', xPos, yPos, watermarkWidth, watermarkHeight);
+        </div>
+        <p><strong>Benefits:</strong> Perfectly centered, more visible, better proportioned</p>
+    </div>
+    
+    <div class="comparison">
+        <h3>📊 Technical Details</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background: #f5f5f5;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Aspect</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Before</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">After</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Improvement</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;"><strong>Opacity</strong></td>
+                <td style="border: 1px solid #ddd; padding: 8px;">0.25 (25%)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">0.35 (35%)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">+40% more visible</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;"><strong>Position</strong></td>
+                <td style="border: 1px solid #ddd; padding: 8px;">(0, 0) - Top left</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">(30, 48.5) - Centered</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Perfect centering</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;"><strong>Size</strong></td>
+                <td style="border: 1px solid #ddd; padding: 8px;">210x297mm (full page)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">150x200mm (proportioned)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Better proportions</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;"><strong>Coverage</strong></td>
+                <td style="border: 1px solid #ddd; padding: 8px;">100% page coverage</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">~50% page coverage</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Less intrusive</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="background: #e0f2fe; padding: 15px; margin: 20px 0; border-left: 4px solid #0ea5e9;">
+        <h3>🎯 Result Summary</h3>
+        <p><strong>The watermark is now:</strong></p>
+        <ul>
+            <li>✅ <strong>Centered</strong> - Perfectly positioned in the middle of the page</li>
+            <li>✅ <strong>More Visible</strong> - 35% opacity (up from 25%) makes it appropriately visible</li>
+            <li>✅ <strong>Better Proportioned</strong> - 150x200mm size creates better visual balance</li>
+            <li>✅ <strong>Professional</strong> - Maintains document readability while being clearly visible</li>
+        </ul>
+    </div>
+</body>
+</html>

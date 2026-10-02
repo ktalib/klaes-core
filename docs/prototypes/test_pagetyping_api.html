@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page Typing Stats</title>
+    <meta name="csrf-token" content="test-token">
+</head>
+<body>
+    <h1>Testing Page Typing Stats API</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function testStatsAPI() {
+            try {
+                console.log('Testing pagetyping stats API...');
+                
+                // Test the API endpoint
+                const response = await fetch('/pagetyping/api/stats', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                console.log('Response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Success:', data);
+                    document.getElementById('results').innerHTML = `
+                        <h2>✓ API Working!</h2>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    document.getElementById('results').innerHTML = `
+                        <h2>✗ API Error (Status: ${response.status})</h2>
+                        <pre>${errorText}</pre>
+                    `;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                document.getElementById('results').innerHTML = `
+                    <h2>✗ Fetch Failed</h2>
+                    <p>Error: ${error.message}</p>
+                    <p>This is the same error the user is experiencing!</p>
+                `;
+            }
+        }
+        
+        // Run the test when page loads
+        window.addEventListener('load', testStatsAPI);
+    </script>
+</body>
+</html>

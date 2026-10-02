@@ -1,0 +1,95 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Notification extends Model
+{
+    use HasFactory;
+
+    protected $connection = 'sqlsrv';
+
+    protected $table = 'notifications';
+
+    protected $fillable = [
+        'module',
+        'name',
+        'subject',
+        'message',
+        'short_code',
+        'enabled_email',
+        'enabled_sms',
+        'parent_id',
+        'user_id',
+        'type',
+        'title',
+        'body',
+        'data',
+        'is_read',
+        'read_at',
+    ];
+
+    protected $casts = [
+        'data' => 'array',
+        'short_code' => 'array',
+        'is_read' => 'boolean',
+        'read_at' => 'datetime',
+        'enabled_email' => 'boolean',
+        'enabled_sms' => 'boolean',
+    ];
+
+    public static array $modules = [
+        'user_create' => [
+            'module' => 'user_create',
+            'name' => 'New User',
+            'short_code' => ['{company_name}', '{company_email}', '{company_phone_number}', '{company_address}', '{company_currency}', '{new_user_name}', '{app_link}', '{username}', '{password}'],
+            'subject' => 'Welcome to {company_name}!',
+            'templete' => '
+                <p><strong>Dear {new_user_name}</strong>,</p><p>&nbsp;</p><blockquote><p>Welcome to {company_name}! We are excited to have you on board and look forward to providing you with an exceptional experience.</p><p>We hope you enjoy your experience with us. If you have any feedback, feel free to share it with us.</p><p>&nbsp;</p><p>Your account details are as follows:</p><p><strong>App Link:</strong> <a href="{app_link}">{app_link}</a></p><p><strong>Username:</strong> {username}</p><p><strong>Password:</strong> {password}</p><p>&nbsp;</p><p>Thank you for choosing {company_name}!</p></blockquote><p>Best regards,</p><p>{company_name}</p><p>{company_email}</p>
+            ',
+        ],
+    ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopeUnread($query)
+    {
+        return $query->where('is_read', false);
+    }
+
+    public function markAsRead(): void
+    {
+        if ($this->is_read) {
+            return;
+        }
+
+        $this->forceFill([
+            'is_read' => true,
+            'read_at' => now(),
+        ])->save();
+    }
+
+    public function markAsUnread(): void
+    {
+        if (!$this->is_read) {
+            return;
+        }
+
+        $this->forceFill([
+            'is_read' => false,
+            'read_at' => null,
+        ])->save();
+    }
+}

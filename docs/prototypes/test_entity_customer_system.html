@@ -1,0 +1,706 @@
+<!-- Entity-Customer System Test & Integration Guide -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entity-Customer System - Test Guide</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.1em; opacity: 0.9; }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+        }
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        .section h3 {
+            color: #764ba2;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .code-block {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        .checklist {
+            list-style: none;
+            margin: 10px 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .checklist li:before {
+            content: "☐";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .api-endpoint {
+            background: #e8f0fe;
+            border-left: 4px solid #1967d2;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .method {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.85em;
+            margin-right: 10px;
+        }
+        .method.get { background: #0066cc; }
+        .method.post { background: #28a745; }
+        .method.put { background: #ffc107; color: #333; }
+        .method.delete { background: #dc3545; }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .table th, .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .table th {
+            background: #f5f5f5;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .table tr:hover {
+            background: #f9f9f9;
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .alert.info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            color: #1976d2;
+        }
+        .alert.warning {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            color: #e65100;
+        }
+        .alert.success {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            color: #2e7d32;
+        }
+        .alert.error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+        .tab-group {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+            gap: 0;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .card h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .footer {
+            background: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🏛️ Entity-Customer System</h1>
+            <p>Comprehensive Test & Integration Guide</p>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Overview Section -->
+            <div class="section">
+                <h2>📋 System Overview</h2>
+                <p>The Entity-Customer relationship system manages <strong>1-to-many ownership relationships</strong> between unique persons/organizations (entities) and their ownership records (customers).</p>
+                
+                <div class="alert info">
+                    <strong>Key Point:</strong> One entity can have multiple customers, but each customer belongs to exactly one entity. This prevents duplication and enables centralized management.
+                </div>
+
+                <h3>Core Components</h3>
+                <table class="table">
+                    <tr>
+                        <th>Component</th>
+                        <th>Purpose</th>
+                        <th>Location</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Entity Model</strong></td>
+                        <td>Represents unique owners</td>
+                        <td>app/Models/Entity.php</td>
+                    </tr>
+                    <tr>
+                        <td><strong>EntityService</strong></td>
+                        <td>Business logic & entity matching</td>
+                        <td>app/Services/EntityService.php</td>
+                    </tr>
+                    <tr>
+                        <td><strong>EntityCustomerController</strong></td>
+                        <td>HTTP endpoints & CRUD</td>
+                        <td>app/Http/Controllers/EntityCustomerController.php</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Migrations</strong></td>
+                        <td>Database schema</td>
+                        <td>database/migrations/2025_11_11_*</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Setup Section -->
+            <div class="section">
+                <h2>🚀 Setup & Deployment</h2>
+                
+                <h3>Step 1: Run Migrations</h3>
+                <p>Create the entities table and add entity_id foreign key to customers:</p>
+                <div class="code-block">php artisan migrate --database=sqlsrv</div>
+                
+                <div class="alert warning">
+                    <strong>Important:</strong> Ensure database backups are created before running migrations in production.
+                </div>
+
+                <h3>Step 2: Add Routes</h3>
+                <p>Add routes to <code>routes/apps3.php</code> or your preferred route file:</p>
+                <div class="code-block">
+// Entity REST endpoints
+Route::resource('entities', EntityCustomerController::class);
+Route::resource('customers', EntityCustomerController::class);
+
+// Advanced AJAX operations
+Route::post('api/entity-customer/find-similar', [EntityCustomerController::class, 'findSimilarEntities']);
+Route::post('api/entity-customer/link-customers', [EntityCustomerController::class, 'linkCustomersToEntity']);
+Route::post('api/entity-customer/merge-entities', [EntityCustomerController::class, 'mergeEntities']);
+                </div>
+
+                <h3>Step 3: Clear Caches</h3>
+                <div class="code-block">
+php artisan route:clear
+php artisan view:clear
+php artisan config:clear
+                </div>
+
+                <h3>Step 4: Verify Installation</h3>
+                <ul class="checklist">
+                    <li>Check entities table exists: <code>php artisan tinker</code> → <code>DB::table('entities')->count()</code></li>
+                    <li>Check customers.entity_id column exists</li>
+                    <li>Test route: Visit <code>/entities</code></li>
+                    <li>Test route: Visit <code>/customers</code></li>
+                </ul>
+            </div>
+
+            <!-- Usage Section -->
+            <div class="section">
+                <h2>💡 Usage Examples</h2>
+
+                <h3>Example 1: Create Entity with Customer</h3>
+                <div class="code-block">
+$entityService = resolve(EntityService::class);
+
+$customer = $entityService->createCustomerWithEntity(
+    [
+        'customer_type' => 'Individual',
+        'customer_name' => 'Olaniyan Olakunle',
+        'email' => 'olaniyan@example.com',
+        'phone' => '08012345678',
+        'created_by' => auth()->id(),
+    ],
+    null, // Entity will be auto-created
+    ['passport_photo' => $uploadedFile]
+);
+                </div>
+
+                <h3>Example 2: Find Similar Entities</h3>
+                <div class="code-block">
+$similar = $entityService->findSimilarEntities(
+    'Olakunle Olaniyan', // Name order variation
+    'Individual',
+    0.65 // 65% similarity threshold
+);
+
+foreach ($similar as $entity) {
+    echo "{$entity->entity_name}";
+}
+                </div>
+
+                <h3>Example 3: Link Multiple Customers to Entity</h3>
+                <div class="code-block">
+$entityService->linkCustomersToEntity(
+    $entityId = 1,
+    $customerIds = [10, 11, 12, 13]
+);
+                </div>
+
+                <h3>Example 4: Merge Duplicate Entities</h3>
+                <div class="code-block">
+// Move all customers from entity #5 to entity #1
+$entityService->mergeEntities(5, 1); // Source → Target
+                </div>
+
+                <h3>Example 5: Get Entity Statistics</h3>
+                <div class="code-block">
+$stats = $entityService->getEntityStatistics();
+
+// Output:
+// [
+//   'total_entities' => 1250,
+//   'by_type' => ['Individual' => 950, 'Corporate' => 280, ...],
+//   'total_customers' => 2100,
+//   'orphaned_customers' => 5
+// ]
+                </div>
+            </div>
+
+            <!-- API Endpoints Section -->
+            <div class="section">
+                <h2>🔌 API Endpoints</h2>
+
+                <h3>Entity Management</h3>
+                <div class="api-endpoint">
+                    <span class="method get">GET</span> <code>/entities</code>
+                    <p>List all entities with pagination and filters</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method post">POST</span> <code>/entities</code>
+                    <p>Create new entity</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method get">GET</span> <code>/entities/{id}</code>
+                    <p>View entity details with linked customers</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method put">PUT</span> <code>/entities/{id}</code>
+                    <p>Update entity information</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method delete">DELETE</span> <code>/entities/{id}</code>
+                    <p>Delete entity (only if no linked customers)</p>
+                </div>
+
+                <h3>Customer Management</h3>
+                <div class="api-endpoint">
+                    <span class="method get">GET</span> <code>/customers</code>
+                    <p>List all customers with entity information</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method post">POST</span> <code>/customers</code>
+                    <p>Create customer and link to entity (with matching)</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method get">GET</span> <code>/customers/{id}</code>
+                    <p>View customer details</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method put">PUT</span> <code>/customers/{id}</code>
+                    <p>Update customer information</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method delete">DELETE</span> <code>/customers/{id}</code>
+                    <p>Soft delete customer</p>
+                </div>
+
+                <h3>Advanced Operations (AJAX)</h3>
+                <div class="api-endpoint">
+                    <span class="method post">POST</span> <code>/api/entity-customer/find-similar</code>
+                    <p>Find similar entities by name before creating</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method post">POST</span> <code>/api/entity-customer/link-customers</code>
+                    <p>Link multiple customers to single entity</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method post">POST</span> <code>/api/entity-customer/merge-entities</code>
+                    <p>Merge duplicate entities</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method get">GET</span> <code>/api/entity-customer/statistics</code>
+                    <p>Get system statistics</p>
+                </div>
+                <div class="api-endpoint">
+                    <span class="method get">GET</span> <code>/api/entity-customer/search</code>
+                    <p>Search entities with filters</p>
+                </div>
+            </div>
+
+            <!-- Testing Section -->
+            <div class="section">
+                <h2>🧪 Testing Checklist</h2>
+
+                <h3>Unit Tests</h3>
+                <ul class="checklist">
+                    <li>Entity model relationships (hasMany customers)</li>
+                    <li>Customer model relationships (belongsTo entity)</li>
+                    <li>Entity similarity matching algorithm</li>
+                    <li>Entity name normalization (trim/case)</li>
+                    <li>Customer code auto-generation</li>
+                </ul>
+
+                <h3>Integration Tests</h3>
+                <ul class="checklist">
+                    <li>Create customer with new entity</li>
+                    <li>Create customer with existing entity</li>
+                    <li>Find similar entities (name variations)</li>
+                    <li>Link multiple customers to entity</li>
+                    <li>Merge duplicate entities</li>
+                    <li>Media file upload (passport/logo)</li>
+                    <li>Media file deletion</li>
+                    <li>Soft delete customer</li>
+                    <li>Entity deletion protection (has customers)</li>
+                </ul>
+
+                <h3>Data Validation</h3>
+                <ul class="checklist">
+                    <li>Entity name required and not empty</li>
+                    <li>Entity type in (Individual, Corporate, Multiple Owners)</li>
+                    <li>Customer name required</li>
+                    <li>Email format validation</li>
+                    <li>Phone number format validation</li>
+                    <li>No orphaned customers after operations</li>
+                    <li>Foreign key constraints enforced</li>
+                    <li>Audit trail (created_by, updated_by)</li>
+                </ul>
+
+                <h3>Database Integrity</h3>
+                <ul class="checklist">
+                    <li>Verify foreign key constraint exists</li>
+                    <li>Verify indexes on entity_name, entity_type</li>
+                    <li>Verify indexes on customer.entity_id</li>
+                    <li>Check for NULL entity_id values (orphaned)</li>
+                    <li>Verify cascade behavior on update</li>
+                    <li>Verify restrict on delete (no orphans)</li>
+                </ul>
+
+                <h3>UI/UX Tests</h3>
+                <ul class="checklist">
+                    <li>Entity listing displays all entities</li>
+                    <li>Entity filters work (type, name search)</li>
+                    <li>Customer listing shows entity information</li>
+                    <li>Customer creation shows entity dropdown</li>
+                    <li>Similar entity suggestions display</li>
+                    <li>Media upload preview displays</li>
+                    <li>Error messages display correctly</li>
+                    <li>Success notifications appear</li>
+                    <li>Pagination works on listings</li>
+                </ul>
+            </div>
+
+            <!-- Troubleshooting Section -->
+            <div class="section">
+                <h2>🐛 Troubleshooting</h2>
+
+                <div class="card">
+                    <h4>❌ Migration fails with "Table already exists"</h4>
+                    <p>The entities table already exists. Check migration history:</p>
+                    <div class="code-block">php artisan migrate:status --database=sqlsrv</div>
+                </div>
+
+                <div class="card">
+                    <h4>❌ Entity not appearing in dropdown</h4>
+                    <p>Entity might be deleted or ID doesn't exist. Verify:</p>
+                    <div class="code-block">
+DB::connection('sqlsrv')->table('entities')->where('id', $id)->first();
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4>❌ Media files not uploading</h4>
+                    <p>Ensure storage is linked and has correct permissions:</p>
+                    <div class="code-block">
+php artisan storage:link
+chmod -R 755 storage/app/public
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4>❌ Foreign key constraint error</h4>
+                    <p>Ensure entity exists before linking customer:</p>
+                    <div class="code-block">
+// ✗ Wrong
+$customer->update(['entity_id' => 999]); // Entity might not exist
+
+// ✓ Correct
+$entity = Entity::findOrFail($id);
+$customer->update(['entity_id' => $entity->id]);
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4>❌ Orphaned customers (entity_id is NULL)</h4>
+                    <p>Fix orphaned customers by auto-linking them:</p>
+                    <div class="code-block">
+Customer::whereNull('entity_id')->chunk(100, function($customers) {
+    foreach ($customers as $customer) {
+        $entity = Entity::firstOrCreate([
+            'entity_name' => $customer->customer_name,
+            'entity_type' => 'Individual'
+        ]);
+        $customer->update(['entity_id' => $entity->id]);
+    }
+});
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4>❌ Similarity matching not working</h4>
+                    <p>Check threshold and entity type match:</p>
+                    <div class="code-block">
+// Try lower threshold (e.g., 0.5 instead of 0.7)
+$similar = $entityService->findSimilarEntities(
+    'Olakunle Olaniyan',
+    'Individual',
+    0.5 // Lower threshold
+);
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Migration Section -->
+            <div class="section">
+                <h2>📤 Migrating Existing Customers</h2>
+                <p>If you have existing customers without entity_id, use this script to link them:</p>
+                
+                <h3>Step 1: Open Tinker</h3>
+                <div class="code-block">php artisan tinker</div>
+
+                <h3>Step 2: Run Migration Script</h3>
+                <div class="code-block">
+use App\Models\Entity;
+use App\Models\Customer;
+
+Customer::chunk(1000, function ($customers) {
+    foreach ($customers as $customer) {
+        if (!$customer->entity_id) {
+            // Create entity from customer data
+            $entity = Entity::firstOrCreate([
+                'entity_name' => $customer->customer_name,
+                'entity_type' => 'Individual'
+            ]);
+            
+            // Link customer to entity
+            $customer->update(['entity_id' => $entity->id]);
+            
+            echo "Linked: {$customer->customer_name} → {$entity->id}\n";
+        }
+    }
+});
+
+echo "Migration complete!";
+                </div>
+
+                <h3>Step 3: Verify Migration</h3>
+                <div class="code-block">
+// Check orphaned customers
+Customer::whereNull('entity_id')->count();
+
+// Check total linked
+Customer::whereNotNull('entity_id')->count();
+
+// Check entities created
+Entity::count();
+                </div>
+
+                <div class="alert success">
+                    <strong>✓ Migration Complete:</strong> All customers are now linked to entities and can be managed through the system.
+                </div>
+            </div>
+
+            <!-- Quick Reference Section -->
+            <div class="section">
+                <h2>📚 Quick Reference</h2>
+
+                <h3>Entity Type Values</h3>
+                <table class="table">
+                    <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Media Storage</th>
+                    </tr>
+                    <tr>
+                        <td>Individual</td>
+                        <td>Single person</td>
+                        <td>/uploads/passports/</td>
+                    </tr>
+                    <tr>
+                        <td>Corporate</td>
+                        <td>Business/Organization</td>
+                        <td>/uploads/logos/</td>
+                    </tr>
+                    <tr>
+                        <td>Multiple Owners</td>
+                        <td>Group of owners</td>
+                        <td>None</td>
+                    </tr>
+                </table>
+
+                <h3>Customer Status Values</h3>
+                <table class="table">
+                    <tr>
+                        <th>Status</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>Active</td>
+                        <td>Currently active customer</td>
+                    </tr>
+                    <tr>
+                        <td>Inactive</td>
+                        <td>Temporarily suspended</td>
+                    </tr>
+                    <tr>
+                        <td>Blocked</td>
+                        <td>Restricted access</td>
+                    </tr>
+                    <tr>
+                        <td>Archived</td>
+                        <td>Historical record</td>
+                    </tr>
+                </table>
+
+                <h3>Key Database Tables</h3>
+                <div class="code-block">
+-- Entities: Unique owners
+entities (id, entity_type, entity_name, passport_photo, company_logo, created_at, updated_at)
+
+-- Customers: Ownership records linked to entities
+customers (id, entity_id [FK], customer_type, status, customer_name, email, phone, ...)
+                </div>
+
+                <h3>Core Service Methods</h3>
+                <div class="code-block">
+$entityService->findOrCreateEntity($name, $type, $media)
+$entityService->findSimilarEntities($name, $type, $threshold)
+$entityService->createCustomerWithEntity($customerData, $entityId, $mediaData)
+$entityService->linkCustomersToEntity($entityId, $customerIds)
+$entityService->mergeEntities($sourceId, $targetId)
+$entityService->getEntityStatistics()
+                </div>
+            </div>
+
+            <!-- Support Section -->
+            <div class="section">
+                <h2>📞 Support & Resources</h2>
+
+                <div class="card">
+                    <h4>📖 Documentation</h4>
+                    <p>See <code>ENTITY_CUSTOMER_IMPLEMENTATION.md</code> for complete documentation</p>
+                </div>
+
+                <div class="card">
+                    <h4>👨‍💻 Code Structure</h4>
+                    <ul style="padding-left: 20px;">
+                        <li><strong>Model:</strong> app/Models/Entity.php</li>
+                        <li><strong>Model:</strong> app/Models/Customer.php (updated)</li>
+                        <li><strong>Service:</strong> app/Services/EntityService.php</li>
+                        <li><strong>Controller:</strong> app/Http/Controllers/EntityCustomerController.php</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h4>🔍 Database</h4>
+                    <ul style="padding-left: 20px;">
+                        <li>Entities table: <code>entities</code></li>
+                        <li>Foreign Key: <code>customers.entity_id</code></li>
+                        <li>Indexes: entity_name, entity_type, entity_id</li>
+                    </ul>
+                </div>
+
+                <div class="alert info">
+                    <strong>Need Help?</strong> Review the implementation documentation and test against the checklist above.
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Entity-Customer System Implementation Guide • Generated 2025-11-11</p>
+            <p>KLAES GIS EDMS • All Rights Reserved</p>
+        </div>
+    </div>
+</body>
+</html>

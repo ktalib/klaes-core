@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ST EDMS to Blind Scanning Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .info {
+            background: #cce7ff;
+            border-color: #99d6ff;
+            color: #004085;
+        }
+        .warning {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .test-button {
+            background: #10b981;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #059669;
+        }
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+        }
+        .flow-number {
+            background: #10b981;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .verification-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .verification-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .verification-list li:before {
+            content: "✓ ";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏢➡️📋 ST EDMS to Blind Scanning Integration</h1>
+            <p>Complete workflow from Primary Application submission to Blind Scanning interface</p>
+        </div>
+
+        <div class="section success">
+            <h2>✅ Integration Complete</h2>
+            <p><strong>The ST EDMS to Blind Scanning workflow is now fully integrated:</strong></p>
+            <ul class="verification-list">
+                <li>Primary application redirects to /blind-scanning?url=st_edms after submission</li>
+                <li>Applicant information passed via localStorage and URL parameters</li>
+                <li>Blind scanning interface customized for ST EDMS context</li>
+                <li>Green theme and ST-specific instructions displayed</li>
+                <li>NP File Number pre-populated from application</li>
+                <li>Applicant info banner shown with context details</li>
+            </ul>
+        </div>
+
+        <div class="section info">
+            <h2>🔄 Complete Workflow</h2>
+            
+            <div class="flow-step">
+                <div class="flow-number">1</div>
+                <div>
+                    <h3><strong>Primary Application Submission</strong></h3>
+                    <p>User submits ST primary application with documents and applicant info</p>
+                    <div class="code">✅ EDMS documents processed with NP File Number
+✅ Application data stored in database
+✅ Response includes redirect_url and applicant_info</div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="flow-number">2</div>
+                <div>
+                    <h3><strong>Automatic Redirect</strong></h3>
+                    <p>JavaScript handles successful submission and redirects to blind scanning</p>
+                    <div class="code">✅ Applicant info stored in localStorage
+✅ Redirect to: /blind-scanning?url=st_edms
+✅ Context parameters passed</div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="flow-number">3</div>
+                <div>
+                    <h3><strong>ST Blind Scanning Interface</strong></h3>
+                    <p>Customized interface for Sectional Titling document processing</p>
+                    <div class="code">✅ Green theme (ST branding)
+✅ "ST BLIND SCAN" title
+✅ ST-specific instructions
+✅ NP File Number pre-populated
+✅ Applicant info banner displayed</div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="flow-number">4</div>
+                <div>
+                    <h3><strong>Document Processing Ready</strong></h3>
+                    <p>Interface ready for blind scanning workflow with ST context</p>
+                    <div class="code">✅ Stage 1: EDMS/BLIND_SCAN/{FILE_NUMBER}
+✅ Stage 2: Move to EDMS/SCAN_UPLOAD/{NP_FILE_NUMBER}
+✅ Complete audit trail maintained</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🧪 Testing Steps</h2>
+            <ol>
+                <li><strong>Submit Primary Application:</strong>
+                    <ul>
+                        <li>Go to the primary application form</li>
+                        <li>Fill all required fields with valid ST data</li>
+                        <li>Upload test documents (passport, ID, RC document)</li>
+                        <li>Submit the form</li>
+                    </ul>
+                </li>
+                <li><strong>Verify Automatic Redirect:</strong>
+                    <ul>
+                        <li>Form should redirect to <code>/blind-scanning?url=st_edms</code></li>
+                        <li>No manual navigation required</li>
+                    </ul>
+                </li>
+                <li><strong>Check ST Blind Scanning Interface:</strong>
+                    <ul>
+                        <li>Page title should show "ST BLIND SCAN"</li>
+                        <li>Green theme instead of default blue</li>
+                        <li>ST-specific instructions displayed</li>
+                        <li>NP File Number pre-populated in file number field</li>
+                        <li>Applicant info banner showing context</li>
+                    </ul>
+                </li>
+                <li><strong>Verify Functionality:</strong>
+                    <ul>
+                        <li>File number field should contain ST file number</li>
+                        <li>Shows two-stage process: BLIND_SCAN → SCAN_UPLOAD</li>
+                        <li>All blind scanning features should work normally</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+
+        <div class="section info">
+            <h2>📁 Two-Stage File Processing</h2>
+            <p><strong>ST EDMS uses a two-stage approach for document processing:</strong></p>
+            
+            <div class="flow-step">
+                <div class="flow-number">1</div>
+                <div>
+                    <h3><strong>Stage 1: Blind Scanning</strong></h3>
+                    <p>Documents processed through standard blind scan workflow</p>
+                    <div class="code">📁 Destination: storage/EDMS/BLIND_SCAN/[FileNumber]/
+⚡ Uses existing blind scan infrastructure
+📋 All current blind scan features available</div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="flow-number">2</div>
+                <div>
+                    <h3><strong>Stage 2: Move to ST EDMS Structure</strong></h3>
+                    <p>Separate function moves files to final ST EDMS location</p>
+                    <div class="code">📁 Final Destination: storage/EDMS/SCAN_UPLOAD/[NP_FileNumber]/
+🔄 Custom function handles file movement
+✅ Files organized by NP File Number</div>
+                </div>
+            </div>
+
+            <p><strong>Benefits of Two-Stage Approach:</strong></p>
+            <ul class="verification-list">
+                <li>Preserves existing blind scan functionality</li>
+                <li>Allows review and quality control before final placement</li>
+                <li>Flexible file management with custom movement function</li>
+                <li>Clear separation between scanning and EDMS organization</li>
+            </ul>
+        </div>
+
+        <div class="section warning">
+            <h2>🔍 Key Changes Made</h2>
+            
+            <h3>Backend Changes:</h3>
+            <div class="code">
+PrimaryApplicationController.php:
+• Added redirect_url to success response
+• Included applicant_info in response data
+• Redirect points to /blind-scanning?url=st_edms
+
+BlindScanningController.php:
+• Enhanced index() method to detect ST EDMS context
+• Set isSTEDMS flag for view customization
+• Modified page title and description for ST context
+            </div>
+
+            <h3>Frontend Changes:</h3>
+            <div class="code">
+form-submission.js:
+• Added localStorage storage for applicant info
+• Enhanced redirect handling for ST EDMS context
+• Preserves applicant data across page navigation
+
+blind_scans.blade.php:
+• Added conditional ST EDMS theming (green instead of blue)
+• ST-specific page title and instructions
+• Pre-population of NP file number
+• Applicant info banner with context details
+• Modified destination path display
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Expected User Experience</h2>
+            <div class="test-button" onclick="showUserFlow()">Show User Flow</div>
+            <div class="test-results" id="userFlowResults">
+                <p>Click "Show User Flow" to see the complete user experience...</p>
+            </div>
+        </div>
+
+        <div class="section success">
+            <h2>🚀 Benefits</h2>
+            <ul class="verification-list">
+                <li><strong>Seamless Workflow:</strong> No manual navigation between forms</li>
+                <li><strong>Context Preservation:</strong> Applicant info carried forward automatically</li>
+                <li><strong>User-Friendly:</strong> Clear visual distinction for ST processes</li>
+                <li><strong>Data Integrity:</strong> NP file numbers consistently used throughout</li>
+                <li><strong>Efficient Processing:</strong> Documents ready for immediate blind scanning</li>
+                <li><strong>Audit Trail:</strong> Complete workflow tracking from application to scanning</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function showUserFlow() {
+            const results = document.getElementById('userFlowResults');
+            results.innerHTML = `
+                <h3>👤 Complete User Experience Flow</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <h4>1. 📝 User fills Primary Application form:</h4>
+                    <ul>
+                        <li>Enters applicant details (Title, Name, Type, Land Use)</li>
+                        <li>Selects/generates NP File Number (e.g., ST-COM-2025-001)</li>
+                        <li>Uploads required documents (passport, ID, RC document)</li>
+                        <li>Clicks "Submit Application"</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <h4>2. ⚡ Automatic Processing & Redirect:</h4>
+                    <ul>
+                        <li>System processes documents into EDMS/SCAN_UPLOAD/{NP_FILE_NUMBER}/</li>
+                        <li>Creates scanning table entries</li>
+                        <li>Shows success message with "Proceed to Page Typing" button</li>
+                        <li>Automatically redirects to ST Blind Scanning interface</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #e6f7ff; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <h4>3. 🏢 ST Blind Scanning Interface:</h4>
+                    <ul>
+                        <li><strong>Visual Changes:</strong> Green theme, "ST BLIND SCAN" title</li>
+                        <li><strong>Context Banner:</strong> Shows applicant name, type, land use, NP file number</li>
+                        <li><strong>Pre-populated Data:</strong> File number field contains ST file number</li>
+                        <li><strong>Updated Instructions:</strong> ST-specific workflow steps</li>
+                        <li><strong>Two-Stage Process:</strong> BLIND_SCAN → SCAN_UPLOAD workflow</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #fff7e6; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <h4>4. 📋 Ready for Blind Scanning:</h4>
+                    <ul>
+                        <li>User can immediately proceed with blind scanning workflow</li>
+                        <li>All context preserved from original application</li>
+                        <li>No manual data entry required</li>
+                        <li>Consistent file numbering throughout process</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #10b981;">
+                    <h4>💡 User Benefits:</h4>
+                    <ul>
+                        <li>✅ <strong>Zero Manual Navigation:</strong> Automatic redirect after submission</li>
+                        <li>✅ <strong>No Data Re-entry:</strong> All info carried forward automatically</li>
+                        <li>✅ <strong>Clear Context:</strong> Visual cues show this is ST process</li>
+                        <li>✅ <strong>Consistent Experience:</strong> Same file numbers throughout</li>
+                        <li>✅ <strong>Error Prevention:</strong> Pre-populated fields reduce mistakes</li>
+                    </ul>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

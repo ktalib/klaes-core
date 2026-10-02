@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Recommended Site Plan API</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <h1>Test Recommended Site Plan Sketch Upload</h1>
+    
+    <div style="margin: 20px; padding: 20px; border: 1px solid #ccc;">
+        <h3>Test Upload</h3>
+        <form id="testForm">
+            <div>
+                <label>Application ID:</label>
+                <input type="text" id="applicationId" value="TEST_001" required>
+            </div>
+            <div style="margin: 10px 0;">
+                <label>Description:</label>
+                <textarea id="description" placeholder="Test description">Test recommended site plan upload</textarea>
+            </div>
+            <div style="margin: 10px 0;">
+                <label>File:</label>
+                <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" required>
+            </div>
+            <button type="button" onclick="testUpload()">Test Upload</button>
+        </form>
+    </div>
+
+    <div style="margin: 20px; padding: 20px; border: 1px solid #ccc;">
+        <h3>Test Get</h3>
+        <input type="text" id="getApplicationId" value="TEST_001" placeholder="Application ID">
+        <button type="button" onclick="testGet()">Test Get</button>
+    </div>
+
+    <div style="margin: 20px; padding: 20px; border: 1px solid #ccc;">
+        <h3>Test Delete</h3>
+        <input type="text" id="deleteApplicationId" value="TEST_001" placeholder="Application ID">
+        <button type="button" onclick="testDelete()">Test Delete</button>
+    </div>
+
+    <script>
+        function testUpload() {
+            const applicationId = document.getElementById('applicationId').value;
+            const description = document.getElementById('description').value;
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!applicationId || !file) {
+                Swal.fire('Error', 'Please fill in all required fields', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('application_id', applicationId);
+            formData.append('description', description);
+            formData.append('recommended_file', file);
+
+            // Get CSRF token
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (token) {
+                formData.append('_token', token);
+            }
+
+            fetch('/save-recommended-site-plan', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': token || ''
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('Success', data.message, 'success');
+                } else {
+                    Swal.fire('Error', data.message || 'Upload failed', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire('Error', 'Network error occurred', 'error');
+            });
+        }
+
+        function testGet() {
+            const applicationId = document.getElementById('getApplicationId').value;
+            
+            if (!applicationId) {
+                Swal.fire('Error', 'Please enter Application ID', 'error');
+                return;
+            }
+
+            fetch(`/get-recommended-site-plan/${applicationId}`, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: 'Success',
+                        html: `<pre>${JSON.stringify(data.recommendedSitePlan, null, 2)}</pre>`,
+                        icon: 'success',
+                        width: '600px'
+                    });
+                } else {
+                    Swal.fire('Error', data.message || 'Get failed', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire('Error', 'Network error occurred', 'error');
+            });
+        }
+
+        function testDelete() {
+            const applicationId = document.getElementById('deleteApplicationId').value;
+            
+            if (!applicationId) {
+                Swal.fire('Error', 'Please enter Application ID', 'error');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'This will delete the recommended site plan sketch',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch(`/delete-recommended-site-plan/${applicationId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('Success', data.message, 'success');
+                        } else {
+                            Swal.fire('Error', data.message || 'Delete failed', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        Swal.fire('Error', 'Network error occurred', 'error');
+                    });
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indexed Files API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Indexed Files API Test</h1>
+    <button onclick="testAPI()">Test API</button>
+    <div id="results"></div>
+
+    <script>
+        async function testAPI() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                console.log('Testing /fileindexing/api/indexed-files endpoint...');
+                
+                const response = await fetch('/fileindexing/api/indexed-files?per_page=5');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                let html = '<div class="test-result success">';
+                html += '<h3>✅ API Request Successful</h3>';
+                html += `<p><strong>Status:</strong> ${response.status}</p>`;
+                html += `<p><strong>Success:</strong> ${data.success}</p>`;
+                
+                if (data.success) {
+                    html += `<p><strong>Files Count:</strong> ${data.indexed_files ? data.indexed_files.length : 0}</p>`;
+                    html += `<p><strong>Total Records:</strong> ${data.pagination ? data.pagination.total : 'Unknown'}</p>`;
+                    
+                    if (data.indexed_files && data.indexed_files.length > 0) {
+                        html += '<h4>Sample File Data:</h4>';
+                        html += '<pre>' + JSON.stringify(data.indexed_files[0], null, 2) + '</pre>';
+                        
+                        // Check for new batch tracking fields
+                        const file = data.indexed_files[0];
+                        html += '<h4>Batch Tracking Fields Check:</h4>';
+                        html += `<p>batch_generated: ${file.batch_generated !== undefined ? '✅ Present' : '❌ Missing'}</p>`;
+                        html += `<p>last_batch_id: ${file.last_batch_id !== undefined ? '✅ Present' : '❌ Missing'}</p>`;
+                        html += `<p>batch_generated_at: ${file.batch_generated_at !== undefined ? '✅ Present' : '❌ Missing'}</p>`;
+                        html += `<p>batch_generated_by: ${file.batch_generated_by !== undefined ? '✅ Present' : '❌ Missing'}</p>`;
+                    } else {
+                        html += '<p><strong>⚠️ No files returned in response</strong></p>';
+                    }
+                } else {
+                    html += `<p><strong>Error Message:</strong> ${data.message || 'Unknown error'}</p>`;
+                }
+                
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('API test failed:', error);
+                
+                let html = '<div class="test-result error">';
+                html += '<h3>❌ API Request Failed</h3>';
+                html += `<p><strong>Error:</strong> ${error.message}</p>`;
+                html += '<h4>Debugging Steps:</h4>';
+                html += '<ol>';
+                html += '<li>Check if the route exists: <code>/fileindexing/api/indexed-files</code></li>';
+                html += '<li>Check Laravel logs for errors</li>';
+                html += '<li>Verify database connection</li>';
+                html += '<li>Check if FileIndexController@getIndexedFiles method exists</li>';
+                html += '</ol>';
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            }
+        }
+        
+        // Auto-test on page load
+        window.onload = () => {
+            setTimeout(testAPI, 500);
+        };
+    </script>
+</body>
+</html>

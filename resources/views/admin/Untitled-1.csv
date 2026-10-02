@@ -1,0 +1,138 @@
+ 
+KANGIS Land Admin System©
+
+0.	DASHBOAD
+1.	CUSTOMER RELATIONSHIP MANAGEMENT
+a.	Person
+i.	Individual
+ii.	Group
+iii.	Family
+b.	Corporate
+c.	Customer Manager
+i.	Appointment 
+ii.	Appointment Calendar
+2.	PROGRAMMES
+a.	Allocation
+i.	Governors List
+ii.	Commissioners List
+b.	Resettlement 
+i.	Governors List
+ii.	Commissioners List
+c.	Recertification
+d.	Conversion/Regularization
+e.	Land Property Enumeration
+i.	Data Repository
+ii.	Migrate Data
+3.	INFORMATION PRODUCTS
+a.	Letter of Administration/Grant/Offer Letter
+b.	 Occupancy Permit (OP)
+c.	Site Plan/Parcel Plan
+d.	Right of Occupancy
+e.	Certificate of Occupancy
+4.	DEEDS
+a.	Instrument Capture
+b.	Instrument Registration 
+c.	CofO Registration
+i.	Regular CofO
+ii.	Sectional Titling CofO
+iii.	SLTR CofO
+d.	Property Records Assistant
+e.	Instrument Registration Reports
+5.	SEARCH
+a.	Legal Search
+i.	Official (for filing purpose)
+ii.	On-Premise 
+iii.	Online
+iv.	Legal Search Reports 
+6.	REVENUE MANAGEMENT
+a.	Billing 
+i.	Automated Billing 
+ii.	Legacy Billing
+b.	Generate Receipt
+c.	Land Use Charge (LUC)
+d.	Bill Balance
+7.	SECTIONAL TITLING
+a.	Overview 
+b.	Primary Application
+c.	Unit Application
+d.	Field Data
+e.	Payments
+f.	Approvals
+i.	Other Departments
+ii.	Planning Recommendation
+iii.	Director’s Approval
+g.	Memo
+h.	Certificate
+i.	RofO
+ii.	CofO
+i.	e-Registry
+i.	Files
+j.	GIS 
+i.	Attribution 
+ii.	Map
+k.	Survey
+i.	Attribution
+l.	Reports
+8.	SLTR/FIRST REGISTRATION
+a.	Overview 
+b.	Application
+c.	Legacy Data
+d.	Field Data
+e.	Payments
+f.	Approvals
+i.	Other Departments
+1.	Lands
+2.	Deeds
+3.	Survey
+4.	Cadastral
+ii.	Planning Recommendation
+iii.	Director’s Approval
+g.	Memo
+h.	Certificate
+i.	RofO
+ii.	CofO
+i.	e-Registry
+i.	Files
+j.	GIS 
+i.	Attribution
+ii.	Map
+k.	Survey
+i.	Attribution
+l.	Reports
+9.	LANDS 
+a.	File Digital Archive – Doc-WARE
+b.	File Tracker/Tracking - RFID
+c.	 EDMS
+i.	Indexing
+1.	File Indexing Assistant 
+2.	Print File Labels
+ii.	Scanning
+1.	Upload
+2.	Download
+iii.	PageTyping
+10.	PHYSICAL PLANNING
+a.	Regular Applications
+b.	ST Applications
+c.	SLTR Applications
+d.	PP Reports
+11.	SURVEY
+a.	Records
+b.	GIS
+c.	Approvals
+d.	E-Registry
+e.	Survey Reports
+12.	CADASTRAL
+a.	Records
+b.	GIS
+c.	Approvals
+d.	E-Registry
+e.	Cadastral Reports 
+13.	GIS
+a.	GIS Attribution 
+14.	SYSTEMS
+a.	Caveat
+b.	Encumbrance
+15.	LEGACY SYSTEMS
+16.	SYSTEM ADMIN
+a.	User Account
+b.	System Settings

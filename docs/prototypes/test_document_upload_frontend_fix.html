@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Upload Frontend Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .success { color: #059669; font-weight: bold; }
+        .error { color: #dc2626; font-weight: bold; }
+        .warning { color: #d97706; font-weight: bold; }
+        .info { color: #2563eb; font-weight: bold; }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            border-left: 3px solid #e5e7eb;
+            background-color: #f9fafb;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 400px;
+        }
+        button {
+            background-color: #059669;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background-color: #047857; }
+        .document-section {
+            border: 1px solid #d1d5db;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            background-color: #fefefe;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔧 Document Upload Frontend Fix Test</h1>
+        <p>Testing the updated JavaScript code to capture document files (application_letter, building_plan, etc.)</p>
+        
+        <div class="document-section">
+            <h3>📄 Document File Inputs</h3>
+            <p>Select some documents to test the JavaScript capture logic:</p>
+            
+            <label>Application Letter:</label>
+            <input type="file" name="application_letter" id="application_letter" accept=".pdf,.doc,.docx">
+            
+            <label>Building Plan:</label>
+            <input type="file" name="building_plan" id="building_plan" accept=".pdf,.dwg,.jpg,.png">
+            
+            <label>Architectural Design:</label>
+            <input type="file" name="architectural_design" id="architectural_design" accept=".pdf,.dwg,.jpg,.png">
+            
+            <label>Ownership Document:</label>
+            <input type="file" name="ownership_document" id="ownership_document" accept=".pdf,.doc,.docx">
+            
+            <label>Survey Plan:</label>
+            <input type="file" name="survey_plan" id="survey_plan" accept=".pdf,.dwg,.jpg,.png">
+            
+            <label>Passport (for comparison):</label>
+            <input type="file" name="passport" id="passport" accept=".jpg,.png,.pdf">
+        </div>
+        
+        <button onclick="testDocumentCapture()">🧪 Test Document Capture Logic</button>
+        <button onclick="clearLogs()">🧹 Clear Logs</button>
+        
+        <div id="testResults" class="test-container">
+            <h3>📋 Test Results</h3>
+            <div id="logOutput"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mock FormData for testing
+        function testDocumentCapture() {
+            const logOutput = document.getElementById('logOutput');
+            logOutput.innerHTML = '<div class="info">🧪 Starting document capture test...</div>';
+            
+            // Simulate the updated JavaScript logic
+            const mockFormData = new Map();
+            let logEntries = [];
+            
+            function mockLog(message, type = 'info') {
+                logEntries.push({ message, type });
+                const logClass = type === 'success' ? 'success' : 
+                                type === 'error' ? 'error' : 
+                                type === 'warning' ? 'warning' : 'info';
+                logOutput.innerHTML += `<div class="log-entry ${logClass}">${message}</div>`;
+            }
+            
+            // Test passport handling (existing code)
+            let passportInput = document.querySelector('input[name="passport"]');
+            if (passportInput && passportInput.files && passportInput.files.length > 0) {
+                const passportFile = passportInput.files[0];
+                mockFormData.set('passport', passportFile);
+                mockLog(`✅ FORCE captured passport: ${passportFile.name} (${passportFile.size} bytes, type: ${passportFile.type})`, 'success');
+            } else {
+                mockLog('⚠️ Passport input found but no file selected', 'warning');
+            }
+            
+            // Test new document handling logic
+            const documentFields = [
+                'application_letter',
+                'building_plan', 
+                'architectural_design',
+                'ownership_document',
+                'survey_plan'
+            ];
+
+            let documentsFound = 0;
+            let documentsWithFiles = 0;
+
+            documentFields.forEach(fieldName => {
+                let documentInput = document.querySelector(`input[name="${fieldName}"]`);
+                if (!documentInput) {
+                    documentInput = document.getElementById(fieldName);
+                }
+                
+                if (documentInput) {
+                    documentsFound++;
+                    mockLog(`📄 ${fieldName} input found: files_length = ${documentInput.files ? documentInput.files.length : 0}`, 'info');
+                    
+                    if (documentInput.files && documentInput.files.length > 0) {
+                        documentsWithFiles++;
+                        const documentFile = documentInput.files[0];
+                        mockFormData.set(fieldName, documentFile);
+                        mockLog(`✅ FORCE captured ${fieldName}: ${documentFile.name} (${documentFile.size} bytes, type: ${documentFile.type})`, 'success');
+                    } else {
+                        mockLog(`⚠️ ${fieldName} input found but no file selected`, 'warning');
+                    }
+                } else {
+                    mockLog(`❌ ${fieldName} input NOT FOUND in DOM`, 'error');
+                }
+            });
+            
+            // Summary
+            mockLog(`📊 SUMMARY: Found ${documentsFound}/5 document inputs, ${documentsWithFiles} have files selected`, 'info');
+            
+            // Show what would be sent to backend
+            if (mockFormData.size > 0) {
+                mockLog('📤 Files that would be sent to backend:', 'success');
+                mockFormData.forEach((file, fieldName) => {
+                    if (file instanceof File) {
+                        mockLog(`  - ${fieldName}: ${file.name} (${file.size} bytes)`, 'success');
+                    }
+                });
+            } else {
+                mockLog('❌ No files would be sent to backend!', 'error');
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('logOutput').innerHTML = '';
+        }
+        
+        // Auto-run test when files are selected
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    console.log(`File selected for ${this.name}:`, this.files[0].name);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

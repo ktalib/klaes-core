@@ -1,0 +1,54 @@
+/* Blind Scanning Custom Styles */
+
+/* Custom styles with Tailwind fallbacks */
+.preview-box { 
+  min-height: 520px; 
+}
+
+.progress-bar { 
+  transition: width .3s ease; 
+}
+
+/* File status indicator animations */
+.status-success { 
+  border-color: #bbf7d0;
+  background-color: #f0fdf4;
+  color: #166534;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.status-warning { 
+  border-color: #fde68a;
+  background-color: #fffbeb;
+  color: #92400e;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.status-info { 
+  border-color: #bfdbfe;
+  background-color: #eff6ff;
+  color: #1e40af;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-4px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+/* File upload area hover effect */
+.upload-area:hover {
+  border-color: #93c5fd;
+  background-color: #eff6ff;
+}
+
+/* Table row hover effect */
+.table-row:hover {
+  background-color: #f9fafb;
+}

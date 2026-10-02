@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memo Word Export Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section { 
+            margin-bottom: 25px; 
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .info { color: #17a2b8; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            border-radius: 3px; 
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔧 Memo Word Export Test Suite</h1>
+        
+        <div class="test-section">
+            <h2>📊 Test Status</h2>
+            <p class="success">✅ Backend Method: Implemented & Working</p>
+            <p class="success">✅ Route: Configured</p>
+            <p class="success">✅ PHPWord: Installed & Functional</p>
+            <p class="info">🧪 Ready for download testing</p>
+        </div>
+
+        <div class="test-section">
+            <h2>🎯 Direct Download Tests</h2>
+            <p>Click these buttons to test Word export with different application IDs:</p>
+            
+            <a href="/programmes/export_memo_word_new/1" class="test-button">
+                📄 Test App ID: 1
+            </a>
+            <a href="/programmes/export_memo_word_new/5" class="test-button">
+                📄 Test App ID: 5
+            </a>
+            <a href="/programmes/export_memo_word_new/10" class="test-button">
+                📄 Test App ID: 10
+            </a>
+            <a href="/programmes/export_memo_word_new/999" class="test-button">
+                📄 Test Invalid ID: 999
+            </a>
+        </div>
+
+        <div class="test-section">
+            <h2>✅ Test Checklist</h2>
+            <p>When testing downloads, verify:</p>
+            <ul>
+                <li><strong>Download starts immediately</strong> (no page reload)</li>
+                <li><strong>File saves as .docx format</strong> with proper filename</li>
+                <li><strong>File opens in Microsoft Word</strong> without errors</li>
+                <li><strong>Document contains test content</strong>:
+                    <pre>SECTIONAL TITLING MEMO
+Application ID: [number]
+Generated at: [timestamp]</pre>
+                </li>
+                <li><strong>No "illegal name character" errors</strong></li>
+                <li><strong>Document is editable</strong> in Word</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Troubleshooting</h2>
+            <div>
+                <h4>If download doesn't start:</h4>
+                <ul>
+                    <li>Check browser console for JavaScript errors</li>
+                    <li>Verify route is accessible</li>
+                    <li>Check Laravel logs for PHP errors</li>
+                </ul>
+                
+                <h4>If Word won't open the file:</h4>
+                <ul>
+                    <li>Try opening with different Word version</li>
+                    <li>Check file is not corrupted (file size > 0)</li>
+                    <li>Verify XML content doesn't contain illegal characters</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Next Steps</h2>
+            <p class="info">
+                <strong>If basic test works:</strong> We can gradually add back the full memo data 
+                (applicant details, buyers list, shared utilities, etc.) while maintaining proper 
+                XML character sanitization.
+            </p>
+            <p class="info">
+                <strong>If test fails:</strong> We'll debug the specific issue and ensure PHPWord 
+                configuration is correct.
+            </p>
+        </div>
+
+        <div class="test-section">
+            <h2>🚀 Integration Test</h2>
+            <p>Test from actual memo page:</p>
+            <a href="/programmes/memo/1" class="test-button">
+                📋 View Memo Page (ID: 1)
+            </a>
+            <p><small>Look for the "Download as Word" button next to "Print Memo"</small></p>
+        </div>
+    </div>
+
+    <script>
+        // Add click tracking for debugging
+        document.querySelectorAll('a[href*="export_memo_word_new"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                console.log('Testing Word export for:', this.href);
+                console.log('Timestamp:', new Date().toISOString());
+            });
+        });
+        
+        // Log page load
+        console.log('Memo Word Export Test Page Loaded');
+        console.log('Timestamp:', new Date().toISOString());
+    </script>
+</body>
+</html>

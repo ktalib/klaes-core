@@ -1,0 +1,210 @@
+<script>
+// STEP 3 INLINE FIX - IMMEDIATE SOLUTION
+console.log('🔧 Step 3 Inline Fix Loading...');
+
+// Force step 3 to work immediately
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Step 3 Inline Fix Initializing...');
+    
+    // Wait a bit for everything to load
+    setTimeout(() => {
+        const step3 = document.getElementById('step3');
+        if (step3) {
+            console.log('✅ Step 3 found, applying fixes...');
+            
+            // Force step 3 to be visible with maximum priority
+            step3.style.cssText = `
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: static !important;
+                height: auto !important;
+                width: auto !important;
+                z-index: 999 !important;
+                background: white !important;
+            `;
+            
+            // Ensure all children are visible
+            const children = step3.querySelectorAll('*');
+            children.forEach(child => {
+                if (child.style.display === 'none') {
+                    child.style.display = '';
+                }
+                child.style.visibility = 'visible';
+                child.style.opacity = '1';
+            });
+            
+            console.log('🔧 Step 3 forced visible with inline styles');
+        } else {
+            console.error('❌ Step 3 not found!');
+        }
+    }, 500);
+    
+    // Override goToStep specifically for step 3
+    const originalGoToStep = window.goToStep;
+    window.goToStep = function(stepNumber) {
+        console.log(`🚀 Custom goToStep called for step ${stepNumber}`);
+        
+        // Call original function if it exists
+        if (originalGoToStep && typeof originalGoToStep === 'function') {
+            originalGoToStep(stepNumber);
+        }
+        
+        // Special handling for step 3
+        if (stepNumber === 3) {
+            setTimeout(() => {
+                const step3 = document.getElementById('step3');
+                if (step3) {
+                    // Hide all other steps first
+                    document.querySelectorAll('.form-section').forEach(step => {
+                        if (step.id !== 'step3') {
+                            step.style.display = 'none';
+                            step.classList.remove('active-tab');
+                        }
+                    });
+                    
+                    // Force step 3 to be visible
+                    step3.classList.add('active-tab');
+                    step3.style.cssText = `
+                        display: block !important;
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                        position: static !important;
+                        height: auto !important;
+                        width: auto !important;
+                        z-index: 999 !important;
+                        background: white !important;
+                    `;
+                    
+                    // Force all children visible
+                    const children = step3.querySelectorAll('*');
+                    children.forEach(child => {
+                        child.style.visibility = 'visible';
+                        child.style.opacity = '1';
+                        if (child.style.display === 'none') {
+                            child.style.display = '';
+                        }
+                    });
+                    
+                    // Refresh Lucide icons
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                    
+                    console.log('🎉 Step 3 forced visible successfully!');
+                } else {
+                    console.error('❌ Step 3 not found during navigation!');
+                }
+            }, 100);
+        }
+    };
+    
+    // Add click handlers for step 3 navigation
+    setTimeout(() => {
+        // Step 3 circle click
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('step-circle') && e.target.textContent.trim() === '3') {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔘 Step 3 circle clicked via delegation');
+                window.goToStep(3);
+            }
+        });
+        
+        // Next from step 2
+        const nextStep2 = document.getElementById('nextStep2');
+        if (nextStep2) {
+            nextStep2.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('➡️ Next to step 3');
+                window.goToStep(3);
+            });
+        }
+        
+        console.log('✅ Step 3 click handlers attached');
+    }, 1000);
+});
+
+// Emergency fallback - check every 2 seconds if step 3 is visible when it should be
+setInterval(() => {
+    const step3 = document.getElementById('step3');
+    if (step3 && step3.classList.contains('active-tab')) {
+        const computedStyle = window.getComputedStyle(step3);
+        if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
+            console.log('🚨 Step 3 is active but not visible - fixing...');
+            step3.style.cssText = `
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: static !important;
+                height: auto !important;
+                width: auto !important;
+                z-index: 999 !important;
+                background: white !important;
+            `;
+        }
+    }
+}, 2000);
+
+console.log('🎉 Step 3 Inline Fix Loaded!');
+</script>
+
+<style>
+/* STEP 3 SPECIFIC CSS FIXES */
+#step3 {
+    display: none !important;
+}
+
+#step3.active-tab {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: static !important;
+    height: auto !important;
+    width: auto !important;
+    z-index: 999 !important;
+    background: white !important;
+}
+
+#step3.active-tab * {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#step3.active-tab .p-6 {
+    display: block !important;
+    visibility: visible !important;
+}
+
+#step3.active-tab .grid {
+    display: grid !important;
+    visibility: visible !important;
+}
+
+#step3.active-tab .border {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Force all step 3 content to be visible */
+#step3.active-tab .mb-6,
+#step3.active-tab .mb-4,
+#step3.active-tab .mb-8,
+#step3.active-tab .flex,
+#step3.active-tab .grid,
+#step3.active-tab .border,
+#step3.active-tab .bg-blue-50 {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#step3.active-tab .grid.grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+}
+
+#step3.active-tab .flex {
+    display: flex !important;
+}
+</style>

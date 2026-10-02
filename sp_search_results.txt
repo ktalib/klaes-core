@@ -1,0 +1,14 @@
+﻿check_storage_path.php:9: $out[] = "storage_path('app/public/EDMS/BLIND_SCAN') = " . storage_path('app/public/EDMS/BLIND_SCAN');
+check_storage_path.php:11: $out[] = "is_dir(storage_path('app/public/EDMS/BLIND_SCAN')) = " . (is_dir(storage_path('app/public/EDMS/BLIND_SCAN')) ? 'YES' : 'NO');
+app\Http\Controllers\BlindScanningController.php:373: $storagePath = storage_path('app/public/EDMS/BLIND_SCAN');
+app\Http\Controllers\BlindScanningController.php:440: $storagePath = storage_path('app/public/EDMS/BLIND_SCAN/' . $registrySubfolder);
+app\Http\Controllers\BlindScanningController.php:639: $logFile = storage_path('app/public/EDMS/BLIND_SCAN/_migrations.json');
+app\Http\Controllers\BlindScanningController.php:673: $basePath = storage_path('app/public/EDMS/BLIND_SCAN');
+app\Http\Controllers\BlindScanningController.php:682: $logFile = storage_path('app/public/EDMS/BLIND_SCAN/_migrations.json');
+app\Http\Controllers\BlindScanningController.php:831: $basePath = storage_path('app/public/EDMS/BLIND_SCAN');
+app\Http\Controllers\BlindScanningController.php:952: $logFile = storage_path('app/public/EDMS/BLIND_SCAN/_migrations.json');
+app\Http\Controllers\BlindScanningController.php:1469: $storageRoot = storage_path('app/public/EDMS/BLIND_SCAN');
+app\Http\Controllers\BlindScanningController.php:1585: $storageRoot = storage_path('app/public/EDMS/BLIND_SCAN');
+app\Http\Controllers\EdmsController.php:893: $fullPath = storage_path('app/public/' . $documentPath);
+app\Http\Controllers\FileViewerController.php:147: $filePath = storage_path('app/public/' . $scanning->document_path);
+app\Http\Controllers\FileViewerController.php:192: $filePath = storage_path('app/public/' . $scanning->document_path);

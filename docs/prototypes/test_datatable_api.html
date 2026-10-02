@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test DataTable API</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Test DataTable API Response</h1>
+    <button onclick="testDataTableAPI()">Test API</button>
+    <div id="results"></div>
+    
+    <script>
+        function testDataTableAPI() {
+            console.log('Testing DataTable API...');
+            
+            fetch('/file-numbers/data', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('API Response:', data);
+                
+                if (data.data && data.data.length > 0) {
+                    console.log('First record:', data.data[0]);
+                    console.log('Available fields:', Object.keys(data.data[0]));
+                    
+                    document.getElementById('results').innerHTML = `
+                        <h3>API Test Results:</h3>
+                        <p><strong>Total Records:</strong> ${data.recordsTotal || 'N/A'}</p>
+                        <p><strong>Filtered Records:</strong> ${data.recordsFiltered || 'N/A'}</p>
+                        <h4>First Record Fields:</h4>
+                        <pre>${JSON.stringify(data.data[0], null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('results').innerHTML = '<p>No data returned from API</p>';
+                }
+            })
+            .catch(error => {
+                console.error('API Error:', error);
+                document.getElementById('results').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            });
+        }
+    </script>
+</body>
+</html>

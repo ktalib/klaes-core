@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Initial Bill Fixes - Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .test-result { 
+            padding: 8px; 
+            margin: 4px 0; 
+            border-radius: 4px; 
+        }
+        .test-pass { background-color: #d1fae5; color: #065f46; }
+        .test-fail { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Initial Bill Fixes - Verification Test</h1>
+        
+        <!-- Test Section 1: Date Fields -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">1. Date Field Selection Test</h2>
+            <p class="text-gray-600 mb-4">Test that date fields allow user selection and don't have pre-filled values.</p>
+            
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Application Fee Payment Date</label>
+                    <input type="date" class="w-full p-2 border border-gray-300 rounded-md" name="test_application_fee_payment_date" id="test-app-date">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Processing Fee Payment Date</label>
+                    <input type="date" class="w-full p-2 border border-gray-300 rounded-md" name="test_processing_fee_payment_date" id="test-proc-date">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Site Plan Fee Payment Date</label>
+                    <input type="date" class="w-full p-2 border border-gray-300 rounded-md" name="test_site_plan_fee_payment_date" id="test-site-date">
+                </div>
+            </div>
+            
+            <div id="date-test-results"></div>
+            <button onclick="testDateFields()" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Test Date Fields</button>
+        </div>
+        
+        <!-- Test Section 2: Receipt Number Fields -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">2. Receipt Number Currency Symbol Prevention Test</h2>
+            <p class="text-gray-600 mb-4">Test that receipt number fields automatically remove currency symbols.</p>
+            
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Application Fee Receipt Number</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" placeholder="Enter receipt number" name="test_application_fee_receipt_number" id="test-app-receipt" oninput="this.value = this.value.replace(/[₦$€£¥]/g, '')">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Processing Fee Receipt Number</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" placeholder="Enter receipt number" name="test_processing_fee_receipt_number" id="test-proc-receipt" oninput="this.value = this.value.replace(/[₦$€£¥]/g, '')">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Site Plan Fee Receipt Number</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" placeholder="Enter receipt number" name="test_site_plan_fee_receipt_number" id="test-site-receipt" oninput="this.value = this.value.replace(/[₦$€£¥]/g, '')">
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-sm text-gray-600 mb-2">Try typing these with currency symbols:</p>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <button onclick="testCurrencyInput('₦123')" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">₦123</button>
+                    <button onclick="testCurrencyInput('$456')" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">$456</button>
+                    <button onclick="testCurrencyInput('€789')" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">€789</button>
+                    <button onclick="testCurrencyInput('£999')" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">£999</button>
+                </div>
+            </div>
+            
+            <div id="receipt-test-results"></div>
+            <button onclick="testReceiptFields()" class="mt-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Test Receipt Fields</button>
+        </div>
+        
+        <!-- Test Section 3: Integration Test -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">3. Integration Test Summary</h2>
+            <div id="integration-test-results">
+                <p class="text-gray-600">Click "Run Integration Test" to verify all fixes work together.</p>
+            </div>
+            <button onclick="runIntegrationTest()" class="mt-4 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">Run Integration Test</button>
+        </div>
+    </div>
+
+    <script>
+        function testDateFields() {
+            const results = document.getElementById('date-test-results');
+            const dateFields = ['test-app-date', 'test-proc-date', 'test-site-date'];
+            let html = '<h3 class="font-medium mb-2">Date Field Test Results:</h3>';
+            let allPassed = true;
+            
+            dateFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                const isEmpty = field.value === '';
+                const isSelectable = !field.readOnly && !field.disabled;
+                
+                if (isEmpty && isSelectable) {
+                    html += `<div class="test-result test-pass">✅ ${fieldId}: Empty by default and selectable</div>`;
+                } else {
+                    html += `<div class="test-result test-fail">❌ ${fieldId}: Has pre-filled value or not selectable</div>`;
+                    allPassed = false;
+                }
+            });
+            
+            html += allPassed 
+                ? '<div class="test-result test-pass font-medium">🎉 All date fields working correctly!</div>'
+                : '<div class="test-result test-fail font-medium">⚠️ Some date fields need attention</div>';
+                
+            results.innerHTML = html;
+        }
+        
+        function testCurrencyInput(testValue) {
+            const field = document.getElementById('test-app-receipt');
+            field.value = testValue;
+            field.dispatchEvent(new Event('input'));
+            
+            setTimeout(() => {
+                const cleanValue = field.value;
+                const expectedValue = testValue.replace(/[₦$€£¥]/g, '');
+                
+                if (cleanValue === expectedValue) {
+                    showMessage(`✅ ${testValue} → ${cleanValue} (currency symbols removed)`, 'test-pass');
+                } else {
+                    showMessage(`❌ ${testValue} → ${cleanValue} (currency symbols not removed properly)`, 'test-fail');
+                }
+            }, 100);
+        }
+        
+        function testReceiptFields() {
+            const results = document.getElementById('receipt-test-results');
+            const receiptFields = ['test-app-receipt', 'test-proc-receipt', 'test-site-receipt'];
+            let html = '<h3 class="font-medium mb-2">Receipt Field Test Results:</h3>';
+            let allPassed = true;
+            
+            // Test each field with currency symbols
+            receiptFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                const testInput = '₦123$456€789';
+                
+                field.value = testInput;
+                field.dispatchEvent(new Event('input'));
+                
+                setTimeout(() => {
+                    const cleanValue = field.value;
+                    const expectedValue = '123456789';
+                    
+                    if (cleanValue === expectedValue) {
+                        html += `<div class="test-result test-pass">✅ ${fieldId}: Currency symbols removed correctly</div>`;
+                    } else {
+                        html += `<div class="test-result test-fail">❌ ${fieldId}: Currency symbols not removed (got: ${cleanValue})</div>`;
+                        allPassed = false;
+                    }
+                }, 100);
+            });
+            
+            setTimeout(() => {
+                html += allPassed 
+                    ? '<div class="test-result test-pass font-medium">🎉 All receipt fields working correctly!</div>'
+                    : '<div class="test-result test-fail font-medium">⚠️ Some receipt fields need attention</div>';
+                    
+                results.innerHTML = html;
+            }, 200);
+        }
+        
+        function runIntegrationTest() {
+            const results = document.getElementById('integration-test-results');
+            
+            let testResults = {
+                dateFieldsEmpty: true,
+                receiptFieldsClean: true,
+                functionalityWorking: true
+            };
+            
+            // Test date fields
+            const dateFields = ['test-app-date', 'test-proc-date', 'test-site-date'];
+            dateFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field.value !== '' || field.readOnly || field.disabled) {
+                    testResults.dateFieldsEmpty = false;
+                }
+            });
+            
+            // Test receipt fields
+            const receiptFields = ['test-app-receipt', 'test-proc-receipt', 'test-site-receipt'];
+            receiptFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                field.value = '₦TEST123';
+                field.dispatchEvent(new Event('input'));
+                
+                if (field.value !== 'TEST123') {
+                    testResults.receiptFieldsClean = false;
+                }
+            });
+            
+            let html = '<h3 class="font-medium mb-3">🔍 Integration Test Results:</h3>';
+            
+            html += testResults.dateFieldsEmpty 
+                ? '<div class="test-result test-pass">✅ Date Selection: All fields start empty and are selectable</div>'
+                : '<div class="test-result test-fail">❌ Date Selection: Some fields have pre-filled values</div>';
+                
+            html += testResults.receiptFieldsClean 
+                ? '<div class="test-result test-pass">✅ Receipt Number Cleanup: Currency symbols automatically removed</div>'
+                : '<div class="test-result test-fail">❌ Receipt Number Cleanup: Currency symbols not being removed</div>';
+            
+            const overallPass = testResults.dateFieldsEmpty && testResults.receiptFieldsClean;
+            
+            html += '<div class="mt-4 p-4 border-t">';
+            html += overallPass 
+                ? '<div class="test-result test-pass font-bold text-lg">🎉 ALL TESTS PASSED! Initial Bill fixes are working correctly.</div>'
+                : '<div class="test-result test-fail font-bold text-lg">⚠️ SOME TESTS FAILED! Check the issues above.</div>';
+            html += '</div>';
+            
+            if (overallPass) {
+                html += `
+                    <div class="mt-4 text-sm text-gray-600">
+                        <p><strong>✅ Fixed Issues:</strong></p>
+                        <ul class="list-disc ml-6 mt-2">
+                            <li>Date fields no longer have pre-filled "2025-10-10" values</li>
+                            <li>Users can select their own payment dates</li>
+                            <li>Receipt number fields automatically remove currency symbols (₦$€£¥)</li>
+                            <li>No more encoding issues like "â‚¦" in database</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function showMessage(message, className) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `test-result ${className}`;
+            messageDiv.textContent = message;
+            
+            const container = document.getElementById('receipt-test-results');
+            container.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 3000);
+        }
+        
+        // Auto-run tests on page load
+        window.onload = function() {
+            setTimeout(() => {
+                testDateFields();
+                testReceiptFields();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

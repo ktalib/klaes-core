@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Number Extraction Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background: #45a049;
+        }
+        .result {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            font-family: monospace;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 File Number Extraction Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Form Data</h2>
+        <form id="testForm" method="POST" action="http://localhost:8083/primaryform/store">
+            <input type="hidden" name="_token" value="test-token">
+            
+            <!-- Basic required fields -->
+            <div class="form-group">
+                <label>Land Use:</label>
+                <select name="land_use" required>
+                    <option value="Mixed Use">Mixed Use</option>
+                    <option value="Commercial">Commercial</option>
+                    <option value="Residential">Residential</option>
+                </select>
+            </div>
+            
+            <!-- File number related fields -->
+            <div class="form-group">
+                <label>Applied File Number:</label>
+                <input type="text" name="applied_file_number" value="RES-2025-0444" placeholder="e.g. RES-2025-0444">
+            </div>
+            
+            <div class="form-group">
+                <label>Selected File Data (JSON):</label>
+                <input type="text" name="selected_file_data" 
+                       value='{"fileNumber":"RES-2025-0444","tab":"mls","system":"MLS"}' 
+                       placeholder='JSON data'>
+            </div>
+            
+            <div class="form-group">
+                <label>Selected File ID:</label>
+                <input type="text" name="selected_file_id" value="RES-2025-0444">
+            </div>
+            
+            <div class="form-group">
+                <label>Selected File Type:</label>
+                <input type="text" name="selected_file_type" value="MLS">
+            </div>
+            
+            <!-- Minimum required fields -->
+            <input type="hidden" name="applicantType" value="individual">
+            <input type="hidden" name="first_name" value="Test">
+            <input type="hidden" name="surname" value="User">
+            <input type="hidden" name="scheme_no" value="123">
+            <input type="hidden" name="property_street_name" value="Test Street">
+            <input type="hidden" name="property_lga" value="Test LGA">
+            <input type="hidden" name="property_state" value="Test State">
+            <input type="hidden" name="np_fileno" value="ST-MIXED-2025-1">
+            <input type="hidden" name="records" value='[{"buyerTitle":"Mr.","firstName":"TEST","surname":"BUYER","unit_no":"001"}]'>
+        </form>
+        
+        <button class="button" onclick="testExtraction()">🧪 Test File Number Extraction</button>
+        <button class="button" onclick="showFormData()">📋 Show Form Data</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="results" class="result">Ready for testing...</div>
+    </div>
+
+    <script>
+        function logResult(message) {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.textContent += `[${timestamp}] ${message}\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        function showFormData() {
+            const form = document.getElementById('testForm');
+            const formData = new FormData(form);
+            
+            logResult('📋 Current Form Data:');
+            for (let [key, value] of formData.entries()) {
+                logResult(`  ${key}: ${value}`);
+            }
+            
+            logResult(''); // Empty line
+            
+            // Show JSON parsing test
+            const selectedFileData = formData.get('selected_file_data');
+            try {
+                const parsed = JSON.parse(selectedFileData);
+                logResult('✅ JSON Parsing Test:');
+                logResult(`  fileNumber: ${parsed.fileNumber}`);
+                logResult(`  system: ${parsed.system}`);
+                logResult(`  tab: ${parsed.tab}`);
+            } catch (e) {
+                logResult('❌ JSON Parsing Failed: ' + e.message);
+            }
+        }
+        
+        async function testExtraction() {
+            logResult('🚀 Testing file number extraction...');
+            
+            const form = document.getElementById('testForm');
+            const formData = new FormData(form);
+            
+            try {
+                // Set proper CSRF token
+                const response = await fetch('/sanctum/csrf-cookie');
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                if (csrfToken) {
+                    formData.set('_token', csrfToken);
+                }
+                
+                logResult('📡 Sending test request to backend...');
+                
+                const result = await fetch('http://localhost:8083/primaryform/store', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                logResult(`📡 Response Status: ${result.status}`);
+                
+                const responseData = await result.json();
+                logResult('📋 Response Data:');
+                logResult(JSON.stringify(responseData, null, 2));
+                
+                if (responseData.success) {
+                    logResult('✅ SUCCESS: File number extraction working!');
+                    logResult(`   Application ID: ${responseData.application_id}`);
+                    logResult(`   File Number: ${responseData.sectional_title_file_no}`);
+                } else {
+                    logResult('❌ ERROR: ' + (responseData.message || 'Unknown error'));
+                }
+                
+            } catch (error) {
+                logResult('❌ Network Error: ' + error.message);
+                logResult('Check Laravel logs for backend details');
+            }
+        }
+        
+        // Auto-populate CSRF token if available
+        document.addEventListener('DOMContentLoaded', function() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (csrfToken) {
+                document.querySelector('input[name="_token"]').value = csrfToken;
+                logResult('✅ CSRF token loaded');
+            } else {
+                logResult('⚠️ No CSRF token found - may need to visit main form first');
+            }
+        });
+    </script>
+    
+    <!-- Try to get CSRF token -->
+    <iframe src="http://localhost:8083/primaryform" style="display: none;" onload="
+        try {
+            const csrf = this.contentDocument.querySelector('meta[name=csrf-token]')?.content;
+            if (csrf) {
+                document.querySelector('input[name=_token]').value = csrf;
+                document.getElementById('results').textContent += '[INFO] CSRF token extracted from main form\n';
+            }
+        } catch(e) {
+            document.getElementById('results').textContent += '[INFO] Could not extract CSRF - test manually\n';
+        }
+    "></iframe>
+</body>
+</html>

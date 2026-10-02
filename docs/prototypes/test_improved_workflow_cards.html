@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Improved EDMS Workflow Cards - UI Enhancement Test</title>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            margin: 0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 2rem;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+        
+        .workflow-timeline {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            align-items: stretch;
+        }
+        
+        .workflow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            min-height: 280px;
+        }
+        
+        .step-circle {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 3px solid transparent;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .step-circle.completed {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+            transform: scale(1.05);
+        }
+        
+        .step-circle.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        .step-circle.pending {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            color: #9ca3af;
+            border-color: #d1d5db;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+        
+        .step-content {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid #f1f5f9;
+            transition: all 0.3s ease;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .step-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #e2e8f0, #cbd5e0);
+            transition: background 0.3s ease;
+        }
+        
+        .step-content.completed {
+            border-color: #48bb78;
+            background: linear-gradient(135deg, #f0fff4 0%, #dcfce7 100%);
+            transform: scale(1.02);
+        }
+        
+        .step-content.completed::before {
+            background: linear-gradient(90deg, #48bb78, #38a169);
+        }
+        
+        .step-content.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.02);
+        }
+        
+        .step-content.active::before {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        
+        .step-content:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+        }
+        
+        .step-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+        
+        .step-description {
+            font-size: 0.75rem;
+            color: #718096;
+            margin-bottom: 0.75rem;
+            line-height: 1.3;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 0 0.25rem;
+            height: 2.5rem;
+        }
+        
+        .step-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1.5rem;
+            font-size: 0.625rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            white-space: nowrap;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        }
+        
+        .step-status.completed {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+        
+        .step-status.active {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+        
+        .step-status.pending {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            color: #64748b;
+            border: 1px solid #cbd5e1;
+        }
+        
+        .step-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+            margin-top: auto;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.75rem;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            position: relative;
+            overflow: hidden;
+            min-height: 36px;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a67d8 0%, #667eea 100%);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-outline {
+            background: white;
+            border: 2px solid #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .btn-outline:hover {
+            border-color: #cbd5e0;
+            background: #f7fafc;
+            color: #2d3748;
+        }
+        
+        /* ST Blind Scan Card Special Styling */
+        .st-blind-scan-card .step-content {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.3) !important;
+        }
+        
+        .st-blind-scan-card .step-content::before {
+            background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)) !important;
+        }
+        
+        .st-blind-scan-card .step-title {
+            color: white !important;
+        }
+        
+        .st-blind-scan-card .step-description {
+            color: rgba(255,255,255,0.9) !important;
+        }
+        
+        .st-blind-scan-card .step-status {
+            background: rgba(255,255,255,0.15) !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.3) !important;
+            backdrop-filter: blur(10px);
+        }
+        
+        .st-blind-scan-card .btn {
+            backdrop-filter: blur(10px);
+        }
+        
+        .st-blind-scan-card .step-actions .btn:first-child {
+            background: rgba(255,255,255,0.2) !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.3) !important;
+        }
+        
+        .st-blind-scan-card .step-actions .btn:first-child:hover {
+            background: rgba(255,255,255,0.3) !important;
+            box-shadow: 0 6px 20px rgba(255,255,255,0.2) !important;
+        }
+        
+        .st-blind-scan-card .step-actions .btn:last-child {
+            background: white !important;
+            color: #10b981 !important;
+            border: 1px solid white !important;
+        }
+        
+        .st-blind-scan-card .step-actions .btn:last-child:hover {
+            background: rgba(255,255,255,0.95) !important;
+            color: #059669 !important;
+            box-shadow: 0 6px 20px rgba(255,255,255,0.4) !important;
+        }
+        
+        .process-info {
+            background: rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.7rem;
+            backdrop-filter: blur(10px);
+            margin-top: 0.5rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .workflow-timeline {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            
+            .workflow-step {
+                min-height: 260px;
+            }
+            
+            .step-content {
+                min-height: 180px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .workflow-timeline {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .workflow-step {
+                min-height: 240px;
+            }
+            
+            .step-content {
+                min-height: 160px;
+                padding: 0.875rem;
+            }
+            
+            .step-circle {
+                width: 2.75rem;
+                height: 2.75rem;
+                font-size: 1rem;
+                margin-bottom: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Improved EDMS Workflow Cards</h1>
+        
+        <div class="workflow-timeline">
+            <!-- Step 1: File Indexing (Completed) -->
+            <div class="workflow-step">
+                <div class="step-circle completed">
+                    <i data-lucide="check" style="width: 1.5rem; height: 1.5rem;"></i>
+                </div>
+                
+                <div class="step-content completed">
+                    <h3 class="step-title">File Indexing</h3>
+                    <p class="step-description">Create digital index with metadata for document organization</p>
+                    
+                    <div class="step-status completed">
+                        <i data-lucide="check-circle" style="width: 0.75rem; height: 0.75rem; margin-right: 0.25rem;"></i>
+                        Completed
+                    </div>
+                    <div class="step-actions">
+                        <a href="#" class="btn btn-outline">
+                            <i data-lucide="eye" style="width: 0.875rem; height: 0.875rem;"></i>
+                            View Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ST Blind Scan Card -->
+            <div class="workflow-step st-blind-scan-card">
+                <div class="step-circle" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: 2px solid rgba(255,255,255,0.3); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);">
+                    <i data-lucide="building" style="width: 1.5rem; height: 1.5rem;"></i>
+                </div>
+                
+                <div class="step-content">
+                    <h3 class="step-title">ST Blind Scan</h3>
+                    <p class="step-description">Process Sectional Titling documents through blind scanning workflow</p>
+                    
+                    <div class="step-status">
+                        <i data-lucide="scan-line" style="width: 0.75rem; height: 0.75rem; margin-right: 0.25rem;"></i>
+                        Ready for ST Document Processing
+                    </div>
+                    <div class="step-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <a href="#" class="btn" style="flex: 1; min-width: 140px;">
+                            <i data-lucide="external-link" style="width: 0.875rem; height: 0.875rem;"></i>
+                            Launch ST Blind Scan
+                        </a>
+                        <a href="#" class="btn" style="flex: 1; min-width: 140px;">
+                            <i data-lucide="scan-line" style="width: 0.875rem; height: 0.875rem;"></i>
+                            Start Blind Scanning
+                        </a>
+                    </div>
+                    
+                    <div class="process-info">
+                        <div style="display: flex; align-items: center; gap: 0.375rem; margin-bottom: 0.25rem;">
+                            <i data-lucide="info" style="width: 0.75rem; height: 0.75rem;"></i>
+                            <strong>Two-Stage Process:</strong>
+                        </div>
+                        <div style="margin-left: 1rem; line-height: 1.2; font-size: 0.65rem;">
+                            1. Documents → BLIND_SCAN folder<br>
+                            2. Files → SCAN_UPLOAD/NP-FILE-NUMBER
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Document Scanning (Active) -->
+            <div class="workflow-step">
+                <div class="step-circle active">
+                    <span>2</span>
+                </div>
+                
+                <div class="step-content active">
+                    <h3 class="step-title">Scanning</h3>
+                    <p class="step-description">Upload scanned documents in PDF or image format</p>
+                    
+                    <div class="step-status active">
+                        <i data-lucide="upload" style="width: 0.75rem; height: 0.75rem; margin-right: 0.25rem;"></i>
+                        Ready
+                    </div>
+                    <div class="step-actions">
+                        <a href="#" class="btn btn-primary">
+                            <i data-lucide="upload" style="width: 0.875rem; height: 0.875rem;"></i>
+                            Upload Docs
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Page Classification (Pending) -->
+            <div class="workflow-step">
+                <div class="step-circle pending">
+                    <span>3</span>
+                </div>
+                
+                <div class="step-content">
+                    <h3 class="step-title">Pagetyping</h3>
+                    <p class="step-description">Classify and label document pages with metadata</p>
+                    
+                    <div class="step-status pending">
+                        <i data-lucide="lock" style="width: 0.75rem; height: 0.75rem; margin-right: 0.25rem;"></i>
+                        Awaiting Docs
+                    </div>
+                    <div class="step-actions">
+                        <button class="btn btn-outline" disabled style="opacity: 0.6; cursor: not-allowed;">
+                            <i data-lucide="tag" style="width: 0.875rem; height: 0.875rem;"></i>
+                            Start Classify
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 3rem; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);">
+            <h2 style="color: #2d3748; margin-bottom: 1rem;">🎯 Compact & Smart Card Design</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; text-align: left;">
+                <div style="padding: 1rem; background: #f0fff4; border-radius: 0.5rem; border: 1px solid #6ee7b7;">
+                    <strong style="color: #065f46;">📏 Compact Height (280px)</strong><br>
+                    <span style="color: #047857; font-size: 0.875rem;">Reduced from 420px to 280px for a smarter, less overwhelming appearance</span>
+                </div>
+                <div style="padding: 1rem; background: #eff6ff; border-radius: 0.5rem; border: 1px solid #93c5fd;">
+                    <strong style="color: #1e40af;">🎨 Tighter Spacing</strong><br>
+                    <span style="color: #1d4ed8; font-size: 0.875rem;">Reduced padding, margins, and font sizes for better proportion and elegance</span>
+                </div>
+                <div style="padding: 1rem; background: #fef3c7; border-radius: 0.5rem; border: 1px solid #fbbf24;">
+                    <strong style="color: #92400e;">⚡ Better Performance</strong><br>
+                    <span style="color: #b45309; font-size: 0.875rem;">Lighter shadows, smaller elements, faster loading and smoother animations</span>
+                </div>
+                <div style="padding: 1rem; background: #f3e8ff; border-radius: 0.5rem; border: 1px solid #c084fc;">
+                    <strong style="color: #7c3aed;">🧠 Smart Layout</strong><br>
+                    <span style="color: #8b5cf6; font-size: 0.875rem;">More content visible at once, better screen real estate utilization</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        
+        // Add interactive demonstrations
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.step-content');
+            
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-6px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = this.classList.contains('completed') || this.classList.contains('active') ? 'scale(1.02)' : 'scale(1)';
+                });
+            });
+            
+            // Demo button interactions
+            const buttons = document.querySelectorAll('.btn:not([disabled])');
+            buttons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Add click effect
+                    this.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                    
+                    // Show demo message
+                    const cardTitle = this.closest('.step-content').querySelector('.step-title').textContent;
+                    alert(`🎯 Demo: ${cardTitle} action triggered!\n\nAll cards now have uniform dimensions and enhanced UI.`);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

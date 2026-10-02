@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commission New ST - Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <!-- Test Header -->
+            <div class="mb-8">
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-flask text-yellow-600"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-yellow-800">Test Environment</h3>
+                            <div class="mt-2 text-sm text-yellow-700">
+                                <p>This is a standalone test file for the Commission New ST interface.</p>
+                                <p class="mt-1"><strong>Route:</strong> /commission-new-st</p>
+                                <p><strong>Controller:</strong> CommissionNewSTController</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Commission New ST</h1>
+                        <p class="mt-2 text-sm text-gray-600">Manage Primary, SuA, and PuA applications</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-sm text-gray-500">Test Mode</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs Container -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200" x-data="{ activeTab: 'primary' }">
+                <!-- Tab Navigation -->
+                <div class="border-b border-gray-200">
+                    <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                        <button 
+                            @click="activeTab = 'primary'"
+                            :class="activeTab === 'primary' 
+                                ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm rounded-t-lg transition-all duration-200"
+                        >
+                            <i class="fas fa-file-alt mr-2"></i>
+                            Primary
+                        </button>
+                        <button 
+                            @click="activeTab = 'sua'"
+                            :class="activeTab === 'sua' 
+                                ? 'border-green-500 text-green-600 bg-green-50' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm rounded-t-lg transition-all duration-200"
+                        >
+                            <i class="fas fa-layer-group mr-2"></i>
+                            SuA
+                        </button>
+                        <button 
+                            @click="activeTab = 'pua'"
+                            :class="activeTab === 'pua' 
+                                ? 'border-purple-500 text-purple-600 bg-purple-50' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm rounded-t-lg transition-all duration-200"
+                        >
+                            <i class="fas fa-users mr-2"></i>
+                            PuA
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="p-6">
+                    <!-- Primary Tab -->
+                    <div x-show="activeTab === 'primary'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+                        <div class="text-center py-12">
+                            <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                                <i class="fas fa-file-alt text-2xl text-blue-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-900 mb-2">Primary Applications</h3>
+                            <p class="text-gray-600 mb-6">Hello World - Primary Tab Content</p>
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
+                                <p class="text-blue-800 text-sm">
+                                    This is where Primary application management features will be implemented.
+                                </p>
+                                <div class="mt-4 pt-4 border-t border-blue-200">
+                                    <button class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors">
+                                        Test Primary Function
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SuA Tab -->
+                    <div x-show="activeTab === 'sua'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+                        <div class="text-center py-12">
+                            <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                                <i class="fas fa-layer-group text-2xl text-green-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-900 mb-2">SuA Applications</h3>
+                            <p class="text-gray-600 mb-6">Hello World - SuA Tab Content</p>
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-6 max-w-md mx-auto">
+                                <p class="text-green-800 text-sm">
+                                    This is where Sub Application (SuA) management features will be implemented.
+                                </p>
+                                <div class="mt-4 pt-4 border-t border-green-200">
+                                    <button class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition-colors">
+                                        Test SuA Function
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PuA Tab -->
+                    <div x-show="activeTab === 'pua'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0">
+                        <div class="text-center py-12">
+                            <div class="inline-flex items-center justify-center w-16 h-16 bg-purple-100 rounded-full mb-4">
+                                <i class="fas fa-users text-2xl text-purple-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-900 mb-2">PuA Applications</h3>
+                            <p class="text-gray-600 mb-6">Hello World - PuA Tab Content</p>
+                            <div class="bg-purple-50 border border-purple-200 rounded-lg p-6 max-w-md mx-auto">
+                                <p class="text-purple-800 text-sm">
+                                    This is where Public Application (PuA) management features will be implemented.
+                                </p>
+                                <div class="mt-4 pt-4 border-t border-purple-200">
+                                    <button class="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700 transition-colors">
+                                        Test PuA Function
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Information -->
+            <div class="mt-8">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-4">Test Information</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <h5 class="font-medium text-gray-700">Created Files:</h5>
+                            <ul class="mt-2 text-gray-600 space-y-1">
+                                <li>• <code>app/Http/Controllers/CommissionNewSTController.php</code></li>
+                                <li>• <code>resources/views/commission_new_st/index.blade.php</code></li>
+                                <li>• Routes added to <code>routes/app3.php</code></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h5 class="font-medium text-gray-700">Available Routes:</h5>
+                            <ul class="mt-2 text-gray-600 space-y-1">
+                                <li>• <code>GET /commission-new-st</code></li>
+                                <li>• <code>GET /commission-new-st/primary-data</code></li>
+                                <li>• <code>GET /commission-new-st/sua-data</code></li>
+                                <li>• <code>GET /commission-new-st/pua-data</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Commission New ST test page loaded');
+        
+        // Test button functionality
+        const buttons = document.querySelectorAll('button[class*="bg-"]');
+        buttons.forEach(button => {
+            button.addEventListener('click', function() {
+                const color = this.className.includes('blue') ? 'blue' : 
+                             this.className.includes('green') ? 'green' : 'purple';
+                alert(`${color.charAt(0).toUpperCase() + color.slice(1)} tab test button clicked!`);
+            });
+        });
+    });
+    </script>
+</body>
+</html>

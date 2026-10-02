@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grouping Table Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Grouping Table Structure Test</h1>
+        
+        <?php
+        // Include Laravel bootstrap
+        require_once '../vendor/autoload.php';
+        
+        try {
+            // Create Laravel app instance
+            $app = require_once '../bootstrap/app.php';
+            $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+            
+            echo "<div class='test-section'>";
+            echo "<h2>✓ Laravel Bootstrap: <span class='success'>SUCCESS</span></h2>";
+            echo "</div>";
+            
+            // Test database connection
+            $connection = DB::connection('sqlsrv');
+            $connection->getPdo();
+            
+            echo "<div class='test-section'>";
+            echo "<h2>✓ SQL Server Connection: <span class='success'>SUCCESS</span></h2>";
+            echo "</div>";
+            
+            // Test table structure
+            $columns = DB::connection('sqlsrv')->getSchemaBuilder()->getColumnListing('grouping');
+            
+            echo "<div class='test-section'>";
+            echo "<h2>Table Structure</h2>";
+            echo "<p><strong>Table:</strong> grouping</p>";
+            echo "<p><strong>Columns:</strong></p>";
+            echo "<table>";
+            echo "<tr><th>Column Name</th></tr>";
+            
+            foreach ($columns as $column) {
+                echo "<tr><td>$column</td></tr>";
+            }
+            echo "</table>";
+            echo "</div>";
+            
+            // Test model
+            use App\Models\Grouping;
+            
+            // Check if model can be instantiated
+            $grouping = new Grouping();
+            
+            echo "<div class='test-section'>";
+            echo "<h2>✓ Model Instantiation: <span class='success'>SUCCESS</span></h2>";
+            echo "<p><strong>Model:</strong> App\\Models\\Grouping</p>";
+            echo "<p><strong>Connection:</strong> " . $grouping->getConnectionName() . "</p>";
+            echo "<p><strong>Table:</strong> " . $grouping->getTable() . "</p>";
+            echo "</div>";
+            
+            // Test fillable attributes
+            echo "<div class='test-section'>";
+            echo "<h2>Fillable Attributes</h2>";
+            echo "<table>";
+            echo "<tr><th>Fillable Fields</th></tr>";
+            
+            foreach ($grouping->getFillable() as $field) {
+                echo "<tr><td>$field</td></tr>";
+            }
+            echo "</table>";
+            echo "</div>";
+            
+            // Test database query
+            $count = Grouping::count();
+            
+            echo "<div class='test-section'>";
+            echo "<h2>✓ Database Query Test: <span class='success'>SUCCESS</span></h2>";
+            echo "<p><strong>Current record count:</strong> $count</p>";
+            echo "</div>";
+            
+            // Test sample data creation (without actually saving)
+            $sampleData = [
+                'pseudo_fileno' => 'TEST-001',
+                'mls_fileno' => 'MLS-001',
+                'mapping' => 1,
+                'group' => 'Group A',
+                'batch_no' => 'BATCH-001',
+                'mdc_batch_no' => 'MDC-001',
+                'sys_batch_no' => 'SYS-001',
+                'shelf_rack' => 'A1-B2',
+                'date' => date('Y-m-d'),
+                'created_by' => 'Test User',
+                'indexed_by' => 'Index User',
+                'date_index' => date('Y-m-d'),
+                'year' => date('Y'),
+                'landuse' => 'RESIDENTIAL'
+            ];
+            
+            $testGrouping = new Grouping($sampleData);
+            
+            echo "<div class='test-section'>";
+            echo "<h2>✓ Sample Data Test: <span class='success'>SUCCESS</span></h2>";
+            echo "<p><strong>Sample data structure validated</strong></p>";
+            echo "<table>";
+            echo "<tr><th>Field</th><th>Value</th></tr>";
+            
+            foreach ($sampleData as $key => $value) {
+                echo "<tr><td>$key</td><td>$value</td></tr>";
+            }
+            echo "</table>";
+            echo "</div>";
+            
+        } catch (Exception $e) {
+            echo "<div class='test-section'>";
+            echo "<h2>✗ Error: <span class='error'>FAILED</span></h2>";
+            echo "<p><strong>Error Message:</strong> " . $e->getMessage() . "</p>";
+            echo "<p><strong>File:</strong> " . $e->getFile() . "</p>";
+            echo "<p><strong>Line:</strong> " . $e->getLine() . "</p>";
+            echo "</div>";
+        }
+        ?>
+        
+        <div class="test-section">
+            <h2>Available Scopes</h2>
+            <table>
+                <tr><th>Scope Method</th><th>Description</th></tr>
+                <tr><td>mapped()</td><td>Get records with mapping = 1</td></tr>
+                <tr><td>unmapped()</td><td>Get records with mapping = 0</td></tr>
+                <tr><td>byBatch($batchNo)</td><td>Get records by batch number</td></tr>
+                <tr><td>byShelfRack($shelfRack)</td><td>Get records by shelf/rack location</td></tr>
+                <tr><td>byYear($year)</td><td>Get records by specific year</td></tr>
+                <tr><td>byLanduse($landuse)</td><td>Get records by land use type</td></tr>
+                <tr><td>currentYear()</td><td>Get records from current year</td></tr>
+            </table>
+        </div>
+        
+        <div class="test-section">
+            <h2>Usage Examples</h2>
+            <pre><code>
+// Create new grouping record
+$grouping = Grouping::create([
+    'pseudo_fileno' => 'TEST-001',
+    'mls_fileno' => 'MLS-001',
+    'mapping' => 1,
+    'group' => 'Group A',
+    'batch_no' => 'BATCH-001',
+    'shelf_rack' => 'A1-B2',
+    'year' => 2025,
+    'landuse' => 'RESIDENTIAL'
+]);
+
+// Query examples
+$mapped = Grouping::mapped()->get();
+$unmapped = Grouping::unmapped()->get();
+$byBatch = Grouping::byBatch('BATCH-001')->get();
+$byShelf = Grouping::byShelfRack('A1-B2')->get();
+$byYear = Grouping::byYear(2025)->get();
+$byLanduse = Grouping::byLanduse('RESIDENTIAL')->get();
+$currentYear = Grouping::currentYear()->get();
+
+// Combined queries
+$results = Grouping::mapped()
+    ->byBatch('BATCH-001')
+    ->byYear(2025)
+    ->byLanduse('RESIDENTIAL')
+    ->where('created_by', 'Musa Ali')
+    ->orderBy('date', 'desc')
+    ->get();
+            </code></pre>
+        </div>
+    </div>
+</body>
+</html>

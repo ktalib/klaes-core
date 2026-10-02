@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PuA File Number - Complete Implementation Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .test-section {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .success { border-color: #10b981; background-color: #f0fdf4; }
+        .warning { border-color: #f59e0b; background-color: #fffbeb; }
+        .error { border-color: #ef4444; background-color: #fef2f2; }
+        .info { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-600">PuA File Number - Complete Implementation Test</h1>
+        
+        <!-- Implementation Status -->
+        <div class="test-section success">
+            <h2 class="text-xl font-semibold mb-4">🎉 Implementation Status</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold text-green-600 mb-2">✅ Completed</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>✅ Updated PuA view with parent selection field</li>
+                        <li>✅ Added land use auto-selection and disable logic</li>
+                        <li>✅ Implemented form field enable/disable states</li>
+                        <li>✅ Enhanced PuA JavaScript with parent handling</li>
+                        <li>✅ Added file number modal integration</li>
+                        <li>✅ Created comprehensive test interface</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold text-blue-600 mb-2">🔧 Key Features</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>🔍 Parent file number selection with search</li>
+                        <li>🏢 Automatic land use detection and locking</li>
+                        <li>📝 Dynamic form field state management</li>
+                        <li>🎯 Real-time PuA file number generation</li>
+                        <li>🔗 Proper parent-child relationship handling</li>
+                        <li>✅ Full integration with existing ST system</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test 1: Parent File Number Selection -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">🔗 Test 1: Parent File Number Selection</h2>
+            
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h3 class="font-semibold mb-3">Simulate Parent Selection</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Select Parent File Number:</label>
+                        <select id="testParentSelect" class="w-full p-2 border rounded" onchange="simulateParentSelection()">
+                            <option value="">Select a Primary File Number...</option>
+                            <option value="ST-RES-2025-1|Residential">ST-RES-2025-1 (Residential)</option>
+                            <option value="ST-COM-2025-2|Commercial">ST-COM-2025-2 (Commercial)</option>
+                            <option value="ST-IND-2025-1|Industrial">ST-IND-2025-1 (Industrial)</option>
+                            <option value="ST-MIXED-2025-1|Mixed Use">ST-MIXED-2025-1 (Mixed Use)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Auto-Selected Land Use:</label>
+                        <div id="selectedLandUse" class="p-2 border rounded bg-gray-100 text-center text-gray-500">
+                            No parent selected
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-blue-50 rounded">
+                    <h4 class="font-semibold text-blue-800">Expected Behavior:</h4>
+                    <ul class="text-sm text-blue-700 mt-1 space-y-1">
+                        <li>• When parent is selected, land use should auto-populate and become disabled</li>
+                        <li>• All other form fields should become enabled</li>
+                        <li>• Generate button should become active</li>
+                        <li>• PuA file number format: {parent}-001, {parent}-002, etc.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test 2: Form Field States -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">📝 Test 2: Form Field State Management</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Before Parent Selection -->
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold mb-3 text-red-600">Before Parent Selection</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center p-2 bg-red-50 rounded">
+                            <span>Parent File Number Field:</span>
+                            <span class="text-red-600 font-semibold">Required ❌</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <span>Land Use Fields:</span>
+                            <span class="text-gray-500">Disabled 🔒</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <span>Applicant Type:</span>
+                            <span class="text-gray-500">Disabled 🔒</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <span>Name Fields:</span>
+                            <span class="text-gray-500">Disabled 🔒</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <span>Generate Button:</span>
+                            <span class="text-gray-500">Disabled 🔒</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- After Parent Selection -->
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold mb-3 text-green-600">After Parent Selection</h3>
+                    <div id="afterParentFields" class="space-y-2 text-sm">
+                        <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                            <span>Parent File Number Field:</span>
+                            <span class="text-green-600 font-semibold">Selected ✅</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-blue-50 rounded">
+                            <span>Land Use Fields:</span>
+                            <span class="text-blue-600">Auto-filled & Disabled 🔒</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                            <span>Applicant Type:</span>
+                            <span class="text-green-600">Enabled ✏️</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                            <span>Name Fields:</span>
+                            <span class="text-green-600">Enabled ✏️</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                            <span>Generate Button:</span>
+                            <span class="text-green-600">Enabled ✅</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test 3: PuA Generation Simulation -->
+        <div class="test-section">
+            <h2 class="text-xl font-semibold mb-4">🎯 Test 3: PuA File Number Generation</h2>
+            
+            <div class="bg-white p-4 rounded-lg shadow">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Parent File Number:</label>
+                        <input type="text" id="previewParent" readonly 
+                               class="w-full p-2 border rounded bg-gray-100" 
+                               placeholder="No parent selected">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Expected PuA File Number:</label>
+                        <input type="text" id="previewPua" readonly 
+                               class="w-full p-2 border rounded bg-blue-50" 
+                               placeholder="Will be generated based on parent">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Applicant Type:</label>
+                        <select id="applicantType" class="w-full p-2 border rounded" disabled onchange="updatePreview()">
+                            <option value="">Select applicant type...</option>
+                            <option value="Individual">Individual</option>
+                            <option value="Corporate">Corporate</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Applicant Name:</label>
+                        <input type="text" id="applicantName" 
+                               class="w-full p-2 border rounded" 
+                               placeholder="Enter name..." 
+                               disabled onchange="updatePreview()">
+                    </div>
+                </div>
+                
+                <div class="flex gap-4">
+                    <button onclick="simulatePuaGeneration()" 
+                            id="previewGenerateBtn"
+                            disabled
+                            class="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        Generate PuA File Number
+                    </button>
+                    <button onclick="testRealGeneration()" 
+                            id="realGenerateBtn"
+                            disabled
+                            class="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        Test Real API Generation
+                    </button>
+                </div>
+                
+                <div id="generationResult" class="mt-4 p-3 rounded hidden"></div>
+            </div>
+        </div>
+
+        <!-- Implementation Files Summary -->
+        <div class="test-section info">
+            <h2 class="text-xl font-semibold mb-4">📁 Implementation Files Modified</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold text-blue-600 mb-2">Backend Files</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>✅ <code>app/Services/STFileNumberService.php</code></li>
+                        <li>✅ <code>app/Http/Controllers/STFileNumberController.php</code></li>
+                        <li>✅ <code>database/migrations/*_create_st_file_numbers_table.php</code></li>
+                    </ul>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="font-semibold text-green-600 mb-2">Frontend Files</h3>
+                    <ul class="text-sm space-y-1">
+                        <li>🔄 <code>resources/views/commission_new_st/pua.blade.php</code></li>
+                        <li>🔄 <code>public/js/commission_new_st/pua.js</code></li>
+                        <li>✅ <code>public/js/commission_new_st/file-modal-integration.js</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Instructions -->
+        <div class="test-section warning">
+            <h2 class="text-xl font-semibold mb-4">📖 Usage Instructions</h2>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h3 class="font-semibold mb-3">How to Use PuA File Number Generation:</h3>
+                <ol class="list-decimal list-inside space-y-2 text-sm">
+                    <li><strong>Select Parent:</strong> Click "Select Parent File Number" to open the file number modal</li>
+                    <li><strong>Auto-Fill:</strong> Land use will automatically populate and become disabled based on parent</li>
+                    <li><strong>Enable Fields:</strong> All other form fields will become enabled for data entry</li>
+                    <li><strong>Enter Applicant:</strong> Fill in applicant type and name/corporate information</li>
+                    <li><strong>Generate:</strong> Click "Generate PuA File Number" to create the file number</li>
+                    <li><strong>Result:</strong> PuA file number will be generated in format: {parent}-001, {parent}-002, etc.</li>
+                </ol>
+                
+                <div class="mt-4 p-3 bg-yellow-50 rounded">
+                    <h4 class="font-semibold text-yellow-800">Important Notes:</h4>
+                    <ul class="text-sm text-yellow-700 mt-1 space-y-1">
+                        <li>• PuA applications can only be created from PRIMARY file numbers (not SUA)</li>
+                        <li>• Land use is inherited from parent and cannot be changed</li>
+                        <li>• Each PuA gets a sequential unit number: -001, -002, -003, etc.</li>
+                        <li>• All PuA applications maintain parent-child relationship in database</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function simulateParentSelection() {
+            const select = document.getElementById('testParentSelect');
+            const selectedValue = select.value;
+            const landUseDiv = document.getElementById('selectedLandUse');
+            const previewParent = document.getElementById('previewParent');
+            const previewPua = document.getElementById('previewPua');
+            const applicantType = document.getElementById('applicantType');
+            const applicantName = document.getElementById('applicantName');
+            const generateBtn = document.getElementById('previewGenerateBtn');
+            const realBtn = document.getElementById('realGenerateBtn');
+            
+            if (selectedValue) {
+                const [fileNumber, landUse] = selectedValue.split('|');
+                
+                // Update land use display
+                landUseDiv.innerHTML = `<strong>${landUse}</strong>`;
+                landUseDiv.className = 'p-2 border rounded bg-blue-100 text-center text-blue-800 font-semibold';
+                
+                // Update preview
+                previewParent.value = fileNumber;
+                previewPua.value = `${fileNumber}-001 (next available)`;
+                
+                // Enable form fields
+                applicantType.disabled = false;
+                applicantName.disabled = false;
+                generateBtn.disabled = false;
+                realBtn.disabled = false;
+                
+                // Update after selection display
+                updateAfterSelectionDisplay(true);
+                
+            } else {
+                landUseDiv.innerHTML = 'No parent selected';
+                landUseDiv.className = 'p-2 border rounded bg-gray-100 text-center text-gray-500';
+                
+                previewParent.value = '';
+                previewPua.value = '';
+                
+                applicantType.disabled = true;
+                applicantName.disabled = true;
+                generateBtn.disabled = true;
+                realBtn.disabled = true;
+                
+                updateAfterSelectionDisplay(false);
+            }
+        }
+        
+        function updateAfterSelectionDisplay(hasParent) {
+            const container = document.getElementById('afterParentFields');
+            if (hasParent) {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                        <span>Parent File Number Field:</span>
+                        <span class="text-green-600 font-semibold">Selected ✅</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-blue-50 rounded">
+                        <span>Land Use Fields:</span>
+                        <span class="text-blue-600">Auto-filled & Disabled 🔒</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                        <span>Applicant Type:</span>
+                        <span class="text-green-600">Enabled ✏️</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                        <span>Name Fields:</span>
+                        <span class="text-green-600">Enabled ✏️</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-green-50 rounded">
+                        <span>Generate Button:</span>
+                        <span class="text-green-600">Enabled ✅</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center p-2 bg-red-50 rounded">
+                        <span>Parent File Number Field:</span>
+                        <span class="text-red-600 font-semibold">Required ❌</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span>Land Use Fields:</span>
+                        <span class="text-gray-500">Disabled 🔒</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span>Applicant Type:</span>
+                        <span class="text-gray-500">Disabled 🔒</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span>Name Fields:</span>
+                        <span class="text-gray-500">Disabled 🔒</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span>Generate Button:</span>
+                        <span class="text-gray-500">Disabled 🔒</span>
+                    </div>
+                `;
+            }
+        }
+
+        function updatePreview() {
+            const parentFile = document.getElementById('previewParent').value;
+            const applicantType = document.getElementById('applicantType').value;
+            const applicantName = document.getElementById('applicantName').value;
+            
+            if (parentFile && applicantType && applicantName) {
+                document.getElementById('previewPua').value = `${parentFile}-001 (ready to generate)`;
+            }
+        }
+
+        function simulatePuaGeneration() {
+            const parentFile = document.getElementById('previewParent').value;
+            const applicantType = document.getElementById('applicantType').value;
+            const applicantName = document.getElementById('applicantName').value;
+            const resultDiv = document.getElementById('generationResult');
+            
+            if (!parentFile || !applicantType || !applicantName) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="font-semibold text-green-800">✅ PuA File Number Generated Successfully! (Simulation)</div>
+                <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                    <div><strong>Parent:</strong> ${parentFile}</div>
+                    <div><strong>PuA Unit:</strong> ${parentFile}-001</div>
+                    <div><strong>Applicant:</strong> ${applicantName} (${applicantType})</div>
+                    <div><strong>Status:</strong> RESERVED</div>
+                    <div><strong>Tracking ID:</strong> TRK-SIMULATE-12345</div>
+                    <div><strong>Land Use:</strong> Inherited from parent</div>
+                </div>
+                <div class="mt-2 text-xs text-green-600">
+                    This is a simulation. Use "Test Real API Generation" to test actual API.
+                </div>
+            `;
+            resultDiv.className = 'mt-4 p-3 rounded bg-green-50 text-green-800';
+            resultDiv.classList.remove('hidden');
+        }
+
+        async function testRealGeneration() {
+            const parentFile = document.getElementById('previewParent').value;
+            const applicantType = document.getElementById('applicantType').value;
+            const applicantName = document.getElementById('applicantName').value;
+            const resultDiv = document.getElementById('generationResult');
+            
+            if (!parentFile || !applicantType || !applicantName) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            resultDiv.innerHTML = 'Calling real API to generate PuA file number...';
+            resultDiv.className = 'mt-4 p-3 rounded bg-blue-50 text-blue-800';
+            resultDiv.classList.remove('hidden');
+            
+            try {
+                const payload = {
+                    parent_file_number: parentFile,
+                    applicant_type: applicantType
+                };
+                
+                if (applicantType === 'Individual') {
+                    const names = applicantName.split(' ');
+                    payload.first_name = names[0] || '';
+                    payload.surname = names.slice(1).join(' ') || '';
+                } else {
+                    payload.corporate_name = applicantName;
+                }
+                
+                const response = await fetch('/api/st-file-numbers/pua', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'test'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="font-semibold text-green-800">✅ Real PuA File Number Generated Successfully!</div>
+                        <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            <div><strong>Parent:</strong> ${data.data.np_fileno}</div>
+                            <div><strong>PuA Unit:</strong> ${data.data.unit_fileno}</div>
+                            <div><strong>Tracking ID:</strong> ${data.data.tracking_id}</div>
+                            <div><strong>Status:</strong> ${data.data.status}</div>
+                            <div><strong>ID:</strong> ${data.data.id}</div>
+                            <div><strong>Land Use:</strong> ${data.data.land_use_code}</div>
+                        </div>
+                        <div class="mt-2 text-xs text-green-600">
+                            This PuA file number has been created in the database.
+                        </div>
+                    `;
+                    resultDiv.className = 'mt-4 p-3 rounded bg-green-50 text-green-800';
+                    
+                    // Update preview field with actual generated number
+                    document.getElementById('previewPua').value = data.data.unit_fileno;
+                    
+                } else {
+                    resultDiv.innerHTML = `<div class="text-red-800">❌ API Generation failed: ${data.message}</div>`;
+                    resultDiv.className = 'mt-4 p-3 rounded bg-red-50 text-red-800';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="text-red-800">❌ Error calling API: ${error.message}</div>`;
+                resultDiv.className = 'mt-4 p-3 rounded bg-red-50 text-red-800';
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('PuA Complete Implementation Test Page Loaded');
+            updateAfterSelectionDisplay(false);
+        });
+    </script>
+</body>
+</html>

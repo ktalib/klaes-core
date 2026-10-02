@@ -1,0 +1,206 @@
+/* Shared creator/indexer profile card. Prefix: upc- */
+
+.upc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.upc-overlay.upc-open {
+  display: flex;
+}
+
+.upc-card {
+  position: relative;
+  width: 100%;
+  max-width: 22rem;
+  padding: 1.5rem;
+  background: #ffffff;
+  border-radius: 0.875rem;
+  box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.4);
+}
+
+.upc-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #94a3b8;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.upc-close:hover {
+  color: #475569;
+}
+
+.upc-head {
+  text-align: center;
+}
+
+/* Wraps the avatar so the verified badge can sit on its edge. */
+.upc-avatar-wrap {
+  position: relative;
+  width: 5.5rem;
+  margin: 0 auto 0.75rem;
+}
+
+.upc-avatar {
+  width: 5.5rem;
+  height: 5.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #e2e8f0;
+  border: 3px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px #cbd5e1;
+}
+
+.upc-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upc-initials {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.upc-name {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.upc-username {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #107c41;
+}
+
+.upc-details {
+  margin-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.upc-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.upc-row dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.upc-row dd {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: right;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+.upc-state {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.upc-hidden {
+  display: none !important;
+}
+
+/* The clickable creator cell itself. */
+.upc-trigger {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.upc-trigger:hover {
+  color: #107c41;
+  text-decoration-style: solid;
+}
+
+/* --- photo status ------------------------------------------------------- */
+
+.upc-badge {
+  position: absolute;
+  right: -0.125rem;
+  bottom: -0.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+}
+
+.upc-badge svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke: #ffffff;
+  stroke-width: 3;
+  fill: none;
+}
+
+/* Photo on file. */
+.upc-badge-verified {
+  background: #107c41;
+}
+
+/* No passport photo uploaded yet. */
+.upc-badge-missing {
+  background: #d97706;
+}
+
+.upc-photo-state {
+  margin-top: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.upc-photo-state.is-verified {
+  color: #107c41;
+}
+
+.upc-photo-state.is-missing {
+  color: #b45309;
+}
+
+/* Face-detection readout on the viewed photo. */
+.upc-face-check {
+  margin-top: 0.75rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  color: #64748b;
+}
+
+.upc-face-check.is-pass { color: #107c41; }
+.upc-face-check.is-fail { color: #b45309; }

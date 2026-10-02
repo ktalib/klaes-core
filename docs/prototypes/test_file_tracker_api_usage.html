@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>File Tracker API Usage Guide</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 2rem; background:#f9fafb; color:#111827; }
+    h1 { font-size: 1.8rem; margin-bottom: .25rem; }
+    h2 { margin-top: 2rem; font-size: 1.4rem; border-bottom: 1px solid #e5e7eb; padding-bottom:.25rem; }
+    h3 { margin-top: 1.25rem; font-size: 1.1rem; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    pre { background:#111827; color:#e5e7eb; padding:1rem; border-radius:.5rem; overflow:auto; font-size:.85rem; }
+    .endpoint { margin-top:1.5rem; padding:1rem 1.25rem; border-radius:.75rem; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.08); border:1px solid #e5e7eb; }
+    .badge { display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.7rem; font-weight:600; margin-right:.5rem; }
+    .method-get { background:#ecfeff; color:#0369a1; }
+    .method-post { background:#ecfdf3; color:#166534; }
+    .method-put { background:#fefce8; color:#854d0e; }
+    .method-delete { background:#fef2f2; color:#b91c1c; }
+    .tag { background:#e5e7eb; color:#111827; border-radius:999px; padding:.15rem .5rem; font-size:.7rem; margin-left:.25rem; }
+    .small { font-size:.8rem; color:#4b5563; }
+    .url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:.85rem; }
+    dl { margin:.5rem 0 0; }
+    dt { font-weight:600; margin-top:.5rem; }
+    dd { margin:0 0 .25rem 0; font-size:.85rem; color:#374151; }
+  </style>
+</head>
+<body>
+  <h1>File Tracker API &mdash; Usage Examples</h1>
+   
+  <h2>1. List Trackers (with filters & pagination)</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-get">GET</span>
+      <span class="url">/api/file-trackers</span>
+      <span class="tag">list</span>
+    </div>
+    <dl>
+      <dt>Query parameters (optional)</dt>
+      <dd><code>status</code>, <code>priority</code>, <code>department</code>, <code>created_by</code>, <code>overdue=true</code>, <code>search</code>, <code>file_numbers</code> (comma-separated), <code>sort_by</code>, <code>sort_order</code>, <code>per_page</code></dd>
+    </dl>
+    <h3>Example (fetch active HIGH priority trackers)</h3>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers?status=ACTIVE&amp;priority=HIGH&amp;per_page=10
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+  <h2>2. Create Tracker</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-post">POST</span>
+      <span class="url">/api/file-trackers</span>
+      <span class="tag">create</span>
+    </div>
+    <dl>
+      <dt>Required fields</dt>
+      <dd><code>file_title</code>, <code>priority</code> (LOW|MEDIUM|HIGH), <code>department</code>, <code>origin_office_code</code>, <code>origin_office_name</code>, <code>receiving_office_code</code>, <code>receiving_office_name</code>, <code>receiving_officer_id</code>, <code>movement_log</code> array</dd>
+    </dl>
+    <h3>Example request body</h3>
+    <pre><code class="language-json">POST BASE_URL/api/file-trackers
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+Accept: application/json
+
+{
+  "file_number": "ST-RES-2025-4859",
+  "file_title": "Sectional Title - Residential Development Plot 24",
+  "file_type": "PRIMARY",
+  "priority": "HIGH",
+  "department": "LANDS",
+  "description": "Urgent processing for commission.",
+  "deadline": "2025-12-15",
+  "origin_office_code": "LANDS-HQ",
+  "origin_office_name": "Lands HQ Front Desk",
+  "origin_office_department": "LANDS",
+  "receiving_office_code": "REG-01",
+  "receiving_office_name": "Deeds Registration",
+  "receiving_officer_id": 1234,
+  "receiving_officer_name": "Jane Officer",
+  "notes": "Handle within 7 working days.",
+  "movement_log": [
+    {
+      "office_code": "REG-01",
+      "office_name": "Deeds Registration",
+      "log_in_time": "09:15",
+      "log_in_date": "2025-11-26",
+      "notes": "Received from front desk."
+    }
+  ]
+}</code></pre>
+  </div>
+
+  <h2>3. Show, Update, Delete Tracker</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-get">GET</span>
+      <span class="url">/api/file-trackers/{id}</span>
+      <span class="tag">show</span>
+    </div>
+    <h3>Example</h3>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers/1
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <div>
+      <span class="badge method-put">PUT</span>
+      <span class="url">/api/file-trackers/{id}</span>
+      <span class="tag">update</span>
+    </div>
+    <h3>Example (update status & deadline)</h3>
+    <pre><code class="language-json">PUT BASE_URL/api/file-trackers/1
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+Accept: application/json
+
+{
+  "status": "COMPLETED",
+  "deadline": "2025-12-20",
+  "notes": "Final signing completed."
+}</code></pre>
+  </div>
+
+  <div class="endpoint">
+    <div>
+      <span class="badge method-delete">DELETE</span>
+      <span class="url">/api/file-trackers/{id}</span>
+      <span class="tag">delete</span>
+    </div>
+    <pre><code class="language-http">DELETE BASE_URL/api/file-trackers/1
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+  <h2>4. Add Movement</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-post">POST</span>
+      <span class="url">/api/file-trackers/{id}/movements</span>
+      <span class="tag">movement</span>
+    </div>
+    <h3>Example</h3>
+    <pre><code class="language-json">POST BASE_URL/api/file-trackers/1/movements
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+Accept: application/json
+
+{
+  "office_code": "REG-02",
+  "office_name": "Verification Unit",
+  "log_in_time": "11:30",
+  "log_in_date": "2025-11-27",
+  "notes": "Forwarded for verification."
+}</code></pre>
+  </div>
+
+  <h2>5. Complete Current Movement</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-post">POST</span>
+      <span class="url">/api/file-trackers/{id}/complete-movement</span>
+      <span class="tag">movement</span>
+    </div>
+    <h3>Example</h3>
+    <pre><code class="language-json">POST BASE_URL/api/file-trackers/1/complete-movement
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+Accept: application/json
+
+{
+  "log_out_time": "16:45",
+  "notes": "Verified and cleared."
+}</code></pre>
+  </div>
+
+  <h2>6. Correct a Log Entry</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-put">PUT</span>
+      <span class="url">/api/file-trackers/{id}/logs/{logId}</span>
+      <span class="tag">logs</span>
+    </div>
+    <h3>Example</h3>
+    <pre><code class="language-json">PUT BASE_URL/api/file-trackers/1/logs/LOG-202511260915-001
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+Accept: application/json
+
+{
+  "office_code": "REG-03",
+  "office_name": "Records Unit",
+  "receiving_officer_id": 5678,
+  "receiving_officer_name": "John Clerk"
+}</code></pre>
+  </div>
+
+  <h2>7. Dashboard Stats</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-get">GET</span>
+      <span class="url">/api/file-trackers/dashboard</span>
+      <span class="tag">stats</span>
+    </div>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers/dashboard
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+  <h2>8. Search</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-get">GET</span>
+      <span class="url">/api/file-trackers/search</span>
+      <span class="tag">search</span>
+    </div>
+    <dl>
+      <dt>Query parameters</dt>
+      <dd><code>query</code>, <code>file_number</code>, <code>file_title</code>, <code>priority</code>, <code>status</code></dd>
+    </dl>
+    <h3>Example</h3>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers/search?query=ST-RES-2025-4859
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+  <h2>9. Quick Track by File No / Tracking ID</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-get">GET</span>
+      <span class="url">/api/file-trackers/track/{identifier}</span>
+      <span class="tag">track</span>
+    </div>
+    <h3>Example (by file number)</h3>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers/track/ST-RES-2025-4859
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+    <h3>Example (by tracking ID)</h3>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers/track/FT-2025-000123
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+  <h2>10. Bulk Operations</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-post">POST</span>
+      <span class="url">/api/file-trackers/bulk</span>
+      <span class="tag">bulk</span>
+    </div>
+    <dl>
+      <dt>Allowed operations</dt>
+      <dd><code>move</code>, <code>priority</code>, <code>archive</code>, <code>delete</code></dd>
+    </dl>
+    <h3>Example (bulk move)</h3>
+    <pre><code class="language-json">POST BASE_URL/api/file-trackers/bulk
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+Accept: application/json
+
+{
+  "operation": "move",
+  "tracker_ids": [1, 2, 3],
+  "data": {
+    "office_code": "REG-04",
+    "office_name": "QA Unit",
+    "notes": "Bulk moved for QA."
+  }
+}</code></pre>
+
+    <h3>Example (bulk priority)</h3>
+    <pre><code class="language-json">{
+  "operation": "priority",
+  "tracker_ids": [4, 5],
+  "data": {
+    "priority": "High"
+  }
+}</code></pre>
+  </div>
+
+  <h2>11. Export Data</h2>
+  <div class="endpoint">
+    <div>
+      <span class="badge method-get">GET</span>
+      <span class="url">/api/file-trackers/export</span>
+      <span class="tag">export</span>
+    </div>
+    <dl>
+      <dt>Query parameters</dt>
+      <dd><code>format</code> (csv|excel|pdf), <code>from_date</code>, <code>to_date</code>, <code>include_details</code>, <code>include_movement</code>, <code>include_office</code></dd>
+    </dl>
+    <h3>Example</h3>
+    <pre><code class="language-http">GET BASE_URL/api/file-trackers/export?format=csv&amp;from_date=2025-11-01&amp;to_date=2025-11-30&amp;include_details=1&amp;include_movement=1&amp;include_office=1
+Authorization: Bearer &lt;token&gt;
+Accept: application/json</code></pre>
+  </div>
+
+</body>
+</html>

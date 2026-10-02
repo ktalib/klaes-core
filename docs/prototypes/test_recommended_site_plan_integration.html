@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommended Site Plan Sketch - Integration Test</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a87; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        .result { margin-top: 15px; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        .status { margin: 10px 0; padding: 10px; background: #e9ecef; border-radius: 4px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ Recommended Site Plan Sketch - Integration Test</h1>
+        <p>This page tests the recommended site plan sketch upload functionality for the KLAES system.</p>
+        
+        <!-- Status Section -->
+        <div class="test-section">
+            <h3>📊 System Status</h3>
+            <div class="status" id="systemStatus">
+                <strong>Server:</strong> <span id="serverStatus">⏳ Checking...</span><br>
+                <strong>Database Table:</strong> <span id="tableStatus">⏳ Checking...</span><br>
+                <strong>Routes:</strong> <span id="routeStatus">⏳ Checking...</span>
+            </div>
+        </div>
+
+        <!-- Test 1: Check System Health -->
+        <div class="test-section">
+            <h3>🔍 Test 1: System Health Check</h3>
+            <button onclick="checkSystemHealth()">Run Health Check</button>
+            <div id="healthResult"></div>
+        </div>
+
+        <!-- Test 2: Upload File -->
+        <div class="test-section">
+            <h3>📤 Test 2: Upload Recommended Site Plan Sketch</h3>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="applicationId">Application ID:</label>
+                    <input type="text" id="applicationId" value="APP_TEST_001" placeholder="Enter application ID">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <textarea id="description" rows="3" placeholder="Description of the recommended site plan sketch">Test upload of recommended site plan sketch from integration test page</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="fileInput">Select File (PDF, JPG, JPEG, PNG - Max 10MB):</label>
+                    <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png">
+                </div>
+                <button type="button" onclick="testUpload()">Upload File</button>
+            </form>
+            <div id="uploadResult"></div>
+        </div>
+
+        <!-- Test 3: Retrieve Data -->
+        <div class="test-section">
+            <h3>📥 Test 3: Retrieve Recommended Site Plan Data</h3>
+            <div class="form-group">
+                <label for="getApplicationId">Application ID:</label>
+                <input type="text" id="getApplicationId" value="APP_TEST_001" placeholder="Enter application ID">
+            </div>
+            <button onclick="testGet()">Get Data</button>
+            <div id="getResult"></div>
+        </div>
+
+        <!-- Test 4: Delete File -->
+        <div class="test-section">
+            <h3>🗑️ Test 4: Delete Recommended Site Plan Sketch</h3>
+            <div class="form-group">
+                <label for="deleteApplicationId">Application ID:</label>
+                <input type="text" id="deleteApplicationId" value="APP_TEST_001" placeholder="Enter application ID">
+            </div>
+            <button class="danger" onclick="testDelete()">Delete File</button>
+            <div id="deleteResult"></div>
+        </div>
+
+        <!-- Test 5: Frontend Modal Simulation -->
+        <div class="test-section">
+            <h3>🎭 Test 5: Frontend Modal Simulation</h3>
+            <p>This simulates the modal functionality that would be used in the actual application.</p>
+            <button onclick="simulateModal()">Open Modal Simulation</button>
+            <div id="modalResult"></div>
+        </div>
+    </div>
+
+    <script>
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        // Initialize status checks
+        window.onload = function() {
+            checkSystemHealth();
+        };
+
+        async function checkSystemHealth() {
+            updateStatus('serverStatus', '⏳ Checking...');
+            updateStatus('tableStatus', '⏳ Checking...');
+            updateStatus('routeStatus', '⏳ Checking...');
+
+            // Check server
+            try {
+                const response = await fetch('/', { method: 'HEAD' });
+                updateStatus('serverStatus', response.ok ? '✅ Online' : '❌ Error');
+            } catch (e) {
+                updateStatus('serverStatus', '❌ Offline');
+            }
+
+            // Check routes by testing the get endpoint
+            try {
+                const response = await fetch('/stmemo/get-recommended-siteplan/test', {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                updateStatus('routeStatus', response.status === 200 || response.status === 500 ? '✅ Routes OK' : '❌ Route Error');
+                
+                // Check if it's a table missing error
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.table_missing) {
+                        updateStatus('tableStatus', '❌ Table Missing');
+                        showResult('healthResult', 'Database table "recommended_site_plans" needs to be created. Check create_recommended_site_plans_table.sql', 'error');
+                    } else {
+                        updateStatus('tableStatus', '✅ Table Exists');
+                        showResult('healthResult', 'System health check completed successfully!', 'success');
+                    }
+                } else {
+                    updateStatus('tableStatus', '❓ Unknown');
+                }
+            } catch (e) {
+                updateStatus('routeStatus', '❌ Route Error');
+                updateStatus('tableStatus', '❓ Cannot Check');
+                showResult('healthResult', 'Route check failed: ' + e.message, 'error');
+            }
+        }
+
+        function updateStatus(elementId, text) {
+            document.getElementById(elementId).innerHTML = text;
+        }
+
+        function showResult(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+
+        async function testUpload() {
+            const applicationId = document.getElementById('applicationId').value;
+            const description = document.getElementById('description').value;
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!applicationId || !file) {
+                showResult('uploadResult', 'Please fill in Application ID and select a file.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('application_id', applicationId);
+            formData.append('description', description);
+            formData.append('recommended_file', file);
+            if (csrfToken) formData.append('_token', csrfToken);
+
+            try {
+                showResult('uploadResult', 'Uploading file...', 'info');
+                
+                const response = await fetch('/stmemo/save-recommended-siteplan', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('uploadResult', `✅ ${data.message}<br><strong>File Path:</strong> ${data.file_path || 'N/A'}`, 'success');
+                } else {
+                    showResult('uploadResult', `❌ Upload failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('uploadResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGet() {
+            const applicationId = document.getElementById('getApplicationId').value;
+            
+            if (!applicationId) {
+                showResult('getResult', 'Please enter Application ID.', 'error');
+                return;
+            }
+
+            try {
+                showResult('getResult', 'Retrieving data...', 'info');
+                
+                const response = await fetch(`/stmemo/get-recommended-siteplan/${applicationId}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = data.recommendedSitePlan 
+                        ? `✅ Data found:<br><pre>${JSON.stringify(data.recommendedSitePlan, null, 2)}</pre>`
+                        : '✅ No data found for this application ID.';
+                    showResult('getResult', result, 'success');
+                } else {
+                    showResult('getResult', `❌ Get failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('getResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDelete() {
+            const applicationId = document.getElementById('deleteApplicationId').value;
+            
+            if (!applicationId) {
+                showResult('deleteResult', 'Please enter Application ID.', 'error');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to delete the recommended site plan sketch for this application?')) {
+                return;
+            }
+
+            try {
+                showResult('deleteResult', 'Deleting file...', 'info');
+                
+                const response = await fetch(`/stmemo/delete-recommended-siteplan/${applicationId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('deleteResult', `✅ ${data.message}`, 'success');
+                } else {
+                    showResult('deleteResult', `❌ Delete failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('deleteResult', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateModal() {
+            // This simulates the modal functionality from the actual application
+            const modalHtml = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; justify-content: center; align-items: center;" onclick="closeModal()">
+                    <div style="background: white; padding: 30px; border-radius: 8px; width: 90%; max-width: 500px;" onclick="event.stopPropagation()">
+                        <h3>📤 Upload Recommended Site Plan Sketch</h3>
+                        <form id="modalForm">
+                            <div style="margin: 15px 0;">
+                                <label>Application ID: <strong>DEMO_APP_001</strong></label>
+                            </div>
+                            <div style="margin: 15px 0;">
+                                <label for="modalDescription">Description:</label>
+                                <textarea id="modalDescription" rows="3" style="width: 100%; padding: 8px;">Modal test upload</textarea>
+                            </div>
+                            <div style="margin: 15px 0;">
+                                <label for="modalFile">Select File:</label>
+                                <input type="file" id="modalFile" accept=".pdf,.jpg,.jpeg,.png" style="width: 100%; padding: 8px;">
+                            </div>
+                            <div style="text-align: right; margin-top: 20px;">
+                                <button type="button" onclick="closeModal()" style="background: #6c757d; margin-right: 10px;">Cancel</button>
+                                <button type="button" onclick="modalUpload()">Upload</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            showResult('modalResult', 'Modal opened successfully! This simulates the actual application modal.', 'success');
+        }
+
+        function closeModal() {
+            const modal = document.querySelector('[style*="position: fixed"]');
+            if (modal) modal.remove();
+        }
+
+        async function modalUpload() {
+            const file = document.getElementById('modalFile').files[0];
+            const description = document.getElementById('modalDescription').value;
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            // Simulate the actual upload process
+            closeModal();
+            showResult('modalResult', 'Modal upload simulation completed! In the real application, this would upload to the server.', 'success');
+        }
+    </script>
+</body>
+</html>

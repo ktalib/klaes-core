@@ -1,0 +1,149 @@
+////  Applicant names formate 
+
+
+<div class="space-y-4">
+                         <div class="flex items-center">
+                              <span class="text-gray-600 font-medium w-40">Owner:</span>
+                              <span class="text-gray-800">
+                                   @if(isset($isPrimary) && $isPrimary)
+                                        @if(!empty($application->applicant_title) || !empty($application->first_name) || !empty($application->surname))
+                                             {{ $application->applicant_title ?? '' }} {{ $application->first_name ?? '' }} {{ $application->surname ?? '' }}
+                                        @elseif(!empty($application->corporate_name))
+                                             {{ $application->corporate_name }}
+                                        @else
+                                             N/A
+                                        @endif
+                                   @else
+                                        @if(!empty($application->primary_applicant_title) || !empty($application->primary_first_name) || !empty($application->primary_surname))
+                                             {{ $application->primary_applicant_title ?? '' }} {{ $application->primary_first_name ?? '' }} {{ $application->primary_surname ?? '' }}
+                                        @elseif(!empty($application->mother_corporate_name))
+                                             {{ $application->mother_corporate_name }}
+                                        @else
+                                             N/A
+                                        @endif
+                                   @endif
+                              </span>
+                         </div>
+                         
+                         @if(!isset($isPrimary) || !$isPrimary)
+                         <div class="flex items-center">
+                              <span class="text-gray-600 font-medium w-40">Unit Owner:</span>
+                              <span class="text-gray-800">
+                                   @if(!empty($application->applicant_title) || !empty($application->first_name) || !empty($application->surname))
+                                        {{ $application->applicant_title ?? '' }} {{ $application->first_name ?? '' }} {{ $application->surname ?? '' }}
+                                   @elseif(!empty($application->corporate_name))
+                                        {{ $application->corporate_name }}
+                                   @else
+                                        N/A
+                                   @endif
+                              </span>
+                         </div>
+                         @endif
+                         
+                         <div class="flex items-center">
+                              <span class="text-gray-600 font-medium w-40">Land Use:</span>
+                              <span class="text-gray-800">{{ $application->land_use ?? 'N/A' }}</span>
+                         </div>
+                         <div class="flex items-center">
+                              <span class="text-gray-600 font-medium w-40">Property Address:</span>
+                              <span class="text-gray-800">
+                                   {{ $application->property_house_no ?? '' }} 
+                                   {{ $application->property_plot_no ?? '' }}, 
+                                   {{ $application->property_street_name ?? '' }}, 
+                                   {{ $application->property_lga ?? '' }}
+                              </span>
+                              <input type="hidden" name="property_location" value="{{ $application->property_house_no ?? '' }} {{ $application->property_plot_no ?? '' }}, {{ $application->property_street_name ?? '' }}, {{ $application->property_lga ?? '' }}">
+                         </div>
+                         <div class="flex items-center">
+                              <span class="text-gray-600 font-medium w-40">Applicant Name:</span>
+                              <input type="text" name="applicant_name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                                   value="{{ isset($isPrimary) && $isPrimary ? 
+                                   ((!empty($application->applicant_title) || !empty($application->first_name) || !empty($application->surname)) ? 
+                                   ($application->applicant_title ?? '') . ' ' . ($application->first_name ?? '') . ' ' . ($application->surname ?? '') : 
+                                   ($application->corporate_name ?? 'N/A')) : 
+                                   ((!empty($application->applicant_title) || !empty($application->first_name) || !empty($application->surname)) ? 
+                                   ($application->applicant_title ?? '') . ' ' . ($application->first_name ?? '') . ' ' . ($application->surname ?? '') : 
+                                   ($application->corporate_name ?? 'N/A')) }}">
+                         </div>
+                    </div>
+
+///application info header
+                    <div class="flex flex-col md:flex-row items-center justify-between mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div class="flex-1 mb-4 md:mb-0">
+                          <h3 class="text-base font-semibold text-gray-800 flex items-center gap-2">
+                            <i data-lucide="home" class="w-5 h-5 text-blue-500"></i>
+                            {{ $application->land_use }} Property
+                          </h3>
+                          <div class="flex flex-wrap gap-2 mt-2 text-xs text-gray-500">
+                            <span class="inline-flex items-center gap-1">
+                              <i data-lucide="hash" class="w-4 h-4"></i>
+                              Application ID: <span class="font-medium text-gray-700">{{ $application->applicationID }}</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1">
+                              <i data-lucide="folder" class="w-4 h-4"></i>
+                              File No: <span class="font-medium text-gray-700">{{ $application->fileno }}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div class="flex-1 text-right">
+                          <h3 class="text-base font-semibold text-gray-800">
+                            {{ $application->applicant_title }} {{ $application->first_name }} {{ $application->surname }}
+                          </h3>
+                          <span class="inline-flex items-center px-3 py-1 mt-2 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                            <i data-lucide="map-pin" class="w-4 h-4 mr-1"></i>
+                            {{ $application->land_use }}
+                          </span>
+                        </div>
+                      </div>
+
+
+# File Indexing API Endpoints
+
+## GET Requests
+# Get all records
+curl -X GET http://localhost:8000/api/file-records
+
+# Get a specific record
+curl -X GET http://localhost:8000/api/file-records/1
+
+## POST Requests
+# Search records
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"fileNo":"KNML 00001"}' \
+  http://localhost:8000/api/file-records/search
+
+# Property Transaction Endpoint
+http://localhost:8000/api/property-transaction
+
+# SweetAlert Implementation
+# Add loader and feedback using SweetAlert
+Swal.fire({
+    title: 'Processing...',
+    html: 'Submitting Final Conveyance',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => {
+        Swal.showLoading();
+    }
+});
+
+
+#We are going to buy this  API
+
+**For customer support**
+
+**Call API**: Allows your application to make programmatic voice calls. 
+
+**SMS API**: Enables sending text messages programmatically. 
+
+**RealTime Notification**
+
+**Signal API**: For realtime notifications, allowing immediate updates to users. 
+
+
+
+
+ // Chick all fetch urls to base url
+  fetch('http://localhost/gisedms/st_registration/register-batch',
+

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Indexing Auto-Fill Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .fail {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .enhancement {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .code-block {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .field-demo {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        .field-demo > div {
+            flex: 1;
+            min-width: 200px;
+        }
+        .field-demo label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .field-demo select, .field-demo input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .auto-filled {
+            background-color: #dcfce7 !important;
+            transition: background-color 2s ease;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Indexing Auto-Fill Enhancement Test</h1>
+    <p>This page demonstrates the enhanced auto-fill functionality for Land Use Type, District, and LGA fields in the file indexing dialog.</p>
+
+    <div class="test-section">
+        <h2>✅ Enhancement Summary</h2>
+        <div class="test-result enhancement">
+            <strong>Auto-Fill Implementation Complete!</strong><br>
+            When a file number is selected via the Global File Number Modal, the system now automatically populates:
+            <ul>
+                <li><strong>Land Use Type</strong> - From file record or grouping data</li>
+                <li><strong>District</strong> - Parsed from location field</li>
+                <li><strong>LGA</strong> - Parsed from location field</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Implementation Details</h2>
+        
+        <h3>1. File Number Selection Callback Enhanced</h3>
+        <div class="code-block">
+            <strong>Location:</strong> resources/views/fileindexing/partial/file_indexing_dialog.blade.php<br>
+            <strong>Function:</strong> GlobalFileNoModal callback (lines ~2220-2250)<br><br>
+            <strong>Added functionality:</strong><br>
+            • Parse location field to extract District and LGA<br>
+            • Populate Land Use Type from record data<br>
+            • Visual feedback with green highlighting
+        </div>
+
+        <h3>2. New Helper Functions Added</h3>
+        <div class="code-block">
+            <strong>parseLocationAndPopulateFields(location):</strong><br>
+            • Splits location by commas<br>
+            • Extracts district (second-to-last part) and LGA (last part)<br>
+            • Calls populateSelectFromText() for each field<br><br>
+
+            <strong>populateSelectFromText(selectElement, text, dataArray, textField):</strong><br>
+            • Fuzzy matching against reference data<br>
+            • Case-insensitive partial matching<br>
+            • Visual feedback with temporary green background<br><br>
+
+            <strong>populateLandUseFromRecord(landUse):</strong><br>
+            • Maps database land use values to select options<br>
+            • Handles variations like 'MIXED_USE' → 'mixed'<br>
+            • Visual feedback for auto-populated fields
+        </div>
+
+        <h3>3. Grouping API Integration</h3>
+        <div class="code-block">
+            <strong>autoFillArchiveDetailsFromAPI() Enhanced:</strong><br>
+            • Now calls populateLandUseFromRecord() when grouping record contains landuse data<br>
+            • Integrates with existing archive detail population workflow
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Auto-Fill Workflow</h2>
+        <div class="test-result info">
+            <strong>Step 1:</strong> User clicks "Select File Number" button in file indexing dialog<br>
+            <strong>Step 2:</strong> GlobalFileNoModal opens and user selects a file number<br>
+            <strong>Step 3:</strong> Callback receives fileData with record information<br>
+            <strong>Step 4:</strong> System populates basic fields (file number, plot number, etc.)<br>
+            <strong>Step 5:</strong> <em>NEW!</em> parseLocationAndPopulateFields() extracts District/LGA from location<br>
+            <strong>Step 6:</strong> <em>NEW!</em> populateLandUseFromRecord() sets Land Use Type<br>
+            <strong>Step 7:</strong> autoFillArchiveDetailsFromAPI() loads additional grouping data<br>
+            <strong>Step 8:</strong> <em>NEW!</em> Land Use Type populated from grouping record if available<br>
+            <strong>Step 9:</strong> All fields show green highlighting to indicate auto-population
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Demo Simulation</h2>
+        <p>This simulates how the auto-fill would work with sample data:</p>
+        
+        <div class="field-demo">
+            <div>
+                <label>Location (Auto-filled from record)</label>
+                <input type="text" id="demo-location" value="Plot 123, Central District, Abuja Municipal" readonly>
+            </div>
+            <div>
+                <label>Land Use Type</label>
+                <select id="demo-land-use">
+                    <option value="">Select Land Use Type</option>
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                    <option value="industrial">Industrial</option>
+                    <option value="mixed">Mixed Use</option>
+                    <option value="agricultural">Agricultural</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="field-demo">
+            <div>
+                <label>District</label>
+                <select id="demo-district">
+                    <option value="">Select District</option>
+                    <option value="1">Central District</option>
+                    <option value="2">Garki District</option>
+                    <option value="3">Wuse District</option>
+                    <option value="4">Maitama District</option>
+                </select>
+            </div>
+            <div>
+                <label>LGA</label>
+                <select id="demo-lga">
+                    <option value="">Select LGA</option>
+                    <option value="1">Abuja Municipal</option>
+                    <option value="2">Gwagwalada</option>
+                    <option value="3">Kuje</option>
+                    <option value="4">Bwari</option>
+                </select>
+            </div>
+        </div>
+
+        <button onclick="simulateAutoFill()">🚀 Simulate Auto-Fill</button>
+        <button onclick="resetDemo()">🔄 Reset Demo</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Expected Results</h2>
+        <div class="test-result pass">
+            <strong>✅ Land Use Type:</strong> Automatically populated from file record or grouping data<br>
+            <strong>✅ District:</strong> Extracted from location field (second-to-last comma-separated part)<br>
+            <strong>✅ LGA:</strong> Extracted from location field (last comma-separated part)<br>
+            <strong>✅ Visual Feedback:</strong> Green highlighting indicates auto-populated fields<br>
+            <strong>✅ Fallback:</strong> Manual selection still works if auto-fill data unavailable
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Testing Instructions</h2>
+        <div class="test-result info">
+            <ol>
+                <li>Open the File Indexing dialog in the KLAES system</li>
+                <li>Click the "Select File Number" button</li>
+                <li>Choose any file number from the Global File Number Modal</li>
+                <li>Observe that Land Use Type, District, and LGA fields are automatically populated</li>
+                <li>Look for green highlighting on auto-filled fields</li>
+                <li>Verify that fields can still be manually changed if needed</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function simulateAutoFill() {
+            // Simulate the auto-fill functionality
+            const location = document.getElementById('demo-location').value;
+            const landUseSelect = document.getElementById('demo-land-use');
+            const districtSelect = document.getElementById('demo-district');
+            const lgaSelect = document.getElementById('demo-lga');
+            
+            // Parse location like the real function would
+            const locationParts = location.split(',').map(part => part.trim());
+            
+            if (locationParts.length >= 2) {
+                const district = locationParts[locationParts.length - 2];  // "Central District"
+                const lga = locationParts[locationParts.length - 1];       // "Abuja Municipal"
+                
+                // Find matching district
+                for (let i = 0; i < districtSelect.options.length; i++) {
+                    if (districtSelect.options[i].text.toLowerCase().includes(district.toLowerCase())) {
+                        districtSelect.value = districtSelect.options[i].value;
+                        districtSelect.classList.add('auto-filled');
+                        break;
+                    }
+                }
+                
+                // Find matching LGA
+                for (let i = 0; i < lgaSelect.options.length; i++) {
+                    if (lgaSelect.options[i].text.toLowerCase().includes(lga.toLowerCase())) {
+                        lgaSelect.value = lgaSelect.options[i].value;
+                        lgaSelect.classList.add('auto-filled');
+                        break;
+                    }
+                }
+            }
+            
+            // Simulate land use from record (assume Commercial)
+            landUseSelect.value = 'commercial';
+            landUseSelect.classList.add('auto-filled');
+            
+            // Remove highlighting after 3 seconds
+            setTimeout(() => {
+                landUseSelect.classList.remove('auto-filled');
+                districtSelect.classList.remove('auto-filled');
+                lgaSelect.classList.remove('auto-filled');
+            }, 3000);
+            
+            // Show success message
+            alert('✅ Auto-fill simulation complete!\n\nFields populated:\n• Land Use Type: Commercial\n• District: Central District\n• LGA: Abuja Municipal\n\nGreen highlighting will fade in 3 seconds.');
+        }
+        
+        function resetDemo() {
+            document.getElementById('demo-land-use').value = '';
+            document.getElementById('demo-district').value = '';
+            document.getElementById('demo-lga').value = '';
+            
+            // Remove any highlighting
+            document.querySelectorAll('.auto-filled').forEach(el => {
+                el.classList.remove('auto-filled');
+            });
+        }
+        
+        // Initialize demo on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('File Indexing Auto-Fill Enhancement Test loaded successfully');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Upload Support Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .info {
+            color: blue;
+        }
+        .code {
+            background: #eee;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Upload Support Test</h1>
+    <p>Testing the updated file upload functionality to support both PDF and image files.</p>
+
+    <div class="test-section">
+        <h2>✅ Changes Implemented</h2>
+        <ul>
+            <li class="success">Updated file input accept attribute to include image formats</li>
+            <li class="success">Modified controller validation to accept PDF and image MIME types</li>
+            <li class="success">Updated file naming logic to preserve original file extensions</li>
+            <li class="success">Updated UI labels to reflect multiple file type support</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 File Input Accept Attribute</h2>
+        <div class="code">
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff"
+        </div>
+        <p class="info">Now accepts: PDF, JPG, JPEG, PNG, GIF, BMP, WEBP, TIFF</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Controller Validation</h2>
+        <div class="code">
+            'memo_file' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,bmp,webp,tiff|max:10240'
+        </div>
+        <p class="info">Server-side validation now supports both document and image formats</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📁 File Naming Logic</h2>
+        <div class="code">
+            $extension = $file->getClientOriginalExtension();
+            $fileName = 'unit_memo_' . $unitId . '_' . time() . '.' . $extension;
+        </div>
+        <p class="info">Files now preserve their original extensions (PDF, JPG, PNG, etc.)</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Testing Steps</h2>
+        <ol>
+            <li>Navigate to Unit (Scheme) page: <code>/unit-scheme-memo</code></li>
+            <li>Select a unit application row</li>
+            <li>Click "Upload ST Memo" action</li>
+            <li>Try uploading different file types:
+                <ul>
+                    <li>PDF documents</li>
+                    <li>JPG images</li>
+                    <li>PNG images</li>
+                    <li>Other supported formats</li>
+                </ul>
+            </li>
+            <li>Verify files upload successfully</li>
+            <li>Test "View ST Memo" action to ensure files display properly</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Verification Points</h2>
+        <ul>
+            <li>File input dialog shows appropriate file type filters</li>
+            <li>Upload process accepts both PDF and image files</li>
+            <li>Files are stored with correct extensions</li>
+            <li>View functionality works for all supported file types</li>
+            <li>Browser displays images inline and PDFs appropriately</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Database Storage</h2>
+        <p class="info">Files are stored in:</p>
+        <div class="code">storage/app/public/unit_memos/</div>
+        <p class="info">Database records in:</p>
+        <div class="code">unit_memo_uploads table</div>
+        <p>Each upload preserves the original filename and stores the file with appropriate extension.</p>
+    </div>
+</body>
+</html>

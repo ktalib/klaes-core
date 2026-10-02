@@ -1,0 +1,62 @@
+[
+    {
+        "id": "660",
+        "from": "RES-2024-004",
+        "to": "RES-2024-4",
+        "name": "HAUWA BELLO"
+    },
+    {
+        "id": "661",
+        "from": "RES-2024-005",
+        "to": "RES-2024-5",
+        "name": "GALI ABDULLAHI"
+    },
+    {
+        "id": "662",
+        "from": "RES-2024-006",
+        "to": "RES-2024-6",
+        "name": "MUSA AHMED"
+    },
+    {
+        "id": "663",
+        "from": "RES-2024-007",
+        "to": "RES-2024-7",
+        "name": "HARUNA MUAZU"
+    },
+    {
+        "id": "664",
+        "from": "RES-2024-008",
+        "to": "RES-2024-8",
+        "name": "GARBA DA`U"
+    },
+    {
+        "id": "666",
+        "from": "RES-2024-010",
+        "to": "RES-2024-10",
+        "name": "IBRAHIM ABDULLAHI"
+    },
+    {
+        "id": "668",
+        "from": "RES-2024-012",
+        "to": "RES-2024-12",
+        "name": "DAYYABU SANI"
+    },
+    {
+        "id": "670",
+        "from": "RES-2024-009",
+        "to": "RES-2024-9",
+        "name": "KALTUME ISA"
+    },
+    {
+        "id": "671",
+        "from": "RES-2024-011",
+        "to": "RES-2024-11",
+        "name": "WADA MOHD"
+    },
+    {
+        "id": "672",
+        "from": "RES-2024-013",
+        "to": "RES-2024-13",
+        "name": "ADHAMA TIJUDDEEN"
+    }
+]

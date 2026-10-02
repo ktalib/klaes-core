@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSI Modal Blank Inputs Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        .warning { color: orange; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .btn-test { background: #007bff; color: white; border: none; border-radius: 4px; }
+        .btn-fix { background: #28a745; color: white; border: none; border-radius: 4px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>JSI Modal Blank Inputs & Save Button Fix Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Measurement Entries Display</h3>
+        <button class="btn-test" onclick="testMeasurementEntriesDisplay()">Check Measurement Entries</button>
+        <div id="measurement-display-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Save Button State & Event Listeners</h3>
+        <button class="btn-test" onclick="testSaveButtonState()">Check Save Button</button>
+        <div id="save-button-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Form Input Detection</h3>
+        <button class="btn-test" onclick="testFormInputs()">Check Form Inputs</button>
+        <div id="form-inputs-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 4: Simulate User Interaction</h3>
+        <button class="btn-fix" onclick="simulateUserInput()">Simulate Typing in Form</button>
+        <div id="simulation-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 5: Manual Fix Actions</h3>
+        <button class="btn-fix" onclick="forceCreateMeasurementEntries()">Force Create Measurement Entries</button>
+        <button class="btn-fix" onclick="forceEnableSaveButton()">Force Enable Save Button</button>
+        <div id="manual-fix-results"></div>
+    </div>
+
+    <script>
+        function testMeasurementEntriesDisplay() {
+            const resultsDiv = document.getElementById('measurement-display-results');
+            
+            const container = document.getElementById('measurementEntriesContainer');
+            
+            if (!container) {
+                resultsDiv.innerHTML = '<div class="error">❌ Measurement entries container not found</div>';
+                return;
+            }
+
+            let statusHtml = '<div class="success">✅ Measurement entries container found</div>';
+            
+            // Check container content
+            const hasContent = container.innerHTML && container.innerHTML.trim() !== '';
+            if (hasContent) {
+                statusHtml += '<div class="success">✅ Container has content</div>';
+                
+                // Count measurement entries
+                const entries = container.querySelectorAll('[data-entry-index]');
+                statusHtml += '<div class="info">Found ' + entries.length + ' measurement entries</div>';
+                
+                // Check for input fields
+                const inputs = container.querySelectorAll('input[data-measurement-input]');
+                statusHtml += '<div class="info">Found ' + inputs.length + ' measurement input fields</div>';
+                
+                // Show first entry details
+                if (entries.length > 0) {
+                    const firstEntry = entries[0];
+                    const descInput = firstEntry.querySelector('input[data-field="description"]');
+                    const dimInput = firstEntry.querySelector('input[data-field="dimension"]');
+                    
+                    statusHtml += '<div class="info">First entry description value: "' + (descInput?.value || 'empty') + '"</div>';
+                    statusHtml += '<div class="info">First entry dimension value: "' + (dimInput?.value || 'empty') + '"</div>';
+                }
+            } else {
+                statusHtml += '<div class="error">❌ Container is empty</div>';
+            }
+            
+            // Check global state
+            if (window.measurementEntriesState) {
+                statusHtml += '<div class="info">Global state has ' + window.measurementEntriesState.length + ' entries</div>';
+                statusHtml += '<pre>' + JSON.stringify(window.measurementEntriesState, null, 2) + '</pre>';
+            } else {
+                statusHtml += '<div class="warning">⚠️ No global measurement entries state found</div>';
+            }
+            
+            resultsDiv.innerHTML = statusHtml;
+        }
+
+        function testSaveButtonState() {
+            const resultsDiv = document.getElementById('save-button-results');
+            
+            const saveBtn = document.getElementById('jointInspectionSave');
+            
+            if (!saveBtn) {
+                resultsDiv.innerHTML = '<div class="error">❌ Save button not found</div>';
+                return;
+            }
+
+            let statusHtml = '<div class="success">✅ Save button found</div>';
+            
+            // Check button state
+            if (saveBtn.disabled) {
+                statusHtml += '<div class="warning">⚠️ Save button is DISABLED</div>';
+            } else {
+                statusHtml += '<div class="success">✅ Save button is ENABLED</div>';
+            }
+            
+            // Check button classes
+            const classes = Array.from(saveBtn.classList);
+            statusHtml += '<div class="info">Button classes: ' + classes.join(', ') + '</div>';
+            
+            // Check for event listeners (this is approximate)
+            const hasListeners = saveBtn._listeners || saveBtn.onclick || 'addEventListener was called';
+            statusHtml += '<div class="info">Button has event listeners: ' + (hasListeners ? 'Yes' : 'Unknown') + '</div>';
+            
+            resultsDiv.innerHTML = statusHtml;
+        }
+
+        function testFormInputs() {
+            const resultsDiv = document.getElementById('form-inputs-results');
+            
+            const form = document.getElementById('jointInspectionForm');
+            
+            if (!form) {
+                resultsDiv.innerHTML = '<div class="error">❌ Form not found</div>';
+                return;
+            }
+
+            let statusHtml = '<div class="success">✅ Form found</div>';
+            
+            // Count different types of inputs
+            const allInputs = form.querySelectorAll('input, textarea, select');
+            const visibleInputs = form.querySelectorAll('input:not([type="hidden"]), textarea, select');
+            const measurementInputs = form.querySelectorAll('input[data-measurement-input]');
+            
+            statusHtml += '<div class="info">Total inputs: ' + allInputs.length + '</div>';
+            statusHtml += '<div class="info">Visible inputs: ' + visibleInputs.length + '</div>';
+            statusHtml += '<div class="info">Measurement inputs: ' + measurementInputs.length + '</div>';
+            
+            // Test if functions exist
+            const functions = ['enableSaveButton', 'disableSaveButton', 'renderMeasurementEntries', 'initializeMeasurementEntries'];
+            functions.forEach(func => {
+                if (typeof window[func] === 'function') {
+                    statusHtml += '<div class="success">✅ ' + func + ' function exists</div>';
+                } else {
+                    statusHtml += '<div class="error">❌ ' + func + ' function missing</div>';
+                }
+            });
+            
+            resultsDiv.innerHTML = statusHtml;
+        }
+
+        function simulateUserInput() {
+            const resultsDiv = document.getElementById('simulation-results');
+            
+            let statusHtml = '<div class="info">🔄 Simulating user input...</div>';
+            resultsDiv.innerHTML = statusHtml;
+            
+            // Find first visible input
+            const firstInput = document.querySelector('#jointInspectionForm input:not([type="hidden"])');
+            
+            if (firstInput) {
+                // Simulate typing
+                firstInput.focus();
+                firstInput.value = 'Test input ' + Date.now();
+                
+                // Trigger events
+                firstInput.dispatchEvent(new Event('input', { bubbles: true }));
+                firstInput.dispatchEvent(new Event('change', { bubbles: true }));
+                firstInput.dispatchEvent(new Event('keyup', { bubbles: true }));
+                
+                statusHtml += '<div class="success">✅ Simulated input in: ' + (firstInput.name || firstInput.id || 'unnamed input') + '</div>';
+                statusHtml += '<div class="info">Input value set to: "' + firstInput.value + '"</div>';
+                
+                // Check save button state after simulation
+                setTimeout(() => {
+                    const saveBtn = document.getElementById('jointInspectionSave');
+                    if (saveBtn && !saveBtn.disabled) {
+                        statusHtml += '<div class="success">✅ Save button is now ENABLED after input</div>';
+                    } else {
+                        statusHtml += '<div class="error">❌ Save button is still DISABLED after input</div>';
+                    }
+                    resultsDiv.innerHTML = statusHtml;
+                }, 100);
+            } else {
+                statusHtml += '<div class="error">❌ No visible input found to simulate</div>';
+                resultsDiv.innerHTML = statusHtml;
+            }
+        }
+
+        function forceCreateMeasurementEntries() {
+            const resultsDiv = document.getElementById('manual-fix-results');
+            
+            try {
+                // Force create measurement entries
+                if (typeof initializeMeasurementEntries === 'function') {
+                    initializeMeasurementEntries(true); // Force default entries
+                    resultsDiv.innerHTML = '<div class="success">✅ Forced measurement entries creation</div>';
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">❌ initializeMeasurementEntries function not found</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">❌ Error creating measurement entries: ' + error.message + '</div>';
+            }
+        }
+
+        function forceEnableSaveButton() {
+            const resultsDiv = document.getElementById('manual-fix-results');
+            
+            try {
+                // Force enable save button
+                if (typeof enableSaveButton === 'function') {
+                    enableSaveButton();
+                    resultsDiv.innerHTML = '<div class="success">✅ Forced save button enablement</div>';
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">❌ enableSaveButton function not found</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">❌ Error enabling save button: ' + error.message + '</div>';
+            }
+        }
+
+        // Auto-run tests on page load
+        window.onload = function() {
+            console.log('JSI Modal Fix Test Page Loaded');
+            
+            setTimeout(() => {
+                testMeasurementEntriesDisplay();
+                testSaveButtonState();
+                testFormInputs();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

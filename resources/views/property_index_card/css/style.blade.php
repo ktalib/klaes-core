@@ -1,0 +1,1 @@
+@include('propertycard.css.style')

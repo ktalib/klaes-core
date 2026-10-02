@@ -1,0 +1,50 @@
+                  <div class="space-y-2">
+                        <label for="lgaName" class="block text-sm font-medium text-gray-700">LGA Name</label>
+                        <select id="lgaName" name="lgaName" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                            <option value="">Select LGA</option>
+                            <option value="Albasu">Albasu</option>
+                            <option value="Bagwai">Bagwai</option>
+                            <option value="Dala">Dala</option>
+                            <option value="Danbatta">Danbatta</option>
+                            <option value="D/Tofa">D/Tofa</option>
+                            <option value="Gaya">Gaya</option>
+                            <option value="Gwale">Gwale</option>
+                            <option value="Doguwa">Doguwa</option>
+                            <option value="Kibiya">Kibiya</option>
+                            <option value="Kabo">Kabo</option>
+                            <option value="Gezawa">Gezawa</option>
+                            <option value="Kunchi">Kunchi</option>
+                            <option value="Karaye">Karaye</option>
+                            <option value="Garum Malan">Garum Malan</option>
+                            <option value="Madobi">Madobi</option>
+                            <option value="Gabasawa">Gabasawa</option>
+                            <option value="Rimin Gado">Rimin Gado</option>
+                            <option value="Rogo">Rogo</option>
+                            <option value="Shanono">Shanono</option>
+                            <option value="Municipal">Municipal</option>
+                            <option value="Sumaila">Sumaila</option>
+                            <option value="Tarauni">Tarauni</option>
+                            <option value="Tsanyawa">Tsanyawa</option>
+                            <option value="Tudun Wada">Tudun Wada</option>
+                            <option value="Tofa">Tofa</option>
+                            <option value="Takai">Takai</option>
+                            <option value="Kura">Kura</option>
+                            <option value="Warawa">Warawa</option>
+                            <option value="Garko">Garko</option>
+                            <option value="Ajingi">Ajingi</option>
+                            <option value="Bichi">Bichi</option>
+                            <option value="Minjinbir">Minjinbir</option>
+                            <option value="Rano">Rano</option>
+                            <option value="Bunkure">Bunkure</option>
+                            <option value="Kiru">Kiru</option>
+                            <option value="Gwarzo">Gwarzo</option>
+                            <option value="Ungogo">Ungogo</option>
+                            <option value="Makoda">Makoda</option>
+                            <option value="Wudil">Wudil</option>
+                            <option value="Nassarawa">Nassarawa</option>
+                            <option value="Bebeji">Bebeji</option>
+                            <option value="Faffe">Faffe</option>
+                            <option value="D/Kudu">D/Kudu</option>
+                            <option value="Kumbotso">Kumbotso</option>
+                        </select>
+                    </div>

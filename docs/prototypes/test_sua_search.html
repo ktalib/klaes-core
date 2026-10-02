@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SUA Search Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border: 1px solid #ddd; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>SUA Search Function Test</h1>
+    
+    <div class="debug">
+        <h3>Search Input</h3>
+        <input type="text" id="searchFilter" placeholder="Search by file number, owner name, or unit number..."
+               onkeyup="searchSUA()">
+        <button onclick="testSearch()">Test Search</button>
+    </div>
+    
+    <div class="debug">
+        <h3>Results</h3>
+        <div class="text-blue-600">Total SUA Units: 3</div>
+        <div id="debugOutput"></div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>File Number</th>
+                <th>Owner</th>
+                <th>Unit Size</th>
+                <th>LGA</th>
+                <th>Land Use</th>
+                <th>Status</th>
+                <th>Planning</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="suaTableBody">
+            <tr>
+                <td><div>ST-RES-2025-001</div><div>Primary: RES-001</div></td>
+                <td><div>Musa Ali</div></td>
+                <td><div>120 sqm</div></td>
+                <td><div>Kaduna North</div></td>
+                <td><div>Residential</div></td>
+                <td><div>Approved</div></td>
+                <td><div>Pending</div></td>
+                <td><div>Actions</div></td>
+            </tr>
+            <tr>
+                <td><div>ST-COM-2025-002</div></td>
+                <td><div>Jane Smith Corp</div></td>
+                <td><div>200 sqm</div></td>
+                <td><div>Kaduna South</div></td>
+                <td><div>Commercial</div></td>
+                <td><div>Pending</div></td>
+                <td><div>Approved</div></td>
+                <td><div>Actions</div></td>
+            </tr>
+            <tr>
+                <td><div>ST-IND-2025-003</div></td>
+                <td><div>ABC Industries</div></td>
+                <td><div>500 sqm</div></td>
+                <td><div>Chikun</div></td>
+                <td><div>Industrial</div></td>
+                <td><div>Rejected</div></td>
+                <td><div>Rejected</div></td>
+                <td><div>Actions</div></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        function searchSUA() {
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase().trim();
+            const tableBody = document.getElementById('suaTableBody');
+            const debugOutput = document.getElementById('debugOutput');
+            
+            if (!tableBody) {
+                debugOutput.innerHTML = '<div style="color: red;">ERROR: Table body not found</div>';
+                return;
+            }
+            
+            const rows = tableBody.getElementsByTagName('tr');
+            let visibleRows = 0;
+            let debugInfo = [];
+
+            debugInfo.push(`Search term: "${searchFilter}"`);
+            debugInfo.push(`Total rows found: ${rows.length}`);
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                
+                // Skip empty state row or rows with insufficient cells
+                if (cells.length === 1 && cells[0].getAttribute('colspan')) {
+                    continue;
+                }
+
+                let showRow = true;
+
+                // Enhanced search - check multiple fields if search term exists
+                if (searchFilter && cells.length >= 6) {
+                    // Get text content from each cell, handling nested elements
+                    const fileNo = cells[0] ? cells[0].textContent.toLowerCase().trim() : '';
+                    const owner = cells[1] ? cells[1].textContent.toLowerCase().trim() : '';
+                    const unitSize = cells[2] ? cells[2].textContent.toLowerCase().trim() : '';
+                    const lga = cells[3] ? cells[3].textContent.toLowerCase().trim() : '';
+                    const landUse = cells[4] ? cells[4].textContent.toLowerCase().trim() : '';
+                    const status = cells[5] ? cells[5].textContent.toLowerCase().trim() : '';
+
+                    // Combine all searchable text
+                    const searchableText = [fileNo, owner, unitSize, lga, landUse, status].join(' ');
+
+                    debugInfo.push(`Row ${i}: "${searchableText}"`);
+
+                    // Check if search term matches any field
+                    if (!searchableText.includes(searchFilter)) {
+                        showRow = false;
+                    }
+                }
+
+                // Show or hide the row
+                row.style.display = showRow ? '' : 'none';
+                if (showRow) visibleRows++;
+            }
+
+            // Update the total count display
+            updateResultsCount(visibleRows);
+            
+            debugInfo.push(`Visible rows: ${visibleRows}`);
+            debugOutput.innerHTML = '<pre>' + debugInfo.join('\n') + '</pre>';
+        }
+
+        function updateResultsCount(count) {
+            const totalElement = document.querySelector('.text-blue-600');
+            if (totalElement) {
+                const searchFilter = document.getElementById('searchFilter').value.trim();
+                const totalCount = 3;
+                
+                if (searchFilter) {
+                    totalElement.textContent = `Showing ${count} of ${totalCount} SUA Units`;
+                } else {
+                    totalElement.textContent = `Total SUA Units: ${totalCount}`;
+                }
+            }
+        }
+
+        function testSearch() {
+            document.getElementById('searchFilter').value = 'john';
+            searchSUA();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Search test page loaded');
+        });
+    </script>
+</body>
+</html>

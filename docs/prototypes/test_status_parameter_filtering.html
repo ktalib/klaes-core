@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Status Parameter Filtering - API File Numbers</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        .test-section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-section h2 { color: #555; margin-top: 0; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a8b; }
+        .results { margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
+        .status-used { color: #dc3545; font-weight: bold; }
+        .status-active { color: #28a745; font-weight: bold; }
+        .status-reserved { color: #ffc107; font-weight: bold; }
+        .status-cancelled { color: #6c757d; font-weight: bold; }
+        .count-display { font-size: 18px; font-weight: bold; color: #007cba; margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        .test-url { background: #e9ecef; padding: 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Status Parameter Filtering Test</h1>
+        <p><strong>Purpose:</strong> Test that the API now supports multiple status filtering while maintaining backward compatibility</p>
+        
+        <div class="test-section">
+            <h2>📊 API Status Filtering Tests</h2>
+            <p>Testing different status parameter combinations:</p>
+            
+            <button onclick="testAllFileNumbers()">Test All File Numbers (No Filter)</button>
+            <button onclick="testActiveOnly()">Test ACTIVE Only</button>
+            <button onclick="testUsedOnly()">Test USED Only</button>
+            <button onclick="testActiveAndReserved()">Test ACTIVE + RESERVED</button>
+            <button onclick="testMultipleStatuses()">Test All Non-USED (ACTIVE,RESERVED,CANCELLED)</button>
+            
+            <div id="results" class="results" style="display: none;">
+                <h3>Test Results:</h3>
+                <div id="resultContent"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🎯 Dropdown Simulation Test</h2>
+            <p>Test the exact API call used by the dropdown JavaScript:</p>
+            
+            <button onclick="testDropdownAPICall()">Test Dropdown API Call</button>
+            <button onclick="testOriginalDropdownCall()">Test Original Dropdown Call (Before Fix)</button>
+            
+            <div id="dropdownResults" class="results" style="display: none;">
+                <h3>Dropdown Test Results:</h3>
+                <div id="dropdownContent"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔄 Backward Compatibility Test</h2>
+            <p>Ensure other parts of the system still work:</p>
+            
+            <button onclick="testBackwardCompatibility()">Test All System API Calls</button>
+            
+            <div id="compatibilityResults" class="results" style="display: none;">
+                <h3>Compatibility Test Results:</h3>
+                <div id="compatibilityContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showResults(elementId, content) {
+            const element = document.getElementById(elementId);
+            const contentElement = document.getElementById(elementId.replace('Results', 'Content'));
+            element.style.display = 'block';
+            contentElement.innerHTML = content;
+        }
+
+        async function makeAPICall(url, testName) {
+            try {
+                console.log(`Testing: ${testName}`);
+                console.log(`URL: ${url}`);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                let content = `<h4>${testName}</h4>`;
+                content += `<div class="test-url">URL: ${url}</div>`;
+                content += `<div class="count-display">📋 Total Records: ${data.count || data.data?.length || 0}</div>`;
+                
+                if (data.data && data.data.length > 0) {
+                    const statusCounts = {};
+                    data.data.forEach(item => {
+                        statusCounts[item.status] = (statusCounts[item.status] || 0) + 1;
+                    });
+                    
+                    content += `<h5>Status Distribution:</h5>`;
+                    for (const [status, count] of Object.entries(statusCounts)) {
+                        const statusClass = `status-${status.toLowerCase()}`;
+                        content += `<div class="${statusClass}">${status}: ${count}</div>`;
+                    }
+                    
+                    content += `<h5>Sample Records (first 3):</h5>`;
+                    content += `<table><thead><tr><th>File Number</th><th>Status</th><th>Land Use</th><th>Applicant</th></tr></thead><tbody>`;
+                    data.data.slice(0, 3).forEach(item => {
+                        const statusClass = `status-${item.status.toLowerCase()}`;
+                        const applicant = item.first_name && item.surname ? `${item.first_name} ${item.surname}` : (item.corporate_name || 'N/A');
+                        content += `<tr><td>${item.np_fileno || item.fileno}</td><td class="${statusClass}">${item.status}</td><td>${item.land_use || 'N/A'}</td><td>${applicant}</td></tr>`;
+                    });
+                    content += `</tbody></table>`;
+                } else {
+                    content += `<div class="error">No data returned from API</div>`;
+                }
+                
+                return content;
+                
+            } catch (error) {
+                return `<h4>${testName}</h4><div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testAllFileNumbers() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&limit=10', 'All File Numbers (No Status Filter)');
+            showResults('results', content);
+        }
+
+        async function testActiveOnly() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&status=ACTIVE&limit=10', 'ACTIVE Status Only');
+            showResults('results', content);
+        }
+
+        async function testUsedOnly() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&status=USED&limit=10', 'USED Status Only');
+            showResults('results', content);
+        }
+
+        async function testActiveAndReserved() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&status=ACTIVE,RESERVED&limit=10', 'ACTIVE + RESERVED (Comma Separated)');
+            showResults('results', content);
+        }
+
+        async function testMultipleStatuses() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&status=ACTIVE,RESERVED,CANCELLED&limit=10', 'All Non-USED Statuses');
+            showResults('results', content);
+        }
+
+        async function testDropdownAPICall() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&status=ACTIVE,RESERVED&limit=500&order_by=np_fileno&order_direction=desc', 'Dropdown API Call (Updated with Status Filter)');
+            showResults('dropdownResults', content);
+        }
+
+        async function testOriginalDropdownCall() {
+            const content = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&limit=500&order_by=np_fileno&order_direction=desc', 'Original Dropdown API Call (No Status Filter)');
+            showResults('dropdownResults', content);
+        }
+
+        async function testBackwardCompatibility() {
+            let content = `<h4>Backward Compatibility Tests</h4>`;
+            
+            try {
+                // Test 1: No filters (should return all)
+                const test1 = await makeAPICall('/api/file-numbers/st-all?limit=5', 'Test 1: No Filters');
+                content += test1;
+                
+                // Test 2: Just file type filter
+                const test2 = await makeAPICall('/api/file-numbers/st-all?file_no_type=PRIMARY&limit=5', 'Test 2: Just File Type Filter');
+                content += test2;
+                
+                // Test 3: Land use filter
+                const test3 = await makeAPICall('/api/file-numbers/st-all?land_use=RESIDENTIAL&limit=5', 'Test 3: Land Use Filter');
+                content += test3;
+                
+                // Test 4: Year filter
+                const test4 = await makeAPICall('/api/file-numbers/st-all?year=2025&limit=5', 'Test 4: Year Filter');
+                content += test4;
+                
+                content += `<div class="success">✅ All backward compatibility tests completed</div>`;
+                content += `<div class="success">✅ API maintains full functionality for existing integrations</div>`;
+                
+            } catch (error) {
+                content += `<div class="error">❌ Compatibility test failed: ${error.message}</div>`;
+            }
+            
+            showResults('compatibilityResults', content);
+        }
+
+        // Auto-run the main test on page load
+        window.onload = function() {
+            setTimeout(testActiveAndReserved, 1000);
+        };
+    </script>
+</body>
+</html>

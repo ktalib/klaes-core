@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Serial Number Logic Test</title>
+</head>
+<body>
+    <h2>Serial Number Logic Test</h2>
+    <div id="test-results"></div>
+
+    <script>
+        // Mock data structures
+        const coverTypes = [
+            { id: 1, code: "FC", name: "Front Cover" },
+            { id: 2, code: "BC", name: "Back Cover" }
+        ];
+        
+        const pageTypes = [
+            { id: 1, code: "FC", name: "File Cover" },
+            { id: 2, code: "APP", name: "Application" },
+            { id: 3, code: "FBP", name: "File Back Page" },
+            { id: 4, code: "LEG", name: "Legal" }
+        ];
+
+        const pageSubTypes = {
+            1: [
+                { id: 1, code: "NFC", name: "New File Cover" }, 
+                { id: 2, code: "OFC", name: "Old File Cover" }
+            ]
+        };
+
+        // Mock state
+        let state = {
+            selectedFileData: {
+                scannings: [
+                    { page_typings: [] }
+                ]
+            },
+            typingState: {
+                coverType: '1',
+                pageType: '1',
+                pageSubType: '1',
+                processedPages: {}
+            }
+        };
+
+        // Helper functions
+        function getCoverTypeById(typeId) {
+            return coverTypes.find(type => type.id.toString() === typeId.toString());
+        }
+
+        function getPageTypeById(typeId) {
+            return pageTypes.find(type => type.id.toString() === typeId.toString());
+        }
+
+        function getPageSubTypeById(typeId, subTypeId) {
+            return pageSubTypes[parseInt(typeId)]?.find(subType => subType.id.toString() === subTypeId.toString());
+        }
+
+        // Test function (simplified version)
+        function calculateNextSerialNumber() {
+            if (!state.selectedFileData || !state.selectedFileData.scannings) {
+                return '01';
+            }
+
+            const currentCoverTypeId = state.typingState?.coverType;
+            const currentPageTypeId = state.typingState?.pageType;
+            const coverType = getCoverTypeById(currentCoverTypeId);
+            const pageType = getPageTypeById(currentPageTypeId);
+            const coverCode = coverType?.code;
+            const pageTypeCode = pageType?.code;
+
+            // SPECIAL CASE 1: Front Cover (FC) + File Cover (FC) = 0
+            if (coverCode === 'FC' && pageTypeCode === 'FC') {
+                return '0';
+            }
+
+            // SPECIAL CASE 2: Back Cover (BC) + File Back Page (FBP) = 0
+            const currentPageSubTypeId = state.typingState?.pageSubType;
+            const pageSubType = getPageSubTypeById(currentPageTypeId, currentPageSubTypeId);
+            const pageSubTypeCode = pageSubType?.code;
+            
+            const isFileBackPage = (
+                pageTypeCode === 'FBP' || // Direct FBP page type
+                (pageTypeCode === 'FC' && pageSubTypeCode === 'OFC') // File Cover + Old File Cover subtype
+            );
+            
+            if (coverCode === 'BC' && isFileBackPage) {
+                return '0';
+            }
+
+            // For all other cases, return normal incrementing (starting from 01)
+            return '01';
+        }
+
+        // Test cases
+        const testCases = [
+            {
+                name: "Front Cover + File Cover",
+                coverType: '1', // FC
+                pageType: '1',  // FC
+                pageSubType: '1', // NFC
+                expected: '0'
+            },
+            {
+                name: "Front Cover + Application",
+                coverType: '1', // FC
+                pageType: '2',  // APP
+                pageSubType: '1',
+                expected: '01'
+            },
+            {
+                name: "Back Cover + File Back Page (direct)",
+                coverType: '2', // BC
+                pageType: '3',  // FBP
+                pageSubType: '1',
+                expected: '0'
+            },
+            {
+                name: "Back Cover + File Cover (Old File Cover subtype)",
+                coverType: '2', // BC
+                pageType: '1',  // FC
+                pageSubType: '2', // OFC
+                expected: '0'
+            },
+            {
+                name: "Back Cover + Legal",
+                coverType: '2', // BC
+                pageType: '4',  // LEG
+                pageSubType: '1',
+                expected: '01'
+            }
+        ];
+
+        // Run tests
+        let results = '<h3>Test Results:</h3>';
+        let allPassed = true;
+
+        testCases.forEach(testCase => {
+            state.typingState.coverType = testCase.coverType;
+            state.typingState.pageType = testCase.pageType;
+            state.typingState.pageSubType = testCase.pageSubType;
+
+            const result = calculateNextSerialNumber();
+            const passed = result === testCase.expected;
+            allPassed = allPassed && passed;
+
+            const coverType = getCoverTypeById(testCase.coverType);
+            const pageType = getPageTypeById(testCase.pageType);
+            const pageSubType = getPageSubTypeById(testCase.pageType, testCase.pageSubType);
+
+            results += `
+                <div style="margin: 10px 0; padding: 10px; border: 1px solid ${passed ? 'green' : 'red'}; background: ${passed ? '#f0fff0' : '#fff0f0'}">
+                    <strong>${testCase.name}</strong><br>
+                    Cover: ${coverType?.name} (${coverType?.code})<br>
+                    Page: ${pageType?.name} (${pageType?.code})<br>
+                    Subtype: ${pageSubType?.name} (${pageSubType?.code})<br>
+                    Expected: ${testCase.expected}, Got: ${result} 
+                    <span style="color: ${passed ? 'green' : 'red'}; font-weight: bold;">${passed ? '✓ PASS' : '✗ FAIL'}</span>
+                </div>
+            `;
+        });
+
+        results += `<h3 style="color: ${allPassed ? 'green' : 'red'};">Overall: ${allPassed ? 'ALL TESTS PASSED!' : 'SOME TESTS FAILED!'}</h3>`;
+
+        document.getElementById('test-results').innerHTML = results;
+    </script>
+</body>
+</html>

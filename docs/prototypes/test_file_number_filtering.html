@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Number Filtering Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .fail {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .endpoint-test {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .disabled {
+            background-color: #6c757d !important;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Number Filtering Test Suite</h1>
+    <p>This page tests the improved NULL/N/A filtering in the file number search system.</p>
+
+    <div class="test-section">
+        <h2>Backend API Tests</h2>
+        <div class="endpoint-test">
+            <h3>Search API Test</h3>
+            <button onclick="testSearchAPI()">Test /file-numbers/api/search</button>
+            <div id="search-results"></div>
+        </div>
+        
+        <div class="endpoint-test">
+            <h3>Top File Numbers API Test</h3>
+            <button onclick="testTopAPI()">Test /file-numbers/api/top</button>
+            <div id="top-results"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Frontend Validation Tests</h2>
+        <div id="validation-results"></div>
+        <button onclick="testValidationLogic()">Test JavaScript Validation</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Integration Test</h2>
+        <div id="integration-results"></div>
+        <button onclick="testFullIntegration()">Test Complete Search Flow</button>
+    </div>
+
+    <script>
+        // Copy the isValidValue function from our JavaScript file for testing
+        const isValidValue = (value) => {
+            return value && 
+                   value !== null && 
+                   value !== undefined && 
+                   String(value).trim() !== '' && 
+                   String(value).toUpperCase().trim() !== 'N/A' && 
+                   String(value).toUpperCase().trim() !== 'NULL';
+        };
+
+        function displayResult(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            container.appendChild(div);
+        }
+
+        function clearResults(containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+        }
+
+        async function testSearchAPI() {
+            clearResults('search-results');
+            displayResult('search-results', 'Testing search API...', 'info');
+            
+            try {
+                const response = await fetch('/file-numbers/api/search?q=test');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const totalResults = data.data.length;
+                    const validResults = data.data.filter(result => {
+                        const hasValid = isValidValue(result.kangis_file_no) || 
+                                        isValidValue(result.mlsf_no) || 
+                                        isValidValue(result.new_kangis_file_no);
+                        return hasValid;
+                    });
+                    
+                    displayResult('search-results', 
+                        `✓ API Response: ${totalResults} total, ${validResults.length} valid after filtering`, 
+                        'pass');
+                    
+                    // Check for any invalid results that got through
+                    const invalidResults = data.data.filter(result => {
+                        const hasValid = isValidValue(result.kangis_file_no) || 
+                                        isValidValue(result.mlsf_no) || 
+                                        isValidValue(result.new_kangis_file_no);
+                        return !hasValid;
+                    });
+                    
+                    if (invalidResults.length > 0) {
+                        displayResult('search-results', 
+                            `⚠ Found ${invalidResults.length} results with all NULL/N/A values`, 
+                            'fail');
+                        displayResult('search-results', 
+                            `<pre>${JSON.stringify(invalidResults.slice(0, 3), null, 2)}</pre>`, 
+                            'info');
+                    } else {
+                        displayResult('search-results', '✓ No invalid results found', 'pass');
+                    }
+                } else {
+                    displayResult('search-results', `✗ API Error: ${data.message}`, 'fail');
+                }
+            } catch (error) {
+                displayResult('search-results', `✗ Request failed: ${error.message}`, 'fail');
+            }
+        }
+
+        async function testTopAPI() {
+            clearResults('top-results');
+            displayResult('top-results', 'Testing top file numbers API...', 'info');
+            
+            try {
+                const response = await fetch('/file-numbers/api/top');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const totalResults = data.data.length;
+                    const validResults = data.data.filter(result => {
+                        const hasValid = isValidValue(result.kangis_file_no) || 
+                                        isValidValue(result.mlsf_no) || 
+                                        isValidValue(result.new_kangis_file_no);
+                        return hasValid;
+                    });
+                    
+                    displayResult('top-results', 
+                        `✓ API Response: ${totalResults} total, ${validResults.length} valid after filtering`, 
+                        'pass');
+                    
+                    // Sample the data quality
+                    const sampleSize = Math.min(5, data.data.length);
+                    const sample = data.data.slice(0, sampleSize);
+                    displayResult('top-results', 
+                        `<strong>Sample data:</strong><pre>${JSON.stringify(sample, null, 2)}</pre>`, 
+                        'info');
+                } else {
+                    displayResult('top-results', `✗ API Error: ${data.message}`, 'fail');
+                }
+            } catch (error) {
+                displayResult('top-results', `✗ Request failed: ${error.message}`, 'fail');
+            }
+        }
+
+        function testValidationLogic() {
+            clearResults('validation-results');
+            displayResult('validation-results', 'Testing JavaScript validation function...', 'info');
+            
+            const testCases = [
+                { value: 'KANGIS-2024-001', expected: true, description: 'Valid file number' },
+                { value: null, expected: false, description: 'null value' },
+                { value: undefined, expected: false, description: 'undefined value' },
+                { value: '', expected: false, description: 'empty string' },
+                { value: '   ', expected: false, description: 'whitespace only' },
+                { value: 'N/A', expected: false, description: 'N/A string' },
+                { value: 'n/a', expected: false, description: 'lowercase n/a' },
+                { value: 'NULL', expected: false, description: 'NULL string' },
+                { value: 'null', expected: false, description: 'lowercase null' },
+                { value: '0', expected: true, description: 'string zero' },
+                { value: 0, expected: true, description: 'numeric zero' }
+            ];
+            
+            let passed = 0;
+            let failed = 0;
+            
+            testCases.forEach(test => {
+                const result = isValidValue(test.value);
+                if (result === test.expected) {
+                    displayResult('validation-results', 
+                        `✓ ${test.description}: ${JSON.stringify(test.value)} → ${result}`, 
+                        'pass');
+                    passed++;
+                } else {
+                    displayResult('validation-results', 
+                        `✗ ${test.description}: ${JSON.stringify(test.value)} → ${result} (expected ${test.expected})`, 
+                        'fail');
+                    failed++;
+                }
+            });
+            
+            displayResult('validation-results', 
+                `<strong>Summary:</strong> ${passed} passed, ${failed} failed`, 
+                failed === 0 ? 'pass' : 'fail');
+        }
+
+        async function testFullIntegration() {
+            clearResults('integration-results');
+            displayResult('integration-results', 'Testing complete integration...', 'info');
+            
+            // Test both APIs and validate consistency
+            try {
+                const [searchResponse, topResponse] = await Promise.all([
+                    fetch('/file-numbers/api/search?q='),
+                    fetch('/file-numbers/api/top')
+                ]);
+                
+                const searchData = await searchResponse.json();
+                const topData = await topResponse.json();
+                
+                if (searchData.success && topData.success) {
+                    // Check that both APIs return clean data
+                    const searchValid = searchData.data.every(result => {
+                        return isValidValue(result.kangis_file_no) || 
+                               isValidValue(result.mlsf_no) || 
+                               isValidValue(result.new_kangis_file_no);
+                    });
+                    
+                    const topValid = topData.data.every(result => {
+                        return isValidValue(result.kangis_file_no) || 
+                               isValidValue(result.mlsf_no) || 
+                               isValidValue(result.new_kangis_file_no);
+                    });
+                    
+                    if (searchValid && topValid) {
+                        displayResult('integration-results', 
+                            '✓ Both APIs return only valid file numbers', 
+                            'pass');
+                    } else {
+                        displayResult('integration-results', 
+                            `✗ Invalid data found - Search: ${searchValid}, Top: ${topValid}`, 
+                            'fail');
+                    }
+                    
+                    displayResult('integration-results', 
+                        `Search API: ${searchData.data.length} results, Top API: ${topData.data.length} results`, 
+                        'info');
+                } else {
+                    displayResult('integration-results', 
+                        'One or both APIs returned errors', 
+                        'fail');
+                }
+            } catch (error) {
+                displayResult('integration-results', 
+                    `Integration test failed: ${error.message}`, 
+                    'fail');
+            }
+        }
+
+        // Auto-run validation tests on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            testValidationLogic();
+        });
+    </script>
+</body>
+</html>

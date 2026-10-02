@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Field Diagnostic Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .field-group { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        .missing { color: red; font-weight: bold; }
+        .present { color: green; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Primary Form Draft Diagnostic Tool</h1>
+    
+    <div class="section">
+        <h2>1. Check Form Existence</h2>
+        <button onclick="checkForm()">Check Form</button>
+        <div id="form-check-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. List All Form Elements</h2>
+        <button onclick="listFormElements()">List Elements</button>
+        <div id="elements-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Serialize Form (Current Method)</h2>
+        <button onclick="testSerializeForm()">Test Serialize</button>
+        <div id="serialize-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. Compare with Database Columns</h2>
+        <button onclick="compareWithDatabaseColumns()">Compare</button>
+        <div id="compare-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>5. Test Save Draft</h2>
+        <button onclick="testSaveDraft()">Test Save</button>
+        <div id="save-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>6. Test Load Draft</h2>
+        <input type="text" id="draft-id-input" placeholder="Enter Draft ID">
+        <button onclick="testLoadDraft()">Test Load</button>
+        <div id="load-result"></div>
+    </div>
+
+    <script>
+        // Expected database columns from mother_application_draft
+        const expectedColumns = [
+            'applicant_type', 'applicant_title', 'first_name', 'middle_name', 'surname',
+            'corporate_name', 'rc_number', 'passport', 'np_fileno', 'fileno',
+            'multiple_owners_names', 'multiple_owners_passport', 'multiple_owners_address',
+            'multiple_owners_identification_type', 'multiple_owners_email', 'multiple_owners_phone',
+            'multiple_owners_identification_image',
+            'address', 'phone_number', 'email', 'identification_type', 'additional_comments',
+            'address_house_no', 'address_plot_no', 'address_street_name', 'address_district',
+            'address_lga', 'address_state',
+            'property_house_no', 'property_plot_no', 'property_street_name', 'property_district',
+            'property_lga', 'property_state',
+            'residential_type', 'NoOfUnits', 'NoOfSections', 'NoOfBlocks',
+            'ownership_type', 'ownership_type_others_text', 'ownership',
+            'industrial_type', 'commercial_type', 'mixed_type',
+            'documents', 'owner_fullname', 'identification_others', 'ownershipType',
+            'scheme_no', 'plot_size', 'land_use',
+            'applied_file_number', 'selected_file_id', 'selected_file_type', 'selected_file_data',
+            'application_date', 'application_fee', 'processing_fee', 'site_plan_fee',
+            'payment_date', 'receipt_number', 'comments',
+            'shared_areas', 'other_areas_detail',
+            'idType', 'residenceType', 'units_count', 'blocks_count', 'sections_count',
+            'owner_email', 'owner_street_name', 'owner_district', 'owner_lga', 'owner_state'
+        ];
+
+        function checkForm() {
+            const form = document.getElementById('primaryApplicationForm');
+            const result = document.getElementById('form-check-result');
+            
+            if (form) {
+                result.innerHTML = `<p class="present">✓ Form found! ID: ${form.id}</p>
+                    <p>Total elements: ${form.elements.length}</p>`;
+            } else {
+                result.innerHTML = '<p class="missing">✗ Form NOT found!</p>';
+            }
+        }
+
+        function listFormElements() {
+            const form = document.getElementById('primaryApplicationForm');
+            const result = document.getElementById('elements-result');
+            
+            if (!form) {
+                result.innerHTML = '<p class="missing">Form not found</p>';
+                return;
+            }
+
+            const elementsByType = {};
+            const elementsByName = {};
+            
+            Array.from(form.elements).forEach(el => {
+                const type = el.type || 'unknown';
+                const name = el.name || '(unnamed)';
+                
+                if (!elementsByType[type]) elementsByType[type] = [];
+                elementsByType[type].push(name);
+                
+                if (name !== '(unnamed)') {
+                    elementsByName[name] = {
+                        type: type,
+                        value: el.type === 'file' ? '(file input)' : 
+                               el.type === 'checkbox' ? el.checked :
+                               el.type === 'radio' ? (el.checked ? el.value : '(unchecked)') :
+                               el.value ? el.value.substring(0, 50) : '(empty)',
+                        id: el.id || '(no id)'
+                    };
+                }
+            });
+
+            let html = '<h3>Elements by Type:</h3>';
+            html += '<table><tr><th>Type</th><th>Count</th><th>Names</th></tr>';
+            Object.entries(elementsByType).forEach(([type, names]) => {
+                html += `<tr><td>${type}</td><td>${names.length}</td><td>${names.slice(0, 5).join(', ')}${names.length > 5 ? '...' : ''}</td></tr>`;
+            });
+            html += '</table>';
+
+            html += '<h3>All Named Elements:</h3>';
+            html += '<pre>' + JSON.stringify(elementsByName, null, 2) + '</pre>';
+
+            result.innerHTML = html;
+        }
+
+        function testSerializeForm() {
+            const form = document.getElementById('primaryApplicationForm');
+            const result = document.getElementById('serialize-result');
+            
+            if (!form) {
+                result.innerHTML = '<p class="missing">Form not found</p>';
+                return;
+            }
+
+            if (!window.PrimaryDraftAutosave || !window.PrimaryDraftAutosave.serializeForm) {
+                result.innerHTML = '<p class="missing">DraftAutosave not loaded or serializeForm not available</p>';
+                return;
+            }
+
+            try {
+                const serialized = window.PrimaryDraftAutosave.serializeForm();
+                const keys = Object.keys(serialized);
+                
+                result.innerHTML = `
+                    <p class="present">✓ Serialization successful!</p>
+                    <p>Total keys captured: ${keys.length}</p>
+                    <h4>Captured Fields:</h4>
+                    <pre>${JSON.stringify(keys.sort(), null, 2)}</pre>
+                    <h4>Full Data (first 5000 chars):</h4>
+                    <pre>${JSON.stringify(serialized, null, 2).substring(0, 5000)}...</pre>
+                `;
+            } catch (error) {
+                result.innerHTML = `<p class="missing">Error: ${error.message}</p><pre>${error.stack}</pre>`;
+            }
+        }
+
+        function compareWithDatabaseColumns() {
+            const result = document.getElementById('compare-result');
+            
+            if (!window.PrimaryDraftAutosave || !window.PrimaryDraftAutosave.serializeForm) {
+                result.innerHTML = '<p class="missing">DraftAutosave not loaded</p>';
+                return;
+            }
+
+            try {
+                const serialized = window.PrimaryDraftAutosave.serializeForm();
+                const capturedKeys = Object.keys(serialized);
+                
+                const missing = expectedColumns.filter(col => !capturedKeys.includes(col));
+                const extra = capturedKeys.filter(key => !expectedColumns.includes(key) && key !== '__files');
+                const matched = expectedColumns.filter(col => capturedKeys.includes(col));
+
+                let html = `<h3>Analysis:</h3>`;
+                html += `<p>Expected columns: ${expectedColumns.length}</p>`;
+                html += `<p>Captured fields: ${capturedKeys.length}</p>`;
+                html += `<p class="present">Matched: ${matched.length}</p>`;
+                html += `<p class="missing">Missing: ${missing.length}</p>`;
+                html += `<p>Extra (not in DB): ${extra.length}</p>`;
+
+                if (missing.length > 0) {
+                    html += '<h4 class="missing">Missing Fields:</h4>';
+                    html += '<ul>';
+                    missing.forEach(field => {
+                        const formElement = document.querySelector(`[name="${field}"], [name="${field}[]"]`);
+                        html += `<li>${field} ${formElement ? '(element exists in form)' : '<strong>(NO ELEMENT IN FORM)</strong>'}</li>`;
+                    });
+                    html += '</ul>';
+                }
+
+                if (extra.length > 0 && extra.length < 50) {
+                    html += '<h4>Extra Fields (not in expected columns):</h4>';
+                    html += '<pre>' + JSON.stringify(extra, null, 2) + '</pre>';
+                }
+
+                result.innerHTML = html;
+            } catch (error) {
+                result.innerHTML = `<p class="missing">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testSaveDraft() {
+            const result = document.getElementById('save-result');
+            result.innerHTML = '<p>Testing save...</p>';
+
+            if (!window.PrimaryDraftAutosave) {
+                result.innerHTML = '<p class="missing">DraftAutosave not loaded</p>';
+                return;
+            }
+
+            try {
+                const response = await window.PrimaryDraftAutosave.manualSave({flash: false});
+                result.innerHTML = `<p class="present">✓ Save initiated! Check console for details.</p>`;
+            } catch (error) {
+                result.innerHTML = `<p class="missing">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testLoadDraft() {
+            const draftId = document.getElementById('draft-id-input').value;
+            const result = document.getElementById('load-result');
+            
+            if (!draftId) {
+                result.innerHTML = '<p class="missing">Please enter a Draft ID</p>';
+                return;
+            }
+
+            result.innerHTML = '<p>Loading draft...</p>';
+
+            try {
+                const response = await window.PrimaryDraftAutosave.loadDraftByIdentifier(draftId);
+                result.innerHTML = `<p class="present">✓ Load complete! Check console for details.</p>`;
+            } catch (error) {
+                result.innerHTML = `<p class="missing">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Auto-run basic checks on load
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                checkForm();
+                if (document.getElementById('primaryApplicationForm')) {
+                    listFormElements();
+                    testSerializeForm();
+                    compareWithDatabaseColumns();
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

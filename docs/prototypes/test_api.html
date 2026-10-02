@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test File Tracker API</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Testing File Tracker API</h1>
+    <div id="results"></div>
+    
+    <script>
+        $(document).ready(function() {
+            console.log('Testing API endpoint...');
+            
+            $.ajax({
+                url: '/create-file-tracker/list',
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                success: function(response) {
+                    console.log('API Success:', response);
+                    $('#results').html('<h2>Success!</h2><pre>' + JSON.stringify(response, null, 2) + '</pre>');
+                },
+                error: function(xhr, status, error) {
+                    console.error('API Error:', xhr);
+                    $('#results').html('<h2>Error!</h2><p>Status: ' + status + '</p><p>Error: ' + error + '</p><pre>' + xhr.responseText + '</pre>');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

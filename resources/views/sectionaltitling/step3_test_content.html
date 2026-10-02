@@ -1,0 +1,106 @@
+<!-- STEP 3 TEST CONTENT - SIMPLIFIED -->
+<div class="form-section" id="step3-test" style="display: none;">
+    <div class="p-6" style="background: white; min-height: 500px;">
+        <h2 class="text-xl font-bold text-center text-gray-800 mb-4">STEP 3 - DOCUMENTS (TEST)</h2>
+        
+        <div class="mb-6">
+            <h3 class="text-lg font-bold mb-4">Required Documents</h3>
+            
+            <div class="bg-blue-50 border border-blue-100 rounded-md p-4 mb-6">
+                <h4 class="font-medium text-blue-800">Document Requirements</h4>
+                <p class="text-sm text-blue-600">Please upload all required documents. Acceptable formats are PDF, JPG, and PNG. Maximum file size is 5MB per document.</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="border border-gray-200 rounded-md p-4">
+                    <h4 class="font-medium mb-2">Application Letter</h4>
+                    <p class="text-sm text-gray-600 mb-4">Formal letter requesting sectional titling</p>
+                    
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="mb-2">📄</div>
+                        <input type="file" name="application_letter" id="application_letter_test" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                        <label for="application_letter_test" class="text-blue-600 cursor-pointer">
+                            Upload Document
+                        </label>
+                        <p class="text-xs text-gray-500 mt-2">PDF, JPG or PNG (max. 5MB)</p>
+                    </div>
+                </div>
+                
+                <div class="border border-gray-200 rounded-md p-4">
+                    <h4 class="font-medium mb-2">Building Plan</h4>
+                    <p class="text-sm text-gray-600 mb-4">Approved building plan with architectural details</p>
+                    
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="mb-2">🏗️</div>
+                        <input type="file" name="building_plan" id="building_plan_test" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                        <label for="building_plan_test" class="text-blue-600 cursor-pointer">
+                            Upload Document
+                        </label>
+                        <p class="text-xs text-gray-500 mt-2">PDF, JPG or PNG (max. 5MB)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="border border-gray-200 rounded-md p-4">
+                    <h4 class="font-medium mb-2">Architectural Design</h4>
+                    <p class="text-sm text-gray-600 mb-4">Detailed architectural design of the property</p>
+                    
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="mb-2">📐</div>
+                        <input type="file" name="architectural_design" id="architectural_design_test" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                        <label for="architectural_design_test" class="text-blue-600 cursor-pointer">
+                            Upload Document
+                        </label>
+                        <p class="text-xs text-gray-500 mt-2">PDF, JPG or PNG (max. 5MB)</p>
+                    </div>
+                </div>
+                
+                <div class="border border-gray-200 rounded-md p-4">
+                    <h4 class="font-medium mb-2">Ownership Document</h4>
+                    <p class="text-sm text-gray-600 mb-4">Proof of ownership (CofO, deed, etc.)</p>
+                    
+                    <div class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                        <div class="mb-2">📋</div>
+                        <input type="file" name="ownership_document" id="ownership_document_test" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                        <label for="ownership_document_test" class="text-blue-600 cursor-pointer">
+                            Upload Document
+                        </label>
+                        <p class="text-xs text-gray-500 mt-2">PDF, JPG or PNG (max. 5MB)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-between mt-8">
+                <button class="px-4 py-2 bg-white border border-gray-300 rounded-md" onclick="goToStep(2)">Back</button>
+                <div class="flex items-center">
+                    <span class="text-sm text-gray-500 mr-4">Step 3 of 4</span>
+                    <button class="px-4 py-2 bg-black text-white rounded-md" onclick="goToStep(4)">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Test content for step 3
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🧪 Step 3 test content loaded');
+    
+    // Add test content to step 3 if it's empty
+    setTimeout(() => {
+        const step3 = document.getElementById('step3');
+        const step3Test = document.getElementById('step3-test');
+        
+        if (step3 && step3Test) {
+            // Check if step 3 appears empty
+            const step3Content = step3.querySelector('.p-6');
+            if (step3Content && step3Content.children.length < 3) {
+                console.log('🔧 Step 3 appears empty, injecting test content...');
+                step3.innerHTML = step3Test.innerHTML;
+                console.log('✅ Test content injected into step 3');
+            }
+        }
+    }, 1000);
+});
+</script>

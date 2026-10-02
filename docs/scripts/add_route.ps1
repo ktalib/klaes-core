@@ -1,0 +1,4 @@
+$content = Get-Content 'c:\xampp\htdocs\kangi.com.ng\routes\apps2.php' -Raw
+$newRoute = "        Route::get('/api/typing-data', [PageTypingController::class, 'getTypingData'])->name('pagetyping.api.typing-data');"
+$content = $content -replace "Route::get\('/api/pagetype-more-files', \[PageTypingController::class, 'getPageTypeMoreFiles'\]\)->name\('pagetyping.api.pagetype-more-files'\);", "Route::get('/api/pagetype-more-files', [PageTypingController::class, 'getPageTypeMoreFiles'])->name('pagetyping.api.pagetype-more-files');`r`n$newRoute"
+Set-Content 'c:\xampp\htdocs\kangi.com.ng\routes\apps2.php' -Value $content

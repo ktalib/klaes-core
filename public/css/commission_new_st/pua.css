@@ -1,0 +1,368 @@
+/**
+ * Public Applications (PuA) Styles
+ * Custom CSS for PuA community and public-facing applications interface
+ */
+
+/* PuA Statistics Cards */
+.pua-tab-content .stat-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.pua-tab-content .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* PuA Search and Filter Section */
+.pua-tab-content .filter-section {
+    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+    border: 1px solid #e9d5ff;
+}
+
+.pua-tab-content .filter-input:focus {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+/* PuA Table Styles */
+.pua-tab-content table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.pua-tab-content table th {
+    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+    border-bottom: 2px solid #e9d5ff;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.pua-tab-content table tr:hover {
+    background-color: #faf5ff;
+    transform: scale(1.01);
+    transition: all 0.2s ease-in-out;
+}
+
+.pua-tab-content table td {
+    border-bottom: 1px solid #f3e8ff;
+    vertical-align: middle;
+}
+
+/* PuA Status Badges */
+.pua-tab-content .status-badge {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pua-tab-content .status-draft {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.pua-tab-content .status-public-consultation {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.pua-tab-content .status-under-review {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.pua-tab-content .status-approved {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.pua-tab-content .status-rejected {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.pua-tab-content .status-on-hold {
+    background-color: #fed7aa;
+    color: #c2410c;
+}
+
+/* PuA Community Type Badges */
+.pua-tab-content .community-residential {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.pua-tab-content .community-commercial {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.pua-tab-content .community-mixed {
+    background-color: #f3e8ff;
+    color: #7c3aed;
+}
+
+.pua-tab-content .community-gated {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.pua-tab-content .community-industrial {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+/* PuA Public Involvement Badges */
+.pua-tab-content .involvement-consultation-required {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.pua-tab-content .involvement-notice-published {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.pua-tab-content .involvement-objections-received {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.pua-tab-content .involvement-public-hearing {
+    background-color: #fed7aa;
+    color: #c2410c;
+}
+
+.pua-tab-content .involvement-no-objections {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+/* PuA Community Information Display */
+.pua-tab-content .community-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.pua-tab-content .community-name {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.pua-tab-content .developer-name {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* PuA Consultation Status */
+.pua-tab-content .consultation-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pua-tab-content .consultation-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.pua-tab-content .consultation-active {
+    background-color: #10b981;
+    animation: pulse 2s infinite;
+}
+
+.pua-tab-content .consultation-pending {
+    background-color: #f59e0b;
+}
+
+.pua-tab-content .consultation-complete {
+    background-color: #6b7280;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* PuA Action Buttons */
+.pua-tab-content .action-btn {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.pua-tab-content .action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pua-tab-content .action-btn-view {
+    background-color: #8b5cf6;
+    color: white;
+}
+
+.pua-tab-content .action-btn-view:hover {
+    background-color: #7c3aed;
+}
+
+.pua-tab-content .action-btn-consultation {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.pua-tab-content .action-btn-consultation:hover {
+    background-color: #2563eb;
+}
+
+.pua-tab-content .action-btn-edit {
+    background-color: #10b981;
+    color: white;
+}
+
+.pua-tab-content .action-btn-edit:hover {
+    background-color: #059669;
+}
+
+/* PuA Date Display */
+.pua-tab-content .consultation-date {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    color: #374151;
+}
+
+.pua-tab-content .date-expired {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.pua-tab-content .date-upcoming {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+/* PuA Loading States */
+.pua-tab-content .loading-spinner {
+    border: 2px solid #f3f4f6;
+    border-top: 2px solid #8b5cf6;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* PuA Empty State */
+.pua-tab-content .empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: #6b7280;
+}
+
+.pua-tab-content .empty-state i {
+    font-size: 4rem;
+    color: #d1d5db;
+    margin-bottom: 1rem;
+}
+
+/* PuA Pagination */
+.pua-tab-content .pagination-btn {
+    padding: 0.5rem 0.75rem;
+    margin: 0 0.125rem;
+    border: 1px solid #d1d5db;
+    background-color: white;
+    color: #374151;
+    text-decoration: none;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.pua-tab-content .pagination-btn:hover {
+    background-color: #faf5ff;
+    border-color: #8b5cf6;
+}
+
+.pua-tab-content .pagination-btn.active {
+    background-color: #8b5cf6;
+    border-color: #8b5cf6;
+    color: white;
+}
+
+/* PuA Special Alerts */
+.pua-tab-content .alert-objection {
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+}
+
+.pua-tab-content .alert-hearing {
+    background-color: #fed7aa;
+    border: 1px solid #fdba74;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+}
+
+/* PuA Responsive Design */
+@media (max-width: 768px) {
+    .pua-tab-content .filter-section {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .pua-tab-content .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .pua-tab-content table {
+        font-size: 0.75rem;
+    }
+    
+    .pua-tab-content .action-btn {
+        padding: 0.125rem 0.375rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .pua-tab-content .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* PuA Print Styles */
+@media print {
+    .pua-tab-content .no-print {
+        display: none !important;
+    }
+    
+    .pua-tab-content table {
+        font-size: 0.75rem;
+    }
+    
+    .pua-tab-content .action-btn {
+        display: none;
+    }
+    
+    .pua-tab-content .consultation-indicator {
+        display: none;
+    }
+}

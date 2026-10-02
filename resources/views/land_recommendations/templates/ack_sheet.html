@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Right of Occupancy - Collection of Letter of Grant</title>
+  <style>
+    /* Reset & Base Setup */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #f4f4f9;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000000;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* Standard A4 Container */
+    .document-page {
+      background: #ffffff;
+      width: 210mm;
+      min-height: 297mm;
+      padding: 15mm 20mm 20mm 20mm;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+      position: relative;
+    }
+
+    /* Header Section */
+    .header {
+      position: relative;
+      text-align: center;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .header-logo {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+    }
+
+    .header-logo-left {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+    }
+
+    .header-title {
+      font-size: 17px;
+      font-weight: bold;
+      text-decoration: underline;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .header-subtitle {
+      font-size: 15px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    /* Main Body Text */
+    .content-body p {
+      font-size: 14px;
+      line-height: 1.35;
+      margin-bottom: 10px;
+      text-align: justify;
+    }
+
+    .content-body a {
+      color: #0066cc;
+      text-decoration: underline;
+    }
+
+    /* Contact Information Block */
+    .contact-section {
+      margin-top: 14px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      line-height: 1.3;
+    }
+
+    .contact-section h3 {
+      font-size: 15px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .contact-address {
+      margin-bottom: 4px;
+    }
+
+    /* Acknowledgment Statement */
+    .acknowledgment-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-top: 16px;
+      margin-bottom: 20px;
+    }
+
+    /* Dotted Input Form Section */
+    .form-group {
+      margin-bottom: 34px;
+      display: flex;
+      align-items: flex-end;
+      font-size: 14.5px;
+    }
+
+    .form-label {
+      font-weight: 500;
+      white-space: nowrap;
+      margin-right: 2px;
+    }
+
+    .dotted-line {
+      flex-grow: 1;
+      border-bottom: 1px dotted #000;
+      margin-left: 2px;
+      height: 1.2em;
+    }
+
+    /* Short dotted lines to match visual layout length */
+    .dotted-line.short {
+      max-width: 320px;
+    }
+
+    .dotted-line.medium {
+      max-width: 420px;
+    }
+
+    .multiline-spacer {
+      margin-top: 26px;
+    }
+
+    /* Side-by-side field pairs (e.g. Signature / Date) */
+    .form-row {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 34px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    .signature-block {
+      margin-top: 40px;
+    }
+
+    .signature-block-title {
+      font-weight: bold;
+      font-size: 14.5px;
+      margin-bottom: 28px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #000;
+    }
+
+    /* Footer — pinned to the bottom-right corner of the page */
+    .footer {
+      position: absolute;
+      bottom: 12mm;
+      right: 20mm;
+    }
+
+    .footer img {
+      height: 40px;
+      object-fit: contain;
+    }
+
+    /* Print Stylesheet */
+    @media print {
+      body {
+        background-color: transparent;
+        padding: 0;
+      }
+
+      .document-page {
+        box-shadow: none;
+        width: 100%;
+        min-height: 100vh;
+        padding: 15mm;
+      }
+
+      a {
+        text-decoration: none;
+        color: #000;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="document-page">
+    
+    <!-- Top Header -->
+    <header class="header">
+      <img src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Kano State Ministry Logo" class="header-logo-left">
+      <img src="http://app.klaes.ng/assets/logo/ministry2.png" alt="Kano State Ministry Logo" class="header-logo">
+      <h1 class="header-title">Right of Occupancy</h1>
+      <h2 class="header-subtitle">Collection of Letter of Grant</h2>
+    </header>
+
+    <!-- Paragraphs -->
+    <section class="content-body">
+      <p>
+        Please note that you may be invited later for an Interview via Phone, SMS, WhatsApp or Email to provide additional information and documentation where necessary. You can always check the status of your application via our website [<a href="https://land.gov.ng" target="_blank">https://land.gov.ng</a>] or Contact the Ministry of Land Customer Service Desk via Phone: &nbsp;&nbsp;&nbsp;&nbsp;, SMS, WhatsApp, or you can visit the Land Customer Service Desk.
+      </p>
+
+      <p>
+        You can track the progress of your application using the QR code on this page
+      </p>
+
+      <p>
+        Please keep the original acknowledgement letter in a safe place for future reference. It is one of the requirements for the collection of your new digital Certificate of Occupancy.
+      </p>
+    </section>
+
+    <!-- Contact Details -->
+    <section class="contact-section">
+      <h3>Contact Information:</h3>
+      <div class="contact-address">
+        Land Customer Service<br>
+        2 Dr. Bala Muhammad Way,<br>
+        Nassarawa G.R.A., Kano, Nigeria<br>
+        Tel: +234 (0)900 000 0000 | Email: support@kangis.gov.ng<br>
+        Website: <a href="https://Land.gov.ng" target="_blank">https://Land.gov.ng</a>
+      </div>
+    </section>
+
+    <!-- Acknowledgment Title -->
+    <div class="acknowledgment-title">
+      Original copy of acknowledgement letter was collected by me
+    </div>
+
+    <!-- Fillable Form Fields -->
+    <section class="form-container">
+      
+      <div class="form-group">
+        <span class="form-label">Name</span>
+        <div class="dotted-line short"></div>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Address:</span>
+        <div class="dotted-line short"></div>
+      </div>
+
+      <!-- Second Line for Address -->
+      <div class="form-group multiline-spacer">
+        <div class="dotted-line medium"></div>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Phone No:</span>
+        <div class="dotted-line medium"></div>
+      </div>
+
+      <!-- Recipient Signature -->
+      <div class="form-row signature-block">
+        <div class="form-group">
+          <span class="form-label">Signature</span>
+          <div class="dotted-line short"></div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Date</span>
+          <div class="dotted-line short"></div>
+        </div>
+      </div>
+
+      <!-- Witness Signature -->
+      <div class="signature-block">
+        <div class="signature-block-title">Witness</div>
+
+        <div class="form-group">
+          <span class="form-label">Name</span>
+          <div class="dotted-line short"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <span class="form-label">Signature</span>
+            <div class="dotted-line short"></div>
+          </div>
+          <div class="form-group">
+            <span class="form-label">Date</span>
+            <div class="dotted-line short"></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <img src="http://app.klaes.ng/storage/upload/logo/Klase.png" alt="KLAES Logo">
+    </footer>
+
+  </div>
+
+</body>
+</html>

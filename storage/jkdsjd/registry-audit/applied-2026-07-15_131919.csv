@@ -1,0 +1,622 @@
+id,file_number,field,old_value,new_value
+13913,CON-RES-1981-170,registry,,3
+13913,CON-RES-1981-170,general_registry,"Land  Registry","Lands Registry"
+13924,CON-RES-1981-155,registry,,3
+13924,CON-RES-1981-155,general_registry,"Land  Registry","Lands Registry"
+13926,CON-RES-1981-168,general_registry,"Land  Registry","Lands Registry"
+13927,CON-RES-1981-163,registry,,3
+13927,CON-RES-1981-163,general_registry,"Land  Registry","Lands Registry"
+13928,CON-RES-1981-159,registry,,3
+13928,CON-RES-1981-159,general_registry,"Land  Registry","Lands Registry"
+13935,CON-RES-1981-162,registry,,3
+13935,CON-RES-1981-162,general_registry,"Land  Registry","Lands Registry"
+13936,CON-RES-1981-164,registry,,3
+13936,CON-RES-1981-164,general_registry,"Land  Registry","Lands Registry"
+13943,CON-RES-1981-161,general_registry,"Land  Registry","Lands Registry"
+13944,CON-RES-1981-169,general_registry,"Land  Registry","Lands Registry"
+13945,CON-RES-1981-167,general_registry,"Land  Registry","Lands Registry"
+14229,CON-RES-1981-107,registry,,3
+14229,CON-RES-1981-107,general_registry,"Land  Registry","Lands Registry"
+14230,CON-RES-1981-104,general_registry,"Land  Registry","Lands Registry"
+14233,CON-RES-1981-105,general_registry,"Land  Registry","Lands Registry"
+14236,CON-RES-1981-108,general_registry,"Land  Registry","Lands Registry"
+14237,CON-RES-1981-101,general_registry,"Land  Registry","Lands Registry"
+14544,CON-RES-1981-106,registry,,3
+14544,CON-RES-1981-106,general_registry,"Land  Registry","Lands Registry"
+19081,CON-RES-1981-152,general_registry,"Land  Registry","Lands Registry"
+19089,CON-RES-1981-165,general_registry,"Land  Registry","Lands Registry"
+22346,CON-RES-1999-304,registry,"Lands Registry",3
+25513,CON-RES-1999-316,registry,"Lands Registry",3
+25524,CON-RES-1999-317,registry,"Lands Registry",3
+25526,CON-RES-1999-308,registry,"Lands Registry",3
+25534,CON-RES-1999-305,registry,"Lands Registry",3
+25535,CON-RES-1999-306,registry,"Lands Registry",3
+25536,CON-RES-1999-320,registry,"Lands Registry",3
+30345,CON-RES-1999-106,registry,"Lands Registry",3
+30346,CON-RES-1999-109,registry,"Lands Registry",3
+32711,CON-RES-1996-103,registry,"Lands Registry",3
+32712,CON-RES-1996-101,registry,"Lands Registry",3
+32714,CON-RES-1996-108,registry,"Lands Registry",3
+32715,CON-RES-1996-106,registry,"Lands Registry",3
+32719,CON-RES-1996-118,registry,"Lands Registry",3
+36626,CON-RES-1996-110,registry,"Lands Registry",3
+36723,CON-RES-1996-206,registry,"Lands Registry",3
+36724,CON-RES-1996-204,registry,"Lands Registry",3
+36725,CON-RES-1996-212,registry,"Lands Registry",3
+36726,CON-RES-1996-203,registry,"Lands Registry",3
+36727,CON-RES-1996-211,registry,"Lands Registry",3
+36915,CON-RES-1996-100,registry,"Lands Registry",3
+37005,CON-RES-1996-200,registry,"Lands Registry",3
+38359,CON-RES-1999-103,registry,"Lands Registry",3
+38659,CON-RES-1999-91,registry,"Lands Registry",3
+46938,CON-RES-1999-79,registry,"Lands Registry",3
+46945,CON-RES-1999-90,registry,"Lands Registry",3
+46947,CON-RES-1999-54,registry,"Lands Registry",3
+46948,CON-RES-1999-53,registry,"Lands Registry",3
+47584,CON-RES-1999-89,registry,"Lands Registry",3
+47586,CON-RES-1999-96,registry,"Lands Registry",3
+47593,CON-RES-1999-100,registry,"Lands Registry",3
+47606,CON-RES-1999-95,registry,"Lands Registry",3
+47919,CON-RES-1999-319,registry,"Lands Registry",3
+48193,CON-RES-1999-58,registry,"Lands Registry",3
+53971,RES-1987-2238,registry,,1
+53971,RES-1987-2238,general_registry,"Land  Registry","Lands Registry"
+54007,RES-1987-2222,registry,,1
+54007,RES-1987-2222,general_registry,"Land  Registry","Lands Registry"
+54109,RES-1987-2244,registry,,1
+54109,RES-1987-2244,general_registry,"Land  Registry","Lands Registry"
+54131,RES-1987-2207,registry,,1
+54131,RES-1987-2207,general_registry,"Land  Registry","Lands Registry"
+54280,RES-1987-2230,registry,,1
+54280,RES-1987-2230,general_registry,"Land  Registry","Lands Registry"
+54304,RES-1987-2246,registry,,1
+54304,RES-1987-2246,general_registry,"Land  Registry","Lands Registry"
+54360,RES-1987-2286,registry,,1
+54360,RES-1987-2286,general_registry,"Land  Registry","Lands Registry"
+54380,RES-1987-2195,registry,,1
+54380,RES-1987-2195,general_registry,"Land  Registry","Lands Registry"
+54408,RES-1987-2259,registry,,1
+54408,RES-1987-2259,general_registry,"Land  Registry","Lands Registry"
+54438,RES-1987-2268,registry,,1
+54438,RES-1987-2268,general_registry,"Land  Registry","Lands Registry"
+54629,RES-1987-2294,registry,,1
+54629,RES-1987-2294,general_registry,"Land  Registry","Lands Registry"
+54632,RES-1987-2287,registry,,1
+54632,RES-1987-2287,general_registry,"Land  Registry","Lands Registry"
+54641,RES-1987-2265,registry,,1
+54641,RES-1987-2265,general_registry,"Land  Registry","Lands Registry"
+54673,RES-1987-2257,registry,,1
+54673,RES-1987-2257,general_registry,"Land  Registry","Lands Registry"
+54735,RES-1987-2203,registry,,1
+54735,RES-1987-2203,general_registry,"Land  Registry","Lands Registry"
+54744,RES-1987-2231,registry,,1
+54744,RES-1987-2231,general_registry,"Land  Registry","Lands Registry"
+54746,RES-1987-2206,registry,,1
+54746,RES-1987-2206,general_registry,"Land  Registry","Lands Registry"
+54791,RES-1987-2245,registry,,1
+54791,RES-1987-2245,general_registry,"Land  Registry","Lands Registry"
+54832,RES-1987-2225,registry,,1
+54832,RES-1987-2225,general_registry,"Land  Registry","Lands Registry"
+54835,RES-1987-2261,registry,,1
+54835,RES-1987-2261,general_registry,"Land  Registry","Lands Registry"
+54836,RES-1987-2240,registry,,1
+54836,RES-1987-2240,general_registry,"Land  Registry","Lands Registry"
+54977,RES-1987-2137,registry,,1
+54977,RES-1987-2137,general_registry,"Land  Registry","Lands Registry"
+55119,RES-1987-2226,registry,,1
+55119,RES-1987-2226,general_registry,"Land  Registry","Lands Registry"
+55128,RES-1987-2202,registry,,1
+55128,RES-1987-2202,general_registry,"Land  Registry","Lands Registry"
+55136,RES-1987-2260,registry,,1
+55136,RES-1987-2260,general_registry,"Land  Registry","Lands Registry"
+55139,RES-1987-2241,registry,,1
+55139,RES-1987-2241,general_registry,"Land  Registry","Lands Registry"
+55140,RES-1987-2255,registry,,1
+55140,RES-1987-2255,general_registry,"Land  Registry","Lands Registry"
+55141,RES-1987-2298,registry,,1
+55141,RES-1987-2298,general_registry,"Land  Registry","Lands Registry"
+55142,RES-1987-2295,registry,,1
+55142,RES-1987-2295,general_registry,"Land  Registry","Lands Registry"
+55146,RES-1987-2266,registry,,1
+55146,RES-1987-2266,general_registry,"Land  Registry","Lands Registry"
+55229,RES-1987-2192,registry,,1
+55229,RES-1987-2192,general_registry,"Land  Registry","Lands Registry"
+55230,RES-1987-2191,registry,,1
+55230,RES-1987-2191,general_registry,"Land  Registry","Lands Registry"
+55348,RES-1987-2175,registry,,1
+55348,RES-1987-2175,general_registry,"Land  Registry","Lands Registry"
+55453,RES-1987-2156,registry,,1
+55453,RES-1987-2156,general_registry,"Land  Registry","Lands Registry"
+55481,RES-1987-2112,registry,,1
+55481,RES-1987-2112,general_registry,"Land  Registry","Lands Registry"
+55498,RES-1987-2185,registry,,1
+55498,RES-1987-2185,general_registry,"Land  Registry","Lands Registry"
+55545,RES-1987-2179,registry,,1
+55545,RES-1987-2179,general_registry,"Land  Registry","Lands Registry"
+55546,RES-1987-2102,registry,,1
+55546,RES-1987-2102,general_registry,"Land  Registry","Lands Registry"
+55555,RES-1987-2154,registry,,1
+55555,RES-1987-2154,general_registry,"Land  Registry","Lands Registry"
+55564,RES-1987-2173,registry,,1
+55564,RES-1987-2173,general_registry,"Land  Registry","Lands Registry"
+55640,RES-1987-2092,registry,,1
+55640,RES-1987-2092,general_registry,"Land  Registry","Lands Registry"
+55669,RES-1987-2094,registry,,1
+55669,RES-1987-2094,general_registry,"Land  Registry","Lands Registry"
+55700,RES-1987-2089,registry,,1
+55700,RES-1987-2089,general_registry,"Land  Registry","Lands Registry"
+55724,RES-1987-2106,registry,,1
+55724,RES-1987-2106,general_registry,"Land  Registry","Lands Registry"
+55945,RES-1987-2128,registry,,1
+55945,RES-1987-2128,general_registry,"Land  Registry","Lands Registry"
+56026,RES-1987-2087,registry,,1
+56026,RES-1987-2087,general_registry,"Land  Registry","Lands Registry"
+56169,RES-1987-2070,registry,,1
+56169,RES-1987-2070,general_registry,"Land  Registry","Lands Registry"
+56268,RES-1987-2150,registry,,1
+56268,RES-1987-2150,general_registry,"Land  Registry","Lands Registry"
+56356,RES-1987-2085,registry,,1
+56356,RES-1987-2085,general_registry,"Land  Registry","Lands Registry"
+56471,RES-1987-2145,registry,,1
+56471,RES-1987-2145,general_registry,"Land  Registry","Lands Registry"
+56488,RES-1987-2198,registry,,1
+56488,RES-1987-2198,general_registry,"Land  Registry","Lands Registry"
+56492,RES-1987-2289,registry,,1
+56492,RES-1987-2289,general_registry,"Land  Registry","Lands Registry"
+56501,RES-1987-2181,registry,,1
+56501,RES-1987-2181,general_registry,"Land  Registry","Lands Registry"
+56739,RES-1988-2006,registry,"Lands Registry",1
+56741,RES-1988-2005,registry,"Lands Registry",1
+56743,RES-1988-2004,registry,"Lands Registry",1
+56746,RES-1988-2003,registry,"Lands Registry",1
+56748,RES-1988-2002,registry,"Lands Registry",1
+58506,RES-1988-1080,registry,"Lands Registry",1
+58629,RES-1988-1098,registry,"Lands Registry",1
+58630,RES-1988-1097,registry,"Lands Registry",1
+58631,RES-1988-1096,registry,"Lands Registry",1
+73885,RES-1995-150,registry,"Lands Registry",2
+74175,RES-1994-2366,registry,"Lands Registry",2
+74368,RES-1994-2390,registry,"Lands Registry",2
+74386,RES-1994-2378,registry,"Lands Registry",2
+74392,RES-1994-2383,registry,"Lands Registry",2
+74411,RES-1994-2363,registry,"Lands Registry",2
+74499,RES-1994-2393,registry,"Lands Registry",2
+74522,RES-1994-2384,registry,"Lands Registry",2
+74534,RES-1994-2385,registry,"Lands Registry",2
+74554,RES-1994-2387,registry,"Lands Registry",2
+74563,RES-1994-2388,registry,"Lands Registry",2
+74570,RES-1994-2389,registry,"Lands Registry",2
+74577,RES-1994-2382,registry,"Lands Registry",2
+74595,RES-1994-2380,registry,"Lands Registry",2
+74623,RES-1994-2357,registry,"Lands Registry",2
+74629,RES-1994-2368,registry,"Lands Registry",2
+74632,RES-1994-2369,registry,"Lands Registry",2
+74639,RES-1994-2367,registry,"Lands Registry",2
+74644,RES-1994-2360,registry,"Lands Registry",2
+74649,RES-1994-2381,registry,"Lands Registry",2
+74666,RES-1994-2377,registry,"Lands Registry",2
+75195,RES-1994-2371,registry,"Lands Registry",2
+75221,RES-1994-2358,registry,"Lands Registry",2
+75229,RES-1994-2359,registry,"Lands Registry",2
+75237,RES-1994-2370,registry,"Lands Registry",2
+75247,RES-1994-2372,registry,"Lands Registry",2
+79732,RES-1996-71,registry,"Lands Registry",2
+80225,RES-1987-2221,registry,,1
+80225,RES-1987-2221,general_registry,"Land  Registry","Lands Registry"
+104659,RES-1995-1367,registry,"Lands Registry",2
+104845,RES-1995-449,registry,"Lands Registry",2
+105606,RES-1995-468,registry,"Lands Registry",2
+105609,RES-1995-466,registry,"Lands Registry",2
+106354,RES-1995-132,registry,"Lands Registry",2
+106383,RES-1995-136,registry,"Lands Registry",2
+106406,RES-1995-137,registry,"Lands Registry",2
+106411,RES-1995-138,registry,"Lands Registry",2
+106641,RES-1995-159,registry,"Lands Registry",2
+106759,RES-1995-139,registry,"Lands Registry",2
+106843,RES-1995-1392,registry,"Lands Registry",2
+106853,RES-1995-1386,registry,"Lands Registry",2
+106855,RES-1995-1385,registry,"Lands Registry",2
+106856,RES-1995-1384,registry,"Lands Registry",2
+106861,RES-1995-1397,registry,"Lands Registry",2
+106864,RES-1995-1394,registry,"Lands Registry",2
+106868,RES-1995-1393,registry,"Lands Registry",2
+106875,RES-1995-1383,registry,"Lands Registry",2
+106877,RES-1995-1382,registry,"Lands Registry",2
+106878,RES-1995-1378,registry,"Lands Registry",2
+106890,RES-1995-1377,registry,"Lands Registry",2
+106904,RES-1995-1399,registry,"Lands Registry",2
+108225,RES-1995-140,registry,"Lands Registry",2
+108233,RES-1995-141,registry,"Lands Registry",2
+108237,RES-1995-142,registry,"Lands Registry",2
+108241,RES-1995-143,registry,"Lands Registry",2
+108245,RES-1995-144,registry,"Lands Registry",2
+108250,RES-1995-145,registry,"Lands Registry",2
+108253,RES-1995-146,registry,"Lands Registry",2
+108259,RES-1995-147,registry,"Lands Registry",2
+108265,RES-1995-148,registry,"Lands Registry",2
+108288,RES-1995-149,registry,"Lands Registry",2
+109255,RES-1995-1366,registry,"Lands Registry",2
+109266,RES-1995-1365,registry,"Lands Registry",2
+109725,RES-1995-151,registry,"Lands Registry",2
+109730,RES-1995-155,registry,"Lands Registry",2
+109732,RES-1995-157,registry,"Lands Registry",2
+109736,RES-1995-158,registry,"Lands Registry",2
+110083,RES-1994-2011,registry,"Lands Registry",2
+115421,RES-1996-67,registry,"Lands Registry",2
+115426,RES-1996-69,registry,"Lands Registry",2
+115438,RES-1996-70,registry,"Lands Registry",2
+116155,RES-1996-72,registry,"Lands Registry",2
+145100,RES-2007-61,general_registry,"Land  Registry","Lands Registry"
+159134,RES-2026-2977,registry,,2
+159134,RES-2026-2977,general_registry,,"Lands Registry"
+159134,RES-2026-2977,physical_registry,,"Registry 2 - Land"
+159135,RES-2026-2978,registry,,2
+159135,RES-2026-2978,general_registry,,"Lands Registry"
+159135,RES-2026-2978,physical_registry,,"Registry 2 - Land"
+159136,RES-2026-2979,registry,,2
+159136,RES-2026-2979,general_registry,,"Lands Registry"
+159136,RES-2026-2979,physical_registry,,"Registry 2 - Land"
+159137,RES-2026-2980,registry,,2
+159137,RES-2026-2980,general_registry,,"Lands Registry"
+159137,RES-2026-2980,physical_registry,,"Registry 2 - Land"
+159138,RES-2026-2981,registry,,2
+159138,RES-2026-2981,general_registry,,"Lands Registry"
+159138,RES-2026-2981,physical_registry,,"Registry 2 - Land"
+159139,RES-2026-2982,registry,,2
+159139,RES-2026-2982,general_registry,,"Lands Registry"
+159139,RES-2026-2982,physical_registry,,"Registry 2 - Land"
+159140,RES-2026-2983,registry,,2
+159140,RES-2026-2983,general_registry,,"Lands Registry"
+159140,RES-2026-2983,physical_registry,,"Registry 2 - Land"
+159141,RES-2026-2984,registry,,2
+159141,RES-2026-2984,general_registry,,"Lands Registry"
+159141,RES-2026-2984,physical_registry,,"Registry 2 - Land"
+159142,RES-2026-2985,registry,,2
+159142,RES-2026-2985,general_registry,,"Lands Registry"
+159142,RES-2026-2985,physical_registry,,"Registry 2 - Land"
+159143,RES-2026-2986,registry,,2
+159143,RES-2026-2986,general_registry,,"Lands Registry"
+159143,RES-2026-2986,physical_registry,,"Registry 2 - Land"
+159144,RES-2026-2987,registry,,2
+159144,RES-2026-2987,general_registry,,"Lands Registry"
+159144,RES-2026-2987,physical_registry,,"Registry 2 - Land"
+159145,RES-2026-2988,registry,,2
+159145,RES-2026-2988,general_registry,,"Lands Registry"
+159145,RES-2026-2988,physical_registry,,"Registry 2 - Land"
+159146,RES-2026-2989,registry,,2
+159146,RES-2026-2989,general_registry,,"Lands Registry"
+159146,RES-2026-2989,physical_registry,,"Registry 2 - Land"
+159147,RES-2026-2990,registry,,2
+159147,RES-2026-2990,general_registry,,"Lands Registry"
+159147,RES-2026-2990,physical_registry,,"Registry 2 - Land"
+159148,RES-2026-2991,registry,,2
+159148,RES-2026-2991,general_registry,,"Lands Registry"
+159148,RES-2026-2991,physical_registry,,"Registry 2 - Land"
+159149,RES-2026-2992,registry,,2
+159149,RES-2026-2992,general_registry,,"Lands Registry"
+159149,RES-2026-2992,physical_registry,,"Registry 2 - Land"
+159150,RES-2026-2993,registry,,2
+159150,RES-2026-2993,general_registry,,"Lands Registry"
+159150,RES-2026-2993,physical_registry,,"Registry 2 - Land"
+159151,RES-2026-2994,registry,,2
+159151,RES-2026-2994,general_registry,,"Lands Registry"
+159151,RES-2026-2994,physical_registry,,"Registry 2 - Land"
+159152,RES-2026-2995,registry,,2
+159152,RES-2026-2995,general_registry,,"Lands Registry"
+159152,RES-2026-2995,physical_registry,,"Registry 2 - Land"
+159153,RES-2026-2996,registry,,2
+159153,RES-2026-2996,general_registry,,"Lands Registry"
+159153,RES-2026-2996,physical_registry,,"Registry 2 - Land"
+159154,RES-2026-2997,registry,,2
+159154,RES-2026-2997,general_registry,,"Lands Registry"
+159154,RES-2026-2997,physical_registry,,"Registry 2 - Land"
+159155,RES-2026-2998,registry,,2
+159155,RES-2026-2998,general_registry,,"Lands Registry"
+159155,RES-2026-2998,physical_registry,,"Registry 2 - Land"
+159156,RES-2026-2999,registry,,2
+159156,RES-2026-2999,general_registry,,"Lands Registry"
+159156,RES-2026-2999,physical_registry,,"Registry 2 - Land"
+159157,RES-2026-3000,registry,,2
+159157,RES-2026-3000,general_registry,,"Lands Registry"
+159157,RES-2026-3000,physical_registry,,"Registry 2 - Land"
+159158,RES-2026-3001,registry,,2
+159158,RES-2026-3001,general_registry,,"Lands Registry"
+159158,RES-2026-3001,physical_registry,,"Registry 2 - Land"
+159159,RES-2026-3002,registry,,2
+159159,RES-2026-3002,general_registry,,"Lands Registry"
+159159,RES-2026-3002,physical_registry,,"Registry 2 - Land"
+159160,RES-2026-3003,registry,,2
+159160,RES-2026-3003,general_registry,,"Lands Registry"
+159160,RES-2026-3003,physical_registry,,"Registry 2 - Land"
+159161,RES-2026-3004,registry,,2
+159161,RES-2026-3004,general_registry,,"Lands Registry"
+159161,RES-2026-3004,physical_registry,,"Registry 2 - Land"
+159162,RES-2026-3006,registry,,2
+159162,RES-2026-3006,general_registry,,"Lands Registry"
+159162,RES-2026-3006,physical_registry,,"Registry 2 - Land"
+159163,RES-2026-3007,registry,,2
+159163,RES-2026-3007,general_registry,,"Lands Registry"
+159163,RES-2026-3007,physical_registry,,"Registry 2 - Land"
+159164,RES-2026-3008,registry,,2
+159164,RES-2026-3008,general_registry,,"Lands Registry"
+159164,RES-2026-3008,physical_registry,,"Registry 2 - Land"
+159165,RES-2026-3009,registry,,2
+159165,RES-2026-3009,general_registry,,"Lands Registry"
+159165,RES-2026-3009,physical_registry,,"Registry 2 - Land"
+159166,RES-2026-3010,registry,,2
+159166,RES-2026-3010,general_registry,,"Lands Registry"
+159166,RES-2026-3010,physical_registry,,"Registry 2 - Land"
+159167,RES-2026-3011,registry,,2
+159167,RES-2026-3011,general_registry,,"Lands Registry"
+159167,RES-2026-3011,physical_registry,,"Registry 2 - Land"
+159168,RES-2026-3012,registry,,2
+159168,RES-2026-3012,general_registry,,"Lands Registry"
+159168,RES-2026-3012,physical_registry,,"Registry 2 - Land"
+159169,RES-2026-3013,registry,,2
+159169,RES-2026-3013,general_registry,,"Lands Registry"
+159169,RES-2026-3013,physical_registry,,"Registry 2 - Land"
+159170,RES-2026-3014,registry,,2
+159170,RES-2026-3014,general_registry,,"Lands Registry"
+159170,RES-2026-3014,physical_registry,,"Registry 2 - Land"
+159171,RES-2026-3015,registry,,2
+159171,RES-2026-3015,general_registry,,"Lands Registry"
+159171,RES-2026-3015,physical_registry,,"Registry 2 - Land"
+159172,RES-2026-3016,registry,,2
+159172,RES-2026-3016,general_registry,,"Lands Registry"
+159172,RES-2026-3016,physical_registry,,"Registry 2 - Land"
+159173,RES-2026-3017,registry,,2
+159173,RES-2026-3017,general_registry,,"Lands Registry"
+159173,RES-2026-3017,physical_registry,,"Registry 2 - Land"
+159174,RES-2026-3018,registry,,2
+159174,RES-2026-3018,general_registry,,"Lands Registry"
+159174,RES-2026-3018,physical_registry,,"Registry 2 - Land"
+159175,RES-2026-3019,registry,,2
+159175,RES-2026-3019,general_registry,,"Lands Registry"
+159175,RES-2026-3019,physical_registry,,"Registry 2 - Land"
+159176,CON-RES-2025-1408,general_registry,"Land  Registry","Lands Registry"
+159177,CON-RES-2025-1396,general_registry,"Land  Registry","Lands Registry"
+159178,RES-2024-4275,general_registry,"Land  Registry","Lands Registry"
+159179,CON-COM-2024-154,general_registry,"Land  Registry","Lands Registry"
+159180,RES-2008-4252,general_registry,"Land  Registry","Lands Registry"
+159181,CON-AG-2013-90,general_registry,"Land  Registry","Lands Registry"
+159182,CON-IND-2022-89,general_registry,"Land  Registry","Lands Registry"
+159183,CON-AG-2013-121,general_registry,"Land  Registry","Lands Registry"
+159184,RES-2002-228,general_registry,"Land  Registry","Lands Registry"
+159185,CON-AG-2013-104,general_registry,"Land  Registry","Lands Registry"
+159188,CON-AG-2013-94,general_registry,"Land  Registry","Lands Registry"
+159189,RES-2002-227,general_registry,"Land  Registry","Lands Registry"
+159190,RES-2002-2106,general_registry,"Land  Registry","Lands Registry"
+159191,CON-AG-2013-68,general_registry,"Land  Registry","Lands Registry"
+159193,RES-1982-2152,general_registry,"Land  Registry","Lands Registry"
+159195,CON-AG-2013-69,general_registry,"Land  Registry","Lands Registry"
+159197,CON-AG-2015-41,general_registry,"Land  Registry","Lands Registry"
+159198,RES-1985-714,general_registry,"Land  Registry","Lands Registry"
+159200,CON-AG-2013-111,general_registry,"Land  Registry","Lands Registry"
+159201,RES-2002-226,general_registry,"Land  Registry","Lands Registry"
+159202,CON-RES-1981-166,general_registry,"Land  Registry","Lands Registry"
+159203,CON-AG-2015-82,general_registry,"Land  Registry","Lands Registry"
+159205,CON-AG-2013-91,general_registry,"Land  Registry","Lands Registry"
+159207,RES-1985-916,general_registry,"Land  Registry","Lands Registry"
+159211,CON-AG-2013-97,general_registry,"Land  Registry","Lands Registry"
+159212,RES-2002-466,general_registry,"Land  Registry","Lands Registry"
+159213,CON-AG-2015-79,general_registry,"Land  Registry","Lands Registry"
+159214,RES-2002-224,general_registry,"Land  Registry","Lands Registry"
+159216,RES-2002-431,general_registry,"Land  Registry","Lands Registry"
+159218,CON-AG-2013-98,general_registry,"Land  Registry","Lands Registry"
+159221,CON-AG-2015-75,general_registry,"Land  Registry","Lands Registry"
+159223,CON-AG-2013-99,general_registry,"Land  Registry","Lands Registry"
+159224,RES-2002-432,general_registry,"Land  Registry","Lands Registry"
+159225,RES-1997-254,general_registry,"Land  Registry","Lands Registry"
+159230,RES-2002-222,general_registry,"Land  Registry","Lands Registry"
+159232,RES-2002-5930,general_registry,"Land  Registry","Lands Registry"
+159233,RES-2002-436,general_registry,"Land  Registry","Lands Registry"
+159235,RES-2004-542,general_registry,"Land  Registry","Lands Registry"
+159237,RES-2002-5925,general_registry,"Land  Registry","Lands Registry"
+159238,RES-1989-4010,general_registry,"Land  Registry","Lands Registry"
+159240,CON-COM-2024-637,general_registry,"Land  Registry","Lands Registry"
+159241,CON-AG-2015-59,general_registry,"Land  Registry","Lands Registry"
+159242,RES-2000-2329,general_registry,"Land  Registry","Lands Registry"
+159244,RES-2002-435,general_registry,"Land  Registry","Lands Registry"
+159245,CON-AG-2013-8,general_registry,"Land  Registry","Lands Registry"
+159247,RES-2002-5921,general_registry,"Land  Registry","Lands Registry"
+159248,RES-2002-221,general_registry,"Land  Registry","Lands Registry"
+159249,RES-2002-2105,general_registry,"Land  Registry","Lands Registry"
+159251,RES-2002-434,general_registry,"Land  Registry","Lands Registry"
+159252,RES-2002-5920,general_registry,"Land  Registry","Lands Registry"
+159253,CON-RES-2024-979,general_registry,"Land  Registry","Lands Registry"
+159256,RES-2002-5926,general_registry,"Land  Registry","Lands Registry"
+159257,CON-AG-2013-64,general_registry,"Land  Registry","Lands Registry"
+159261,CON-AG-2015-69,general_registry,"Land  Registry","Lands Registry"
+159263,RES-2002-433,general_registry,"Land  Registry","Lands Registry"
+159264,RES-2002-5924,general_registry,"Land  Registry","Lands Registry"
+159266,RES-2002-6619,general_registry,"Land  Registry","Lands Registry"
+159267,RES-2002-6654,general_registry,"Land  Registry","Lands Registry"
+159268,CON-RES-2008-1088,general_registry,"Land  Registry","Lands Registry"
+159270,CON-AG-2013-26,general_registry,"Land  Registry","Lands Registry"
+159273,CON-AG-2015-55,general_registry,"Land  Registry","Lands Registry"
+159274,RES-1995-684,general_registry,"Land  Registry","Lands Registry"
+159275,RES-2002-229,general_registry,"Land  Registry","Lands Registry"
+159276,RES-2002-445,general_registry,"Land  Registry","Lands Registry"
+159278,RES-2002-6658,general_registry,"Land  Registry","Lands Registry"
+159280,CON-RES-1981-157,general_registry,"Land  Registry","Lands Registry"
+159281,CON-AG-2015-81,general_registry,"Land  Registry","Lands Registry"
+159282,RES-2002-2163,general_registry,"Land  Registry","Lands Registry"
+159283,RES-2002-5950,general_registry,"Land  Registry","Lands Registry"
+159284,RES-2002-220,general_registry,"Land  Registry","Lands Registry"
+159285,RES-1987-2285,general_registry,"Land  Registry","Lands Registry"
+159289,RES-2002-465,general_registry,"Land  Registry","Lands Registry"
+159290,RES-1986-2100,general_registry,"Land  Registry","Lands Registry"
+159291,RES-2002-212,general_registry,"Land  Registry","Lands Registry"
+159293,RES-2007-1461,general_registry,"Land  Registry","Lands Registry"
+159294,RES-RC-1985-69,general_registry,"Land  Registry","Lands Registry"
+159295,RES-2002-6653,general_registry,"Land  Registry","Lands Registry"
+159296,RES-2020-3923,general_registry,"Land  Registry","Lands Registry"
+159297,RES-2002-2165,general_registry,"Land  Registry","Lands Registry"
+159299,RES-2002-462,general_registry,"Land  Registry","Lands Registry"
+159302,RES-2002-6693,general_registry,"Land  Registry","Lands Registry"
+159303,CON-AG-2013-11,general_registry,"Land  Registry","Lands Registry"
+159305,RES-2002-463,general_registry,"Land  Registry","Lands Registry"
+159306,RES-2002-5948,general_registry,"Land  Registry","Lands Registry"
+159308,RES-2002-205,general_registry,"Land  Registry","Lands Registry"
+159310,RES-1991-2680,general_registry,"Land  Registry","Lands Registry"
+159311,CON-AG-2013-67,general_registry,"Land  Registry","Lands Registry"
+159312,CON-RES-2001-313,general_registry,"Land  Registry","Lands Registry"
+159318,RES-2024-4475,general_registry,"Land  Registry","Lands Registry"
+159319,RES-2002-2169,general_registry,"Land  Registry","Lands Registry"
+159320,RES-2002-203,general_registry,"Land  Registry","Lands Registry"
+159321,RES-2002-6656,general_registry,"Land  Registry","Lands Registry"
+159325,RES-2002-6602,general_registry,"Land  Registry","Lands Registry"
+159326,CON-RES-1989-614,general_registry,"Land  Registry","Lands Registry"
+159327,CON-RES-2025-1397,general_registry,"Land  Registry","Lands Registry"
+159328,RES-1990-4309,general_registry,"Land  Registry","Lands Registry"
+159329,RES-2002-5957,general_registry,"Land  Registry","Lands Registry"
+159330,RES-2002-2171,general_registry,"Land  Registry","Lands Registry"
+159331,RES-2015-617,general_registry,"Land  Registry","Lands Registry"
+159332,CON-RES-1981-160,general_registry,"Land  Registry","Lands Registry"
+159333,RES-2002-464,general_registry,"Land  Registry","Lands Registry"
+159334,RES-2002-6630,general_registry,"Land  Registry","Lands Registry"
+159336,CON-RES-2001-72,general_registry,"Land  Registry","Lands Registry"
+159337,CON-AG-2013-29,general_registry,"Land  Registry","Lands Registry"
+159339,RES-1991-3789,general_registry,"Land  Registry","Lands Registry"
+159340,RES-2002-2173,general_registry,"Land  Registry","Lands Registry"
+159342,RES-2002-438,general_registry,"Land  Registry","Lands Registry"
+159344,RES-1982-1202,general_registry,"Land  Registry","Lands Registry"
+159345,CON-AG-2013-7,general_registry,"Land  Registry","Lands Registry"
+159346,RES-2002-5932,general_registry,"Land  Registry","Lands Registry"
+159348,RES-1987-2127,general_registry,"Land  Registry","Lands Registry"
+159349,RES-1991-9026,general_registry,"Land  Registry","Lands Registry"
+159350,CON-RES-2006-438,general_registry,"Land  Registry","Lands Registry"
+159353,RES-2002-439,general_registry,"Land  Registry","Lands Registry"
+159354,RES-1997-11,general_registry,"Land  Registry","Lands Registry"
+159356,COM-2014-2,general_registry,"Land  Registry","Lands Registry"
+159357,CON-RES-RC-1982-479,general_registry,"Land  Registry","Lands Registry"
+159358,RES-2002-440,general_registry,"Land  Registry","Lands Registry"
+159359,RES-2002-2145,general_registry,"Land  Registry","Lands Registry"
+159360,RES-2002-2183,general_registry,"Land  Registry","Lands Registry"
+159361,CON-AG-2015-104,general_registry,"Land  Registry","Lands Registry"
+159363,RES-2002-459,general_registry,"Land  Registry","Lands Registry"
+159364,CON-RES-1986-374,general_registry,"Land  Registry","Lands Registry"
+159365,RES-2007-1813,general_registry,"Land  Registry","Lands Registry"
+159372,RES-2002-458,general_registry,"Land  Registry","Lands Registry"
+159373,RES-2001-5944,general_registry,"Land  Registry","Lands Registry"
+159374,RES-2021-1257,general_registry,"Land  Registry","Lands Registry"
+159375,RES-2002-457,general_registry,"Land  Registry","Lands Registry"
+159377,CON-RES-2018-496,general_registry,"Land  Registry","Lands Registry"
+159378,RES-2002-6603,general_registry,"Land  Registry","Lands Registry"
+159382,RES-2002-2184,general_registry,"Land  Registry","Lands Registry"
+159383,CON-AG-2013-46,general_registry,"Land  Registry","Lands Registry"
+159385,RES-2002-456,general_registry,"Land  Registry","Lands Registry"
+159386,CON-COM-2026-480,registry,,3
+159386,CON-COM-2026-480,general_registry,,"Lands Registry"
+159386,CON-COM-2026-480,physical_registry,,"Registry 3 - Land"
+159387,RES-1985-1628,general_registry,"Land  Registry","Lands Registry"
+159388,RES-2002-5983,general_registry,"Land  Registry","Lands Registry"
+159391,CON-COM-2026-481,registry,,3
+159391,CON-COM-2026-481,general_registry,,"Lands Registry"
+159391,CON-COM-2026-481,physical_registry,,"Registry 3 - Land"
+159392,RES-RC-1982-688,general_registry,"Land  Registry","Lands Registry"
+159393,RES-2002-5903,general_registry,"Land  Registry","Lands Registry"
+159394,RES-2002-2185,general_registry,"Land  Registry","Lands Registry"
+159395,CON-RES-2000-106,general_registry,"Land  Registry","Lands Registry"
+159396,COM-1982-15,general_registry,"Land  Registry","Lands Registry"
+159397,RES-2008-4247,general_registry,"Land  Registry","Lands Registry"
+159398,RES-2008-4032,general_registry,"Land  Registry","Lands Registry"
+159400,RES-2000-4910,general_registry,"Land  Registry","Lands Registry"
+159401,RES-2002-453,general_registry,"Land  Registry","Lands Registry"
+159402,COM-2005-133,general_registry,"Land  Registry","Lands Registry"
+159403,RES-1988-1233,general_registry,"Land  Registry","Lands Registry"
+159404,RES-2008-4249,general_registry,"Land  Registry","Lands Registry"
+159407,RES-2002-452,general_registry,"Land  Registry","Lands Registry"
+159408,RES-2008-4251,general_registry,"Land  Registry","Lands Registry"
+159409,RES-2002-6874,general_registry,"Land  Registry","Lands Registry"
+159412,RES-2008-4245,general_registry,"Land  Registry","Lands Registry"
+159413,RES-2002-2189,general_registry,"Land  Registry","Lands Registry"
+159414,CON-AG-2013-5,general_registry,"Land  Registry","Lands Registry"
+159416,RES-2002-451,general_registry,"Land  Registry","Lands Registry"
+159417,RES-2026-3630,general_registry,"Land  Registry","Lands Registry"
+159421,RES-2002-484,general_registry,"Land  Registry","Lands Registry"
+159426,CON-RES-2010-18,general_registry,"Land  Registry","Lands Registry"
+159427,RES-1997-144,general_registry,"Land  Registry","Lands Registry"
+159429,CON-AG-2019-67,general_registry,"Land  Registry","Lands Registry"
+159430,RES-2002-5964,general_registry,"Land  Registry","Lands Registry"
+159431,RES-1991-2105(T),general_registry,"Land  Registry","Lands Registry"
+159433,RES-2002-483,general_registry,"Land  Registry","Lands Registry"
+159434,RES-2002-2190,general_registry,"Land  Registry","Lands Registry"
+159439,RES-2002-6611,general_registry,"Land  Registry","Lands Registry"
+159441,RES-2002-491,registry,,2
+159441,RES-2002-491,general_registry,"Land  Registry","Lands Registry"
+159443,RES-2002-5908,general_registry,"Land  Registry","Lands Registry"
+159444,CON-IND-2022-47,general_registry,"Land  Registry","Lands Registry"
+159446,CON-COM-2025-625,general_registry,"Land  Registry","Lands Registry"
+159447,RES-2008-4237,general_registry,"Land  Registry","Lands Registry"
+159448,RES-2002-2196,general_registry,"Land  Registry","Lands Registry"
+159450,RES-2017-524,general_registry,"Land  Registry","Lands Registry"
+159453,RES-1996-66,general_registry,"Land  Registry","Lands Registry"
+159455,RES-2002-5987,general_registry,"Land  Registry","Lands Registry"
+159457,IND-2023-353,general_registry,"Land  Registry","Lands Registry"
+159458,RES-2002-5986,general_registry,"Land  Registry","Lands Registry"
+159460,RES-2002-4906,general_registry,"Land  Registry","Lands Registry"
+159461,RES-2002-6620,general_registry,"Land  Registry","Lands Registry"
+159462,RES-2002-5970,general_registry,"Land  Registry","Lands Registry"
+159466,RES-2002-487,general_registry,"Land  Registry","Lands Registry"
+159467,RES-2000-5320,general_registry,"Land  Registry","Lands Registry"
+159468,CON-COM-2014-84,general_registry,"Land  Registry","Lands Registry"
+159469,RES-2002-5969,general_registry,"Land  Registry","Lands Registry"
+159470,RES-2002-5968,general_registry,"Land  Registry","Lands Registry"
+159471,RES-2002-486,registry,,2
+159471,RES-2002-486,general_registry,"Land  Registry","Lands Registry"
+159474,RES-2026-3020,registry,,2
+159474,RES-2026-3020,general_registry,,"Lands Registry"
+159474,RES-2026-3020,physical_registry,,"Registry 2 - Land"
+159475,RES-2002-4942,general_registry,"Land  Registry","Lands Registry"
+159478,RES-2002-202,general_registry,"Land  Registry","Lands Registry"
+159479,RES-2002-4945,general_registry,"Land  Registry","Lands Registry"
+159480,RES-2002-485,general_registry,"Land  Registry","Lands Registry"
+159481,CON-RES-2000-180,general_registry,"Land  Registry","Lands Registry"
+159482,RES-2002-437,general_registry,"Land  Registry","Lands Registry"
+159484,RES-2019-2181,general_registry,"Land  Registry","Lands Registry"
+159485,RES-2002-201,general_registry,"Land  Registry","Lands Registry"
+159486,RES-2005-511,general_registry,"Land  Registry","Lands Registry"
+159487,RES-2002-494,general_registry,"Land  Registry","Lands Registry"
+159488,RES-2002-4943,general_registry,"Land  Registry","Lands Registry"
+159490,RES-2002-5927,general_registry,"Land  Registry","Lands Registry"
+159491,RES-2002-4946,general_registry,"Land  Registry","Lands Registry"
+159492,RES-2002-6622,general_registry,"Land  Registry","Lands Registry"
+159494,RES-2000-2176,general_registry,"Land  Registry","Lands Registry"
+159495,RES-2021-1260,general_registry,"Land  Registry","Lands Registry"
+159496,RES-2002-46,general_registry,"Land  Registry","Lands Registry"
+159497,CON-RES-2020-504,general_registry,"Land  Registry","Lands Registry"
+159498,RES-2026-3021,registry,,2
+159498,RES-2026-3021,general_registry,,"Lands Registry"
+159498,RES-2026-3021,physical_registry,,"Registry 2 - Land"
+159499,RES-2026-3022,registry,,2
+159499,RES-2026-3022,general_registry,,"Lands Registry"
+159499,RES-2026-3022,physical_registry,,"Registry 2 - Land"
+159501,RES-2002-5910,general_registry,"Land  Registry","Lands Registry"
+159502,RES-2026-3023,registry,,2
+159502,RES-2026-3023,general_registry,,"Lands Registry"
+159502,RES-2026-3023,physical_registry,,"Registry 2 - Land"
+159503,RES-2002-5625,general_registry,"Land  Registry","Lands Registry"
+159504,RES-2026-3024,registry,,2
+159504,RES-2026-3024,general_registry,,"Lands Registry"
+159504,RES-2026-3024,physical_registry,,"Registry 2 - Land"
+159505,CON-AG-2015-94,general_registry,"Land  Registry","Lands Registry"
+159506,RES-2022-3688,general_registry,"Land  Registry","Lands Registry"
+159507,RES-2002-5913,general_registry,"Land  Registry","Lands Registry"
+159509,CON-AG-2015-95,general_registry,"Land  Registry","Lands Registry"
+159511,RES-2002-492,general_registry,"Land  Registry","Lands Registry"
+159512,CON-AG-2015-99,general_registry,"Land  Registry","Lands Registry"
+159513,CON-AG-2015-88,general_registry,"Land  Registry","Lands Registry"
+159514,RES-2002-493,general_registry,"Land  Registry","Lands Registry"
+159515,CON-AG-2015-89,general_registry,"Land  Registry","Lands Registry"
+159516,RES-2002-489,general_registry,"Land  Registry","Lands Registry"
+159517,CON-AG-2015-91,general_registry,"Land  Registry","Lands Registry"
+159519,CON-RES-2026-2574,registry,,3
+159519,CON-RES-2026-2574,general_registry,,"Lands Registry"
+159519,CON-RES-2026-2574,physical_registry,,"Registry 3 - Land"
+159520,CON-AG-2015-3,general_registry,"Land  Registry","Lands Registry"
+159521,RES-2002-490,general_registry,"Land  Registry","Lands Registry"
+159522,CON-AG-2015-18,general_registry,"Land  Registry","Lands Registry"
+159523,CON-RES-2026-2575,registry,,3
+159523,CON-RES-2026-2575,general_registry,,"Lands Registry"
+159523,CON-RES-2026-2575,physical_registry,,"Registry 3 - Land"

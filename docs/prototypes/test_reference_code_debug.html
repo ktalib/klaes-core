@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reference Code Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin: 10px 0; }
+        label { display: block; font-weight: bold; }
+        select, input { padding: 5px; margin: 5px 0; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+        .code-preview { background: #007bff; color: white; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Reference Code Debug Test</h1>
+    
+    <div class="debug">
+        <h3>Debug Info</h3>
+        <div id="debug-output">Loading...</div>
+    </div>
+    
+    <form class="page-form" data-page-index="0">
+        <div class="form-group">
+            <label>Cover Type:</label>
+            <select class="cover-type-select" data-page-index="0">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Page Type:</label>
+            <select class="page-type-select" data-page-index="0">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Serial Number:</label>
+            <input type="text" class="serial-input" value="01" data-page-index="0">
+        </div>
+        
+        <div class="code-preview">
+            Reference Code: <span id="page-code-preview-0">Not generated yet</span>
+        </div>
+        
+        <input type="text" class="page-code-input" readonly data-page-index="0" placeholder="Hidden input field">
+    </form>
+    
+    <script>
+        // Mock the Laravel data structure
+        let coverTypes = [
+            { id: '1', code: "FC", name: "Front Cover" },
+            { id: '2', code: "BC", name: "Back Cover" }
+        ];
+        
+        let pageTypes = [
+            { id: '1', code: "FC", name: "File Cover" },
+            { id: '2', code: "APP", name: "Application" },
+            { id: '3', code: "BN", name: "Bill Notice" },
+            { id: '4', code: "COR", name: "Correspondence" },
+            { id: '5', code: "LT", name: "Land Title" }
+        ];
+
+        let pageSubTypes = {};
+        
+        function debugLog(message) {
+            const debugDiv = document.getElementById('debug-output');
+            debugDiv.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + message;
+            console.log(message);
+        }
+
+        function getCoverTypeById(id) {
+            const result = coverTypes.find(ct => ct.id === id);
+            debugLog(`getCoverTypeById(${id}) = ${result ? result.code : 'null'}`);
+            return result;
+        }
+
+        function getPageTypeCode(pageTypeId) {
+            const pageType = pageTypes.find(pt => pt.id === pageTypeId);
+            const result = pageType ? pageType.code : 'XX';
+            debugLog(`getPageTypeCode(${pageTypeId}) = ${result}`);
+            return result;
+        }
+
+        function getPageSubTypeCode(pageTypeId, subtypeId) {
+            debugLog(`getPageSubTypeCode(${pageTypeId}, ${subtypeId}) = ''`);
+            return '';
+        }
+
+        function updatePageCode(pageIndex) {
+            debugLog(`updatePageCode called for page index: ${pageIndex}`);
+            
+            const codeInput = document.querySelector(`.page-code-input[data-page-index="${pageIndex}"]`);
+            const codePreview = document.querySelector(`#page-code-preview-${pageIndex}`);
+            
+            if (!codeInput) {
+                debugLog('Code input not found!');
+                return;
+            }
+
+            const form = document.querySelector(`.page-form[data-page-index="${pageIndex}"]`);
+            if (!form) {
+                debugLog('Form not found!');
+                return;
+            }
+
+            const coverType = form.querySelector('.cover-type-select').value;
+            const pageType = form.querySelector('.page-type-select').value;
+            const serialNo = form.querySelector('.serial-input').value;
+
+            debugLog(`Form values: coverType='${coverType}', pageType='${pageType}', serialNo='${serialNo}'`);
+
+            if (coverType && pageType && serialNo) {
+                const coverCode = getCoverTypeById(coverType)?.code || 'XX';
+                const pageCode = getPageTypeCode(pageType);
+                
+                const fullCode = `${coverCode}-${pageCode}-${serialNo}`;
+                codeInput.value = fullCode;
+                
+                if (codePreview) {
+                    codePreview.textContent = fullCode;
+                }
+                
+                debugLog(`Generated reference code: ${fullCode}`);
+            } else {
+                if (codePreview) {
+                    codePreview.textContent = 'Incomplete form';
+                }
+                debugLog('Form incomplete - missing required fields');
+            }
+        }
+
+        function populateDropdowns() {
+            debugLog('populateDropdowns called');
+            
+            // Populate cover type
+            const coverSelect = document.querySelector('.cover-type-select');
+            coverSelect.innerHTML = '<option value="">Select cover type</option>';
+            coverTypes.forEach(ct => {
+                const option = document.createElement('option');
+                option.value = ct.id;
+                option.textContent = `${ct.code} - ${ct.name}`;
+                coverSelect.appendChild(option);
+            });
+            
+            // Set default
+            if (coverTypes.length > 0) {
+                coverSelect.value = coverTypes[0].id;
+                debugLog(`Set default cover type: ${coverTypes[0].id}`);
+            }
+            
+            // Populate page type
+            const pageSelect = document.querySelector('.page-type-select');
+            pageSelect.innerHTML = '<option value="">Select page type</option>';
+            pageTypes.forEach(pt => {
+                const option = document.createElement('option');
+                option.value = pt.id;
+                option.textContent = `${pt.code} - ${pt.name}`;
+                pageSelect.appendChild(option);
+            });
+            
+            // Set default
+            if (pageTypes.length > 0) {
+                pageSelect.value = pageTypes[0].id;
+                debugLog(`Set default page type: ${pageTypes[0].id}`);
+            }
+            
+            // Update page code
+            setTimeout(() => {
+                debugLog('Delayed update page code...');
+                updatePageCode(0);
+            }, 100);
+        }
+
+        // Event listeners
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('cover-type-select') || 
+                e.target.classList.contains('page-type-select')) {
+                debugLog(`Change event on ${e.target.className}`);
+                updatePageCode(0);
+            }
+        });
+        
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('serial-input')) {
+                debugLog(`Input event on serial number`);
+                updatePageCode(0);
+            }
+        });
+
+        // Initialize
+        debugLog('Starting initialization...');
+        populateDropdowns();
+        
+        // Force update after 500ms
+        setTimeout(() => {
+            debugLog('Force update after 500ms...');
+            updatePageCode(0);
+        }, 500);
+    </script>
+</body>
+</html>

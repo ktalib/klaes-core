@@ -1,0 +1,19 @@
+﻿These paths did not exist on production at backup time (2026-08-10_062646).
+To roll this deployment back fully: copy the backup tree over production,
+then DELETE these files from production.
+
+NEW  app\Models\Gender.php
+NEW  app\Services\MlsSerialAllocationService.php
+NEW  database\migrations\2026_08_09_100000_add_physical_planning_comment_to_land_recommendations_table.php
+NEW  database\migrations\2026_08_09_120000_add_related_file_number_to_file_commissioning_sheets.php
+NEW  database\migrations\2026_08_09_140000_add_gender_to_st_file_numbers_table.php
+NEW  database\migrations\2026_08_09_160000_create_genders_table.php
+NEW  database\migrations\2026_08_10_120000_add_recommendation_fields_to_change_of_purpose_applications_table.php
+NEW  database\seeders\GenderSeeder.php
+NEW  database\sql\2026_08_08_collapse_plot_extension_to_and_extension.sql
+NEW  database\sql\2026_08_09_create_genders_lookup.sql
+NEW  database\sql\2026_08_09_create_genders_lookup_ledger.mysql.sql
+NEW  docs\plans\SPAS_MOBILE_OFFLINE_CAPACITOR_SYNC_PLAN.md
+NEW  public\assets\letterhead\rofo-security-paper.jpg
+NEW  public\js\shared\conversion-application-print.js
+NEW  resources\views\components\gender-select.blade.php

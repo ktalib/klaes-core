@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Upload Debug Test</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+    <h2>File Upload Debug Test</h2>
+    
+    <form id="testForm" enctype="multipart/form-data">
+        <div>
+            <label>Passport File:</label>
+            <input type="file" name="passport" id="passportInput" accept="image/*,.pdf">
+            <span id="passportStatus"></span>
+        </div>
+        
+        <br><br>
+        
+        <div>
+            <label>ID Document File:</label>
+            <input type="file" name="id_document" id="idDocumentInput" accept="image/*,.pdf">
+            <span id="idDocumentStatus"></span>
+        </div>
+        
+        <br><br>
+        
+        <button type="button" onclick="testUpload()">Test Upload</button>
+        <button type="button" onclick="checkFields()">Check Form Fields</button>
+    </form>
+    
+    <div id="results" style="margin-top: 20px; padding: 10px; background: #f5f5f5;"></div>
+
+    <script>
+        function checkFields() {
+            const formData = new FormData(document.getElementById('testForm'));
+            const results = document.getElementById('results');
+            
+            let output = '<h3>Form Data Contents:</h3>';
+            
+            for (let [key, value] of formData.entries()) {
+                if (value instanceof File) {
+                    output += `<strong>${key}:</strong> File "${value.name}" (${value.size} bytes, ${value.type})<br>`;
+                } else {
+                    output += `<strong>${key}:</strong> ${value}<br>`;
+                }
+            }
+            
+            results.innerHTML = output;
+        }
+        
+        function testUpload() {
+            const formData = new FormData(document.getElementById('testForm'));
+            
+            // Add CSRF token
+            formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
+            formData.append('applicantType', 'individual');
+            formData.append('land_use', 'COMMERCIAL');
+            formData.append('np_fileno', 'TEST-COM-2025-1');
+            formData.append('first_name', 'TEST');
+            formData.append('surname', 'USER');
+            
+            console.log('Sending form data...');
+            for (let [key, value] of formData.entries()) {
+                if (value instanceof File) {
+                    console.log(`${key}: File "${value.name}" (${value.size} bytes)`);
+                } else {
+                    console.log(`${key}: ${value}`);
+                }
+            }
+            
+            fetch('/primaryform', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Response:', data);
+                document.getElementById('results').innerHTML = 
+                    '<h3>Upload Result:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = 
+                    '<h3>Upload Error:</h3><pre>' + error.message + '</pre>';
+            });
+        }
+        
+        // Monitor file selections
+        document.getElementById('passportInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            document.getElementById('passportStatus').textContent = 
+                file ? `Selected: ${file.name} (${file.size} bytes)` : 'No file selected';
+        });
+        
+        document.getElementById('idDocumentInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            document.getElementById('idDocumentStatus').textContent = 
+                file ? `Selected: ${file.name} (${file.size} bytes)` : 'No file selected';
+        });
+    </script>
+</body>
+</html>

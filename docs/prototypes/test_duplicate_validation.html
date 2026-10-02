@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test File Indexing Duplicate Validation</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>File Indexing Duplicate Validation Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Check if existing file numbers are detected</h3>
+        <p>Enter a file number to test duplicate detection:</p>
+        <input type="text" id="test-file-number" placeholder="e.g., ST-RES-2024-001" style="width: 300px; padding: 5px;">
+        <button onclick="testDuplicateCheck()">Check for Duplicate</button>
+        <div id="duplicate-result" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Backend Validation</h3>
+        <p>This tests the server-side duplicate validation. Try creating a file index with a file number that already exists.</p>
+        <div class="info">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Go to the file indexing page</li>
+                <li>Enter a file number that already exists in the system</li>
+                <li>Try to submit the form</li>
+                <li>You should receive an error message about duplicate file numbers</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Frontend Validation</h3>
+        <p>Test the frontend JavaScript validation:</p>
+        <div class="info">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Open the file indexing form</li>
+                <li>Enter a file number and wait for the duplicate check to run</li>
+                <li>If a duplicate is detected, the submit button should be disabled</li>
+                <li>A warning banner should appear at the top of the form</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>Recent File Numbers for Testing</h3>
+        <p>Use these to test duplicate validation:</p>
+        <div id="recent-files" style="margin-top: 10px;">Loading...</div>
+    </div>
+
+    <script>
+        async function testDuplicateCheck() {
+            const fileNumber = document.getElementById('test-file-number').value.trim();
+            const resultDiv = document.getElementById('duplicate-result');
+            
+            if (!fileNumber) {
+                resultDiv.innerHTML = '<span class="error">Please enter a file number</span>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<span class="info">Checking...</span>';
+            
+            try {
+                const response = await fetch(`/fileindexing/check-indexed?fileno=${encodeURIComponent(fileNumber)}`);
+                const data = await response.json();
+                
+                if (data.exists) {
+                    resultDiv.innerHTML = `
+                        <span class="error">✗ DUPLICATE DETECTED</span><br>
+                        <small>Record ID: ${data.record.id}<br>
+                        File Title: ${data.record.file_title || 'N/A'}<br>
+                        Created: ${data.record.created_at || 'N/A'}</small>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<span class="success">✓ No duplicate found - file number is available</span>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+            }
+        }
+
+        // Load recent file numbers for testing
+        async function loadRecentFiles() {
+            try {
+                const response = await fetch('/api/recent-file-numbers?limit=10');
+                if (response.ok) {
+                    const data = await response.json();
+                    const recentDiv = document.getElementById('recent-files');
+                    
+                    if (data.files && data.files.length > 0) {
+                        recentDiv.innerHTML = data.files.map(file => 
+                            `<button onclick="document.getElementById('test-file-number').value='${file.file_number}'; testDuplicateCheck();" 
+                                     style="margin: 2px; padding: 5px 10px; background: #f0f0f0; border: 1px solid #ccc; cursor: pointer;">
+                                ${file.file_number}
+                             </button>`
+                        ).join('');
+                    } else {
+                        recentDiv.innerHTML = '<span class="info">No recent files found. Try: ST-RES-2024-001, ST-COM-2024-001</span>';
+                    }
+                } else {
+                    throw new Error('Failed to load');
+                }
+            } catch (error) {
+                document.getElementById('recent-files').innerHTML = 
+                    '<span class="info">Could not load recent files. Try common patterns like ST-RES-2024-001</span>';
+            }
+        }
+
+        // Auto-load recent files when page loads
+        loadRecentFiles();
+
+        // Allow Enter key in input field
+        document.getElementById('test-file-number').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                testDuplicateCheck();
+            }
+        });
+    </script>
+</body>
+</html>

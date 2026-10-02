@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Number Variant Generation</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">🔍 Test File Number Variant Generation</h1>
+        
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h2 class="text-lg font-semibold text-blue-800 mb-2">Test Case</h2>
+            <p class="text-blue-700">
+                <strong>Input:</strong> CON-RES-1981-32<br>
+                <strong>Expected to match:</strong> RES-1981-32 (exists in database)<br>
+                <strong>Problem:</strong> System is not detecting this as a duplicate and allowing new records
+            </p>
+        </div>
+
+        <div class="mb-6">
+            <label for="test-file-number" class="block text-sm font-medium text-gray-700 mb-2">
+                Test File Number:
+            </label>
+            <input
+                type="text"
+                id="test-file-number"
+                value="CON-RES-1981-32"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+            <button
+                onclick="testVariantGeneration()"
+                class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+                Test Variant Generation & Duplicate Check
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Expected Variants -->
+            <div class="bg-green-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold text-green-800 mb-3">Expected Variants</h3>
+                <div id="expected-variants" class="font-mono text-sm text-green-700">
+                    <div>CON-RES-1981-32 (original)</div>
+                    <div>RES-1981-32 (should match database)</div>
+                    <div>CONRES198132 (no separators)</div>
+                    <div>CON-RES-1981-0032 (padded)</div>
+                    <div>CN-RES-1981-32 (short prefix)</div>
+                    <div>C-RES-1981-32 (minimal prefix)</div>
+                </div>
+            </div>
+
+            <!-- API Test Results -->
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">API Test Results</h3>
+                <div id="api-results" class="font-mono text-sm bg-white p-3 rounded border min-h-[150px] overflow-auto">
+                    Click test button to see results...
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-yellow-800 mb-3">Test Status</h3>
+            <div id="test-status" class="text-yellow-700">
+                Ready to test...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testVariantGeneration() {
+            const fileNumber = document.getElementById('test-file-number').value.trim();
+            const apiResultsEl = document.getElementById('api-results');
+            const testStatusEl = document.getElementById('test-status');
+            
+            if (!fileNumber) {
+                alert('Please enter a file number to test');
+                return;
+            }
+
+            testStatusEl.innerHTML = '🔄 Testing variant generation and duplicate detection...';
+            apiResultsEl.textContent = 'Testing...';
+
+            try {
+                // Test the duplicate check API
+                const response = await fetch(`/fileindex/check-indexed?fileno=${encodeURIComponent(fileNumber)}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                
+                // Display results
+                apiResultsEl.innerHTML = `
+<strong>API Response:</strong>
+${JSON.stringify(data, null, 2)}
+
+<strong>Response Analysis:</strong>
+- Status: ${response.status}
+- Duplicate Found: ${data.exists ? 'YES' : 'NO'}
+- Record ID: ${data.record?.id || 'N/A'}
+- File Number in DB: ${data.record?.file_number || 'N/A'}
+- File Title: ${data.record?.file_title || 'N/A'}
+                `;
+                
+                // Update test status
+                if (data.exists) {
+                    testStatusEl.innerHTML = `
+                        ✅ <strong>SUCCESS!</strong> Duplicate detection is working correctly.<br>
+                        Found existing record: ${data.record?.file_number} (ID: ${data.record?.id})<br>
+                        The form should now switch to "Update File Index" mode.
+                    `;
+                } else {
+                    testStatusEl.innerHTML = `
+                        ❌ <strong>FAILED!</strong> Duplicate not detected.<br>
+                        Expected to find: RES-1981-32<br>
+                        The variant generation may not be working correctly.
+                    `;
+                }
+
+            } catch (error) {
+                apiResultsEl.textContent = `Error: ${error.message}`;
+                testStatusEl.innerHTML = `❌ <strong>ERROR:</strong> ${error.message}`;
+            }
+        }
+
+        // Auto-run test on page load
+        setTimeout(() => {
+            testVariantGeneration();
+        }, 1000);
+    </script>
+</body>
+</html>

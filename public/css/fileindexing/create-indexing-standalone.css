@@ -1,0 +1,267 @@
+/* Standalone Create File Index page overrides */
+.create-indexing-page {
+    background-color: #f8fafc;
+    min-height: 100vh;
+    padding: 2.5rem 1rem 4rem;
+}
+
+.create-indexing-page .page-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.create-indexing-page .page-intro h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.create-indexing-page .page-intro p {
+    max-width: 48rem;
+    font-size: 0.95rem;
+    color: #475569;
+    line-height: 1.6;
+}
+
+.create-indexing-page .page-intro .page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.create-indexing-page .page-intro .page-actions a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    font-weight: 600;
+    padding: 0.65rem 1.5rem;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.create-indexing-page .page-intro .page-actions a:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(37, 99, 235, 0.18);
+}
+
+.create-indexing-page .form-shell {
+    background-color: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 24px 48px -20px rgba(15, 23, 42, 0.2);
+    padding: 0;
+    overflow: hidden;
+}
+
+/* Style the direct form content */
+.create-indexing-page .form-shell .bg-white {
+    border-radius: 1rem;
+    box-shadow: 0 24px 48px -20px rgba(15, 23, 42, 0.2);
+}
+
+/* Form Section Styling */
+.create-indexing-page .form-section {
+    background: linear-gradient(to bottom, #f9fafb 0%, #ffffff 100%);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
+}
+
+.create-indexing-page .form-section:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.create-indexing-page .form-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.create-indexing-page .form-section-title::before {
+    content: "";
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: #2563eb;
+}
+
+/* Grid Layout for Form Groups */
+.form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+.form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+}
+
+.form-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+
+/* Form Group Enhancements */
+.create-indexing-page .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.create-indexing-page .form-group label {
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.5rem;
+}
+
+.create-indexing-page .form-group input,
+.create-indexing-page .form-group select,
+.create-indexing-page .form-group textarea {
+    transition: all 0.2s ease;
+    border-radius: 0.5rem;
+}
+
+.create-indexing-page .form-group input:focus,
+.create-indexing-page .form-group select:focus,
+.create-indexing-page .form-group textarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Sticky Footer Styling */
+.form-actions-footer {
+    animation: slideUpFade 0.3s ease-out;
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.form-actions-footer button {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.form-actions-footer button:active {
+    transform: scale(0.98);
+}
+
+/* Enhanced Button Styling */
+.create-indexing-page #cancel-btn {
+    border: 1px solid #cbd5f5;
+    color: #1e3a8a;
+    background-color: #eef2ff;
+}
+
+.create-indexing-page #cancel-btn:hover {
+    background-color: #e0e7ff;
+}
+
+.create-indexing-page #create-file-btn {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    font-weight: 600;
+    box-shadow: 0 12px 24px -12px rgba(37, 99, 235, 0.5);
+}
+
+.create-indexing-page #create-file-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Banner Styling */
+.create-indexing-page .success-banner,
+.create-indexing-page .warning-banner {
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.create-indexing-page .success-banner {
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #15803d;
+}
+
+.create-indexing-page .warning-banner {
+    background-color: #fef3c7;
+    border: 1px solid #fcd34d;
+    color: #b45309;
+}
+
+/* Ensure Select2 dropdown inherits font */
+.create-indexing-page .select2-container .select2-selection--single {
+    height: 42px;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.create-indexing-page .select2-container .select2-selection__rendered {
+    padding-left: 0.5rem;
+}
+
+.create-indexing-page .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100%;
+}
+
+/* Responsive Grid Adjustments */
+@media (max-width: 1280px) {
+    .form-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    .create-indexing-page {
+        padding: 1.5rem 0.75rem 3rem;
+    }
+
+    .create-indexing-page .page-intro h1 {
+        font-size: 1.5rem;
+    }
+
+    .form-grid-2,
+    .form-grid-3,
+    .form-grid-4 {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .create-indexing-page .form-shell .bg-white {
+        padding: 1.5rem !important;
+    }
+
+    .form-actions-footer .max-w-6xl {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .form-actions-footer button {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+}

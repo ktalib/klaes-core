@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDMS Integration Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        .info { color: blue; }
+        table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>EDMS Integration Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>Problem Analysis</h2>
+        <p><strong>Issue:</strong> Documents are uploaded and file indexing is created, but no scanning records are inserted.</p>
+        
+        <h3>Evidence from Logs:</h3>
+        <ul>
+            <li>✅ Documents detected: building_plan, architectural_design, ownership_document</li>
+            <li>✅ File indexing created: ID 3264</li>
+            <li>❌ No "Processing documents for EDMS" logs</li>
+            <li>❌ No scanning records in database</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Recent Database State</h2>
+        
+        <?php
+        try {
+            $pdo = new PDO('sqlsrv:server=VMI2583396;Database=klas', 'klas', 'YourStrongPassword123!');
+            
+            echo "<h3>Recent Applications with Documents:</h3>";
+            $stmt = $pdo->query("
+                SELECT TOP 3 
+                    ma.id,
+                    ma.np_fileno,
+                    ma.owner_fullname,
+                    ma.documents,
+                    ma.created_at,
+                    fi.id as file_indexing_id,
+                    fi.file_number
+                FROM mother_applications ma
+                LEFT JOIN file_indexings fi ON ma.id = fi.main_application_id
+                WHERE ma.created_at >= '2025-10-12' AND ma.documents IS NOT NULL
+                ORDER BY ma.created_at DESC
+            ");
+            
+            echo "<table>";
+            echo "<tr><th>App ID</th><th>File No</th><th>Owner</th><th>File Indexing</th><th>Has Documents</th><th>Scanning Count</th></tr>";
+            
+            while ($row = $stmt->fetch()) {
+                $documents = $row['documents'] ? json_decode($row['documents'], true) : [];
+                $docCount = $documents ? count($documents) : 0;
+                
+                // Check scanning records
+                $scanStmt = $pdo->prepare("SELECT COUNT(*) as count FROM scannings WHERE file_indexing_id = ?");
+                $scanStmt->execute([$row['file_indexing_id']]);
+                $scanCount = $scanStmt->fetch()['count'] ?? 0;
+                
+                echo "<tr>";
+                echo "<td>{$row['id']}</td>";
+                echo "<td>{$row['np_fileno']}</td>";
+                echo "<td>{$row['owner_fullname']}</td>";
+                echo "<td>" . ($row['file_indexing_id'] ? "✅ {$row['file_indexing_id']}" : "❌ None") . "</td>";
+                echo "<td>" . ($docCount > 0 ? "✅ {$docCount} docs" : "❌ None") . "</td>";
+                echo "<td>" . ($scanCount > 0 ? "✅ {$scanCount}" : "❌ 0") . "</td>";
+                echo "</tr>";
+            }
+            echo "</table>";
+            
+        } catch (Exception $e) {
+            echo "<p class='error'>Database error: " . $e->getMessage() . "</p>";
+        }
+        ?>
+    </div>
+    
+    <div class="test-section">
+        <h2>Code Flow Analysis</h2>
+        
+        <h3>Expected Flow:</h3>
+        <ol>
+            <li><strong>Document Upload:</strong> Files uploaded via form → stored in 'documents' folder</li>
+            <li><strong>$edmsDocuments Population:</strong> Array built with document metadata</li>
+            <li><strong>File Indexing Creation:</strong> createFileIndexingRecord() called</li>
+            <li><strong>EDMS Processing:</strong> processDocumentsForEDMS() called</li>
+            <li><strong>Scanning Records:</strong> Documents inserted into scannings table</li>
+            <li><strong>File Organization:</strong> Files copied to EDMS/SCAN_UPLOAD structure</li>
+        </ol>
+        
+        <h3>Potential Issues:</h3>
+        <ul>
+            <li class="warning"><strong>$edmsDocuments empty:</strong> Array not populated correctly</li>
+            <li class="warning"><strong>$fileIndexing null:</strong> File indexing creation failed</li>
+            <li class="warning"><strong>Silent exception:</strong> Error in processDocumentsForEDMS method</li>
+            <li class="warning"><strong>Condition logic:</strong> if ($fileIndexing && !empty($edmsDocuments)) fails</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Debug Logs Added</h2>
+        <div class="info">
+            <p><strong>Added debug logging to PrimaryFormController:</strong></p>
+            <ul>
+                <li>Log EDMS processing conditions before the if statement</li>
+                <li>Log when EDMS processing starts</li>
+                <li>Log when EDMS processing completes</li>
+                <li>Log when EDMS processing is skipped (with reason)</li>
+            </ul>
+            
+            <p><strong>Next Steps:</strong></p>
+            <ol>
+                <li>Submit a new application with documents</li>
+                <li>Check Laravel logs for the new debug messages</li>
+                <li>Identify exactly where the flow breaks</li>
+                <li>Fix the issue based on debug output</li>
+            </ol>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Form</h2>
+        <p>Use the primary application form to test the EDMS integration:</p>
+        <a href="/primaryform" target="_blank" style="background: #007cba; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Open Primary Form</a>
+        
+        <p style="margin-top: 20px;"><strong>Testing Instructions:</strong></p>
+        <ol>
+            <li>Fill out the primary application form</li>
+            <li>Upload at least one document (building plan, architectural design, etc.)</li>
+            <li>Submit the form</li>
+            <li>Check the Laravel logs for new debug messages</li>
+            <li>Verify if scanning records are created</li>
+        </ol>
+    </div>
+</body>
+</html>

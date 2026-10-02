@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Selection Test</title>
+</head>
+<body>
+    <h2>Test File Selection for Blind Scanning</h2>
+    
+    <div>
+        <label for="folderInput">Select Folder:</label>
+        <input type="file" id="folderInput" webkitdirectory multiple>
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <button id="testBtn" disabled>Test Selected Files</button>
+    </div>
+    
+    <div id="status" style="margin-top: 20px; padding: 10px; background: #f0f0f0;"></div>
+    
+    <div id="results" style="margin-top: 20px;"></div>
+
+    <script>
+        let selectedFiles = [];
+        const folderEl = document.getElementById('folderInput');
+        const testBtn = document.getElementById('testBtn');
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+
+        folderEl.addEventListener('change', () => {
+            selectedFiles = Array.from(folderEl.files || []);
+            console.log('Files selected:', selectedFiles.length);
+            
+            if (selectedFiles.length > 0) {
+                testBtn.disabled = false;
+                statusEl.innerHTML = `${selectedFiles.length} files selected`;
+                
+                // Show first few files
+                let fileList = '<h3>Selected Files:</h3><ul>';
+                selectedFiles.slice(0, 10).forEach(file => {
+                    fileList += `<li>${file.webkitRelativePath || file.name} (${file.size} bytes)</li>`;
+                });
+                if (selectedFiles.length > 10) {
+                    fileList += `<li>... and ${selectedFiles.length - 10} more files</li>`;
+                }
+                fileList += '</ul>';
+                resultsEl.innerHTML = fileList;
+            } else {
+                testBtn.disabled = true;
+                statusEl.innerHTML = 'No files selected';
+                resultsEl.innerHTML = '';
+            }
+        });
+
+        testBtn.addEventListener('click', () => {
+            console.log('Testing file upload preparation...');
+            
+            const form = new FormData();
+            form.append('_token', 'test-token');
+            form.append('folderName', 'test-folder');
+            form.append('uploadMethod', 'direct');
+
+            let fileCount = 0;
+            for (const file of selectedFiles) {
+                const relativePath = file.webkitRelativePath || file.name;
+                form.append(`files[${fileCount}]`, file);
+                form.append(`paths[${fileCount}]`, relativePath);
+                fileCount++;
+                console.log(`Added file ${fileCount}: ${relativePath} (${file.size} bytes)`);
+            }
+
+            console.log('FormData prepared with', fileCount, 'files');
+            
+            // Check what's in FormData
+            let formDataContent = '<h3>FormData Contents:</h3><ul>';
+            for (let [key, value] of form.entries()) {
+                if (value instanceof File) {
+                    formDataContent += `<li><strong>${key}:</strong> File "${value.name}" (${value.size} bytes)</li>`;
+                } else {
+                    formDataContent += `<li><strong>${key}:</strong> ${value}</li>`;
+                }
+            }
+            formDataContent += '</ul>';
+            
+            resultsEl.innerHTML += formDataContent;
+            
+            statusEl.innerHTML = `FormData prepared with ${fileCount} files. Check console for details.`;
+        });
+    </script>
+</body>
+</html>

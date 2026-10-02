@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buyer Selection Refactor - Testing Guide</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #4b5563;
+            margin-top: 30px;
+            border-left: 4px solid #10b981;
+            padding-left: 15px;
+        }
+        .checklist {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+        }
+        .checklist-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+        }
+        .test-scenario {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .test-scenario h3 {
+            margin-top: 0;
+            color: #1e40af;
+        }
+        .expected {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .steps {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 8px 0;
+        }
+        .warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #dcfce7;
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .error {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .badge-primary { background: #dbeafe; color: #1e40af; }
+        .badge-success { background: #dcfce7; color: #166534; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-danger { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Buyer Selection Refactor - Testing Guide</h1>
+        
+        <div class="success">
+            <strong>✅ Implementation Complete!</strong><br>
+            This guide will help you systematically test the buyer selection refactor changes.
+        </div>
+
+        <h2>📋 Pre-Testing Setup</h2>
+        
+        <div class="checklist">
+            <h3>Database Setup</h3>
+            <div class="checklist-item">
+                <input type="checkbox" id="check1">
+                <label for="check1">Run migration: <code>php artisan migrate --database=sqlsrv</code></label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="check2">
+                <label for="check2">Verify <code>buyer_list_id</code> column exists in <code>st_file_numbers</code> table</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="check3">
+                <label for="check3">Verify test data: At least 1 PRIMARY file number with USED/ACTIVE status</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="check4">
+                <label for="check4">Verify test data: At least 2-3 buyers in <code>buyer_list</code> table</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="check5">
+                <label for="check5">Clear caches: <code>php artisan config:clear && php artisan cache:clear</code></label>
+            </div>
+        </div>
+
+        <h2>🔍 Test Scenarios</h2>
+
+        <!-- Test 1 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-primary">Test 1</span> PuA Commission - Buyer Card Visibility</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>Navigate to <code>/commission-new-st</code></li>
+                    <li>Click the <strong>PuA</strong> tab</li>
+                    <li>Observe the page state (buyer card should be hidden)</li>
+                    <li>Select a PRIMARY file number from the dropdown</li>
+                    <li>Wait for parent details to load</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>Buyer selection card appears after parent selection</li>
+                    <li>Card shows "Select Existing Buyer" heading</li>
+                    <li>Dropdown is populated with buyers (or shows "No buyers available")</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Test 2 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-primary">Test 2</span> Buyer Dropdown Population</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>With parent file number selected (from Test 1)</li>
+                    <li>Click on the buyer dropdown</li>
+                    <li>Review the options</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>First option: "-- No buyer selected (Manual entry) --"</li>
+                    <li>Buyer options show: Name (Unit: XXX)</li>
+                    <li>Only buyers NOT already linked to PuA file numbers appear</li>
+                </ul>
+            </div>
+            
+            <div class="warning">
+                <strong>⚠️ Debug:</strong> Open browser console and check for API response from 
+                <code>/api/st-file-numbers/buyers/{parentFileNumber}</code>
+            </div>
+        </div>
+
+        <!-- Test 3 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-primary">Test 3</span> Buyer Selection Auto-Fill</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>Select a buyer from the dropdown</li>
+                    <li>Observe the buyer preview card</li>
+                    <li>Scroll down to applicant information section</li>
+                    <li>Check title, first name, and surname fields</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>Buyer preview card becomes visible</li>
+                    <li>Shows buyer name, unit no, land use, unit size</li>
+                    <li>Applicant fields are auto-filled with buyer data</li>
+                    <li>Title dropdown matches buyer's title</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Test 4 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-primary">Test 4</span> Commission PuA WITH Buyer</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>With buyer selected (from Test 3)</li>
+                    <li>Click "Generate PuA File Number" button</li>
+                    <li>Wait for success message</li>
+                    <li>Check browser network tab for request payload</li>
+                    <li>Query database: <code>SELECT TOP 1 * FROM st_file_numbers WHERE file_no_type = 'PUA' ORDER BY id DESC</code></li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>Success message appears with file number</li>
+                    <li>Request payload includes <code>buyer_list_id</code></li>
+                    <li>Database record has <code>buyer_list_id</code> populated (not null)</li>
+                    <li>File number format: <code>ST-XXX-YYYY-N-001</code></li>
+                </ul>
+            </div>
+            
+            <div class="warning">
+                <strong>⚠️ Important:</strong> Note the generated file number and buyer_list_id for later tests.
+            </div>
+        </div>
+
+        <!-- Test 5 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-primary">Test 5</span> Commission PuA WITHOUT Buyer (Manual Entry)</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>Refresh the page or reset form</li>
+                    <li>Select a different PRIMARY file number</li>
+                    <li>Leave buyer dropdown at "-- No buyer selected --"</li>
+                    <li>Manually fill in applicant information</li>
+                    <li>Click "Generate PuA File Number"</li>
+                    <li>Check database record</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>Commission succeeds without errors</li>
+                    <li>Database record has <code>buyer_list_id = NULL</code></li>
+                    <li>Applicant data saved from manual entry</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Test 6 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-primary">Test 6</span> Buyer Exclusion Logic</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>Commission a PuA with buyer_list_id = X (from Test 4)</li>
+                    <li>Refresh page</li>
+                    <li>Select the SAME parent file number again</li>
+                    <li>Open buyer dropdown</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>The buyer used in Test 4 should NOT appear in dropdown</li>
+                    <li>Only unused buyers appear</li>
+                    <li>If all buyers used, shows "No buyers available"</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Test 7 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-warning">Test 7</span> Sub-Application Form - Buyer Card Removed</h3>
+            
+            <div class="steps">
+                <strong>Steps:</strong>
+                <ol>
+                    <li>Navigate to any sub-application form</li>
+                    <li>Scroll through Step 1 form fields</li>
+                    <li>Look for "Select Existing Buyer" card</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Result:</strong>
+                <ul>
+                    <li>"Select Existing Buyer" card is GONE</li>
+                    <li>No JavaScript errors in console</li>
+                    <li>Form loads and displays normally</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Test 8 -->
+        <div class="test-scenario">
+            <h3><span class="badge badge-warning">Test 8</span> API Endpoint Testing</h3>
+            
+            <div class="steps">
+                <strong>Direct API Test:</strong>
+                <ol>
+                    <li>Open Postman or browser</li>
+                    <li>GET: <code>/api/st-file-numbers/buyers/ST-COM-2025-1</code> (use actual file number)</li>
+                    <li>Review response</li>
+                </ol>
+            </div>
+            
+            <div class="expected">
+                <strong>✅ Expected Response:</strong>
+                <pre>{
+  "success": true,
+  "data": [
+    {
+      "buyer_id": 42,
+      "buyer_title": "Mr.",
+      "buyer_name": "Musa Ali",
+      "unit_no": "A-101",
+      "land_use": "COMMERCIAL",
+      "measurement": "50 sqm"
+    }
+  ],
+  "parent_file_number": "ST-COM-2025-1",
+  "message": "Found 1 available buyer(s)"
+}</pre>
+            </div>
+        </div>
+
+        <h2>🐛 Troubleshooting</h2>
+
+        <div class="error">
+            <h3>❌ Buyer Card Doesn't Appear</h3>
+            <strong>Possible Causes:</strong>
+            <ul>
+                <li>Parent file number not selected</li>
+                <li>JavaScript error preventing execution</li>
+                <li>API endpoint not returning data</li>
+            </ul>
+            <strong>Debug Steps:</strong>
+            <ol>
+                <li>Open browser console (F12)</li>
+                <li>Check for JavaScript errors</li>
+                <li>Look for network request to <code>/api/st-file-numbers/buyers/{parent}</code></li>
+                <li>Verify API response is successful</li>
+            </ol>
+        </div>
+
+        <div class="error">
+            <h3>❌ buyer_list_id Not Saving</h3>
+            <strong>Possible Causes:</strong>
+            <ul>
+                <li>Migration not run</li>
+                <li>Column doesn't exist in database</li>
+                <li>Validation error</li>
+            </ul>
+            <strong>Debug Steps:</strong>
+            <ol>
+                <li>Run: <code>SELECT TOP 1 buyer_list_id FROM st_file_numbers</code></li>
+                <li>Check Laravel logs: <code>storage/logs/laravel.log</code></li>
+                <li>Review network request payload in browser DevTools</li>
+            </ol>
+        </div>
+
+        <div class="error">
+            <h3>❌ Page Won't Load After Changes</h3>
+            <strong>Immediate Actions:</strong>
+            <ol>
+                <li>Clear caches: <code>php artisan config:clear && php artisan cache:clear && php artisan view:clear</code></li>
+                <li>Check Blade syntax errors in modified files</li>
+                <li>Review Apache/Nginx error logs</li>
+                <li>Check file permissions</li>
+            </ol>
+        </div>
+
+        <h2>✅ Final Verification Checklist</h2>
+
+        <div class="checklist">
+            <h3>All Tests Passed?</h3>
+            <div class="checklist-item">
+                <input type="checkbox" id="final1">
+                <label for="final1">Buyer card appears/disappears correctly</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final2">
+                <label for="final2">Buyer dropdown populates with correct data</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final3">
+                <label for="final3">Buyer selection auto-fills applicant fields</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final4">
+                <label for="final4">PuA commission WITH buyer saves buyer_list_id</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final5">
+                <label for="final5">PuA commission WITHOUT buyer works (manual entry)</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final6">
+                <label for="final6">Used buyers excluded from dropdown</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final7">
+                <label for="final7">"Select Existing Buyer" card removed from sub-application</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final8">
+                <label for="final8">No JavaScript errors in console</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final9">
+                <label for="final9">API endpoint returns expected data</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="final10">
+                <label for="final10">Database records look correct</label>
+            </div>
+        </div>
+
+        <div class="success">
+            <h3>🎉 Success!</h3>
+            <p>If all checks pass, the buyer selection refactor is working correctly!</p>
+            <p><strong>Next Steps:</strong></p>
+            <ul>
+                <li>Document any issues found</li>
+                <li>Proceed with sub-application auto-fill enhancement (optional)</li>
+                <li>Deploy to production environment</li>
+            </ul>
+        </div>
+
+        <h2>📝 Test Results Log</h2>
+        
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 15px; border-radius: 6px;">
+            <p><strong>Tester:</strong> ___________________________</p>
+            <p><strong>Date:</strong> ___________________________</p>
+            <p><strong>Environment:</strong> ___________________________</p>
+            <p><strong>Overall Result:</strong> ⬜ PASS &nbsp;&nbsp; ⬜ FAIL &nbsp;&nbsp; ⬜ PARTIAL</p>
+            <p><strong>Notes:</strong></p>
+            <textarea style="width: 100%; height: 100px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Enter any observations, issues, or notes here..."></textarea>
+        </div>
+
+    </div>
+
+    <script>
+        // Save checkbox states to localStorage
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                localStorage.setItem(this.id, this.checked);
+            });
+            
+            // Load saved state
+            const saved = localStorage.getItem(checkbox.id);
+            if (saved === 'true') {
+                checkbox.checked = true;
+            }
+        });
+    </script>
+</body>
+</html>

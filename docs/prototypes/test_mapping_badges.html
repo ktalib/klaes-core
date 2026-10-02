@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Mapping Badge Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .pill { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .pill-success { background-color: #d4edda; color: #155724; }
+        .pill-warning { background-color: #fff3cd; color: #856404; }
+        #loading { padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Live Mapping Badge Test</h1>
+    <p>This test uses the exact same logic as the dashboard to show mapping badges.</p>
+    
+    <div id="loading">Loading data...</div>
+    <div id="results" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Awaiting File No</th>
+                    <th>MLS File No</th>
+                    <th>Raw Mapping</th>
+                    <th>Mapping Badge</th>
+                    <th>Debug Info</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function testMappingBadges() {
+            try {
+                const response = await fetch('/api/grouping-analytics/preview?limit=20');
+                const data = await response.json();
+                
+                console.log('API Response:', data);
+                
+                const loading = document.getElementById('loading');
+                const results = document.getElementById('results');
+                const tbody = document.getElementById('table-body');
+                
+                if (!data.success || !data.data) {
+                    loading.innerHTML = '<p style="color: red;">Failed to fetch data or no data available</p>';
+                    return;
+                }
+                
+                // Use the exact same logic as dashboard.js
+                const html = data.data.map((row) => {
+                    const mappingRaw = row.mapping ?? row.is_matched ?? row.matched ?? row.matching ?? 0;
+                    const mappingNumber = Number(mappingRaw);
+                    const mappingText = String(mappingRaw).trim().toLowerCase();
+                    const isMatched = (Number.isFinite(mappingNumber) && mappingNumber >= 1)
+                        || ['true', 'yes', 'matched', 'match', 'y'].includes(mappingText);
+                    
+                    const debugInfo = `Raw: "${mappingRaw}" (${typeof mappingRaw}), Num: ${mappingNumber}, Text: "${mappingText}", Matched: ${isMatched}`;
+                    
+                    return `
+                        <tr>
+                            <td>${row.awaiting_fileno || '—'}</td>
+                            <td>${row.mls_fileno || '—'}</td>
+                            <td>${mappingRaw}</td>
+                            <td>
+                                <span class="pill ${isMatched ? 'pill-success' : 'pill-warning'}">
+                                    ${isMatched ? 'Matched' : 'Pending'}
+                                </span>
+                            </td>
+                            <td style="font-size: 11px; color: #666;">${debugInfo}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                tbody.innerHTML = html;
+                loading.style.display = 'none';
+                results.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test when page loads
+        testMappingBadges();
+        
+        // Add refresh button
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.createElement('button');
+            refreshBtn.textContent = 'Refresh Data';
+            refreshBtn.style.cssText = 'margin: 10px 0; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;';
+            refreshBtn.onclick = function() {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('results').style.display = 'none';
+                testMappingBadges();
+            };
+            document.body.insertBefore(refreshBtn, document.getElementById('loading'));
+        });
+    </script>
+</body>
+</html>

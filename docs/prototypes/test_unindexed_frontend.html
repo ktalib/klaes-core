@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Unindexed Files Frontend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Test Unindexed Files Frontend Integration</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Statistics</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-blue-50 p-4 rounded">
+                    <div class="text-sm text-blue-600">Today's Uploads</div>
+                    <div class="text-2xl font-bold text-blue-800" id="todaysUploads">Loading...</div>
+                </div>
+                <div class="bg-green-50 p-4 rounded">
+                    <div class="text-sm text-green-600">Pending Indexing</div>
+                    <div class="text-2xl font-bold text-green-800" id="pendingIndexing">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Uploaded Files</h2>
+            <div id="uploaded-files-list">Loading...</div>
+        </div>
+
+        <div class="mt-6">
+            <button id="loadBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Load Files from API
+            </button>
+            <button id="testStatsBtn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ml-2">
+                Test Statistics
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let uploadedFiles = [];
+        let filteredFiles = [];
+
+        // Test functions from the main application
+        function updateStats() {
+            fetch('/scanning/unindexed-files')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const todaysEl = document.getElementById('todaysUploads');
+                        const pendingEl = document.getElementById('pendingIndexing');
+
+                        if (todaysEl) todaysEl.textContent = data.count;
+                        if (pendingEl) pendingEl.textContent = 0; // Always 0 since we upload and index simultaneously
+                        
+                        console.log('✅ Statistics updated:', data);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error fetching statistics:', error);
+                });
+        }
+
+        function loadUploadedFiles() {
+            fetch('/scanning/unindexed-files')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        uploadedFiles = data.files;
+                        filteredFiles = uploadedFiles;
+                        updateUploadedFilesDisplay();
+                        updateStats();
+                        
+                        console.log('✅ Files loaded:', data);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading uploaded files:', error);
+                });
+        }
+
+        function updateUploadedFilesDisplay() {
+            const container = document.getElementById('uploaded-files-list');
+            if (!container) return;
+
+            const filesToDisplay = filteredFiles.length > 0 ? filteredFiles : uploadedFiles;
+
+            if (filesToDisplay.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center">
+                        <div class="text-gray-500">No uploaded files found</div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File Number</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${filesToDisplay.map(file => `
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900">${file.name}</div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                ${file.file_number || 'Pending'}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${file.type.includes('pdf') ? 'bg-red-100 text-red-800' : file.type.includes('image') ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">
+                                                ${file.type.includes('pdf') ? 'PDF' : file.type.includes('image') ? 'Image' : 'Other'}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            ${file.size}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                                ${file.status}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            ${file.date}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+        }
+
+        // Event listeners
+        document.getElementById('loadBtn').addEventListener('click', loadUploadedFiles);
+        document.getElementById('testStatsBtn').addEventListener('click', updateStats);
+
+        // Auto-load on page ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Test page loaded, attempting to load files...');
+            loadUploadedFiles();
+        });
+    </script>
+</body>
+</html>

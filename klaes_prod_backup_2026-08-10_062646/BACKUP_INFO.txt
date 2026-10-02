@@ -1,0 +1,4 @@
+﻿Source (production): C:\xampp\htdocs\klas
+Taken:               2026-08-10_062646
+Backed up:           45 file(s)
+Not on production:   15 file(s) - see _NOT_ON_PRODUCTION.txt

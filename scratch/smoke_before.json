@@ -1,0 +1,57 @@
+{
+    "RES-1981-1": [
+        "RES-1981-1|26640|Certificate of Occupancy",
+        "RES-1981-1|26640|Right of Occupancy",
+        "]IND-RC-1982-196|2|DEED OF ASSIGNMENT"
+    ],
+    "RES-1981-2": [
+        "10587|3|Deed of Assignment",
+        "RES-1981-2|27214|Right of Occupancy"
+    ],
+    "RES-1981-3": [
+        "10638|4|Mortgage",
+        "RES-1981-3|27315|Certificate of Occupancy",
+        "RES-1981-3|27315|Deed of Mortgage",
+        "RES-1981-3|27315|Right of Occupancy"
+    ],
+    "RES-1981-4": [
+        "11620|5|Tripartite Mortgage",
+        "RES-1981-4|27411|Certificate of Occupancy",
+        "RES-1981-4|27411|Right of Occupancy"
+    ],
+    "RES-1981-5": [
+        "12744|6|Deed of Mortgage",
+        "RES-1981-5|27501|Certificate of Occupancy",
+        "RES-1981-5|27501|Right of Occupancy"
+    ],
+    "RES-2026-1558": [
+        "RES-2026-1558|64136|Occupancy Permit (OP) - ",
+        "RES-2026-1558|64136|Right of Occupancy (OSS)"
+    ],
+    "RES-2026-1559": [
+        "RES-2026-1559|64137|Occupancy Permit (OP) - "
+    ],
+    "RES-2026-1566": [
+        "RES-2026-1566|64138|Occupancy Permit (OP) - "
+    ],
+    "KNML 8080": [
+        "KN 4938|-|File Commissioning",
+        "RES-RC-2004-6|147247|-"
+    ],
+    "MLKN 3235": [
+        "COM-RC-1982-420|147248|-"
+    ],
+    "IND-2026-1010": [
+        "IND-2026-1010|147244|Building Lease",
+        "IND-2026-1010|147244|Certificate of Occupancy"
+    ],
+    "CON-RES-2026-2577": [
+        "ST-RES-2026-11|-|ST File Commissioning",
+        "ST-RES-2026-11|147235|Mother File"
+    ],
+    "CON-COM-1981-100005": [],
+    "CON-COM-2026-484": [
+        "ST-CON-COM-2026-16|-|ST File Commissioning",
+        "ST-CON-COM-2026-16|147202|Mother File"
+    ]
+}

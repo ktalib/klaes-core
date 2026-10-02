@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Commissioning Sheet</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <h1>Test Commissioning Sheet PDF Generation</h1>
+    <button onclick="generateTestPDF()">Generate Test PDF</button>
+    
+    <script>
+        function generateTestPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Test data
+            const testData = {
+                file_number: 'MLS/2025/TEST001',
+                file_name: 'Test Document',
+                name_or_allottee: 'Test User',
+                plot_number: 'Plot 123',
+                tp_number: 'TP456',
+                location: 'Test Location, Lagos',
+                date_created: new Date().toLocaleDateString(),
+                created_by: 'Test Administrator'
+            };
+            
+            // Set font
+            doc.setFont("helvetica", "normal");
+            
+            // Header
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text("MINISTRY OF LAND & PHYSICAL PLANNING", 105, 20, { align: "center" });
+            
+            doc.setFontSize(14);
+            doc.text("DEPT. OF LANDS", 105, 30, { align: "center" });
+            
+            doc.setFontSize(12);
+            doc.text("FILE COMMISSIONING SHEET", 105, 45, { align: "center" });
+            
+            // Draw logo placeholder
+            doc.rect(20, 15, 25, 25);
+            doc.setFontSize(8);
+            doc.text("Logo", 32.5, 27.5, { align: "center" });
+            
+            // Draw line under header
+            doc.line(20, 55, 190, 55);
+            
+            // Form fields
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            
+            let yPos = 75;
+            const leftMargin = 25;
+            const fieldHeight = 15;
+            
+            // File Number
+            doc.setFont("helvetica", "bold");
+            doc.text("File No:", leftMargin, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.file_number, leftMargin + 25, yPos);
+            doc.line(leftMargin + 24, yPos + 2, 185, yPos + 2);
+            yPos += fieldHeight;
+            
+            // File Name
+            doc.setFont("helvetica", "bold");
+            doc.text("File Name:", leftMargin, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.file_name, leftMargin + 30, yPos);
+            doc.line(leftMargin + 29, yPos + 2, 185, yPos + 2);
+            yPos += fieldHeight;
+            
+            // Name or Allottee
+            doc.setFont("helvetica", "bold");
+            doc.text("Name or Allottee:", leftMargin, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.name_or_allottee, leftMargin + 40, yPos);
+            doc.line(leftMargin + 39, yPos + 2, 185, yPos + 2);
+            yPos += fieldHeight;
+            
+            // Plot Number
+            doc.setFont("helvetica", "bold");
+            doc.text("Plot No:", leftMargin, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.plot_number, leftMargin + 25, yPos);
+            doc.line(leftMargin + 24, yPos + 2, 100, yPos + 2);
+            
+            // TP Number (same line)
+            doc.setFont("helvetica", "bold");
+            doc.text("TP No:", 110, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.tp_number, 125, yPos);
+            doc.line(124, yPos + 2, 185, yPos + 2);
+            yPos += fieldHeight;
+            
+            // Location
+            doc.setFont("helvetica", "bold");
+            doc.text("Location:", leftMargin, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.location, leftMargin + 25, yPos);
+            doc.line(leftMargin + 24, yPos + 2, 185, yPos + 2);
+            yPos += fieldHeight;
+            
+            // Date Created
+            doc.setFont("helvetica", "bold");
+            doc.text("Date Created:", leftMargin, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.date_created, leftMargin + 35, yPos);
+            doc.line(leftMargin + 34, yPos + 2, 100, yPos + 2);
+            
+            // Created By (same line)
+            doc.setFont("helvetica", "bold");
+            doc.text("Created by:", 110, yPos);
+            doc.setFont("helvetica", "normal");
+            doc.text(testData.created_by, 130, yPos);
+            doc.line(129, yPos + 2, 185, yPos + 2);
+            yPos += 40;
+            
+            // Signature boxes
+            doc.setFont("helvetica", "bold");
+            doc.text("Created by Signature", 50, yPos, { align: "center" });
+            doc.text("Approved by Signature", 150, yPos, { align: "center" });
+            
+            // Signature lines
+            doc.line(25, yPos + 25, 75, yPos + 25);
+            doc.line(125, yPos + 25, 175, yPos + 25);
+            
+            // Footer
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} | File Commissioning Sheet System`, 105, 280, { align: "center" });
+            
+            // Download PDF
+            doc.save('test-commissioning-sheet.pdf');
+            
+            alert('Test PDF generated successfully!');
+        }
+    </script>
+</body>
+</html>

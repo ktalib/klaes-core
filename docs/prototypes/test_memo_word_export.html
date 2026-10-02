@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Memo Word Export</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007cba;
+        }
+        
+        .test-url {
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
+        .status-good {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .status-pending {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .implementation-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>📄 Memo Word Export - Testing Guide</h1>
+    
+    <div class="implementation-note">
+        <h3>🚀 Implementation Complete</h3>
+        <p><strong>Status:</strong> <span class="status-good">✅ READY FOR TESTING</span></p>
+        <p>Word export functionality has been added to the memo system with full data integration.</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 What Was Implemented</h2>
+        <ul>
+            <li>✅ Installed PHPWord package via Composer</li>
+            <li>✅ Created <code>exportMemoToWordNew()</code> method in MemoController</li>
+            <li>✅ Added route <code>/export_memo_word_new/{id}</code></li>
+            <li>✅ Added "Download as Word" button to memo template</li>
+            <li>✅ Full data integration (buyers list, utilities, measurements, etc.)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Testing Steps</h2>
+        
+        <h3>Step 1: Navigate to Memo View</h3>
+        <p>Go to any memo page using the existing route:</p>
+        <div class="test-url">
+            http://your-domain/programmes/view_memo_new/{application_id}
+        </div>
+        <p>Replace <code>{application_id}</code> with an actual application ID from your database.</p>
+        
+        <h3>Step 2: Verify UI Changes</h3>
+        <ul>
+            <li>✅ Should see both "Print Document" and "Download as Word" buttons</li>
+            <li>✅ Buttons should be side-by-side with proper styling</li>
+            <li>✅ Green download button with download icon</li>
+        </ul>
+        
+        <h3>Step 3: Test Word Export</h3>
+        <ul>
+            <li>Click the "Download as Word" button</li>
+            <li>Should trigger file download of .docx file</li>
+            <li>Filename format: <code>Memo_[FileNumber]_[DateTime].docx</code></li>
+        </ul>
+        
+        <h3>Step 4: Verify Word Document Content</h3>
+        <p>Open the downloaded Word document and verify it contains:</p>
+        <ul>
+            <li>✅ Memo header with title "SECTIONAL TITLING MEMO"</li>
+            <li>✅ All memo fields (Memo No, Page No, Site Plan No, etc.)</li>
+            <li>✅ Primary file number or "Old Statutory File No" logic</li>
+            <li>✅ Certificate and property details</li>
+            <li>✅ Applicant information</li>
+            <li>✅ Buyers list table (if buyers exist)</li>
+            <li>✅ Shared utilities (if any)</li>
+            <li>✅ Site measurements (if any)</li>
+            <li>✅ Planner recommendation (if any)</li>
+            <li>✅ Director signature section</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔗 Direct Export URL</h2>
+        <p>You can also test the export directly:</p>
+        <div class="test-url">
+            http://your-domain/programmes/export_memo_word_new/{application_id}
+        </div>
+        <p>This should trigger an immediate download of the Word document.</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Key Features</h2>
+        <ul>
+            <li><strong>Data Consistency:</strong> Uses same data logic as view template</li>
+            <li><strong>Professional Formatting:</strong> Proper Word document structure</li>
+            <li><strong>Dynamic Tables:</strong> Buyers list rendered as proper Word table</li>
+            <li><strong>Conditional Content:</strong> Shows/hides sections based on available data</li>
+            <li><strong>File Naming:</strong> Smart filename generation with sanitization</li>
+            <li><strong>Error Handling:</strong> Comprehensive error catching and logging</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🛠️ Technical Details</h2>
+        <ul>
+            <li><strong>Package:</strong> phpoffice/phpword v1.4.0</li>
+            <li><strong>Controller Method:</strong> MemoController@exportMemoToWordNew</li>
+            <li><strong>Route:</strong> programmes.export_memo_word_new</li>
+            <li><strong>Template Integration:</strong> Added to memo_template_new.blade.php</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>⚠️ Troubleshooting</h2>
+        
+        <h3>If Download Doesn't Start:</h3>
+        <ul>
+            <li>Check browser console for JavaScript errors</li>
+            <li>Verify the application ID exists in database</li>
+            <li>Check Laravel logs for PHP errors</li>
+        </ul>
+        
+        <h3>If Document is Empty/Malformed:</h3>
+        <ul>
+            <li>Ensure PHPWord package is properly installed</li>
+            <li>Check that temp directory is writable</li>
+            <li>Verify database connections are working</li>
+            <li>Confirm source data no longer contains raw control characters; sanitization now strips them, so any remaining issue likely indicates unsanitised custom fields</li>
+        </ul>
+        
+        <h3>Common Error Messages:</h3>
+        <ul>
+            <li><strong>"Application not found":</strong> Invalid application ID</li>
+            <li><strong>"Error occurred while exporting":</strong> Check Laravel logs for details</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Scenarios</h2>
+        
+        <h3>Scenario 1: Complete Data</h3>
+        <p>Test with application that has:</p>
+        <ul>
+            <li>✅ Saved memo data</li>
+            <li>✅ Multiple buyers</li>
+            <li>✅ Shared utilities</li>
+            <li>✅ Site measurements</li>
+            <li>✅ CoFO record</li>
+        </ul>
+        
+        <h3>Scenario 2: Minimal Data</h3>
+        <p>Test with application that has:</p>
+        <ul>
+            <li>✅ No saved memo (uses defaults)</li>
+            <li>✅ No buyers list</li>
+            <li>✅ No additional data</li>
+        </ul>
+        
+        <h3>Scenario 3: Edge Cases</h3>
+        <ul>
+            <li>✅ Very long file numbers</li>
+            <li>✅ Special characters in names</li>
+            <li>✅ Missing optional fields</li>
+        </ul>
+    </div>
+
+    <div class="implementation-note">
+        <h3>🎉 Ready for Production</h3>
+        <p>The Word export feature is fully implemented and ready for user testing. The exported documents can be opened and edited in Microsoft Word, allowing users to make additional modifications as needed.</p>
+    </div>
+
+    <script>
+        // Add some interactive elements for testing
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Memo Word Export Test Page Loaded');
+            
+            // Log current timestamp for testing
+            console.log('Test initiated at:', new Date().toISOString());
+        });
+    </script>
+</body>
+</html>

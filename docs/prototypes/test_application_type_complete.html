@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Type Testing - Complete Verification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .test-section {
+            border-left: 4px solid #10b981;
+            background: #f0fdf4;
+        }
+        .test-failed {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .test-warning {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Application Type Feature - Testing Guide</h1>
+            <p class="text-gray-600">Complete verification checklist for PRIMARY, SuA, and PuA tabs</p>
+            <div class="mt-4 flex gap-4">
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">✅ PRIMARY Fixed</span>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">✅ SuA Fixed</span>
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">✅ PuA Verified</span>
+            </div>
+        </div>
+
+        <!-- Quick Test Buttons -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Quick Test Navigation</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <a href="/commission-new-st?tab=primary" target="_blank" 
+                   class="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-center font-semibold transition">
+                    Test PRIMARY Tab →
+                </a>
+                <a href="/commission-new-st?tab=sua" target="_blank"
+                   class="px-6 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-center font-semibold transition">
+                    Test SuA Tab →
+                </a>
+                <a href="/commission-new-st?tab=pua" target="_blank"
+                   class="px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg text-center font-semibold transition">
+                    Test PuA Tab →
+                </a>
+            </div>
+        </div>
+
+        <!-- Test 1: PRIMARY Tab -->
+        <div class="test-section rounded-lg shadow-lg p-6 mb-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Test 1: PRIMARY Tab</h2>
+                    <p class="text-gray-600 mt-1">File Number Generation with Application Type</p>
+                </div>
+                <span class="px-4 py-2 bg-green-600 text-white rounded-full text-sm font-semibold">FIXED ✓</span>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-900 mb-3">📋 Step-by-Step Checklist</h3>
+                    <ol class="space-y-2 text-gray-700">
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="p1">
+                            <label for="p1">Navigate to <code class="bg-gray-100 px-2 py-1 rounded">/commission-new-st</code> → PRIMARY tab</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="p2">
+                            <label for="p2">Select <strong>Land Use</strong> (Commercial, Residential, Industrial, or Mixed)</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="p3">
+                            <label for="p3">Select <strong>Application Type</strong>: Direct Allocation or Conversion</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="p4">
+                            <label for="p4">Select <strong>Applicant Type</strong> (Individual/Corporate/Multiple)</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="p5">
+                            <label for="p5">Fill in <strong>Applicant Details</strong> (name, ID, etc.)</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="p6">
+                            <label for="p6">Click <strong>"Generate ST FileNo"</strong> button</label>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h3 class="font-semibold text-blue-900 mb-2">✅ Expected Results</h3>
+                    <ul class="space-y-1 text-blue-800 text-sm">
+                        <li>✓ Success message: "ST file number commissioned successfully!"</li>
+                        <li>✓ File number displayed (e.g., ST-COM-2025-1)</li>
+                        <li>✓ No "Validation failed" error</li>
+                        <li>✓ Browser console shows: <code class="bg-blue-100 px-2 py-0.5 rounded">Application Type: Direct Allocation</code></li>
+                    </ul>
+                </div>
+
+                <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+                    <h3 class="font-semibold text-red-900 mb-2">❌ If Application Type NOT Selected</h3>
+                    <p class="text-red-800 text-sm">Alert: "Please select an application type (Direct Allocation or Conversion)..."</p>
+                </div>
+
+                <details class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">🔍 Verify Database (Click to expand SQL)</summary>
+                    <div class="code-block mt-3 text-xs">
+SELECT TOP 5 
+    np_fileno, 
+    fileno,
+    file_no_type, 
+    application_type, 
+    applicant_type,
+    land_use,
+    status,
+    created_at
+FROM st_file_numbers
+WHERE file_no_type = 'PRIMARY'
+ORDER BY created_at DESC;
+
+-- Expected: application_type should show "Direct Allocation" or "Conversion"
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <!-- Test 2: SuA Tab -->
+        <div class="test-section rounded-lg shadow-lg p-6 mb-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Test 2: SuA Tab</h2>
+                    <p class="text-gray-600 mt-1">Sub Application File Number Generation</p>
+                </div>
+                <span class="px-4 py-2 bg-green-600 text-white rounded-full text-sm font-semibold">FIXED ✓</span>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-900 mb-3">📋 Step-by-Step Checklist</h3>
+                    <ol class="space-y-2 text-gray-700">
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="s1">
+                            <label for="s1">Navigate to <code class="bg-gray-100 px-2 py-1 rounded">/commission-new-st</code> → SuA tab</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="s2">
+                            <label for="s2">Select <strong>Land Use</strong></label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="s3">
+                            <label for="s3">Select <strong>Application Type</strong>: Direct Allocation or Conversion</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="s4">
+                            <label for="s4">Select <strong>Applicant Type</strong></label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="s5">
+                            <label for="s5">Fill in <strong>Applicant Details</strong></label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="s6">
+                            <label for="s6">Click <strong>"Generate SuA File Numbers"</strong> button</label>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h3 class="font-semibold text-blue-900 mb-2">✅ Expected Results</h3>
+                    <ul class="space-y-1 text-blue-800 text-sm">
+                        <li>✓ Success message with SuA file numbers</li>
+                        <li>✓ Multiple file numbers if multiple applicants selected</li>
+                        <li>✓ No validation errors</li>
+                    </ul>
+                </div>
+
+                <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+                    <h3 class="font-semibold text-red-900 mb-2">❌ If Application Type NOT Selected</h3>
+                    <p class="text-red-800 text-sm">SweetAlert popup: "Application Type Required - Please select an application type..."</p>
+                </div>
+
+                <details class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">🔍 Verify Database (Click to expand SQL)</summary>
+                    <div class="code-block mt-3 text-xs">
+SELECT TOP 5 
+    np_fileno, 
+    fileno,
+    file_no_type, 
+    application_type, 
+    applicant_type,
+    status,
+    created_at
+FROM st_file_numbers
+WHERE file_no_type = 'SUA'
+ORDER BY created_at DESC;
+
+-- Expected: application_type should show "Direct Allocation" or "Conversion"
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <!-- Test 3: PuA Tab -->
+        <div class="test-section rounded-lg shadow-lg p-6 mb-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Test 3: PuA Tab (Planning Unit)</h2>
+                    <p class="text-gray-600 mt-1">Application Type Inheritance from Parent</p>
+                </div>
+                <span class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold">VERIFIED ✓</span>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-white rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-900 mb-3">📋 Step-by-Step Checklist</h3>
+                    <ol class="space-y-2 text-gray-700">
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="u1">
+                            <label for="u1">Navigate to <code class="bg-gray-100 px-2 py-1 rounded">/commission-new-st</code> → PuA tab</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="u2">
+                            <label for="u2">Select <strong>Parent File Number</strong> from dropdown (must be a PRIMARY file)</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="u3">
+                            <label for="u3">Verify <strong>Application Type</strong> auto-populates (readonly field)</label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="u4">
+                            <label for="u4">Select <strong>Applicant Type</strong></label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="u5">
+                            <label for="u5">Fill in <strong>Applicant Details</strong></label>
+                        </li>
+                        <li class="flex items-start">
+                            <input type="checkbox" class="mt-1 mr-3" id="u6">
+                            <label for="u6">Click <strong>"Generate PuA File Number"</strong> button</label>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h3 class="font-semibold text-blue-900 mb-2">✅ Expected Results</h3>
+                    <ul class="space-y-1 text-blue-800 text-sm">
+                        <li>✓ Success message with unit file number (e.g., ST-COM-2025-1-001)</li>
+                        <li>✓ Application Type matches parent file's type</li>
+                        <li>✓ No validation errors</li>
+                        <li>✓ JavaScript does NOT send application_type (inherited on backend)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <h3 class="font-semibold text-purple-900 mb-2">🔄 Inheritance Logic</h3>
+                    <p class="text-purple-800 text-sm mb-2">PuA automatically inherits application_type from the parent PRIMARY file:</p>
+                    <div class="code-block text-xs">
+// Backend (CommissionNewSTController.php - commissionPuA method)
+'application_type' => $parentFile->application_type
+                    </div>
+                </div>
+
+                <details class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">🔍 Verify Inheritance (Click to expand SQL)</summary>
+                    <div class="code-block mt-3 text-xs">
+SELECT TOP 5
+    pua.fileno AS unit_file_number,
+    pua.application_type AS pua_application_type,
+    pua.file_no_type AS pua_type,
+    parent.np_fileno AS parent_file_number,
+    parent.application_type AS parent_application_type,
+    parent.file_no_type AS parent_type,
+    pua.created_at
+FROM st_file_numbers pua
+LEFT JOIN st_file_numbers parent ON pua.parent_id = parent.id
+WHERE pua.file_no_type = 'PUA'
+ORDER BY pua.created_at DESC;
+
+-- CRITICAL CHECK: pua_application_type MUST equal parent_application_type
+-- Example:
+-- unit_file_number: ST-COM-2025-1-001
+-- pua_application_type: Direct Allocation
+-- parent_file_number: ST-COM-2025-1
+-- parent_application_type: Direct Allocation
+-- ✅ MATCH = SUCCESS
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <!-- Browser Console Checks -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">🖥️ Browser Console Verification</h2>
+            <p class="text-gray-600 mb-4">Open DevTools (F12) → Console tab while testing each tab</p>
+
+            <div class="space-y-4">
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 class="font-semibold text-gray-900 mb-2">PRIMARY Tab Console Output:</h3>
+                    <div class="code-block text-xs">
+Application Type: Direct Allocation
+Form submission payload: {
+    np_fileno: "ST-COM-2025-5",
+    application_type: "Direct Allocation",  ← MUST BE PRESENT
+    applicant_type: "individual",
+    land_use: "COMMERCIAL",
+    ...
+}
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 class="font-semibold text-gray-900 mb-2">SuA Tab Console Output:</h3>
+                    <div class="code-block text-xs">
+SuA Request payload: {
+    land_use: "RESIDENTIAL",
+    application_type: "Conversion",  ← MUST BE PRESENT
+    applicant_type: "corporate",
+    ...
+}
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 class="font-semibold text-gray-900 mb-2">PuA Tab Console Output:</h3>
+                    <div class="code-block text-xs">
+Request payload: {
+    parent_file_number: "ST-COM-2025-5",
+    land_use: "COM",
+    buyer_list_id: 123,
+    applicant_type: "individual",
+    // ← application_type NOT present = CORRECT (inherited on backend)
+}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Common Issues -->
+        <div class="bg-yellow-50 rounded-lg shadow-lg p-6 mb-6 border-l-4 border-yellow-500">
+            <h2 class="text-xl font-semibold text-yellow-900 mb-4">⚠️ Common Issues & Solutions</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-semibold text-yellow-900">Issue 1: Still Getting "Validation failed"</h3>
+                    <p class="text-yellow-800 text-sm mt-1"><strong>Solution:</strong> Clear browser cache:</p>
+                    <ul class="list-disc list-inside text-yellow-800 text-sm ml-4 mt-1">
+                        <li>Chrome/Edge: Ctrl + Shift + R (hard refresh)</li>
+                        <li>Or: Ctrl + Shift + Delete → Clear cached files</li>
+                        <li>Or: DevTools → Network tab → Disable cache → Refresh</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-yellow-900">Issue 2: Application Type field not showing</h3>
+                    <p class="text-yellow-800 text-sm mt-1"><strong>Solution:</strong> Verify Blade templates updated:</p>
+                    <ul class="list-disc list-inside text-yellow-800 text-sm ml-4 mt-1">
+                        <li>resources/views/commission_new_st/primary.blade.php</li>
+                        <li>resources/views/commission_new_st/sua.blade.php</li>
+                        <li>resources/views/commission_new_st/pua.blade.php</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-yellow-900">Issue 3: PuA Application Type not auto-populating</h3>
+                    <p class="text-yellow-800 text-sm mt-1"><strong>Solution:</strong> Ensure parent file number is selected first. Check JavaScript inheritApplicationType() function.</p>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-yellow-900">Issue 4: Database shows NULL for application_type</h3>
+                    <p class="text-yellow-800 text-sm mt-1"><strong>Solution:</strong> Verify backend controller validation rules are active in CommissionNewSTController.php</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results Summary -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">✅ Test Results Summary</h2>
+            <p class="text-gray-600 mb-4">Check off each test as you complete it:</p>
+            
+            <div class="space-y-3">
+                <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <input type="checkbox" class="mr-3 w-5 h-5" id="result1">
+                    <label for="result1" class="font-medium text-gray-900">PRIMARY Tab: File number generated successfully with application_type</label>
+                </div>
+                <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <input type="checkbox" class="mr-3 w-5 h-5" id="result2">
+                    <label for="result2" class="font-medium text-gray-900">SuA Tab: File number generated successfully with application_type</label>
+                </div>
+                <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <input type="checkbox" class="mr-3 w-5 h-5" id="result3">
+                    <label for="result3" class="font-medium text-gray-900">PuA Tab: Unit number generated with inherited application_type</label>
+                </div>
+                <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <input type="checkbox" class="mr-3 w-5 h-5" id="result4">
+                    <label for="result4" class="font-medium text-gray-900">Database: Verified all records contain application_type values</label>
+                </div>
+                <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <input type="checkbox" class="mr-3 w-5 h-5" id="result5">
+                    <label for="result5" class="font-medium text-gray-900">Browser Console: Confirmed payloads contain application_type (PRIMARY & SuA)</label>
+                </div>
+            </div>
+
+            <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p class="text-green-900 font-semibold">🎉 When all boxes are checked, Application Type feature is fully verified!</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>Application Type Feature Testing Guide</p>
+            <p class="mt-1">Date: January 13, 2025 | Status: JavaScript Validation Fixes Applied</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-save checkbox states
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            const id = checkbox.id;
+            const saved = localStorage.getItem(`test_${id}`);
+            if (saved === 'true') {
+                checkbox.checked = true;
+            }
+
+            checkbox.addEventListener('change', function() {
+                localStorage.setItem(`test_${id}`, this.checked);
+            });
+        });
+
+        // Show completion celebration
+        const allCheckboxes = document.querySelectorAll('input[type="checkbox"]');
+        setInterval(() => {
+            const checkedCount = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+            const totalCount = allCheckboxes.length;
+            
+            if (checkedCount === totalCount && totalCount > 0) {
+                const celebration = document.getElementById('celebration');
+                if (!celebration) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'All Tests Completed! 🎉',
+                        text: 'Application Type feature is fully verified and working correctly!',
+                        confirmButtonColor: '#10b981'
+                    });
+                    const div = document.createElement('div');
+                    div.id = 'celebration';
+                    document.body.appendChild(div);
+                }
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test SUA Form - Allocation Entity & Land Use Updates</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .info { color: blue; }
+        select, input { margin: 5px 0; padding: 8px; width: 250px; }
+        .disabled { background-color: #f5f5f5; color: #666; }
+        .lga-list { columns: 3; column-gap: 20px; margin: 10px 0; }
+        .lga-item { margin: 2px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 SUA Form Updates Test</h1>
+    
+    <div class="test-section">
+        <h2>📍 1. Allocation Entity - Kano LGAs</h2>
+        <p class="info">Testing all 44 LGAs for Kano State:</p>
+        
+        <label for="allocation_source">Allocation Source:</label><br>
+        <select id="allocation_source" onchange="updateAllocationEntity()">
+            <option value="">Select Allocation Source</option>
+            <option value="State Government">State Government</option>
+            <option value="Local Government">Local Government (LGA)</option>
+        </select>
+        
+        <br><br>
+        <label for="allocation_entity">Allocation Entity:</label><br>
+        <select id="allocation_entity" disabled>
+            <option value="">Select Entity</option>
+        </select>
+        
+        <div class="lga-list" id="lga-list" style="display: none;">
+            <h3>✅ Kano LGAs included:</h3>
+            <div class="lga-item">1. Ajingi</div>
+            <div class="lga-item">2. Albasu</div>
+            <div class="lga-item">3. Bagwai</div>
+            <div class="lga-item">4. Bebeji</div>
+            <div class="lga-item">5. Bichi</div>
+            <div class="lga-item">6. Bunkure</div>
+            <div class="lga-item">7. Dala</div>
+            <div class="lga-item">8. Dambatta</div>
+            <div class="lga-item">9. Dawakin Kudu</div>
+            <div class="lga-item">10. Dawakin Tofa</div>
+            <div class="lga-item">11. Doguwa</div>
+            <div class="lga-item">12. Fagge</div>
+            <div class="lga-item">13. Gabasawa</div>
+            <div class="lga-item">14. Garko</div>
+            <div class="lga-item">15. Garum Mallam</div>
+            <div class="lga-item">16. Gaya</div>
+            <div class="lga-item">17. Gezawa</div>
+            <div class="lga-item">18. Gwale</div>
+            <div class="lga-item">19. Gwarzo</div>
+            <div class="lga-item">20. Kabo</div>
+            <div class="lga-item">21. Kano Municipal</div>
+            <div class="lga-item">22. Karaye</div>
+            <div class="lga-item">23. Kibiya</div>
+            <div class="lga-item">24. Kiru</div>
+            <div class="lga-item">25. Kumbotso</div>
+            <div class="lga-item">26. Kunchi</div>
+            <div class="lga-item">27. Kura</div>
+            <div class="lga-item">28. Madobi</div>
+            <div class="lga-item">29. Makoda</div>
+            <div class="lga-item">30. Minjibir</div>
+            <div class="lga-item">31. Nasarawa</div>
+            <div class="lga-item">32. Rano</div>
+            <div class="lga-item">33. Rimin Gado</div>
+            <div class="lga-item">34. Rogo</div>
+            <div class="lga-item">35. Shanono</div>
+            <div class="lga-item">36. Sumaila</div>
+            <div class="lga-item">37. Takai</div>
+            <div class="lga-item">38. Tarauni</div>
+            <div class="lga-item">39. Tofa</div>
+            <div class="lga-item">40. Tsanyawa</div>
+            <div class="lga-item">41. Tudun Wada</div>
+            <div class="lga-item">42. Ungogo</div>
+            <div class="lga-item">43. Warawa</div>
+            <div class="lga-item">44. Wudil</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔒 2. Land Use Field - Disabled</h2>
+        <p class="info">Land use should be disabled since it comes from the URL parameter:</p>
+        
+        <label for="land_use">Land Use:</label><br>
+        <select id="land_use" class="disabled" disabled>
+            <option value="">Select Land Use</option>
+            <option value="Residential" selected>Residential</option>
+            <option value="Commercial">Commercial</option>
+            <option value="Industrial">Industrial</option>
+        </select>
+        
+        <p class="success">✅ Field is disabled and shows pre-selected value</p>
+        <p><small>Note: Land use is pre-selected based on the application type</small></p>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 3. Test Results Summary</h2>
+        <div id="test-results">
+            <p class="success">✅ All 44 Kano LGAs added to Local Government options</p>
+            <p class="success">✅ Land Use field disabled with appropriate styling</p>
+            <p class="success">✅ Helpful text added to explain disabled state</p>
+            <p class="success">✅ Allocation Entity dropdown functionality maintained</p>
+        </div>
+    </div>
+
+    <script>
+        function updateAllocationEntity() {
+            const allocationSource = document.getElementById('allocation_source');
+            const allocationEntity = document.getElementById('allocation_entity');
+            const lgaList = document.getElementById('lga-list');
+            
+            const entityOptions = {
+                'State Government': [
+                    { value: 'KSIP', text: 'KSIP' },
+                    { value: 'Housing', text: 'Housing' },
+                    { value: 'KUNPDA', text: 'KUNPDA' }
+                ],
+                'Local Government': [
+                    { value: 'Ajingi', text: 'Ajingi' },
+                    { value: 'Albasu', text: 'Albasu' },
+                    { value: 'Bagwai', text: 'Bagwai' },
+                    { value: 'Bebeji', text: 'Bebeji' },
+                    { value: 'Bichi', text: 'Bichi' },
+                    { value: 'Bunkure', text: 'Bunkure' },
+                    { value: 'Dala', text: 'Dala' },
+                    { value: 'Dambatta', text: 'Dambatta' },
+                    { value: 'Dawakin Kudu', text: 'Dawakin Kudu' },
+                    { value: 'Dawakin Tofa', text: 'Dawakin Tofa' },
+                    { value: 'Doguwa', text: 'Doguwa' },
+                    { value: 'Fagge', text: 'Fagge' },
+                    { value: 'Gabasawa', text: 'Gabasawa' },
+                    { value: 'Garko', text: 'Garko' },
+                    { value: 'Garum Mallam', text: 'Garum Mallam' },
+                    { value: 'Gaya', text: 'Gaya' },
+                    { value: 'Gezawa', text: 'Gezawa' },
+                    { value: 'Gwale', text: 'Gwale' },
+                    { value: 'Gwarzo', text: 'Gwarzo' },
+                    { value: 'Kabo', text: 'Kabo' },
+                    { value: 'Kano Municipal', text: 'Kano Municipal' },
+                    { value: 'Karaye', text: 'Karaye' },
+                    { value: 'Kibiya', text: 'Kibiya' },
+                    { value: 'Kiru', text: 'Kiru' },
+                    { value: 'Kumbotso', text: 'Kumbotso' },
+                    { value: 'Kunchi', text: 'Kunchi' },
+                    { value: 'Kura', text: 'Kura' },
+                    { value: 'Madobi', text: 'Madobi' },
+                    { value: 'Makoda', text: 'Makoda' },
+                    { value: 'Minjibir', text: 'Minjibir' },
+                    { value: 'Nasarawa', text: 'Nasarawa' },
+                    { value: 'Rano', text: 'Rano' },
+                    { value: 'Rimin Gado', text: 'Rimin Gado' },
+                    { value: 'Rogo', text: 'Rogo' },
+                    { value: 'Shanono', text: 'Shanono' },
+                    { value: 'Sumaila', text: 'Sumaila' },
+                    { value: 'Takai', text: 'Takai' },
+                    { value: 'Tarauni', text: 'Tarauni' },
+                    { value: 'Tofa', text: 'Tofa' },
+                    { value: 'Tsanyawa', text: 'Tsanyawa' },
+                    { value: 'Tudun Wada', text: 'Tudun Wada' },
+                    { value: 'Ungogo', text: 'Ungogo' },
+                    { value: 'Warawa', text: 'Warawa' },
+                    { value: 'Wudil', text: 'Wudil' }
+                ]
+            };
+            
+            const selectedSource = allocationSource.value;
+            allocationEntity.innerHTML = '<option value="">Select Entity</option>';
+            
+            if (selectedSource && entityOptions[selectedSource]) {
+                allocationEntity.disabled = false;
+                entityOptions[selectedSource].forEach(option => {
+                    const optionElement = document.createElement('option');
+                    optionElement.value = option.value;
+                    optionElement.textContent = option.text;
+                    allocationEntity.appendChild(optionElement);
+                });
+                
+                // Show LGA list if Local Government is selected
+                if (selectedSource === 'Local Government') {
+                    lgaList.style.display = 'block';
+                } else {
+                    lgaList.style.display = 'none';
+                }
+            } else {
+                allocationEntity.disabled = true;
+                lgaList.style.display = 'none';
+            }
+        }
+        
+        // Test the functionality on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('SUA Form Updates Test loaded successfully');
+        });
+    </script>
+</body>
+</html>

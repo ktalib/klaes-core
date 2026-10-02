@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Modal Data</title>
+</head>
+<body>
+    <script>
+        // Test what data is being sent
+        const applicationId = "1"; // This is what we're getting from the table
+        const serialNumber = "000001";
+        
+        console.log('Application ID type:', typeof applicationId);
+        console.log('Application ID value:', applicationId);
+        console.log('Parsed Application ID:', parseInt(applicationId));
+        console.log('Serial Number type:', typeof serialNumber);
+        console.log('Serial Number value:', serialNumber);
+        
+        const formData = new FormData();
+        formData.append('application_id', applicationId);
+        formData.append('serial_number', serialNumber);
+        
+        console.log('Form data entries:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key, ':', value, '(type:', typeof value, ')');
+        }
+    </script>
+</body>
+</html>

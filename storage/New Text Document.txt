@@ -1,0 +1,40 @@
+-- Up migration
+IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'permissions')
+BEGIN
+    -- Insert permission if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'view-activity-reports' AND guard_name = 'web')
+    BEGIN
+        INSERT INTO permissions (name, guard_name, created_at, updated_at)
+        VALUES ('view-activity-reports', 'web', GETDATE(), GETDATE())
+    END
+
+    -- Get the permission ID
+    DECLARE @permission_id INT
+    SELECT @permission_id = id FROM permissions WHERE name = 'view-activity-reports' AND guard_name = 'web'
+
+    -- Get super admin role ID
+    DECLARE @role_id INT
+    SELECT @role_id = id FROM roles WHERE name = 'super admin'
+
+    -- Assign permission to super admin role if not already assigned
+    IF @role_id IS NOT NULL AND @permission_id IS NOT NULL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM role_has_permissions WHERE role_id = @role_id AND permission_id = @permission_id)
+        BEGIN
+            INSERT INTO role_has_permissions (role_id, permission_id)
+            VALUES (@role_id, @permission_id)
+        END
+    END
+END
+
+-- Down migration (rollback)
+-- IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'permissions')
+-- BEGIN
+--     -- Remove role permission assignments first
+--     DELETE rhp FROM role_has_permissions rhp
+--     INNER JOIN permissions p ON rhp.permission_id = p.id
+--     WHERE p.name = 'view-activity-reports'
+--     
+--     -- Delete the permission
+--     DELETE FROM permissions WHERE name = 'view-activity-reports'
+-- END

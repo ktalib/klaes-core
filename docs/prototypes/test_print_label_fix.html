@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print Label API Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .disabled { background: #6c757d !important; cursor: not-allowed !important; }
+    </style>
+</head>
+<body>
+    <h1>Print Label API Testing</h1>
+    
+    <div class="info">
+        <h3>Test Status</h3>
+        <p id="auth-status">Checking authentication status...</p>
+    </div>
+
+    <div class="result" id="test-results">
+        <h3>Test Results</h3>
+        <div id="results-content">No tests run yet.</div>
+    </div>
+
+    <div>
+        <h3>Available Tests</h3>
+        <button onclick="testAuth()" id="test-auth-btn">Test Authentication</button>
+        <button onclick="testDatabase()" id="test-db-btn">Test Database Connection</button>
+        <button onclick="testPrintLabelAPI()" id="test-api-btn" class="disabled">Test Print Label API</button>
+        <button onclick="testGroupingPreview()" id="test-grouping-btn" class="disabled">Test Grouping Preview</button>
+        <button onclick="runAllTests()" id="test-all-btn">Run All Tests</button>
+    </div>
+
+    <script>
+        let isAuthenticated = false;
+
+        // Check authentication status on page load
+        $(document).ready(function() {
+            testAuth();
+        });
+
+        function updateResults(title, content, type = 'info') {
+            $('#results-content').html(`
+                <div class="${type}">
+                    <h4>${title}</h4>
+                    <pre>${content}</pre>
+                </div>
+            `);
+        }
+
+        function testAuth() {
+            $('#auth-status').text('Testing authentication...');
+            
+            $.ajax({
+                url: '/debug-print-label',
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            }).done(function(response) {
+                isAuthenticated = true;
+                $('#auth-status').html('<span style="color: green;">✓ Authenticated</span>');
+                $('#test-api-btn, #test-grouping-btn').removeClass('disabled');
+                updateResults('Authentication Test', JSON.stringify(response, null, 2), 'success');
+            }).fail(function(xhr) {
+                isAuthenticated = false;
+                $('#auth-status').html('<span style="color: red;">✗ Not Authenticated - ' + xhr.status + ' ' + xhr.statusText + '</span>');
+                $('#test-api-btn, #test-grouping-btn').addClass('disabled');
+                updateResults('Authentication Test', 'Status: ' + xhr.status + '\nResponse: ' + xhr.responseText, 'error');
+            });
+        }
+
+        function testDatabase() {
+            updateResults('Database Test', 'Testing database connection...', 'info');
+            
+            $.ajax({
+                url: '/debug-print-label-noauth',
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            }).done(function(response) {
+                updateResults('Database Connection Test', JSON.stringify(response, null, 2), 'success');
+            }).fail(function(xhr) {
+                updateResults('Database Connection Test', 'Status: ' + xhr.status + '\nError: ' + xhr.responseText, 'error');
+            });
+        }
+
+        function testPrintLabelAPI() {
+            if (!isAuthenticated) {
+                updateResults('Print Label API Test', 'Authentication required first!', 'error');
+                return;
+            }
+
+            updateResults('Print Label API Test', 'Testing print label API...', 'info');
+            
+            $.ajax({
+                url: '/printlabel/api/files',
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            }).done(function(response) {
+                updateResults('Print Label API Test', JSON.stringify(response, null, 2), 'success');
+            }).fail(function(xhr) {
+                updateResults('Print Label API Test', 'Status: ' + xhr.status + '\nError: ' + xhr.responseText, 'error');
+            });
+        }
+
+        function testGroupingPreview() {
+            if (!isAuthenticated) {
+                updateResults('Grouping Preview Test', 'Authentication required first!', 'error');
+                return;
+            }
+
+            updateResults('Grouping Preview Test', 'Testing grouping preview...', 'info');
+            
+            $.ajax({
+                url: '/printlabel/api/grouping/preview',
+                method: 'POST',
+                data: {
+                    files: ['test-file-1', 'test-file-2']
+                },
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            }).done(function(response) {
+                updateResults('Grouping Preview Test', JSON.stringify(response, null, 2), 'success');
+            }).fail(function(xhr) {
+                updateResults('Grouping Preview Test', 'Status: ' + xhr.status + '\nError: ' + xhr.responseText, 'error');
+            });
+        }
+
+        function runAllTests() {
+            testAuth();
+            setTimeout(() => testDatabase(), 1000);
+            setTimeout(() => {
+                if (isAuthenticated) {
+                    testPrintLabelAPI();
+                    setTimeout(() => testGroupingPreview(), 2000);
+                }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

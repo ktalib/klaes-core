@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Tracker API</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>File Tracker API Test</h1>
+    
+    <div id="results"></div>
+    
+    <h2>Create File Tracker</h2>
+    <form id="createForm">
+        <div>
+            <label>File Number:</label>
+            <input type="text" id="file_number" value="TEST-001" required>
+        </div>
+        <div>
+            <label>File Title:</label>
+            <input type="text" id="file_title" value="Test File" required>
+        </div>
+        <div>
+            <label>File Type:</label>
+            <select id="file_type" required>
+                <option value="Application">Application</option>
+                <option value="Certificate">Certificate</option>
+                <option value="Survey">Survey</option>
+                <option value="Legal">Legal</option>
+            </select>
+        </div>
+        <div>
+            <label>Location from Office:</label>
+            <select id="location_from_office" required>
+                <option value="OFF-001">Reception</option>
+                <option value="OFF-002">Customer Care Unit</option>
+                <option value="OFF-003">Document Verification</option>
+            </select>
+        </div>
+        <div>
+            <label>Location to Office:</label>
+            <select id="location_to_office" required>
+                <option value="OFF-002">Customer Care Unit</option>
+                <option value="OFF-003">Document Verification</option>
+                <option value="OFF-004">Survey Department</option>
+            </select>
+        </div>
+        <div>
+            <label>Priority:</label>
+            <select id="priority" required>
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+            </select>
+        </div>
+        <button type="submit">Create File Tracker</button>
+    </form>
+
+    <script>
+        const baseUrl = 'http://localhost:8000/api/file-trackers';
+        
+        // Function to display results
+        function displayResult(title, data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML += `
+                <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                    <h3>${title}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        // Test GET endpoint
+        function testGetFileTrackers() {
+            fetch(baseUrl)
+                .then(response => response.json())
+                .then(data => {
+                    displayResult('GET /api/file-trackers', data);
+                })
+                .catch(error => {
+                    displayResult('GET /api/file-trackers - ERROR', error);
+                });
+        }
+
+        // Create file tracker
+        document.getElementById('createForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                file_number: document.getElementById('file_number').value,
+                file_title: document.getElementById('file_title').value,
+                file_type: document.getElementById('file_type').value,
+                location_from_office: document.getElementById('location_from_office').value,
+                location_to_office: document.getElementById('location_to_office').value,
+                priority: document.getElementById('priority').value,
+                status: 'Active',
+                movement_log: JSON.stringify([{
+                    log_id: 'LOG-' + Date.now(),
+                    from_office: document.getElementById('location_from_office').value,
+                    to_office: document.getElementById('location_to_office').value,
+                    moved_by: 'Test User',
+                    moved_at: new Date().toISOString(),
+                    notes: 'Initial test movement'
+                }])
+            };
+
+            fetch(baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResult('POST /api/file-trackers', data);
+                // Refresh the list
+                testGetFileTrackers();
+            })
+            .catch(error => {
+                displayResult('POST /api/file-trackers - ERROR', error);
+            });
+        });
+
+        // Load file trackers on page load
+        window.addEventListener('load', function() {
+            testGetFileTrackers();
+        });
+    </script>
+</body>
+</html>

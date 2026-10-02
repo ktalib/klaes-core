@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RDS Debug Console</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .debug-section h3 { margin-top: 0; color: #333; }
+        button { padding: 8px 16px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; }
+        input[type="number"] { padding: 5px; margin: 5px; width: 100px; }
+    </style>
+</head>
+<body>
+    <h1>RDS Debug Console</h1>
+    <p>Use this page to debug RDS status issues. <strong>Open browser console (F12) to see detailed logs.</strong></p>
+    
+    <div class="debug-section">
+        <h3>1. Test RDS Status API Directly</h3>
+        <p>Test the RDS status endpoint for a specific instrument:</p>
+        <input type="number" id="instrumentId" value="2" placeholder="Instrument ID">
+        <button onclick="testRDSStatusAPI()">Test API</button>
+        <div id="apiResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>2. Debug Specific Instrument</h3>
+        <p>Check RDS status for a specific instrument (includes cache vs API comparison):</p>
+        <input type="number" id="debugInstrumentId" value="2" placeholder="Instrument ID">
+        <button onclick="debugSpecificInstrument()">Debug Instrument</button>
+        <div id="debugResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>3. Force Refresh All RDS Status</h3>
+        <p>Refresh RDS status for all instruments:</p>
+        <button onclick="forceRefreshAll()">Force Refresh All</button>
+        <div id="refreshResult" class="result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>4. View Current Data</h3>
+        <p>Show current instrument data with RDS status:</p>
+        <button onclick="showCurrentData()">Show Data</button>
+        <div id="dataResult" class="result"></div>
+    </div>
+    
+    <script>
+        async function testRDSStatusAPI() {
+            const instrumentId = document.getElementById('instrumentId').value;
+            const resultDiv = document.getElementById('apiResult');
+            
+            try {
+                resultDiv.textContent = 'Testing API...';
+                console.log(`Testing RDS status API for instrument ${instrumentId}`);
+                
+                const response = await fetch(`/instrument_registration/rds-status/${instrumentId}`);
+                const data = await response.json();
+                
+                console.log('API Response:', data);
+                
+                resultDiv.textContent = `Response: ${JSON.stringify(data, null, 2)}
+
+Status: ${response.status}
+RDS Exists: ${data.exists ? 'YES' : 'NO'}
+${data.rds ? 'RDS Data: ' + JSON.stringify(data.rds, null, 2) : ''}`;
+                
+            } catch (error) {
+                console.error('API Error:', error);
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function debugSpecificInstrument() {
+            const instrumentId = document.getElementById('debugInstrumentId').value;
+            const resultDiv = document.getElementById('debugResult');
+            
+            resultDiv.textContent = 'Debugging...';
+            
+            if (typeof window.debugRDSStatus === 'function') {
+                await window.debugRDSStatus(instrumentId);
+                resultDiv.textContent = 'Debug completed. Check browser console for details.';
+            } else {
+                resultDiv.textContent = 'Error: debugRDSStatus function not available. Make sure you are on the instrument registration page.';
+            }
+        }
+        
+        async function forceRefreshAll() {
+            const resultDiv = document.getElementById('refreshResult');
+            
+            resultDiv.textContent = 'Refreshing...';
+            
+            if (typeof window.forceRefreshAllRDSStatus === 'function') {
+                await window.forceRefreshAllRDSStatus();
+                resultDiv.textContent = 'Refresh completed. Check browser console for details.';
+            } else {
+                resultDiv.textContent = 'Error: forceRefreshAllRDSStatus function not available. Make sure you are on the instrument registration page.';
+            }
+        }
+        
+        function showCurrentData() {
+            const resultDiv = document.getElementById('dataResult');
+            
+            if (typeof window.serverCofoData !== 'undefined') {
+                const registeredInstruments = window.serverCofoData.filter(item => item.status === 'registered');
+                const dataToShow = registeredInstruments.map(item => ({
+                    id: item.id,
+                    STM_Ref: item.STM_Ref,
+                    status: item.status,
+                    rds_exists: item.rds_exists,
+                    instrument_type: item.instrument_type
+                }));
+                
+                resultDiv.textContent = `Found ${registeredInstruments.length} registered instruments:
+
+${JSON.stringify(dataToShow, null, 2)}`;
+            } else {
+                resultDiv.textContent = 'Error: serverCofoData not available. Make sure you are on the instrument registration page.';
+            }
+        }
+    </script>
+</body>
+</html>

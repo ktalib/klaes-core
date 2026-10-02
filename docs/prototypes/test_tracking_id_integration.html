@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tracking ID from Grouping Integration</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        input, button { padding: 8px 12px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 10px; padding: 10px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Tracking ID Integration with Grouping Table</h1>
+        <p>This page tests the new integration where tracking IDs are stored in the grouping table instead of being generated locally.</p>
+
+        <div class="test-section info">
+            <h3>📋 Test Instructions</h3>
+            <ol>
+                <li>Run the migration: <code>php artisan migrate</code></li>
+                <li>Populate existing records: <code>php populate_grouping_tracking_ids.php</code></li>
+                <li>Test the API endpoint below</li>
+                <li>Test the file indexing dialog integration</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Test 1: Check Migration Status</h3>
+            <button onclick="checkMigrationStatus()">Check Database Schema</button>
+            <div id="migration-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Test 2: API Endpoint Performance Tests</h3>
+            <input type="text" id="file-number-input" placeholder="Enter awaiting file number (e.g., COM-2024-001)" style="width: 300px;">
+            <button onclick="testApiEndpoint()">Test Single Lookup</button>
+            <button onclick="testBulkLookup()">Test Bulk Lookup</button>
+            <div id="api-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test 3: Performance Optimized Statistics</h3>
+            <button onclick="testFastStats()">Fast Stats (Optimized)</button>
+            <button onclick="checkTrackingIdCoverage()">Legacy Stats (Slow)</button>
+            <div id="coverage-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Test 4: Sample Tracking IDs</h3>
+            <button onclick="showSampleTrackingIds()">Show Sample Records</button>
+            <div id="sample-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Test 5: File Indexing Dialog Integration</h3>
+            <p>This tests the integration in the actual file indexing dialog:</p>
+            <ol>
+                <li>Open the file indexing dialog</li>
+                <li>Select or enter a file number</li>
+                <li>Wait for grouping record lookup</li>
+                <li>Check that tracking ID is populated from the grouping record</li>
+                <li>Verify no local generation occurs</li>
+            </ol>
+            <button onclick="window.location.href='/fileindexing'">Go to File Indexing</button>
+        </div>
+    </div>
+
+    <script>
+        async function checkMigrationStatus() {
+            const resultDiv = document.getElementById('migration-result');
+            resultDiv.innerHTML = '🔄 Checking database schema...';
+            
+            try {
+                const response = await fetch('/api/test/migration-status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({ table: 'grouping', column: 'tracking_id' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Migration Status</h4>
+                            <p><strong>Column exists:</strong> ${data.column_exists ? 'Yes' : 'No'}</p>
+                            <p><strong>Index exists:</strong> ${data.index_exists ? 'Yes' : 'No'}</p>
+                            <p><strong>Records count:</strong> ${data.total_records.toLocaleString()}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testApiEndpoint() {
+            const fileNumber = document.getElementById('file-number-input').value.trim();
+            const resultDiv = document.getElementById('api-result');
+            
+            if (!fileNumber) {
+                resultDiv.innerHTML = '<div class="error">❌ Please enter a file number</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '🔄 Testing OPTIMIZED API endpoint...';
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(`/api/grouping/awaiting/${encodeURIComponent(fileNumber)}`);
+                const data = await response.json();
+                const responseTime = Date.now() - startTime;
+                
+                if (data.success) {
+                    const record = data.data;
+                    const performance = data.performance || {};
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ API Response Success (${responseTime}ms)</h4>
+                            <p><strong>Awaiting File No:</strong> ${record.awaiting_fileno}</p>
+                            <p><strong>Tracking ID:</strong> ${record.tracking_id || 'Not set'}</p>
+                            <p><strong>Land Use:</strong> ${record.landuse}</p>
+                            <p><strong>Year:</strong> ${record.year}</p>
+                            <p><strong>Registry:</strong> ${record.registry || 'Not set'}</p>
+                            <p><strong>Shelf Rack:</strong> ${record.shelf_rack || 'Not set'}</p>
+                            ${record.tracking_id ? '<p class="success">🎉 Tracking ID is available!</p>' : '<p class="error">⚠️ Tracking ID is missing - run populate script</p>'}
+                            
+                            <h5>⚡ Performance Metrics:</h5>
+                            <p><strong>Query Time:</strong> ${performance.query_time_ms || 'N/A'}ms</p>
+                            <p><strong>Total Time:</strong> ${performance.total_time_ms || responseTime}ms</p>
+                            <p><strong>Optimized:</strong> ${performance.optimized ? '✅ Yes' : '❌ No'}</p>
+                        </div>
+                    `;
+                } else {
+                    const performance = data.performance || {};
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ ${data.message} (${responseTime}ms)</h4>
+                            ${performance.total_time_ms ? `<p><strong>Response Time:</strong> ${performance.total_time_ms}ms</p>` : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                const responseTime = Date.now() - startTime;
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message} (${responseTime}ms)</div>`;
+            }
+        }
+
+        async function testBulkLookup() {
+            const resultDiv = document.getElementById('api-result');
+            
+            // Test with multiple file numbers
+            const testFileNumbers = ['COM-2024-001', 'RES-2024-002', 'IND-2024-003', 'NONEXISTENT-999'];
+            
+            resultDiv.innerHTML = '🔄 Testing BULK LOOKUP with ' + testFileNumbers.length + ' file numbers...';
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch('/api/grouping/bulk-lookup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({ file_numbers: testFileNumbers })
+                });
+                
+                const data = await response.json();
+                const responseTime = Date.now() - startTime;
+                
+                if (data.success) {
+                    const summary = data.summary;
+                    const performance = data.performance;
+                    
+                    let resultsHtml = data.data.map(item => `
+                        <tr style="background: ${item.found ? '#d4edda' : '#f8d7da'};">
+                            <td style="padding: 5px; border: 1px solid #ddd;">${item.file_number}</td>
+                            <td style="padding: 5px; border: 1px solid #ddd;">${item.found ? '✅ Found' : '❌ Not Found'}</td>
+                            <td style="padding: 5px; border: 1px solid #ddd; font-family: monospace;">${item.found ? (item.data.tracking_id || 'Missing') : 'N/A'}</td>
+                            <td style="padding: 5px; border: 1px solid #ddd;">${item.found ? item.data.landuse : 'N/A'}</td>
+                        </tr>
+                    `).join('');
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Bulk Lookup Success (${responseTime}ms)</h4>
+                            
+                            <h5>📊 Summary:</h5>
+                            <p><strong>Requested:</strong> ${summary.requested_count}</p>
+                            <p><strong>Found:</strong> ${summary.found_count}</p>
+                            <p><strong>Not Found:</strong> ${summary.not_found_count}</p>
+                            <p><strong>Success Rate:</strong> ${summary.success_rate}</p>
+                            
+                            <h5>⚡ Performance:</h5>
+                            <p><strong>Query Time:</strong> ${performance.query_time_ms}ms</p>
+                            <p><strong>Total Time:</strong> ${performance.total_time_ms}ms</p>
+                            <p><strong>Speed:</strong> ${performance.records_per_ms} records/ms</p>
+                            
+                            <h5>📋 Results:</h5>
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                <tr style="background: #f8f9fa;">
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: left;">File Number</th>
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: left;">Status</th>
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: left;">Tracking ID</th>
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: left;">Land Use</th>
+                                </tr>
+                                ${resultsHtml}
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Bulk lookup failed: ${data.message} (${responseTime}ms)</div>`;
+                }
+            } catch (error) {
+                const responseTime = Date.now() - startTime;
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message} (${responseTime}ms)</div>`;
+            }
+        }
+
+        async function testFastStats() {
+            const resultDiv = document.getElementById('coverage-result');
+            resultDiv.innerHTML = '🔄 Testing FAST STATS endpoint...';
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch('/api/grouping/fast-stats');
+                const data = await response.json();
+                const responseTime = Date.now() - startTime;
+                
+                if (data.success) {
+                    const totals = data.data.totals;
+                    const topLandUses = data.data.top_land_uses;
+                    const performance = data.performance;
+                    
+                    let topLandUsesHtml = topLandUses.map(item => `
+                        <tr>
+                            <td style="padding: 5px; border: 1px solid #ddd;">${item.landuse}</td>
+                            <td style="padding: 5px; border: 1px solid #ddd; text-align: right;">${item.count.toLocaleString()}</td>
+                            <td style="padding: 5px; border: 1px solid #ddd; text-align: right;">${item.percentage}%</td>
+                        </tr>
+                    `).join('');
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Fast Stats Success (${responseTime}ms)</h4>
+                            
+                            <h5>📊 Database Statistics:</h5>
+                            <p><strong>Total Records:</strong> ${totals.total_records.toLocaleString()}</p>
+                            <p><strong>Records with Tracking ID:</strong> ${totals.records_with_tracking.toLocaleString()}</p>
+                            <p><strong>Tracking Coverage:</strong> ${totals.tracking_coverage}%</p>
+                            <p><strong>Unique Land Uses:</strong> ${totals.unique_land_uses}</p>
+                            <p><strong>Year Range:</strong> ${totals.year_range.earliest} - ${totals.year_range.latest}</p>
+                            <p><strong>Mapped Records:</strong> ${totals.mapped_records.toLocaleString()}</p>
+                            
+                            <h5>🏆 Top Land Uses:</h5>
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                <tr style="background: #f8f9fa;">
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: left;">Land Use</th>
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: right;">Count</th>
+                                    <th style="padding: 5px; border: 1px solid #ddd; text-align: right;">Percentage</th>
+                                </tr>
+                                ${topLandUsesHtml}
+                            </table>
+                            
+                            <h5>⚡ Performance Metrics:</h5>
+                            <p><strong>Query Time:</strong> ${performance.query_time_ms}ms</p>
+                            <p><strong>Total Time:</strong> ${performance.total_time_ms}ms</p>
+                            <p><strong>Optimized:</strong> ${performance.optimized ? '✅ Yes' : '❌ No'}</p>
+                            <p><strong>Cache Status:</strong> ${performance.cache_status}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Fast stats failed: ${data.message} (${responseTime}ms)</div>`;
+                }
+            } catch (error) {
+                const responseTime = Date.now() - startTime;
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message} (${responseTime}ms)</div>`;
+            }
+        }
+
+        async function checkTrackingIdCoverage() {
+            const resultDiv = document.getElementById('coverage-result');
+            resultDiv.innerHTML = '🔄 Checking tracking ID coverage...';
+            
+            try {
+                const response = await fetch('/api/test/tracking-id-coverage');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const coverage = (data.records_with_tracking / data.total_records * 100).toFixed(2);
+                    resultDiv.innerHTML = `
+                        <div class="${coverage == 100 ? 'success' : 'info'}">
+                            <h4>📊 Tracking ID Coverage</h4>
+                            <p><strong>Total records:</strong> ${data.total_records.toLocaleString()}</p>
+                            <p><strong>Records with tracking ID:</strong> ${data.records_with_tracking.toLocaleString()}</p>
+                            <p><strong>Coverage:</strong> ${coverage}%</p>
+                            <p><strong>Missing tracking IDs:</strong> ${(data.total_records - data.records_with_tracking).toLocaleString()}</p>
+                            ${coverage == 100 ? '<p class="success">🎉 All records have tracking IDs!</p>' : '<p class="error">⚠️ Some records missing tracking IDs - run populate script</p>'}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function showSampleTrackingIds() {
+            const resultDiv = document.getElementById('sample-result');
+            resultDiv.innerHTML = '🔄 Loading sample tracking IDs...';
+            
+            try {
+                const response = await fetch('/api/test/sample-tracking-ids');
+                const data = await response.json();
+                
+                if (data.success && data.samples.length > 0) {
+                    let html = `
+                        <div class="success">
+                            <h4>📝 Sample Tracking IDs</h4>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr style="background: #f8f9fa;">
+                                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Awaiting File No</th>
+                                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tracking ID</th>
+                                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Land Use</th>
+                                </tr>
+                    `;
+                    
+                    data.samples.forEach(sample => {
+                        html += `
+                            <tr>
+                                <td style="border: 1px solid #ddd; padding: 8px;">${sample.awaiting_fileno}</td>
+                                <td style="border: 1px solid #ddd; padding: 8px; font-family: monospace;">${sample.tracking_id}</td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">${sample.landuse}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</table></div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ No tracking IDs found - run populate script</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-run basic checks on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkMigrationStatus();
+            testFastStats(); // Use optimized stats by default
+        });
+    </script>
+</body>
+</html>

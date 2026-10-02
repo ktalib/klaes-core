@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dual Selection System Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+</head>
+<body>
+    <h2>File Indexing Dual Selection Test</h2>
+    
+    <!-- Method Selection -->
+    <div class="method-selection mb-4">
+        <label class="block text-sm font-medium mb-2">Selection Method:</label>
+        <div class="space-y-2">
+            <label class="inline-flex items-center">
+                <input type="radio" name="selection_method" value="batch" checked class="form-radio text-indigo-600">
+                <span class="ml-2">Select by Batch</span>
+            </label>
+            <label class="inline-flex items-center">
+                <input type="radio" name="selection_method" value="shelf" class="form-radio text-indigo-600">
+                <span class="ml-2">Direct Shelf Selection</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Batch Selection Container -->
+    <div id="batch-selection-container" class="mb-4">
+        <label class="block text-sm font-medium mb-2">Select Batch:</label>
+        <select id="batch_id" name="batch_id" class="form-select w-full">
+            <option value="">Select a batch...</option>
+            <option value="2">Batch 2 (Shelves 101-200)</option>
+            <option value="3">Batch 3 (Shelves 201-300)</option>
+        </select>
+        
+        <label class="block text-sm font-medium mb-2 mt-2">Serial Number:</label>
+        <input type="number" id="serial-no" name="serial_no" class="form-input w-full" min="1" max="100">
+    </div>
+
+    <!-- Shelf Selection Container -->
+    <div id="shelf-selection-container" class="mb-4" style="display: none;">
+        <label class="block text-sm font-medium mb-2">Select Shelf:</label>
+        <select id="shelf_label_id" name="shelf_label_id" class="form-select w-full">
+            <option value="">Select a shelf...</option>
+        </select>
+    </div>
+
+    <!-- Shelf Location Display -->
+    <div class="mb-4">
+        <label class="block text-sm font-medium mb-2">Shelf Location:</label>
+        <input type="text" id="shelf-location" name="shelf_location" class="form-input w-full" readonly>
+    </div>
+
+    <button id="test-btn" class="px-4 py-2 bg-blue-500 text-white rounded">Test Selection</button>
+
+    <div id="output" class="mt-4 p-4 bg-gray-100 rounded">
+        <strong>Output will appear here...</strong>
+    </div>
+
+    <script>
+        // Method switching logic
+        document.addEventListener('DOMContentLoaded', function() {
+            const methodRadios = document.querySelectorAll('input[name="selection_method"]');
+            const batchContainer = document.getElementById('batch-selection-container');
+            const shelfContainer = document.getElementById('shelf-selection-container');
+            
+            methodRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const method = this.value;
+                    
+                    if (method === 'batch') {
+                        batchContainer.style.display = 'block';
+                        shelfContainer.style.display = 'none';
+                        
+                        // Clear shelf selection
+                        $('#shelf_label_id').val(null).trigger('change');
+                        document.getElementById('shelf-location').value = '';
+                        
+                    } else if (method === 'shelf') {
+                        batchContainer.style.display = 'none';
+                        shelfContainer.style.display = 'block';
+                        
+                        // Clear batch selection
+                        document.getElementById('batch_id').value = '';
+                        document.getElementById('serial-no').value = '';
+                        document.getElementById('shelf-location').value = '';
+                        
+                        // Initialize shelf selection if not already done
+                        if (!$('#shelf_label_id').hasClass('select2-hidden-accessible')) {
+                            initializeShelfSelection();
+                        }
+                    }
+                });
+            });
+
+            // Test button
+            document.getElementById('test-btn').addEventListener('click', function() {
+                testSelection();
+            });
+        });
+
+        // Mock shelf selection initialization
+        function initializeShelfSelection() {
+            const shelfSelect = $('#shelf_label_id');
+            
+            // Mock data for testing
+            const mockShelves = [
+                {id: 1, text: 'Shelf 1 - A-01-001 (95 spaces available)'},
+                {id: 2, text: 'Shelf 2 - A-01-002 (87 spaces available)'},
+                {id: 100, text: 'Shelf 100 - A-01-100 (42 spaces available)'},
+                {id: 150, text: 'Shelf 150 - A-02-050 (78 spaces available)'}
+            ];
+
+            shelfSelect.select2({
+                placeholder: 'Select a shelf...',
+                allowClear: true,
+                data: mockShelves
+            });
+
+            // Handle shelf selection
+            shelfSelect.on('select2:select', function (e) {
+                const shelfId = e.params.data.id;
+                updateShelfLocation(shelfId);
+            });
+
+            // Clear shelf location when cleared
+            shelfSelect.on('select2:clear', function () {
+                document.getElementById('shelf-location').value = '';
+            });
+        }
+
+        function updateShelfLocation(shelfId) {
+            // Mock shelf location mapping
+            const mockLocations = {
+                1: 'A-01-001',
+                2: 'A-01-002', 
+                100: 'A-01-100',
+                150: 'A-02-050'
+            };
+
+            const location = mockLocations[shelfId] || `Shelf-${shelfId}`;
+            document.getElementById('shelf-location').value = location;
+        }
+
+        // Helper function to get shelf_label_id from either selection method
+        function getSelectedShelfLabelId() {
+            const selectionMethod = document.querySelector('input[name="selection_method"]:checked')?.value || 'batch';
+            
+            if (selectionMethod === 'shelf') {
+                // Direct shelf selection - get from shelf dropdown
+                return document.getElementById('shelf_label_id')?.value || '';
+            } else {
+                // Batch selection - get from batch system (existing logic)
+                const batchId = document.getElementById('batch_id')?.value;
+                const serialNo = document.getElementById('serial-no')?.value;
+                
+                if (batchId && serialNo) {
+                    // Calculate shelf_label_id from batch and serial
+                    const batch = parseInt(batchId);
+                    const serial = parseInt(serialNo);
+                    
+                    if (!isNaN(batch) && !isNaN(serial)) {
+                        // Each batch has 100 shelves, starting from (batch-1)*100 + 1
+                        const shelfId = ((batch - 1) * 100) + serial;
+                        return shelfId.toString();
+                    }
+                }
+                
+                return '';
+            }
+        }
+
+        function testSelection() {
+            const method = document.querySelector('input[name="selection_method"]:checked')?.value;
+            const shelfId = getSelectedShelfLabelId();
+            const shelfLocation = document.getElementById('shelf-location').value;
+
+            const output = document.getElementById('output');
+            output.innerHTML = `
+                <strong>Test Results:</strong><br>
+                Selection Method: ${method}<br>
+                Calculated Shelf ID: ${shelfId}<br>
+                Shelf Location: ${shelfLocation}<br>
+                Batch ID: ${document.getElementById('batch_id')?.value || 'N/A'}<br>
+                Serial No: ${document.getElementById('serial-no')?.value || 'N/A'}<br>
+                Direct Shelf: ${document.getElementById('shelf_label_id')?.value || 'N/A'}
+            `;
+        }
+    </script>
+</body>
+</html>

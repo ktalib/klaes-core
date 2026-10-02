@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Notification Center Widget Integration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 2rem;
+      color: #1f2933;
+      line-height: 1.6;
+    }
+
+    header {
+      max-width: 960px;
+      margin: 0 auto 2rem;
+      text-align: center;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 25px 40px rgba(15, 23, 42, 0.08);
+      padding: 2rem;
+    }
+
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+    }
+
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    h2 {
+      margin-top: 2.5rem;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 0.5rem;
+    }
+
+    .widget-preview {
+      margin: 1.5rem 0;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .widget-preview header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      background: #0ea5e9;
+      color: #fff;
+      margin: 0;
+    }
+
+    .widget-preview ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .widget-preview li {
+      padding: 1rem;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .note {
+      background: #ecfccb;
+      border: 1px solid #bef264;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Notification Center Widget Integration Guide</h1>
+    <p>Example of reusing <code>PushNotificationCenter</code> outside the header bell.</p>
+  </header>
+  <main>
+    <section>
+      <h2>1. Markup Structure</h2>
+      <p>Add a container with the required <code>data-*</code> attributes so the widget knows which endpoints, sound, and icons to use.</p>
+      <pre><code class="language-html">&lt;section
+  id="dashboard-notification-widget"
+  data-endpoint="{{ route('file-tracker-dashboard.notifications') }}"
+  data-fallback-endpoint="{{ url('api/file-tracker-dashboard/notifications') }}"
+  data-sound-url="{{ asset('sound/sound.wav') }}"
+  data-icon-url="{{ asset('assets/logo/logo.png') }}"
+  data-poll-interval="30000"
+&gt;
+  &lt;header&gt;
+    &lt;h3&gt;Recent Alerts&lt;/h3&gt;
+    &lt;span id="dashboard-notification-count"&gt;0&lt;/span&gt;
+  &lt;/header&gt;
+  &lt;div id="dashboard-notification-loading"&gt;Loading...&lt;/div&gt;
+  &lt;ul id="dashboard-notification-list" class="hidden"&gt;&lt;/ul&gt;
+  &lt;p id="dashboard-notification-empty" class="hidden"&gt;No alerts.&lt;/p&gt;
+  &lt;p id="dashboard-notification-error" class="hidden"&gt;&lt;/p&gt;
+&lt;/section&gt;</code></pre>
+
+      <div class="note">
+        Use the same endpoints as the header bell so permissions remain consistent. The fallback endpoint should be session-authenticated (web route) to avoid API token errors.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. JavaScript Integration</h2>
+      <p>Instantiate <code>PushNotificationCenter</code> and wire the update/error events to your widget DOM.</p>
+      <pre><code class="language-js">document.addEventListener('DOMContentLoaded', () =&gt; {
+  const widget = document.querySelector('#dashboard-notification-widget');
+  if (!widget || !window.PushNotificationCenter) {
+    return;
+  }
+
+  const list = widget.querySelector('#dashboard-notification-list');
+  const loading = widget.querySelector('#dashboard-notification-loading');
+  const empty = widget.querySelector('#dashboard-notification-empty');
+  const error = widget.querySelector('#dashboard-notification-error');
+  const count = widget.querySelector('#dashboard-notification-count');
+
+  const center = window.PushNotificationCenter.create({
+    endpoints: [
+      widget.dataset.endpoint,
+      widget.dataset.fallbackEndpoint,
+    ].filter(Boolean),
+    pollInterval: Number(widget.dataset.pollInterval || 30000),
+    soundUrl: widget.dataset.soundUrl,
+    iconUrl: widget.dataset.iconUrl,
+  });
+
+  const render = (items) =&gt; {
+    if (!items.length) {
+      list.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    empty.classList.add('hidden');
+    list.classList.remove('hidden');
+    list.innerHTML = items
+      .map(item =&gt; `
+        &lt;li&gt;
+          &lt;p class="text-sm font-semibold"&gt;${item.title || 'Update'}&lt;/p&gt;
+          &lt;p class="text-xs text-gray-500"&gt;${item.body || ''}&lt;/p&gt;
+        &lt;/li&gt;`)
+      .join('');
+  };
+
+  center
+    .on('update', ({ items, unreadCount }) =&gt; {
+      loading.classList.add('hidden');
+      error.classList.add('hidden');
+      count.textContent = unreadCount;
+      render(items);
+    })
+    .on('error', (err) =&gt; {
+      loading.classList.add('hidden');
+      error.textContent = err?.message || 'Unable to load alerts.';
+      error.classList.remove('hidden');
+    })
+    .start();
+});</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Live Preview</h2>
+      <div class="widget-preview">
+        <header>
+          <strong>Recent Alerts</strong>
+          <span id="dashboard-notification-count">3</span>
+        </header>
+        <ul>
+          <li>
+            <p class="text-sm font-semibold">File assignment: RES-2015-4859</p>
+            <p class="text-xs text-gray-500">You have been assigned file RES-2015-4859 (Alhaji Ibrahim Dantata).</p>
+          </li>
+          <li>
+            <p class="text-sm font-semibold">Log update for FILE-0098</p>
+            <p class="text-xs text-gray-500">Receiving office corrected to Enforcement Unit.</p>
+          </li>
+          <li>
+            <p class="text-sm font-semibold">Log out confirmation</p>
+            <p class="text-xs text-gray-500">Document logged out at 14:32 by Registry.</p>
+          </li>
+        </ul>
+      </div>
+      <p>This preview uses static data, but the real implementation will stay in sync with the backend using the event stream provided by <code>PushNotificationCenter</code>.</p>
+    </section>
+
+    <section>
+      <h2>4. Best Practices</h2>
+      <ul>
+        <li>Prime audio/browser permissions with a user gesture before expecting sound or push notifications.</li>
+        <li>Use the same credentials (session-auth routes) across the app to avoid CORS/token issues.</li>
+        <li>Throttle refreshes on visibility changes to reduce unnecessary network traffic.</li>
+        <li>Re-use the utility for other modules by listening to the <code>update</code> event and rendering custom UIs.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

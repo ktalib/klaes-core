@@ -1,0 +1,93 @@
+:root {
+  --brand-red: #D42E12;
+  --brand-green: #107C41;
+  --brand-yellow: #FFBA08;
+  --brand-black: #212121;
+}
+
+.bg-brand-green-fallback {
+  background-color: var(--brand-green) !important;
+}
+
+.text-brand-green-fallback {
+  color: var(--brand-green) !important;
+}
+
+.hover-brand-green-fallback:hover {
+  background-color: rgba(16, 124, 65, 0.9) !important;
+}
+
+@keyframes header-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.flash-text {
+  animation: header-flash 1.8s infinite;
+}
+
+.popup-overlay {
+  opacity: 0;
+  visibility: hidden;
+  display: none;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.popup-overlay.active {
+  opacity: 1;
+  visibility: visible;
+  display: flex;
+}
+
+.popup-content {
+  transform: scale(0.9);
+  transition: transform 0.4s ease;
+}
+
+.popup-overlay.active .popup-content {
+  transform: scale(1);
+}
+
+.brand-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  width: 60px;
+  height: 60px;
+}
+
+.welcome-popup {
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 120, 212, 0.658),
+    rgba(0, 104, 55, 0.8)
+  );
+}
+
+.welcome-popup-divider {
+  background: linear-gradient(
+    to right,
+    #d42e12,
+    #ffba08,
+    #107c41
+  );
+}
+
+.welcome-popup-banner {
+  background: linear-gradient(
+    to right,
+    rgba(212, 46, 18, 0.1),
+    rgba(255, 186, 8, 0.1),
+    rgba(16, 124, 65, 0.1)
+  );
+}
+
+.welcome-popup-cta {
+  background-color: #107c41 !important;
+}
+

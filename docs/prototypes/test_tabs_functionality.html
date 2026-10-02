@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tab Functionality</title>
+    <meta name="csrf-token" content="test-token">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; background: #f0f0f0; cursor: pointer; border: 1px solid #ccc; }
+        .tab.active { background: #007bff; color: white; }
+        .tab-content { display: none; padding: 20px; border: 1px solid #ccc; }
+        .tab-content.active { display: block; }
+        .tracking-sub-tabs { margin: 20px 0; }
+        .tracking-sub-tab-btn { padding: 8px 16px; margin-right: 10px; background: #f8f9fa; border: 1px solid #dee2e6; cursor: pointer; }
+        .tracking-sub-tab-btn.active { background: #007bff; color: white; }
+        .tracking-sub-content { padding: 20px; border: 1px solid #ccc; margin-top: 10px; }
+        .hidden { display: none !important; }
+        .error { color: red; padding: 10px; background: #ffe6e6; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Tab Functionality Test</h1>
+    
+    <div class="error" id="error-log" style="display:none;"></div>
+    
+    <!-- Main Tabs -->
+    <div class="tabs" id="main-tabs">
+        <div class="tab active" data-tab="pending">Unindexed Files</div>
+        <div class="tab" data-tab="indexed">Indexed Files</div>
+        <div class="tab" data-tab="batch-history">Tracking Sheet</div>
+    </div>
+    
+    <!-- Tab Contents -->
+    <div class="tab-content active" id="pending-tab">
+        <h3>Pending Files Content</h3>
+        <p>This is the pending files tab content.</p>
+    </div>
+    
+    <div class="tab-content" id="indexed-tab">
+        <h3>Indexed Files Content</h3>
+        <p>This is the indexed files tab content.</p>
+    </div>
+    
+    <div class="tab-content" id="batch-history-tab">
+        <h3>Tracking Sheet Management</h3>
+        
+        <!-- Sub-tabs for Tracking Sheet -->
+        <div class="tracking-sub-tabs">
+            <button class="tracking-sub-tab-btn active" data-subtab="not-generated">Not Generated</button>
+            <button class="tracking-sub-tab-btn" data-subtab="generated">Generated</button>
+        </div>
+
+        <!-- Not Generated Sub-tab Content -->
+        <div class="tracking-sub-content" id="not-generated-subtab">
+            <h4>Not Generated Files</h4>
+            <p>Files that have not yet had tracking sheets generated.</p>
+            <div id="not-generated-table-body">Loading...</div>
+        </div>
+
+        <!-- Generated Sub-tab Content -->
+        <div class="tracking-sub-content hidden" id="generated-subtab">
+            <h4>Generated Tracking Sheets</h4>
+            <p>Previously generated tracking sheets.</p>
+            <div id="batch-history-table-body">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        // Error logging function
+        function logError(message, error) {
+            console.error(message, error);
+            const errorLog = document.getElementById('error-log');
+            errorLog.style.display = 'block';
+            errorLog.innerHTML += `<div>${message}: ${error}</div>`;
+        }
+
+        // Wrap everything in try-catch for debugging
+        try {
+            // State variables
+            let currentTrackingSubTab = 'not-generated';
+            let subTabsInitialized = false;
+
+            // Switch between tabs
+            function switchTab(tabName) {
+                try {
+                    console.log('Switching to tab:', tabName);
+                    
+                    // Query tabs fresh in case DOM changed
+                    const tabElements = document.querySelectorAll('.tab');
+
+                    // Update active tab
+                    tabElements.forEach(t => {
+                        if (t.getAttribute('data-tab') === tabName) {
+                            t.classList.add('active');
+                        } else {
+                            t.classList.remove('active');
+                        }
+                    });
+
+                    // Update visible content
+                    const tabContents = document.querySelectorAll('.tab-content');
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    const activeContent = document.getElementById(`${tabName}-tab`);
+                    if (activeContent) {
+                        activeContent.classList.add('active');
+                    }
+                    
+                    // If switching to batch history tab, initialize sub-tabs
+                    if (tabName === 'batch-history') {
+                        console.log('Initializing tracking sub-tabs...');
+                        initializeTrackingSubTabs();
+                        // Load data based on current sub-tab
+                        if (currentTrackingSubTab === 'not-generated') {
+                            loadNotGeneratedFiles();
+                        } else if (currentTrackingSubTab === 'generated') {
+                            loadBatchHistory();
+                        }
+                    }
+                } catch (error) {
+                    logError('Error in switchTab', error);
+                }
+            }
+
+            function initializeTrackingSubTabs() {
+                try {
+                    console.log('initializeTrackingSubTabs called, already initialized:', subTabsInitialized);
+                    
+                    // Check if already initialized to avoid duplicate event listeners
+                    if (subTabsInitialized) {
+                        console.log('Sub-tabs already initialized, skipping...');
+                        return;
+                    }
+
+                    // Add click handlers for sub-tab buttons
+                    const subTabButtons = document.querySelectorAll('.tracking-sub-tab-btn');
+                    console.log('Found sub-tab buttons:', subTabButtons.length);
+                    
+                    subTabButtons.forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const subtab = this.getAttribute('data-subtab');
+                            console.log('Sub-tab clicked:', subtab);
+                            switchTrackingSubTab(subtab);
+                        });
+                    });
+
+                    subTabsInitialized = true;
+                    console.log('Sub-tabs initialized successfully');
+
+                    // Load initial data for not-generated tab
+                    if (currentTrackingSubTab === 'not-generated') {
+                        loadNotGeneratedFiles();
+                    }
+                } catch (error) {
+                    logError('Error in initializeTrackingSubTabs', error);
+                }
+            }
+
+            function switchTrackingSubTab(subtab) {
+                try {
+                    console.log('Switching to sub-tab:', subtab);
+                    
+                    // Update button states
+                    document.querySelectorAll('.tracking-sub-tab-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+
+                    const activeBtn = document.querySelector(`.tracking-sub-tab-btn[data-subtab="${subtab}"]`);
+                    if (activeBtn) {
+                        activeBtn.classList.add('active');
+                    }
+
+                    // Hide all sub-content
+                    document.querySelectorAll('.tracking-sub-content').forEach(content => {
+                        content.classList.add('hidden');
+                    });
+
+                    // Show selected sub-content
+                    const activeContent = document.getElementById(`${subtab}-subtab`);
+                    if (activeContent) {
+                        activeContent.classList.remove('hidden');
+                    }
+
+                    currentTrackingSubTab = subtab;
+
+                    // Load data based on active tab
+                    if (subtab === 'not-generated') {
+                        loadNotGeneratedFiles();
+                    } else if (subtab === 'generated') {
+                        loadBatchHistory();
+                    }
+                } catch (error) {
+                    logError('Error in switchTrackingSubTab', error);
+                }
+            }
+
+            function loadNotGeneratedFiles() {
+                try {
+                    console.log('Loading not generated files...');
+                    const tbody = document.getElementById('not-generated-table-body');
+                    if (tbody) {
+                        tbody.innerHTML = 'Not Generated Files loaded successfully!';
+                    }
+                } catch (error) {
+                    logError('Error in loadNotGeneratedFiles', error);
+                }
+            }
+
+            function loadBatchHistory() {
+                try {
+                    console.log('Loading batch history...');
+                    const tbody = document.getElementById('batch-history-table-body');
+                    if (tbody) {
+                        tbody.innerHTML = 'Batch History loaded successfully!';
+                    }
+                } catch (error) {
+                    logError('Error in loadBatchHistory', error);
+                }
+            }
+
+            // Initialize the page when DOM is loaded
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    console.log("Initializing test page");
+                    
+                    // Make sure pending tab is active by default
+                    switchTab('pending');
+                    
+                    // Tabs click handling
+                    document.querySelectorAll('.tab').forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            const tabName = tab.getAttribute('data-tab');
+                            console.log('Main tab clicked:', tabName);
+                            switchTab(tabName);
+                        });
+                    });
+
+                    console.log("Test page initialized successfully");
+                } catch (error) {
+                    logError('Error in DOMContentLoaded', error);
+                }
+            });
+
+        } catch (error) {
+            logError('Critical error in script', error);
+        }
+    </script>
+</body>
+</html>

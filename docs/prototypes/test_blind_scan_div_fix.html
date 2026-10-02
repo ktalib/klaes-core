@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blind Scan Div Structure Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .verification-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .verification-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .verification-list li:before {
+            content: "✅ ";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Blind Scan Div Structure Fix</h1>
+            <p>HTML structure has been corrected for proper div nesting</p>
+        </div>
+
+        <div class="section success">
+            <h2>✅ Div Structure Fixed</h2>
+            <p><strong>The following issues were corrected:</strong></p>
+            <ul class="verification-list">
+                <li>Modals moved outside main container div</li>
+                <li>All div opening and closing tags properly balanced</li>
+                <li>Fixed position modals no longer nested inside scrollable container</li>
+                <li>Proper HTML5 semantic structure maintained</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🏗️ Corrected Structure</h2>
+            <div class="code">
+&lt;div class="container mx-auto py-6 space-y-6"&gt;
+  @include('admin.header') 
+  
+  &lt;!-- Page Header --&gt;
+  &lt;div class="bg-gradient-to-r ..."&gt;
+    &lt;!-- Header content --&gt;
+  &lt;/div&gt;
+
+  &lt;div class="grid grid-cols-1 lg:grid-cols-5 gap-6"&gt;
+    &lt;!-- Left column --&gt;
+    &lt;div class="bg-card border rounded-lg p-6 lg:col-span-2"&gt;
+      &lt;!-- Upload form --&gt;
+    &lt;/div&gt;
+    
+    &lt;!-- Right column --&gt;
+    &lt;div class="bg-card border rounded-lg p-0 lg:col-span-3"&gt;
+      &lt;!-- Server browser --&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt; &lt;!-- Main container closes HERE --&gt;
+
+&lt;!-- Modals OUTSIDE main container --&gt;
+&lt;!-- Progress Modal --&gt;
+&lt;div id="progressModal" class="fixed inset-0 ..."&gt;
+  &lt;!-- Modal content --&gt;
+&lt;/div&gt;
+
+&lt;!-- Preview Modal --&gt;
+&lt;div id="previewModal" class="fixed inset-0 ..."&gt;
+  &lt;!-- Modal content --&gt;
+&lt;/div&gt;
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Benefits of Correct Structure</h2>
+            <ul class="verification-list">
+                <li><strong>Better Performance:</strong> Modals not affected by container scrolling</li>
+                <li><strong>Proper Z-index:</strong> Fixed position modals work correctly</li>
+                <li><strong>Accessibility:</strong> Screen readers can navigate structure properly</li>
+                <li><strong>Maintainability:</strong> Clear separation between content and overlays</li>
+                <li><strong>CSS Reliability:</strong> Styles apply correctly without nesting conflicts</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🧪 What Was Fixed</h2>
+            
+            <h3>❌ Before (Incorrect):</h3>
+            <div class="code">
+&lt;div class="container"&gt;
+  &lt;!-- Page content --&gt;
+  
+  &lt;div id="progressModal" class="fixed"&gt; &lt;!-- Modal inside container --&gt;
+    &lt;!-- This causes layout issues --&gt;
+  &lt;/div&gt;
+  
+  &lt;div id="previewModal" class="fixed"&gt; &lt;!-- Modal inside container --&gt;
+    &lt;!-- This causes z-index problems --&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+            </div>
+
+            <h3>✅ After (Correct):</h3>
+            <div class="code">
+&lt;div class="container"&gt;
+  &lt;!-- Page content --&gt;
+&lt;/div&gt; &lt;!-- Container properly closed --&gt;
+
+&lt;!-- Modals outside container --&gt;
+&lt;div id="progressModal" class="fixed"&gt; &lt;!-- Proper modal positioning --&gt;
+  &lt;!-- Works correctly --&gt;
+&lt;/div&gt;
+
+&lt;div id="previewModal" class="fixed"&gt; &lt;!-- Proper modal positioning --&gt;
+  &lt;!-- Z-index works correctly --&gt;
+&lt;/div&gt;
+            </div>
+        </div>
+
+        <div class="section success">
+            <h2>🚀 Ready for Testing</h2>
+            <p>The blind scanning page now has proper HTML structure and should display correctly with:</p>
+            <ul class="verification-list">
+                <li>No layout overflow issues</li>
+                <li>Properly functioning modals</li>
+                <li>Correct ST EDMS theming</li>
+                <li>All interactive elements working</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

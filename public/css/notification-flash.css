@@ -1,0 +1,305 @@
+.notification-flash-container {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.notification-flash-toast {
+  pointer-events: auto;
+  width: 340px;
+  background: linear-gradient(130deg, #0f172a, #1e1b4b);
+  color: #f8fafc;
+  border-radius: 1.5rem;
+  box-shadow: 0 30px 60px -30px rgba(15, 23, 42, 0.8);
+  padding: 1rem 1.1rem;
+  animation: flashSlideIn 0.35s ease forwards;
+  display: flex;
+  gap: 0.85rem;
+  backdrop-filter: blur(10px);
+}
+
+.notification-flash-toast__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.notification-flash-toast__content {
+  flex: 1;
+}
+
+.notification-flash-toast__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.notification-flash-toast__body {
+  font-size: 0.85rem;
+  color: rgba(248, 250, 252, 0.85);
+  margin-bottom: 0.65rem;
+}
+
+.notification-flash-toast__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: rgba(248, 250, 252, 0.6);
+  align-items: center;
+}
+
+.notification-flash-toast__close {
+  background: transparent;
+  border: none;
+  color: #cbd5f5;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+}
+
+.notification-flash-toast--closing {
+  opacity: 0;
+  transform: translate3d(20px, 0, 0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.notification-flash-toast__progress {
+  margin-top: 0.65rem;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.notification-flash-toast__progress-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #22d3ee, #818cf8);
+  transform-origin: left;
+  animation: flashProgress var(--toast-duration, 4500ms) linear forwards;
+}
+
+@keyframes flashSlideIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(20px, 10px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes flashProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ── Neumorphic 3D single toast styling ── */
+.notification-flash-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.notification-flash-toast {
+  pointer-events: auto;
+  position: relative;
+  width: 320px;
+  background: #ffffff;
+  border-radius: 1.75rem;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.08), 0 5px 15px rgba(0, 0, 0, 0.04);
+  padding: 1.5rem 1.25rem 0 1.25rem;
+  margin-top: 24px; /* Space for the floating bell */
+  margin-left: 24px;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s ease;
+  animation: flashSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  /* The dark-card block above sets a near-white colour; without this override
+     any text on the white card inherits it and renders invisible. */
+  color: #1e293b;
+}
+
+/* Legacy toast markup kept readable on the white card. */
+.notification-flash-toast__title {
+  color: #1e293b;
+}
+
+.notification-flash-toast__body {
+  color: #64748b;
+}
+
+.notification-flash-toast:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 28px 55px rgba(0, 0, 0, 0.12), 0 10px 22px rgba(0, 0, 0, 0.06);
+}
+
+/* Floating Bell Icon wrapper */
+.toast-floating-bell-wrapper {
+  position: absolute;
+  top: -24px;
+  left: -24px;
+  width: 52px;
+  height: 52px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Floating Bell background/3D effect */
+.toast-floating-bell {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-radius: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 20px rgba(245, 158, 11, 0.3), inset 0 -2px 6px rgba(245, 158, 11, 0.2);
+  transform: rotate(-10deg);
+  animation: bellWobble 1s ease-in-out infinite alternate;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.toast-floating-bell svg {
+  width: 28px;
+  height: 28px;
+  color: #f59e0b; /* Amber */
+  filter: drop-shadow(0 2px 4px rgba(217, 119, 6, 0.3));
+}
+
+/* Red Badge on the Bell */
+.toast-bell-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  border-radius: 9999px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
+  z-index: 110;
+}
+
+/* Wobble Animation for Bell */
+@keyframes bellWobble {
+  0% {
+    transform: rotate(-12deg) translateY(0);
+  }
+  100% {
+    transform: rotate(12deg) translateY(-2px);
+  }
+}
+
+/* Text overrides for centered layout */
+.toast-header-text {
+  font-family: 'Inter', sans-serif;
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.toast-body-text {
+  font-family: 'Inter', sans-serif;
+  color: #64748b;
+  font-weight: 450;
+  font-size: 0.825rem;
+  line-height: 1.4;
+}
+
+/* Action bar spanning full width at bottom of card */
+.toast-action-bar {
+  display: flex;
+  width: calc(100% + 2.5rem);
+  margin-left: -1.25rem;
+  margin-right: -1.25rem;
+  border-top: 1px solid #f1f5f9;
+  border-bottom-left-radius: 1.75rem;
+  border-bottom-right-radius: 1.75rem;
+  overflow: hidden;
+  margin-top: 1.25rem;
+}
+
+.toast-bar-action {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 1rem 0;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-bar-action:hover {
+  background: #f8fafc;
+}
+
+.toast-bar-action:first-child {
+  border-bottom-left-radius: 1.75rem;
+}
+
+.toast-bar-action:last-child {
+  border-bottom-right-radius: 1.75rem;
+}
+
+/* Vertical separator line */
+.toast-bar-action:not(:last-child) {
+  border-right: 1px solid #f1f5f9;
+}
+
+/* Progress bar alignment */
+.notification-flash-toast__progress {
+  width: calc(100% + 2.5rem);
+  margin-left: -1.25rem;
+  margin-right: -1.25rem;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+}
+
+.notification-flash-toast__progress-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #fef3c7);
+  transform-origin: left;
+  animation: flashProgress var(--toast-duration, 4500ms) linear forwards;
+}

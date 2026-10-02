@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Number Update - Quick Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-lg mx-auto bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-xl font-bold mb-6 text-center">Serial Number Update Test</h1>
+        
+        <!-- Serial Display (copied from primary partial) -->
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+            <h3 class="font-semibold mb-3">Serial Number Display:</h3>
+            <div class="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                <span class="text-gray-600">Serial:</span>
+                <span id="serial-number-display" class="font-semibold text-blue-700">1</span>
+            </div>
+            <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div class="flex items-start">
+                    <p class="text-xs text-blue-800">
+                        Primary identifier for this application and all unit applications.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Controls -->
+        <div class="space-y-3 mb-6">
+            <button onclick="testUpdateSerial('ST-COM-2025-5')" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Test: Update to Serial 5
+            </button>
+            <button onclick="testUpdateSerial('ST-RES-2025-15')" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Test: Update to Serial 15
+            </button>
+            <button onclick="testUpdateSerial('ST-IND-2025-99')" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+                Test: Update to Serial 99
+            </button>
+            <button onclick="testDirectUpdate()" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                Test: Direct DOM Update
+            </button>
+        </div>
+        
+        <!-- Console Output -->
+        <div class="p-4 bg-gray-100 rounded-lg">
+            <h3 class="font-semibold mb-2">Console Output:</h3>
+            <div id="console-output" class="text-sm text-gray-700 font-mono max-h-32 overflow-y-auto">
+                Ready for testing...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Replicate the updateSerialNumber function from file-modal-integration.js
+        function updateSerialNumber(fileNumber) {
+            addToConsole('🔢 Updating serial number from: ' + fileNumber);
+            
+            const serialDisplay = document.getElementById('serial-number-display');
+            if (!serialDisplay) {
+                addToConsole('❌ Serial display element not found!');
+                return false;
+            }
+            
+            if (!fileNumber) {
+                addToConsole('❌ No file number provided!');
+                return false;
+            }
+            
+            // Extract serial number from file number format: ST-COM-2025-5
+            const parts = fileNumber.split('-');
+            if (parts.length >= 4) {
+                const serialNumber = parts[3];
+                serialDisplay.textContent = serialNumber;
+                addToConsole('✅ Serial number updated to: ' + serialNumber);
+                return true;
+            } else {
+                addToConsole('❌ Invalid file number format: ' + fileNumber);
+                return false;
+            }
+        }
+        
+        function testUpdateSerial(fileNumber) {
+            addToConsole('--- Testing with: ' + fileNumber + ' ---');
+            updateSerialNumber(fileNumber);
+        }
+        
+        function testDirectUpdate() {
+            addToConsole('--- Testing Direct DOM Update ---');
+            const serialDisplay = document.getElementById('serial-number-display');
+            if (serialDisplay) {
+                const randomSerial = Math.floor(Math.random() * 100) + 1;
+                serialDisplay.textContent = randomSerial;
+                addToConsole('✅ Direct update to: ' + randomSerial);
+            } else {
+                addToConsole('❌ Element not found for direct update');
+            }
+        }
+        
+        function addToConsole(message) {
+            const consoleOutput = document.getElementById('console-output');
+            const time = new Date().toLocaleTimeString();
+            consoleOutput.innerHTML += '[' + time + '] ' + message + '\n';
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            console.log(message);
+        }
+        
+        // Test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            addToConsole('📋 Serial Number Test loaded');
+            addToConsole('Element found: ' + (document.getElementById('serial-number-display') ? '✅ Yes' : '❌ No'));
+        });
+    </script>
+</body>
+</html>

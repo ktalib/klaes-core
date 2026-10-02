@@ -1,0 +1,27 @@
+# Files Modified for Sectional Titling Module
+# Last Updated: [Insert Date Here]
+
+## Controller Files
+- app/Http/Controllers/SectionalTitlingController.php
+
+## View Files
+- resources/views/admin/menu.blade.php
+- resources/views/sectionaltitling/action_menu/action.blade.php
+- resources/views/programmes/memo_content_primary.blade.php
+- resources/views/sectionaltitling/primary.blade.php
+- resources/views/sectionaltitling/secondary.blade.php
+- resources/views/actions/other_departments.blade.php
+
+## Notes and Documentation
+- notes.txt
+
+# Additional Notes
+- Remember to clear cache after uploading: php artisan cache:clear
+- Remember to clear view cache: php artisan view:clear
+- Run composer dump-autoload if controllers were modified
+
+# API Endpoints (from notes.txt)
+- GET: http://localhost:8000/api/file-records
+- GET: http://localhost:8000/api/file-records/1
+- POST: http://localhost:8000/api/file-records/search
+- POST: http://localhost:8000/api/property-transaction

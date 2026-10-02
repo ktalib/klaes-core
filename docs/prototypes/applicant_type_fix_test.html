@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Applicant Type Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Applicant Type Fix Test</h1>
+    
+    <div class="test-result info">
+        <h3>Changes Made:</h3>
+        <ul>
+            <li>✅ Fixed applicant type input to have <code>name="applicantType"</code></li>
+            <li>✅ Updated autofill to set both text input and hidden field</li>
+            <li>✅ Added proper debugging to validation</li>
+        </ul>
+    </div>
+    
+    <div class="test-result info">
+        <h3>Expected Results:</h3>
+        <ol>
+            <li>When you select file number ST-COM-2025-4, the applicant type should be set to "individual"</li>
+            <li>The validation should pass and not show "Select an applicant type" error</li>
+            <li>Form submission should work properly</li>
+        </ol>
+    </div>
+    
+    <div class="test-result">
+        <h3>Test Steps:</h3>
+        <ol>
+            <li><strong>Refresh the primary form page</strong> (clear browser cache)</li>
+            <li><strong>Open browser console</strong> (F12 → Console tab)</li>
+            <li><strong>Select file number ST-COM-2025-4</strong> from dropdown</li>
+            <li><strong>Look for console logs</strong>:
+                <ul>
+                    <li>"📝 Set applicantType input: individual"</li>
+                    <li>"📝 Set hidden-applicant-type: individual"</li>
+                    <li>"📝 Set applicantType by name: individual"</li>
+                </ul>
+            </li>
+            <li><strong>Try to submit the form</strong></li>
+            <li><strong>Check validation result</strong> - should NOT show "Select an applicant type" error</li>
+        </ol>
+    </div>
+    
+    <div class="test-result">
+        <h3>If Still Getting Error:</h3>
+        <p>Look for these debug logs in console:</p>
+        <ul>
+            <li>"❌ Validation failed: No applicant type found"</li>
+            <li>Check the field values shown in debug output</li>
+            <li>Verify the form fields exist and have correct names</li>
+        </ul>
+    </div>
+    
+    <script>
+        // Add a test function you can run in console
+        window.testApplicantType = function() {
+            const form = parent.document.getElementById('primaryApplicationForm');
+            if (!form) {
+                console.log('❌ Form not found');
+                return;
+            }
+            
+            console.log('🧪 Testing applicant type fields:');
+            
+            // Check all applicant type related fields
+            const fields = [
+                { selector: '#applicantType', description: 'Main applicant type input' },
+                { selector: '#hidden-applicant-type', description: 'Hidden applicant type' },
+                { selector: '[name="applicantType"]', description: 'Field by name="applicantType"' },
+                { selector: '[name="applicant_type"]', description: 'Field by name="applicant_type"' }
+            ];
+            
+            fields.forEach(fieldInfo => {
+                const field = form.querySelector(fieldInfo.selector);
+                if (field) {
+                    console.log(`✅ ${fieldInfo.description}: "${field.value}"`);
+                } else {
+                    console.log(`❌ ${fieldInfo.description}: NOT FOUND`);
+                }
+            });
+        };
+        
+        console.log('💡 Test function available: window.testApplicantType()');
+    </script>
+</body>
+</html>

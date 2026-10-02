@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SUA Applicant Type Validation Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .success { color: green; }
+        .info { color: blue; }
+        .warning { color: orange; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>SUA Applicant Type Validation - FIXED</h1>
+    
+    <div class="section">
+        <h2>✅ Issues Resolved</h2>
+        <ul>
+            <li class="success">✅ <strong>Land Use Field Required Error</strong> - Field is now properly passed from URL parameter</li>
+            <li class="success">✅ <strong>First Name/Surname Required for Corporate</strong> - Conditional validation based on applicant type</li>
+            <li class="success">✅ <strong>Hidden applicant_type Field</strong> - Added to store selected applicant type</li>
+            <li class="success">✅ <strong>JavaScript Function</strong> - setApplicantType() now updates hidden field</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🔧 Changes Made</h2>
+        
+        <h3>1. SUAController.php - Conditional Validation</h3>
+        <ul>
+            <li><strong>Individual Applicant:</strong> Requires first_name, surname, email (optional), phone (optional)</li>
+            <li><strong>Corporate Body:</strong> Requires corporate_name, corporate_email, corporate_phone, corporate_address, rc_number</li>
+            <li><strong>Multiple Owners:</strong> Requires multiple_owners_names[], multiple_owners_address[]</li>
+        </ul>
+        
+        <h3>2. Form Updates (sub_application.blade.php)</h3>
+        <ul>
+            <li>Added hidden field: <code>&lt;input type="hidden" name="applicant_type" id="applicantTypeInput" value="individual"&gt;</code></li>
+            <li>Default applicant type set to "individual"</li>
+        </ul>
+        
+        <h3>3. JavaScript Updates (applicant.blade.php)</h3>
+        <ul>
+            <li>Enhanced setApplicantType() function to update hidden field</li>
+            <li>Supports both new and legacy field IDs</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>📋 Validation Rules by Applicant Type</h2>
+        
+        <h3>Individual</h3>
+        <ul>
+            <li>first_name: required</li>
+            <li>middle_name: optional</li>
+            <li>surname: required</li>
+            <li>email: optional (email format)</li>
+            <li>phone_number: optional (array)</li>
+        </ul>
+        
+        <h3>Corporate Body</h3>
+        <ul>
+            <li>corporate_name: required</li>
+            <li>corporate_email: required (email format)</li>
+            <li>corporate_phone: required</li>
+            <li>corporate_address: required</li>
+            <li>rc_number: required</li>
+        </ul>
+        
+        <h3>Multiple Owners</h3>
+        <ul>
+            <li>multiple_owners_names: required array (minimum 1 item)</li>
+            <li>multiple_owners_address: required array (minimum 1 item)</li>
+            <li>Each name: required, max 255 characters</li>
+            <li>Each address: required</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🧪 Testing Instructions</h2>
+        <ol>
+            <li><strong>Navigate to SUA Form:</strong> <code>/sua/create/Residential</code></li>
+            <li><strong>Select Applicant Type:</strong>
+                <ul>
+                    <li>Individual - Should require first name, surname</li>
+                    <li>Corporate Body - Should require corporate name, email, phone, address, RC number</li>
+                    <li>Multiple Owners - Should require owner names and addresses</li>
+                </ul>
+            </li>
+            <li><strong>Test Validation:</strong> Submit form with missing required fields for each type</li>
+            <li><strong>Verify Field Mapping:</strong> Check that data is stored correctly for each applicant type</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>💾 Data Storage Logic</h2>
+        <p>The system handles different applicant types by:</p>
+        <ul>
+            <li><strong>Individual:</strong> Stores data in standard fields (first_name, surname, email, phone_number)</li>
+            <li><strong>Corporate:</strong> Stores corporate_name in first_name, "Corporate Body" in surname, corporate data in respective fields</li>
+            <li><strong>Multiple:</strong> Stores first owner in main fields, all owners' data as JSON in multiple_owners_data field</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🎯 Expected Behavior</h2>
+        <ul>
+            <li class="success">✅ Land use field properly disabled and auto-filled from URL</li>
+            <li class="success">✅ Form validation only requires fields relevant to selected applicant type</li>
+            <li class="success">✅ Hidden applicant_type field correctly updated when radio buttons change</li>
+            <li class="success">✅ Data properly stored based on applicant type structure</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>✨ Ready for Testing!</h2>
+        <p class="success">The SUA applicant type validation issue has been resolved. You can now:</p>
+        <ul>
+            <li>Select "Corporate Body" without getting Individual field validation errors</li>
+            <li>Select "Multiple Owners" with appropriate field validation</li>
+            <li>Submit forms with only the required fields for each applicant type</li>
+            <li>Land use field will be properly passed from the URL parameter</li>
+        </ul>
+    </div>
+</body>
+</html>

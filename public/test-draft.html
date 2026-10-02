@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Draft Test</title>
+    <meta name="csrf-token" content="test">
+</head>
+<body>
+    <h1>Draft Autosave Test</h1>
+    
+    <form id="subApplicationForm" data-draft-id="test-draft" data-draft-version="1" data-auto-save-frequency="30">
+        <input type="text" name="test_field" placeholder="Type something to test autosave">
+        <button type="button" onclick="testAutosave()">Test Autosave</button>
+    </form>
+    
+    <div id="draftStatusText">Status: Ready</div>
+    <div id="draftLastSavedText">Last saved: Never</div>
+    <div id="draftProgressBar" style="width: 100px; height: 20px; background: #ddd; border: 1px solid #999;">
+        <div id="draftProgressBar" style="width: 0%; height: 100%; background: #007cba;"></div>
+    </div>
+    <div id="draftProgressValue">0%</div>
+    
+    <script>
+        // Mock endpoints for testing
+        window.SUB_APPLICATION_DRAFT_BOOTSTRAP = {
+            draft_id: 'test-draft',
+            version: 1,
+            form_state: {},
+            progress_percent: 0,
+            last_completed_step: 1,
+            auto_save_frequency: 30,
+            last_saved_at: null,
+            unit_file_no: 'TEST-001',
+            is_sua: false,
+            collaborators: [],
+            drafts: [],
+            mode: 'fresh'
+        };
+        
+        window.SUB_APPLICATION_DRAFT_ENDPOINTS = {
+            save: '/test-save',
+            submit: '/test-submit',
+            load: '/test-load',
+            delete: '/test-delete',
+            export: '/test-export',
+            analytics: '/test-analytics',
+            check: '/test-check',
+            share: '/test-share',
+            start: '/test-start',
+            mine: '/test-mine'
+        };
+        
+        function testAutosave() {
+            console.log('Testing autosave...');
+            if (window.SubApplicationDraftAutosave) {
+                window.SubApplicationDraftAutosave.autoSave({ trigger: 'manual', flash: true });
+            } else {
+                console.error('SubApplicationDraftAutosave not found');
+            }
+        }
+    </script>
+    
+    <script src="js/sub-application-draft-autosave.js"></script>
+</body>
+</html>

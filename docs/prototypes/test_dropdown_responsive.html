@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dropdown Responsive Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Copy of actual dropdown styles */
+        .dropdown-menu {
+            position: fixed;
+            z-index: 9999;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            min-width: 200px;
+            max-width: 280px;
+            width: max-content;
+            padding: 4px 0;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        @media (max-width: 640px) {
+            .dropdown-menu {
+                min-width: 180px;
+                max-width: calc(100vw - 32px);
+                font-size: 13px;
+            }
+        }
+        
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            text-decoration: none;
+            color: #374151;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 640px) {
+            .dropdown-item {
+                padding: 10px 12px;
+                font-size: 13px;
+                gap: 6px;
+            }
+        }
+        
+        .dropdown-item:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .action-button {
+            min-width: 36px;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        @media (max-width: 640px) {
+            .action-button {
+                min-width: 44px;
+                min-height: 44px;
+            }
+        }
+        
+        .dropdown-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.2);
+            z-index: 9998;
+        }
+        
+        @media (min-width: 641px) {
+            .dropdown-backdrop {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="max-w-6xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold mb-2">Dropdown Responsive Test</h1>
+            <p class="text-gray-600 mb-4">Test the action menu dropdown responsiveness</p>
+            
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <p class="text-sm"><strong>Screen Width:</strong> <span id="screenWidth"></span>px</p>
+                <p class="text-sm"><strong>Device Type:</strong> <span id="deviceType"></span></p>
+            </div>
+        </div>
+
+        <!-- Test Buttons in Different Positions -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- Top Left -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="font-bold mb-4">Top Left Corner</h3>
+                <button onclick="openDropdown(this, 1)" class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+
+            <!-- Top Right -->
+            <div class="bg-white rounded-lg shadow p-6 text-right">
+                <h3 class="font-bold mb-4">Top Right Corner</h3>
+                <button onclick="openDropdown(this, 2)" class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+
+            <!-- Center -->
+            <div class="bg-white rounded-lg shadow p-6 text-center">
+                <h3 class="font-bold mb-4">Center</h3>
+                <button onclick="openDropdown(this, 3)" class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Buttons -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- Bottom Left -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="font-bold mb-4">Bottom Left Corner</h3>
+                <div style="height: 150px;"></div>
+                <button onclick="openDropdown(this, 4)" class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+
+            <!-- Bottom Right -->
+            <div class="bg-white rounded-lg shadow p-6 text-right">
+                <h3 class="font-bold mb-4">Bottom Right Corner</h3>
+                <div style="height: 150px;"></div>
+                <button onclick="openDropdown(this, 5)" class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+
+            <!-- Center Bottom -->
+            <div class="bg-white rounded-lg shadow p-6 text-center">
+                <h3 class="font-bold mb-4">Center Bottom</h3>
+                <div style="height: 150px;"></div>
+                <button onclick="openDropdown(this, 6)" class="action-button text-gray-500 hover:text-gray-700 p-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Expected Behavior -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-bold mb-4">Expected Behavior</h2>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-start">
+                    <span class="text-green-500 mr-2">✓</span>
+                    <span>Dropdown should never go off-screen (left, right, top, bottom)</span>
+                </div>
+                <div class="flex items-start">
+                    <span class="text-green-500 mr-2">✓</span>
+                    <span>On mobile (<640px), dropdown should show backdrop and be touch-friendly</span>
+                </div>
+                <div class="flex items-start">
+                    <span class="text-green-500 mr-2">✓</span>
+                    <span>Action buttons should be 44x44px on mobile for easy tapping</span>
+                </div>
+                <div class="flex items-start">
+                    <span class="text-green-500 mr-2">✓</span>
+                    <span>Dropdown width should adapt: 180-280px (desktop), 180px-100vw (mobile)</span>
+                </div>
+                <div class="flex items-start">
+                    <span class="text-green-500 mr-2">✓</span>
+                    <span>Clicking backdrop (mobile) or outside should close dropdown</span>
+                </div>
+                <div class="flex items-start">
+                    <span class="text-green-500 mr-2">✓</span>
+                    <span>Dropdown should flip position if no space available</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backdrop -->
+    <div id="backdrop" class="dropdown-backdrop hidden" onclick="closeDropdown()"></div>
+
+    <!-- Dropdown Menu -->
+    <div id="dropdown" class="dropdown-menu hidden">
+        <a href="#" class="dropdown-item" onclick="alert('Edit clicked')">
+            <i class="fas fa-edit" style="width: 16px; color: #3b82f6;"></i>
+            <span>Edit Record</span>
+        </a>
+        <a href="#" class="dropdown-item" onclick="alert('Register clicked')">
+            <i class="fas fa-file-signature" style="width: 16px; color: #10b981;"></i>
+            <span>Register Instrument</span>
+        </a>
+        <a href="#" class="dropdown-item" onclick="alert('Generate RDS clicked')">
+            <i class="fas fa-file-alt" style="width: 16px; color: #a855f7;"></i>
+            <span>Generate RDS</span>
+        </a>
+        <a href="#" class="dropdown-item" onclick="alert('View RDS clicked')">
+            <i class="fas fa-eye" style="width: 16px; color: #6366f1;"></i>
+            <span>View RDS</span>
+        </a>
+        <a href="#" class="dropdown-item" onclick="alert('View CoR clicked')">
+            <i class="fas fa-eye" style="width: 16px; color: #3b82f6;"></i>
+            <span>View CoR</span>
+        </a>
+        <a href="#" class="dropdown-item" onclick="alert('Delete clicked')">
+            <i class="fas fa-trash" style="width: 16px; color: #ef4444;"></i>
+            <span>Delete Record</span>
+        </a>
+    </div>
+
+    <script>
+        let currentButton = null;
+
+        function updateScreenInfo() {
+            const width = window.innerWidth;
+            document.getElementById('screenWidth').textContent = width;
+            
+            let deviceType = 'Desktop';
+            if (width < 640) deviceType = 'Mobile';
+            else if (width < 768) deviceType = 'Tablet';
+            
+            document.getElementById('deviceType').textContent = deviceType;
+        }
+
+        function openDropdown(button, id) {
+            const dropdown = document.getElementById('dropdown');
+            const backdrop = document.getElementById('backdrop');
+            
+            // Close if same button
+            if (currentButton === button && !dropdown.classList.contains('hidden')) {
+                closeDropdown();
+                return;
+            }
+            
+            closeDropdown();
+            currentButton = button;
+            
+            // Position dropdown
+            const rect = button.getBoundingClientRect();
+            const isMobile = window.innerWidth < 640;
+            
+            // Calculate position
+            let left = rect.right - 200;
+            let top = rect.bottom + 4;
+            
+            // Keep in viewport
+            const dropdownWidth = isMobile ? Math.min(window.innerWidth - 32, 280) : 200;
+            
+            if (left < 8) left = 8;
+            if (left + dropdownWidth > window.innerWidth - 8) {
+                left = window.innerWidth - dropdownWidth - 8;
+            }
+            
+            // Check if should flip vertically
+            if (top + 300 > window.innerHeight) {
+                top = rect.top - 300 - 4;
+                if (top < 8) top = 8;
+            }
+            
+            dropdown.style.left = left + 'px';
+            dropdown.style.top = top + 'px';
+            
+            // Show backdrop on mobile
+            if (isMobile) {
+                backdrop.classList.remove('hidden');
+            }
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function closeDropdown() {
+            const dropdown = document.getElementById('dropdown');
+            const backdrop = document.getElementById('backdrop');
+            
+            dropdown.classList.add('hidden');
+            backdrop.classList.add('hidden');
+            currentButton = null;
+        }
+
+        // Update screen info on load and resize
+        updateScreenInfo();
+        window.addEventListener('resize', updateScreenInfo);
+        
+        // Close on outside click
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.action-button') && !e.target.closest('#dropdown')) {
+                closeDropdown();
+            }
+        });
+        
+        // Close on escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeDropdown();
+        });
+    </script>
+</body>
+</html>

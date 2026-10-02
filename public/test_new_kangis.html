@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test New KANGIS File No</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .highlight { background-color: yellow; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Test New KANGIS File No Field</h1>
+    <p>This page tests if the NewKANGISFileno field is being returned correctly from the database.</p>
+    
+    <div id="loading">Loading data...</div>
+    <div id="error" style="color: red; display: none;"></div>
+    
+    <table id="dataTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>File Number</th>
+                <th>Applicant Name</th>
+                <th class="highlight">New KANGIS File No</th>
+                <th>KANGIS File No</th>
+                <th>MLSF No</th>
+                <th>Reg No</th>
+                <th>CofO Serial No</th>
+            </tr>
+        </thead>
+        <tbody id="dataBody">
+        </tbody>
+    </table>
+
+    <script>
+        // Test the endpoint
+        fetch('/get_recertification_data.php')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.success && data.data) {
+                    const table = document.getElementById('dataTable');
+                    const tbody = document.getElementById('dataBody');
+                    
+                    data.data.forEach(app => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${app.id}</td>
+                            <td>${app.file_number}</td>
+                            <td>${app.applicant_name}</td>
+                            <td class="highlight">${app.NewKANGISFileno}</td>
+                            <td>${app.kangisFileNo}</td>
+                            <td>${app.mlsfNo}</td>
+                            <td>${app.reg_no}</td>
+                            <td>${app.cofO_serialNo}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                    
+                    table.style.display = 'table';
+                    
+                    // Show summary
+                    const summary = document.createElement('div');
+                    summary.innerHTML = `
+                        <h3>Summary:</h3>
+                        <p>Total records: ${data.data.length}</p>
+                        <p>Records with NewKANGISFileno: ${data.data.filter(app => app.NewKANGISFileno && app.NewKANGISFileno !== 'N/A').length}</p>
+                    `;
+                    document.body.appendChild(summary);
+                } else {
+                    document.getElementById('error').textContent = 'Failed to load data: ' + (data.error || 'Unknown error');
+                    document.getElementById('error').style.display = 'block';
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').textContent = 'Error: ' + error.message;
+                document.getElementById('error').style.display = 'block';
+            });
+    </script>
+</body>
+</html>

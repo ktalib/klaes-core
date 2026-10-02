@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Types Capture Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        .test-section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-section h2 { color: #555; margin-top: 0; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a8b; }
+        .results { margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        .property-type { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 Property Types Capture Test</h1>
+        <p><strong>Purpose:</strong> Test that property types (Commercial, Residential, Industrial) are properly captured from radio buttons</p>
+        
+        <!-- Mock Property Type Forms -->
+        <div class="test-section">
+            <h2>📋 Mock Property Type Forms</h2>
+            
+            <!-- Commercial Types -->
+            <div class="property-type">
+                <h3>Types of Commercial</h3>
+                <div class="grid">
+                    <label><input type="radio" name="commercial_type" value="Block of Flats"> Block of Flats</label>
+                    <label><input type="radio" name="commercial_type" value="Plaza"> Plaza</label>
+                    <label><input type="radio" name="commercial_type" value="Housing Estate"> Housing Estate</label>
+                    <label><input type="radio" name="commercial_type" value="Unit of Shops"> Unit of Shops</label>
+                    <label><input type="radio" name="commercial_type" value="Fragmented Layout"> Fragmented Layout</label>
+                    <label><input type="radio" name="commercial_type" value="Unit of Offices"> Unit of Offices</label>
+                    <label><input type="radio" name="commercial_type" value="Shopping Mall"> Shopping Mall</label>
+                    <label><input type="radio" name="commercial_type" value="Others" id="commercialOthers"> Others</label>
+                </div>
+                <div id="commercialOthersInput" style="display: none; margin-top: 10px;">
+                    <input type="text" name="commercial_type_others" placeholder="Specify other commercial type" style="width: 100%; padding: 5px;">
+                </div>
+            </div>
+            
+            <!-- Residential Types -->
+            <div class="property-type">
+                <h3>Type of Residence</h3>
+                <div class="grid">
+                    <label><input type="radio" name="residenceType" value="Detached House"> Detached House</label>
+                    <label><input type="radio" name="residenceType" value="Housing Estate"> Housing Estate</label>
+                    <label><input type="radio" name="residenceType" value="Fragmented Layout"> Fragmented Layout</label>
+                    <label><input type="radio" name="residenceType" value="others" id="residentialOthers"> Others</label>
+                </div>
+                <div id="residentialOthersInput" style="display: none; margin-top: 10px;">
+                    <input type="text" name="otherResidenceType" placeholder="Specify other residence type" style="width: 100%; padding: 5px;">
+                </div>
+            </div>
+            
+            <!-- Industrial Types -->
+            <div class="property-type">
+                <h3>Type of Industrial</h3>
+                <div class="grid">
+                    <label><input type="radio" name="industrial_type" value="Industrial Layout"> Industrial Layout</label>
+                    <label><input type="radio" name="industrial_type" value="Industrial Estate"> Industrial Estate</label>
+                    <label><input type="radio" name="industrial_type" value="Section"> Section</label>
+                    <label><input type="radio" name="industrial_type" value="Others" id="industrialOthers"> Others</label>
+                </div>
+                <div id="industrialOthersInput" style="display: none; margin-top: 10px;">
+                    <input type="text" name="industrial_type_others" placeholder="Specify other industrial type" style="width: 100%; padding: 5px;">
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Property Type Capture Tests</h2>
+            <p>Test the JavaScript property type capture logic:</p>
+            
+            <button onclick="testOldCapture()">Test OLD Capture Logic (Broken)</button>
+            <button onclick="testNewCapture()">Test NEW Capture Logic (Fixed)</button>
+            <button onclick="testFormDataCapture()">Test Complete FormData Capture</button>
+            <button onclick="resetForm()">Reset Form</button>
+            
+            <div id="results" class="results" style="display: none;">
+                <h3>Test Results:</h3>
+                <div id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show/hide "Others" input fields
+        document.addEventListener('DOMContentLoaded', function() {
+            // Commercial Others
+            document.getElementById('commercialOthers').addEventListener('change', function() {
+                document.getElementById('commercialOthersInput').style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Residential Others  
+            document.getElementById('residentialOthers').addEventListener('change', function() {
+                document.getElementById('residentialOthersInput').style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Industrial Others
+            document.getElementById('industrialOthers').addEventListener('change', function() {
+                document.getElementById('industrialOthersInput').style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Hide others inputs when other options are selected
+            document.querySelectorAll('input[name="commercial_type"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value !== 'Others') {
+                        document.getElementById('commercialOthersInput').style.display = 'none';
+                    }
+                });
+            });
+            
+            document.querySelectorAll('input[name="residenceType"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value !== 'others') {
+                        document.getElementById('residentialOthersInput').style.display = 'none';
+                    }
+                });
+            });
+            
+            document.querySelectorAll('input[name="industrial_type"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value !== 'Others') {
+                        document.getElementById('industrialOthersInput').style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        function showResults(content) {
+            const element = document.getElementById('results');
+            const contentElement = document.getElementById('resultContent');
+            element.style.display = 'block';
+            contentElement.innerHTML = content;
+        }
+
+        function testOldCapture() {
+            let content = '<h4>OLD (Broken) Capture Logic:</h4>';
+            
+            // This is the OLD broken logic
+            const commercialType = document.querySelector('select[name="commercial_type"]');
+            const residentialType = document.querySelector('select[name="residential_type"]');
+            const industrialType = document.querySelector('select[name="industrial_type"]');
+            
+            content += '<h5>Searching for SELECT elements:</h5>';
+            content += `<div class="error">Commercial Type SELECT: ${commercialType ? '✅ Found' : '❌ Not Found'}</div>`;
+            content += `<div class="error">Residential Type SELECT: ${residentialType ? '✅ Found' : '❌ Not Found'}</div>`;
+            content += `<div class="error">Industrial Type SELECT: ${industrialType ? '✅ Found' : '❌ Not Found'}</div>`;
+            
+            content += '<h5>Result:</h5>';
+            content += '<div class="error">❌ OLD logic fails because it looks for SELECT elements but form uses RADIO buttons</div>';
+            
+            showResults(content);
+        }
+
+        function testNewCapture() {
+            let content = '<h4>NEW (Fixed) Capture Logic:</h4>';
+            
+            // This is the NEW fixed logic
+            const commercialType = document.querySelector('input[name="commercial_type"]:checked');
+            const residentialType = document.querySelector('input[name="residenceType"]:checked');
+            const industrialType = document.querySelector('input[name="industrial_type"]:checked');
+            
+            content += '<h5>Searching for checked RADIO buttons:</h5>';
+            content += `<div class="${commercialType ? 'success' : 'warning'}">Commercial Type RADIO: ${commercialType ? `✅ Found - ${commercialType.value}` : '⚠️ None selected'}</div>`;
+            content += `<div class="${residentialType ? 'success' : 'warning'}">Residential Type RADIO: ${residentialType ? `✅ Found - ${residentialType.value}` : '⚠️ None selected'}</div>`;
+            content += `<div class="${industrialType ? 'success' : 'warning'}">Industrial Type RADIO: ${industrialType ? `✅ Found - ${industrialType.value}` : '⚠️ None selected'}</div>`;
+            
+            content += '<h5>Handling "Others" Custom Input:</h5>';
+            
+            // Test "Others" handling
+            if (commercialType && commercialType.value === 'Others') {
+                const commercialOthers = document.querySelector('input[name="commercial_type_others"]');
+                content += `<div class="${commercialOthers && commercialOthers.value ? 'success' : 'warning'}">Commercial Others Input: ${commercialOthers && commercialOthers.value ? `✅ ${commercialOthers.value}` : '⚠️ Empty'}</div>`;
+            }
+            
+            if (residentialType && residentialType.value === 'others') {
+                const residentialOthers = document.querySelector('input[name="otherResidenceType"]');
+                content += `<div class="${residentialOthers && residentialOthers.value ? 'success' : 'warning'}">Residential Others Input: ${residentialOthers && residentialOthers.value ? `✅ ${residentialOthers.value}` : '⚠️ Empty'}</div>`;
+            }
+            
+            if (industrialType && industrialType.value === 'Others') {
+                const industrialOthers = document.querySelector('input[name="industrial_type_others"]');
+                content += `<div class="${industrialOthers && industrialOthers.value ? 'success' : 'warning'}">Industrial Others Input: ${industrialOthers && industrialOthers.value ? `✅ ${industrialOthers.value}` : '⚠️ Empty'}</div>`;
+            }
+            
+            content += '<h5>Result:</h5>';
+            content += '<div class="success">✅ NEW logic correctly finds RADIO buttons and handles custom "Others" inputs</div>';
+            
+            showResults(content);
+        }
+
+        function testFormDataCapture() {
+            let content = '<h4>Complete FormData Capture Test:</h4>';
+            
+            const formData = new FormData();
+            
+            // Apply the NEW fixed logic
+            const commercialType = document.querySelector('input[name="commercial_type"]:checked');
+            if (commercialType && commercialType.value) {
+                if (commercialType.value === 'Others') {
+                    const commercialTypeOthers = document.querySelector('input[name="commercial_type_others"]');
+                    if (commercialTypeOthers && commercialTypeOthers.value.trim()) {
+                        formData.set('commercial_type', commercialTypeOthers.value.trim());
+                        content += `<div class="success">✅ Commercial Type: ${commercialTypeOthers.value.trim()} (Custom)</div>`;
+                    } else {
+                        formData.set('commercial_type', 'Others');
+                        content += `<div class="success">✅ Commercial Type: Others</div>`;
+                    }
+                } else {
+                    formData.set('commercial_type', commercialType.value);
+                    content += `<div class="success">✅ Commercial Type: ${commercialType.value}</div>`;
+                }
+            } else {
+                content += `<div class="warning">⚠️ No commercial type selected</div>`;
+            }
+            
+            const residentialType = document.querySelector('input[name="residenceType"]:checked');
+            if (residentialType && residentialType.value) {
+                if (residentialType.value === 'others') {
+                    const otherResidenceType = document.querySelector('input[name="otherResidenceType"]');
+                    if (otherResidenceType && otherResidenceType.value.trim()) {
+                        formData.set('residential_type', otherResidenceType.value.trim());
+                        content += `<div class="success">✅ Residential Type: ${otherResidenceType.value.trim()} (Custom)</div>`;
+                    } else {
+                        formData.set('residential_type', 'Others');
+                        content += `<div class="success">✅ Residential Type: Others</div>`;
+                    }
+                } else {
+                    formData.set('residential_type', residentialType.value);
+                    content += `<div class="success">✅ Residential Type: ${residentialType.value}</div>`;
+                }
+            } else {
+                content += `<div class="warning">⚠️ No residential type selected</div>`;
+            }
+            
+            const industrialType = document.querySelector('input[name="industrial_type"]:checked');
+            if (industrialType && industrialType.value) {
+                if (industrialType.value === 'Others') {
+                    const industrialTypeOthers = document.querySelector('input[name="industrial_type_others"]');
+                    if (industrialTypeOthers && industrialTypeOthers.value.trim()) {
+                        formData.set('industrial_type', industrialTypeOthers.value.trim());
+                        content += `<div class="success">✅ Industrial Type: ${industrialTypeOthers.value.trim()} (Custom)</div>`;
+                    } else {
+                        formData.set('industrial_type', 'Others');
+                        content += `<div class="success">✅ Industrial Type: Others</div>`;
+                    }
+                } else {
+                    formData.set('industrial_type', industrialType.value);
+                    content += `<div class="success">✅ Industrial Type: ${industrialType.value}</div>`;
+                }
+            } else {
+                content += `<div class="warning">⚠️ No industrial type selected</div>`;
+            }
+            
+            content += '<h5>FormData Contents:</h5>';
+            content += '<pre>';
+            for (let [key, value] of formData.entries()) {
+                content += `${key}: ${value}\n`;
+            }
+            content += '</pre>';
+            
+            content += '<div class="success">✅ Property types will now be properly captured and sent to backend!</div>';
+            
+            showResults(content);
+        }
+
+        function resetForm() {
+            // Uncheck all radio buttons
+            document.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.checked = false;
+            });
+            
+            // Clear all text inputs
+            document.querySelectorAll('input[type="text"]').forEach(input => {
+                input.value = '';
+            });
+            
+            // Hide all "others" input fields
+            document.getElementById('commercialOthersInput').style.display = 'none';
+            document.getElementById('residentialOthersInput').style.display = 'none';
+            document.getElementById('industrialOthersInput').style.display = 'none';
+            
+            showResults('<div class="success">✅ Form reset. Please select property types and test again.</div>');
+        }
+
+        // Auto-run test on page load
+        window.onload = function() {
+            showResults('<div class="warning">⚠️ Please select some property types above, then click the test buttons to see the results.</div>');
+        };
+    </script>
+</body>
+</html>

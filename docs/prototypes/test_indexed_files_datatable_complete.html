@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DataTables Integration Test</title>
+    <meta name="csrf-token" content="test-token">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>DataTables Integration Test for Indexed Files</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Direct API Endpoint Test</h2>
+        <button onclick="testDirectAPI()">Run Direct API Test</button>
+        <div id="api-test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: DataTables Integration Test</h2>
+        <button onclick="initializeDataTable()">Initialize DataTable</button>
+        <button onclick="testDataTableSearch()">Test Search</button>
+        <button onclick="testDataTablePagination()">Test Pagination</button>
+        <div id="datatable-test-result"></div>
+        
+        <table id="test-indexed-files-table" class="display" style="width:100%; margin-top: 20px;">
+            <thead>
+                <tr>
+                    <th>Tracking ID</th>
+                    <th>Shelf/Rack</th>
+                    <th>Registry</th>
+                    <th>Sys Batch No</th>
+                    <th>MDC Batch No</th>
+                    <th>Group</th>
+                    <th>File No</th>
+                    <th>File Name</th>
+                    <th>Plot No</th>
+                    <th>Indexed Date</th>
+                    <th>Indexed By</th>
+                    <th>TP No</th>
+                    <th>LPKN No</th>
+                    <th>Land Use</th>
+                    <th>District</th>
+                    <th>LGA</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
+
+    <script>
+        let testDataTable = null;
+        
+        // Test 1: Direct API call
+        function testDirectAPI() {
+            const resultDiv = document.getElementById('api-test-result');
+            resultDiv.innerHTML = '<div class="info">Testing direct API call...</div>';
+            
+            const url = '/fileindexing/api/indexed-files/datatable';
+            const params = new URLSearchParams({
+                draw: 1,
+                start: 0,
+                length: 10,
+                'search[value]': ''
+            });
+            
+            fetch(url + '?' + params.toString())
+                .then(response => {
+                    console.log('API Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API Response data:', data);
+                    
+                    let html = '<div class="success">✓ API Call Successful</div>';
+                    html += `<div><strong>Status:</strong> ${response.status || 'OK'}</div>`;
+                    html += `<div><strong>Draw:</strong> ${data.draw}</div>`;
+                    html += `<div><strong>Records Total:</strong> ${data.recordsTotal}</div>`;
+                    html += `<div><strong>Records Filtered:</strong> ${data.recordsFiltered}</div>`;
+                    html += `<div><strong>Data Count:</strong> ${data.data ? data.data.length : 0}</div>`;
+                    
+                    if (data.error) {
+                        html += `<div class="error"><strong>Error:</strong> ${data.error}</div>`;
+                    }
+                    
+                    if (data.data && data.data.length > 0) {
+                        html += '<div><strong>Sample Record:</strong></div>';
+                        html += '<pre>' + JSON.stringify(data.data[0], null, 2) + '</pre>';
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    resultDiv.innerHTML = `<div class="error">✗ API Call Failed: ${error.message}</div>`;
+                });
+        }
+        
+        // Test 2: DataTables initialization
+        function initializeDataTable() {
+            const resultDiv = document.getElementById('datatable-test-result');
+            resultDiv.innerHTML = '<div class="info">Initializing DataTable...</div>';
+            
+            try {
+                // Destroy existing table if it exists
+                if (testDataTable) {
+                    testDataTable.destroy();
+                    testDataTable = null;
+                }
+                
+                // Initialize DataTable
+                testDataTable = $('#test-indexed-files-table').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    deferRender: true,
+                    autoWidth: false,
+                    pageLength: 25,
+                    lengthMenu: [10, 25, 50, 100],
+                    order: [[9, 'desc']],
+                    searchDelay: 350,
+                    ajax: {
+                        url: '/fileindexing/api/indexed-files/datatable',
+                        type: 'GET',
+                        data: function(data) {
+                            console.log('DataTables request data:', data);
+                        },
+                        dataSrc: function(json) {
+                            console.log('DataTables response:', json);
+                            return json?.data || [];
+                        },
+                        error: function(xhr, error, thrown) {
+                            console.error('DataTables AJAX error:', error, thrown);
+                            resultDiv.innerHTML += `<div class="error">DataTables AJAX Error: ${error}</div>`;
+                        }
+                    },
+                    columns: [
+                        { data: 'tracking_id', defaultContent: '-' },
+                        { data: 'shelf_location', defaultContent: '-' },
+                        { data: 'registry', defaultContent: '-' },
+                        { data: 'sys_batch_no', defaultContent: '-' },
+                        { data: 'mdc_batch_no', defaultContent: '-' },
+                        { data: 'group_no', defaultContent: '-' },
+                        { data: 'fileNumber', defaultContent: '-' },
+                        { data: 'name', defaultContent: '-' },
+                        { data: 'plotNumber', defaultContent: '-' },
+                        { data: 'indexed_at', defaultContent: '-' },
+                        { data: 'indexed_by', defaultContent: '-' },
+                        { data: 'tpNumber', defaultContent: '-' },
+                        { data: 'lpknNumber', defaultContent: '-' },
+                        { data: 'landUseType', defaultContent: '-' },
+                        { data: 'district', defaultContent: '-' },
+                        { data: 'lga', defaultContent: '-' },
+                        { data: 'source', defaultContent: '-', orderable: false },
+                        { data: null, orderable: false, searchable: false, render: () => 'Actions' }
+                    ],
+                    initComplete: function() {
+                        resultDiv.innerHTML += '<div class="success">✓ DataTable Initialized Successfully</div>';
+                        console.log('DataTable initialized successfully');
+                    },
+                    drawCallback: function(settings) {
+                        const api = this.api();
+                        const pageInfo = api.page.info();
+                        resultDiv.innerHTML += `<div class="info">Page drawn: ${pageInfo.page + 1} of ${pageInfo.pages}, showing ${pageInfo.recordsDisplay} records</div>`;
+                        console.log('DataTable draw completed', pageInfo);
+                    }
+                });
+                
+            } catch (error) {
+                console.error('DataTable initialization error:', error);
+                resultDiv.innerHTML += `<div class="error">✗ DataTable Initialization Failed: ${error.message}</div>`;
+            }
+        }
+        
+        // Test 3: Search functionality
+        function testDataTableSearch() {
+            if (!testDataTable) {
+                alert('Please initialize DataTable first');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('datatable-test-result');
+            resultDiv.innerHTML += '<div class="info">Testing search functionality...</div>';
+            
+            // Test search for "ST-MIXED"
+            testDataTable.search('ST-MIXED').draw();
+            
+            setTimeout(() => {
+                const pageInfo = testDataTable.page.info();
+                resultDiv.innerHTML += `<div class="success">✓ Search test completed. Found ${pageInfo.recordsDisplay} records</div>`;
+            }, 1000);
+        }
+        
+        // Test 4: Pagination
+        function testDataTablePagination() {
+            if (!testDataTable) {
+                alert('Please initialize DataTable first');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('datatable-test-result');
+            const pageInfo = testDataTable.page.info();
+            resultDiv.innerHTML += `<div class="info">Current page: ${pageInfo.page + 1}, Total pages: ${pageInfo.pages}</div>`;
+        }
+        
+        // Auto-run tests when page loads
+        $(document).ready(function() {
+            console.log('Page loaded, jQuery and DataTables available');
+            
+            // Run direct API test first
+            setTimeout(testDirectAPI, 500);
+        });
+    </script>
+</body>
+</html>

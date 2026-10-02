@@ -1,0 +1,446 @@
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.sidebar-item:hover {
+  background-color: #f3f4f6;
+}
+
+.sidebar-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.sidebar-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.75rem;
+}
+
+.klas-logo {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  width: 24px;
+  height: 24px;
+}
+
+.klas-logo-red { background-color: #ef4444; }
+.klas-logo-green { background-color: #10b981; }
+.klas-logo-yellow { background-color: #f59e0b; }
+.klas-logo-blue { background-color: #3b82f6; }
+
+.submenu {
+  display: none;
+}
+
+.submenu:not(.hidden) {
+  display: block;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+}
+
+.submenu-item:hover {
+  background-color: #f3f4f6;
+}
+
+.submenu-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+  border-left: 4px solid #3B82F6;
+}
+
+.submenu-l1 { padding-left: 1.5rem; }
+.submenu-l2 { padding-left: 2.5rem; }
+.submenu-l3 { padding-left: 3.5rem; }
+
+/*
+  The content pane is meant to own the page's only scrollbar.
+
+  Without position:relative it is not a containing block, so absolutely-positioned
+  widgets inside it resolve against the initial containing block instead — they escape
+  overflow:auto and stretch <html> to their own depth, giving the page a second,
+  phantom scrollbar. Select2 is the usual offender: it hides its source <select> with
+  .select2-hidden-accessible { position: absolute !important }, so a Select2 field
+  1200px down a long form makes <html> 1200px tall while the body is only 100vh.
+*/
+.flex-1.overflow-auto {
+  position: relative;
+}
+
+.sidebar {
+  width: 280px;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  height: calc(100vh - 8rem);
+}
+
+.sidebar-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.sidebar-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  background-color: #E5E7EB;
+  color: #374151;
+  font-weight: 600;
+}
+
+.module-icon-dashboard { color: #2563eb; opacity: 0.8; }
+.module-icon-customer { color: #7c3aed; opacity: 0.8; }
+.module-icon-programmes { color: #059669; opacity: 0.8; }
+.module-icon-info-products { color: #d97706; opacity: 0.8; }
+.module-icon-legal-search { color: #0891b2; opacity: 0.8; }
+.module-icon-instrument { color: #dc2626; opacity: 0.8; }
+.module-icon-file-registry { color: #4f46e5; opacity: 0.8; }
+.module-icon-systems { color: #db2777; opacity: 0.8; }
+.module-icon-legacy { color: #92400e; opacity: 0.8; }
+.module-icon-admin { color: #4b5563; opacity: 0.8; }
+
+.animate-ping {
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.stat-card,
+.service-card {
+  background-color: #fff;
+  border-radius: 0.375rem;
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.tab {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: #4b5563;
+}
+
+.tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-primary {
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.badge-progress {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.badge-approved {
+  background-color: #d1fae5;
+  color: #059669;
+}
+
+.badge-pending {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background-color: #e5e7eb;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.progress-bar-blue { background-color: #3b82f6; }
+.progress-bar-orange { background-color: #f59e0b; }
+.progress-bar-red { background-color: #ef4444; }
+
+.table-header {
+  background-color: #f9fafb;
+  font-weight: 500;
+  color: #4b5563;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-cell {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.personal-alert-toast {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: min(360px, calc(100% - 2rem));
+  z-index: 1400;
+  pointer-events: none;
+}
+
+.personal-alert-card {
+  position: relative;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 45px -20px rgba(15, 23, 42, 0.55);
+  color: #0f172a;
+  overflow: hidden;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.personal-alert-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(16, 185, 129, 0.2));
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.personal-alert-card[data-tone='success']::before {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.2));
+}
+
+.personal-alert-card[data-tone='warning']::before {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.4), rgba(251, 191, 36, 0.2));
+}
+
+.personal-alert-card[data-tone='danger']::before {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.45), rgba(248, 113, 113, 0.2));
+}
+
+.personal-alert-card[data-tone='info']::before {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(14, 165, 233, 0.2));
+}
+
+.personal-alert-card[data-visible='true'] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.personal-alert-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0.35rem 0;
+}
+
+.personal-alert-card p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.personal-alert-dismiss {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.85rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.45);
+  color: #0f172a;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(15, 23, 42, 0.15);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.personal-alert-dismiss:hover {
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.personal-alert-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.15);
+  margin: 0.85rem 0 0.5rem;
+  overflow: hidden;
+}
+
+.personal-alert-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  transition: width 0.4s ease;
+}
+
+.personal-alert-card[data-tone='success'] .personal-alert-progress span {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.personal-alert-card[data-tone='warning'] .personal-alert-progress span {
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+
+.personal-alert-card[data-tone='danger'] .personal-alert-progress span {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.personal-alert-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.8);
+}
+
+.personal-alert-meta span {
+  display: block;
+}
+
+.personal-alert-modules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+}
+
+.personal-alert-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.personal-alert-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-weight: 600;
+  opacity: 0.8;
+  margin-bottom: 0.35rem;
+}
+
+.personal-alert-window {
+  margin-top: 0.65rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Indexed files — gender row tint
+
+   One hue per value of file_indexings.gender. Rows with no recorded gender
+   stay white, so a tint always means the value is known. The legend swatches
+   below reuse the same colours, which is why both live here rather than in
+   the table markup.
+
+   Two things carry the colour, because a wash alone reads as washed out at
+   these row heights: a fill you can name at a glance, and a saturated bar down
+   the leading edge that gives the row a hard start. The bar sits on the first
+   cell — box-shadow on a <tr> is not reliably painted.
+
+   The :hover rules carry an element selector so they outrank Tailwind's
+   .hover\:bg-gray-50 on the row and the tint survives hovering.
+   ────────────────────────────────────────────────────────────────────────── */
+.gender-row-male      { background-color: #dbeafe; }
+.gender-row-female    { background-color: #fce7f3; }
+.gender-row-corporate { background-color: #fef3c7; }
+.gender-row-joint     { background-color: #dcfce7; }
+
+tr.gender-row-male:hover      { background-color: #bfdbfe; }
+tr.gender-row-female:hover    { background-color: #fbcfe8; }
+tr.gender-row-corporate:hover { background-color: #fde68a; }
+tr.gender-row-joint:hover     { background-color: #bbf7d0; }
+
+tr.gender-row-male      > td:first-child { box-shadow: inset 4px 0 0 0 #1d4ed8; }
+tr.gender-row-female    > td:first-child { box-shadow: inset 4px 0 0 0 #db2777; }
+tr.gender-row-corporate > td:first-child { box-shadow: inset 4px 0 0 0 #b45309; }
+tr.gender-row-joint     > td:first-child { box-shadow: inset 4px 0 0 0 #15803d; }
+
+/* Same two-part treatment at legend size, so the key reads as the row does. */
+.gender-swatch {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.85rem;
+  border-radius: 0.2rem;
+  flex: none;
+}
+
+.gender-swatch-male      { background-color: #dbeafe; box-shadow: inset 4px 0 0 0 #1d4ed8; }
+.gender-swatch-female    { background-color: #fce7f3; box-shadow: inset 4px 0 0 0 #db2777; }
+.gender-swatch-corporate { background-color: #fef3c7; box-shadow: inset 4px 0 0 0 #b45309; }
+.gender-swatch-joint     { background-color: #dcfce7; box-shadow: inset 4px 0 0 0 #15803d; }
+.gender-swatch-none      { background-color: #ffffff; box-shadow: inset 0 0 0 1px #cbd5e1; }
+
+/* Sidebar while the account is locked out for a missing passport photo.
+   Purely cosmetic + click-blocking; RequireProfilePhoto enforces the rule server-side. */
+.sidebar-locked {
+  filter: grayscale(1);
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sidebar-locked * {
+  cursor: not-allowed !important;
+}

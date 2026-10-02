@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Number Dropdown Debug Guide</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        code { background-color: #f8f9fa; padding: 2px 5px; border-radius: 3px; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 File Number Dropdown Debug Guide</h1>
+    
+    <div class="debug-section error">
+        <h2>🚨 Issue: Empty Dropdowns</h2>
+        <p>The file number dropdowns are showing empty. This could be due to several issues:</p>
+        <ul>
+            <li>API endpoint not responding</li>
+            <li>CSRF token missing or invalid</li>
+            <li>Database has no file numbers with required status</li>
+            <li>JavaScript initialization failing</li>
+            <li>Network connectivity issues</li>
+        </ul>
+    </div>
+    
+    <div class="debug-section info">
+        <h2>🔍 Debugging Steps</h2>
+        <ol>
+            <li><strong>Open Browser Console:</strong>
+                <ul>
+                    <li>Press F12 or Ctrl+Shift+I</li>
+                    <li>Go to "Console" tab</li>
+                    <li>Look for error messages</li>
+                </ul>
+            </li>
+            
+            <li><strong>Check Console Logs:</strong>
+                <p>You should see these messages when the page loads:</p>
+                <pre>🔧 Sub Application File Number API script loaded
+🚀 Initializing Sub Application File Number API...
+🔍 Element detection: {suaElement: true/false, unitElement: true/false, isSUA: true/false, isUnit: true/false}
+📋 SUA mode detected - loading SUA file numbers (or)
+🏠 Unit mode detected - loading Unit file numbers</pre>
+            </li>
+            
+            <li><strong>Test API Endpoints Directly:</strong>
+                <p>Open the API test page: <a href="/test_st_api_endpoints.blade.php" target="_blank">API Test Page</a></p>
+                <p>Or manually test in browser:</p>
+                <ul>
+                    <li><code>/api/st-file-numbers/search?file_no_type=SUA&status=ACTIVE&per_page=100</code></li>
+                    <li><code>/api/st-file-numbers/search?file_no_type=PUA&status=ACTIVE&per_page=100</code></li>
+                </ul>
+            </li>
+            
+            <li><strong>Check Network Tab:</strong>
+                <ul>
+                    <li>Go to "Network" tab in browser developer tools</li>
+                    <li>Reload the page</li>
+                    <li>Look for API requests to <code>/api/st-file-numbers/search</code></li>
+                    <li>Check if requests are made and what the responses are</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+    
+    <div class="debug-section warning">
+        <h2>⚠️ Common Issues & Solutions</h2>
+        
+        <h3>1. CSRF Token Missing</h3>
+        <p><strong>Symptom:</strong> 419 errors in network tab</p>
+        <p><strong>Solution:</strong> Ensure the layout includes CSRF meta tag:</p>
+        <pre>&lt;meta name="csrf-token" content="{{ csrf_token() }}"&gt;</pre>
+        
+        <h3>2. API Route Not Found</h3>
+        <p><strong>Symptom:</strong> 404 errors for API endpoints</p>
+        <p><strong>Solution:</strong> Check if ST file number routes are registered:</p>
+        <pre>php artisan route:list | grep st-file-numbers</pre>
+        
+        <h3>3. No Data in Database</h3>
+        <p><strong>Symptom:</strong> API returns empty array</p>
+        <p><strong>Solution:</strong> Check database for file numbers:</p>
+        <pre>SELECT * FROM st_file_numbers WHERE file_no_type IN ('SUA', 'PUA') AND status = 'ACTIVE';</pre>
+        
+        <h3>4. JavaScript Errors</h3>
+        <p><strong>Symptom:</strong> Functions not executing</p>
+        <p><strong>Solution:</strong> Check console for JavaScript syntax errors</p>
+        
+        <h3>5. Element Not Found</h3>
+        <p><strong>Symptom:</strong> Console shows elements as null/false</p>
+        <p><strong>Solution:</strong> Verify HTML contains the correct element IDs:</p>
+        <ul>
+            <li><code>sua-file-select</code> for SUA forms</li>
+            <li><code>unit-file-select</code> for Unit forms</li>
+        </ul>
+    </div>
+    
+    <div class="debug-section success">
+        <h2>✅ Expected Console Output</h2>
+        <p>When working correctly, you should see:</p>
+        <pre>🔧 Sub Application File Number API script loaded
+🚀 Initializing Sub Application File Number API...
+🔍 Element detection: {suaElement: true, unitElement: false, isSUA: true, isUnit: false}
+📋 SUA mode detected - loading SUA file numbers
+🔄 Starting to load SUA file numbers...
+📋 Elements found: {loadingDiv: true, selectElement: true}
+📡 Fetching from: /api/st-file-numbers/search?file_no_type=SUA&status=ACTIVE&per_page=100
+📡 API Response status: 200 OK
+✅ SUA File Numbers API response: {success: true, data: [...]}
+📊 Found X SUA file numbers
+✅ Populated SUA dropdown with X file numbers</pre>
+    </div>
+    
+    <div class="debug-section info">
+        <h2>🛠️ Quick Fix Commands</h2>
+        <pre># Clear all caches
+php artisan cache:clear
+php artisan view:clear
+php artisan config:clear
+
+# Check routes
+php artisan route:list | grep st-file-numbers
+
+# Check database connection
+php artisan tinker
+> DB::connection()->getPdo();
+
+# Test database query
+> DB::table('st_file_numbers')->where('status', 'ACTIVE')->count();</pre>
+    </div>
+    
+    <div class="debug-section">
+        <h2>📞 Next Steps</h2>
+        <p>After following the debugging steps above, you should be able to identify:</p>
+        <ul>
+            <li>Whether the API endpoints are accessible</li>
+            <li>Whether there's data in the database</li>
+            <li>Whether JavaScript is executing properly</li>
+            <li>Whether the HTML elements exist</li>
+        </ul>
+        <p>Share the console output and any error messages for further assistance.</p>
+    </div>
+</body>
+</html>

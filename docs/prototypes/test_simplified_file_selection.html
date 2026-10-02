@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simplified File Selection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Test: Simplified File Selection with Top Preview</h1>
+        
+        <!-- Test the Top File Selection Card -->
+        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-8 shadow-lg mb-6">
+            <div class="flex items-center mb-6">
+                <div class="bg-purple-500 p-3 rounded-full mr-4 shadow-md">
+                    <i data-lucide="file-text" class="w-6 h-6 text-white"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-xl font-bold text-gray-900">Select Primary File Number</h3>
+                    <p class="text-purple-600 font-medium">Choose from existing ST file numbers to begin your application</p>
+                </div>
+                <div class="bg-red-500 px-4 py-2 rounded-full shadow-sm">
+                    <span class="text-white text-sm font-bold">REQUIRED</span>
+                </div>
+            </div>
+
+            <div id="top-file-loading" class="hidden mb-4">
+                <div class="flex items-center justify-center py-4">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                    <span class="ml-2 text-sm text-gray-600">Loading file numbers...</span>
+                </div>
+            </div>
+
+            <div class="relative">
+                <select id="top-primary-file-select" 
+                        name="top_primary_file_number_id" 
+                        class="w-full px-4 py-4 bg-white border-2 border-purple-200 rounded-lg text-purple-900 font-mono text-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
+                        onchange="handleTopFileSelection(this)"
+                        required>
+                    <option value="">🔍 Select a Primary File Number to begin...</option>
+                </select>
+                <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                    <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                </div>
+            </div>
+
+            <!-- Selection Preview with File Numbers, Applicant Type and Tracking ID -->
+            <div id="top-selection-preview" class="hidden mt-4 p-4 bg-white rounded-lg border border-purple-200 shadow-sm">
+                <div class="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                        <div class="text-sm text-purple-600 font-medium">ST File Number:</div>
+                        <div id="top-selected-file-display" class="font-mono text-xl font-bold text-purple-900">-</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-purple-600 font-medium">Primary File Number:</div>
+                        <div id="top-fileno-display" class="font-mono text-lg font-bold text-purple-700">-</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                        <div class="text-sm text-purple-600 font-medium">Land Use:</div>
+                        <div id="top-land-use-display" class="text-lg font-bold text-purple-700">-</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-purple-600 font-medium">Tracking ID:</div>
+                        <div id="top-tracking-id-display" class="font-mono text-base font-bold text-red-600">-</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 pt-3 border-t border-purple-100">
+                    <div>
+                        <div class="text-sm text-purple-600 font-medium">Applicant Type:</div>
+                        <div id="top-applicant-type-display" class="text-lg font-bold text-purple-700">-</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-purple-600 font-medium">Applicant:</div>
+                        <div id="top-applicant-display" class="text-lg font-bold text-purple-900">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Form Section (only shows after selection) -->
+        <div id="applicant-details-section" class="hidden">
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h3 class="text-lg font-semibold mb-4">Applicant Details Section</h3>
+                <p class="text-gray-600 mb-4">This section is now visible after file number selection!</p>
+                
+                <!-- Individual Fields -->
+                <div id="individualFields" class="mb-4 p-4 bg-blue-50 rounded-lg" style="display: none;">
+                    <h4 class="font-semibold text-blue-800 mb-2">📋 Individual Applicant Form</h4>
+                    <p class="text-blue-700 text-sm">Individual applicant details would appear here (Title, First Name, Middle Name, Surname, etc.)</p>
+                </div>
+                
+                <!-- Corporate Fields -->
+                <div id="corporateFields" class="mb-4 p-4 bg-green-50 rounded-lg" style="display: none;">
+                    <h4 class="font-semibold text-green-800 mb-2">🏢 Corporate Applicant Form</h4>
+                    <p class="text-green-700 text-sm">Corporate applicant details would appear here (Company Name, RC Number, etc.)</p>
+                </div>
+                
+                <!-- Multiple Owners Fields -->
+                <div id="multipleOwnersFields" class="mb-4 p-4 bg-purple-50 rounded-lg" style="display: none;">
+                    <h4 class="font-semibold text-purple-800 mb-2">👥 Multiple Owners Form</h4>
+                    <p class="text-purple-700 text-sm">Multiple owners details would appear here (List of owners, etc.)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden Fields Test Display -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h3 class="text-lg font-semibold mb-4">Hidden Fields for Backend (Test Display)</h3>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <strong>Applied File Number:</strong> <span id="test-applied-file-number">-</span>
+                </div>
+                <div>
+                    <strong>NP File No:</strong> <span id="test-np-fileno">-</span>
+                </div>
+                <div>
+                    <strong>File No:</strong> <span id="test-fileno">-</span>
+                </div>
+                <div>
+                    <strong>Applicant Type:</strong> <span id="test-applicant-type">-</span>
+                    <span id="active-section-indicator" class="ml-2 px-2 py-1 text-xs bg-gray-200 rounded hidden">-</span>
+                </div>
+                <div>
+                    <strong>Tracking ID:</strong> <span id="test-tracking-id">-</span>
+                </div>
+                <div>
+                    <strong>Land Use:</strong> <span id="test-land-use">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Form (Hidden inputs that will be sent to backend) -->
+        <form id="test-form">
+            <input type="hidden" id="applied-file-number" name="applied_file_number" value="">
+            <input type="hidden" id="hidden-np-fileno" name="np_fileno" value="">
+            <input type="hidden" id="hidden-fileno" name="fileno" value="">
+            <input type="hidden" id="hidden-applicant-type" name="aplicant_type" value="">
+            <input type="hidden" id="hidden-tracking-id" name="tracking_id" value="">
+            <input type="hidden" id="hidden-land-use" name="land_use" value="">
+            <input type="hidden" id="hidden-primary-file-id" name="primary_file_id" value="">
+        </form>
+
+        <!-- Debug Info -->
+        <div class="bg-yellow-50 p-4 rounded-lg mb-4">
+            <h3 class="font-semibold text-yellow-800 mb-2">Debug Information</h3>
+            <div class="text-sm text-yellow-700">
+                <div id="debug-selected-data" class="mb-2">
+                    <strong>Selected File Data:</strong> <span class="font-mono">No file selected</span>
+                </div>
+                <div id="debug-api-fields" class="text-xs">
+                    Expected API fields: tra (tracking), display_name (name), applicant_type (Individual/Corporate/Multiple)
+                </div>
+            </div>
+        </div>
+
+        <!-- Load Button -->
+        <button onclick="loadPrimaryFileNumbers()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Load File Numbers
+        </button>
+
+        <!-- Clear Button -->
+        <button onclick="clearSelection()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ml-2">
+            Clear Selection
+        </button>
+    </div>
+
+    <!-- Load the global file numbers auto-fill script -->
+    <script src="public/js/primaryform/global-file-numbers-autofill.js"></script>
+    
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        // Clear selection helper
+        function clearSelection() {
+            const select = document.getElementById('top-primary-file-select');
+            if (select) {
+                select.value = '';
+                handleTopFileSelection(select);
+            }
+            document.getElementById('debug-selected-data').innerHTML = '<strong>Selected File Data:</strong> <span class="font-mono">No file selected</span>';
+        }
+        
+        // Override handleTopFileSelection to add debugging
+        const originalHandleTopFileSelection = window.handleTopFileSelection;
+        window.handleTopFileSelection = function(selectElement) {
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            if (selectedOption.value && selectedOption.dataset.fileData) {
+                try {
+                    const fileData = JSON.parse(selectedOption.dataset.fileData);
+                    document.getElementById('debug-selected-data').innerHTML = 
+                        `<strong>Selected File Data:</strong> <div class="font-mono text-xs mt-1 bg-gray-100 p-2 rounded">
+                        tra: "${fileData.tra}"<br>
+                        display_name: "${fileData.display_name}"<br>
+                        applicant_type: "${fileData.applicant_type}"<br>
+                        first_name: "${fileData.first_name}"<br>
+                        surname: "${fileData.surname}"
+                        </div>`;
+                } catch (e) {
+                    console.error('Debug parse error:', e);
+                }
+            }
+            return originalHandleTopFileSelection(selectElement);
+        };
+        
+        // Monitor field changes to update display
+        function updateFieldDisplays() {
+            document.getElementById('test-applied-file-number').textContent = 
+                document.getElementById('applied-file-number')?.value || '-';
+            document.getElementById('test-np-fileno').textContent = 
+                document.getElementById('hidden-np-fileno')?.value || '-';
+            document.getElementById('test-fileno').textContent = 
+                document.getElementById('hidden-fileno')?.value || '-';
+            document.getElementById('test-applicant-type').textContent = 
+                document.getElementById('hidden-applicant-type')?.value || '-';
+            document.getElementById('test-tracking-id').textContent = 
+                document.getElementById('hidden-tracking-id')?.value || '-';
+            document.getElementById('test-land-use').textContent = 
+                document.getElementById('hidden-land-use')?.value || '-';
+            
+            // Update active section indicator
+            const indicator = document.getElementById('active-section-indicator');
+            const individualVisible = document.getElementById('individualFields')?.style.display !== 'none';
+            const corporateVisible = document.getElementById('corporateFields')?.style.display !== 'none';
+            const multipleVisible = document.getElementById('multipleOwnersFields')?.style.display !== 'none';
+            
+            if (individualVisible) {
+                indicator.textContent = '📋 Individual Form Active';
+                indicator.className = 'ml-2 px-2 py-1 text-xs bg-blue-200 text-blue-800 rounded';
+                indicator.classList.remove('hidden');
+            } else if (corporateVisible) {
+                indicator.textContent = '🏢 Corporate Form Active';
+                indicator.className = 'ml-2 px-2 py-1 text-xs bg-green-200 text-green-800 rounded';
+                indicator.classList.remove('hidden');
+            } else if (multipleVisible) {
+                indicator.textContent = '👥 Multiple Owners Form Active';
+                indicator.className = 'ml-2 px-2 py-1 text-xs bg-purple-200 text-purple-800 rounded';
+                indicator.classList.remove('hidden');
+            } else {
+                indicator.classList.add('hidden');
+            }
+        }
+        
+        // Update displays every 500ms to show changes
+        setInterval(updateFieldDisplays, 500);
+        
+        // Auto-load file numbers on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(loadPrimaryFileNumbers, 1000);
+        });
+    </script>
+</body>
+</html>

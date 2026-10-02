@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hidden Applicant Type Auto-fill Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>✅ Hidden Applicant Type Auto-fill Implementation Complete</h1>
+    
+    <div class="test-section success">
+        <h2>🎯 Changes Made:</h2>
+        <ul>
+            <li><strong>✅ Fixed duplicate IDs:</strong> Removed duplicate "applicantTypeInput" IDs that were causing conflicts</li>
+            <li><strong>✅ Consistent field names:</strong> Standardized to use "applicant_type" (snake_case) for backend compatibility</li>
+            <li><strong>✅ Hidden input with unique ID:</strong> Created single hidden input with ID "mainApplicantTypeInput"</li>
+            <li><strong>✅ API auto-fill integration:</strong> Updated autoFillApplicantInfo() function to properly set hidden input</li>
+            <li><strong>✅ Buyer selection integration:</strong> Fixed buyer selection to set applicant type in hidden input</li>
+            <li><strong>✅ Removed orphaned code:</strong> Cleaned up unused CSS and JavaScript for visual selector</li>
+            <li><strong>✅ Updated form validation:</strong> Modified validation to check hidden input instead of radio buttons</li>
+            <li><strong>✅ Added debugging:</strong> Enhanced logging to track applicant type auto-fill process</li>
+        </ul>
+    </div>
+    
+    <div class="test-section info">
+        <h2>🔧 How It Works Now:</h2>
+        <ol>
+            <li><strong>File Number Selection:</strong> When user selects SUA or Unit file number from API dropdown</li>
+            <li><strong>API Response Processing:</strong> System receives file data including applicant_type field</li>
+            <li><strong>Auto-fill Hidden Input:</strong> autoFillApplicantInfo() function sets the hidden input value</li>
+            <li><strong>Form Submission:</strong> Hidden input "applicant_type" field is included in form data</li>
+            <li><strong>Validation:</strong> Form validation checks hidden input has value (indicating file number was selected)</li>
+        </ol>
+    </div>
+    
+    <div class="test-section warning">
+        <h2>🧪 Testing Requirements:</h2>
+        <ul>
+            <li><strong>SUA Form Test:</strong> Verify file number selection auto-fills applicant type in hidden input</li>
+            <li><strong>Unit Form Test:</strong> Verify file number selection auto-fills applicant type in hidden input</li>
+            <li><strong>Buyer Selection Test:</strong> Verify selecting existing buyer sets applicant type to "individual"</li>
+            <li><strong>Form Validation Test:</strong> Verify form validation passes with hidden applicant type</li>
+            <li><strong>Console Logging:</strong> Check browser console for auto-fill success/error messages</li>
+        </ul>
+    </div>
+    
+    <div class="test-section info">
+        <h2>🔍 Debug Information:</h2>
+        <p><strong>Hidden Input Location:</strong> <code>&lt;input type="hidden" name="applicant_type" id="mainApplicantTypeInput" value=""&gt;</code></p>
+        <p><strong>Auto-fill Function:</strong> <code>autoFillApplicantInfo(fileData)</code> - logs data and applicant type setting</p>
+        <p><strong>Validation Function:</strong> <code>validateStep1()</code> - checks hidden input value instead of radio buttons</p>
+        <p><strong>API Integration:</strong> Called from both <code>handleSUAFileSelection()</code> and <code>handleUnitFileSelection()</code></p>
+    </div>
+    
+    <div class="test-section">
+        <h2>🚀 Quick Test URLs:</h2>
+        <ul>
+            <li><a href="/sectionaltitling/sub-application?type=sua" target="_blank">Test SUA Form</a></li>
+            <li><a href="/sectionaltitling/sub-application?type=unit" target="_blank">Test Unit Form</a></li>
+        </ul>
+        
+        <h3>Testing Steps:</h3>
+        <ol>
+            <li>Open browser developer tools (F12) and go to Console tab</li>
+            <li>Load one of the test URLs above</li>
+            <li>Select a file number from the dropdown</li>
+            <li>Watch console for "✅ Applicant type set to: [type]" message</li>
+            <li>Inspect the hidden input to verify it has the correct value</li>
+            <li>Test form submission to ensure validation passes</li>
+        </ol>
+    </div>
+    
+    <div class="test-section success">
+        <h2>✅ Expected Results:</h2>
+        <ul>
+            <li>No visible applicant type selection UI (only hidden input)</li>
+            <li>Applicant type automatically set when file number is selected</li>
+            <li>Console logging shows successful applicant type setting</li>
+            <li>Form validation passes without requiring manual applicant type selection</li>
+            <li>"Select Existing Buyer" only appears for Unit/PUA forms (not SUA)</li>
+            <li>Buyer selection automatically sets applicant type to "individual"</li>
+        </ul>
+    </div>
+</body>
+</html>

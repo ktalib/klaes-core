@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test New Primary Application Controller</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        form { margin: 10px 0; }
+        input, select, textarea { margin: 5px 0; padding: 5px; }
+        button { padding: 10px 15px; background: #007cba; color: white; border: none; cursor: pointer; }
+        .hidden-fields { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Primary Application Controller Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Controller Route Test</h2>
+        <p class="info">Testing if the new controller route responds correctly...</p>
+        <button onclick="testControllerRoute()">Test Controller Route</button>
+        <div id="route-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Database Connection Test</h2>
+        <p class="info">Testing SQL Server connection and mother_applications table...</p>
+        <button onclick="testDatabaseConnection()">Test Database</button>
+        <div id="db-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Form Submission Test</h2>
+        <p class="info">Test form submission with ST API data...</p>
+        
+        <!-- Centralized Hidden Fields (as per new structure) -->
+        <div class="hidden-fields">
+            <h4>Hidden Fields (ST API Data)</h4>
+            <input type="hidden" id="np_fileno" name="np_fileno" value="ST-COM-2024-001" data-source="ST API">
+            <input type="hidden" id="fileno" name="fileno" value="ST-COM-2024-001" data-source="ST API">
+            <input type="hidden" id="land_use" name="land_use" value="COMMERCIAL" data-source="ST API">
+            <input type="hidden" id="applicant_type" name="applicant_type" value="Individual" data-source="ST API">
+            <input type="hidden" id="selected_file_data" name="selected_file_data" value='{"file_number":"ST-COM-2024-001","land_use":"COMMERCIAL","type":"Individual"}' data-source="ST API">
+            <input type="hidden" id="primary_file_id" name="primary_file_id" value="1" data-source="System">
+        </div>
+
+        <form id="test-form">
+            <div>
+                <label>Title:</label>
+                <select name="title" required>
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Ms">Ms</option>
+                </select>
+            </div>
+            
+            <div>
+                <label>First Name:</label>
+                <input type="text" name="fname" value="John" required>
+            </div>
+            
+            <div>
+                <label>Last Name:</label>
+                <input type="text" name="lname" value="Doe" required>
+            </div>
+            
+            <div>
+                <label>Email:</label>
+                <input type="email" name="email" value="john.doe@example.com" required>
+            </div>
+            
+            <div>
+                <label>Phone:</label>
+                <input type="tel" name="phone" value="08012345678" required>
+            </div>
+            
+            <div>
+                <label>Address:</label>
+                <textarea name="address" required>123 Test Street, Lagos</textarea>
+            </div>
+            
+            <div>
+                <label>State:</label>
+                <input type="text" name="state" value="Lagos" required>
+            </div>
+            
+            <div>
+                <label>Property Location:</label>
+                <input type="text" name="prop_location" value="Victoria Island" required>
+            </div>
+            
+            <div>
+                <label>Property Size:</label>
+                <input type="text" name="prop_size" value="500sqm" required>
+            </div>
+            
+            <button type="submit">Submit Test Form</button>
+        </form>
+        
+        <div id="form-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Database Verification</h2>
+        <p class="info">Check if data was saved correctly...</p>
+        <button onclick="verifyDatabaseData()">Verify Data</button>
+        <div id="verify-result"></div>
+    </div>
+
+    <script>
+        // Test 1: Controller Route
+        async function testControllerRoute() {
+            const resultDiv = document.getElementById('route-result');
+            resultDiv.innerHTML = '<p class="info">Testing route...</p>';
+            
+            try {
+                const response = await fetch('/primary-application', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                    }
+                });
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<p class="success">✓ Route responds correctly (Status: ' + response.status + ')</p>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">✗ Route error (Status: ' + response.status + ')</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">✗ Route test failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Test 2: Database Connection
+        async function testDatabaseConnection() {
+            const resultDiv = document.getElementById('db-result');
+            resultDiv.innerHTML = '<p class="info">Testing database...</p>';
+            
+            try {
+                const response = await fetch('/test-db-connection', {
+                    method: 'GET'
+                });
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    resultDiv.innerHTML = '<p class="success">✓ Database connection successful</p><pre>' + text + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">✗ Database connection failed (Status: ' + response.status + ')</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">✗ Database test failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Test 3: Form Submission
+        document.getElementById('test-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('form-result');
+            resultDiv.innerHTML = '<p class="info">Submitting form...</p>';
+            
+            // Collect all form data including hidden fields
+            const formData = new FormData();
+            
+            // Add hidden fields
+            const hiddenFields = ['np_fileno', 'fileno', 'land_use', 'applicant_type', 'selected_file_data', 'primary_file_id'];
+            hiddenFields.forEach(fieldName => {
+                const field = document.getElementById(fieldName);
+                if (field) {
+                    formData.append(fieldName, field.value);
+                    console.log('Hidden field:', fieldName, '=', field.value);
+                }
+            });
+            
+            // Add form fields
+            const formElements = new FormData(this);
+            for (let [key, value] of formElements.entries()) {
+                formData.append(key, value);
+                console.log('Form field:', key, '=', value);
+            }
+            
+            try {
+                const response = await fetch('/primary-application', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                const responseText = await response.text();
+                console.log('Response:', responseText);
+                
+                if (response.ok) {
+                    try {
+                        const jsonResponse = JSON.parse(responseText);
+                        if (jsonResponse.success) {
+                            resultDiv.innerHTML = '<p class="success">✓ Form submitted successfully!</p><p>Application ID: ' + jsonResponse.data.id + '</p>';
+                        } else {
+                            resultDiv.innerHTML = '<p class="error">✗ Form submission failed: ' + jsonResponse.message + '</p>';
+                        }
+                    } catch (parseError) {
+                        resultDiv.innerHTML = '<p class="success">✓ Form submitted (non-JSON response)</p><pre>' + responseText.substring(0, 500) + '</pre>';
+                    }
+                } else {
+                    resultDiv.innerHTML = '<p class="error">✗ Form submission failed (Status: ' + response.status + ')</p><pre>' + responseText.substring(0, 500) + '</pre>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">✗ Form submission error: ' + error.message + '</p>';
+            }
+        });
+
+        // Test 4: Database Verification
+        async function verifyDatabaseData() {
+            const resultDiv = document.getElementById('verify-result');
+            resultDiv.innerHTML = '<p class="info">Checking database...</p>';
+            
+            try {
+                const response = await fetch('/verify-application-data', {
+                    method: 'GET'
+                });
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    resultDiv.innerHTML = '<p class="success">✓ Data verification complete</p><pre>' + text + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">✗ Data verification failed (Status: ' + response.status + ')</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">✗ Verification error: ' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

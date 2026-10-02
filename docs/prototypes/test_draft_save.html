@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Draft Save</title>
+</head>
+<body>
+    <h1>Draft Save Test</h1>
+    <button id="testBtn">Test Draft Save</button>
+    <pre id="output"></pre>
+
+    <script>
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing...';
+
+            try {
+                const response = await fetch('/draft/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        form_state: {
+                            np_fileno: 'ST-RES-2025-TEST',
+                            applicantType: 'individual',
+                            first_name: 'Test',
+                            surname: 'User'
+                        },
+                        metadata: {
+                            trigger: 'manual',
+                            progress_percent: 25,
+                            last_completed_step: 1
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                output.textContent = JSON.stringify(data, null, 2);
+                console.log('Response:', data);
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

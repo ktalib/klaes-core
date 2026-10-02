@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Export Batch Modal</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .btn { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-outline { background: white; border: 1px solid #ccc; }
+        #batch-export-modal { z-index: 1000; }
+        .modal-content { max-width: 500px; margin: auto; background: white; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Test Export by Batch Modal</h1>
+    <p>Click the button below to test the batch selection modal:</p>
+    
+    <button class="btn btn-primary" onclick="showBatchSelectionModal('excel')">
+        Test Export by Batch
+    </button>
+    
+    <div id="result"></div>
+
+    <script>
+        // Mock showBatchSelectionModal function (simplified version)
+        async function showBatchSelectionModal(format) {
+            try {
+                const modalHtml = `
+                    <div id="batch-export-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; border-radius: 10px; max-width: 500px; width: 90%; margin: 20px;">
+                            <div style="padding: 20px; border-bottom: 1px solid #eee;">
+                                <h3>Export by Batch (Format: ${format})</h3>
+                                <button style="float: right; background: none; border: none;" onclick="closeBatchExportModal()">×</button>
+                            </div>
+                            <div style="padding: 20px;">
+                                <label style="display: block; margin-bottom: 10px;"><strong>Select Batch:</strong></label>
+                                <select id="export-batch-select" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+                                    <option value="">-- Loading batches... --</option>
+                                </select>
+                                <p style="font-size: 12px; color: #666; margin-top: 5px;">All batches with their file counts are shown</p>
+                            </div>
+                            <div style="padding: 20px; border-top: 1px solid #eee; text-align: right;">
+                                <button class="btn btn-outline" onclick="closeBatchExportModal()" style="margin-right: 10px;">Cancel</button>
+                                <button class="btn btn-primary" onclick="performBatchExport('${format}')">Export</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                // Load batches
+                await loadBatchesForExport();
+                
+            } catch (error) {
+                console.error('Error showing batch selection modal:', error);
+                alert('Error loading batch selection: ' + error.message);
+            }
+        }
+        
+        async function loadBatchesForExport() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/fileindexing/get-all-batches-for-export');
+                const data = await response.json();
+                
+                console.log('Batch API Response:', data);
+                
+                const select = document.getElementById('export-batch-select');
+                
+                if (data.success && data.batches && data.batches.length > 0) {
+                    select.innerHTML = '<option value="">-- Select a Batch --</option>';
+                    
+                    data.batches.forEach(batch => {
+                        const option = document.createElement('option');
+                        option.value = batch.id;
+                        option.textContent = `Batch ${batch.text} - ${batch.shelf_location}`;
+                        select.appendChild(option);
+                    });
+                    
+                    // Show pagination info
+                    if (data.pagination) {
+                        const info = document.createElement('p');
+                        info.innerHTML = `<small>Showing ${data.batches.length} of ${data.pagination.total} batches</small>`;
+                        select.parentNode.appendChild(info);
+                    }
+                } else {
+                    select.innerHTML = '<option value="">No batches found</option>';
+                }
+            } catch (error) {
+                console.error('Error loading batches:', error);
+                document.getElementById('export-batch-select').innerHTML = '<option value="">Error loading batches</option>';
+            }
+        }
+        
+        function closeBatchExportModal() {
+            const modal = document.getElementById('batch-export-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        function performBatchExport(format) {
+            const select = document.getElementById('export-batch-select');
+            const selectedBatch = select.value;
+            
+            if (!selectedBatch) {
+                alert('Please select a batch to export.');
+                return;
+            }
+            
+            const selectedText = select.options[select.selectedIndex].text;
+            
+            document.getElementById('result').innerHTML = `
+                <div style="margin-top: 20px; padding: 15px; background: #e8f5e8; border-radius: 5px;">
+                    <h3>Export Request</h3>
+                    <p><strong>Selected Batch:</strong> ${selectedText}</p>
+                    <p><strong>Format:</strong> ${format}</p>
+                    <p><strong>Batch ID:</strong> ${selectedBatch}</p>
+                    <p><em>In the real system, this would trigger the actual export...</em></p>
+                </div>
+            `;
+            
+            closeBatchExportModal();
+        }
+    </script>
+</body>
+</html>

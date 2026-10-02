@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SUA View Details - Workflow-Based Updates ✅</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .success { color: green; }
+        .info { color: blue; }
+        .warning { color: orange; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .code { background: #f5f5f5; padding: 10px; border-left: 4px solid #007cba; margin: 10px 0; }
+        .checklist { list-style-type: none; }
+        .checklist li { margin: 5px 0; }
+        .checklist li:before { content: "✅ "; color: green; font-weight: bold; }
+        .sua-item { background: #e3f2fd; padding: 10px; margin: 5px 0; border-left: 4px solid #2196f3; }
+        .regular-item { background: #f3e5f5; padding: 10px; margin: 5px 0; border-left: 4px solid #9c27b0; }
+    </style>
+</head>
+<body>
+    <h1>SUA View Details - Workflow-Based Updates ✅</h1>
+    
+    <div class="section">
+        <h2>🎯 Objective: SUA-Specific View Design</h2>
+        <p>Updated the <code>viewrecorddetail_sub.blade.php</code> view to properly display SUA applications based on their unique workflow, distinguishing them from regular unit applications that require mother applications.</p>
+        
+        <h3>Key Requirements Addressed:</h3>
+        <ul>
+            <li>✅ Display SUA applications differently from regular unit applications</li>
+            <li>✅ Highlight SUA-specific information and workflow</li>
+            <li>✅ Remove irrelevant sections for standalone applications</li>
+            <li>✅ Maintain compatibility with existing regular unit applications</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🔄 Conditional Display Logic</h2>
+        
+        <h3>Detection Method:</h3>
+        <div class="code">
+            <strong>Condition:</strong> <code>@if(isset($application->is_sua_unit) && $application->is_sua_unit == 1)</code><br>
+            <strong>Purpose:</strong> Differentiate SUA applications from regular unit applications<br>
+            <strong>Fallback:</strong> If not SUA, display as regular unit application
+        </div>
+        
+        <h3>Dual View Structure:</h3>
+        <div class="sua-item">
+            <strong>🏢 SUA Applications:</strong> Standalone workflow with simplified structure
+        </div>
+        <div class="regular-item">
+            <strong>🏘️ Regular Unit Applications:</strong> Traditional workflow with mother applications
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📋 Updated Sections</h2>
+        
+        <h3>1. Page Title</h3>
+        <div class="code">
+            <strong>SUA:</strong> "Standalone Unit Application (SUA) Details"<br>
+            <strong>Regular:</strong> "Unit Application Details"
+        </div>
+        
+        <h3>2. Header Section</h3>
+        <div class="sua-item">
+            <strong>SUA Header:</strong>
+            <ul>
+                <li>Blue color scheme (vs green for regular)</li>
+                <li>"SUA FileNo" instead of "STFileNo"</li>
+                <li>Subtitle: "Standalone Unit Application"</li>
+                <li>SUA badge indicator</li>
+            </ul>
+        </div>
+        
+        <h3>3. Application Information Section</h3>
+        <div class="sua-item">
+            <strong>SUA Application Info:</strong>
+            <ul>
+                <li>Blue theme with info box explaining SUA concept</li>
+                <li>Application Type: "Standalone Unit Application"</li>
+                <li>Land Use, Property Location prominently displayed</li>
+                <li>Allocation Source and Entity information</li>
+                <li>Creation date</li>
+            </ul>
+        </div>
+        <div class="regular-item">
+            <strong>Original Owner Details (Regular Only):</strong>
+            <ul>
+                <li>Form ID linking to mother application</li>
+                <li>Mother application owner information</li>
+                <li>Corporate/individual/multiple owner details</li>
+                <li>Mother FileNo and property details</li>
+            </ul>
+        </div>
+        
+        <h3>4. Applicant Details Section</h3>
+        <div class="code">
+            <strong>Header Text:</strong><br>
+            SUA: "SUA Applicant Details"<br>
+            Regular: "Unit Owner Details"
+        </div>
+        
+        <h3>5. Property Details Section</h3>
+        <div class="sua-item">
+            <strong>SUA Property Details:</strong>
+            <ul>
+                <li>Unit Type, Unit Size, Unit Number</li>
+                <li>Land Use (highlighted)</li>
+                <li>Scheme Number</li>
+                <li>Property Location (special display box)</li>
+            </ul>
+        </div>
+        <div class="regular-item">
+            <strong>Regular Property Details:</strong>
+            <ul>
+                <li>Block Number, Floor Number, Unit Number</li>
+                <li>House Number, Plot Number, Street Name</li>
+                <li>District, Local Government Area</li>
+                <li>Land Use from unit application</li>
+            </ul>
+        </div>
+        
+        <h3>6. Payment Details</h3>
+        <div class="sua-item">
+            <strong>SUA Payment Details:</strong>
+            <ul>
+                <li>Blue theme matching SUA design</li>
+                <li>Payment Date, Receipt Number</li>
+                <li>Application Fee</li>
+                <li>Simplified payment structure</li>
+            </ul>
+        </div>
+        <div class="regular-item">
+            <strong>Initial Bill Details (Regular Only):</strong>
+            <ul>
+                <li>Application Fee, Processing Fee, Site Plan Fee</li>
+                <li>Total bill calculation</li>
+                <li>Receipt information</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🚫 Hidden Sections for SUA</h2>
+        
+        <h3>Sections Not Applicable to SUA:</h3>
+        <ul class="checklist">
+            <li><strong>Original Owner Details:</strong> SUA doesn't have mother applications</li>
+            <li><strong>Shared Areas:</strong> Standalone units don't have sectional title shared areas</li>
+            <li><strong>Initial Bill Details:</strong> SUA has simplified payment structure</li>
+        </ul>
+        
+        <h3>Why These Are Hidden:</h3>
+        <div class="code">
+            <strong>SUA Workflow Logic:</strong><br>
+            - No mother application = No original owner<br>
+            - Standalone unit = No shared sectional title areas<br>
+            - Simplified process = Different billing structure
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🎨 Visual Differentiation</h2>
+        
+        <h3>Color Schemes:</h3>
+        <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; margin: 10px 0;">
+            <tr>
+                <th>Element</th>
+                <th>SUA Applications</th>
+                <th>Regular Applications</th>
+            </tr>
+            <tr>
+                <td>Header Background</td>
+                <td>Blue (#2563eb)</td>
+                <td>Emerald Green (#059669)</td>
+            </tr>
+            <tr>
+                <td>Section Headers</td>
+                <td>Blue theme (#1e40af)</td>
+                <td>Gray theme (#6b7280)</td>
+            </tr>
+            <tr>
+                <td>Accent Elements</td>
+                <td>Blue borders and backgrounds</td>
+                <td>Standard gray borders</td>
+            </tr>
+            <tr>
+                <td>Property Location</td>
+                <td>Special blue highlight box</td>
+                <td>Standard text display</td>
+            </tr>
+        </table>
+        
+        <h3>Icons and Indicators:</h3>
+        <ul>
+            <li>🏢 SUA badge in header</li>
+            <li>ℹ️ Information icon for SUA explanation</li>
+            <li>🏠 Building icons for SUA-specific sections</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>📊 SUA Workflow Highlights</h2>
+        
+        <h3>Emphasized Information:</h3>
+        <div class="sua-item">
+            <h4>📍 Property Location</h4>
+            <p>Special display box with blue theme to highlight the important property location field unique to SUA applications.</p>
+        </div>
+        
+        <div class="sua-item">
+            <h4>🏗️ Application Type Badge</h4>
+            <p>Clear indication that this is a "Standalone Unit Application" to avoid confusion with regular applications.</p>
+        </div>
+        
+        <div class="sua-item">
+            <h4>📝 Simplified Information</h4>
+            <p>Focus on SUA-specific fields like Unit Type, Unit Size, Allocation Source, and Allocation Entity.</p>
+        </div>
+        
+        <div class="sua-item">
+            <h4>💡 Explanatory Text</h4>
+            <p>Information box explaining that SUA applications are independent and follow a simplified workflow.</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔧 Technical Implementation</h2>
+        
+        <h3>Conditional Rendering Pattern:</h3>
+        <div class="code">
+            <pre>@if(isset($application->is_sua_unit) && $application->is_sua_unit == 1)
+    <!-- SUA-specific content -->
+@else
+    <!-- Regular unit application content -->
+@endif</pre>
+        </div>
+        
+        <h3>Key Files Modified:</h3>
+        <ul>
+            <li><code>resources/views/sectionaltitling/viewrecorddetail_sub.blade.php</code> - Main view file</li>
+            <li><code>app/Http/Controllers/SUAController.php</code> - Controller with proper data preparation</li>
+        </ul>
+        
+        <h3>Data Compatibility:</h3>
+        <ul class="checklist">
+            <li>All SUA fields properly displayed</li>
+            <li>Mother application fields set to null for SUA</li>
+            <li>Property location field highlighted</li>
+            <li>Payment structure simplified</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>✅ Testing Checklist</h2>
+        
+        <h3>SUA Application Testing:</h3>
+        <ol>
+            <li>View a SUA application - should show blue header with "SUA FileNo"</li>
+            <li>Verify "Standalone Unit Application Details" section appears</li>
+            <li>Check that Original Owner Details section is hidden</li>
+            <li>Confirm SUA Applicant Details section shows proper title</li>
+            <li>Verify SUA Property Details shows Unit Type, Size, etc.</li>
+            <li>Check Property Location appears in special blue box</li>
+            <li>Confirm SUA Payment Details shows with blue theme</li>
+            <li>Verify Shared Areas section is hidden</li>
+            <li>Check that Initial Bill Details is hidden</li>
+        </ol>
+        
+        <h3>Regular Application Testing:</h3>
+        <ol>
+            <li>View a regular unit application - should show green header</li>
+            <li>Verify "Original Owner Details" section appears</li>
+            <li>Check "Unit Owner Details" section title</li>
+            <li>Confirm regular Property Details with Block Number, etc.</li>
+            <li>Verify Shared Areas section appears</li>
+            <li>Check Initial Bill Details appears with full calculation</li>
+        </ol>
+        
+        <h3>Cross-Compatibility Testing:</h3>
+        <ol>
+            <li>Switch between SUA and regular applications</li>
+            <li>Verify no JavaScript errors</li>
+            <li>Check that all sections render properly</li>
+            <li>Confirm data displays correctly in both modes</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>🚀 Implementation Status</h2>
+        <div class="success">
+            <h3>✅ COMPLETED UPDATES</h3>
+            <ul class="checklist">
+                <li><strong>Conditional Page Title:</strong> Dynamic based on application type</li>
+                <li><strong>Header Differentiation:</strong> Blue for SUA, Green for regular</li>
+                <li><strong>SUA Information Section:</strong> Dedicated section with explanation</li>
+                <li><strong>Property Details Customization:</strong> SUA-specific vs regular fields</li>
+                <li><strong>Payment Details:</strong> SUA-specific payment section</li>
+                <li><strong>Section Visibility:</strong> Hidden irrelevant sections for SUA</li>
+                <li><strong>Visual Theming:</strong> Blue theme for SUA consistency</li>
+                <li><strong>Property Location Highlighting:</strong> Special display for SUA</li>
+            </ul>
+        </div>
+        
+        <div class="info">
+            <h3>📋 Result</h3>
+            <p>
+                The view now properly reflects the SUA workflow with clear visual differentiation, 
+                appropriate information display, and hidden irrelevant sections. SUA applications 
+                are presented as standalone entities while maintaining full compatibility with 
+                regular unit applications.
+            </p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔄 Workflow Alignment</h2>
+        
+        <h3>SUA Workflow Representation:</h3>
+        <div class="sua-item">
+            <strong>Standalone Process:</strong>
+            <ol>
+                <li>Direct application (no mother application required)</li>
+                <li>Property location specified</li>
+                <li>Allocation source and entity defined</li>
+                <li>Simplified payment structure</li>
+                <li>Unit-specific details captured</li>
+                <li>Application status tracking</li>
+            </ol>
+        </div>
+        
+        <p class="success">
+            <strong>The view now accurately reflects this simplified, standalone workflow while maintaining 
+            the rich detail display that users expect from the application management system.</strong>
+        </p>
+    </div>
+</body>
+</html>

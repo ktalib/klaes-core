@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Areas Processing Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">Shared Areas Processing Test</h1>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Implementation:</h2>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li>✅ Added validation rule for `other_areas_detail` (max 500 chars) to both update() and save() methods</li>
+                <li>✅ Enhanced shared areas processing to handle "other" checkbox with custom text</li>
+                <li>✅ Parse comma-separated values from `other_areas_detail` textarea</li>
+                <li>✅ Remove "other" from array and replace with actual custom areas</li>
+                <li>✅ Store all areas in same format as existing shared_areas[] array</li>
+                <li>✅ Updated placeholder text to guide users on format</li>
+            </ul>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Processing Logic:</h2>
+            <div class="bg-gray-100 p-4 rounded-md">
+                <pre class="text-sm"><code>// Input Example:
+shared_areas[] = ['hallways', 'gardens', 'other']
+other_areas_detail = "pool, hallway, playground"
+
+// Processing Logic:
+1. Remove 'other' from shared_areas[]
+2. Parse other_areas_detail by comma: ['pool', 'hallway', 'playground']  
+3. Merge arrays: ['hallways', 'gardens', 'pool', 'hallway', 'playground']
+4. Store as JSON: ["hallways","gardens","pool","hallway","playground"]
+
+// Database Storage:
+shared_areas column contains JSON array with all areas</code></pre>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Form:</h2>
+            <form id="testForm" class="space-y-4">
+                <div class="space-y-2">
+                    <p class="font-medium">Select shared areas:</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="shared_areas[]" value="hallways" class="mr-2">
+                            Hallways
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="shared_areas[]" value="gardens" class="mr-2">
+                            Gardens
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="shared_areas[]" value="parking_lots" class="mr-2">
+                            Parking Lots
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="shared_areas[]" value="other" class="mr-2" onchange="toggleOther()">
+                            Other
+                        </label>
+                    </div>
+                </div>
+
+                <div id="otherContainer" style="display: none;" class="mt-4">
+                    <label class="block text-sm font-medium mb-2">Other shared areas:</label>
+                    <textarea id="other_areas_detail" name="other_areas_detail" rows="3" 
+                              class="w-full p-2 border border-gray-300 rounded-md"
+                              placeholder="Enter other shared areas separated by commas (e.g., pool, hallway, playground)"></textarea>
+                </div>
+
+                <button type="button" onclick="testProcessing()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Test Processing Logic
+                </button>
+            </form>
+        </div>
+
+        <div id="results" class="bg-white rounded-lg shadow-lg p-6" style="display: none;">
+            <h2 class="text-xl font-semibold mb-4">Processing Results:</h2>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        function toggleOther() {
+            const checkbox = document.querySelector('input[name="shared_areas[]"][value="other"]');
+            const container = document.getElementById('otherContainer');
+            
+            if (checkbox.checked) {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+                document.getElementById('other_areas_detail').value = '';
+            }
+        }
+
+        function testProcessing() {
+            // Get form data
+            const formData = new FormData(document.getElementById('testForm'));
+            const sharedAreas = formData.getAll('shared_areas[]');
+            const otherAreasDetail = formData.get('other_areas_detail');
+
+            // Simulate controller processing logic
+            let sharedAreasArray = [...sharedAreas];
+            
+            if (sharedAreasArray.includes('other') && otherAreasDetail && otherAreasDetail.trim()) {
+                // Remove "other" from the array
+                sharedAreasArray = sharedAreasArray.filter(area => area !== 'other');
+                
+                // Parse the other_areas_detail and add each area to the array
+                const customAreas = otherAreasDetail.split(',').map(area => area.trim()).filter(area => area);
+                
+                // Add custom areas to the shared areas array
+                sharedAreasArray = [...sharedAreasArray, ...customAreas];
+            }
+
+            // Display results
+            const resultsDiv = document.getElementById('results');
+            const contentDiv = document.getElementById('resultsContent');
+            
+            contentDiv.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-semibold text-green-600">Input Data:</h3>
+                        <p><strong>Selected checkboxes:</strong> [${sharedAreas.map(a => `"${a}"`).join(', ')}]</p>
+                        <p><strong>Other areas detail:</strong> "${otherAreasDetail || ''}"</p>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold text-blue-600">Processing Steps:</h3>
+                        <ol class="list-decimal list-inside space-y-1 text-sm">
+                            <li>Initial shared_areas[]: [${sharedAreas.map(a => `"${a}"`).join(', ')}]</li>
+                            ${sharedAreas.includes('other') && otherAreasDetail ? `
+                            <li>Detected "other" with custom text: "${otherAreasDetail}"</li>
+                            <li>Removed "other" from array</li>
+                            <li>Parsed custom areas: [${otherAreasDetail.split(',').map(a => `"${a.trim()}"`).join(', ')}]</li>
+                            <li>Merged arrays together</li>
+                            ` : '<li>No "other" processing needed</li>'}
+                        </ol>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold text-purple-600">Final Result:</h3>
+                        <p><strong>Final array:</strong> [${sharedAreasArray.map(a => `"${a}"`).join(', ')}]</p>
+                        <p><strong>JSON for database:</strong> <code class="bg-gray-100 px-2 py-1 rounded">${JSON.stringify(sharedAreasArray)}</code></p>
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

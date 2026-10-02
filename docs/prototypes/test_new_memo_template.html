@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test New Memo Template</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h1 class="text-2xl font-bold mb-4">🎯 New Memo Template Implementation - Testing</h1>
+            
+            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                <h2 class="font-semibold text-blue-800">Implementation Summary</h2>
+                <p class="text-blue-700 mt-2">Successfully updated the memo template system with the new Sectional-Titling-Memo.html design.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h3 class="font-semibold text-green-800 mb-2">✅ Files Created/Updated</h3>
+                    <ul class="text-green-700 text-sm space-y-1">
+                        <li>• <code>memo_template_new.blade.php</code> - New template</li>
+                        <li>• <code>MemoController.php</code> - Added viewMemoNew() method</li>
+                        <li>• <code>routes/apps.php</code> - Added new route</li>
+                        <li>• <code>memo.blade.php</code> - Updated View Memo links</li>
+                    </ul>
+                </div>
+                
+                <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <h3 class="font-semibold text-purple-800 mb-2">🔧 Key Features</h3>
+                    <ul class="text-purple-700 text-sm space-y-1">
+                        <li>• Opens in new tab/window</li>
+                        <li>• Modern responsive design</li>
+                        <li>• Print-optimized layout (A4)</li>
+                        <li>• Dynamic data integration</li>
+                        <li>• Buyers list on second page</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                <h3 class="font-semibold text-yellow-800 mb-2">📋 Testing Instructions</h3>
+                <ol class="text-yellow-700 text-sm space-y-2">
+                    <li>1. Navigate to <strong>Sectional Titling Memo Management</strong> page</li>
+                    <li>2. Find an application with generated memo in the "Generated Memos" tab</li>
+                    <li>3. Click the <strong>"View Memo"</strong> action button</li>
+                    <li>4. Verify that it opens in a new tab with the new template design</li>
+                    <li>5. Test the print functionality using the print button</li>
+                </ol>
+            </div>
+            
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-gray-800 mb-2">🔗 Route Information</h3>
+                <div class="text-sm text-gray-600 space-y-1">
+                    <p><strong>New Route:</strong> <code>programmes.view_memo_new</code></p>
+                    <p><strong>URL Pattern:</strong> <code>/programmes/view_memo_new/{id}</code></p>
+                    <p><strong>Controller:</strong> <code>MemoController@viewMemoNew</code></p>
+                    <p><strong>Template:</strong> <code>memo_template_new.blade.php</code></p>
+                </div>
+            </div>
+            
+            <div class="mt-6 text-center">
+                <p class="text-green-600 font-semibold">✅ Implementation Complete and Ready for Testing!</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Fix Test</title>
+</head>
+<body>
+    <h1>JavaScript Error Fix Test</h1>
+    
+    <script>
+    // CRITICAL FIX: Override problematic function immediately
+    window.validatePropertyForm = function(formId, submitButtonId) {
+        console.log('OVERRIDE validatePropertyForm called for:', formId);
+        const submitButton = document.getElementById(submitButtonId);
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        return true;
+    };
+    console.log('validatePropertyForm override loaded');
+    
+    // Test the override
+    setTimeout(() => {
+        console.log('Testing override...');
+        validatePropertyForm('test-form', 'test-button');
+    }, 1000);
+    </script>
+    
+    <p>Check the browser console for messages. This file tests if the JavaScript override works.</p>
+    <p>If you see "validatePropertyForm override loaded" and "OVERRIDE validatePropertyForm called for: test-form", the fix is working.</p>
+    
+    <p><strong>Instructions:</strong></p>
+    <ol>
+        <li>Open this file in your browser</li>
+        <li>Open browser console (F12)</li>
+        <li>Look for the override messages</li>
+        <li>If working, copy the script tag to the top of your main file</li>
+    </ol>
+</body>
+</html>

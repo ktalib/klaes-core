@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <title>ALAES VFC · Field Entry</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link rel="stylesheet" href="{{ asset('alaes-vfc-assets/vfc.css') }}">
+</head>
+<body>
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+        <div class="topbar-brand">
+            <div class="brand-icon"><img src="{{ asset('alaes-vfc-assets/logos/alaes.jpeg') }}" alt="ALAES"></div>
+            <div class="brand-text">
+                <h1>VFC App</h1>
+                <p id="topbarUser">Field Entry</p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div class="sync-status" title="Online"></div>
+            <a href="javascript:void(0)" class="btn-exit" onclick="vfcLogout()">
+                <i data-lucide="log-out" style="width: 14px;"></i>
+                EXIT
+            </a>
+        </div>
+    </header>
+
+    <!-- NAV STRIP -->
+    <nav class="nav-strip" id="navStrip">
+        <div class="nav-item active" data-target="sec-project">
+            <i data-lucide="briefcase" style="width: 12px;"></i>
+            <span>PROJECT</span>
+        </div>
+        <div class="nav-item" data-target="sec-owner">
+            <i data-lucide="user" style="width: 12px;"></i>
+            <span>OWNER</span>
+        </div>
+        <div class="nav-item" data-target="sec-building">
+            <i data-lucide="home" style="width: 12px;"></i>
+            <span>BUILDING</span>
+        </div>
+        <div class="nav-item" data-target="sec-payment">
+            <i data-lucide="credit-card" style="width: 12px;"></i>
+            <span>PAYMENT</span>
+        </div>
+        <div class="nav-item" data-target="sec-location">
+            <i data-lucide="map-pin" style="width: 12px;"></i>
+            <span>LOCATION</span>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <form id="vfcForm">
+
+            <!-- 1. PROJECT & ASSIGNMENT -->
+            <section class="section-card" id="sec-project">
+                <div class="section-header">
+                    <div class="section-header-main">
+                        <div class="section-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--accent);">
+                            <i data-lucide="layers" style="width: 16px;"></i>
+                        </div>
+                        <h2>Project Context</h2>
+                    </div>
+                    <i data-lucide="chevron-down" style="width:16px;color:var(--text-dim);"></i>
+                </div>
+                <div class="section-body">
+                    <div class="field">
+                        <label>Target Project <span class="req">*</span></label>
+                        <select name="project_id" id="projectSelect" class="inp">
+                            <option value="">Loading Projects...</option>
+                        </select>
+
+                        <div id="mobile-project-info" class="hidden summary-card">
+                            <div class="summary-header">
+                                <p class="summary-label">Project Summary</p>
+                                <span class="id-badge">ID: <span id="m_proj_id">-</span></span>
+                            </div>
+                            <div class="summary-body">
+                                <div class="summary-item">
+                                    <div class="summary-icon-box" style="border-color: rgba(245, 158, 11, 0.2);">
+                                        <i data-lucide="hash" style="width: 12px; color: var(--warning);"></i>
+                                    </div>
+                                    <span id="m_proj_code" class="summary-value" style="color: var(--warning);">-</span>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="summary-icon-box" style="border-color: rgba(59, 130, 246, 0.2);">
+                                        <i data-lucide="file-text" style="width: 12px; color: var(--accent);"></i>
+                                    </div>
+                                    <span id="m_proj_fileno" class="summary-value" style="color: var(--accent);">-</span>
+                                </div>
+                                <div class="stats-grid">
+                                    <div class="stat-badge">
+                                        <i data-lucide="users"></i>
+                                        WORKERS: <span id="m_proj_workers">0</span>
+                                    </div>
+                                    <div class="stat-badge success">
+                                        <i data-lucide="check-circle"></i>
+                                        FORM FILLED: <span id="m_proj_filled">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Sub-Project <span class="req">*</span></label>
+                        <select name="sub_project_id" id="subProjectSelect" class="inp" disabled>
+                            <option value="">Select Project First</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Assigned Worker <span class="req">*</span></label>
+                        <select name="worker_id" id="workerSelect" class="inp" disabled>
+                            <option value="">Select Project First</option>
+                        </select>
+                    </div>
+                    <div id="workerBadge" class="hidden">
+                        <div class="worker-badge-box">
+                            <i data-lucide="id-card" style="width: 14px; color: var(--warning);"></i>
+                            <span id="workerCodeDisplay">—</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. OWNER & FILE -->
+            <section class="section-card collapsed" id="sec-owner">
+                <div class="section-header">
+                    <div class="section-header-main">
+                        <div class="section-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                            <i data-lucide="file-text" style="width: 16px;"></i>
+                        </div>
+                        <h2>Ownership &amp; Dates</h2>
+                    </div>
+                    <i data-lucide="chevron-down" style="width:16px;color:var(--text-dim);"></i>
+                </div>
+                <div class="section-body">
+                    <div class="field">
+                        <label>Project Code <span class="hint">(From Project)</span></label>
+                        <input type="text" id="mobile_project_code" class="inp inp-readonly" placeholder="Select Project First" readonly>
+                    </div>
+                    <div class="field">
+                        <label>Project FileNo <span class="hint">(From Project)</span></label>
+                        <input type="text" id="mobile_project_fileno" class="inp inp-readonly" placeholder="Select Project First" readonly>
+                    </div>
+                    <div class="field">
+                        <label>Our Reference <span class="req">*</span></label>
+                        <input type="text" name="our_ref" id="mobile_our_ref" class="inp inp-readonly" placeholder="Select Project First" readonly>
+                    </div>
+                    <div class="field">
+                        <label>Your Reference</label>
+                        <input type="text" name="your_ref" id="mobile_your_ref" class="inp inp-readonly" placeholder="Select Project First" readonly>
+                    </div>
+                    <div class="field">
+                        <label>Owner Full Name <span class="req">*</span></label>
+                        <input type="text" name="owner_name" id="owner_name" class="inp" placeholder="Okezie Nwachukwu">
+                    </div>
+                    <div class="field">
+                        <label>Valuation Date <span class="req">*</span></label>
+                        <input type="date" name="valuation_date" id="valuation_date" class="inp">
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. BUILDING & COST -->
+            <section class="section-card collapsed" id="sec-building">
+                <div class="section-header">
+                    <div class="section-header-main">
+                        <div class="section-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                            <i data-lucide="building" style="width: 16px;"></i>
+                        </div>
+                        <h2>Building Assessment</h2>
+                    </div>
+                    <i data-lucide="chevron-down" style="width:16px;color:var(--text-dim);"></i>
+                </div>
+                <div class="section-body">
+                    <div class="field">
+                        <label>Building Count <span class="req">*</span></label>
+                        <input type="number" name="building_count" id="buildingCount" class="inp" value="1" min="1">
+                    </div>
+                    <div class="field">
+                        <label>Building Assessment &amp; Details <span class="req">*</span></label>
+                        <div id="building_types_mobile_container" style="display: flex; flex-direction: column; gap: 12px;">
+                            <div class="building-type-mobile-row">
+                                <div class="building-row-title">
+                                    <i data-lucide="building" style="width: 10px;"></i> Building 1
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <label class="building-sub-label">Building Type</label>
+                                    <select class="inp building-type-mobile-select">
+                                        <option value="">Select Type</option>
+                                    </select>
+                                    <input type="text" class="inp building-type-mobile-other hidden mt-2" placeholder="Specify type...">
+                                </div>
+                                <div>
+                                    <label class="building-sub-label">Stage of Completion</label>
+                                    <select class="inp building-stage-mobile-select">
+                                        <option value="">Select Stage</option>
+                                    </select>
+                                    <input type="text" class="inp building-stage-mobile-other hidden mt-2" placeholder="Specify stage...">
+                                </div>
+                                <div style="margin-top: 12px;">
+                                    <label class="building-sub-label">Number of Floors</label>
+                                    <input type="number" min="1" step="1" class="inp building-mobile-floors" placeholder="e.g. 2">
+                                </div>
+                                <div class="building-measure-grid">
+                                    <div>
+                                        <label class="building-sub-label">Length (L) (m)</label>
+                                        <input type="number" step="0.01" class="inp building-mobile-length" placeholder="0.00">
+                                    </div>
+                                    <div>
+                                        <label class="building-sub-label">Breadth (B) (m)</label>
+                                        <input type="number" step="0.01" class="inp building-mobile-breadth" placeholder="0.00">
+                                    </div>
+                                    <div>
+                                        <label class="building-sub-label">Area Covered (m²)</label>
+                                        <input type="number" step="0.01" class="inp building-mobile-area" placeholder="0.00">
+                                    </div>
+                                    <div>
+                                        <label class="building-sub-label">Rate of Cost (₦)</label>
+                                        <input type="number" step="0.01" class="inp building-mobile-rate" placeholder="0.00">
+                                    </div>
+                                    <div style="grid-column: 1 / -1;">
+                                        <label class="building-sub-label">Amount (₦)</label>
+                                        <div class="inp-wrap">
+                                            <div class="naira-prefix">₦</div>
+                                            <input type="number" step="0.01" class="inp building-mobile-comp" placeholder="0.00" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="building_type" id="building_type_final_mobile">
+                        <input type="hidden" name="completion_stage" id="completion_stage_final_mobile">
+                        <input type="hidden" name="number_of_floors" id="number_of_floors_final_mobile">
+                    </div>
+
+                    <!-- Aggregates. Hidden in the live app too — they are written by the
+                         calculator and submitted, not typed. -->
+                    <div style="display: none;">
+                        <div class="field">
+                            <label>Total Length (L) (m)</label>
+                            <input type="number" name="length" id="length" class="inp inp-readonly" placeholder="0.00" step="0.01" readonly>
+                        </div>
+                        <div class="field">
+                            <label>Total Breadth (B) (m)</label>
+                            <input type="number" name="breadth" id="breadth" class="inp inp-readonly" placeholder="0.00" step="0.01" readonly>
+                        </div>
+                        <div class="field">
+                            <label>Total Area Covered (m²) <span class="req">*</span></label>
+                            <input type="number" name="area_covered" id="areaCovered" class="inp inp-readonly" placeholder="0.00" step="0.01" readonly>
+                        </div>
+                        <div class="field">
+                            <label>Average Rate of Cost (₦) <span class="req">*</span></label>
+                            <input type="number" name="rate_of_cost" id="rateOfCost" class="inp inp-readonly" placeholder="0.00" step="0.01" readonly>
+                        </div>
+                        <div class="field">
+                            <label>Total Amount of Compensation <span class="req">*</span></label>
+                            <input type="number" name="compensation_amount" id="compensation_amount" class="inp inp-readonly" placeholder="0.00" step="0.01" readonly>
+                        </div>
+                    </div>
+
+                    <!-- Running total, so the field officer can see the figure build up. -->
+                    <div class="amount-card">
+                        <span class="amount-label">Total Compensation</span>
+                        <span class="amount-val" id="grandTotalDisplay">₦0.00</span>
+                    </div>
+
+                    <div class="field">
+                        <label>Compensated Items</label>
+                        <div class="items-grid" id="valuationItemsGrid">
+                            <div style="padding:10px; font-size:11px; color:var(--text-dim); font-style:italic;">Loading items...</div>
+                        </div>
+                        <input type="text" id="compItemsOtherText" class="inp hidden mt-3" placeholder="Specify other items...">
+                        <input type="hidden" name="compensated_items" id="compItemsVal">
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. ACCOUNT DETAILS -->
+            <section class="section-card collapsed" id="sec-payment">
+                <div class="section-header">
+                    <div class="section-header-main">
+                        <div class="section-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                            <i data-lucide="banknote" style="width: 16px;"></i>
+                        </div>
+                        <h2>Account &amp; Payment</h2>
+                    </div>
+                    <i data-lucide="chevron-down" style="width:16px;color:var(--text-dim);"></i>
+                </div>
+                <div class="section-body">
+                    <div class="field">
+                        <label>Bank Name</label>
+                        <div class="inp-wrap" style="display: flex; align-items: center;">
+                            <div id="selectedBankLogo" class="hidden" style="position: absolute; left: 12px; z-index: 10; pointer-events: none;">
+                                <div class="selected-logo-wrap">
+                                    <img src="" alt="Bank" class="bank-logo-img">
+                                </div>
+                            </div>
+                            <input type="text" id="bankSearch" class="inp" placeholder="Search Nigerian Banks..." autocomplete="off">
+                            <input type="hidden" name="bank_name" id="bankNameVal">
+                            <div id="bankResults" class="bank-results hidden"></div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Account Name <span class="req">*</span></label>
+                        <input type="text" name="account_name" id="account_name" class="inp" placeholder="Full Name as on Bank Account">
+                    </div>
+                    <div class="field">
+                        <label>Account Number <span class="req">*</span></label>
+                        <input type="tel" name="account_number" id="account_number" class="inp" placeholder="10 Digits" maxlength="10">
+                    </div>
+                    <div class="field">
+                        <label>Phone Number <span class="req">*</span></label>
+                        <input type="tel" name="phone_number" id="phone_number" class="inp" placeholder="080...">
+                    </div>
+                    <div class="field">
+                        <label>National Identity Number (NIN)</label>
+                        <input type="text" name="nin" id="mobile_nin" class="inp" placeholder="11 Digits">
+                    </div>
+                    <div class="field">
+                        <label>Remarks</label>
+                        <textarea name="remarks" id="mobile_remarks" class="inp" rows="2" placeholder="Any additional notes..."></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. LOCATION -->
+            <section class="section-card collapsed" id="sec-location">
+                <div class="section-header">
+                    <div class="section-header-main">
+                        <div class="section-icon" style="background: rgba(139, 92, 246, 0.1); color: #a78bfa;">
+                            <i data-lucide="map" style="width: 16px;"></i>
+                        </div>
+                        <h2>Property Location</h2>
+                    </div>
+                    <i data-lucide="chevron-down" style="width:16px;color:var(--text-dim);"></i>
+                </div>
+                <div class="section-body">
+                    <div class="field">
+                        <label>Plot No <span class="req">*</span></label>
+                        <input type="text" name="plot_no" id="plot_no" class="inp loc-trigger" placeholder="e.g. 101">
+                    </div>
+                    <div class="field">
+                        <label>Street Name</label>
+                        <select name="street_name" id="streetSelect" class="inp loc-trigger">
+                            <option value="">Select Street</option>
+                        </select>
+                        <input type="text" id="streetSelectOther" class="inp loc-trigger hidden mt-2" placeholder="Specify street name">
+                    </div>
+                    <div class="field">
+                        <label>District</label>
+                        <select name="district" id="districtSelect" class="inp loc-trigger">
+                            <option value="">Loading districts...</option>
+                        </select>
+                        <input type="text" id="districtSelectOther" class="inp loc-trigger hidden mt-2" placeholder="Specify district">
+                    </div>
+                    <div class="field">
+                        <label>LGA <span class="req">*</span></label>
+                        <select name="lga" id="lgaSelect" class="inp loc-trigger" required>
+                            <option value="">Loading LGAs...</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Full Address <span class="req">*</span></label>
+                        <textarea name="location" id="fullLocation" class="inp" rows="3" placeholder="Generating from selections..."></textarea>
+                    </div>
+
+                    <div class="field">
+                        <label>Geographic Coordinates</label>
+                        <div id="map"></div>
+                        <div class="map-controls">
+                            <button type="button" class="btn-geo" onclick="getCurrentLocation()">
+                                <i data-lucide="crosshair" style="width: 14px;"></i>
+                                PIN CURRENT
+                            </button>
+                            <div class="coord-badge">
+                                <span id="coordDisplay">5.5320, 7.4860</span>
+                            </div>
+                        </div>
+                        <input type="hidden" name="latitude" id="lat" value="5.5320">
+                        <input type="hidden" name="longitude" id="lng" value="7.4860">
+                    </div>
+                </div>
+            </section>
+        </form>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <footer class="bottom-nav">
+        <button type="button" class="btn btn-ghost" onclick="resetForm()">
+            <i data-lucide="rotate-ccw" style="width: 18px;"></i>
+            <span>Clear</span>
+        </button>
+        <button type="button" id="saveBtn" class="btn btn-primary" onclick="submitForm()">
+            <i data-lucide="save" style="width: 18px;"></i>
+            <span>Save Record</span>
+        </button>
+    </footer>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast">
+        <i data-lucide="info" style="width: 16px;"></i>
+        <span id="toastMsg">Message here</span>
+    </div>
+
+    <script src="{{ asset('alaes-vfc-assets/vfc.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test PageTyping URL Parameters</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+        .test-links {
+            background: #f4f4f4;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .test-links a {
+            display: inline-block;
+            background: #007cba;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        .test-links a:hover {
+            background: #005a87;
+        }
+        .description {
+            background: #e8f4fd;
+            padding: 15px;
+            border-left: 4px solid #007cba;
+            margin: 20px 0;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .comparison-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .comparison-item h4 {
+            color: #333;
+            margin-top: 0;
+        }
+        .feature-list {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>PageTyping URL Parameter Implementation</h1>
+    
+    <div class="description">
+        <h3>Implementation Summary:</h3>
+        <p>The pagetyping page now supports URL parameter-based mode switching:</p>
+        <ul>
+            <li><strong>/pagetyping</strong> - Full dashboard with all tabs and stats</li>
+            <li><strong>/pagetyping?url=ptmore</strong> - Simplified interface showing only "PageType More" and "Typing" tabs</li>
+        </ul>
+    </div>
+
+    <div class="test-links">
+        <h3>Test Links:</h3>
+        <a href="/pagetyping" target="_blank">Normal PageTyping Dashboard</a>
+        <a href="/pagetyping?url=ptmore" target="_blank">PageType More Mode</a>
+    </div>
+
+    <div class="comparison">
+        <div class="comparison-item">
+            <h4>🔹 Normal Mode (/pagetyping)</h4>
+            <ul>
+                <li><strong>Title:</strong> "Page Typing"</li>
+                <li><strong>Description:</strong> "Categorize and digitize file content"</li>
+                <li><strong>Stats Cards:</strong> ✅ All 4 stats visible</li>
+                <li><strong>Tabs:</strong> All 6 tabs (Pending, In Progress, Completed, PageType More, Custom Types, Typing)</li>
+                <li><strong>Active Tab:</strong> "Pending Page Typing"</li>
+                <li><strong>Grid Layout:</strong> 6-column grid</li>
+            </ul>
+        </div>
+        
+        <div class="comparison-item">
+            <h4>🔸 PageType More Mode (/pagetyping?url=ptmore)</h4>
+            <ul>
+                <li><strong>Title:</strong> "<em>PageType More</em>"</li>
+                <li><strong>Description:</strong> "<em>Advanced page type classification and document processing</em>"</li>
+                <li><strong>Stats Cards:</strong> ❌ Hidden (focused interface)</li>
+                <li><strong>Tabs:</strong> Only 2 tabs (PageType More, Typing)</li>
+                <li><strong>Active Tab:</strong> "PageType More" (default)</li>
+                <li><strong>Grid Layout:</strong> 2-column grid</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="feature-list">
+        <h3>🆕 Features Implemented:</h3>
+        <ol>
+            <li><strong>URL Parameter Detection:</strong> Added PHP code to detect <code>?url=ptmore</code></li>
+            <li><strong>Context-Sensitive Title:</strong> Changes to "PageType More" in ptmore mode</li>
+            <li><strong>Hidden Stats Cards:</strong> Stats section hidden for focused workflow</li>
+            <li><strong>Conditional Tabs:</strong> Only shows relevant tabs (PageType More + Typing)</li>
+            <li><strong>Grid Layout Adjustment:</strong> Changes from 6-column to 2-column grid</li>
+            <li><strong>Active Tab Control:</strong> "PageType More" becomes default active tab</li>
+            <li><strong>Hidden Tab Contents:</strong> Non-relevant tab contents (Pending, In Progress, Completed, Custom Types) are hidden</li>
+            <li><strong>JavaScript Integration:</strong> Proper tab activation on page load</li>
+        </ol>
+    </div>
+
+    <div class="description">
+        <h3>Technical Implementation Details:</h3>
+        <ol>
+            <li><strong>PHP Variable:</strong> <code>$showPageTypeMore = request()->get('url') === 'ptmore';</code></li>
+            <li><strong>Conditional Headers:</strong> Dynamic page title and description</li>
+            <li><strong>Tab Structure:</strong> Conditional tab layout with proper grid columns</li>
+            <li><strong>Content Visibility:</strong> Wrapped unwanted sections in <code>@if(!$showPageTypeMore)</code></li>
+            <li><strong>JavaScript Initialization:</strong> Conditional tab activation on DOMContentLoaded</li>
+            <li><strong>ARIA Attributes:</strong> Proper <code>aria-hidden</code> and <code>aria-selected</code> handling</li>
+        </ol>
+    </div>
+
+    <div class="description">
+        <h3>Files Modified:</h3>
+        <ul>
+            <li><code>resources/views/pagetyping/index.blade.php</code> - Enhanced with URL parameter conditional logic</li>
+        </ul>
+    </div>
+
+    <h3>Usage Instructions:</h3>
+    <ul>
+        <li>Use <strong>/pagetyping</strong> for full dashboard access with all page typing workflows</li>
+        <li>Use <strong>/pagetyping?url=ptmore</strong> when focusing specifically on PageType More files that need additional processing</li>
+    </ul>
+
+    <div class="feature-list">
+        <h3>💡 User Experience Benefits:</h3>
+        <ul>
+            <li><strong>Focused Workflow:</strong> ptmore mode eliminates distractions for specialized tasks</li>
+            <li><strong>Clear Context:</strong> Page title immediately indicates the current mode</li>
+            <li><strong>Simplified Interface:</strong> Reduced cognitive load with only relevant tabs</li>
+            <li><strong>Streamlined Process:</strong> Direct access to PageType More functionality</li>
+            <li><strong>Consistent Behavior:</strong> Same logic pattern as scanning page implementation</li>
+        </ul>
+    </div>
+</body>
+</html>

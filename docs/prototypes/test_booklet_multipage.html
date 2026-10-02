@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Booklet Multi-Page Processing</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; font-family: monospace; white-space: pre-wrap; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        button { margin: 5px; padding: 10px 15px; }
+    </style>
+</head>
+<body>
+    <h1>Test Booklet Multi-Page Processing</h1>
+    
+    <div class="test-section">
+        <h2>Test Data Structure</h2>
+        <p>This page tests the data being sent to the backend for multi-page booklet processing.</p>
+        
+        <button onclick="testMultiPageData()">Test Multi-Page Data Structure</button>
+        <button onclick="testSinglePageData()">Test Single Page Data Structure</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+        
+        <div id="logs" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+            logsDiv.innerHTML += logEntry;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function testMultiPageData() {
+            log('Testing multi-page booklet data structure...', 'info');
+            
+            // Simulate the data structure that would be sent
+            const mockSelectedPages = [
+                { id: 1, page_number: 1 },
+                { id: 2, page_number: 2 },
+                { id: 3, page_number: 3 }
+            ];
+            
+            const mockState = {
+                selectedFileData: { id: 123, file_number: 'TEST001' },
+                typingState: {
+                    coverType: '1',
+                    pageType: 'DEED',
+                    pageSubType: 'ASSIGNMENT',
+                    currentSerial: '1',
+                    currentBooklet: 'BK001'
+                }
+            };
+
+            log(`Selected pages: ${JSON.stringify(mockSelectedPages)}`, 'info');
+            log(`State data: ${JSON.stringify(mockState)}`, 'info');
+
+            // Simulate the processing logic
+            mockSelectedPages.forEach((selected, pageIndex) => {
+                const letterSuffix = String.fromCharCode(97 + pageIndex); // a, b, c...
+                const serialWithLetter = `${mockState.typingState.currentSerial}${letterSuffix}`;
+
+                const pageData = {
+                    file_indexing_id: mockState.selectedFileData.id,
+                    scanning_id: selected.id,
+                    page_number: pageIndex + 1,
+                    cover_type_id: parseInt(mockState.typingState.coverType),
+                    page_type: mockState.typingState.pageType,
+                    page_subtype: mockState.typingState.pageSubType,
+                    serial_number: serialWithLetter,
+                    page_code: `DEED-DEED-ASSIGNMENT-${serialWithLetter}`,
+                    file_path: `storage\\app\\public\\EDMS\\PAGETYPING\\${mockState.selectedFileData.file_number}.pdf`,
+                    booklet_id: mockState.typingState.currentBooklet,
+                    is_booklet_page: true,
+                    booklet_sequence: letterSuffix
+                };
+
+                log(`Page ${pageIndex + 1} data: ${JSON.stringify(pageData, null, 2)}`, 'success');
+            });
+        }
+
+        function testSinglePageData() {
+            log('Testing single page data structure...', 'info');
+            
+            const mockState = {
+                selectedFileData: { id: 123, file_number: 'TEST001' },
+                selectedScanning: { id: 1 },
+                typingState: {
+                    coverType: '1',
+                    pageType: 'DEED',
+                    pageSubType: 'ASSIGNMENT',
+                    currentSerial: '1'
+                }
+            };
+
+            const pageData = {
+                file_indexing_id: mockState.selectedFileData.id,
+                scanning_id: mockState.selectedScanning.id,
+                page_number: 1,
+                cover_type_id: parseInt(mockState.typingState.coverType),
+                page_type: mockState.typingState.pageType,
+                page_subtype: mockState.typingState.pageSubType,
+                serial_number: mockState.typingState.currentSerial,
+                page_code: `DEED-DEED-ASSIGNMENT-${mockState.typingState.currentSerial}`,
+                file_path: `storage\\app\\public\\EDMS\\PAGETYPING\\${mockState.selectedFileData.file_number}.pdf`,
+                booklet_id: null,
+                is_booklet_page: false,
+                booklet_sequence: null
+            };
+
+            log(`Single page data: ${JSON.stringify(pageData, null, 2)}`, 'success');
+        }
+
+        // Run initial test
+        log('Test page loaded. Click buttons to test data structures.', 'info');
+    </script>
+</body>
+</html>

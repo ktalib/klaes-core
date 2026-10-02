@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning Recommendation Memo to DST</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Add Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Add SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    @include('actions.parts.pp_css')
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Source Sans Pro', sans-serif;
+            background-color: #f8f9fa;
+            font-size: 14px; 
+            line-height: 1.4;
+        }
+        
+        .heading {
+            font-family: 'Libre Baskerville', serif;
+        }
+        
+        .memo-container {
+            width: 21cm;
+            min-height: 29.7cm;
+            background: white;
+            margin: 0 auto;
+            padding: 1cm;
+            position: relative;
+            box-sizing: border-box;
+        }
+        
+        .header-line {
+            height: 3px;
+            background: linear-gradient(90deg, #1a56db, #1e3a8a);
+            margin-bottom: 15px;
+        }
+        
+        .underline {
+            text-decoration: underline;
+            text-decoration-thickness: 1px;
+        }
+        
+        /* Logo positioning */
+        .corner-logo {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            z-index: 10;
+        }
+        
+        /* Header Ministry Logos */
+        .logo-top-left { 
+            top: 0.3cm; 
+            left: 0.3cm; 
+        }
+        .logo-top-right { 
+            top: 0.3cm; 
+            right: 0.3cm; 
+        }
+        
+        /* Footer Branding Logos */
+        .logo-bottom-left { 
+            bottom: 0.3cm; 
+            left: 0.3cm; 
+            opacity: 0.8;
+        }
+        .logo-bottom-right { 
+            bottom: 0.3cm; 
+            right: 0.3cm; 
+            opacity: 0.8;
+        }
+        
+        /* Table styling */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 11px;
+            margin: 8px 0;
+            page-break-inside: avoid;
+        }
+        
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 4px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+        
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+        }
+        
+        .signature-line {
+            border-bottom: 1px solid #cbd5e1;
+            display: inline-block;
+            width: 180px;
+            margin: 10px 0 5px 0;
+        }
+        
+        .signature-section {
+            page-break-inside: avoid;
+            margin-top: 15px;
+        }
+        
+        /* Responsive logo sizing */
+        @media screen and (max-width: 768px) {
+            .corner-logo {
+                width: 50px !important;
+                height: 50px !important;
+            }
+            
+            .logo-top-left, .logo-top-right { 
+                top: 0.2cm; 
+            }
+            
+            .logo-top-left { 
+                left: 0.2cm; 
+            }
+            
+            .logo-top-right { 
+                right: 0.2cm; 
+            }
+            
+            .logo-bottom-left { 
+                bottom: 0.2cm; 
+                left: 0.2cm; 
+            }
+            
+            .logo-bottom-right { 
+                bottom: 0.2cm; 
+                right: 0.2cm; 
+            }
+            
+            .memo-container {
+                padding: 0.5cm;
+                font-size: 13px;
+            }
+        }
+        
+        /* Print optimizations */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0.5cm;
+            }
+            
+            * {
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            html, body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: auto !important;
+                height: auto !important;
+                font-size: 12px !important;
+                line-height: 1.3 !important;
+            }
+            
+            .memo-container {
+                width: auto !important;
+                height: auto !important;
+                padding: 0.5cm !important;
+                margin: 0 !important;
+                transform: none !important;
+                page-break-inside: avoid !important;
+                overflow: visible !important;
+                position: relative !important;
+                min-height: auto !important;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            /* Prevent page breaks */
+            table, .signature-section, .main-content {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+            
+            /* Tighter spacing for print */
+            .mb-6 { margin-bottom: 6px !important; }
+            .mb-4 { margin-bottom: 4px !important; }
+            .mb-3 { margin-bottom: 3px !important; }
+            .mb-2 { margin-bottom: 2px !important; }
+            
+            table {
+                font-size: 11px !important;
+                margin: 4px 0 !important;
+                width: 100% !important;
+            }
+            
+            th, td {
+                padding: 3px 4px !important;
+                font-size: 10px !important;
+            }
+            
+            .corner-logo {
+                width: 60px !important;
+                height: 60px !important;
+                max-width: 60px !important;
+                max-height: 60px !important;
+                object-fit: contain !important;
+            }
+            
+            /* Ensure logos are visible in print */
+            .logo-top-left, .logo-top-right {
+                opacity: 1 !important;
+            }
+            
+            .logo-bottom-left, .logo-bottom-right {
+                opacity: 0.7 !important;
+            }
+            
+            .header-line {
+                margin-bottom: 8px !important;
+            }
+            
+            h1, h3 {
+                margin-bottom: 4px !important;
+            }
+            
+            p {
+                margin-bottom: 3px !important;
+            }
+            
+            /* Fix for Alpine.js templates in print */
+            template {
+                display: none !important;
+            }
+            
+            /* Ensure tables are visible */
+            tbody tr {
+                display: table-row !important;
+            }
+            
+            tbody td {
+                display: table-cell !important;
+            }
+            
+            /* Fix potential Tailwind conflicts */
+            .flex {
+                display: flex !important;
+            }
+            
+            .justify-between {
+                justify-content: space-between !important;
+            }
+            
+            .text-center {
+                text-align: center !important;
+            }
+            
+            .font-bold {
+                font-weight: bold !important;
+            }
+            
+            .underline {
+                text-decoration: underline !important;
+            }
+        }
+    </style>
+</head>
+<body class="py-2" data-planning-content data-application-id="{{ $application->id ?? '' }}" {{ request()->query('url') == 'print' ? 'data-print-page="true"' : '' }} x-data="planningData()">
+    <div class="no-print flex justify-center mb-2">
+        <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-4 rounded shadow transition duration-200 flex items-center text-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m4 4h6a2 2 0 002-2v-4a2 2 0 00-2-2h-6a2 2 0 00-2 2v4a2 2 0 002 2z" />
+            </svg>
+            Print Document
+        </button>
+    </div>
+
+    <!-- Memo Container -->
+    <div class="memo-container">
+        <!-- Header Ministry Logos -->
+        <img class="corner-logo logo-top-left" src="{{ asset('assets/logo/ministry1.jpg') }}" alt="Kano State Ministry Logo" onerror="this.style.display='none'">
+        <img class="corner-logo logo-top-right" src="{{ asset('assets/logo/ministry2.png') }}" alt="Kano State Ministry Logo 2" onerror="this.style.display='none'">
+        
+        <!-- Footer Branding Logos -->
+        <img class="corner-logo logo-bottom-left" src="{{ asset('assets/logo/klaes.png') }}" alt="KLAES Brand Logo" onerror="this.style.display='none'">
+        <img class="corner-logo logo-bottom-right" src="{{ asset('assets/logo/las.jpeg') }}" alt="LAS Brand Logo" onerror="this.style.display='none'">
+        
+        <!-- Header Line -->
+        <div class="header-line rounded-t-lg"></div>
+        
+        <!-- Header Section -->
+        <div class="text-center mb-4">
+            <h1 class="heading text-lg font-bold text-gray-800 mb-1 underline">SECTIONAL TITLING ONE STOP SHOP</h1>
+            <p class="text-md font-semibold text-gray-700 mt-3">Director Sectional Titling</p>
+        </div>
+
+        <!-- Reference Section -->
+        <div class="mb-4">
+            <p class="font-semibold text-gray-800 underline text-center">
+                RE: APPLICATION FOR SECTIONAL TITLING PLANNING RECOMMENDATION APPROVAL<br>
+                IN RESPECT OF FILE NO <span class="font-bold">{{ $application->fileno ?? 'N/A' }}</span>
+            </p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="mb-4 text-gray-700 main-content">
+            <p class="mb-3">
+                Kindly refer to application dated <span class="font-bold">{{ $application->planning_approval_date ?? 'N/A' }}</span> in relation to the above subject. I am directed to convey the approval for fragmentation of (FILE NO {{ $application->fileno ?? 'N/A' }}) with plot no (<strong>{{ $application->property_plot_no ?? 'N/A' }}</strong>) and ST scheme no ({{ $application->scheme_no ?? 'N/A' }}) located at <span class="font-bold">{{ $application->property_street_name ?? '' }} {{ $application->property_lga ?? 'N/A' }}</span> into multiple units/ sections as described in table A. All sections / units have met physical planning requirement for statutory right of occupancy with approved shared utilities and compounds as described in table B overleaf
+            </p>
+            
+            <p class="mb-3">
+                In view of the above and section seven (7) of kano state sectional and systematic land titling registration law 2024 (1446 AH) scheme and its fragmentation (based on approved Site plan dimensions) are suitable for approval if you have no objection.
+            </p>
+        </div>
+
+        <!-- Signature Lines - Fixed Layout -->
+        <div class="mb-6 signature-section">
+            <div class="flex justify-between">
+                <div class="text-center w-1/2 pr-4">
+                    <div class="signature-line"></div>
+                    <p class="text-xs text-gray-600 mt-1">Counter sign: Coordinator <strong>OSS</strong></p>
+                </div>
+                <div class="text-center w-1/2 pl-4">
+                    <div class="signature-line"></div>
+                    <p class="text-xs text-gray-600 mt-1">Chairman OSS</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table A -->
+        <div class="mb-6">
+            <h3 class="font-bold text-gray-800 mb-2 text-md">1. Table A dimensions of fragmented units</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>SN</th>
+                        <th>UNIT / SECTION NO</th>
+                        <th>DIMENSIONS IN M²</th>
+                    </tr>
+                </thead>
+                <tbody id="dimensions-tbody">
+                    @php
+                    // Try to get dimensions from PHP data if available
+                    $phpDimensions = [];
+                    try {
+                        if (isset($application->id)) {
+                            $phpDimensions = DB::connection('sqlsrv')
+                                ->table('site_plan_dimensions')
+                                ->where('application_id', $application->id)
+                                ->orderBy('order')
+                                ->get();
+                        }
+                    } catch (\Exception $e) {
+                        $phpDimensions = [];
+                    }
+                    @endphp
+                    
+                    @if(count($phpDimensions) > 0)
+                        @foreach($phpDimensions as $index => $dimension)
+                        <tr>
+                            <td><strong>{{ $index + 1 }}</strong></td>
+                            <td><strong>{{ $dimension->description ?? 'Unit ' . ($index + 1) }}</strong></td>
+                            <td><strong>{{ number_format($dimension->dimension ?? 0, 2) }}</strong></td>
+                        </tr>
+                        @endforeach
+                    @else
+                        <!-- Default empty state that will be replaced by Alpine.js on screen -->
+                        <tr class="dimension-row">
+                            <td><strong>1</strong></td>
+                            <td><strong>Unit 1</strong></td>
+                            <td><strong>-</strong></td>
+                        </tr>
+                        <tr class="dimension-row">
+                            <td><strong>2</strong></td>
+                            <td><strong>Unit 2</strong></td>
+                            <td><strong>-</strong></td>
+                        </tr>
+                        <tr class="dimension-row">
+                            <td><strong>3</strong></td>
+                            <td><strong>Unit 3</strong></td>
+                            <td><strong>-</strong></td>
+                        </tr>
+                    @endif
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Table B -->
+        <div>
+            <h3 class="font-bold text-gray-800 mb-2 text-md">2. Table B UTILITY AND SHARED COMPOUND DESCRIPTION</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>SN</th>
+                        <th>SHARED UTILITY TYPE</th>
+                        <th>DIMENSION IN M²</th>
+                        <th>COUNT WITHIN SCHEME</th>
+                        <th>BLOCK</th>
+                        <th>SECTION</th>
+                    </tr>
+                </thead>
+                <tbody id="utilities-tbody">
+                    @php
+                    // Try to get utilities from PHP data if available
+                    $phpUtilities = [];
+                    try {
+                        if (isset($application->id)) {
+                            $phpUtilities = DB::connection('sqlsrv')
+                                ->table('shared_utilities')
+                                ->where('application_id', $application->id)
+                                ->orderBy('order')
+                                ->get();
+                        }
+                    } catch (\Exception $e) {
+                        $phpUtilities = [];
+                    }
+                    @endphp
+                    
+                    @if(count($phpUtilities) > 0)
+                        @foreach($phpUtilities as $index => $utility)
+                        <tr>
+                            <td><strong>{{ $index + 1 }}</strong></td>
+                            <td><strong>{{ strtoupper($utility->utility_type ?? 'UTILITY ' . ($index + 1)) }}</strong></td>
+                            <td><strong>{{ number_format($utility->dimension ?? 0, 1) }}</strong></td>
+                            <td><strong>{{ $utility->count ?? 1 }}</strong></td>
+                            <td><strong>{{ $utility->block ?? '1' }}</strong></td>
+                            <td><strong>{{ $utility->section ?? '1' }}</strong></td>
+                        </tr>
+                        @endforeach
+                    @else
+                        <!-- Default empty state that will be replaced by Alpine.js on screen -->
+                        <tr class="utility-row">
+                            <td><strong>1</strong></td>
+                            <td><strong>TOILET</strong></td>
+                            <td><strong>-</strong></td>
+                            <td><strong>-</strong></td>
+                            <td><strong>1</strong></td>
+                            <td><strong>1</strong></td>
+                        </tr>
+                        <tr class="utility-row">
+                            <td><strong>2</strong></td>
+                            <td><strong>SHARED AREA</strong></td>
+                            <td><strong>-</strong></td>
+                            <td><strong>-</strong></td>
+                            <td><strong>SCA</strong></td>
+                            <td><strong>SCA</strong></td>
+                        </tr>
+                    @endif
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-xs text-gray-500 mt-4" style="margin-top: 20px;">
+            <p>Generated on: <span id="current-date"></span></p>
+        </div>
+    </div>
+
+    @include('actions.parts.pp_js')
+    
+    <script>
+        // Add current date to the document
+        document.addEventListener('DOMContentLoaded', function() {
+            const dateElement = document.getElementById('current-date');
+            if (dateElement) {
+                dateElement.textContent = new Date().toLocaleDateString();
+            }
+        });
+
+        // Enhanced Alpine.js data handling for screen display
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('planningData', () => ({
+                applicationId: '{{ $application->id ?? '' }}',
+                dimensions: [],
+                utilities: [],
+
+                init() {
+                    // Only load dynamic data if not in print mode
+                    if (this.applicationId && !window.matchMedia('print').matches) {
+                        this.loadDimensions();
+                        this.loadUtilities();
+                    }
+                },
+
+                async loadDimensions() {
+                    try {
+                        const response = await axios.get(`{{ url('planning-tables/dimensions') }}/${this.applicationId}`);
+                        this.dimensions = response.data;
+                        this.renderDimensions();
+                    } catch (error) {
+                        console.error('Error loading dimensions:', error);
+                    }
+                },
+
+                async loadUtilities() {
+                    try {
+                        const response = await axios.get(`{{ url('planning-tables/utilities') }}/${this.applicationId}`);
+                        this.utilities = response.data;
+                        this.renderUtilities();
+                    } catch (error) {
+                        console.error('Error loading utilities:', error);
+                    }
+                },
+
+                renderDimensions() {
+                    if (this.dimensions.length > 0 && !window.matchMedia('print').matches) {
+                        const tbody = document.getElementById('dimensions-tbody');
+                        if (tbody) {
+                            tbody.innerHTML = '';
+                            this.dimensions.forEach((dimension, index) => {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td><strong>${index + 1}</strong></td>
+                                    <td><strong>${dimension.description || 'Unit ' + (index + 1)}</strong></td>
+                                    <td><strong>${parseFloat(dimension.dimension || 0).toFixed(2)}</strong></td>
+                                `;
+                                tbody.appendChild(row);
+                            });
+                        }
+                    }
+                },
+
+                renderUtilities() {
+                    if (this.utilities.length > 0 && !window.matchMedia('print').matches) {
+                        const tbody = document.getElementById('utilities-tbody');
+                        if (tbody) {
+                            tbody.innerHTML = '';
+                            this.utilities.forEach((utility, index) => {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td><strong>${index + 1}</strong></td>
+                                    <td><strong>${(utility.utility_type || 'Utility ' + (index + 1)).toUpperCase()}</strong></td>
+                                    <td><strong>${parseFloat(utility.dimension || 0).toFixed(1)}</strong></td>
+                                    <td><strong>${utility.count || 1}</strong></td>
+                                    <td><strong>${utility.block || '1'}</strong></td>
+                                    <td><strong>${utility.section || '1'}</strong></td>
+                                `;
+                                tbody.appendChild(row);
+                            });
+                        }
+                    }
+                }
+            }));
+        });
+
+        // Ensure print functionality works with static content
+        window.addEventListener('beforeprint', function() {
+            // Remove any Alpine.js dynamic content classes for print
+            document.querySelectorAll('[x-data], [x-show], [x-if]').forEach(el => {
+                el.style.display = '';
+            });
+        });
+    </script>
+</body>
+</html>

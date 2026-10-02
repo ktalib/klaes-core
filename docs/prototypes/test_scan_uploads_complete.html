@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Uploads API Test Suite</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .test-suite {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        .test-group {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        
+        .test-group h2 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #007bff;
+        }
+        
+        .test {
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border-left: 4px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        .test.running {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+        
+        .test.passed {
+            border-left-color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .test.failed {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .test-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .test-result {
+            font-size: 12px;
+            margin-top: 5px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 3px;
+            font-family: monospace;
+            overflow-x: auto;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .test-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        
+        .status-running {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-passed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .summary h3 {
+            color: #007bff;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+        }
+        
+        .summary-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Scan Uploads API Test Suite</h1>
+        <p class="subtitle">Comprehensive endpoint testing for ScanUploadsController</p>
+        
+        <div class="controls">
+            <button onclick="runAllTests()">▶ Run All Tests</button>
+            <button onclick="resetTests()">🔄 Reset Tests</button>
+            <button onclick="runSpecific('endpoints')">Test Endpoints</button>
+            <button onclick="runSpecific('debug')">Test Debug</button>
+        </div>
+        
+        <div id="summary" class="summary" style="display: none;">
+            <h3>Test Summary</h3>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <span>Passed:</span>
+                    <span class="stat-value" id="passed-count">0</span>
+                </div>
+                <div class="summary-stat">
+                    <span>Failed:</span>
+                    <span class="stat-value" id="failed-count">0</span>
+                </div>
+                <div class="summary-stat">
+                    <span>Total:</span>
+                    <span class="stat-value" id="total-count">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-suite" id="tests">
+            <!-- Tests will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/scan-uploads';
+        const TIMEOUT = 5000;
+
+        const tests = [
+            // Endpoint Connectivity
+            {
+                name: 'Index Endpoint (GET /)',
+                group: 'Endpoints',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/`, { method: 'GET' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return 'Index page loaded successfully';
+                }
+            },
+            {
+                name: 'Log Endpoint (GET /log)',
+                group: 'Endpoints',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/log`, { method: 'GET' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    if (!data.success) throw new Error('API returned success: false');
+                    return `Fetched logs: ${Object.keys(data.data || {}).length} file groups`;
+                }
+            },
+            {
+                name: 'Debug Endpoint (GET /debug)',
+                group: 'Endpoints',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/debug`, { method: 'GET' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    if (!data.success) throw new Error('API returned success: false');
+                    return `Storage path: ${data.data.base_path}, Writable: ${data.data.writable}, Files: ${data.data.file_count}`;
+                }
+            },
+            
+            // Upload Validation
+            {
+                name: 'Upload - Missing File (should fail)',
+                group: 'Upload Validation',
+                test: async () => {
+                    const formData = new FormData();
+                    formData.append('file_indexing_id', '1');
+                    
+                    const response = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.status !== 422) throw new Error(`Expected 422, got ${response.status}`);
+                    const data = await response.json();
+                    if (data.success !== false) throw new Error('Should return success: false');
+                    return 'Correctly rejected missing file';
+                }
+            },
+            {
+                name: 'Upload - Missing FileIndexing (should fail)',
+                group: 'Upload Validation',
+                test: async () => {
+                    const file = new File(['test'], 'test.txt', { type: 'text/plain' });
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.status !== 404) throw new Error(`Expected 404, got ${response.status}`);
+                    const data = await response.json();
+                    return 'Correctly rejected missing FileIndexing';
+                }
+            },
+            {
+                name: 'Upload - Invalid File Type (should fail)',
+                group: 'Upload Validation',
+                test: async () => {
+                    const file = new File(['test'], 'test.exe', { type: 'application/octet-stream' });
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('file_indexing_id', '1');
+                    
+                    const response = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.status !== 422) throw new Error(`Expected 422, got ${response.status}`);
+                    return 'Correctly rejected invalid file type';
+                }
+            },
+            {
+                name: 'Upload - File Too Large (should fail)',
+                group: 'Upload Validation',
+                test: async () => {
+                    // Create a 100MB file (exceeds 50MB limit)
+                    const largeContent = new Uint8Array(100 * 1024 * 1024);
+                    const file = new File([largeContent], 'large.jpg', { type: 'image/jpeg' });
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('file_indexing_id', '1');
+                    
+                    const response = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.status !== 422) throw new Error(`Expected 422, got ${response.status}`);
+                    return 'Correctly rejected oversized file';
+                }
+            },
+            
+            // Log Endpoint Features
+            {
+                name: 'Log Endpoint - Grouping',
+                group: 'Log Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/log`, { method: 'GET' });
+                    const data = await response.json();
+                    if (!data.data) throw new Error('No data returned');
+                    
+                    // Check that response is grouped by file number
+                    const keys = Object.keys(data.data);
+                    if (keys.length === 0) return 'No uploads yet (empty log is valid)';
+                    
+                    // Verify each group is an array
+                    for (const fileNo of keys) {
+                        if (!Array.isArray(data.data[fileNo])) {
+                            throw new Error(`File number ${fileNo} not grouped as array`);
+                        }
+                    }
+                    
+                    return `Log grouped into ${keys.length} file numbers`;
+                }
+            },
+            {
+                name: 'Log Endpoint - Response Shape',
+                group: 'Log Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/log`, { method: 'GET' });
+                    const data = await response.json();
+                    
+                    if (!data.success) throw new Error('success field missing');
+                    if (!data.data) throw new Error('data field missing');
+                    if (typeof data.count !== 'number') throw new Error('count field not a number');
+                    
+                    return `Response shape valid: ${data.count} documents`;
+                }
+            },
+            {
+                name: 'Log Endpoint - Document Normalization',
+                group: 'Log Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/log`, { method: 'GET' });
+                    const data = await response.json();
+                    
+                    if (data.count === 0) return 'No documents to validate (empty log is valid)';
+                    
+                    // Get first file number's documents
+                    const fileNo = Object.keys(data.data)[0];
+                    const docs = data.data[fileNo];
+                    
+                    if (docs.length === 0) return 'File group is empty (valid)';
+                    
+                    const doc = docs[0];
+                    const requiredFields = ['id', 'fileNumber', 'originalName', 'status', 'uploadedAt'];
+                    const missingFields = requiredFields.filter(f => !(f in doc));
+                    
+                    if (missingFields.length > 0) {
+                        throw new Error(`Missing fields: ${missingFields.join(', ')}`);
+                    }
+                    
+                    return 'Document normalization valid';
+                }
+            },
+            
+            // Debug Endpoint
+            {
+                name: 'Debug - Path Existence',
+                group: 'Debug Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/debug`, { method: 'GET' });
+                    const data = await response.json();
+                    
+                    if (!data.data.exists) throw new Error('Storage path does not exist');
+                    return 'Storage path exists';
+                }
+            },
+            {
+                name: 'Debug - Write Permission',
+                group: 'Debug Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/debug`, { method: 'GET' });
+                    const data = await response.json();
+                    
+                    if (!data.data.writable) throw new Error('Storage path not writable');
+                    return 'Storage path is writable';
+                }
+            },
+            {
+                name: 'Debug - Directory Tree',
+                group: 'Debug Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/debug`, { method: 'GET' });
+                    const data = await response.json();
+                    
+                    if (!data.data.tree) throw new Error('tree field missing');
+                    if (typeof data.data.tree !== 'object') throw new Error('tree not an object');
+                    
+                    return `Directory tree has ${Object.keys(data.data.tree).length} entries`;
+                }
+            },
+            {
+                name: 'Debug - Disk Space Info',
+                group: 'Debug Endpoint',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/debug`, { method: 'GET' });
+                    const data = await response.json();
+                    
+                    const freeSpace = data.data.disk_free_space;
+                    if (!freeSpace || freeSpace === 'N/A') {
+                        return 'Disk space info available but format varies';
+                    }
+                    
+                    return `Free disk space: ${(freeSpace / 1024 / 1024 / 1024).toFixed(2)} GB`;
+                }
+            },
+            
+            // Error Handling
+            {
+                name: 'Error Handling - Invalid HTTP Method',
+                group: 'Error Handling',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/log`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.status === 405 || response.status === 404) {
+                        return `Correctly rejected invalid method: HTTP ${response.status}`;
+                    }
+                    
+                    throw new Error(`Expected 405 or 404, got ${response.status}`);
+                }
+            },
+            {
+                name: 'Error Handling - Nonexistent Delete Target',
+                group: 'Error Handling',
+                test: async () => {
+                    const response = await fetch(`${API_BASE}/999999`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.status === 404 || response.status === 405) {
+                        return `Correctly handled nonexistent resource: HTTP ${response.status}`;
+                    }
+                    
+                    throw new Error(`Expected 404 or 405, got ${response.status}`);
+                }
+            }
+        ];
+
+        function getTestGroup(groupName) {
+            const testsuite = document.getElementById('tests');
+            let group = testsuite.querySelector(`[data-group="${groupName}"]`);
+            
+            if (!group) {
+                group = document.createElement('div');
+                group.className = 'test-group';
+                group.setAttribute('data-group', groupName);
+                group.innerHTML = `<h2>${groupName}</h2>`;
+                testsuite.appendChild(group);
+            }
+            
+            return group;
+        }
+
+        function createTestElement(test) {
+            const testEl = document.createElement('div');
+            testEl.className = 'test';
+            testEl.setAttribute('data-test', test.name);
+            testEl.innerHTML = `
+                <div class="test-name">
+                    <span class="test-status status-running">RUNNING</span>
+                    ${test.name}
+                </div>
+                <div class="test-result" style="display: none;">Loading...</div>
+            `;
+            
+            return testEl;
+        }
+
+        async function runTest(test) {
+            const group = getTestGroup(test.group);
+            let testEl = group.querySelector(`[data-test="${test.name}"]`);
+            
+            if (!testEl) {
+                testEl = createTestElement(test);
+                group.appendChild(testEl);
+            }
+            
+            testEl.classList.remove('passed', 'failed');
+            testEl.classList.add('running');
+            
+            try {
+                const result = await Promise.race([
+                    test.test(),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Test timeout')), TIMEOUT)
+                    )
+                ]);
+                
+                testEl.classList.remove('running');
+                testEl.classList.add('passed');
+                
+                const statusEl = testEl.querySelector('.test-status');
+                statusEl.className = 'test-status status-passed';
+                statusEl.textContent = 'PASSED';
+                
+                const resultEl = testEl.querySelector('.test-result');
+                resultEl.style.display = 'block';
+                resultEl.textContent = result;
+                
+                return true;
+            } catch (error) {
+                testEl.classList.remove('running');
+                testEl.classList.add('failed');
+                
+                const statusEl = testEl.querySelector('.test-status');
+                statusEl.className = 'test-status status-failed';
+                statusEl.textContent = 'FAILED';
+                
+                const resultEl = testEl.querySelector('.test-result');
+                resultEl.style.display = 'block';
+                resultEl.textContent = error.message || 'Unknown error';
+                
+                return false;
+            }
+        }
+
+        async function runAllTests() {
+            document.getElementById('tests').innerHTML = '';
+            let passed = 0;
+            let failed = 0;
+            
+            for (const test of tests) {
+                const result = await runTest(test);
+                if (result) passed++;
+                else failed++;
+            }
+            
+            updateSummary(passed, failed);
+        }
+
+        async function runSpecific(groupName) {
+            document.getElementById('tests').innerHTML = '';
+            const groupTests = tests.filter(t => t.group.toLowerCase().replace(/\s+/g, '') === groupName.toLowerCase());
+            
+            let passed = 0;
+            let failed = 0;
+            
+            for (const test of groupTests) {
+                const result = await runTest(test);
+                if (result) passed++;
+                else failed++;
+            }
+            
+            updateSummary(passed, failed);
+        }
+
+        function resetTests() {
+            document.getElementById('tests').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+        }
+
+        function updateSummary(passed, failed) {
+            const total = passed + failed;
+            document.getElementById('passed-count').textContent = passed;
+            document.getElementById('failed-count').textContent = failed;
+            document.getElementById('total-count').textContent = total;
+            document.getElementById('summary').style.display = 'block';
+        }
+
+        // Auto-run on page load
+        window.addEventListener('load', () => {
+            console.log('Test suite ready. Click "Run All Tests" to begin.');
+        });
+    </script>
+</body>
+</html>

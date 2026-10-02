@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Property Record Assistant - SLTR</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Tesseract.js for OCR -->
+    <script src="https://unpkg.com/tesseract.js@4/dist/tesseract.min.js"></script>
+
+
+  </head>
+  <body class="min-h-screen bg-gray-50">
+    <div class="container mx-auto py-6 space-y-6 max-w-6xl px-4 sm:px-6 lg:px-8">
+      <!-- Page Header -->
+      <div class="space-y-2">
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900">
+          AI Property Record Assistant
+        </h1>
+        <p class="text-lg text-gray-600">
+          Upload property documents for automated data extraction and record
+          creation
+        </p>
+      </div>
+
+      <!-- File Upload Card -->
+      <div class="bg-white rounded-lg shadow border border-gray-200">
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-xl font-semibold text-gray-900">
+            Upload Property Record(s) for AI Extraction
+          </h2>
+          <p class="text-sm text-gray-600 mt-1">
+            Upload an image (JPEG, PNG) or PDF of the property document (e.g.,
+            Deed of Assignment, C of O).
+          </p>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <!-- Error Alert -->
+          <div
+            id="error-alert"
+            class="hidden bg-red-50 border border-red-200 rounded-md p-4"
+          >
+            <div class="flex">
+              <i data-lucide="alert-circle" class="h-5 w-5 text-red-400"></i>
+              <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800">Error</h3>
+                <div id="error-message" class="mt-2 text-sm text-red-700"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- File Upload Area -->
+          <div class="space-y-1">
+            <label class="block text-sm font-medium text-gray-700"
+              >Document File</label
+            >
+            <input
+              id="file-input"
+              type="file"
+              accept="image/jpeg,image/png,application/pdf"
+              class="hidden"
+            />
+            <button
+              id="file-upload-btn"
+              class="w-full flex items-center justify-start px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-left font-normal hover:bg-gray-50 transition-colors"
+            >
+              <i data-lucide="file-up" class="mr-2 h-4 w-4"></i>
+              <span id="file-upload-text">Click to select a file</span>
+            </button>
+          </div>
+
+          <!-- Image Preview -->
+          <div id="image-preview" class="hidden border p-2 rounded-md">
+            <label class="text-xs text-gray-500">Image Preview</label>
+            <img
+              id="image-preview-img"
+              class="max-w-full h-auto max-h-96 rounded-md mt-1"
+            />
+          </div>
+
+          <!-- PDF Preview -->
+          <div id="pdf-preview" class="hidden border p-2 rounded-md space-y-2">
+            <label id="pdf-preview-label" class="text-xs text-gray-500"
+              >PDF Preview</label
+            >
+            <div class="relative">
+              <img
+                id="pdf-preview-img"
+                class="max-w-full h-auto max-h-[30rem] rounded-md mt-1 border mx-auto"
+              />
+            </div>
+            <div
+              id="pdf-navigation"
+              class="hidden flex justify-center items-center space-x-2 mt-2"
+            >
+              <button
+                id="pdf-prev-btn"
+                class="inline-flex items-center justify-center rounded-md font-medium text-sm px-3 py-1 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <span id="pdf-page-info" class="text-sm text-gray-500"
+                >Page 1 / 1</span
+              >
+              <button
+                id="pdf-next-btn"
+                class="inline-flex items-center justify-center rounded-md font-medium text-sm px-3 py-1 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="px-6 pb-6 flex flex-col sm:flex-row gap-2">
+          <button
+            id="start-ai-btn"
+            class="w-full sm:w-auto inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer border-0 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled
+          >
+            <i data-lucide="wand-2" class="mr-2 h-4 w-4"></i>
+            Extract Data with AI
+          </button>
+          <button
+            id="reset-btn"
+            class="hidden w-full sm:w-auto inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- AI Processing Visualizer -->
+      <div
+        id="ai-processing"
+        class="hidden bg-white rounded-lg shadow border border-gray-200"
+      >
+        <div class="p-6">
+          <div class="flex justify-between mb-2">
+            <span class="text-sm font-medium"
+              >Property Document AI Analysis</span
+            >
+            <span id="ai-progress-text" class="text-sm">0% Complete</span>
+          </div>
+          <div class="relative">
+            <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                id="ai-progress-bar"
+                class="h-full bg-blue-500 rounded-full transition-all duration-500 ease-in-out"
+                style="width: 0%"
+              ></div>
+            </div>
+            <div class="flex justify-between mt-2">
+              <div
+                class="flex flex-col items-center stage-indicator"
+                data-stage="0"
+              >
+                <div class="w-4 h-4 rounded-full bg-gray-300 mb-1"></div>
+                <span class="text-xs text-gray-500">Init</span>
+              </div>
+              <div
+                class="flex flex-col items-center stage-indicator"
+                data-stage="1"
+              >
+                <div class="w-4 h-4 rounded-full bg-gray-300 mb-1"></div>
+                <span class="text-xs text-gray-500">OCR</span>
+              </div>
+              <div
+                class="flex flex-col items-center stage-indicator"
+                data-stage="2"
+              >
+                <div class="w-4 h-4 rounded-full bg-gray-300 mb-1"></div>
+                <span class="text-xs text-gray-500">Layout</span>
+              </div>
+              <div
+                class="flex flex-col items-center stage-indicator"
+                data-stage="3"
+              >
+                <div class="w-4 h-4 rounded-full bg-gray-300 mb-1"></div>
+                <span class="text-xs text-gray-500">Extract</span>
+              </div>
+              <div
+                class="flex flex-col items-center stage-indicator"
+                data-stage="4"
+              >
+                <div class="w-4 h-4 rounded-full bg-gray-300 mb-1"></div>
+                <span class="text-xs text-gray-500">Assemble</span>
+              </div>
+              <div
+                class="flex flex-col items-center stage-indicator"
+                data-stage="5"
+              >
+                <div class="w-4 h-4 rounded-full bg-gray-300 mb-1"></div>
+                <span class="text-xs text-gray-500">Done</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 flex items-start gap-3">
+            <div class="p-2 rounded-full bg-blue-100">
+              <i
+                id="ai-stage-icon"
+                data-lucide="brain"
+                class="h-5 w-5 text-blue-600"
+              ></i>
+            </div>
+            <div>
+              <p id="ai-stage-title" class="text-sm font-medium mb-1">
+                Current Stage: Initializing
+              </p>
+              <p id="ai-stage-description" class="text-xs text-gray-600">
+                Preparing for AI analysis...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyword Findings Display -->
+      <div
+        id="keyword-findings"
+        class="hidden bg-white rounded-lg shadow border border-gray-200"
+      >
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="file-key-2" class="h-6 w-6 text-blue-600"></i>
+            <h3 class="text-xl font-semibold text-gray-900">
+              Key Document Types Found
+            </h3>
+          </div>
+          <p
+            id="keyword-findings-description"
+            class="text-sm text-gray-600 mt-1"
+          ></p>
+        </div>
+        <div class="p-6">
+          <ul id="keyword-findings-list" class="space-y-2">
+            <!-- Keyword findings will be inserted here -->
+          </ul>
+        </div>
+      </div>
+
+      <!-- Raw Extracted Text -->
+      <div
+        id="raw-text-card"
+        class="hidden bg-white rounded-lg shadow border border-gray-200"
+      >
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">
+              Raw Extracted Text
+            </h3>
+            <button
+              id="toggle-raw-text"
+              class="inline-flex items-center justify-center rounded-md font-medium text-sm px-3 py-1 transition-all cursor-pointer bg-transparent text-gray-700 hover:bg-gray-100"
+            >
+              <i data-lucide="chevron-down" class="h-4 w-4"></i>
+              Show
+            </button>
+          </div>
+        </div>
+        <div id="raw-text-content" class="collapsible-content">
+          <div class="p-6">
+            <textarea
+              id="raw-text-textarea"
+              readonly
+              rows="10"
+              class="w-full text-xs bg-gray-50 font-mono border border-gray-300 rounded-md p-3"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Extracted Property Details -->
+      <div
+        id="extracted-details"
+        class="hidden bg-white rounded-lg shadow border-l-4 border-l-green-500"
+      >
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
+            <h3 class="text-xl font-semibold text-gray-900">
+              AI Extracted Property Details
+            </h3>
+          </div>
+          <p id="extraction-confidence" class="text-sm text-gray-600 mt-1">
+            Review the details extracted by the AI. Add or modify instruments as
+            needed, then save the record.
+          </p>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Updated Property Information Form to match the new layout design -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Left Panel - File Number Information -->
+            <div class="bg-green-50 rounded-lg p-6 border border-green-200">
+              <div class="flex items-center space-x-2 mb-4">
+                <i data-lucide="file-text" class="h-5 w-5 text-green-600"></i>
+                <h4 class="text-lg font-medium text-gray-900">
+                  File Number Information
+                </h4>
+              </div>
+              <p class="text-sm text-gray-600 mb-6">
+                Detected file numbers from document
+              </p>
+
+              <!-- Dynamic file numbers container that shows all detected file numbers -->
+              <div id="detected-file-numbers" class="space-y-4 mb-6">
+                <!-- File numbers will be dynamically populated here -->
+              </div>
+
+              <!-- Manual entry section for additional file numbers -->
+              <div class="border-t pt-4">
+                <h5 class="text-sm font-medium text-gray-700 mb-3">
+                  Add Additional File Number
+                </h5>
+
+                <!-- File Type Tabs -->
+                <div class="flex space-x-1 mb-4 bg-white rounded-lg p-1 border">
+                  <button
+                    id="tab-mls"
+                    class="flex-1 px-3 py-2 text-sm font-medium rounded-md bg-blue-100 text-blue-700 border border-blue-200"
+                    onclick="switchFileType('mls')"
+                  >
+                    MLS
+                  </button>
+                  <button
+                    id="tab-kangis"
+                    class="flex-1 px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50"
+                    onclick="switchFileType('kangis')"
+                  >
+                    KANGIS
+                  </button>
+                  <button
+                    id="tab-new-kangis"
+                    class="flex-1 px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50"
+                    onclick="switchFileType('new-kangis')"
+                  >
+                    New KANGIS
+                  </button>
+                </div>
+
+                <!-- MLS File Number Input -->
+                <div id="mls-input" class="file-type-input">
+                  <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Prefix</label
+                      >
+                      <select
+                        id="mls-prefix"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                      >
+                        <option value="">Select</option>
+                        <option value="CON-COM">CON-COM</option>
+                        <option value="RES">RES</option>
+                        <option value="COM">COM</option>
+                      </select>
+                    </div>
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Year</label
+                      >
+                      <input
+                        id="mls-year"
+                        type="text"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                        placeholder="2024"
+                      />
+                    </div>
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Serial</label
+                      >
+                      <input
+                        id="mls-serial"
+                        type="text"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                        placeholder="296"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- KANGIS File Number Input -->
+                <div id="kangis-input" class="file-type-input hidden">
+                  <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Prefix</label
+                      >
+                      <select
+                        id="kangis-prefix"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                      >
+                        <option value="">Select</option>
+                        <option value="KNML">KNML</option>
+                        <option value="MLKN">MLKN</option>
+                        <option value="KNGP">KNGP</option>
+                      </select>
+                    </div>
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Serial</label
+                      >
+                      <input
+                        id="kangis-serial"
+                        type="text"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                        placeholder="09846"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- New KANGIS File Number Input -->
+                <div id="new-kangis-input" class="file-type-input hidden">
+                  <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Prefix</label
+                      >
+                      <select
+                        id="new-kangis-prefix"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                      >
+                        <option value="">Select</option>
+                        <option value="KN">KN</option>
+                      </select>
+                    </div>
+                    <div class="space-y-2">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Serial</label
+                      >
+                      <input
+                        id="new-kangis-serial"
+                        type="text"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                        placeholder="0001"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onclick="addManualFileNumber()"
+                  class="w-full px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  Add File Number
+                </button>
+              </div>
+            </div>
+
+            <!-- Right Panel - Property Details -->
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >House No</label
+                  >
+                  <input
+                    type="text"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >Plot No.</label
+                  >
+                  <input
+                    id="plot-no"
+                    type="text"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                    placeholder="Enter plot number"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >Street Name</label
+                  >
+                  <!-- Added street name options with Other option -->
+                  <select
+                    id="street-name"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                    onchange="toggleOtherInput('street-name', 'street-name-other')"
+                  >
+                    <option value="">Select Street Name</option>
+                    <option value="Ibrahim Taiwo Road">
+                      Ibrahim Taiwo Road
+                    </option>
+                    <option value="Murtala Mohammed Way">
+                      Murtala Mohammed Way
+                    </option>
+                    <option value="Zoo Road">Zoo Road</option>
+                    <option value="Ahmadu Bello Way">Ahmadu Bello Way</option>
+                    <option value="Katsina Road">Katsina Road</option>
+                    <option value="Zaria Road">Zaria Road</option>
+                    <option value="Hadejia Road">Hadejia Road</option>
+                    <option value="Gwarzo Road">Gwarzo Road</option>
+                    <option value="Yankaba Road">Yankaba Road</option>
+                    <option value="Hotoro Road">Hotoro Road</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <!-- Added hidden input for custom street name -->
+                  <input
+                    id="street-name-other"
+                    type="text"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 hidden"
+                    placeholder="Enter street name"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >District Name</label
+                  >
+                  <!-- Added district name options with Other option -->
+                  <select
+                    id="district-name"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                    onchange="toggleOtherInput('district-name', 'district-name-other')"
+                  >
+                    <option value="">Select District Name</option>
+                    <option value="Fagge">Fagge</option>
+                    <option value="Dala">Dala</option>
+                    <option value="Gwale">Gwale</option>
+                    <option value="Kano Municipal">Kano Municipal</option>
+                    <option value="Nasarawa">Nasarawa</option>
+                    <option value="Tarauni">Tarauni</option>
+                    <option value="Ungogo">Ungogo</option>
+                    <option value="Kumbotso">Kumbotso</option>
+                    <option value="Warawa">Warawa</option>
+                    <option value="Dawakin Tofa">Dawakin Tofa</option>
+                    <option value="Rimin Gado">Rimin Gado</option>
+                    <option value="Tofa">Tofa</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <!-- Added hidden input for custom district name -->
+                  <input
+                    id="district-name-other"
+                    type="text"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 hidden"
+                    placeholder="Enter district name"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >LGA</label
+                  >
+                  <select
+                    id="lga-city"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                  >
+                    <option value="">Select LGA</option>
+                  </select>
+                </div>
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >State</label
+                  >
+                  <input
+                    type="text"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                    value="Kano"
+                  />
+                </div>
+              </div>
+
+              <!-- Additional fields to maintain existing functionality -->
+
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700"
+                  >Property Description</label
+                >
+                <textarea
+                  id="property-description"
+                  rows="3"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                  placeholder="Detailed property description..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Instruments Manager -->
+          <div class="border-t pt-6">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <h4 class="text-lg font-medium text-gray-900">
+                  Document Instruments
+                </h4>
+                <button
+                  id="add-instrument-btn"
+                  class="inline-flex items-center justify-center rounded-md font-medium text-sm px-3 py-1 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 gap-2"
+                >
+                  <i data-lucide="plus" class="h-4 w-4"></i>
+                  Add Instrument
+                </button>
+              </div>
+
+              <!-- No Instruments State -->
+              <div
+                id="no-instruments"
+                class="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg"
+              >
+                <i
+                  data-lucide="file-key-2"
+                  class="h-8 w-8 mx-auto mb-2 text-gray-400"
+                ></i>
+                <p class="text-sm">No instruments added yet</p>
+                <p class="text-xs text-gray-400">
+                  Click "Add Instrument" to get started
+                </p>
+              </div>
+
+              <!-- Instruments List -->
+              <div id="instruments-list" class="space-y-3">
+                <!-- Instruments will be inserted here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Save Button -->
+          <div class="flex justify-end pt-4 border-t">
+            <button
+              id="save-record-btn"
+              class="inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer border-0 bg-green-600 text-white hover:bg-green-700 gap-2"
+            >
+              <i data-lucide="check-circle" class="h-4 w-4"></i>
+              Save Property Record
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2">
+      <!-- Toast messages will be inserted here -->
+    </div>
+
+  </body>
+</html>

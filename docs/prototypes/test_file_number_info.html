@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Number Info</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">File Number Information Test</h1>
+        
+        <!-- Include the file number info component content here -->
+        <style>
+           .tab {
+                overflow: hidden;
+            }
+
+            .tab button {
+                background-color: inherit;
+                float: left;
+                border: none;
+                outline: none;
+                cursor: pointer;
+                padding: 10px 16px;
+                transition: 0.3s;
+                font-size: 14px;
+            }
+
+            .tab button:hover {
+                background-color: #ddd;
+            }
+
+            .tab button.active {
+                background-color: #ccc;
+            }
+
+            /* Fix for tab content visibility */
+            .tabcontent {
+                display: none;
+            }
+
+            .tabcontent.active {
+                display: block;
+            }
+        </style>
+        
+        <div class="bg-green-50 border border-green-100 rounded-md p-2 mb-3" style="max-width: 700px; margin: 0 auto;">
+            <div class="flex items-center mb-1">
+              <i data-lucide="file" class="w-4 h-4 mr-1 text-green-600"></i>
+              <span class="font-medium text-sm">File Number Information</span>
+            </div>
+            <p class="text-xs text-gray-600 mb-2">Select file number type and enter the details</p>
+            
+            <!-- Add hidden input to track active tab -->
+            <input type="hidden" id="activeFileTab" name="activeFileTab" value="mlsFNo">
+            
+            <!-- Add hidden inputs for the actual database column names -->
+            <input type="hidden" id="mlsFNo" name="mlsFNo" value="">
+            <input type="hidden" id="kangisFileNo" name="kangisFileNo" value="">
+            <input type="hidden" id="NewKANGISFileno" name="NewKANGISFileno" value="">
+            
+            <div class="bg-white p-1 rounded-md mb-2 flex space-x-4">
+              <button type="button" class="tablinks active px-2 py-1 rounded-md hover:bg-gray-100 text-xs" onclick="openFileTab(event, 'mlsFNoTab')">MLS</button>
+              <button type="button" class="tablinks px-2 py-1 rounded-md hover:bg-gray-100 text-xs" onclick="openFileTab(event, 'kangisFileNoTab')">KANGIS</button>
+              <button type="button" class="tablinks px-2 py-1 rounded-md hover:bg-gray-100 text-xs" onclick="openFileTab(event, 'NewKANGISFilenoTab')">New KANGIS</button>
+            </div>
+            
+            <!-- MLS Tab -->
+            <div id="mlsFNoTab" class="tabcontent active">
+                <p class="text-sm text-gray-600 mb-2">MLS File Number</p>
+                
+                <!-- File Options -->
+                <div class="mb-2">
+                    <label for="mlsFileOption" class="block text-xs font-medium text-gray-700 mb-1">
+                        <i data-lucide="settings" class="w-3 h-3 inline mr-1"></i>
+                        File Options
+                    </label>
+                    <select id="mlsFileOption" name="mlsFileOption" 
+                            class="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            onchange="updateMlsForm(this.value)" required>
+                        <option value="normal" selected>Normal File</option>
+                        <option value="temporary">Temporary File</option>
+                        <option value="extension">Extension</option>
+                        <option value="miscellaneous">Miscellaneous</option>
+                        <option value="old_mls">Old MLS</option>
+                        <option value="sltr">SLTR</option>
+                        <option value="sit">SIT</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                  <!-- Prefix Section -->
+                  <div id="mlsPrefixSection">
+                    <label class="block text-xs mb-1">File Prefix <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                      <select class="w-full p-2 text-sm border border-gray-300 rounded-md appearance-none pr-8" id="mlsFileNoPrefix" name="mlsFileNoPrefix" onchange="updateMlsFileNumberPreview()" required>
+                        <option value="">Select prefix</option>
+                        <option value="RES">RES - Residential</option>
+                        <option value="COM">COM - Commercial</option>
+                        <option value="IND">IND - Industrial</option>
+                        <option value="AGR">AGR - Agricultural</option>
+                        <option value="INS">INS - Institutional</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Year Field -->
+                  <div id="mlsYearSection">
+                    <label for="mlsYear" class="block text-xs mb-1">
+                        <i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i>
+                        Year
+                    </label>
+                    <input type="number" id="mlsYear" name="mlsYear" 
+                           value="2025"
+                           class="w-full p-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                           min="1900" max="2050" onchange="updateMlsFileNumberPreview()" oninput="updateMlsFileNumberPreview()">
+                  </div>
+
+                  <!-- Serial Number -->
+                  <div>
+                    <label class="block text-xs mb-1">Serial Number <span class="text-red-500">*</span></label>
+                    <input type="text" class="w-full p-2 text-sm border border-gray-300 rounded-md" id="mlsFileSerial" name="mlsFileSerial" placeholder="e.g. 572" onchange="updateMlsFileNumberPreview()" oninput="updateMlsFileNumberPreview()">
+                  </div>
+                </div>
+
+                <!-- Preview -->
+                <div class="mb-4">
+                  <label class="block text-xs mb-1 text-gray-700 font-medium">Generated File Number</label>
+                  <div class="relative w-1/2">
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-2 flex items-center justify-between">
+                      <div id="mlsPreviewFileNumber" class="text-sm font-bold text-blue-900 tracking-wide">
+                        Enter details above to see preview
+                      </div>
+                      <div class="flex items-center space-x-1">
+                        <i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i>
+                        <span class="text-xs text-blue-600 font-medium">MLS</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+            </div>
+
+            <!-- KANGIS Tab -->
+            <div id="kangisFileNoTab" class="tabcontent">
+                <p class="text-sm text-gray-600 mb-2">KANGIS File Number</p>
+                <div class="grid grid-cols-3 gap-4 mb-3">
+                  <div>
+                    <label class="block text-sm mb-1">File Prefix</label>
+                    <div class="relative">
+                      <select class="w-full p-2 border border-gray-300 rounded-md appearance-none pr-8" id="kangisFileNoPrefix" name="kangisFileNoPrefix" onchange="updateKangisFileNumberPreview()">
+                        <option value="">Select Prefix</option>
+                        <option value="KNML">KNML</option>
+                        <option value="MNKL">MNKL</option>
+                        <option value="MLKN">MLKN</option>
+                        <option value="KNGP">KNGP</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm mb-1">Serial Number</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" id="kangisFileNumber" name="kangisFileNumber" placeholder="e.g. 0001 or 2500" onchange="updateKangisFileNumberPreview()" oninput="updateKangisFileNumberPreview()">
+                  </div>
+                   <div>
+                    <label class="block text-sm mb-1">Full FileNo</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" id="kangisPreviewFileNumber" name="kangisPreviewFileNumber" readonly>
+                  </div>
+                </div>
+            </div>
+
+            <!-- New KANGIS Tab -->
+            <div id="NewKANGISFilenoTab" class="tabcontent">
+                <p class="text-sm text-gray-600 mb-2">New KANGIS File Number</p>
+                <div class="grid grid-cols-3 gap-4 mb-3">
+                  <div>
+                    <label class="block text-sm mb-1">File Prefix</label>
+                    <div class="relative">
+                      <select class="w-full p-2 border border-gray-300 rounded-md appearance-none pr-8" id="newKangisFileNoPrefix" name="newKangisFileNoPrefix" onchange="updateNewKangisFileNumberPreview()">
+                        <option value="">Select Prefix</option>
+                        <option value="KN">KN</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm mb-1">Serial Number</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" id="newKangisFileNumber" name="newKangisFileNumber" 
+                    placeholder="e.g. 1586" onchange="updateNewKangisFileNumberPreview()" oninput="updateNewKangisFileNumberPreview()">
+                  </div>
+                   <div>
+                    <label class="block text-sm mb-1">Full FileNo</label>
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md" id="newKangisPreviewFileNumber" name="newKangisPreviewFileNumber" readonly>
+                  </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Tab switching function
+            function openFileTab(evt, tabName) {
+                console.log("Opening tab:", tabName);
+                
+                // Hide all tab content
+                var tabcontent = document.getElementsByClassName("tabcontent");
+                for (var i = 0; i < tabcontent.length; i++) {
+                    tabcontent[i].classList.remove("active");
+                    tabcontent[i].style.display = "none";
+                }
+
+                // Remove active class from all tab buttons
+                var tablinks = document.getElementsByClassName("tablinks");
+                for (var i = 0; i < tablinks.length; i++) {
+                    tablinks[i].classList.remove("active");
+                }
+
+                // Show the current tab and add active class to the button
+                var currentTab = document.getElementById(tabName);
+                if (currentTab) {
+                    currentTab.classList.add("active");
+                    currentTab.style.display = "block";
+                } else {
+                    console.error("Tab not found:", tabName);
+                }
+                
+                evt.currentTarget.classList.add("active");
+                
+                // Set the active tab value
+                if (tabName === "mlsFNoTab") {
+                    document.getElementById('activeFileTab').value = "mlsFNo";
+                } else if (tabName === "kangisFileNoTab") {
+                    document.getElementById('activeFileTab').value = "kangisFileNo";
+                } else if (tabName === "NewKANGISFilenoTab") {
+                    document.getElementById('activeFileTab').value = "NewKANGISFileno";
+                }
+            }
+
+            // Update MLS form based on file option selection
+            function updateMlsForm(type) {
+                console.log("Updating MLS form for type:", type);
+                // Implementation here...
+            }
+
+            // Enhanced MLS file number preview function
+            function updateMlsFileNumberPreview() {
+                const fileOption = document.getElementById('mlsFileOption').value;
+                const prefix = document.getElementById('mlsFileNoPrefix').value;
+                const year = document.getElementById('mlsYear').value;
+                const serialNo = document.getElementById('mlsFileSerial').value;
+                const previewEl = document.getElementById('mlsPreviewFileNumber');
+                const dbFieldEl = document.getElementById('mlsFNo');
+                
+                let previewText = '';
+                
+                if ((fileOption === 'normal' || fileOption === 'temporary') && prefix && year && serialNo) {
+                    const paddedSerial = serialNo.toString().padStart(4, '0');
+                    previewText = `${prefix}-${year}-${paddedSerial}`;
+                    
+                    if (fileOption === 'temporary') {
+                        previewText += '(T)';
+                    }
+                } else if (prefix && serialNo) {
+                    previewText = prefix + '-' + serialNo;
+                } else if (prefix) {
+                    previewText = prefix;
+                } else if (serialNo) {
+                    previewText = serialNo;
+                }
+
+                // Update preview display
+                if (previewText) {
+                    previewEl.textContent = previewText;
+                    dbFieldEl.value = previewText;
+                } else {
+                    previewEl.textContent = 'Enter details above to see preview';
+                    dbFieldEl.value = '';
+                }
+                
+                console.log("MLS Preview updated:", previewText);
+            }
+
+            // Format KANGIS file number preview
+            function updateKangisFileNumberPreview() {
+                const prefixEl = document.getElementById('kangisFileNoPrefix');
+                const numberEl = document.getElementById('kangisFileNumber');
+                const previewEl = document.getElementById('kangisPreviewFileNumber');
+                const dbFieldEl = document.getElementById('kangisFileNo');
+
+                const prefix = prefixEl.value;
+                let number = numberEl.value.trim();
+
+                if (prefix && number) {
+                    number = number.padStart(3, '0');
+                    numberEl.value = number;
+                    const formatted = prefix + ' ' + number;
+                    previewEl.value = formatted;
+                    dbFieldEl.value = formatted;
+                } else if (prefix) {
+                    previewEl.value = prefix;
+                    dbFieldEl.value = prefix;
+                } else if (number) {
+                    previewEl.value = number;
+                    dbFieldEl.value = number;
+                } else {
+                    previewEl.value = '';
+                    dbFieldEl.value = '';
+                }
+                
+                console.log("KANGIS Preview updated:", previewEl.value);
+            }
+
+            // Format New KANGIS file number preview
+            function updateNewKangisFileNumberPreview() {
+                const prefixEl = document.getElementById('newKangisFileNoPrefix');
+                const numberEl = document.getElementById('newKangisFileNumber');
+                const previewEl = document.getElementById('newKangisPreviewFileNumber');
+                const dbFieldEl = document.getElementById('NewKANGISFileno');
+
+                const prefix = prefixEl.value;
+                let number = numberEl.value.trim();
+
+                if (prefix && number) {
+                    const formatted = prefix + number;
+                    previewEl.value = formatted;
+                    dbFieldEl.value = formatted;
+                } else if (prefix) {
+                    previewEl.value = prefix;
+                    dbFieldEl.value = prefix;
+                } else if (number) {
+                    previewEl.value = number;
+                    dbFieldEl.value = number;
+                } else {
+                    previewEl.value = '';
+                    dbFieldEl.value = '';
+                }
+                
+                console.log("New KANGIS Preview updated:", previewEl.value);
+            }
+
+            // Initialize Lucide icons
+            document.addEventListener('DOMContentLoaded', function() {
+                lucide.createIcons();
+                console.log("File Number Info component loaded successfully!");
+            });
+        </script>
+    </div>
+</body>
+</html>

@@ -1,0 +1,1 @@
+@include('instruments.partials.types.sidebars.solicitor_toggle')

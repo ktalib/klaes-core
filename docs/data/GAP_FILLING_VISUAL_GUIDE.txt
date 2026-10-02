@@ -1,0 +1,241 @@
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                   FILE NUMBER GAP-FILLING FLOW DIAGRAM                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+TIMELINE: How ST-RES-2025-1 Gap is Filled
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ T1: User A Saves Draft                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    User A → [Save Draft] → Reserve File Number
+                                      ↓
+                        ┌─────────────────────────────────┐
+                        │ getNextAvailableSerial()        │
+                        │ Check gaps: NONE FOUND          │
+                        │ Next sequential: 1              │
+                        └─────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  file_number_reservations                 │
+                  ├───────────────────────────────────────────┤
+                  │  1 │ ST-RES-2025-1 │ reserved │ draft:100│
+                  └───────────────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  mother_application_draft                 │
+                  ├───────────────────────────────────────────┤
+                  │  100 │ np_fileno: ST-RES-2025-1          │
+                  └───────────────────────────────────────────┘
+
+    Status: ST-RES-2025-1 is RESERVED ✓
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ T2: User B Submits Application (No Draft)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    User B → [Submit Form] → Reserve & Use File Number
+                                      ↓
+                        ┌─────────────────────────────────┐
+                        │ getNextAvailableSerial()        │
+                        │ Check gaps: NONE FOUND          │
+                        │ Next sequential: 2              │
+                        └─────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  file_number_reservations                 │
+                  ├───────────────────────────────────────────┤
+                  │  1 │ ST-RES-2025-1 │ reserved │ draft:100│
+                  │  2 │ ST-RES-2025-2 │ used     │ app:500  │ ← NEW
+                  └───────────────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  mother_applications                      │
+                  ├───────────────────────────────────────────┤
+                  │  500 │ ST-RES-2025-2 │ ...              │ ← FINALIZED
+                  └───────────────────────────────────────────┘
+
+    Status: ST-RES-2025-2 is USED ✓
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ T3: User A's Draft Expires (3 Days Later)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Scheduler → [Cleanup Command] → Mark Expired Reservations
+                                      ↓
+                        ┌─────────────────────────────────┐
+                        │ CleanupExpiredFileReservations  │
+                        │ Find: reserved + expired_at < now│
+                        │ Update: status = 'expired'      │
+                        └─────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  file_number_reservations                 │
+                  ├───────────────────────────────────────────┤
+                  │  1 │ ST-RES-2025-1 │ expired  │ draft:100│ ← CHANGED
+                  │  2 │ ST-RES-2025-2 │ used     │ app:500  │
+                  └───────────────────────────────────────────┘
+
+    Status: ST-RES-2025-1 is EXPIRED (available for reuse) 🔄
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ T4: User C Submits Application (Gap-Filling Occurs)                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    User C → [Submit Form] → Reserve File Number
+                                      ↓
+                        ┌─────────────────────────────────┐
+                        │ getNextAvailableSerial()        │
+                        │ Check gaps: FOUND serial=1 !    │ ← GAP DETECTED!
+                        │ Return: 1 (reuse)               │
+                        └─────────────────────────────────┘
+                                      ↓
+                        ┌─────────────────────────────────┐
+                        │ DELETE old reservation (serial 1)│
+                        │ CREATE new reservation (serial 1)│
+                        └─────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  file_number_reservations                 │
+                  ├───────────────────────────────────────────┤
+                  │  1 │ ST-RES-2025-1 │ used     │ app:501  │ ← REUSED!
+                  │  2 │ ST-RES-2025-2 │ used     │ app:500  │
+                  └───────────────────────────────────────────┘
+                                      ↓
+                  ┌───────────────────────────────────────────┐
+                  │  mother_applications                      │
+                  ├───────────────────────────────────────────┤
+                  │  500 │ ST-RES-2025-2 │ ...              │
+                  │  501 │ ST-RES-2025-1 │ ...              │ ← GAP FILLED!
+                  └───────────────────────────────────────────┘
+
+    Status: ST-RES-2025-1 is NOW USED (gap filled!) ✓✓✓
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FINAL RESULT: No Gaps in Sequence                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    mother_applications (sorted by np_fileno):
+    ┌──────────────────────────────────────────┐
+    │ ID  │ np_fileno      │ Application Data  │
+    ├──────────────────────────────────────────┤
+    │ 501 │ ST-RES-2025-1  │ User C's app     │ ✓ No gap!
+    │ 500 │ ST-RES-2025-2  │ User B's app     │ ✓
+    │ 502 │ ST-RES-2025-3  │ Next user...     │ ✓
+    │ 503 │ ST-RES-2025-4  │ Next user...     │ ✓
+    └──────────────────────────────────────────┘
+
+    Sequential numbering: 1, 2, 3, 4... (NO MISSING NUMBERS!)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+GAP-FILLING LOGIC FLOWCHART
+═══════════════════════════════════════════════════════════════════════════════
+
+    New Reservation Request
+            ↓
+    ┌───────────────────────────────┐
+    │ getNextAvailableSerial()      │
+    └───────────────────────────────┘
+            ↓
+    ┌───────────────────────────────┐
+    │ Query: Any expired/released?  │
+    └───────────────────────────────┘
+            ↓
+         [YES]    [NO]
+            ↓       ↓
+    ┌───────────────────────────────┐    ┌───────────────────────────────┐
+    │ Get smallest gap serial       │    │ Get max(reserved, used) + 1   │
+    │ SELECT MIN(serial_number)     │    │ Next sequential number        │
+    │ FROM reservations             │    │                               │
+    │ WHERE status IN ('expired',   │    │                               │
+    │                  'released')  │    │                               │
+    │ ORDER BY serial_number ASC    │    │                               │
+    └───────────────────────────────┘    └───────────────────────────────┘
+            ↓                                       ↓
+    ┌───────────────────────────────┐    ┌───────────────────────────────┐
+    │ DELETE old reservation        │    │ Return next_serial            │
+    │ Return gap serial             │    │                               │
+    └───────────────────────────────┘    └───────────────────────────────┘
+            ↓                                       ↓
+            └───────────────┬───────────────────────┘
+                            ↓
+            ┌───────────────────────────────┐
+            │ Create new reservation        │
+            │ with returned serial number   │
+            └───────────────────────────────┘
+                            ↓
+                    [Reservation Complete]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+LAND USE INDEPENDENT SEQUENCES
+═══════════════════════════════════════════════════════════════════════════════
+
+Each land use type maintains its OWN independent sequence:
+
+┌──────────────┬────────────────────────────────────────────────────────┐
+│ Land Use     │ File Number Sequence                                   │
+├──────────────┼────────────────────────────────────────────────────────┤
+│ Residential  │ ST-RES-2025-1, ST-RES-2025-2, ST-RES-2025-3...        │
+│              │ (gap-filled independently)                             │
+├──────────────┼────────────────────────────────────────────────────────┤
+│ Commercial   │ ST-COM-2025-1, ST-COM-2025-2, ST-COM-2025-3...        │
+│              │ (gap-filled independently)                             │
+├──────────────┼────────────────────────────────────────────────────────┤
+│ Industrial   │ ST-IND-2025-1, ST-IND-2025-2, ST-IND-2025-3...        │
+│              │ (gap-filled independently)                             │
+├──────────────┼────────────────────────────────────────────────────────┤
+│ Mixed Use    │ ST-MIX-2025-1, ST-MIX-2025-2, ST-MIX-2025-3...        │
+│              │ (gap-filled independently)                             │
+└──────────────┴────────────────────────────────────────────────────────┘
+
+Gap in Residential does NOT affect Commercial numbering!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+KEY BENEFITS
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ No Gaps in Final Sequence
+  → mother_applications always has sequential file numbers
+
+✓ Efficient Number Usage
+  → No wasted reservations from expired drafts
+
+✓ Race Condition Safe
+  → Row-level locking prevents duplicate assignments
+
+✓ Audit Trail
+  → All reservations tracked (expired ones deleted after reuse)
+
+✓ Predictable Behavior
+  → Users see sequential numbers, no confusion
+
+✓ Independent Land Uses
+  → Each land use maintains its own sequence
+
+
+═══════════════════════════════════════════════════════════════════════════════
+TESTING
+═══════════════════════════════════════════════════════════════════════════════
+
+Run: test_gap_filling_behavior.sql
+
+This script will:
+  1. Create test reservations
+  2. Simulate expiration
+  3. Demonstrate gap-filling
+  4. Verify no gaps in final sequence
+
+Expected Output:
+  ✓ GAP FOUND! Will reuse serial number: 1
+  ✓ SUCCESS! NO GAPS IN SEQUENCE!
+
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick File Upload Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #007cba; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        button:hover { background: #005a87; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .info { background: #d1ecf1; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔧 File Upload Fix Test</h2>
+        <div class="info">
+            <strong>Fix Applied:</strong> Updated JavaScript validation to properly check for selected files.<br>
+            <strong>Issue:</strong> Form validation was checking wrong field names.<br>
+            <strong>Solution:</strong> Now checks file input directly using <code>fileInput.files.length</code>
+        </div>
+        
+        <form id="testForm">
+            <div class="form-group">
+                <label for="applicationId">Application ID:</label>
+                <input type="text" id="applicationId" name="application_id" value="FIX_TEST_001" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <textarea id="description" name="description" rows="3" placeholder="Test upload after validation fix">Testing the file upload validation fix</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="fileInput">Select File (PDF, JPG, JPEG, PNG):</label>
+                <input type="file" id="fileInput" name="recommended_file" accept=".pdf,.jpg,.jpeg,.png" required>
+            </div>
+            
+            <button type="button" id="uploadBtn" onclick="testUpload()">
+                <span id="uploadText">Test Upload</span>
+            </button>
+        </form>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        function testUpload() {
+            const form = document.getElementById('testForm');
+            const formData = new FormData(form);
+            const submitBtn = document.getElementById('uploadBtn');
+            const uploadText = document.getElementById('uploadText');
+            
+            // FIXED VALIDATION - Check file input directly
+            const fileInput = document.getElementById('fileInput');
+            const applicationId = document.getElementById('applicationId').value;
+            
+            console.log('File input files:', fileInput.files);
+            console.log('Application ID:', applicationId);
+            console.log('Form data entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(key + ':', value);
+            }
+            
+            // Validate required fields (FIXED VERSION)
+            if (!applicationId || !fileInput.files.length) {
+                Swal.fire('Error', 'Please select a file to upload', 'error');
+                return;
+            }
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            uploadText.textContent = 'Uploading...';
+            
+            fetch('/stmemo/save-recommended-siteplan', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'NO_TOKEN'
+                }
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                if (data.success) {
+                    Swal.fire('Success!', data.message, 'success');
+                    document.getElementById('result').innerHTML = `
+                        <div style="background: #d4edda; padding: 15px; border-radius: 4px; color: #155724;">
+                            ✅ <strong>Upload Successful!</strong><br>
+                            File: ${data.file_path || 'Path not provided'}<br>
+                            Update: ${data.update ? 'Yes' : 'No'}
+                        </div>
+                    `;
+                } else {
+                    Swal.fire('Error', data.message || 'Upload failed', 'error');
+                    document.getElementById('result').innerHTML = `
+                        <div style="background: #f8d7da; padding: 15px; border-radius: 4px; color: #721c24;">
+                            ❌ <strong>Upload Failed:</strong> ${data.message}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire('Error', 'Network error occurred', 'error');
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 4px; color: #721c24;">
+                        ❌ <strong>Network Error:</strong> ${error.message}
+                    </div>
+                `;
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                uploadText.textContent = 'Test Upload';
+            });
+        }
+        
+        // Show when file is selected
+        document.getElementById('fileInput').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #d1ecf1; padding: 15px; border-radius: 4px; color: #0c5460;">
+                        📁 <strong>File Selected:</strong> ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

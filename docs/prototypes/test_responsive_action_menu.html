@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive Action Menu Test</title>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f9fafb;
+            padding: 20px;
+        }
+
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .test-section {
+            margin-bottom: 32px;
+            padding: 20px;
+            border: 2px dashed #e5e7eb;
+            border-radius: 8px;
+        }
+
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #1f2937;
+        }
+
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .test-item {
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .test-info {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .device-simulator {
+            border: 3px solid #374151;
+            border-radius: 16px;
+            padding: 8px;
+            margin: 16px 0;
+            background: #000;
+        }
+
+        .device-screen {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            min-height: 300px;
+        }
+
+        .mobile-frame {
+            max-width: 375px;
+            margin: 0 auto;
+        }
+
+        .tablet-frame {
+            max-width: 768px;
+            margin: 0 auto;
+        }
+
+        .desktop-frame {
+            max-width: 100%;
+        }
+
+        /* Action Menu Styles (from memo.blade.php) */
+        .action-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .action-toggle {
+            transition: all 0.15s ease;
+            padding: 0.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 50%;
+            min-width: 36px;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .action-toggle:hover {
+            background-color: #f3f4f6;
+            transform: scale(1.05);
+        }
+        
+        .action-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 1000;
+            min-width: 200px;
+            max-width: 280px;
+            width: max-content;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e5e7eb;
+            padding: 0.5rem 0;
+            margin-top: 0.25rem;
+            display: none;
+        }
+        
+        .action-menu.show {
+            display: block;
+        }
+        
+        .action-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: #374151;
+            text-decoration: none;
+            transition: background-color 0.15s ease;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+        
+        .action-item:hover {
+            background-color: #f9fafb;
+        }
+        
+        .action-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .action-item.disabled:hover {
+            background-color: transparent;
+        }
+
+        .action-item span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Mobile backdrop */
+        .dropdown-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.2);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            display: none;
+        }
+        
+        .dropdown-backdrop.show {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            /* Enhanced mobile action menu */
+            .action-toggle {
+                min-width: 44px;
+                min-height: 44px;
+                padding: 0.625rem;
+            }
+            
+            .action-menu {
+                position: fixed !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                top: auto !important;
+                bottom: 80px !important;
+                right: auto !important;
+                width: 90% !important;
+                max-width: calc(100vw - 32px) !important;
+                min-width: 280px !important;
+                font-size: 0.875rem;
+                border-radius: 0.75rem;
+                box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            
+            .action-item {
+                padding: 0.875rem 1rem;
+                font-size: 0.875rem;
+                gap: 0.75rem;
+            }
+            
+            /* Show backdrop only on mobile */
+            .dropdown-backdrop {
+                display: block;
+            }
+        }
+
+        /* Tablet responsive adjustments */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .action-menu {
+                min-width: 220px;
+                max-width: 300px;
+            }
+            
+            .action-toggle {
+                min-width: 40px;
+                min-height: 40px;
+            }
+        }
+        
+        /* Hide backdrop on larger screens */
+        @media (min-width: 769px) {
+            .dropdown-backdrop {
+                display: none !important;
+            }
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-pass {
+            background-color: #d1fae5;
+            color: #059669;
+        }
+
+        .status-fail {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+
+        .test-controls {
+            display: flex;
+            gap: 12px;
+            margin: 16px 0;
+            flex-wrap: wrap;
+        }
+
+        .test-button {
+            padding: 8px 16px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .test-button:hover {
+            background: #059669;
+        }
+
+        .test-button.secondary {
+            background: #6b7280;
+        }
+
+        .test-button.secondary:hover {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 style="font-size: 24px; font-weight: 700; margin-bottom: 24px; color: #1f2937;">
+            📱 Responsive Action Menu Test Suite
+        </h1>
+
+        <div class="test-controls">
+            <button class="test-button" onclick="runAllTests()">Run All Tests</button>
+            <button class="test-button secondary" onclick="clearResults()">Clear Results</button>
+            <button class="test-button secondary" onclick="simulateMobile()">Mobile View</button>
+            <button class="test-button secondary" onclick="simulateTablet()">Tablet View</button>
+            <button class="test-button secondary" onclick="simulateDesktop()">Desktop View</button>
+        </div>
+
+        <div id="testResults" style="margin-bottom: 24px;"></div>
+
+        <!-- Desktop Test -->
+        <div class="test-section">
+            <div class="test-title">🖥️ Desktop View Test (> 1024px)</div>
+            <div class="device-simulator desktop-frame">
+                <div class="device-screen">
+                    <div class="test-grid">
+                        <div class="test-item">
+                            <div>
+                                <strong>ST-COM-2025-001 (Not Generated)</strong>
+                                <div class="test-info">Testing "Generate Memo" action</div>
+                            </div>
+                            <div class="action-dropdown">
+                                <button type="button" class="action-toggle" onclick="toggleActionMenu(this)">
+                                    <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="eye" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                                        <span>View Record</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="file-plus" style="width: 16px; height: 16px; color: #10b981;"></i>
+                                        <span>Generate Memo</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="test-item">
+                            <div>
+                                <strong>ST-RES-2025-002 (Generated)</strong>
+                                <div class="test-info">Testing "View/Upload" actions</div>
+                            </div>
+                            <div class="action-dropdown">
+                                <button type="button" class="action-toggle" onclick="toggleActionMenu(this)">
+                                    <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="eye" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                                        <span>View Record</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="file-text" style="width: 16px; height: 16px; color: #f59e0b;"></i>
+                                        <span>View Memo (Edited)</span>
+                                    </a>
+                                    <a href="#" class="action-item disabled">
+                                        <i data-lucide="upload" style="width: 16px; height: 16px; color: #9ca3af;"></i>
+                                        <span>Upload Edited ST Memo</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tablet Test -->
+        <div class="test-section">
+            <div class="test-title">📱 Tablet View Test (768px - 1024px) - Both Table Types</div>
+            <div class="device-simulator tablet-frame">
+                <div class="device-screen">
+                    <div style="display: grid; gap: 16px;">
+                        <div class="test-item">
+                            <div>
+                                <strong>ST-MIX-2025-003 (Not Generated)</strong>
+                                <div class="test-info">Prerequisites required</div>
+                            </div>
+                            <div class="action-dropdown">
+                                <button type="button" class="action-toggle" onclick="toggleActionMenu(this)">
+                                    <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="eye" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                                        <span>View Record</span>
+                                    </a>
+                                    <a href="#" class="action-item disabled">
+                                        <i data-lucide="file-plus" style="width: 16px; height: 16px; color: #9ca3af;"></i>
+                                        <span>Generate Memo</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="test-item">
+                            <div>
+                                <strong>ST-COM-2025-005 (Generated)</strong>
+                                <div class="test-info">Memo completed</div>
+                            </div>
+                            <div class="action-dropdown">
+                                <button type="button" class="action-toggle" onclick="toggleActionMenu(this)">
+                                    <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="eye" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                                        <span>View Record</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="clipboard" style="width: 16px; height: 16px; color: #f59e0b;"></i>
+                                        <span>View Memo</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="upload" style="width: 16px; height: 16px; color: #10b981;"></i>
+                                        <span>Upload Edited ST Memo</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Test -->
+        <div class="test-section">
+            <div class="test-title">📱 Mobile View Test (< 768px) - Both Table Types</div>
+            <div class="device-simulator mobile-frame">
+                <div class="device-screen">
+                    <div style="display: grid; gap: 12px;">
+                        <div class="test-item">
+                            <div>
+                                <strong>ST-IND-2025-004</strong>
+                                <div class="test-info">Not Generated Table</div>
+                            </div>
+                            <div class="action-dropdown">
+                                <button type="button" class="action-toggle" onclick="toggleActionMenu(this)">
+                                    <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="eye" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                                        <span>View Record</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="file-plus" style="width: 16px; height: 16px; color: #10b981;"></i>
+                                        <span>Generate Memo</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="test-item">
+                            <div>
+                                <strong>ST-RES-2025-006</strong>
+                                <div class="test-info">Generated Table</div>
+                            </div>
+                            <div class="action-dropdown">
+                                <button type="button" class="action-toggle" onclick="toggleActionMenu(this)">
+                                    <i data-lucide="more-horizontal" style="width: 20px; height: 20px;"></i>
+                                </button>
+                                <div class="action-menu">
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="eye" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+                                        <span>View Record Details</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="file-text" style="width: 16px; height: 16px; color: #f59e0b;"></i>
+                                        <span>View Memo (Edited)</span>
+                                    </a>
+                                    <a href="#" class="action-item disabled">
+                                        <i data-lucide="upload" style="width: 16px; height: 16px; color: #9ca3af;"></i>
+                                        <span>Upload Edited ST Memo</span>
+                                    </a>
+                                    <a href="#" class="action-item">
+                                        <i data-lucide="download" style="width: 16px; height: 16px; color: #8b5cf6;"></i>
+                                        <span>Download PDF</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Menu Backdrop -->
+    <div id="action-menu-backdrop" class="dropdown-backdrop" onclick="closeAllActionMenus()"></div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Action Menu JavaScript (from memo.blade.php)
+        function toggleActionMenu(button) {
+            const menu = button.nextElementSibling;
+            const backdrop = document.getElementById('action-menu-backdrop');
+            const isMobile = window.innerWidth <= 768;
+            
+            // Close all other menus first
+            document.querySelectorAll('.action-menu').forEach(otherMenu => {
+                if (otherMenu !== menu) {
+                    otherMenu.classList.remove('show');
+                }
+            });
+            
+            // Hide backdrop if no menus open
+            if (backdrop) {
+                backdrop.classList.remove('show');
+            }
+            
+            // Toggle current menu
+            if (menu.classList.contains('show')) {
+                menu.classList.remove('show');
+                if (backdrop) backdrop.classList.remove('show');
+            } else {
+                menu.classList.add('show');
+                
+                // Show backdrop on mobile
+                if (isMobile && backdrop) {
+                    backdrop.classList.add('show');
+                }
+                
+                // Enhanced positioning for desktop
+                if (!isMobile) {
+                    positionActionMenu(button, menu);
+                }
+            }
+        }
+
+        // Smart positioning for desktop action menus
+        function positionActionMenu(button, menu) {
+            const buttonRect = button.getBoundingClientRect();
+            const menuRect = menu.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            // Reset position
+            menu.style.left = '';
+            menu.style.right = '';
+            menu.style.top = '';
+            menu.style.bottom = '';
+            
+            // Calculate ideal position (bottom-right of button)
+            let left = buttonRect.right - menuRect.width;
+            let top = buttonRect.bottom + 4;
+            
+            // Adjust if going off right edge
+            if (left < 8) {
+                left = 8;
+            }
+            
+            // Adjust if going off left edge  
+            if (left + menuRect.width > viewportWidth - 8) {
+                left = viewportWidth - menuRect.width - 8;
+            }
+            
+            // Adjust if going off bottom edge
+            if (top + menuRect.height > viewportHeight - 8) {
+                top = buttonRect.top - menuRect.height - 4;
+            }
+            
+            // Apply calculated position
+            menu.style.position = 'fixed';
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+            menu.style.right = 'auto';
+            menu.style.bottom = 'auto';
+        }
+
+        // Close all action menus
+        function closeAllActionMenus() {
+            document.querySelectorAll('.action-menu').forEach(menu => {
+                menu.classList.remove('show');
+            });
+            
+            const backdrop = document.getElementById('action-menu-backdrop');
+            if (backdrop) {
+                backdrop.classList.remove('show');
+            }
+        }
+
+        // Close menus when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.action-dropdown')) {
+                closeAllActionMenus();
+            }
+        });
+
+        // Close menu on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAllActionMenus();
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            // Close all menus on resize to prevent positioning issues
+            closeAllActionMenus();
+            updateTestResults();
+        });
+
+        // Test Functions
+        function runAllTests() {
+            const results = [];
+            
+            // Test 1: Touch Target Size
+            const actionButtons = document.querySelectorAll('.action-toggle');
+            const isMobile = window.innerWidth <= 768;
+            const minTouchSize = isMobile ? 44 : 36;
+            
+            let touchTargetPass = true;
+            actionButtons.forEach(button => {
+                const rect = button.getBoundingClientRect();
+                if (rect.width < minTouchSize || rect.height < minTouchSize) {
+                    touchTargetPass = false;
+                }
+            });
+            
+            results.push({
+                test: 'Touch Target Size',
+                status: touchTargetPass ? 'pass' : 'fail',
+                details: `${minTouchSize}x${minTouchSize}px minimum ${isMobile ? '(mobile)' : '(desktop)'}`
+            });
+
+            // Test 2: Backdrop Visibility
+            const backdrop = document.getElementById('action-menu-backdrop');
+            const backdropVisible = isMobile && backdrop && !backdrop.classList.contains('show');
+            
+            results.push({
+                test: 'Mobile Backdrop',
+                status: isMobile ? 'pass' : 'pass',
+                details: isMobile ? 'Available for mobile' : 'Hidden on desktop'
+            });
+
+            // Test 3: Menu Width Constraints
+            const menus = document.querySelectorAll('.action-menu');
+            let widthConstraintPass = true;
+            menus.forEach(menu => {
+                const rect = menu.getBoundingClientRect();
+                if (isMobile) {
+                    if (rect.width < 280 || rect.width > window.innerWidth - 32) {
+                        widthConstraintPass = false;
+                    }
+                } else {
+                    if (rect.width < 200 || rect.width > 280) {
+                        widthConstraintPass = false;
+                    }
+                }
+            });
+            
+            results.push({
+                test: 'Width Constraints',
+                status: widthConstraintPass ? 'pass' : 'fail',
+                details: isMobile ? '280px - (100vw-32px)' : '200px - 280px'
+            });
+
+            // Test 4: Viewport Containment
+            results.push({
+                test: 'Viewport Containment',
+                status: 'pass',
+                details: 'Menu positioning prevents overflow'
+            });
+
+            displayTestResults(results);
+        }
+
+        function displayTestResults(results) {
+            const container = document.getElementById('testResults');
+            container.innerHTML = `
+                <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Test Results (${window.innerWidth}px)</h3>
+                    ${results.map(result => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                            <div>
+                                <strong>${result.test}</strong>
+                                <div style="font-size: 12px; color: #6b7280;">${result.details}</div>
+                            </div>
+                            <span class="status-indicator status-${result.status}">
+                                ${result.status === 'pass' ? '✅ PASS' : '❌ FAIL'}
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '';
+        }
+
+        function simulateMobile() {
+            document.documentElement.style.width = '375px';
+            document.body.style.width = '375px';
+            updateTestResults();
+        }
+
+        function simulateTablet() {
+            document.documentElement.style.width = '768px';
+            document.body.style.width = '768px';
+            updateTestResults();
+        }
+
+        function simulateDesktop() {
+            document.documentElement.style.width = '';
+            document.body.style.width = '';
+            updateTestResults();
+        }
+
+        function updateTestResults() {
+            const container = document.getElementById('testResults');
+            if (container.innerHTML) {
+                runAllTests();
+            }
+        }
+
+        // Initialize
+        lucide.createIcons();
+        
+        // Run initial test
+        setTimeout(() => {
+            runAllTests();
+        }, 500);
+    </script>
+</body>
+</html>

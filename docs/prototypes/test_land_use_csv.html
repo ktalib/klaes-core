@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Land Use CSV Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 15px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+        textarea { width: 100%; height: 100px; }
+    </style>
+</head>
+<body>
+    <h1>Land Use CSV Import Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Test CSV Content</h3>
+        <textarea id="testCsv">Title,First Name,Middle Name,Surname,Unit Number,Land Use,Unit Measurement
+Mr,John,Michael,Doe,A01,Residential,150 sqm
+Ms,Jane,Marie,Smith,A02,Commercial,200 sqm</textarea>
+        <br><br>
+        <button onclick="testCsvParsing()">Test CSV Parsing</button>
+        <div id="parseResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Current JavaScript Functions</h3>
+        <button onclick="checkFunctions()">Check Function Availability</button>
+        <div id="functionResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. DOM Elements Check</h3>
+        <button onclick="checkDomElements()">Check Required DOM Elements</button>
+        <div id="domResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Land Use Options Check</h3>
+        <button onclick="checkLandUseOptions()">Check Land Use Dropdown Options</button>
+        <div id="landUseResults"></div>
+    </div>
+
+    <script>
+        function testCsvParsing() {
+            const csv = document.getElementById('testCsv').value;
+            const results = document.getElementById('parseResults');
+            
+            try {
+                const lines = csv.split('\n').filter(line => line.trim() !== '');
+                const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+                
+                let html = '<h4>Parsing Results:</h4>';
+                html += '<p><strong>Headers found:</strong> ' + headers.join(', ') + '</p>';
+                
+                // Check for land use header
+                const landUseIndex = headers.findIndex(h => 
+                    h === 'land use' || h === 'land_use' || h === 'landuse'
+                );
+                
+                if (landUseIndex >= 0) {
+                    html += '<p class="success">✅ Land Use header found at index: ' + landUseIndex + '</p>';
+                } else {
+                    html += '<p class="error">❌ Land Use header NOT found</p>';
+                }
+                
+                // Parse data rows
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                    const buyer = {};
+                    
+                    headers.forEach((header, index) => {
+                        const value = values[index] || '';
+                        if (header === 'land use' || header === 'land_use' || header === 'landuse') {
+                            buyer.landUse = value;
+                        }
+                    });
+                    
+                    html += '<p>Row ' + i + ' Land Use: <strong>' + (buyer.landUse || 'NOT FOUND') + '</strong></p>';
+                }
+                
+                results.innerHTML = html;
+                
+            } catch (error) {
+                results.innerHTML = '<p class="error">❌ Error parsing CSV: ' + error.message + '</p>';
+            }
+        }
+        
+        function checkFunctions() {
+            const results = document.getElementById('functionResults');
+            let html = '<h4>Function Availability:</h4>';
+            
+            html += '<p>handleCsvImport: ' + (typeof handleCsvImport !== 'undefined' ? '✅ Available' : '❌ Not Available') + '</p>';
+            html += '<p>populateBuyersFromCsv: ' + (typeof populateBuyersFromCsv !== 'undefined' ? '✅ Available' : '❌ Not Available') + '</p>';
+            html += '<p>addBuyer: ' + (typeof addBuyer !== 'undefined' ? '✅ Available' : '❌ Not Available') + '</p>';
+            html += '<p>createBuyerRowHtml: ' + (typeof createBuyerRowHtml !== 'undefined' ? '✅ Available' : '❌ Not Available') + '</p>';
+            
+            results.innerHTML = html;
+        }
+        
+        function checkDomElements() {
+            const results = document.getElementById('domResults');
+            let html = '<h4>DOM Elements:</h4>';
+            
+            const csvInput = document.getElementById('csvFileInput');
+            const csvResult = document.getElementById('csv-result');
+            const buyersContainer = document.getElementById('buyers-container');
+            
+            html += '<p>csvFileInput: ' + (csvInput ? '✅ Found' : '❌ Not Found') + '</p>';
+            html += '<p>csv-result: ' + (csvResult ? '✅ Found' : '❌ Not Found') + '</p>';
+            html += '<p>buyers-container: ' + (buyersContainer ? '✅ Found' : '❌ Not Found') + '</p>';
+            
+            results.innerHTML = html;
+        }
+        
+        function checkLandUseOptions() {
+            const results = document.getElementById('landUseResults');
+            let html = '<h4>Land Use Options:</h4>';
+            
+            // Check if we can create a land use select
+            try {
+                const testSelect = document.createElement('select');
+                testSelect.innerHTML = `
+                    <option value="">Select Land Use</option>
+                    <option value="Residential">Residential</option>
+                    <option value="Commercial">Commercial</option>
+                    <option value="Industrial">Industrial</option>
+                    <option value="Mixed Use">Mixed Use</option>
+                `;
+                
+                html += '<p>✅ Land use options can be created</p>';
+                html += '<p>Options: ' + Array.from(testSelect.options).map(o => o.value).filter(v => v).join(', ') + '</p>';
+                
+            } catch (error) {
+                html += '<p class="error">❌ Error creating land use options: ' + error.message + '</p>';
+            }
+            
+            // Check existing land use selects on page
+            const existingSelects = document.querySelectorAll('select[name*="[landUse]"]');
+            html += '<p>Existing land use selects on page: ' + existingSelects.length + '</p>';
+            
+            results.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KANGIS - Online Legal Search Report (DEMO)</title>
+  <style>
+    /* Screen Layout */
+    body {
+      background-color: #525659;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .page {
+      background-color: #fff;
+      width: 11in;
+      min-height: 8.5in;
+      padding: 0.2in 0.4in;
+      position: relative;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Diagonal watermarks (two) */
+    .watermark {
+      position: absolute;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      white-space: nowrap;
+      font-size: 52px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: rgba(0, 0, 0, 0.14);
+      text-transform: uppercase;
+      text-align: center;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .watermark.wm-top { top: 50%; }
+    .watermark.wm-bottom { top: 62%;  display:none}
+
+    .bg-watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 45%;
+      max-width: 460px;
+      opacity: 0.06;
+      pointer-events: none;
+      z-index: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    header {
+      width: 100%;
+      border-bottom: 2px solid #000;
+      padding-bottom: 2px;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-box img {
+      width: 75px;
+      height: auto;
+    }
+
+    .title-block {
+      text-align: center;
+      flex: 1;
+    }
+
+    .title-block h1 {
+      font-size: 19px;
+      color: #007a33;
+      margin: 0;
+      font-weight: bold;
+    }
+
+    .title-block h2 {
+      font-size: 15px;
+      margin: 2px 0;
+      font-weight: bold;
+    }
+
+    .title-block h3 {
+      font-size: 13px;
+      margin: 0;
+      text-decoration: underline;
+      font-weight: bold;
+    }
+
+    .date-line {
+      text-align: right;
+      font-size: 13px;
+      font-weight: bold;
+      margin-top: 2px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .section-label {
+      border: 1px solid #000;
+      display: inline-block;
+      padding: 1px 6px;
+      font-weight: bold;
+      font-size: 11px;
+      margin: 3px 0;
+      background: #fff;
+      position: relative;
+      z-index: 1;
+    }
+
+    .prop-details {
+      font-size: 12px;
+      margin-bottom: 5px;
+      border-collapse: collapse;
+      width: 100%;
+      table-layout: fixed;
+      position: relative;
+      z-index: 1;
+    }
+
+    .prop-details td {
+      padding: 1px 0;
+      vertical-align: top;
+    }
+
+    .bold-lbl-left {
+      font-weight: bold;
+      width: 125px;
+    }
+
+    .bold-lbl-right {
+      font-weight: bold;
+      width: 110px;
+      padding-left: 35px;
+    }
+
+    .transaction-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+      table-layout: fixed;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .transaction-table th,
+    .transaction-table td {
+      padding: 4px 4px;
+      vertical-align: top;
+      border-bottom: 0.5px solid #eee;
+      word-wrap: break-word;
+    }
+
+    .transaction-table .header-row th {
+      font-weight: bold;
+      border-bottom: 1.5px solid #000;
+      text-align: left;
+    }
+
+    /* FOOTER WRAPPER STYLING */
+    .footer-wrapper {
+      margin-top: 16px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    .remarks-container {
+      border-top: 1px solid #000;
+      width: 100%;
+      padding-top: 8px;
+      margin-top: 10px;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .remarks-label {
+      border: 1px solid #000;
+      padding: 2px 8px;
+      font-weight: bold;
+      font-size: 13px;
+      background: #fff;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    .remarks-content {
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    .remarks-text {
+      color: #0f766e;
+      font-size: 13px;
+      font-weight: bold;
+      margin: 8px 0;
+      line-height: 1.4;
+      display: block;
+    }
+
+    /* Signature */
+    .signature {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 10px;
+      page-break-inside: avoid;
+    }
+
+    .sig-line {
+      text-align: center;
+      width: 280px;
+    }
+
+    .sig-img {
+      display: block;
+      height: 58px;
+      max-width: 240px;
+      margin: 0 auto 4px;
+      object-fit: contain;
+    }
+
+    .sig-line hr {
+      border: 0;
+      border-top: 1px solid #111827;
+      margin: 0 0 5px;
+    }
+
+    .sig-line p {
+      font-size: 11px;
+      margin: 0;
+      font-weight: bold;
+      line-height: 1.3;
+    }
+
+    .disclaimer-nb {
+      font-size: 9.5px;
+      font-style: italic;
+      font-weight: bold;
+      text-align: center;
+      margin: 8px 0 4px 0;
+      color: #333;
+    }
+
+    .footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #000;
+      padding-top: 4px;
+      margin-top: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .gen-text {
+      font-size: 9px;
+      color: #333;
+      text-align: center;
+      flex: 1;
+    }
+
+    .footer-logo-left,
+    .footer-logo-right {
+      display: flex;
+      align-items: center;
+    }
+
+    .footer-logo-left img,
+    .footer-logo-right img {
+      height: 26px;
+    }
+
+    @media print {
+      @page {
+        size: landscape;
+        margin: 0.2in;
+      }
+
+      body {
+        background: none;
+        padding: 0;
+        display: block;
+      }
+
+      .page {
+        box-shadow: none;
+        width: 100%;
+        padding: 0.1in 0.2in;
+        display: flex;
+        flex-direction: column;
+        min-height: 95vh;
+      }
+
+      .main-content {
+        display: block;
+      }
+
+      .transaction-table {
+        page-break-inside: auto;
+      }
+
+      .transaction-table tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+
+      .transaction-table thead {
+        display: table-header-group;
+      }
+
+      .footer-wrapper {
+        page-break-inside: avoid;
+        margin-top: 10px;
+      }
+
+      .watermark {
+        position: fixed;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+      }
+      .watermark.wm-top { top: 50%; }
+      .watermark.wm-bottom { top: 62%; }
+
+      .footer-bottom {
+        margin-top: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <!-- Watermarks: two diagonal "Online Legal Search Not For Sale" -->
+    <img class="bg-watermark" src="http://app.klaes.ng/assets/logo/ministry2.jpeg" alt="" aria-hidden="true">
+    <div class="watermark wm-top" aria-hidden="true">Online Legal Search <br> &nbsp;&bull;&nbsp;  Not For Sale</div>
+    
+
+    <div class="main-content">
+      <header>
+        <div class="header-top">
+          <div class="logo-box"><img src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Logo" /></div>
+          <div class="title-block">
+            <h1>KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING</h1>
+            <h2>LEGAL SEARCH REPORT</h2>
+            <h3>Online Pay-per Search</h3>
+          </div>
+          <div class="logo-box"><img src="http://app.klaes.ng/assets/logo/ministry2.jpeg" alt="Logo" /></div>
+        </div>
+        <div class="date-line">Date: June 9, 2026</div>
+      </header>
+
+      <div class="section-label">Property Details</div>
+      <table class="prop-details">
+        <tr>
+          <td class="bold-lbl-left">File Number:</td>
+          <td><strong>RES-1999-239</strong></td>
+          <td class="bold-lbl-right">District/LGA:</td>
+          <td><strong>Nasarawa</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">File Title:</td>
+          <td><strong>Mr And Mrs George Ahiome</strong></td>
+          <td class="bold-lbl-right">Plot No:</td>
+          <td><strong>17</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Land Use:</td>
+          <td><strong>Residential</strong></td>
+          <td class="bold-lbl-right">Size:</td>
+          <td><strong>0.4782</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Plot Description:</td>
+          <td><strong>Yandutse Road, Kano City, Kano</strong></td>
+          <td class="bold-lbl-right">TP No:</td>
+          <td><strong>-</strong></td>
+        </tr>
+      </table>
+
+      <div class="section-label">File History</div>
+      <table class="transaction-table">
+        <thead>
+          <tr class="header-row">
+            <th style="width: 3%">S/N</th>
+            <th style="width: 9%">File No</th>
+            <th style="width: 15%; white-space: nowrap;">Instrument/Transaction Type</th>
+            <th style="width: 14%">Party 1</th>
+            <th style="width: 14%">Party 2</th>
+            <th style="width: 11%">Party 3</th>
+            <th style="width: 10%">Reg. Time/Date</th>
+            <th style="width: 9%">Particulars</th>
+            <th style="width: 5%">Caveat</th>
+            <th style="width: 10%">Comments</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>RES-1999-239</td>
+            <td>Right Of Occupancy</td>
+            <td>Kano State Government</td>
+            <td>Mrs Jacquelline Gabriele Raccah</td>
+            <td>-</td>
+            <td>-<br />Jun 12, 2000</td>
+            <td>0/0/0</td>
+            <td>No</td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>RES-1999-239</td>
+            <td>Certificate Of Occupancy</td>
+            <td>Kano State Government</td>
+            <td>Mrs Jacquelline Gabriele Raccah</td>
+            <td>-</td>
+            <td><strong>9:00 PM</strong><br />Feb 11, 2000</td>
+            <td>106/106/80</td>
+            <td>No</td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>RES-1999-239</td>
+            <td>Tripartite Mortgage</td>
+            <td>Savannah Hospitals &amp; Medical Applications Ltd</td>
+            <td>Magnum Trust Bank Limited</td>
+            <td>Mrs. J.g. Raccah</td>
+            <td><strong>11:00 AM</strong><br />Jan 5, 2004</td>
+            <td>168/168/15</td>
+            <td>No</td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>RES-1999-239</td>
+            <td>Deed Of Assignment</td>
+            <td>Starling Bank Plc</td>
+            <td>Alhaji Yakubu Shuaibu</td>
+            <td>-</td>
+            <td>-<br />Aug 31, 2016</td>
+            <td>84/84/45</td>
+            <td>No</td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>RES-1999-239</td>
+            <td>Deed Of Assignment</td>
+            <td>Yakubu Shuaibu</td>
+            <td>Mr. And Mrs. George Ahiome</td>
+            <td>-</td>
+            <td><strong>9:00 AM</strong><br />Jun 4, 2026</td>
+            <td>294/294/45</td>
+            <td>No</td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer-wrapper">
+      <div class="remarks-container">
+        <div class="remarks-label">Remarks</div>
+        <div class="remarks-content">
+          <span class="remarks-text">
+     Based on our available records, the title is free from encumbrances
+          </span>
+        </div>
+      </div>
+
+      <p class="disclaimer-nb" style="text-align:left;">
+        N.B: This search report is deduced based on the available records from the file and does not represent any
+        document in possession of any body. These details are as at June 10, 2026 for File No: RES-1999-239.
+      </p>
+
+      <div class="signature">
+        <div class="sig-line">
+          <img class="sig-img" src="http://app.klaes.ng/storage/signing_officer_signatures/S3AuwOc91sjQfIYVtLuSlu3aPJ78DdR4JZcWP0Xf.jpg" alt="Authorized Signatory Signature" />
+          <hr />
+          
+          <p>Authorized Signatory</p>
+        </div>
+      </div>
+
+      
+    </div>
+
+    <div class="footer-bottom">
+      <div class="footer-logo-left">
+        <img src="http://app.klaes.ng/storage/upload/logo/logo.png" alt="KLAES" />
+      </div>
+      <div class="gen-text">Generated by Klaes Admin at 2:06 PM & 10/06/2026</div>
+      <div class="footer-logo-right">
+        <img src="http://app.klaes.ng/assets/logo/las.jpg" alt="LAS" />
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

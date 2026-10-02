@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit (Non-Scheme) SUA Implementation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .info {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .code {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-top: 3px solid #28a745;
+        }
+        .step-list {
+            counter-reset: step-counter;
+        }
+        .step-list li {
+            counter-increment: step-counter;
+            margin-bottom: 10px;
+            position: relative;
+            padding-left: 30px;
+        }
+        .step-list li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #007bff;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏢 Unit (Non-Scheme) SUA Implementation</h1>
+        <p>Complete implementation for SUA (Standalone Unit Applications) memo management system</p>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Implementation Summary</h2>
+        <p>Successfully created a dedicated Unit (Non-Scheme) page for SUA unit types that generates memos similar to the primary page, but with a simplified buyer list showing only:</p>
+        <ul>
+            <li class="success">Unit owner name</li>
+            <li class="success">Unit size</li>
+            <li class="warning">Unit measurement (removed - column doesn't exist)</li>
+        </ul>
+    </div>
+
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h3>🎯 Controller Method</h3>
+            <p><strong>UnitNonSchemeMemo()</strong></p>
+            <ul>
+                <li>Filters for SUA unit types only</li>
+                <li>Joins with mother_applications</li>
+                <li>Processes owner names correctly</li>
+                <li>Includes unit size & measurement</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h3>📄 View Template</h3>
+            <p><strong>unit_nonscheme_memo.blade.php</strong></p>
+            <ul>
+                <li>Professional DataTables layout</li>
+                <li>Simplified buyer information display</li>
+                <li>Action menu for memo generation</li>
+                <li>Responsive design</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h3>🔗 Routes</h3>
+            <p><strong>Unit Non-Scheme Routes</strong></p>
+            <ul>
+                <li>/unit-nonscheme-memo (index)</li>
+                <li>/generate-sua-memo (POST)</li>
+                <li>/view-sua-memo/{id} (GET)</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h3>🖨️ Print Template</h3>
+            <p><strong>sua_memo_print.blade.php</strong></p>
+            <ul>
+                <li>Professional memo layout</li>
+                <li>Simplified unit owner table</li>
+                <li>Print-optimized styling</li>
+                <li>Signature sections</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Technical Implementation</h2>
+        
+        <h3>Database Query Logic</h3>
+        <div class="code">
+DB::connection('sqlsrv')->table('subapplications')
+    ->leftJoin('mother_applications', 'subapplications.main_application_id', '=', 'mother_applications.id')
+    ->where('subapplications.unit_type', 'sua')  // Key filter for SUA units
+    ->select([
+        'subapplications.unit_size',      // ← Field for buyer list (includes unit)
+        // ... other fields
+    ])
+        </div>
+
+        <h3>Simplified Buyer List Structure</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Source</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Unit Owner Name</td>
+                    <td>Processed from applicant fields</td>
+                    <td>Primary buyer identification</td>
+                </tr>
+                <tr>
+                    <td>Unit Size</td>
+                    <td>subapplications.unit_size</td>
+                    <td>Property dimensions with unit (sq m, sq ft, etc.)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Testing Checklist</h2>
+        
+        <ol class="step-list">
+            <li><strong>Navigation Test:</strong> Click "Unit (Non-Scheme)" in sidebar menu</li>
+            <li><strong>Data Loading:</strong> Verify only SUA unit types are displayed</li>
+            <li><strong>Buyer List Display:</strong> Check unit owner name and unit size columns</li>
+            <li><strong>Action Menu:</strong> Test "Generate ST Memo" functionality</li>
+            <li><strong>Memo Generation:</strong> Create a memo with simplified buyer information</li>
+            <li><strong>Print Layout:</strong> Verify print template shows correct simplified layout</li>
+            <li><strong>View Functionality:</strong> Test "View ST Memo" action after generation</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Key Differences from Unit (Scheme)</h2>
+        
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>Unit (Scheme)</h3>
+                <ul>
+                    <li>All unit types (non-SUA)</li>
+                    <li>Upload/View ST Memo actions</li>
+                    <li>File upload functionality</li>
+                    <li>Complex buyer information</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h3>Unit (Non-Scheme)</h3>
+                <ul>
+                    <li class="success">SUA unit types only</li>
+                    <li class="success">Generate/View ST Memo actions</li>
+                    <li class="success">Database-stored memos</li>
+                    <li class="success">Simplified buyer list (name, unit size)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 Testing URLs</h2>
+        
+        <div class="code">
+# Main Page (List SUA applications)
+/unit-nonscheme-memo
+
+# Generate Memo (POST request via modal)
+/generate-sua-memo
+
+# View Generated Memo (Opens in new window)
+/view-sua-memo/{unitId}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 User Workflow</h2>
+        
+        <ol class="step-list">
+            <li>User clicks <strong>"Unit (Non-Scheme)"</strong> in sidebar</li>
+            <li>System displays all SUA unit applications in DataTable</li>
+            <li>User sees simplified columns: Owner, Unit Size, Measurement</li>
+            <li>User clicks <strong>"Actions"</strong> → <strong>"Generate ST Memo"</strong></li>
+            <li>Modal opens with memo generation form</li>
+            <li>User fills memo details and clicks <strong>"Generate Memo"</strong></li>
+            <li>System stores memo in database (not as file upload)</li>
+            <li>User can now click <strong>"View ST Memo"</strong> to see generated memo</li>
+            <li>Print-friendly layout opens in new window with simplified buyer table</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Implementation Status</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Controller Method</td>
+                    <td class="success">✓ Complete</td>
+                    <td>UnitNonSchemeMemo() with SUA filtering</td>
+                </tr>
+                <tr>
+                    <td>View Template</td>
+                    <td class="success">✓ Complete</td>
+                    <td>Simplified buyer list display</td>
+                </tr>
+                <tr>
+                    <td>Routes</td>
+                    <td class="success">✓ Complete</td>
+                    <td>3 routes for SUA memo operations</td>
+                </tr>
+                <tr>
+                    <td>Menu Navigation</td>
+                    <td class="success">✓ Complete</td>
+                    <td>Updated sidebar link</td>
+                </tr>
+                <tr>
+                    <td>Print Template</td>
+                    <td class="success">✓ Complete</td>
+                    <td>SUA-specific memo layout</td>
+                </tr>
+                <tr>
+                    <td>Memo Generation</td>
+                    <td class="success">✓ Complete</td>
+                    <td>Database storage with simplified data</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        console.log('Unit (Non-Scheme) SUA Implementation Test Page Loaded');
+        console.log('Ready for testing at /unit-nonscheme-memo');
+    </script>
+</body>
+</html>

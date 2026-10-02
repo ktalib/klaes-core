@@ -1,0 +1,7 @@
+.actions-dropdown-menu {
+    min-width: 11rem;
+}
+
+.actions-dropdown-menu.hidden {
+    display: none;
+}
