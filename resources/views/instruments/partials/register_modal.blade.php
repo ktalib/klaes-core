@@ -9,6 +9,25 @@
         min-height: 0 !important;
         flex: 1 1 0% !important;
     }
+
+    /* SLTR CofO capture hand-off. This intentionally follows the same numbered
+       rail language as the SLTR CofO Workflow screens, while remaining compact
+       enough for the capture modal. */
+    .sltr-capture-flow { border: 1px solid #d9f99d; border-radius: 12px; background: #f7fee7; padding: 16px 18px 10px; }
+    .sltr-capture-flow__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .sltr-capture-flow__kicker { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #4d7c0f; }
+    .sltr-capture-flow__copy { margin-top: 3px; font-size: 12px; color: #3f6212; }
+    .sltr-capture-flow__current { display: inline-flex; align-items: center; border: 1px solid #a3e635; border-radius: 99px; background: #fff; padding: 4px 9px; font-size: 11px; font-weight: 700; color: #3f6212; white-space: nowrap; }
+    .sltr-capture-flow__steps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; margin: 15px 0 0; padding: 4px 4px 10px; list-style: none; }
+    .sltr-capture-flow__step { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: center; padding: 0 3px; text-align: center; }
+    .sltr-capture-flow__step::before { position: absolute; z-index: 0; top: 13px; left: -50%; width: 100%; height: 2px; background: #d1d5db; content: ''; }
+    .sltr-capture-flow__step:first-child::before { display: none; }
+    .sltr-capture-flow__dot { position: relative; z-index: 1; display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 2px solid #d1d5db; border-radius: 999px; background: #fff; color: #6b7280; font-size: 11px; font-weight: 700; }
+    .sltr-capture-flow__name { margin-top: 6px; color: #6b7280; font-size: 10px; font-weight: 600; line-height: 1.2; }
+    .sltr-capture-flow__step.is-current::before { background: #bef264; }
+    .sltr-capture-flow__step.is-current .sltr-capture-flow__dot { border-color: #65a30d; background: #65a30d; box-shadow: 0 0 0 4px rgba(101, 163, 13, .18); color: #fff; }
+    .sltr-capture-flow__step.is-current .sltr-capture-flow__name { color: #1f2937; }
+    @media (max-width: 700px) { .sltr-capture-flow__steps { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; } .sltr-capture-flow__step:nth-child(4)::before { display: none; } }
 </style>
 <div id="registration-dialog"
     class="dialog-backdrop hidden transition-opacity duration-300 ease-in-out z-50 fixed inset-0 flex items-center justify-center bg-black/50">
@@ -32,6 +51,29 @@
             <div class="p-6 space-y-6">
                 @csrf
                 <input type="hidden" id="instrument_id" name="instrument_id" value="{{ $record->id ?? '' }}">
+
+                {{-- Kept directly below the capture header, rather than inside the
+                     registration summary. It appears only for SLTR and mirrors the
+                     numbered rail on the SLTR CofO Workflow screens. --}}
+                @if ($showCaptureBanner ?? false)
+                <section id="sltr-cofo-workflow-card" class="sltr-capture-flow hidden" aria-label="SLTR Certificate of Occupancy workflow" aria-hidden="true">
+                    <div class="sltr-capture-flow__head">
+                        <div>
+                            <p class="sltr-capture-flow__kicker">SLTR CofO workflow</p>
+                            <p class="sltr-capture-flow__copy">This capture is the CofO Registration stage. Continue the remaining stages from SLTR.</p>
+                        </div>
+                        <span class="sltr-capture-flow__current">Current: CofO Registration</span>
+                    </div>
+                    <ol class="sltr-capture-flow__steps" aria-label="SLTR CofO stages">
+                        @foreach (['RofO', 'CofO Registration', 'Front Page', 'Title Deed Plan', 'Merge', 'Original'] as $stage)
+                            <li class="sltr-capture-flow__step" data-sltr-cofo-stage="{{ $stage }}">
+                                <span class="sltr-capture-flow__dot">{{ $loop->iteration }}</span>
+                                <span class="sltr-capture-flow__name">{{ $stage }}</span>
+                            </li>
+                        @endforeach
+                    </ol>
+                </section>
+                @endif
                 
                 <!-- Subtype Selection (Initially hidden) -->
                 <div id="subtype-selector-container" class="hidden space-y-4 mb-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50">

@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-helmet-safety"></i> 4.3 · Cadastral Information</div>
 
 <div class="page-header">
     <div>
@@ -31,69 +30,103 @@
     </div>
 @endif
 
-<form method="POST" action="{{ route('cadastral-module.survey-jobs.update', $job) }}" class="form-container">
+@include('cadastral_module.partials._wizard')
+
+@php
+    // What the file supplies, put on the in-memory job so the fields render it
+    // before the picker locks them (update() re-reads the same); nothing saves.
+    if (($picked['status'] ?? null) !== null && ! empty($picked['values'])) {
+        foreach (\App\Services\Cadastral\CadastralRegistryLookup::lockedInput($picked['values'], ['file_title', 'prop_house', 'prop_plot', 'prop_street', 'prop_district', 'prop_lga', 'prop_state']) as $col => $value) {
+            $job->{$col} = $value;
+        }
+    }
+@endphp
+
+<form method="POST" action="{{ route('cadastral-module.survey-jobs.update', $job) }}" class="form-container"
+      data-wizard data-wizard-errors="{{ json_encode(array_values(array_filter($errors->keys(), fn ($k) => ! str_starts_with($k, 'its_')))) }}" novalidate>
     @csrf @method('PUT')
 
-    <div class="card-header"><strong>Job</strong></div>
+    <div class="form-stepper" data-wizard-header></div>
 
     <div class="form-body">
-        <div class="form-grid">
-            <div class="form-group">
-                <label>File Number <span class="required">*</span></label>
-                <input type="text" name="file_number" value="{{ old('file_number', $job->file_number) }}" required />
-            </div>
-            <div class="form-group">
-                <label>File Title</label>
-                <input type="text" name="file_title" value="{{ old('file_title', $job->file_title) }}" />
-            </div>
-            <div class="form-group">
-                <label>Surveyor</label>
-                <select name="cadastral_surveyor_id">
-                    <option value="">— unassigned —</option>
-                    @foreach ($surveyors as $surveyor)
-                        <option value="{{ $surveyor->id }}" @selected(old('cadastral_surveyor_id', $job->cadastral_surveyor_id)==$surveyor->id)>
-                            {{ $surveyor->display_name }}
-                            @unless ($surveyor->canReceiveInstruction()) (licence {{ $surveyor->licence_status }}) @endunless
-                        </option>
-                    @endforeach
-                </select>
-                <div class="helper-text">The name and firm are copied onto the job when you save, so the instruction keeps reading as issued.</div>
-            </div>
-            <div class="form-group">
-                <label>Index Card ID</label>
-                <input type="number" name="cadastral_index_card_id" value="{{ old('cadastral_index_card_id', $job->cadastral_index_card_id) }}" />
-                <div class="helper-text">
-                    @if ($job->indexCard)
-                        Linked to <a href="{{ route('cadastral-module.index-cards.show', $job->indexCard) }}">{{ $job->indexCard->card_ref }}</a>{{ $job->indexCard->survey_job_number === $job->job_number ? ', which carries this job number.' : ', which carries ' . ($job->indexCard->survey_job_number ?: 'no job number') . '.' }}
-                    @else
-                        Left blank, the file's index card is found by file number and the job number is written onto it.
-                    @endif
+        <section class="form-step" data-step data-title="File" data-icon="folder-search"
+                 data-subtitle="The file is fixed once the job is registered.">
+            <div class="form-grid">
+                @include('cadastral_module.partials._file_picker', [
+                    'scope'   => 'indexed',
+                    'initial' => $picked ?? null,
+                    'fixed'   => true,
+                    'number'  => $job->file_number,
+                ])
+                <div class="form-group">
+                    <label>File Title</label>
+                    <input type="text" name="file_title" value="{{ old('file_title', $job->file_title) }}" maxlength="500" />
                 </div>
             </div>
-            <div class="form-group">
-                <label>Status</label>
-                <select name="status">
-                    @foreach (\App\Models\Cadastral\CadastralSurveyJob::STATUSES as $s)
-                        <option value="{{ $s }}" @selected(old('status', $job->status)===$s)>{{ $s }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group" style="grid-column:1/-1;">
-                <label>Job Scope</label>
-                <input type="text" name="job_scope" value="{{ old('job_scope', $job->job_scope) }}" />
-            </div>
-        </div>
+        </section>
 
-        @include('cadastral_module.partials._address_builder', [
-            'prefix' => 'prop_',
-            'mode'   => 'property',
-            'model'  => $job,
-            'legend' => 'Job Location',
-        ])
+        <section class="form-step" data-step data-title="Job Details" data-icon="clipboard-list"
+                 data-subtitle="The surveyor, the card it belongs to, and its status.">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Surveyor</label>
+                    <select name="cadastral_surveyor_id">
+                        <option value="">— unassigned —</option>
+                        @foreach ($surveyors as $surveyor)
+                            <option value="{{ $surveyor->id }}" @selected(old('cadastral_surveyor_id', $job->cadastral_surveyor_id)==$surveyor->id)>
+                                {{ $surveyor->display_name }}
+                                @unless ($surveyor->canReceiveInstruction()) (licence {{ $surveyor->licence_status }}) @endunless
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="helper-text">The name and firm are copied onto the job when you save, so the instruction keeps reading as issued.</div>
+                </div>
+                <div class="form-group">
+                    <label>Index Card ID</label>
+                    <input type="number" min="1" name="cadastral_index_card_id" value="{{ old('cadastral_index_card_id', $job->cadastral_index_card_id) }}" />
+                    <div class="helper-text">
+                        @if ($job->indexCard)
+                            Linked to <a href="{{ route('cadastral-module.index-cards.show', $job->indexCard) }}">{{ $job->indexCard->card_ref }}</a>{{ $job->indexCard->survey_job_number === $job->job_number ? ', which carries this job number.' : ', which carries ' . ($job->indexCard->survey_job_number ?: 'no job number') . '.' }}
+                        @else
+                            Left blank, the file's index card is found by file number and the job number is written onto it.
+                        @endif
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select name="status">
+                        @foreach (\App\Models\Cadastral\CadastralSurveyJob::STATUSES as $s)
+                            <option value="{{ $s }}" @selected(old('status', $job->status)===$s)>{{ $s }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column:1/-1;">
+                    <label>Job Scope</label>
+                    <textarea name="job_scope" rows="3" maxlength="8000">{{ old('job_scope', $job->job_scope) }}</textarea>
+                </div>
+            </div>
+        </section>
+
+        <section class="form-step" data-step data-title="Job Location" data-icon="map-pin"
+                 data-subtitle="Greyed fields come from the file. Complete any it leaves blank.">
+            @include('cadastral_module.partials._address_builder', [
+                'prefix' => 'prop_',
+                'mode'   => 'property',
+                'model'  => $job,
+                'legend' => 'Job Location',
+            ])
+        </section>
+
+        <section class="form-step" data-step data-review data-title="Review & Save" data-icon="clipboard-check"
+                 data-subtitle="Check the changes, then save.">
+            <div data-wizard-summary></div>
+        </section>
     </div>
 
-    <div class="form-actions">
-        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Job</button>
+    <div class="form-actions" data-wizard-nav>
+        <button type="button" class="btn btn-outline" data-wizard-back><i data-lucide="arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" data-wizard-next>Next <i data-lucide="arrow-right"></i></button>
+        <button type="submit" class="btn btn-primary" data-wizard-submit><i data-lucide="save"></i> Save Job</button>
     </div>
 </form>
 

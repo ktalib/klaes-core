@@ -25,22 +25,73 @@
         ])
 
         <div style="display:flex;flex-direction:column;gap:14px;">
-            {{-- What the money is made of. Categorical is right here: the four
-                 fee lines ARE the subject, and their slot order is fixed so a
-                 quiet month never repaints the legend. --}}
-            @include('cadastral_module.partials.charts._stacked', [
-                'parts'     => $m['feeMix'],
-                'title'     => 'What the billing is made of',
-                'subtitle'  => 'Across every bill not cancelled. Pillars are charged at the same rate whether government or private.',
-                'dimension' => 'Fee line',
-                'money'     => true,
-                'empty'     => 'No bills issued yet.',
-            ])
+            {{-- What the money is made of: the fee sheet's eight lines, in sheet
+                 order. Eight is past what a stacked bar can colour apart, so
+                 each line is its own bar in one colour; the order is fixed so
+                 a quiet month never reshuffles it. --}}
+            @php
+                $mix      = collect($m['feeMix']['segments'] ?? []);
+                $mixTotal = (int) ($m['feeMix']['total'] ?? 0);
+                $mixMax   = max(1, (int) $mix->max('value'));
+                $mixRowH  = 26;
+                $mixLabel = 150;
+                $mixTrack = 620 - $mixLabel - 86;
+            @endphp
+            <div class="cad-card" id="pnd-fee-mix">
+                <div class="cad-card-head">
+                    <h3>What the billing is made of</h3>
+                    <span style="font-size:11.5px;color:var(--viz-muted);">₦{{ number_format($mixTotal) }} total</span>
+                </div>
+                <p class="cad-card-sub">Issued and paid bills, line by line as the official fee sheet prints them.</p>
+
+                @if ($mixTotal === 0)
+                    <div class="cad-empty">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>No bills issued yet.</span>
+                    </div>
+                @else
+                    @php $mixH = $mix->count() * $mixRowH + 6; @endphp
+                    <svg class="cad-plot" viewBox="0 0 640 {{ $mixH }}" role="img"
+                         aria-label="Billing by fee line" style="height:{{ $mixH }}px;">
+                        @foreach ($mix as $i => $s)
+                            @php
+                                $y  = $i * $mixRowH;
+                                $bw = $s['value'] > 0 ? max(3, ($s['value'] / $mixMax) * $mixTrack) : 0;
+                            @endphp
+                            <text class="clabel" x="0" y="{{ $y + 16 }}">{{ Str::limit($s['label'], 24) }}<title>{{ $s['label'] }}</title></text>
+                            <rect x="{{ $mixLabel }}" y="{{ $y + 6 }}" width="{{ $mixTrack }}" height="12" rx="4" fill="var(--viz-plane)" />
+                            @if ($bw > 0)
+                                <rect class="mark" x="{{ $mixLabel }}" y="{{ $y + 6 }}" width="{{ round($bw, 2) }}" height="12" rx="4" fill="var(--viz-seq)">
+                                    <title>{{ $s['label'] }} — ₦{{ number_format($s['value']) }} ({{ $s['percent'] }}%)</title>
+                                </rect>
+                                <rect x="{{ $mixLabel }}" y="{{ $y + 6 }}" width="{{ round(min(4, $bw), 2) }}" height="12" fill="var(--viz-seq)" pointer-events="none" />
+                            @endif
+                            <text class="vlabel" x="{{ 620 - 80 }}" y="{{ $y + 16 }}">₦{{ number_format($s['value']) }}</text>
+                        @endforeach
+                    </svg>
+
+                    <details class="cad-tableview">
+                        <summary>Table view</summary>
+                        <table>
+                            <thead><tr><th>Fee line</th><th class="num">Amount</th><th class="num">Share</th></tr></thead>
+                            <tbody>
+                                @foreach ($mix as $s)
+                                    <tr>
+                                        <td>{{ $s['label'] }}</td>
+                                        <td class="num">₦{{ number_format($s['value']) }}</td>
+                                        <td class="num">{{ $s['percent'] }}%</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </details>
+                @endif
+            </div>
 
             @include('cadastral_module.partials.charts._hbars', [
                 'rows'      => $m['byZone'],
                 'title'     => 'Records by location zone',
-                'subtitle'  => 'The zone multiplier applied to the area charge.',
+                'subtitle'  => 'Urban, semi-urban or rural, as recorded on each file.',
                 'dimension' => 'Zone',
                 'empty'     => 'No zone recorded yet.',
                 'labelW'    => 120,
@@ -52,7 +103,7 @@
         @include('cadastral_module.partials.charts._hbars', [
             'rows'      => $m['byUse'],
             'title'     => 'Records by land use',
-            'subtitle'  => 'Land use sets the multiplier on the area charge.',
+            'subtitle'  => 'Read from the file when the record starts.',
             'dimension' => 'Land use',
             'empty'     => 'No land use recorded yet.',
         ])

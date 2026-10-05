@@ -25,7 +25,6 @@
     $assignBlocked = $current ? $workflow->blockReason($report, $current) : 'There is no open step.';
 @endphp
 
-<div class="unit-tag"><i class="fas fa-file-lines"></i> 4.2 · Cadastral Report · {{ $report->type_label }}</div>
 
 <div class="page-header">
     <div>

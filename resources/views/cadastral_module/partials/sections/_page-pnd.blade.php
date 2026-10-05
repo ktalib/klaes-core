@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-ruler-combined"></i> 4.4 · Plan and Description</div>
 
 <div class="page-header">
     <div></div>
@@ -100,7 +99,7 @@
                                 <a href="{{ route('cadastral-module.plan-description.descriptions', ['record' => $record->id]) }}" title="Description">
                                     <i class="fas fa-file-lines"></i>
                                 </a>
-                                <a href="{{ route('cadastral-module.plan-description.edit', $record) }}#fee-calculator" title="Fee Calculator (full record)">
+                                <a href="{{ route('cadastral-module.plan-description.fees', ['record' => $record->id]) }}" title="Fee Calculator">
                                     <i class="fas fa-calculator"></i>
                                 </a>
                                 @canDo('Cad - Records', 'delete')

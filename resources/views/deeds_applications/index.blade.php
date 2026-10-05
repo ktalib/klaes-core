@@ -304,32 +304,29 @@
     <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
       <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm ring-1 ring-emerald-100 bg-emerald-50/10">
         <p class="text-[10px] md:text-xs font-semibold text-emerald-600 uppercase tracking-wider">Captured Today</p>
-        <p class="text-2xl md:text-3xl font-bold text-emerald-700 mt-1.5">{{ $consentTodayCount }}</p>
+        <p class="text-2xl md:text-3xl font-bold text-emerald-700 mt-1.5">{{ $counts['today'] }}</p>
       </div>
 
       <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm">
         <p class="text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Applications</p>
-        <p class="text-2xl md:text-3xl font-bold text-slate-900 mt-1.5">{{ $applications->count() }}</p>
+        <p class="text-2xl md:text-3xl font-bold text-slate-900 mt-1.5">{{ $counts['total'] }}</p>
       </div>
     
       <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm">
         <p class="text-[10px] md:text-xs font-semibold text-blue-600 uppercase tracking-wider">Assignment</p>
-        <p class="text-2xl md:text-3xl font-bold text-blue-700 mt-1.5">{{ $applications->where('consent_type',
-          'Assignment')->count() }}</p>
+        <p class="text-2xl md:text-3xl font-bold text-blue-700 mt-1.5">{{ $counts['Assignment'] }}</p>
       </div>
       <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm">
         <p class="text-[10px] md:text-xs font-semibold text-purple-600 uppercase tracking-wider">ST Assignment</p>
-        <p class="text-2xl md:text-3xl font-bold text-purple-700 mt-1.5">{{ $applications->where('consent_type', 'ST Assignment')->count() }}</p>
+        <p class="text-2xl md:text-3xl font-bold text-purple-700 mt-1.5">{{ $counts['ST Assignment'] }}</p>
       </div>
       <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm">
         <p class="text-[10px] md:text-xs font-semibold text-emerald-600 uppercase tracking-wider">Gift</p>
-        <p class="text-2xl md:text-3xl font-bold text-emerald-700 mt-1.5">{{ $applications->where('consent_type',
-          'Gift')->count() }}</p>
+        <p class="text-2xl md:text-3xl font-bold text-emerald-700 mt-1.5">{{ $counts['Gift'] }}</p>
       </div>
       <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm">
         <p class="text-[10px] md:text-xs font-semibold text-amber-600 uppercase tracking-wider">Mortgage</p>
-        <p class="text-2xl md:text-3xl font-bold text-amber-700 mt-1.5">{{ $applications->where('consent_type',
-          'Mortgage')->count() }}</p>
+        <p class="text-2xl md:text-3xl font-bold text-amber-700 mt-1.5">{{ $counts['Mortgage'] }}</p>
       </div>
     </div>
 
@@ -367,144 +364,8 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            @forelse($applications as $application)
-            <tr class="hover:bg-slate-50/50 transition duration-200" data-id="{{ $application->id }}" data-file-no="{{ $application->file_number }}">
-              @if($isSupperAdmin)
-                <td class="checkbox-col hidden px-4 py-4 text-center">
-                  @if(!($application->is_st_assignment ?? false))
-                    <input type="checkbox" class="master-row-checkbox rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
-                           data-id="{{ $application->id }}" data-file-no="{{ $application->file_number }}" onchange="updateBulkDeleteButtonState()">
-                  @else
-                    <span class="text-slate-300 font-bold">—</span>
-                  @endif
-                </td>
-              @endif
-              <td class="px-6 py-4 text-slate-600 font-bold italic">{{ $loop->iteration }}</td>
-
-              <td class="px-6 py-4 text-slate-900 font-bold whitespace-nowrap">
-                <button type="button" class="view-properties-btn flex items-center gap-2 hover:text-blue-600 transition outline-none" 
-                        data-main-file="{{ $application->file_number }}"
-                        data-main-desc="{{ $application->property_description }}"
-                        data-main-applicant="{{ $application->applicant_name }}"
-                        data-additional="{{ json_encode($application->additional_properties ?? []) }}">
-                    <span>{{ $application->file_number }}</span>
-                    @php
-                        $additionalCount = is_array($application->additional_properties) ? count($application->additional_properties) : 0;
-                    @endphp
-                    @if($additionalCount > 0)
-                        <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200"
-                              title="{{ collect($application->additional_properties)->pluck('file_number')->filter()->implode(', ') }}">
-                            +{{ $additionalCount }}
-                        </span>
-                    @endif
-                </button>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                {{-- Deliberately NOT narrowed by consent type. A per-type marker
-                     is resolved one request per row, and this table is not
-                     paginated — several hundred rows would mean several hundred
-                     round trips. Batched instead, so the Registration dot means
-                     "an instrument on this file is registered" rather than
-                     "this particular dealing is". --}}
-                <span data-pipeline-file="{{ $application->file_number }}"></span>
-              </td>
-              {{-- data-filter is what DataTables filters and sorts this column on,
-                   independent of what the cell displays. Keeps the "All Consent
-                   Types" dropdown and its ^exact$ search tied to the consent type
-                   itself rather than to the cell's rendered text. --}}
-              <td class="px-6 py-4" data-filter="{{ $application->consent_type }}" data-search="{{ $application->consent_type }}">
-                @php
-                $badgeClass = match($application->consent_type) {
-                'Assignment' => 'bg-blue-50 text-blue-700 border-blue-100',
-                'Gift' => 'bg-emerald-50 text-emerald-700 border-emerald-100',
-                'Mortgage' => 'bg-amber-50 text-amber-700 border-amber-100',
-                'ST Assignment' => 'bg-purple-50 text-purple-700 border-purple-100',
-                'Sublease' => 'bg-pink-50 text-pink-700 border-pink-100',
-                'Devolution' => 'bg-indigo-50 text-indigo-700 border-indigo-100',
-                default => 'bg-slate-50 text-slate-700 border-slate-100'
-                };
-                @endphp
-                <span
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase border whitespace-nowrap inline-block {{ $badgeClass }}">
-                  {{ $application->consent_type }}
-                </span>
-
-              </td>
-              @php
-                  $titles = collect([$application->applicant_name]);
-                  if (is_array($application->additional_properties)) {
-                      foreach ($application->additional_properties as $prop) {
-                          if (!empty($prop['applicant_name'])) $titles->push($prop['applicant_name']);
-                          elseif (!empty($prop['applicant'])) $titles->push($prop['applicant']);
-                      }
-                  }
-                  $titles = $titles->filter()->unique()->values();
-                  
-                  $party1Text = 'N/A';
-                  if ($titles->count() === 1) {
-                      $party1Text = $titles->first();
-                  } elseif ($titles->count() === 2) {
-                      $party1Text = $titles->first() . ' & ' . $titles->last();
-                  } elseif ($titles->count() > 2) {
-                      $last = $titles->pop();
-                      $party1Text = $titles->implode(', ') . ', & ' . $last;
-                  }
-              @endphp
-              <td class="px-6 py-4 text-slate-900 font-semibold uppercase">{{ $party1Text }}</td>
-              <td class="px-6 py-4 text-slate-900 font-semibold uppercase">{{ $application->party_name }}</td>
-              @php
-              $extraApplicants = collect($application->additional_applicants ?? [])->pluck('name')->filter()->values();
-              $extraParties = collect($application->additional_parties ?? [])->pluck('name')->filter()->values();
-              $otherPartyNames = $extraApplicants->merge($extraParties)->values();
-              @endphp
-              <td class="px-6 py-4 text-slate-900 font-semibold uppercase">{{ $otherPartyNames->get(0, 'N/A') }}</td>
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-2">
-                  <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
-                     <i data-lucide="user-check" class="h-3.5 w-3.5"></i>
-                  </div>
-                  <span class="text-slate-600 text-sm font-medium uppercase">{{ $application->created_by ?:
-                    ($application->user ? $application->user->first_name . ' ' . $application->user->last_name :
-                    'System') }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs">
-                {{ ($application->application_submitted_date ?? $application->application_date) ?
-                \Carbon\Carbon::parse($application->application_submitted_date ??
-                $application->application_date)->format('M d, Y') : 'N/A' }}
-              </td>
-              <td class="px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs">
-                {{ $application->created_at->format('h:i A') }}
-              </td>
-              <td class="px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs">
-                {{ $application->created_at->format('M d, Y') }}
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-2">
-                  <span
-                    class="w-2 h-2 rounded-full {{ $application->print_count > 0 ? 'bg-emerald-500' : 'bg-slate-300' }}"></span>
-                  <span class="font-bold text-slate-700">{{ $application->print_count }}</span>
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex items-center justify-center">
-                  <button type="button"
-                    class="deeds-action-trigger p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition duration-200"
-                    data-app="{{ json_encode($application) }}"
-                    data-is-st="{{ (isset($application->is_st_assignment) && $application->is_st_assignment) ? 'true' : 'false' }}">
-                    <i data-lucide="more-horizontal" class="h-5 w-5"></i>
-                  </button>
-                </div>
-              </td>
-
-            </tr>
-            @empty
-            <tr>
-              <td @if($isSupperAdmin) colspan="14" @else colspan="13" @endif class="px-6 py-12 text-center text-slate-500 italic">
-                No applications found. Click "New Application" to capture your first one.
-              </td>
-            </tr>
-            @endforelse
+            {{-- Filled a page at a time from deeds-applications.data; the cells come
+                 from partials/_table_row_cells. --}}
           </tbody>
         </table>
       </div>
@@ -650,64 +511,91 @@
       }, 300);
     };
 
-    // DataTable Initialization
+    // DataTable Initialization. Server-side: each page, search, sort and
+    // consent-type filter is one request to deeds-applications.data, which
+    // returns only the rows shown.
     if (typeof jQuery !== 'undefined' && jQuery.fn.DataTable) {
       const $table = jQuery('#consent-table');
       if (!jQuery.fn.DataTable.isDataTable('#consent-table')) {
-        // Columns: [checkbox?] S/N, File Number, Consent Type, Party 1-3, Captured By, App. Date, Time, Date, Prints, Actions
-        const consentTypeColIndex = isSupperAdmin ? 3 : 2;
-        const actionsColIndex = isSupperAdmin ? 12 : 11;
+        // Order must match partials/_table_row_cells.blade.php.
+        const columns = [
+          { name: 'sn', orderable: false, className: 'px-6 py-4 text-slate-600 font-bold italic' },
+          { name: 'file_number', className: 'px-6 py-4 text-slate-900 font-bold whitespace-nowrap' },
+          { name: 'workflow', orderable: false, className: 'px-6 py-4 whitespace-nowrap' },
+          { name: 'consent_type', className: 'px-6 py-4' },
+          { name: 'party1', className: 'px-6 py-4 text-slate-900 font-semibold uppercase' },
+          { name: 'party2', className: 'px-6 py-4 text-slate-900 font-semibold uppercase' },
+          { name: 'party3', orderable: false, className: 'px-6 py-4 text-slate-900 font-semibold uppercase' },
+          { name: 'created_by', className: 'px-6 py-4' },
+          { name: 'app_date', className: 'px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs' },
+          { name: 'time', className: 'px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs' },
+          { name: 'date', className: 'px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs' },
+          { name: 'prints', className: 'px-6 py-4' },
+          { name: 'actions', orderable: false, className: 'px-6 py-4' }
+        ];
+        if (isSupperAdmin) {
+          columns.unshift({ name: 'select', orderable: false, className: 'checkbox-col hidden px-4 py-4 text-center' });
+        }
+
+        let consentTypeFilter = '';
+        let searchTimer = null;
 
         const dt = $table.DataTable({
+          serverSide: true,
+          processing: true,
+          ajax: {
+            url: @json(route('deeds-applications.data')),
+            data: function (d) { d.consent_type = consentTypeFilter; }
+          },
+          columns: columns,
+          // Newest first, as the list has always opened.
+          order: [[columns.findIndex(c => c.name === 'date'), 'desc']],
           pageLength: 10,
           lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
           ordering: true,
           autoWidth: false,
-          columnDefs: [
-            { orderable: false, targets: isSupperAdmin ? [0, actionsColIndex] : [actionsColIndex] }
-          ],
           language: {
             search: "",
             searchPlaceholder: "Search...",
+            processing: "Loading..."
+          },
+          drawCallback: function () {
+            const table = document.getElementById('consent-table');
+            // A page drawn while Master Deletion is on shows its checkboxes too.
+            table.querySelectorAll('td.checkbox-col').forEach(function (td) {
+              td.classList.toggle('hidden', !window.deedsSelectionMode);
+            });
+            const checkAll = document.getElementById('check-all-masters');
+            if (checkAll) checkAll.checked = false;
+            if (window.updateBulkDeleteButtonState) window.updateBulkDeleteButtonState();
+            if (window.lucide) window.lucide.createIcons();
+            if (window.DeedsPipeline) window.DeedsPipeline.refresh(table);
           },
           initComplete: function () {
             const api = this.api();
 
-            // Find or create a wrapper for the custom filter next to the search box
+            // Typing searches after a pause rather than on every key, since each
+            // search is now a server request.
+            jQuery('#consent-table_filter input')
+              .off('keyup.DT input.DT search.DT paste.DT cut.DT')
+              .on('input', function () {
+                const value = this.value;
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () { api.search(value).draw(); }, 350);
+              });
+
             const filterWrapper = jQuery('<div class="inline-flex items-center ml-4"></div>')
               .appendTo(jQuery('#consent-table_filter'));
 
             const select = jQuery('<select class="border border-slate-200 rounded-lg text-sm px-3 py-1.5 outline-none focus:border-blue-500"><option value="">All Consent Types</option></select>')
               .appendTo(filterWrapper)
               .on('change', function () {
-                var val = jQuery.fn.dataTable.util.escapeRegex(jQuery(this).val());
-                api.column(consentTypeColIndex).search(val ? '^' + val + '$' : '', true, false).draw();
+                consentTypeFilter = jQuery(this).val() || '';
+                api.draw();
               });
 
-            // Populate the select from data-filter rather than the cell text, so
-            // anything added to the cell's markup later (a second badge, an icon)
-            // cannot leak into the options or break the ^exact$ column search.
-            const seenTypes = [];
-            api.column(consentTypeColIndex).nodes().each(function (cell) {
-              let value = cell.getAttribute('data-filter');
-
-              if (value === null) {
-                // Fallback for any row without the attribute: take the consent
-                // badge only, never the whole cell.
-                const badge = cell.querySelector('span');
-                value = badge ? (badge.textContent || '') : (cell.textContent || '');
-              }
-
-              value = (value || '').trim();
-              if (value !== '' && seenTypes.indexOf(value) === -1) {
-                seenTypes.push(value);
-              }
-            });
-
-            seenTypes.sort().forEach(function (value) {
-              select.append(
-                jQuery('<option></option>').attr('value', value).text(value)
-              );
+            @json($consentTypes).forEach(function (value) {
+              select.append(jQuery('<option></option>').attr('value', value).text(value));
             });
           }
         });
@@ -887,26 +775,27 @@
       }
     }, true);
 
+    // Kept as state rather than read off the cells: the table redraws its rows
+    // on every page, and a new page must come up in the same mode.
+    window.deedsSelectionMode = false;
+
     window.toggleSelectionMode = function() {
         var cols = document.querySelectorAll('.checkbox-col');
         var btn = document.getElementById('btn-toggle-selection');
-        var isShowing = false;
+        var isShowing = !window.deedsSelectionMode;
+        window.deedsSelectionMode = isShowing;
 
         cols.forEach(function(col) {
-            if (col.classList.contains('hidden')) {
-                col.classList.remove('hidden');
-                isShowing = true;
-            } else {
-                col.classList.add('hidden');
-                // Uncheck checkboxes when disabling selection mode
-                var masterCheckbox = document.getElementById('check-all-masters');
-                if (masterCheckbox) masterCheckbox.checked = false;
-                var rowCheckboxes = document.querySelectorAll('.master-row-checkbox');
-                rowCheckboxes.forEach(function(cb) {
-                    cb.checked = false;
-                });
-            }
+            col.classList.toggle('hidden', !isShowing);
         });
+        if (!isShowing) {
+            // Uncheck checkboxes when disabling selection mode
+            var masterCheckbox = document.getElementById('check-all-masters');
+            if (masterCheckbox) masterCheckbox.checked = false;
+            document.querySelectorAll('.master-row-checkbox').forEach(function(cb) {
+                cb.checked = false;
+            });
+        }
 
         if (btn) {
             if (isShowing) {

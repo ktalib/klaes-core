@@ -7,6 +7,22 @@
         : route('cadastral-module.plan-description.area.store');
     $chartOk = $chart && ($chartArea !== null || $chart->area_sqm !== null);
 
+    // The picked file as CadastralRegistryLookup::resolveFile() describes it
+    // (PlanDescriptionController::area). Its supplied values go on the
+    // in-memory model so the fields and the builder render them before the
+    // picker locks them; nothing saves.
+    $picked = $picked ?? null;
+    $form   = $record ?? new \App\Models\Cadastral\CadastralPlanDescription(['prop_state' => 'Kano']);
+    if ($picked && $picked['status'] === 'ok') {
+        foreach (\App\Services\Cadastral\CadastralRegistryLookup::lockedInput($picked['values'], ['file_title', 'prop_house', 'prop_plot', 'prop_street', 'prop_district', 'prop_lga', 'prop_state']) as $col => $value) {
+            $form->{$col} = $value;
+        }
+    }
+
+    // Land use the file gives is locked; otherwise it is the officer's.
+    $luLocked = ($fileLandUse ?? null) !== null;
+    $luValue  = $luLocked ? $fileLandUse : old('land_use', $record?->land_use);
+
     // The box shows the stored figure in m²; a chart-sourced area keeps its tick.
     // A chart-sourced area whose chart has since lost its ring falls back to
     // the box, so saving without looking does not clear it.
@@ -21,10 +37,9 @@
             array_fill(0, 4, ['ownership' => 'government']),
             array_fill(0, 2, ['ownership' => 'private'])
         );
-    $rows = old('pillars') ? array_values(array_filter(old('pillars'), fn ($r) => is_array($r) && count($r) > 1)) : $rows;
+    $rows = old('pillars_posted') ? array_values(array_filter((array) old('pillars', []), 'is_array')) : $rows;
 @endphp
 
-<div class="unit-tag"><i class="fas fa-ruler-combined"></i> 4.4 · Plan and Description · Area &amp; Pillars</div>
 
 <div class="page-header">
     <div>
@@ -47,172 +62,281 @@
     </div>
 </div>
 
-<div class="caveat">
-    <i class="fas fa-circle-info"></i>
-    <div>
-        <strong>Where the area comes from.</strong>
-        Type it in square metres, hectares or acres, or take it from the file's current chart. A chart
-        area is computed from its beacon ring by the shoelace formula, the arithmetic of a traverse
-        sheet; nothing here reads an area out of a scanned chart or a CAD file. Whichever you use is
-        recorded, so a typed figure is never mistaken for a computed one.
-    </div>
-</div>
+@include('cadastral_module.partials._wizard')
 
-{{-- ===================== The file and its area ===================== --}}
-<form method="POST" action="{{ $action }}" class="form-container" id="pnd-area-form"
-      data-picked="{{ $picked ? json_encode($picked) : '' }}"
+{{-- ===================== The wizard: file, details, area, pillars ===================== --}}
+<form method="POST" action="{{ $action }}" class="form-container" id="pnd-area-form" data-wizard
+      data-wizard-errors="{{ json_encode($errors->keys()) }}" novalidate
       data-factors='@json($factors)'
       data-preview-url="{{ route('cadastral-module.plan-description.area.preview') }}"
+      data-area-url="{{ route('cadastral-module.plan-description.area') }}"
       data-chart-area="{{ $chartArea ?? ($chart?->area_sqm ?? '') }}">
     @csrf
     @if ($isEdit) @method('PUT') @endif
 
-    <div class="card-header">
-        <strong>{{ $isEdit ? 'File and Area' : 'Choose a File' }}</strong>
-        <span class="helper-text" style="margin:0;">
-            @if ($isEdit)
-                File number, owner and location came from the intake record.
-            @else
-                Registered intake files only. Owner and location come from the intake record and cannot be typed here.
-            @endif
-        </span>
-    </div>
+    <div class="form-stepper" data-wizard-header></div>
 
     <div class="form-body">
-        <div class="form-grid">
-            @if ($isEdit)
+
+        {{-- 1. The file. Only the global selector can set it, and only a file
+             registered at intake is taken. --}}
+        <section class="form-step" data-step data-title="Select File" data-icon="folder-search"
+                 data-subtitle="{{ $isEdit ? 'The file is fixed once the record exists. Another file starts its own record.' : 'Pick a file registered at intake with the file-number selector. A file that already has a record opens that record.' }}">
+            <div class="form-grid">
+                @include('cadastral_module.partials._file_picker', [
+                    'scope'   => 'receipt',
+                    'hidden'  => $isEdit ? [] : ['cadastral_file_receipt_id'],
+                    'initial' => $picked,
+                    'fixed'   => $isEdit,
+                    'number'  => $record?->file_number ?? '',
+                    'help'    => $isEdit ? null : 'Only a file received and registered at intake can be given an area.',
+                ])
+
                 <div class="form-group">
-                    <label>File No</label>
-                    <input type="text" value="{{ $record->file_number }}" readonly class="intake-locked" />
+                    <label>Type</label>
+                    <input type="text" data-fp-value="type" class="cad-locked" disabled
+                           value="{{ $picked['file']['type'] ?? '' }}" placeholder="From the file number" />
                 </div>
-            @else
-                <div class="form-group" style="grid-column:1/-1;">
-                    <label>File No <span class="required">*</span></label>
-                    {{-- Only an intake receipt id can be posted: there is no free-text number. --}}
-                    <select name="cadastral_file_receipt_id" id="pnd-file" required
-                            data-url="{{ route('cadastral-module.plan-description.intake-files') }}"
-                            data-placeholder="Type at least 2 characters of the file number or receipt ref…">
-                        <option value=""></option>
-                        @if ($picked)
-                            <option value="{{ $picked['id'] }}" selected>{{ $picked['text'] }}</option>
-                        @endif
+                <div class="form-group">
+                    <label>Chart</label>
+                    <input type="text" id="pnd-chart" class="cad-locked" disabled
+                           value="{{ $chart ? $chart->chart_ref . ' · ' . $chartPoints . ' beacon(s) with coordinates' : ($isEdit || $picked ? 'Not charted' : '') }}"
+                           placeholder="Found from the file" />
+                </div>
+            </div>
+        </section>
+
+        {{-- 2. What the file's records say about it. Supplied values are
+             locked; blanks stay open, and the server re-reads the file on save. --}}
+        <section class="form-step" data-step data-title="File Details" data-icon="file-text"
+                 data-subtitle="Filled from the intake receipt and the file index. Greyed fields come from the file; complete any it leaves blank.">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Name / Owner</label>
+                    <input type="text" name="file_title" maxlength="500"
+                           value="{{ old('file_title', $form->file_title) }}" placeholder="From the intake record" />
+                </div>
+                <div class="form-group {{ $luLocked ? 'cad-fp-filled' : '' }}">
+                    <label>Land Use</label>
+                    <select name="land_use" data-land-use-lock
+                            @if ($luLocked) disabled class="cad-locked" data-from-file="1" @endif>
+                        <option value="">—</option>
+                        @foreach (\App\Models\Cadastral\CadastralPlanDescription::LAND_USES as $u)
+                            <option value="{{ $u }}" @selected($luValue === $u)>{{ $u }}</option>
+                        @endforeach
                     </select>
-                    <div class="helper-text">A file that already has a record opens that record instead.</div>
-                    <div id="pnd-file-notes" style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"></div>
+                    <div class="helper-text">Read from the file when it carries one; otherwise choose it.</div>
                 </div>
-            @endif
-
-            <div class="form-group">
-                <label>Name / Owner</label>
-                <input type="text" id="pnd-owner" readonly class="intake-locked"
-                       value="{{ $record?->file_title }}" placeholder="From the intake record" />
-            </div>
-            <div class="form-group">
-                <label>Location</label>
-                {{-- District, LGA, State. Never the plot. --}}
-                <input type="text" id="pnd-location" readonly class="intake-locked"
-                       value="{{ $record?->property_location }}" placeholder="District, LGA, State" />
-            </div>
-            <div class="form-group">
-                <label>Plot</label>
-                <input type="text" id="pnd-plot" readonly class="intake-locked"
-                       value="{{ $record ? ($record->chart?->plot_no ?: $record->prop_plot) : '' }}" />
-            </div>
-            <div class="form-group">
-                <label>Chart</label>
-                <input type="text" id="pnd-chart" readonly class="intake-locked"
-                       value="{{ $chart ? $chart->chart_ref . ' · ' . $chartPoints . ' beacon(s) with coordinates' : ($isEdit ? 'Not charted' : '') }}" />
-            </div>
-
-            <div class="form-group">
-                <label>Land Use</label>
-                <select name="land_use" id="pnd-land-use">
-                    <option value="">—</option>
-                    @foreach (\App\Models\Cadastral\CadastralPlanDescription::LAND_USES as $u)
-                        <option value="{{ $u }}" @selected(old('land_use', $record?->land_use) === $u)>{{ $u }}</option>
-                    @endforeach
-                </select>
-                <div class="helper-text">Read from the file number when the record starts; change it if it is wrong.</div>
-            </div>
-            <div class="form-group">
-                <label>Location Zone</label>
-                <select name="location_zone">
-                    <option value="">—</option>
-                    @foreach (\App\Models\Cadastral\CadastralPlanDescription::ZONES as $k => $label)
-                        <option value="{{ $k }}" @selected(old('location_zone', $record?->location_zone) === $k)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-        </div>
-
-        <div class="form-grid" style="margin-top:6px;">
-            <div class="form-group">
-                <label>Area</label>
-                <input type="number" step="any" min="0" name="area_value" id="area-value" value="{{ $typed }}"
-                       placeholder="e.g. 4500" @disabled($fromChart) />
-                <div class="helper-text">Leave blank to clear the area.</div>
-            </div>
-            <div class="form-group">
-                <label>Unit</label>
-                <select name="area_unit" id="area-unit">
-                    @foreach ($units as $k => $label)
-                        <option value="{{ $k }}" @selected(old('area_unit', 'sqm') === $k)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Plot Size (m²)</label>
-                <input type="number" step="0.01" min="1" name="plot_size_sqm" id="plot-size"
-                       value="{{ old('plot_size_sqm', $plotSize) }}" />
-                <div class="helper-text">The standard plot from Configurable Entries, kept on the record.</div>
-            </div>
-            <div class="form-group">
-                <label>&nbsp;</label>
-                <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
-                    <input type="checkbox" name="area_from_chart" value="1" id="use-chart"
-                           @checked($fromChart && $chartOk) @disabled(! $chartOk) style="width:auto;" />
-                    Use the chart area
-                </label>
-                <div class="helper-text" id="use-chart-help">
-                    @if ($chartOk)
-                        {{ number_format($chartArea ?? $chart->area_sqm, 2) }} m² from {{ $chart->chart_ref }}.
-                    @elseif ($isEdit)
-                        No current chart with a usable beacon ring.
-                    @else
-                        Offered once the file is picked, when it has a charted beacon ring.
-                    @endif
+                <div class="form-group">
+                    <label>Location Zone</label>
+                    <select name="location_zone">
+                        <option value="">—</option>
+                        @foreach (\App\Models\Cadastral\CadastralPlanDescription::ZONES as $k => $label)
+                            <option value="{{ $k }}" @selected(old('location_zone', $record?->location_zone) === $k)>{{ $label }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
-        </div>
 
-        {{-- Live conversion of whatever is in the box; the server converts again on save. --}}
-        <div class="calc-grid" style="margin-top:6px;" id="area-live">
-            <div class="calc-card"><div class="kpi-label">Square Metres</div><div class="kpi-value" data-out="sqm">—</div></div>
-            <div class="calc-card"><div class="kpi-label">Hectares</div><div class="kpi-value" data-out="ha">—</div></div>
-            <div class="calc-card"><div class="kpi-label">Acres</div><div class="kpi-value" data-out="acres">—</div></div>
-            <div class="calc-card">
-                <div class="kpi-label">Plots</div><div class="kpi-value" data-out="plots">—</div>
-                <div class="helper-text">at <span data-out="plot-size">{{ number_format($plotSize, 0) }}</span> m² per plot</div>
+            {{-- District, LGA and State compose "District, LGA, Kano". The plot
+                 number is its own box and never appears in the location. --}}
+            @include('cadastral_module.partials._address_builder', [
+                'prefix' => 'prop_',
+                'mode'   => 'property',
+                'model'  => $form,
+                'legend' => 'Property Location',
+            ])
+        </section>
+
+        {{-- 3. The area, typed or taken from the chart. --}}
+        <section class="form-step" data-step data-title="Area" data-icon="ruler"
+                 data-subtitle="Type the area in any unit, or take it from the file's current chart.">
+            <div class="caveat">
+                <i class="fas fa-circle-info"></i>
+                <div>
+                    <strong>Where the area comes from.</strong>
+                    A chart area is computed from its beacon ring by the shoelace formula, the arithmetic of a
+                    traverse sheet; nothing here reads an area out of a scanned chart or a CAD file. Whichever
+                    you use is recorded, so a typed figure is never mistaken for a computed one.
+                </div>
             </div>
-        </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Area</label>
+                    <input type="number" step="any" min="0" name="area_value" id="area-value" value="{{ $typed }}"
+                           placeholder="e.g. 4500" @disabled($fromChart) />
+                    <div class="helper-text">Leave blank to clear the area.</div>
+                </div>
+                <div class="form-group">
+                    <label>Unit</label>
+                    <select name="area_unit" id="area-unit">
+                        @foreach ($units as $k => $label)
+                            <option value="{{ $k }}" @selected(old('area_unit', 'sqm') === $k)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Plot Size (m²)</label>
+                    <input type="number" step="0.01" min="1" name="plot_size_sqm" id="plot-size"
+                           value="{{ old('plot_size_sqm', $plotSize) }}" />
+                    <div class="helper-text">The standard plot from Configurable Entries, kept on the record.</div>
+                </div>
+                <div class="form-group">
+                    <label>Chart Area</label>
+                    <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+                        <input type="checkbox" name="area_from_chart" value="1" id="use-chart"
+                               @checked($fromChart && $chartOk) @disabled(! $chartOk) style="width:auto;" />
+                        Use the chart area
+                    </label>
+                    <div class="helper-text" id="use-chart-help">
+                        @if ($chartOk)
+                            {{ number_format($chartArea ?? $chart->area_sqm, 2) }} m² from {{ $chart->chart_ref }}.
+                        @elseif ($isEdit || $picked)
+                            No current chart with a usable beacon ring.
+                        @else
+                            Offered once the file is picked, when it has a charted beacon ring.
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            {{-- Live conversion of whatever is in the box; the server converts again on save. --}}
+            <div class="calc-grid" style="margin-top:6px;" id="area-live">
+                <div class="calc-card"><div class="kpi-label">Square Metres</div><div class="kpi-value" data-out="sqm">—</div></div>
+                <div class="calc-card"><div class="kpi-label">Hectares</div><div class="kpi-value" data-out="ha">—</div></div>
+                <div class="calc-card"><div class="kpi-label">Acres</div><div class="kpi-value" data-out="acres">—</div></div>
+                <div class="calc-card">
+                    <div class="kpi-label">Plots</div><div class="kpi-value" data-out="plots">—</div>
+                    <div class="helper-text">at <span data-out="plot-size">{{ number_format($plotSize, 0) }}</span> m² per plot</div>
+                </div>
+            </div>
+
+            {{-- Not posted: the line the Review step shows for the area. --}}
+            <div class="form-group" style="margin-top:12px;">
+                <label>Area in Every Unit</label>
+                <input type="text" id="area-summary" class="cad-locked" readonly placeholder="No area entered" />
+            </div>
+        </section>
+
+        {{-- 4. The pillar schedule. Saved with the area, in survey order. --}}
+        <section class="form-step" data-step data-title="Pillars" data-icon="map-pin"
+                 data-subtitle="Government and private pillars, keyed in survey order round the boundary so the area they enclose can be checked.">
+            <input type="hidden" name="pillars_posted" value="1" />
+
+            <div class="table-scroll">
+                <table class="coord-table">
+                    <thead>
+                        <tr>
+                            <th style="width:34px;">#</th>
+                            <th>Pillar No.</th>
+                            <th>Ownership</th>
+                            <th>Type</th>
+                            <th>Easting</th>
+                            <th>Northing</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>Condition</th>
+                            <th style="width:34px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="pillar-body">
+                        {{-- The template: disabled, so it neither posts nor validates. --}}
+                        <tr data-row-template style="display:none;">
+                            <td data-row-no></td>
+                            <td><input type="text" name="pillars[__i__][pillar_number]" maxlength="50" disabled /></td>
+                            <td>
+                                <select name="pillars[__i__][ownership]" disabled>
+                                    <option value="government">Government</option>
+                                    <option value="private">Private</option>
+                                </select>
+                            </td>
+                            <td><input type="text" name="pillars[__i__][pillar_type]" maxlength="50" disabled /></td>
+                            <td><input type="number" step="any" name="pillars[__i__][easting]" disabled /></td>
+                            <td><input type="number" step="any" name="pillars[__i__][northing]" disabled /></td>
+                            <td><input type="number" step="any" min="-90" max="90" name="pillars[__i__][latitude]" disabled /></td>
+                            <td><input type="number" step="any" min="-180" max="180" name="pillars[__i__][longitude]" disabled /></td>
+                            <td>
+                                <select name="pillars[__i__][condition]" disabled>
+                                    <option value="">—</option>
+                                    @foreach (\App\Models\Cadastral\CadastralPillar::CONDITIONS as $c)
+                                        <option value="{{ $c }}">{{ $c }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td><button type="button" class="btn btn-outline btn-xs" data-remove-row title="Remove"><i class="fas fa-times"></i></button></td>
+                        </tr>
+
+                        @foreach ($rows as $i => $p)
+                            <tr>
+                                <td data-row-no>{{ $i + 1 }}</td>
+                                <td><input type="text" name="pillars[{{ $i }}][pillar_number]" maxlength="50" value="{{ $p['pillar_number'] ?? '' }}" /></td>
+                                <td>
+                                    <select name="pillars[{{ $i }}][ownership]">
+                                        <option value="government" @selected(($p['ownership'] ?? '') === 'government')>Government</option>
+                                        <option value="private" @selected(($p['ownership'] ?? '') === 'private')>Private</option>
+                                    </select>
+                                </td>
+                                <td><input type="text" name="pillars[{{ $i }}][pillar_type]" maxlength="50" value="{{ $p['pillar_type'] ?? '' }}" /></td>
+                                <td><input type="number" step="any" name="pillars[{{ $i }}][easting]" value="{{ $p['easting'] ?? '' }}" /></td>
+                                <td><input type="number" step="any" name="pillars[{{ $i }}][northing]" value="{{ $p['northing'] ?? '' }}" /></td>
+                                <td><input type="number" step="any" min="-90" max="90" name="pillars[{{ $i }}][latitude]" value="{{ $p['latitude'] ?? '' }}" /></td>
+                                <td><input type="number" step="any" min="-180" max="180" name="pillars[{{ $i }}][longitude]" value="{{ $p['longitude'] ?? '' }}" /></td>
+                                <td>
+                                    <select name="pillars[{{ $i }}][condition]">
+                                        <option value="">—</option>
+                                        @foreach (\App\Models\Cadastral\CadastralPillar::CONDITIONS as $c)
+                                            <option value="{{ $c }}" @selected(($p['condition'] ?? '') === $c)>{{ $c }}</option>
+                                        @endforeach
+                                    </select>
+                                </td>
+                                <td><button type="button" class="btn btn-outline btn-xs" data-remove-row title="Remove"><i class="fas fa-times"></i></button></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-outline btn-sm" data-pillar-add>
+                    <i class="fas fa-plus"></i> Add a Pillar
+                </button>
+                <span class="helper-text" style="margin:0;">
+                    A row with neither a number nor coordinates is ignored. A changed schedule replaces the
+                    old one, which stays on record.
+                </span>
+            </div>
+
+            {{-- Not posted: the line the Review step shows for the schedule. --}}
+            <div class="form-group" style="margin-top:12px;">
+                <label>Pillar Schedule</label>
+                <input type="text" id="pillar-summary" class="cad-locked" readonly />
+            </div>
+        </section>
+
+        <section class="form-step" data-step data-review data-title="Review & Save" data-icon="clipboard-check"
+                 data-subtitle="Check everything below. Saving re-reads the file from its receipt, so the greyed values are the file's, whatever this page shows.">
+            <div data-wizard-summary></div>
+        </section>
     </div>
 
-    <div class="form-actions">
-        @if ($isEdit)
-            @canDo('Cad - Records', 'edit')
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Area</button>
-            @endcanDo
-        @else
-            @canDo('Cad - Records', 'create')
-                <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Start Record</button>
-            @endcanDo
-        @endif
+    <div class="form-actions" data-wizard-nav>
+        <a href="{{ route('cadastral-module.plan-description.index') }}" class="btn btn-secondary">Cancel</a>
+        <button type="button" class="btn btn-outline" data-wizard-back><i data-lucide="arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" data-wizard-next>Next <i data-lucide="arrow-right"></i></button>
+        @canDo('Cad - Records', $isEdit ? 'edit' : 'create')
+            <button type="submit" class="btn btn-primary" data-wizard-submit>
+                <i data-lucide="{{ $isEdit ? 'save' : 'file-plus-2' }}"></i> {{ $isEdit ? 'Save Area & Pillars' : 'Start Record' }}
+            </button>
+        @endcanDo
     </div>
 </form>
 
+@include('cadastral_module.pnd._pick_hooks')
+
 @if ($isEdit)
     {{-- ===================== Results ===================== --}}
-    <div class="form-container" style="margin-top:22px;">
+    <div class="form-container" style="margin-top:22px;" id="pillars">
         <div class="card-header">
             <strong>Results</strong>
             <span class="helper-text" style="margin:0;">
@@ -273,104 +397,6 @@
             @endif
         </div>
     </div>
-
-    {{-- ===================== Pillars ===================== --}}
-    <div class="form-container" style="margin-top:22px;" id="pillars">
-        <div class="card-header">
-            <strong>Government and Private Pillars</strong>
-            <span class="helper-text" style="margin:0;">
-                Key them in survey order round the boundary, so the area they enclose can be checked. Saving
-                replaces the whole list.
-            </span>
-        </div>
-
-        <form method="POST" action="{{ route('cadastral-module.plan-description.pillars.save', $record) }}">
-            @csrf
-            <div class="table-scroll">
-                <table class="coord-table">
-                    <thead>
-                        <tr>
-                            <th style="width:34px;">#</th>
-                            <th>Pillar No.</th>
-                            <th>Ownership</th>
-                            <th>Type</th>
-                            <th>Easting</th>
-                            <th>Northing</th>
-                            <th>Latitude</th>
-                            <th>Longitude</th>
-                            <th>Condition</th>
-                            <th style="width:34px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="pillar-body">
-                        <tr data-row-template style="display:none;">
-                            <td></td>
-                            <td><input type="text" name="pillars[][pillar_number]" maxlength="50" /></td>
-                            <td>
-                                <select name="pillars[][ownership]">
-                                    <option value="government">Government</option>
-                                    <option value="private">Private</option>
-                                </select>
-                            </td>
-                            <td><input type="text" name="pillars[][pillar_type]" maxlength="50" /></td>
-                            <td><input type="number" step="0.001" name="pillars[][easting]" /></td>
-                            <td><input type="number" step="0.001" name="pillars[][northing]" /></td>
-                            <td><input type="number" step="0.0000001" name="pillars[][latitude]" /></td>
-                            <td><input type="number" step="0.0000001" name="pillars[][longitude]" /></td>
-                            <td>
-                                <select name="pillars[][condition]">
-                                    <option value="">—</option>
-                                    @foreach (\App\Models\Cadastral\CadastralPillar::CONDITIONS as $c)
-                                        <option value="{{ $c }}">{{ $c }}</option>
-                                    @endforeach
-                                </select>
-                            </td>
-                            <td><button type="button" class="btn btn-outline btn-xs" data-remove-row title="Remove"><i class="fas fa-times"></i></button></td>
-                        </tr>
-
-                        @foreach ($rows as $i => $p)
-                            <tr>
-                                <td>{{ $i + 1 }}</td>
-                                <td><input type="text" name="pillars[{{ $i }}][pillar_number]" maxlength="50" value="{{ $p['pillar_number'] ?? '' }}" /></td>
-                                <td>
-                                    <select name="pillars[{{ $i }}][ownership]">
-                                        <option value="government" @selected(($p['ownership'] ?? '') === 'government')>Government</option>
-                                        <option value="private" @selected(($p['ownership'] ?? '') === 'private')>Private</option>
-                                    </select>
-                                </td>
-                                <td><input type="text" name="pillars[{{ $i }}][pillar_type]" maxlength="50" value="{{ $p['pillar_type'] ?? '' }}" /></td>
-                                <td><input type="number" step="0.001" name="pillars[{{ $i }}][easting]" value="{{ $p['easting'] ?? '' }}" /></td>
-                                <td><input type="number" step="0.001" name="pillars[{{ $i }}][northing]" value="{{ $p['northing'] ?? '' }}" /></td>
-                                <td><input type="number" step="0.0000001" name="pillars[{{ $i }}][latitude]" value="{{ $p['latitude'] ?? '' }}" /></td>
-                                <td><input type="number" step="0.0000001" name="pillars[{{ $i }}][longitude]" value="{{ $p['longitude'] ?? '' }}" /></td>
-                                <td>
-                                    <select name="pillars[{{ $i }}][condition]">
-                                        <option value="">—</option>
-                                        @foreach (\App\Models\Cadastral\CadastralPillar::CONDITIONS as $c)
-                                            <option value="{{ $c }}" @selected(($p['condition'] ?? '') === $c)>{{ $c }}</option>
-                                        @endforeach
-                                    </select>
-                                </td>
-                                <td><button type="button" class="btn btn-outline btn-xs" data-remove-row title="Remove"><i class="fas fa-times"></i></button></td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="form-actions">
-                <span class="helper-text" style="margin:0 auto 0 0;">
-                    A row with neither a number nor coordinates is ignored.
-                </span>
-                <button type="button" class="btn btn-outline btn-sm" data-add-row="#pillar-body">
-                    <i class="fas fa-plus"></i> Add a Pillar
-                </button>
-                @canDo('Cad - Records', 'edit')
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Pillars</button>
-                @endcanDo
-            </div>
-        </form>
-    </div>
 @else
     {{-- ===================== Recent records ===================== --}}
     <div class="table-wrapper" style="margin-top:22px;">
@@ -402,19 +428,15 @@
     </div>
 @endif
 
-<style>
-    .survey-proto .intake-locked { background: var(--gray-100); color: var(--gray-700); }
-</style>
-
 {{--
-    Picker and live conversion.
+    The picked file's chart, the live conversion and the pillar rows.
 
-    Picking a receipt fills the read-only boxes; a file that already has a
-    record opens it. The conversion reads the same factors the server uses,
-    passed in data-factors, and is a preview: the server converts again.
+    A fresh pick of a file that already has a record opens that record; any
+    other pick looks up the file's chart area. The conversion reads the same
+    factors the server uses, passed in data-factors, and is a preview: the
+    server converts again on save.
 
-    Runs after DOMContentLoaded plus a tick, because Select2 is pushed to the
-    page footer after this partial.
+    Runs after DOMContentLoaded plus a tick, like the picker and the wizard.
 --}}
 <script>
 document.addEventListener('DOMContentLoaded', function () { setTimeout(function () {
@@ -423,14 +445,14 @@ document.addEventListener('DOMContentLoaded', function () { setTimeout(function 
     var form = document.getElementById('pnd-area-form');
     if (!form) return;
 
-    var $       = window.jQuery;
-    var hasS2   = !!($ && $.fn && $.fn.select2);
-    var factors = JSON.parse(form.dataset.factors || '{}');
-    var value   = document.getElementById('area-value');
-    var unit    = document.getElementById('area-unit');
-    var plot    = document.getElementById('plot-size');
-    var useChart = document.getElementById('use-chart');
+    var factors   = JSON.parse(form.dataset.factors || '{}');
+    var value     = document.getElementById('area-value');
+    var unit      = document.getElementById('area-unit');
+    var plot      = document.getElementById('plot-size');
+    var useChart  = document.getElementById('use-chart');
     var chartHelp = document.getElementById('use-chart-help');
+    var chartBox  = document.getElementById('pnd-chart');
+    var summary   = document.getElementById('area-summary');
     var chartArea = form.dataset.chartArea === '' ? null : parseFloat(form.dataset.chartArea);
 
     function out(key, text) {
@@ -453,12 +475,19 @@ document.addEventListener('DOMContentLoaded', function () { setTimeout(function 
         var size = parseFloat(plot.value) || 0;
         out('plot-size', size ? fmt(size, 0) : '—');
 
-        if (sqm === null) { ['sqm', 'ha', 'acres', 'plots'].forEach(function (k) { out(k, '—'); }); return; }
+        if (sqm === null) {
+            ['sqm', 'ha', 'acres', 'plots'].forEach(function (k) { out(k, '—'); });
+            summary.value = '';
+            return;
+        }
 
         out('sqm', fmt(sqm, 2));
         out('ha', fmt(sqm / factors.ha, 4));
         out('acres', fmt(sqm / factors.acres, 2));
         out('plots', size > 0 ? fmt(sqm / size, 2) : '—');
+        summary.value = fmt(sqm, 2) + ' m² · ' + fmt(sqm / factors.ha, 4) + ' ha · ' + fmt(sqm / factors.acres, 2) + ' acres'
+            + (size > 0 ? ' · ' + fmt(sqm / size, 2) + ' plots' : '')
+            + (useChart && useChart.checked ? ' (from the chart)' : '');
     }
 
     [value, unit, plot].forEach(function (el) { if (el) el.addEventListener('input', recalc); });
@@ -468,26 +497,20 @@ document.addEventListener('DOMContentLoaded', function () { setTimeout(function 
         recalc();
     });
 
-    function set(id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; }
-
-    function esc(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-        });
-    }
-
-    // A picked file's chart area, from the same endpoint the old screen used.
-    function loadChart(chart) {
+    // A picked file's chart area, from the area preview endpoint.
+    function loadChart(chart, picked) {
         chartArea = null;
         if (useChart) { useChart.checked = false; useChart.disabled = true; value.disabled = false; }
         if (!chart) {
-            set('pnd-chart', 'Not charted');
-            if (chartHelp) chartHelp.textContent = 'This file has no current chart. Type the area.';
+            chartBox.value = picked ? 'Not charted' : '';
+            if (chartHelp) chartHelp.textContent = picked
+                ? 'This file has no current chart. Type the area.'
+                : 'Offered once the file is picked, when it has a charted beacon ring.';
             recalc();
             return;
         }
-        set('pnd-chart', chart.ref + ' · ' + chart.coordinates + ' beacon(s)');
-        fetch(form.dataset.previewUrl + '?chart=' + encodeURIComponent(chart.id), { headers: { 'Accept': 'application/json' } })
+        chartBox.value = chart.ref + (chart.status ? ' (' + chart.status + ')' : '');
+        fetch(form.dataset.previewUrl + '?chart=' + encodeURIComponent(chart.id), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.ok && data.areas && data.areas.sqm !== null) {
@@ -502,59 +525,77 @@ document.addEventListener('DOMContentLoaded', function () { setTimeout(function 
             .catch(function () { if (chartHelp) chartHelp.textContent = 'The chart area could not be read. Type the area.'; });
     }
 
-    function apply(item) {
-        item = item || {};
-        set('pnd-owner', item.owner);
-        set('pnd-location', item.location);
-        set('pnd-plot', item.plot);
+    form.addEventListener('cadastral:file-picked', function (e) {
+        var p = e.detail;
+        if (p && p.initial) return;
 
-        var landUse = document.getElementById('pnd-land-use');
-        if (landUse && item.land_use && !landUse.value) landUse.value = item.land_use;
-
-        var notes = document.getElementById('pnd-file-notes');
-        if (notes) {
-            var bits = [];
-            if (item.type) bits.push('<span style="color:var(--gray-600)">' + esc(item.type) + '</span>');
-            if (item.record) bits.push('<span class="status-badge review"><span class="dot"></span>Already on ' + esc(item.record.ref) + ' — opening it</span>');
-            notes.innerHTML = bits.join(' ');
+        var ok = !!(p && p.status === 'ok');
+        var existing = ok && p.records ? p.records.plan_description : null;
+        if (existing) {
+            // One working record per file (areaStore refuses a second too).
+            chartBox.value = 'Already on ' + existing.ref + ' — opening it…';
+            window.location.href = form.dataset.areaUrl + '?record=' + encodeURIComponent(existing.id);
+            return;
         }
+        loadChart(ok && p.records ? p.records.chart : null, ok);
+    });
 
-        if (item.record && item.record.url) { window.location.href = item.record.url; return; }
-        if (item.id) loadChart(item.chart); else recalc();
+    /* ---- Pillar rows: add, remove, renumber, summarise ---- */
+    var body     = document.getElementById('pillar-body');
+    var template = body.querySelector('tr[data-row-template]');
+    var schedule = document.getElementById('pillar-summary');
+    // Indices only ever grow, so an added row never reuses a removed row's name.
+    var next = body.querySelectorAll('tr:not([data-row-template])').length;
+
+    function rows() { return Array.prototype.slice.call(body.querySelectorAll('tr:not([data-row-template])')); }
+
+    function field(tr, key) {
+        var el = tr.querySelector('[name$="[' + key + ']"]');
+        return el ? String(el.value || '').trim() : '';
     }
 
-    var file = document.getElementById('pnd-file');
-    if (file && hasS2) {
-        var $file = $(file);
-        $file.select2({
-            width: '100%',
-            placeholder: file.dataset.placeholder,
-            allowClear: true,
-            minimumInputLength: 2,
-            ajax: {
-                url: file.dataset.url,
-                dataType: 'json',
-                delay: 300,
-                data: function (params) { return { q: params.term || '' }; },
-                processResults: function (data) { return data; }
-            },
-            templateResult: function (item) {
-                if (item.loading || !item.file_number) return item.text;
-                return $('<div>').append(
-                    $('<div>').text(item.text),
-                    $('<div style="font-size:11px;opacity:.7">').text([item.type, item.plot ? 'Plot ' + item.plot : '', item.location, item.chart ? 'Chart ' + item.chart.ref : ''].filter(Boolean).join(' · '))
-                );
-            }
+    function summarise() {
+        var govt = 0, priv = 0, coords = 0, numbers = [];
+        rows().forEach(function (tr, i) {
+            var cell = tr.querySelector('[data-row-no]');
+            if (cell) cell.textContent = i + 1;
+            var number = field(tr, 'pillar_number');
+            var hasXY  = field(tr, 'easting') !== '' && field(tr, 'northing') !== '';
+            if (number === '' && !hasXY && field(tr, 'latitude') === '' && field(tr, 'longitude') === '') return;
+            if (field(tr, 'ownership') === 'private') priv++; else govt++;
+            if (hasXY) coords++;
+            if (number) numbers.push(number);
         });
-        $file.on('select2:select', function (e) { apply(e.params.data); });
-        $file.on('select2:clear', function () { apply(null); });
+        var total = govt + priv;
+        schedule.value = total
+            ? total + ' pillar(s): ' + govt + ' government, ' + priv + ' private; ' + coords + ' with eastings and northings'
+                + (numbers.length ? ' — ' + numbers.join(', ') : '')
+            : 'No pillars entered';
     }
 
-    // Re-rendered after a failed start: refill the preview.
-    if (form.dataset.picked) {
-        try { apply(JSON.parse(form.dataset.picked)); } catch (e) { /* leave it blank */ }
-    }
+    form.querySelector('[data-pillar-add]').addEventListener('click', function () {
+        var clone = template.cloneNode(true);
+        clone.removeAttribute('data-row-template');
+        clone.style.display = '';
+        clone.querySelectorAll('input, select').forEach(function (el) {
+            el.name = el.name.replace('__i__', String(next));
+            el.disabled = false;
+        });
+        next++;
+        body.appendChild(clone);
+        summarise();
+        var first = clone.querySelector('input');
+        if (first) first.focus();
+    });
 
+    // The module's shared handler removes the row; summarise once it has.
+    body.addEventListener('click', function (e) {
+        if (e.target.closest('[data-remove-row]')) setTimeout(summarise, 0);
+    });
+    body.addEventListener('input', summarise);
+    body.addEventListener('change', summarise);
+
+    summarise();
     recalc();
 }, 0); });
 </script>

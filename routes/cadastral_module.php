@@ -183,22 +183,22 @@ Route::middleware(['auth'])->prefix('cadastral-module')->name('cadastral-module.
         // GET so the permission layer infers view rather than create.
         Route::get('/area/preview', [PlanDescriptionController::class, 'previewArea'])->name('area.preview');
 
-        // Phase 6: Area & Pillars and Descriptions are their own pages. The pages
-        // and their Select2 sources are GET with verb-free names (view); starting
-        // a record is "store" (create), re-recording its area "update" (edit).
+        // Phase 6: Area & Pillars and Descriptions are their own pages, GET with
+        // verb-free names (view); starting a record is "store" (create),
+        // re-recording its area "update" (edit). Their files are picked with the
+        // shared picker (cadastral-module.lookup.file); the Select2 sources
+        // intake-files and description-files are gone.
         // Declared before the /{planDescription} routes.
         Route::get('/area', [PlanDescriptionController::class, 'area'])->name('area');
         Route::post('/area', [PlanDescriptionController::class, 'areaStore'])->name('area.store');
-        Route::get('/intake-files', [PlanDescriptionController::class, 'intakeFiles'])->name('intake-files');
         Route::get('/descriptions', [PlanDescriptionController::class, 'descriptionsPage'])->name('descriptions');
-        Route::get('/description-files', [PlanDescriptionController::class, 'descriptionFiles'])->name('description-files');
 
-        // Phase 7: the Fee Calculator page, its Select2 source and its live
-        // preview are GET with verb-free names (view). Saving the bill stays
-        // "bill.generate" (create); cancelling a draft is "mark-cancelled" (edit).
+        // Phase 7: the Fee Calculator page and its live preview are GET with
+        // verb-free names (view); the fee-files Select2 source is gone. Saving
+        // the bill stays "bill.generate" (create); cancelling a draft is
+        // "mark-cancelled" (edit).
         Route::get('/fees', [PlanDescriptionController::class, 'fees'])->name('fees');
         Route::get('/fees/preview', [PlanDescriptionController::class, 'previewFees'])->name('fees.preview');
-        Route::get('/fee-files', [PlanDescriptionController::class, 'feeFiles'])->name('fee-files');
 
         Route::get('/create', [PlanDescriptionController::class, 'create'])->name('create');
         Route::post('/', [PlanDescriptionController::class, 'store'])->name('store');
@@ -230,5 +230,10 @@ Route::middleware(['auth'])->prefix('cadastral-module')->name('cadastral-module.
         Route::get('/streets', [LookupController::class, 'streets'])->name('streets');
         Route::get('/lgas', [LookupController::class, 'lgas'])->name('lgas');
         Route::get('/states', [LookupController::class, 'states'])->name('states');
+
+        // The shared file picker's resolver (partials/_file_picker): one picked
+        // file number in, the file, its module records and the scope verdict out.
+        // GET and verb-free, so it infers `view`. Reads only.
+        Route::get('/file', [\App\Http\Controllers\Cadastral\FileLookupController::class, 'file'])->name('file');
     });
 });

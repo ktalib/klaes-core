@@ -55,9 +55,17 @@ class RegrantController extends Controller
             $this->attachRelatedFileNo($records);
         }
 
+        // Who captured each Re-grant, for the "Captured By" column. captured_by is the
+        // user id TitleStatusService writes; the name opens the shared profile card.
+        $capturers = $tab === 'register'
+            ? \App\Models\User::whereIn('id', collect($records->items())->pluck('captured_by')->filter()->unique())
+                ->get(['id', 'first_name', 'last_name'])->keyBy('id')
+            : collect();
+
         return view('regrant.index', [
             'tab'           => $tab,
             'records'       => $records,
+            'capturers'     => $capturers,
             'limit'         => $limit,
             'search'        => $search,
             'filters'       => $filters,

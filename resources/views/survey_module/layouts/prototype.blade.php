@@ -75,7 +75,7 @@
         <i class="fas fa-calculator"></i> Compensation Calculator
       </a>
       <a class="nav-item sub-item {{ request()->routeIs('survey-module.compensation.land') ? 'active' : '' }}" data-page="compensation-land" href="{{ route('survey-module.compensation.land') }}">
-        <i class="fas fa-map"></i> Land Allocation
+        <i class="fas fa-map"></i> OP Allocation
       </a>
       <a class="nav-item sub-item {{ request()->routeIs('survey-module.compensation.op') ? 'active' : '' }}" data-page="compensation-op" href="{{ route('survey-module.compensation.op') }}">
         <i class="fas fa-file-signature"></i> OP Generation

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Cadastral;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Cadastral\Concerns\LocksFileValues;
 use App\Models\Cadastral\CadastralFileReceipt;
 use App\Services\Cadastral\CadastralAddress;
 use App\Services\Cadastral\CadastralRegistryLookup;
@@ -19,11 +20,12 @@ use Illuminate\Validation\ValidationException;
 /**
  * The Cadastral registry's intake queue (concept note 4.1; rebuild Phase 2).
  *
- * A file is logged in by picking it from its source department's index — the
- * clerk chooses the source, then the file from file_indexings over AJAX. The
- * number, owner and location are re-read from that row on the server; nothing
- * the browser posts for them is used, and a free-typed file number cannot be
- * submitted at all.
+ * A file is logged in by picking it with the global file-number selector
+ * (partials/_file_picker): the number is resolved to its file_indexings row
+ * and the source department is read from that row's registry. Only the row's
+ * id and source are posted; the number, owner and location are re-read from
+ * the row on the server, nothing the browser posts for them is used, and a
+ * free-typed file number cannot be submitted at all.
  *
  * A cadastral copy keeps the SAME file number as the source file, so the same
  * file legitimately appears on several receipts — one per time it comes in —
@@ -38,6 +40,8 @@ use Illuminate\Validation\ValidationException;
  */
 class FileReceiptController extends Controller
 {
+    use LocksFileValues;
+
     /**
      * Intake-queue status, as the brief names it, from the two columns that
      * already exist. No column stores it.
@@ -158,7 +162,9 @@ class FileReceiptController extends Controller
         ]);
 
         // After a failed submit, put the picked file back in the picker.
-        $picked  = $this->lookup->sourceFile(old('source_registry') ?: null, (int) old('file_indexing_id')) ?: null;
+        $picked  = old('file_indexing_id')
+            ? $this->lookup->resolveFile(['file_indexing_id' => (int) old('file_indexing_id'), 'scope' => 'intake'])
+            : null;
         $sources = $this->intakeSources();
 
         return view('cadastral_module.registry.receipt_register', compact('receipt', 'picked', 'sources'));
@@ -264,9 +270,11 @@ class FileReceiptController extends Controller
     public function edit(CadastralFileReceipt $receipt)
     {
         $summary = $this->lookup->summarise($receipt->file_number);
-        // No source filter: the receipt's file is shown even if it has since
-        // moved registry. It cannot be changed here.
-        $picked  = $this->lookup->sourceFile(null, $receipt->file_indexing_id);
+        // The receipt's file, shown fixed and locked as the source supplies it
+        // (update() re-reads the same row). Intake scope, so the values are the
+        // source's own, not this receipt's; the receipt's open receipt is
+        // itself, which is why the picker shows it fixed rather than refused.
+        $picked  = $this->lookup->resolveFile(['receipt' => $receipt->id, 'scope' => 'intake']);
         $sources = $this->intakeSources();
 
         return view('cadastral_module.registry.receipt_register', compact('receipt', 'summary', 'picked', 'sources'));
@@ -671,7 +679,7 @@ class FileReceiptController extends Controller
         ]
         // Not required: a source row with no district or LGA is still a real
         // file, and its receipt must be loggable.
-        + CadastralAddress::rules('prop_', false);
+        + $this->addressRules($r, 'prop_', false);
 
         if ($existing) {
             $rules['status'] = ['required', Rule::in(CadastralFileReceipt::STATUSES)];
@@ -680,7 +688,7 @@ class FileReceiptController extends Controller
             $rules['file_indexing_id'] = 'required|integer|min:1';
         }
 
-        $messages = CadastralAddress::messages('prop_') + [
+        $messages = $this->addressMessages('prop_') + [
             'source_registry.required'  => 'Choose the source department first.',
             'source_registry.in'        => 'Files cannot be logged in from that source.',
             'file_indexing_id.required' => 'Pick the file from the source department\'s list.',

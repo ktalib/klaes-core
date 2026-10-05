@@ -1562,6 +1562,7 @@ document.getElementById('rec-form').addEventListener('submit', async function(e)
             method,
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             },
             body: JSON.stringify(body)
@@ -1572,9 +1573,12 @@ document.getElementById('rec-form').addEventListener('submit', async function(e)
             const firstError = Object.values(data.errors)[0];
             Swal.fire({
                 icon: 'error',
-                title: 'Check the form',
+                title: data.errors.sltr_number ? 'Duplicate File Number' : 'Check the form',
                 text: Array.isArray(firstError) ? firstError[0] : String(firstError)
             });
+            if (data.errors.sltr_number) {
+                document.getElementById('f-sltr_number-display').focus();
+            }
             return;
         }
         if (data.success) {

@@ -69,7 +69,14 @@ class FileStatusController extends Controller
             ->limit(10)
             ->get();
 
+        // The status-change form picks its card with the shared file picker
+        // (scope: index card). A row's Change button, or a failed save, preloads it.
+        $cardId = (int) (old('cadastral_index_card_id') ?: $r->query('card'));
+        $picked = $cardId ? app(\App\Services\Cadastral\CadastralRegistryLookup::class)
+            ->resolveFile(['card' => $cardId, 'scope' => 'card']) : null;
+
         return view('cadastral_module.information.file_status', [
+            'picked'      => $picked,
             'cards'       => $cards,
             'counts'      => $counts,
             'recent'      => $recent,

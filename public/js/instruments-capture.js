@@ -2499,8 +2499,28 @@ document.addEventListener('DOMContentLoaded', function () {
         // Regular, SLTR and ST paginate from separate vaults, so each has its
         // own set of missing numbers.
         syncBackfillPanel();
+
+        updateSltrCofoWorkflowCard(variant);
     }
     window.updateCofoSummary = updateCofoSummary;
+
+    // The CofO capture form is shared by regular and SLTR registrations. Only an
+    // SLTR certificate moves on to the RofO → front page → TDP workflow, so keep
+    // that guidance on the SLTR summary card and out of the regular CofO path.
+    function updateSltrCofoWorkflowCard(variant) {
+        const card = document.getElementById('sltr-cofo-workflow-card');
+        if (!card) return;
+
+        const isSltr = variant === 'sltr';
+        card.classList.toggle('hidden', !isSltr);
+        card.setAttribute('aria-hidden', isSltr ? 'false' : 'true');
+
+        card.querySelectorAll('[data-sltr-cofo-stage]').forEach((stage) => {
+            const isCurrent = stage.dataset.sltrCofoStage === 'CofO Registration';
+            stage.setAttribute('aria-current', isCurrent && isSltr ? 'step' : 'false');
+            stage.classList.toggle('is-current', isCurrent && isSltr);
+        });
+    }
 
     // Apply a {variant, type} answer to the (hidden) controls the form posts from.
     function applyCofoSelection(variant, type) {
@@ -2521,8 +2541,10 @@ document.addEventListener('DOMContentLoaded', function () {
     function promptForCofoSelection(currentVariant, currentType) {
         if (typeof Swal === 'undefined') return Promise.resolve(null);
 
-        let variant = cofoVariants[currentVariant] ? currentVariant : 'regular';
-        const cards = Object.keys(COFO_VARIANT_META).map(key => (
+        let variant = ['regular', 'sltr'].includes(currentVariant) ? currentVariant : 'regular';
+        // ST has its own workflow entry point; it is not an instrument-capture
+        // variant here. Keep the prompt aligned to the cards officers can capture.
+        const cards = ['regular', 'sltr'].map(key => (
             '<button type="button" class="type-prompt__card" data-variant="' + key + '"'
             + ' style="--accent:' + COFO_VARIANT_META[key].accent
             + ';--accent-soft:' + COFO_VARIANT_META[key].accentSoft + '">'

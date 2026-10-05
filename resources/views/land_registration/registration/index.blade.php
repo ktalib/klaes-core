@@ -45,6 +45,11 @@
                             </button>
                         </div>
                     @endif
+                    <button type="button" onclick="openLandExportModal()"
+                        class="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                        <i class="fas fa-file-export"></i>
+                        <span>Export Register</span>
+                    </button>
                                         @canDo('Land Registration', 'create')
 <a href="{{ route('land-registration.capture.create') }}"
                         class="inline-flex items-center gap-2 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
@@ -302,6 +307,60 @@
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    {{-- Export. The rows are the register exactly as listed above, in the
+         same registry order, so the export never disagrees with the screen. --}}
+    @include('land_registration.modals.export_preview')
+    @php
+        $exportRows = collect($instruments)->map(function ($row) {
+            $parse = function ($value) {
+                try {
+                    return $value ? \Carbon\Carbon::parse($value) : null;
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            };
+            $regDate = $parse($row->deeds_date);
+            $transactionDate = $parse($row->transaction_date);
+
+            return [
+                'status' => $row->status,
+                'fileno' => $row->fileno,
+                'reg_particulars' => $row->registration_number ?: 'Pending',
+                'volume_no' => $row->volume_no,
+                'vendor' => $row->vendor,
+                'purchaser' => $row->purchaser,
+                'amount' => is_numeric($row->amount) ? number_format((float) $row->amount, 2) : ($row->amount ?: ''),
+                'receipt_no' => $row->receipt_no ?: '',
+                'transaction_date' => $transactionDate ? $transactionDate->format('d M Y') : '',
+                'reg_date' => $regDate ? $regDate->toDateString() : '',
+                'reg_date_display' => $regDate ? $regDate->format('d M Y') : '',
+                'plot_number' => $row->plot_number ?: '',
+                'size' => $row->size ?: '',
+                'district' => $row->district ?: '',
+                'lga' => $row->lga ?: '',
+                'registered_by' => trim($row->reg_creator_name ?? ''),
+            ];
+        })->values();
+
+        $exportConfig = [
+            'title' => config('land_registration.instrument_type') . ' Register',
+            'department' => config('land_registration.authority.department'),
+            'firstParty' => config('land_registration.parties.first'),
+            'secondParty' => config('land_registration.parties.second'),
+            'filePrefix' => str_replace(' ', '_', config('land_registration.instrument_type')) . '_Register',
+            'leftLogo' => asset('assets/logo/ministry1.jpg'),
+            'rightLogo' => asset('assets/logo/ministry2.jpeg'),
+            'watermark' => asset('assets/logo/Nigerian-Coat-of-Arms.png'),
+        ];
+    @endphp
+    <script>
+        window.landRegisterExportRows = @json($exportRows);
+        window.landRegisterExportConfig = @json($exportConfig);
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="{{ asset('js/land_register_export.js') }}?v={{ filemtime(public_path('js/land_register_export.js')) }}"></script>
+
     {{-- openPropertyTimeline(). The modal shell it renders into
          (tailwind-modal.js) is already global in layouts.app. --}}
     <script src="{{ asset('js/property-timeline-modal.js') }}"></script>

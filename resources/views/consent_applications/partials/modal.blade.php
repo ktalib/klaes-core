@@ -264,11 +264,9 @@
                         <div class=" hidden">
                             <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Location of Right of Occupancy</label>
                             <select name="location_of_right_of_occupancy" id="location_rofo_district"
-                                class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition focus:bg-white text-sm font-medium">
+                                class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition focus:bg-white text-sm font-medium" data-fill-options="districts">
                                 <option value="">Select District</option>
-                                @foreach($districts as $district)
-                                    <option value="{{ $district->name }}">{{ $district->name }}</option>
-                                @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                                 <option value="Other">Other</option>
                             </select>
                             <input type="text" id="location_rofo_district_other"
@@ -299,11 +297,9 @@
                                     <div>
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Street</label>
                                         <select id="applicant_street" data-address-type="applicant" data-manual-input="#applicant_street_other"
-                                            class="address-component-applicant street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                            class="address-component-applicant street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                                             <option value="">Select Street</option>
-                                            @foreach($streetOptions as $street)
-                                                <option value="{{ $street->name }}">{{ $street->name }}</option>
-                                            @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                                         </select>
                                         <input type="text" id="applicant_street_other" data-address-type="applicant"
                                             class="manual-street-input hidden address-component-applicant w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -314,11 +310,9 @@
                                     <div>
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
                                         <select id="applicant_district"
-                                            class="address-component-applicant w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                            class="address-component-applicant w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                                             <option value="">Select District</option>
-                                            @foreach($districts as $district)
-                                                <option value="{{ $district->name }}">{{ $district->name }}</option>
-                                            @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                                             <option value="Other">Other</option>
                                         </select>
                                         <input type="text" id="applicant_district_other"
@@ -375,11 +369,9 @@
                                     <div>
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Street</label>
                                         <select id="correspondence_street" data-address-type="correspondence" data-manual-input="#correspondence_street_other"
-                                            class="address-component-correspondence street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                            class="address-component-correspondence street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                                             <option value="">Select Street</option>
-                                            @foreach($streetOptions as $street)
-                                                <option value="{{ $street->name }}">{{ $street->name }}</option>
-                                            @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                                         </select>
                                         <input type="text" id="correspondence_street_other" data-address-type="correspondence"
                                             class="manual-street-input hidden address-component-correspondence w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -390,11 +382,9 @@
                                     <div>
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
                                         <select id="correspondence_district"
-                                            class="address-component-correspondence w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                            class="address-component-correspondence w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                                             <option value="">Select District</option>
-                                            @foreach($districts as $district)
-                                                <option value="{{ $district->name }}">{{ $district->name }}</option>
-                                            @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                                             <option value="Other">Other</option>
                                         </select>
                                         <input type="text" id="correspondence_district_other"
@@ -472,11 +462,9 @@
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Street</label>
                                     <select id="property_street" data-address-type="property" data-manual-input="#property_street_other"
-                                        class="address-component-property street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                        class="address-component-property street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                                         <option value="">Select Street</option>
-                                        @foreach($streetOptions as $street)
-                                            <option value="{{ $street->name }}">{{ $street->name }}</option>
-                                        @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                                     </select>
                                     <input type="text" id="property_street_other" data-address-type="property"
                                         class="manual-street-input hidden address-component-property w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -486,11 +474,9 @@
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
-                                    <select id="property_district" class="address-component-property w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                    <select id="property_district" class="address-component-property w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                                         <option value="">Select District</option>
-                                        @foreach($districts as $district)
-                                            <option value="{{ $district->name }}">{{ $district->name }}</option>
-                                        @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                                         <option value="Other">Other</option>
                                     </select>
                                     <input type="text" id="property_district_other" class="hidden address-component-property w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" placeholder="Specify district...">
@@ -624,11 +610,9 @@
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase
                                             tracking-wider mb-1">Street</label>
                                         <select id="party_street" data-address-type="party" data-manual-input="#party_street_other"
-                                            class="address-component-party street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                            class="address-component-party street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                                             <option value="">Select Street</option>
-                                            @foreach($streetOptions as $street)
-                                                <option value="{{ $street->name }}">{{ $street->name }}</option>
-                                            @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                                         </select>
                                         <input type="text" id="party_street_other" data-address-type="party"
                                             class="manual-street-input hidden address-component-party w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -640,11 +624,9 @@
                                         <label class="block text-[10px] font-bold text-slate-500 uppercase
                                             tracking-wider mb-1">District</label>
                                         <select id="party_district"
-                                            class="address-component-party w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                                            class="address-component-party w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                                             <option value="">Select District</option>
-                                            @foreach($districts as $district)
-                                                <option value="{{ $district->name }}">{{ $district->name }}</option>
-                                            @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                                             <option value="Other">Other</option>
                                         </select>
                                         <input type="text" id="party_district_other"
@@ -1032,11 +1014,9 @@
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Street</label>
                         <select name="additional_property_street[]" data-manual-input="next"
-                            class="address-component-additional-property street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                            class="address-component-additional-property street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                             <option value="">Select Street</option>
-                            @foreach($streetOptions as $street)
-                                <option value="{{ $street->name }}">{{ $street->name }}</option>
-                            @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                         </select>
                         <input type="text" name="additional_property_street_manual[]"
                             class="manual-street-input hidden address-component-additional-property w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -1047,11 +1027,9 @@
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
                         <select name="additional_property_district[]"
-                            class="address-component-additional-property dist-select w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                            class="address-component-additional-property dist-select w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                             <option value="">Select District</option>
-                            @foreach($districts as $district)
-                                <option value="{{ $district->name }}">{{ $district->name }}</option>
-                            @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                             <option value="Other">Other</option>
                         </select>
                         <input type="text" name="additional_property_district_other[]"
@@ -1128,11 +1106,9 @@
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Street</label>
                         <select name="additional_party_street[]" data-manual-input="next"
-                            class="address-component-additional street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                            class="address-component-additional street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                             <option value="">Select Street</option>
-                            @foreach($streetOptions as $street)
-                                <option value="{{ $street->name }}">{{ $street->name }}</option>
-                            @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                         </select>
                         <input type="text" name="additional_party_street_manual[]"
                             class="manual-street-input hidden address-component-additional w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -1143,11 +1119,9 @@
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
                         <select name="additional_party_district[]"
-                            class="address-component-additional dist-select w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                            class="address-component-additional dist-select w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                             <option value="">Select District</option>
-                            @foreach($districts as $district)
-                                <option value="{{ $district->name }}">{{ $district->name }}</option>
-                            @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                             <option value="Other">Other</option>
                         </select>
                         <input type="text" name="additional_party_district_other[]"
@@ -1220,11 +1194,9 @@
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Street</label>
                         <select name="additional_applicant_street[]" data-manual-input="next"
-                            class="address-component-additional-applicant street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                            class="address-component-additional-applicant street-dropdown w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="streets">
                             <option value="">Select Street</option>
-                            @foreach($streetOptions as $street)
-                                <option value="{{ $street->name }}">{{ $street->name }}</option>
-                            @endforeach
+{{-- options: street list, filled once by the script at the end of this partial --}}
                         </select>
                         <input type="text" name="additional_applicant_street_manual[]"
                             class="manual-street-input hidden address-component-additional-applicant w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
@@ -1235,11 +1207,9 @@
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
                         <select name="additional_applicant_district[]"
-                            class="address-component-additional-applicant dist-select w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition">
+                            class="address-component-additional-applicant dist-select w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition" data-fill-options="districts">
                             <option value="">Select District</option>
-                            @foreach($districts as $district)
-                                <option value="{{ $district->name }}">{{ $district->name }}</option>
-                            @endforeach
+{{-- options: district list, filled once by the script at the end of this partial --}}
                             <option value="Other">Other</option>
                         </select>
                         <input type="text" name="additional_applicant_district_other[]"
@@ -1271,3 +1241,35 @@
         </div>
     </div>
 </template>
+
+{{-- The district (1,800+) and street (800+) lists used to be printed out in full
+     in every one of the fifteen selects above, templates included, which made up
+     2.6 MB of the page. They are sent once here and copied in before
+     consent_applications.js runs. A district select keeps its trailing "Other";
+     the street list carries "Other" as its last entry, as $streetOptions did. --}}
+<script>
+  (function () {
+    var lists = {
+      districts: @json(collect($districts)->pluck('name')->values()),
+      streets: @json($streetOptions->pluck('name')->values())
+    };
+    var fragments = {};
+    Object.keys(lists).forEach(function (key) {
+      var frag = document.createDocumentFragment();
+      lists[key].forEach(function (name) { frag.appendChild(new Option(name, name)); });
+      fragments[key] = frag;
+    });
+
+    function fill(root) {
+      root.querySelectorAll('select[data-fill-options]').forEach(function (select) {
+        var frag = fragments[select.getAttribute('data-fill-options')];
+        if (!frag) return;
+        var other = select.querySelector('option[value="Other"]');
+        select.insertBefore(frag.cloneNode(true), other);
+      });
+    }
+
+    fill(document);
+    document.querySelectorAll('template').forEach(function (tpl) { fill(tpl.content); });
+  })();
+</script>

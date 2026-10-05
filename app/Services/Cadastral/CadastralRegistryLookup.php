@@ -540,6 +540,625 @@ class CadastralRegistryLookup
         return strtolower(preg_replace('/\s+/', ' ', trim($s)));
     }
 
+    /* ------------------------ the global file picker ------------------------ */
+
+    /**
+     * The global file-number selector's tabs, mapped to intake sources.
+     *
+     * A hint only. Which source a file belongs to is read from its own
+     * file_indexings.registry (sourceOfRegistry): the tab says where the clerk
+     * looked, the row says where the file is indexed. The tab orders an
+     * ambiguous list, it never picks from it. 'gkn' is the Survey registry,
+     * which is not an intake source; Deeds has no tab and no mapping (Q4).
+     */
+    public const TAB_SOURCES = [
+        'mls'       => 'Land',
+        'old_mls'   => 'Land',
+        'kangis'    => 'KANGIS',
+        'newkangis' => 'KANGIS',
+        'st'        => 'ST',
+        'sit'       => 'ST',
+        'sltr'      => 'SLTR',
+        'dciv'      => 'DCIV',
+        'gkn'       => null,
+    ];
+
+    /**
+     * How far along the module a file must be before a form will take it.
+     *
+     *   intake   indexed, in an intake source, not decommissioned, no open receipt
+     *   indexed  any live indexed file
+     *   receipt  a registered intake receipt that is not returned or rejected
+     *   plan     a plan-description record
+     *   card     a live index card
+     */
+    public const RESOLVE_SCOPES = ['intake', 'indexed', 'receipt', 'plan', 'card'];
+
+    /**
+     * Extra refusals a form adds on top of its scope (the server repeats them).
+     *
+     *   chart       a conversion file is not charted; a charted file gets a new version, not a second chart
+     *   commission  a file has one live index card
+     */
+    public const RESOLVE_PURPOSES = ['chart', 'commission'];
+
+    /** Every column a file number can sit in. Matched across all of them, never positionally. */
+    private const RESOLVE_NUMBER_COLUMNS = ['file_number', 'st_fillno', 'kangis_file_no', 'mls_file_no', 'new_kangis_file_no'];
+
+    /** A receipt in one of these states cannot be built on (IndexCardController::DEAD_RECEIPTS). */
+    private const DEAD_RECEIPTS = ['Rejected', 'Returned'];
+
+    /** Survey jobs in these states are not offered. */
+    private const DEAD_JOBS = ['Cancelled', 'Rejected'];
+
+    /** Form fields a file's records can supply, in fill order: a select before its "specify" box. */
+    public const VALUE_FIELDS = [
+        'file_title', 'plot_no',
+        'prop_district', 'prop_district_other', 'prop_street', 'prop_street_other',
+        'prop_lga', 'prop_state', 'prop_house', 'prop_plot',
+    ];
+
+    /**
+     * Live indexed files carrying this number in any number column.
+     *
+     * One equality test per column over both spellings. Only file_number is
+     * indexed, so this is a single scan of file_indexings (~150 ms) — fine for
+     * a click, which is the only thing that calls it; it is never wired to a
+     * keystroke.
+     *
+     * @return Collection<int, object>  rows with ->matched_on (column names)
+     */
+    public function matchIndexedFiles(?string $fileNumber, int $limit = 15): Collection
+    {
+        $spellings = $this->spellings($fileNumber);
+
+        if ($spellings === []) {
+            return collect();
+        }
+
+        $columns = array_merge(self::SOURCE_FILE_COLUMNS, ['mls_file_no', 'new_kangis_file_no']);
+
+        $rows = collect($this->conn()->table('file_indexings')
+            ->select(array_values(array_unique($columns)))
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->where(function ($w) use ($spellings) {
+                foreach (self::RESOLVE_NUMBER_COLUMNS as $col) {
+                    $w->orWhereIn($col, $spellings);
+                }
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->get());
+
+        $upper = array_map('strtoupper', $spellings);
+
+        return $rows->each(function ($row) use ($upper) {
+            $row->matched_on = array_values(array_filter(
+                self::RESOLVE_NUMBER_COLUMNS,
+                fn ($c) => in_array(strtoupper(trim((string) ($row->{$c} ?? ''))), $upper, true)
+            ));
+        });
+    }
+
+    /**
+     * What the shared Cadastral file picker needs about one file.
+     *
+     * $q takes the picked number (file_number + the selector's tab), or an id
+     * when the file is already known: file_indexing_id (the clerk chose from an
+     * ambiguous list), receipt, or card. scope and purpose say which forms
+     * will take the file; see RESOLVE_SCOPES / RESOLVE_PURPOSES.
+     *
+     * Returns status ok | ambiguous | refused | not_found. A refused file still
+     * carries its details and flags so the picker can show why. 'values' are
+     * the form fields the file's records supply (blank ones stay with the
+     * clerk); 'hidden' are the ids the form posts. READ ONLY.
+     */
+    public function resolveFile(array $q): array
+    {
+        $scope   = in_array($q['scope'] ?? null, self::RESOLVE_SCOPES, true) ? $q['scope'] : 'indexed';
+        $purpose = in_array($q['purpose'] ?? null, self::RESOLVE_PURPOSES, true) ? $q['purpose'] : null;
+        $tab     = strtolower(trim((string) ($q['tab'] ?? ''))) ?: null;
+        $number  = trim((string) ($q['file_number'] ?? ''));
+
+        $out = [
+            'status'  => 'not_found',
+            'message' => null,
+            'scope'   => $scope,
+            'purpose' => $purpose,
+            'query'   => [
+                'file_number' => $number !== '' ? $number : null,
+                'tab'         => $tab,
+                'tab_label'   => $tab ? strtoupper($tab === 'mls' ? 'MLPP' : $tab) : null,
+                'tab_source'  => $tab !== null ? (self::TAB_SOURCES[$tab] ?? null) : null,
+            ],
+            'candidates' => [],
+            'file'       => null,
+            'records'    => null,
+            'flags'      => [],
+            'values'     => [],
+            'hidden'     => [],
+        ];
+
+        $row = $receipt = $card = null;
+
+        if ($id = (int) ($q['card'] ?? 0)) {
+            $card = \App\Models\Cadastral\CadastralIndexCard::find($id);
+            if (! $card) return ['message' => 'That index card no longer exists.'] + $out;
+            $receipt = $card->sourceReceipt();
+            $row = $this->indexedRow(($card->getAttributes()['file_indexing_id'] ?? null) ?: $receipt?->file_indexing_id);
+        } elseif ($id = (int) ($q['receipt'] ?? 0)) {
+            $receipt = \App\Models\Cadastral\CadastralFileReceipt::find($id);
+            if (! $receipt) return ['message' => 'That intake receipt no longer exists.'] + $out;
+            $row = $this->indexedRow($receipt->file_indexing_id);
+        } elseif ($id = (int) ($q['file_indexing_id'] ?? 0)) {
+            $row = $this->indexedRow($id);
+            if (! $row) return ['message' => 'That file is no longer in the file index. Select it again.'] + $out;
+        } else {
+            if ($number === '') {
+                return ['message' => 'Select a file number first.'] + $out;
+            }
+
+            $matches = $this->matchIndexedFiles($number);
+            $live    = $matches->reject(fn ($m) => (bool) $m->is_decommissioned)->values();
+
+            if ($live->count() > 1) {
+                // Several rows carry this number. Which one is meant is the
+                // clerk's call, so the list goes back rather than a guess.
+                $tabSource = $out['query']['tab_source'];
+                $out['status']     = 'ambiguous';
+                $out['message']    = "{$number} is on {$live->count()} indexed files. Choose the one you mean.";
+                $out['candidates'] = $live
+                    ->map(fn ($m) => $this->candidate($m, $tabSource))
+                    ->sortByDesc('tab_match')->values()->all();
+
+                return $out;
+            }
+
+            if ($live->isEmpty() && $matches->isNotEmpty()) {
+                $dead = $matches->first();
+                $file = $this->formatSourceFile($dead, (string) $this->sourceOfRegistry($dead->registry));
+                $out['status']  = 'refused';
+                $out['file']    = $file + ['registry_label' => self::registryLabel($dead->registry)];
+                $out['message'] = "{$file['file_number']} has been decommissioned"
+                    . ($file['successor'] ? " and replaced by {$file['successor']}" : '')
+                    . '. Select the current file instead.';
+                $out['flags'][] = ['danger', 'Decommissioned' . ($file['successor'] ? ': now ' . $file['successor'] : '')];
+
+                return $out;
+            }
+
+            $row = $live->first();
+
+            // Not indexed at all: a receipt or card may still carry the number
+            // (the row was indexed when the file came in), and the later stages
+            // work from those.
+            if (! $row && in_array($scope, ['receipt', 'plan', 'card'], true)) {
+                $spellings = $this->spellings($number);
+                $receipt = \App\Models\Cadastral\CadastralFileReceipt::query()
+                    ->whereIn('file_number', $spellings)->orderByDesc('id')->first();
+                $card = \App\Models\Cadastral\CadastralIndexCard::query()
+                    ->whereIn('file_number', $spellings)->orderByDesc('id')->first();
+            }
+
+            if (! $row && ! $receipt && ! $card) {
+                $out['message'] = "{$number} is not in the file index (file_indexings), so the Cadastral module cannot take it. "
+                    . 'Index the file first, or check the number.';
+
+                return $out;
+            }
+        }
+
+        $source = $row
+            ? $this->formatSourceFile($row, (string) $this->sourceOfRegistry($row->registry))
+            : null;
+
+        $fileNumber = $source['file_number'] ?? $receipt?->file_number ?? $card?->file_number;
+        $records    = $this->moduleRecords($row ? (int) $row->id : null, $fileNumber, $receipt, $card);
+
+        // The receipt the later stages build on: the one asked for if it
+        // qualifies, else the file's latest registered live receipt.
+        $registered = $records['registered_model'];
+        $cardModel  = $records['card_model'];
+        unset($records['registered_model'], $records['card_model']);
+
+        $file = $this->filePayload($source, $registered ?? $receipt, $cardModel, $row);
+
+        $out['file']    = $file;
+        $out['records'] = $records;
+        $out['flags']   = $this->flags($file, $records, $scope);
+        $out['values']  = $this->fileValues(
+            $source,
+            $scope === 'intake' ? null : ($registered ?? $receipt),
+            $scope === 'card' ? $cardModel : null
+        );
+        $out['hidden'] = array_filter([
+            'file_indexing_id'              => $file['file_indexing_id'],
+            'source_registry'               => $scope === 'intake' ? $file['source'] : null,
+            'cadastral_file_receipt_id'     => $registered?->id,
+            'cadastral_index_card_id'       => $records['card']['id'] ?? null,
+            'cadastral_plan_description_id' => $records['plan_description']['id'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        $refusal = $this->scopeRefusal($scope, $purpose, $file, $records);
+
+        $out['status']  = $refusal === null ? 'ok' : 'refused';
+        $out['message'] = $refusal;
+
+        if ($refusal !== null) {
+            // A refused file posts nothing.
+            $out['hidden'] = [];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The form values a file's records supply, best record first: the index
+     * card (card-scoped forms), then the intake receipt — which holds the
+     * source's values plus whatever the clerk filled in at intake — then the
+     * file_indexings row. A blank in all of them stays blank, and the form
+     * leaves that field to the clerk.
+     *
+     * The address travels as a group per kind: district with its "Other"
+     * text, street with its. Location is "District, LGA, State", never the plot.
+     *
+     * @param  array|null  $source  formatSourceFile shape
+     */
+    public function fileValues(?array $source, $receipt = null, $card = null): array
+    {
+        $layers = [];
+
+        if ($card) {
+            $layers[] = ['file_title' => $card->file_title, 'plot' => $card->plot_no ?: $card->prop_plot] + $this->prefixed($card);
+        }
+        if ($receipt) {
+            $layers[] = ['file_title' => $receipt->file_title, 'plot' => $receipt->prop_plot] + $this->prefixed($receipt);
+        }
+        if ($source) {
+            $layers[] = ['file_title' => $source['owner'], 'plot' => $source['plot']] + $source['address'];
+        }
+
+        $first = function (string $key) use ($layers) {
+            foreach ($layers as $layer) {
+                $v = $layer[$key] ?? null;
+                if ($v !== null && trim((string) $v) !== '') return trim((string) $v);
+            }
+            return null;
+        };
+
+        $values = [
+            'file_title' => $first('file_title'),
+            'plot_no'    => $first('plot'),
+            'prop_plot'  => $first('plot'),
+            'prop_house' => $first('prop_house'),
+            'prop_lga'   => $first('prop_lga'),
+            'prop_state' => $first('prop_state') ?? 'Kano',
+        ];
+
+        foreach (['district', 'street'] as $kind) {
+            $values['prop_' . $kind] = null;
+            $values['prop_' . $kind . '_other'] = null;
+
+            foreach ($layers as $layer) {
+                if (trim((string) ($layer['prop_' . $kind] ?? '')) !== '') {
+                    $values['prop_' . $kind]            = $layer['prop_' . $kind];
+                    $values['prop_' . $kind . '_other'] = $layer['prop_' . $kind . '_other'] ?? null;
+                    break;
+                }
+            }
+        }
+
+        $values['location'] = CadastralAddress::propertyLocation($values) ?: null;
+
+        return $values;
+    }
+
+    /**
+     * The subset of $values a form must take as given, keyed by form field.
+     *
+     * Controllers merge this over the request BEFORE validating, so a value
+     * the file supplies wins over anything posted (a disabled input posts
+     * nothing anyway) and still satisfies a required rule. A blank stays out,
+     * and the clerk's input for it is used. Mirrors what the picker locks.
+     *
+     * @param  string[]  $fields  the fields this form has
+     */
+    public static function lockedInput(array $values, array $fields): array
+    {
+        $out = [];
+
+        foreach ($fields as $field) {
+            if (str_ends_with($field, '_other')) {
+                continue;   // travels with its select, below
+            }
+
+            $v = $values[$field] ?? null;
+            if ($v === null || trim((string) $v) === '') {
+                continue;
+            }
+
+            $out[$field] = $v;
+
+            if (in_array($field, ['prop_district', 'prop_street'], true)) {
+                $out[$field . '_other'] = $values[$field . '_other'] ?? null;
+            }
+        }
+
+        return $out;
+    }
+
+    /* ------------------------------ picker helpers ------------------------------ */
+
+    /** The number as typed and in its normalised spelling. */
+    private function spellings(?string $fileNumber): array
+    {
+        return array_values(array_unique(array_filter([
+            trim((string) $fileNumber), FileNumberFormat::normalise($fileNumber),
+        ])));
+    }
+
+    /** One live file_indexings row by id, or null. */
+    private function indexedRow($id): ?object
+    {
+        if (! $id) {
+            return null;
+        }
+
+        return $this->conn()->table('file_indexings')
+            ->select(array_values(array_unique(array_merge(self::SOURCE_FILE_COLUMNS, ['mls_file_no', 'new_kangis_file_no']))))
+            ->where('id', (int) $id)
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->first();
+    }
+
+    /** "1" reads as "Lands Registry 1"; the rest are already names. */
+    public static function registryLabel(?string $registry): string
+    {
+        $registry = trim((string) $registry);
+
+        return match (true) {
+            $registry === ''                            => 'No registry',
+            in_array($registry, ['1', '2', '3'], true)  => "Lands Registry {$registry}",
+            default                                     => $registry,
+        };
+    }
+
+    /** A row of an ambiguous match, as the picker lists it. */
+    private function candidate(object $row, ?string $tabSource): array
+    {
+        $source = $this->sourceOfRegistry($row->registry);
+        $file   = $this->formatSourceFile($row, (string) $source);
+
+        $labels = [
+            'file_number' => 'file number', 'st_fillno' => 'ST number', 'kangis_file_no' => 'KANGIS number',
+            'mls_file_no' => 'MLS number', 'new_kangis_file_no' => 'New KANGIS number',
+        ];
+
+        return [
+            'id'          => $file['id'],
+            'file_number' => $file['file_number'],
+            'owner'       => $file['owner'],
+            'plot'        => $file['plot'],
+            'location'    => $file['location'],
+            'registry'    => self::registryLabel($row->registry),
+            'source'      => $source,
+            'matched_on'  => array_map(fn ($c) => $labels[$c] ?? $c, $row->matched_on ?? []),
+            'tab_match'   => $tabSource !== null && $source === $tabSource,
+        ];
+    }
+
+    /** prop_* columns of a module record. */
+    private function prefixed($model): array
+    {
+        $out = [];
+        foreach (['house', 'plot', 'street', 'street_other', 'district', 'district_other', 'lga', 'state'] as $s) {
+            $out['prop_' . $s] = $model->{'prop_' . $s} ?? null;
+        }
+        return $out;
+    }
+
+    /**
+     * The module's own records for a file: receipts, card, plan description,
+     * current chart, reports and live survey jobs. By file_indexing_id where
+     * the record keeps one, and by the file number either way.
+     */
+    private function moduleRecords(?int $indexingId, ?string $fileNumber, $askedReceipt = null, $askedCard = null): array
+    {
+        $numbers = $this->spellings($fileNumber);
+
+        $receipts = \App\Models\Cadastral\CadastralFileReceipt::query()
+            ->where(function ($w) use ($indexingId, $numbers) {
+                $w->whereIn('file_number', $numbers ?: ['']);
+                if ($indexingId) $w->orWhere('file_indexing_id', $indexingId);
+            })
+            ->orderByDesc('id')->limit(25)->get();
+
+        $open = $receipts->first(fn ($r) => ! in_array($r->status, self::CLOSED_RECEIPT_STATUSES, true));
+
+        $qualifies = fn ($r) => $r && $r->registered_at && ! in_array($r->status, self::DEAD_RECEIPTS, true);
+        $registered = $qualifies($askedReceipt) ? $askedReceipt : $receipts->first($qualifies);
+
+        $card = $askedCard ?: \App\Models\Cadastral\CadastralIndexCard::query()
+            ->where(function ($w) use ($indexingId, $numbers) {
+                $w->whereIn('file_number', $numbers ?: ['']);
+                if ($indexingId && \App\Models\Cadastral\CadastralIndexCard::linkInstalled()) {
+                    $w->orWhere('file_indexing_id', $indexingId);
+                }
+            })
+            ->orderByDesc('id')->first();
+
+        $plan = \App\Models\Cadastral\CadastralPlanDescription::query()
+            ->whereIn('file_number', $numbers ?: [''])->orderByDesc('id')->first();
+
+        $chart = \App\Models\Cadastral\CadastralChart::query()->current()
+            ->whereIn('file_number', $numbers ?: [''])->orderByDesc('id')->first();
+
+        $reports = \App\Models\Cadastral\CadastralReport::query()
+            ->where(function ($w) use ($numbers, $receipts) {
+                $w->whereIn('file_number', $numbers ?: ['']);
+                if ($receipts->isNotEmpty()) $w->orWhereIn('cadastral_file_receipt_id', $receipts->pluck('id')->all());
+            })
+            ->orderByDesc('id')->limit(10)
+            ->get(['id', 'report_ref', 'report_type', 'status']);
+
+        $jobs = \App\Models\Cadastral\CadastralSurveyJob::query()
+            ->whereIn('file_number', $numbers ?: [''])
+            ->whereNotIn('status', self::DEAD_JOBS)
+            ->orderByDesc('id')->limit(10)
+            ->get(['id', 'job_number', 'status']);
+
+        $receiptRow = fn ($r) => $r ? [
+            'id'         => $r->id,
+            'ref'        => $r->receipt_ref,
+            'status'     => $r->status,
+            'registered' => (bool) $r->registered_at,
+            'on_hold'    => $r->isOnHold(),
+            'hold_reason'=> $r->isOnHold() ? $r->hold_reason : null,
+            'source'     => $r->source_registry,
+        ] : null;
+
+        return [
+            'open_receipt'       => $receiptRow($open),
+            'registered_receipt' => $receiptRow($registered),
+            'card'               => $card ? [
+                'id'          => $card->id,
+                'ref'         => $card->card_ref,
+                'file_status' => $card->file_status,
+                'status_label'=> $card->file_status_label,
+                'survey_job'  => $card->survey_job_number,
+            ] : null,
+            'plan_description'   => $plan ? ['id' => $plan->id, 'ref' => $plan->pd_ref] : null,
+            'chart'              => $chart ? [
+                'id' => $chart->id, 'ref' => $chart->chart_ref, 'status' => $chart->status,
+                'charting_required' => (bool) $chart->charting_required,
+            ] : null,
+            'reports'            => $reports->map(fn ($r) => [
+                'id' => $r->id, 'ref' => $r->report_ref, 'type' => $r->report_type, 'status' => $r->status,
+            ])->all(),
+            'survey_jobs'        => $jobs->map(fn ($j) => [
+                'id' => $j->id, 'text' => "{$j->job_number} ({$j->status})",
+            ])->all(),
+            'registered_model'   => $registered,
+            'card_model'         => $card,
+        ];
+    }
+
+    /** The file as the picker's summary card shows it, from whichever records exist. */
+    private function filePayload(?array $source, $receipt, $card, ?object $row): array
+    {
+        $number = $source['file_number'] ?? $receipt?->file_number ?? $card?->file_number;
+        $sourceName = $source['source'] ?? null;
+        $sourceName = $sourceName !== '' ? $sourceName : null;
+        $class  = FileNumberFormat::classify($number);
+
+        return [
+            'file_indexing_id' => $source['id'] ?? $receipt?->file_indexing_id,
+            'file_number'      => $number,
+            'other_numbers'    => array_values(array_unique(array_filter(array_merge(
+                $source['other_numbers'] ?? [],
+                $row ? array_map(fn ($c) => trim((string) ($row->{$c} ?? '')), ['mls_file_no', 'new_kangis_file_no']) : []
+            ), fn ($v) => $v !== '' && $v !== $number))),
+            'registry'         => $row?->registry,
+            'registry_label'   => $row ? self::registryLabel($row->registry) : null,
+            'source'           => $sourceName ?? $receipt?->source_registry,
+            'owner'            => ($source['owner'] ?? '') ?: ($receipt?->file_title ?: $card?->file_title),
+            'land_use'         => $source['land_use'] ?? FileNumberFormat::landUseLabel($number),
+            'file_class'       => $class,
+            'type'             => self::typeLabel($number, $sourceName ?? $receipt?->source_registry, $class, $row?->land_use_type),
+            'decommissioned'   => (bool) ($source['decommissioned'] ?? false),
+            'successor'        => $source['successor'] ?? null,
+            'indexed'          => $row !== null,
+        ];
+    }
+
+    /** @return array<int, array{0: string, 1: string}>  [level, text]; level ok|info|warn|danger */
+    private function flags(array $file, array $records, string $scope): array
+    {
+        $flags = [];
+
+        if (! $file['indexed'])                 $flags[] = ['warn', 'Not in the file index'];
+        if ($file['decommissioned'])            $flags[] = ['danger', 'Decommissioned' . ($file['successor'] ? ': now ' . $file['successor'] : '')];
+        if ($file['file_class'] === 'conversion') $flags[] = ['info', 'Conversion file: charting not required'];
+
+        if ($r = $records['open_receipt']) {
+            $flags[] = $r['on_hold']
+                ? ['danger', "On Hold ({$r['ref']})" . ($r['hold_reason'] ? ': ' . $r['hold_reason'] : '')]
+                : [$scope === 'intake' ? 'danger' : 'info', "Open receipt {$r['ref']} ({$r['status']})"];
+        } elseif ($records['registered_receipt']) {
+            $flags[] = ['ok', "Receipt {$records['registered_receipt']['ref']}"];
+        } else {
+            $flags[] = ['warn', 'No intake receipt'];
+        }
+
+        $flags[] = $records['card']
+            ? ['ok', "Index card {$records['card']['ref']} ({$records['card']['status_label']})"]
+            : ['warn', 'No index card'];
+
+        if ($records['chart'])            $flags[] = ['ok', "Chart {$records['chart']['ref']} ({$records['chart']['status']})"];
+        if ($records['plan_description']) $flags[] = ['ok', "Plan description {$records['plan_description']['ref']}"];
+        if ($records['reports'])          $flags[] = ['info', count($records['reports']) . ' report(s)'];
+
+        return $flags;
+    }
+
+    /** Why a form at this scope cannot take the file, or null when it can. */
+    private function scopeRefusal(string $scope, ?string $purpose, array $file, array $records): ?string
+    {
+        $n = $file['file_number'];
+
+        if ($scope === 'intake') {
+            if (! $file['indexed']) {
+                return "{$n} is not in the file index, so it cannot be logged in.";
+            }
+            if ($file['source'] === null || ! isset(self::INTAKE_SOURCES[$file['source']])) {
+                return "{$n} is indexed under " . ($file['registry_label'] ?? 'no registry') . ', which is not an intake source. '
+                    . 'Files can be logged in from ' . implode(', ', array_keys(self::INTAKE_SOURCES)) . ' (Deeds is not supported yet).';
+            }
+            if ($file['decommissioned']) {
+                return "{$n} has been decommissioned" . ($file['successor'] ? " and replaced by {$file['successor']}" : '') . '. Log the current file instead.';
+            }
+            if ($r = $records['open_receipt']) {
+                return "{$n} is already in the queue as {$r['ref']}. Archive, return or reject that receipt before logging the file again.";
+            }
+        }
+
+        if ($scope === 'indexed' && ! $file['indexed']) {
+            return "{$n} is not in the file index. Only an indexed file can be used here.";
+        }
+
+        if (in_array($scope, ['receipt', 'plan'], true) && ! $records['registered_receipt']) {
+            $open = $records['open_receipt'];
+
+            return $open
+                ? "{$n} is in the intake queue as {$open['ref']} but is not registered yet"
+                    . ($open['on_hold'] ? ' — it is On Hold for investigation' : '') . '. Register it on the Intake Queue first.'
+                : "{$n} has not been received by Cadastral. Log it on Intake (Log Incoming File) and register it first.";
+        }
+
+        if ($scope === 'plan' && ! $records['plan_description']) {
+            return "{$n} has no plan-description record yet. Start one on Plans & Descriptions (Area & Pillars) first.";
+        }
+
+        if ($scope === 'card' && ! $records['card']) {
+            return "{$n} has no index card. Commission one on Index Cards first.";
+        }
+
+        if ($purpose === 'chart') {
+            if ($file['file_class'] === 'conversion') {
+                return "{$n} is a conversion file: charting is not required. Commission its index card instead.";
+            }
+            if ($c = $records['chart']) {
+                return "{$n} is already charted as {$c['ref']}. Open that chart and create a new version instead of a second chart.";
+            }
+        }
+
+        if ($purpose === 'commission' && ($c = $records['card'])) {
+            return "{$n} already has index card {$c['ref']}. Update that card instead of commissioning a second.";
+        }
+
+        return null;
+    }
+
     /**
      * Everything the reception screen wants about one file number, in one call.
      */

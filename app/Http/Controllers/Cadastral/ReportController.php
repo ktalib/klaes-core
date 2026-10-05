@@ -10,7 +10,9 @@ use App\Models\Cadastral\CadastralReportStep;
 use App\Models\Cadastral\CadastralSiteInspection;
 use App\Models\CadastralOfficer;
 use App\Models\User;
+use App\Http\Controllers\Cadastral\Concerns\LocksFileValues;
 use App\Services\Cadastral\CadastralAddress;
+use App\Services\Cadastral\CadastralRegistryLookup;
 use App\Services\Cadastral\CadastralDocuments;
 use App\Services\Cadastral\DashboardMetrics;
 use App\Services\Cadastral\ReportWorkflow;
@@ -35,7 +37,16 @@ use Illuminate\Validation\Rule;
  */
 class ReportController extends Controller
 {
-    public function __construct(private ReportWorkflow $workflow) {}
+    use LocksFileValues;
+
+    /**
+     * The form fields a report takes from its intake receipt (and the file
+     * index behind it). Supplied ones are locked on the form and overwritten
+     * on the server; blank ones are the officer's.
+     */
+    private const FILE_FIELDS = ['file_title', 'plot_no', 'prop_house', 'prop_street', 'prop_district', 'prop_lga', 'prop_state'];
+
+    public function __construct(private ReportWorkflow $workflow, private CadastralRegistryLookup $lookup) {}
 
     /**
      * 4.2 — the desk officer's view across all three streams.
@@ -105,7 +116,25 @@ class ReportController extends Controller
         if ($s = $r->query('status'))        $q->where('status', $s);
         if ($p = $r->query('assigned_post')) $q->where('assigned_post', $p);
 
+        // Stage filter: open reports sitting at one stage of this type's chain.
+        $stage = $type ? (string) $r->query('stage', '') : '';
+        if ($stage !== '') {
+            $q->where('current_step_key', $stage)->whereNotIn('status', ['Dispatched', 'Rejected']);
+        }
+
         $reports = $q->orderByDesc('id')->paginate(15)->withQueryString();
+
+        // Open reports at each stage, for the stage tracker on a type page.
+        $stageCounts = $type
+            ? CadastralReport::query()
+                ->where('report_type', $type)
+                ->whereNotIn('status', ['Dispatched', 'Rejected'])
+                ->selectRaw('current_step_key, count(*) as n')
+                ->groupBy('current_step_key')
+                ->pluck('n', 'current_step_key')
+                ->map(fn ($n) => (int) $n)
+                ->all()
+            : [];
 
         $stats = [
             'total'        => CadastralReport::count(),
@@ -119,6 +148,8 @@ class ReportController extends Controller
             'stats'     => $stats,
             'scopeType' => $r->route()?->getName() === 'cadastral-module.reports.index' ? null : $type,
             'typeFilter'=> $type,
+            'stageFilter' => $stage,
+            'stageCounts' => $stageCounts,
             'userNames' => $this->userNames($reports->pluck('assigned_user_id')->all()),
             'workflow'  => $this->workflow,
         ]);
@@ -167,15 +198,27 @@ class ReportController extends Controller
             ->all();
     }
 
+    /**
+     * Start Report. The file is picked with the shared file picker and must
+     * be registered at intake; ?receipt= (the intake queue's link) or
+     * ?file_number= preloads it.
+     */
     public function create(Request $r)
     {
-        $receipt = $r->query('receipt')
-            ? CadastralFileReceipt::find($r->query('receipt'))
+        $receiptId = (int) (old('cadastral_file_receipt_id') ?: $r->query('receipt'));
+        $picked = match (true) {
+            $receiptId > 0                  => $this->lookup->resolveFile(['receipt' => $receiptId, 'scope' => 'receipt']),
+            (bool) $r->query('file_number') => $this->lookup->resolveFile(['file_number' => (string) $r->query('file_number'), 'scope' => 'receipt']),
+            default                         => null,
+        };
+
+        $receipt = ($picked['status'] ?? null) === 'ok'
+            ? CadastralFileReceipt::find($picked['hidden']['cadastral_file_receipt_id'] ?? 0)
             : null;
 
         $report = new CadastralReport([
             'report_type' => $r->query('type', CadastralReport::TYPE_VERIFICATION),
-            'file_number' => $receipt?->file_number ?? $r->query('file_number'),
+            'file_number' => $receipt?->file_number,
             'file_title'  => $receipt?->file_title,
             'cadastral_file_receipt_id' => $receipt?->id,
             // A receipt keeps its plot in the builder's prop_plot; here it is plot_no.
@@ -183,11 +226,23 @@ class ReportController extends Controller
             'status'        => 'Draft',
         ] + CadastralAddress::inherit($receipt, 'prop_'));
 
-        return view('cadastral_module.reports.register', compact('report'));
+        return view('cadastral_module.reports.register', compact('report', 'picked'));
     }
 
+    /**
+     * Open a report on a registered intake file. The file number, owner, plot
+     * and location come from the receipt (and the index behind it), whatever
+     * was posted; only what they leave blank is taken from the form.
+     */
     public function store(Request $r)
     {
+        $receipt = $this->requireRegisteredReceipt($r->input('cadastral_file_receipt_id'), 'have a report opened on it');
+
+        $this->lockFromFile($r, self::FILE_FIELDS, $receipt, null, [
+            'file_number'               => $receipt->file_number,
+            'cadastral_file_receipt_id' => $receipt->id,
+        ]);
+
         $data = $this->validated($r);
 
         $report = DB::connection('sqlsrv')->transaction(function () use ($data) {
@@ -211,13 +266,35 @@ class ReportController extends Controller
 
     public function edit(CadastralReport $report)
     {
-        return view('cadastral_module.reports.register', compact('report'));
+        // The file is fixed; the picker shows it locked, as update() re-reads it.
+        $picked = $report->cadastral_file_receipt_id
+            ? $this->lookup->resolveFile(['receipt' => $report->cadastral_file_receipt_id, 'scope' => 'receipt'])
+            : null;
+
+        return view('cadastral_module.reports.register', compact('report', 'picked'));
     }
 
     public function update(Request $r, CadastralReport $report)
     {
         if ($report->isFinished()) {
             return back()->with('error', "{$report->report_ref} is {$report->status} and can no longer be edited.");
+        }
+
+        // The file is fixed at opening: the number and receipt are the
+        // report's own, and what the receipt supplies is re-read from it.
+        $receipt = $report->cadastral_file_receipt_id ? CadastralFileReceipt::find($report->cadastral_file_receipt_id) : null;
+        // report_type too: the edit form shows it disabled (so it never posts),
+        // and the rules still require it.
+        $fixed   = [
+            'file_number'               => $report->file_number,
+            'cadastral_file_receipt_id' => $report->cadastral_file_receipt_id,
+            'report_type'               => $report->report_type,
+        ];
+
+        if ($receipt) {
+            $this->lockFromFile($r, self::FILE_FIELDS, $receipt, null, $fixed);
+        } else {
+            $r->merge($fixed);
         }
 
         $data = $this->validated($r, $report);
@@ -639,13 +716,28 @@ class ReportController extends Controller
             'plot_description' => 'nullable|string|max:8000',
             'due_date'         => 'nullable|date',
             'dispatched_to'    => 'nullable|string|max:255',
-        ] + CadastralAddress::rules('prop_');
+        ] + $this->addressRules($r, 'prop_');
 
         // plot_no is the report's plot field; prop_plot follows it.
-        return CadastralAddress::normalise(
-            $r->validate($rules, CadastralAddress::messages('prop_')),
+        $data = CadastralAddress::normalise(
+            $r->validate($rules, $this->addressMessages('prop_')),
             'prop_',
             'plot_no'
         );
+
+        // A chart named by id must be a chart of this file.
+        if (! empty($data['cadastral_chart_id'])) {
+            $chart = CadastralChart::find($data['cadastral_chart_id']);
+
+            if (! $chart || $chart->file_number !== $data['file_number']) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'cadastral_chart_id' => $chart
+                        ? "Chart {$chart->chart_ref} is for {$chart->file_number}, not {$data['file_number']}."
+                        : 'That chart does not exist.',
+                ]);
+            }
+        }
+
+        return $data;
     }
 }

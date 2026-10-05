@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-id-card"></i> 4.3 · Cadastral Information</div>
 
 <div class="kpi-grid">
     <div class="kpi-card">
@@ -23,89 +22,119 @@
 
 {{-- Commission: one live card per file, picked from registered intake files. --}}
 @canDo('Cad - Records', 'create')
+    @include('cadastral_module.partials._wizard')
+
+    @php
+        // Values the receipt supplies, rendered before the picker locks them.
+        $cardValues = ($picked['status'] ?? null) === 'ok' ? $picked['values'] : [];
+        $cardModel  = (object) array_merge(['prop_state' => 'Kano'], array_filter(
+            \App\Services\Cadastral\CadastralRegistryLookup::lockedInput($cardValues, ['prop_house', 'prop_street', 'prop_district', 'prop_lga', 'prop_state']),
+            fn ($v) => $v !== null
+        ));
+    @endphp
+
     <form method="POST" action="{{ route('cadastral-module.index-cards.store') }}" class="form-container" style="margin-bottom:22px;"
-          id="commission-card" data-picked="{{ $picked ? json_encode($picked) : '' }}">
+          id="commission-card" data-wizard data-wizard-errors="{{ json_encode($errors->keys()) }}" novalidate>
         @csrf
         <div class="card-header">
-            <strong>Commission Index Card</strong>
+            <strong><i data-lucide="id-card" style="width:16px;height:16px;vertical-align:-3px;"></i> Commission Index Card</strong>
             <span class="helper-text" style="margin:0;">
-                Pick a file registered at intake. Name and location come from the intake record and cannot be typed here.
+                One live card per file. Owner and location come from the intake record; only what it leaves blank is filled here.
             </span>
         </div>
 
+        <div class="form-stepper" data-wizard-header></div>
+
         <div class="form-body">
-            <div class="form-grid">
-                <div class="form-group" style="grid-column:1/-1;">
-                    <label>File No <span class="required">*</span></label>
-                    {{-- Only an intake receipt id can be posted: there is no free-text number. --}}
-                    <select name="cadastral_file_receipt_id" id="card-file" required
-                            data-url="{{ route('cadastral-module.index-cards.intake-files') }}"
-                            data-placeholder="Type at least 2 characters of the file number or receipt ref…">
-                        <option value=""></option>
-                        @if ($picked)
-                            <option value="{{ $picked['id'] }}" selected>{{ $picked['text'] }}</option>
-                        @endif
-                    </select>
-                    <div class="helper-text">Registered intake files only. A file that already has a card is greyed out.</div>
+            <section class="form-step" data-step data-title="Select File" data-icon="folder-search"
+                     data-subtitle="A file received and registered at intake. A file that already has a card is refused.">
+                <div class="form-grid">
+                    @include('cadastral_module.partials._file_picker', [
+                        'scope'   => 'receipt',
+                        'purpose' => 'commission',
+                        'hidden'  => ['cadastral_file_receipt_id'],
+                        'initial' => $picked,
+                    ])
+                </div>
+            </section>
+
+            <section class="form-step" data-step data-title="Card Details" data-icon="id-card"
+                     data-subtitle="Greyed fields come from the intake record. Complete any it leaves blank.">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Name / Owner</label>
+                        <input type="text" name="file_title" value="{{ old('file_title', $cardValues['file_title'] ?? '') }}" maxlength="500" />
+                    </div>
+                    <div class="form-group">
+                        <label>Plot Number</label>
+                        <input type="text" name="plot_no" value="{{ old('plot_no', $cardValues['plot_no'] ?? '') }}" maxlength="50" />
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <input type="text" data-fp-value="type" class="cad-locked" disabled value="{{ $picked['file']['type'] ?? '' }}" />
+                    </div>
+                    <div class="form-group">
+                        <label>Block Number</label>
+                        <input type="text" name="block_no" value="{{ old('block_no') }}" maxlength="50" />
+                    </div>
+                    <div class="form-group">
+                        <label>Layout</label>
+                        <input type="text" name="layout_name" value="{{ old('layout_name') }}" maxlength="255" />
+                    </div>
+                    <div class="form-group">
+                        <label>Scanned Card Folder</label>
+                        <input type="text" name="image_folder" value="{{ old('image_folder') }}" maxlength="255"
+                               placeholder="Joins this row to the scanned card" />
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Name / Owner</label>
-                    <input type="text" id="card-owner" readonly class="intake-locked" placeholder="From the intake record" />
-                </div>
-                <div class="form-group">
-                    <label>Location</label>
-                    <input type="text" id="card-location" readonly class="intake-locked" placeholder="District, LGA, State" />
-                </div>
-                <div class="form-group">
-                    <label>Plot</label>
-                    <input type="text" id="card-plot" readonly class="intake-locked" />
-                </div>
-                <div class="form-group">
-                    <label>Type</label>
-                    <input type="text" id="card-type" readonly class="intake-locked" />
-                </div>
+                @include('cadastral_module.partials._address_builder', [
+                    'prefix' => 'prop_',
+                    'mode'   => 'property',
+                    'model'  => $cardModel,
+                    'legend' => 'Property Location',
+                    'plotField' => 'plot_no',
+                ])
+            </section>
 
-                <div class="form-group">
-                    <label>Survey Job No</label>
-                    <select name="cadastral_survey_job_id" id="card-job">
-                        <option value="">— None yet —</option>
-                    </select>
-                    <div class="helper-text">The file's own live jobs. Issuing one later writes its number onto the card.</div>
+            <section class="form-step" data-step data-title="Job & Movement" data-icon="route"
+                     data-subtitle="The file's survey job, if it has one, and where the card starts.">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Survey Job No</label>
+                        <select name="cadastral_survey_job_id" id="card-job">
+                            <option value="">— None yet —</option>
+                            @foreach ($picked['records']['survey_jobs'] ?? [] as $j)
+                                <option value="{{ $j['id'] }}" @selected((string) old('cadastral_survey_job_id') === (string) $j['id'])>{{ $j['text'] }}</option>
+                            @endforeach
+                        </select>
+                        <div class="helper-text">The file's own live jobs. Issuing one later writes its number onto the card.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Movement Stage <span class="required">*</span></label>
+                        <select name="initial_stage" required>
+                            @foreach ($stages as $key => $label)
+                                <option value="{{ $key }}" @selected(old('initial_stage', 'commissioned') === $key)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Movement Note</label>
+                        <input type="text" name="movement_note" value="{{ old('movement_note') }}" maxlength="1000" />
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Initial Movement Stage <span class="required">*</span></label>
-                    <select name="initial_stage" required>
-                        @foreach ($stages as $key => $label)
-                            <option value="{{ $key }}" @selected(old('initial_stage', 'commissioned') === $key)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Block Number</label>
-                    <input type="text" name="block_no" value="{{ old('block_no') }}" />
-                </div>
-                <div class="form-group">
-                    <label>Layout</label>
-                    <input type="text" name="layout_name" value="{{ old('layout_name') }}" />
-                </div>
-                <div class="form-group">
-                    <label>Scanned Card Folder</label>
-                    <input type="text" name="image_folder" value="{{ old('image_folder') }}"
-                           placeholder="Joins this row to the scanned card" />
-                </div>
-                <div class="form-group">
-                    <label>Movement Note</label>
-                    <input type="text" name="movement_note" value="{{ old('movement_note') }}" maxlength="1000" />
-                </div>
-                <div class="form-group" style="grid-column:1/-1;">
-                    <div id="card-notes" style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;"></div>
-                </div>
-            </div>
+            </section>
+
+            <section class="form-step" data-step data-review data-title="Review & Commission" data-icon="clipboard-check"
+                     data-subtitle="Check the card, then commission it. The intake record's values are copied again on save.">
+                <div data-wizard-summary></div>
+            </section>
         </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary"><i class="fas fa-id-card"></i> Commission</button>
+        <div class="form-actions" data-wizard-nav>
+            <button type="button" class="btn btn-outline" data-wizard-back><i data-lucide="arrow-left"></i> Back</button>
+            <button type="button" class="btn btn-primary" data-wizard-next>Next <i data-lucide="arrow-right"></i></button>
+            <button type="submit" class="btn btn-primary" data-wizard-submit><i data-lucide="id-card"></i> Commission</button>
         </div>
     </form>
 @endcanDo
@@ -210,95 +239,14 @@
     </div>
 </div>
 
-<style>
-    .survey-proto .intake-locked { background: var(--gray-100); color: var(--gray-700); }
-</style>
-
-{{--
-    Commission picker. Searches registered intake receipts; picking one fills
-    the read-only Name, Location, Plot and Type boxes and offers the file's own
-    survey jobs. The server copies the same values from the receipt on save,
-    so the boxes are a preview, not the source.
-
-    Runs after DOMContentLoaded plus a tick: Select2 is pushed to the page
-    footer after this partial.
---}}
+{{-- The job list follows the picked file: only that file's live jobs are
+     offered (IndexCardController::requireJob refuses any other). --}}
 <script>
-document.addEventListener('DOMContentLoaded', function () { setTimeout(function () {
-    'use strict';
-
-    var form = document.getElementById('commission-card');
-    var file = document.getElementById('card-file');
-    if (!form || !file) return;
-
-    var $     = window.jQuery;
-    var hasS2 = !!($ && $.fn && $.fn.select2);
-    var jobs  = document.getElementById('card-job');
-    var notes = document.getElementById('card-notes');
-    var oldJob = @json(old('cadastral_survey_job_id'));
-
-    function set(id, value) { var el = document.getElementById(id); if (el) el.value = value || ''; }
-
-    function esc(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-        });
-    }
-
-    function badge(cls, text) {
-        return '<span class="status-badge ' + cls + '"><span class="dot"></span>' + esc(text) + '</span>';
-    }
-
-    function apply(item) {
-        item = item || {};
-        set('card-owner', item.owner);
-        set('card-location', item.location);
-        set('card-plot', item.plot);
-        set('card-type', item.type);
-
-        while (jobs.options.length > 1) jobs.remove(1);
-        (item.jobs || []).forEach(function (j) {
-            var opt = new Option(j.text, j.id);
-            if (String(j.id) === String(oldJob)) opt.selected = true;
-            jobs.add(opt);
-        });
-
-        var bits = [];
-        if (item.file_class === 'conversion') bits.push(badge('review', 'Conversion file: charting not required'));
-        if (item.source) bits.push('<span style="color:var(--gray-600)">Source: ' + esc(item.source) + '</span>');
-        if (item.card) bits.push(badge('rejected', 'Already on card ' + item.card));
-        if (notes) notes.innerHTML = bits.join('');
-    }
-
-    if (hasS2) {
-        var $file = $(file);
-        $file.select2({
-            width: '100%',
-            placeholder: file.dataset.placeholder,
-            allowClear: true,
-            minimumInputLength: 2,
-            ajax: {
-                url: file.dataset.url,
-                dataType: 'json',
-                delay: 300,
-                data: function (params) { return { q: params.term || '' }; },
-                processResults: function (data) { return data; }
-            },
-            templateResult: function (item) {
-                if (item.loading || !item.file_number) return item.text;
-                return $('<div>').append(
-                    $('<div>').text(item.text),
-                    $('<div style="font-size:11px;opacity:.7">').text([item.type, item.plot ? 'Plot ' + item.plot : '', item.location].filter(Boolean).join(' · '))
-                );
-            }
-        });
-        $file.on('select2:select', function (e) { apply(e.params.data); });
-        $file.on('select2:clear', function () { apply(null); });
-    }
-
-    // Re-rendered after a failed save: refill the preview and the job list.
-    if (form.dataset.picked) {
-        try { apply(JSON.parse(form.dataset.picked)); } catch (e) { /* leave it blank */ }
-    }
-}, 0); });
+document.addEventListener('cadastral:file-picked', function (e) {
+    var jobs = document.getElementById('card-job');
+    if (!jobs || jobs.closest('form') !== e.target || (e.detail && e.detail.initial)) return;
+    while (jobs.options.length > 1) jobs.remove(1);
+    var list = e.detail && e.detail.status === 'ok' && e.detail.records ? e.detail.records.survey_jobs : [];
+    (list || []).forEach(function (j) { jobs.add(new Option(j.text, j.id)); });
+});
 </script>

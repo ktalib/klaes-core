@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-ruler-combined"></i> 4.4 · Plan and Description · Descriptions</div>
 
 <div class="page-header">
     <div>
@@ -20,8 +19,9 @@
     </div>
 </div>
 
-{{-- File: a GET form, so choosing a file just opens it here. --}}
-<form method="GET" action="{{ route('cadastral-module.plan-description.descriptions') }}" class="form-container" id="desc-pick">
+{{-- File: the shared picker at scope plan. A good pick opens the file's
+     record here; a file without one is refused with the reason. --}}
+<div class="form-container" id="desc-pick" data-open-url="{{ route('cadastral-module.plan-description.descriptions') }}">
     <div class="card-header">
         <strong>File</strong>
         <span class="helper-text" style="margin:0;">
@@ -30,18 +30,18 @@
         </span>
     </div>
     <div class="form-body">
-        <div class="form-group" style="margin:0;">
-            <select name="record" id="desc-file"
-                    data-url="{{ route('cadastral-module.plan-description.description-files') }}"
-                    data-placeholder="Type at least 2 characters of the file number, reference or owner…">
-                <option value=""></option>
-                @if ($picked)
-                    <option value="{{ $picked['id'] }}" selected>{{ $picked['text'] }}</option>
-                @endif
-            </select>
+        <div class="form-grid">
+            @include('cadastral_module.partials._file_picker', [
+                'scope'    => 'plan',
+                'hidden'   => ['cadastral_plan_description_id'],
+                'initial'  => $picked,
+                'number'   => $record?->file_number ?? '',
+                'required' => false,
+                'help'     => 'Picking a file opens its record on this page.',
+            ])
         </div>
     </div>
-</form>
+</div>
 
 @if ($record)
     @php
@@ -78,11 +78,11 @@
             <div class="form-grid">
                 <div class="form-group">
                     <label>File No</label>
-                    <input type="text" value="{{ $record->file_number }}" readonly class="intake-locked" />
+                    <input type="text" value="{{ $record->file_number }}" disabled class="cad-locked" />
                 </div>
                 <div class="form-group">
                     <label>Owner</label>
-                    <input type="text" value="{{ $record->file_title }}" readonly class="intake-locked" />
+                    <input type="text" value="{{ $record->file_title }}" disabled class="cad-locked" />
                 </div>
                 <div class="form-group">
                     <label>Template</label>
@@ -95,20 +95,20 @@
                 <div class="form-group">
                     <label>Location Text</label>
                     {{-- District, LGA, State from the address builder. The plot has its own sentence. --}}
-                    <input type="text" value="{{ $record->property_location }}" readonly class="intake-locked" placeholder="District, LGA, State" />
+                    <input type="text" value="{{ $record->property_location }}" disabled class="cad-locked" placeholder="District, LGA, State" />
                 </div>
                 <div class="form-group">
                     <label>Land Use</label>
-                    <input type="text" value="{{ $record->land_use ?: '—' }}" readonly class="intake-locked" />
+                    <input type="text" value="{{ $record->land_use ?: '—' }}" disabled class="cad-locked" />
                 </div>
                 <div class="form-group">
                     <label>Area</label>
-                    <input type="text" readonly class="intake-locked"
+                    <input type="text" disabled class="cad-locked"
                            value="{{ $areas['sqm'] !== null ? number_format($areas['sqm'], 2) . ' m² · ' . number_format($areas['hectares'], 4) . ' ha · ' . number_format($areas['acres'], 2) . ' acres' : 'Not recorded' }}" />
                 </div>
                 <div class="form-group" style="grid-column:1/-1;">
                     <label>Pillars</label>
-                    <input type="text" readonly class="intake-locked"
+                    <input type="text" disabled class="cad-locked"
                            value="{{ $pillars->isEmpty() ? 'None recorded' : $pillars->count() . ' — ' . $pillars->map(fn ($p) => ($p->pillar_number ?: '#' . ($p->sort_order + 1)) . ' (' . ucfirst($p->ownership) . ')')->implode(', ') }}" />
                     <div class="helper-text">
                         Area, land use and pillars are changed on
@@ -168,8 +168,7 @@
                     </a>
                 @endcanDo
             @endif
-            {{-- The bill still lives on the combined screen until Phase 7 rebuilds it. --}}
-            <a href="{{ route('cadastral-module.plan-description.edit', $record) }}#fee-calculator"
+            <a href="{{ route('cadastral-module.plan-description.fees', ['record' => $record->id]) }}"
                class="btn btn-outline" style="order:5;margin-left:auto;">
                 Next: Fee Calculator <i class="fas fa-arrow-right"></i>
             </a>
@@ -240,52 +239,25 @@
     </div>
 </div>
 
-<style>
-    .survey-proto .intake-locked { background: var(--gray-100); color: var(--gray-700); }
-</style>
-
 {{--
-    File picker and the overwrite guard. Picking a file opens it on this page.
-    Generating replaces the text box, so a box edited since the page loaded
-    asks first.
+    Opening a picked file, and the overwrite guard. A fresh good pick opens
+    that file's record on this page; a refused one stays in the picker with
+    its reason. Generating replaces the text box, so a box edited since the
+    page loaded asks first.
 
-    Runs after DOMContentLoaded plus a tick, because Select2 is pushed to the
-    page footer after this partial.
+    Runs after DOMContentLoaded plus a tick, like the picker.
 --}}
 <script>
 document.addEventListener('DOMContentLoaded', function () { setTimeout(function () {
     'use strict';
 
-    var $     = window.jQuery;
-    var file  = document.getElementById('desc-file');
-    var pick  = document.getElementById('desc-pick');
-
-    if (file && $ && $.fn && $.fn.select2) {
-        var $file = $(file);
-        $file.select2({
-            width: '100%',
-            placeholder: file.dataset.placeholder,
-            minimumInputLength: 2,
-            ajax: {
-                url: file.dataset.url,
-                dataType: 'json',
-                delay: 300,
-                data: function (params) { return { q: params.term || '' }; },
-                processResults: function (data) { return data; }
-            },
-            templateResult: function (item) {
-                if (item.loading || !item.file_number) return item.text;
-                return $('<div>').append(
-                    $('<div>').text(item.text),
-                    $('<div style="font-size:11px;opacity:.7">').text([item.location, item.has_text ? 'Description saved' : 'No description yet'].filter(Boolean).join(' · '))
-                );
-            }
+    var pick = document.getElementById('desc-pick');
+    if (pick) {
+        pick.addEventListener('cadastral:file-picked', function (e) {
+            var p = e.detail;
+            var id = p && !p.initial && p.status === 'ok' && p.hidden ? p.hidden.cadastral_plan_description_id : null;
+            if (id) window.location.href = pick.dataset.openUrl + '?record=' + encodeURIComponent(id);
         });
-        $file.on('select2:select', function (e) {
-            if (e.params.data && e.params.data.url) window.location.href = e.params.data.url; else pick.submit();
-        });
-    } else if (file) {
-        file.addEventListener('change', function () { pick.submit(); });
     }
 
     var body = document.getElementById('desc-body');

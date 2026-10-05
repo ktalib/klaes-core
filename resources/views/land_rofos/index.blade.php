@@ -546,8 +546,11 @@
                                                 this.menuStyle = {
                                                     position: 'fixed',
                                                     top: (rect.bottom + 4) + 'px',
-                                                    left: (rect.right - 224) + 'px',
-                                                    zIndex: 9999
+                                                    // Anchored by its RIGHT edge to the button, so a
+                                                    // wide label grows the menu leftwards into the page.
+                                                    right: Math.max(8, window.innerWidth - rect.right) + 'px',
+                                                    minWidth: '13rem',
+                                                    zIndex: 99999
                                                 };
                                                 const spaceBelow = window.innerHeight - rect.bottom;
                                                 if (spaceBelow < 280) {
@@ -562,6 +565,9 @@
                                             <i data-lucide="more-vertical" class="h-5 w-5"></i>
                                         </button>
 
+                                        {{-- Teleported to <body>: left inside the scrolling table with its
+                                             sticky column, the menu is clipped at the table's edge. --}}
+                                        <template x-teleport="body">
                                         <div x-show="open"
                                              x-transition:enter="transition ease-out duration-100"
                                              x-transition:enter-start="opacity-0 scale-95"
@@ -570,7 +576,7 @@
                                              x-transition:leave-start="opacity-100 scale-100"
                                              x-transition:leave-end="opacity-0 scale-95"
                                              :style="menuStyle"
-                                             class="min-w-[13rem] w-max rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
+                                             class="whitespace-nowrap text-left rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
                                              style="display: none;">
                                             <div class="py-1">
                                                 {{-- The OSS view is read-only for the record itself; only serial + print actions apply there. --}}
@@ -645,12 +651,9 @@
                                                      passes, and the CTC. --}}
                                                 @php
                                                     // A re-issued letter prints with the RE-ISSUANCE watermark
-                                                    // and the superseding notice. A KLAES re-issuance replaces a
-                                                    // set that was already issued, so it is the Original alone —
-                                                    // the manager opens with no pass choice, because the other
-                                                    // two would be paper with no letter behind them. A pre-KLAES
-                                                    // (legacy) one was never issued from here, so it prints the
-                                                    // full set and keeps the three passes.
+                                                    // and the superseding notice. KLAES and pre-KLAES alike print
+                                                    // the full set — Original, Duplicate, Triplicate — so the
+                                                    // manager keeps its three passes.
                                                     $reissue = $rec->is_reissuance
                                                         ? (strtolower(trim((string) $rec->reissuance_source)) === 'legacy' ? 'legacy' : 'klaes')
                                                         : null;
@@ -691,7 +694,14 @@
 
                                                     if ($reissue) {
                                                         $pmOptions['reissuance'] = $reissue;
-                                                        $pmOptions['passes']     = $reissue === 'legacy';
+                                                        // "Date the Original RofO Was Issued". Keyed in for a
+                                                        // pre-KLAES letter; for a KLAES one it starts from the
+                                                        // date the original was generated, which is on record.
+                                                        $pmOptions['originalIssueDate'] = optional(
+                                                            $rec->reissuance_original_date
+                                                                ?? ($reissue === 'klaes' ? $rec->rofo_generated_at : null)
+                                                        )->format('Y-m-d') ?? '';
+                                                        $pmOptions['originalIssueDateUrl'] = route('land-rofos.original-issue-date', $rec->id);
                                                     }
                                                 @endphp
 
@@ -774,6 +784,7 @@
                                                 @endif
                                             </div>
                                         </div>
+                                        </template>
                                     </div>
                                 </td>
                                 @endif
@@ -1657,10 +1668,9 @@ function rofoOpenChildPrintManager(id) {
         whiteCopyDownload: true
     };
     if (reissue) {
-        // A KLAES re-issuance is the Original alone — the set was already issued —
-        // so it opens with no pass choice. A pre-KLAES one prints the full set.
+        // Every re-issuance, KLAES or pre-KLAES, prints the full set, so the
+        // manager keeps its three passes.
         options.reissuance = reissue;
-        options.passes = (reissue === 'legacy');
     }
 
     // Through the proofread gate, exactly as the main list is: a child of a batch

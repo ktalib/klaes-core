@@ -85,8 +85,6 @@
                         <td>
                             <div class="action-icons">
                                 <a href="{{ route('survey-module.gkn.edit', $g) }}" title="Edit"><i class="fas fa-edit"></i></a>
-                                <a href="{{ route('survey-module.gkn.tracking', ['q' => $g->gkn_number]) }}"
-                                   title="File movements"><i class="fas fa-exchange-alt"></i></a>
                                 <form method="POST" action="{{ route('survey-module.gkn.destroy', $g) }}"
                                       style="display:inline" onsubmit="return confirm('Delete {{ $g->gkn_number }}? This cannot be undone.');">
                                     @csrf @method('DELETE')

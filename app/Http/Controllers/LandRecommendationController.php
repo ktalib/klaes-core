@@ -1483,6 +1483,147 @@ class LandRecommendationController extends Controller
     }
 
     /**
+     * The file numbers a Change of Purpose turned each of these files into, walked to
+     * the live end: X -> Y -> Z gives [X, Y, Z]. Used to find the subdivision children
+     * of a grandmother — the officer picks CON-COM-2003-118, but the subdivision was
+     * commissioned on CON-RES-2026-2924, the number the Change of Purpose gave it,
+     * and that is what the children's related_fileno names.
+     *
+     * Only a Change of Purpose is followed: a one-for-one rename whose successor's
+     * mls_file_no row is source = 'Change of Purpose'. An Extension also retires a
+     * file into one successor, but that is a different parcel and not the same file
+     * under a new number.
+     *
+     * @return string[]  the input first, then each successor in order
+     */
+    private function changeOfPurposeSuccessors(string $fileNumber): array
+    {
+        $chain = [trim($fileNumber)];
+        $seen  = [mb_strtoupper(trim($fileNumber)) => true];
+
+        for ($hop = 0; $hop < 5; $hop++) {
+            $row = DB::connection('sqlsrv')->table('file_indexings')
+                ->where('file_number', end($chain))
+                ->where('is_decommissioned', 1)
+                ->whereNotNull('successor_file_no')
+                ->first(['successor_file_no']);
+
+            $successors = $row ? array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) $row->successor_file_no)
+            ))) : [];
+
+            if (count($successors) !== 1 || isset($seen[mb_strtoupper($successors[0])])) {
+                break;
+            }
+
+            $isChangeOfPurpose = DB::connection('sqlsrv')->table('mls_file_no')
+                ->where('full_file_number', $successors[0])
+                ->where('source', 'Change of Purpose')
+                ->where(function ($q) {
+                    $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                })
+                ->exists();
+
+            if (!$isChangeOfPurpose) {
+                break;
+            }
+
+            $chain[] = $successors[0];
+            $seen[mb_strtoupper($successors[0])] = true;
+        }
+
+        return $chain;
+    }
+
+    /**
+     * The reverse of changeOfPurposeSuccessors(), for the whole picker at once: the
+     * file each of these was before any Change of Purpose renamed it.
+     *
+     * A subdivision commissioned on a file that a Change of Purpose produced is, to
+     * the officer, a subdivision of the ORIGINAL file — CON-RES-2026-2924 is only
+     * CON-COM-2003-118 under its new land use — so the picker lists the grandmother.
+     * Followed only where exactly one retired file names this one as its sole
+     * successor, the same one-for-one test renumberedSubdivisionChildren() uses.
+     *
+     * @param  string[]  $fileNumbers
+     * @return array<string,string>  upper-cased file => its original file (moved ones only)
+     */
+    private function changeOfPurposeOrigins(array $fileNumbers): array
+    {
+        $current = [];
+        foreach ($fileNumbers as $fileNumber) {
+            $fileNumber = trim((string) $fileNumber);
+            if ($fileNumber !== '') {
+                $current[mb_strtoupper($fileNumber)] = $fileNumber;
+            }
+        }
+
+        $visited = [];
+        foreach ($current as $origin => $fileNumber) {
+            $visited[$origin] = [$origin => true];
+        }
+
+        for ($hop = 0; $hop < 5 && $current; $hop++) {
+            $values = array_values(array_unique($current));
+
+            // Of the files still being walked, the ones a Change of Purpose produced.
+            $copBorn = [];
+            foreach (array_chunk($values, 1000) as $slice) {
+                foreach (DB::connection('sqlsrv')->table('mls_file_no')
+                    ->whereIn('full_file_number', $slice)
+                    ->where('source', 'Change of Purpose')
+                    ->where(function ($q) {
+                        $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                    })
+                    ->pluck('full_file_number') as $f) {
+                    $copBorn[mb_strtoupper(trim((string) $f))] = true;
+                }
+            }
+
+            if (!$copBorn) {
+                break;
+            }
+
+            // The retired file each one replaced.
+            $predecessors = [];
+            foreach (array_chunk(array_keys($copBorn), 1000) as $slice) {
+                foreach (DB::connection('sqlsrv')->table('file_indexings')
+                    ->whereIn('successor_file_no', $slice)
+                    ->where('is_decommissioned', 1)
+                    ->get(['file_number', 'successor_file_no']) as $row) {
+                    $predecessors[mb_strtoupper(trim((string) $row->successor_file_no))][] = trim((string) $row->file_number);
+                }
+            }
+
+            $moved = false;
+            foreach ($current as $origin => $fileNumber) {
+                $key  = mb_strtoupper($fileNumber);
+                $prev = array_values(array_unique($predecessors[$key] ?? []));
+
+                if (!isset($copBorn[$key]) || count($prev) !== 1
+                    || isset($visited[$origin][mb_strtoupper($prev[0])])) {
+                    continue;
+                }
+
+                $current[$origin] = $prev[0];
+                $visited[$origin][mb_strtoupper($prev[0])] = true;
+                $moved = true;
+            }
+
+            if (!$moved) {
+                break;
+            }
+        }
+
+        return array_filter(
+            $current,
+            fn ($fileNumber, $origin) => mb_strtoupper($fileNumber) !== $origin,
+            ARRAY_FILTER_USE_BOTH
+        );
+    }
+
+    /**
      * Follow a subdivision child that was later renumbered to the file it became.
      *
      * A plot does not always keep the number the subdivision gave it. Run a Change
@@ -1603,6 +1744,15 @@ class LandRecommendationController extends Controller
             preg_replace('/\s*\(T\)\s*$/i', '', $mother),
             $mother . '(T)',
         ])));
+
+        // The picker lists a grandmother (CON-COM-2003-118) where the subdivision was
+        // commissioned on the number its Change of Purpose produced (CON-RES-2026-2924),
+        // so the children are looked up under that number too.
+        $base = preg_replace('/\s*\(T\)\s*$/i', '', $mother);
+        $variants = array_values(array_unique(array_merge(
+            $variants,
+            array_slice($this->changeOfPurposeSuccessors($base), 1)
+        )));
 
         // Source 1 — commissioned through the Subdivision workflow: the child's
         // file_indexings row back-links to the mother via related_fileno, and its
@@ -2284,6 +2434,25 @@ class LandRecommendationController extends Controller
             return response()->json(['success' => true, 'mothers' => [], 'count' => 0, 'total' => 0]);
         }
 
+        // A mother that a Change of Purpose produced is listed as the file it was
+        // before: CON-RES-2026-2924 holds the 82 children, but it is CON-COM-2003-118
+        // under a new land use, and that original is the file the recommendation is
+        // raised against. subdivisionChildren() follows the rename forward again.
+        $origins      = $this->changeOfPurposeOrigins(array_keys($childrenByMother));
+        $subdividedAs = [];
+
+        if ($origins) {
+            $regrouped = [];
+            foreach ($childrenByMother as $motherFileNo => $kids) {
+                $root = $origins[mb_strtoupper($motherFileNo)] ?? $motherFileNo;
+                $regrouped[$root] = ($regrouped[$root] ?? []) + $kids;
+                if ($root !== $motherFileNo) {
+                    $subdividedAs[$root][] = $motherFileNo;
+                }
+            }
+            $childrenByMother = $regrouped;
+        }
+
         // A plot retired into a new number — a Change of Purpose over one of them —
         // still belongs to its mother's batch, so it is counted under the number it
         // became. Otherwise the mother reads short (79 of 82) and the plots that
@@ -2346,6 +2515,9 @@ class LandRecommendationController extends Controller
 
             $mothers[] = [
                 'file_number'    => $fileNo,
+                // The number the subdivision was actually commissioned on, when a
+                // Change of Purpose renamed the file first — shown beside it.
+                'subdivided_as'  => implode(', ', $subdividedAs[$fileNo] ?? []),
                 // What the picker counts and labels: children still to be done.
                 'children'       => $free,
                 'children_total' => $total,
@@ -2370,6 +2542,7 @@ class LandRecommendationController extends Controller
             $mothers = array_values(array_filter(
                 $mothers,
                 fn ($m) => str_contains(mb_strtoupper($m['file_number']), $needle)
+                    || str_contains(mb_strtoupper($m['subdivided_as']), $needle)
             ));
         }
 

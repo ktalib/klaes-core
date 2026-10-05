@@ -46,7 +46,7 @@
                     <p class="text-slate-400 text-xs mt-1 uppercase tracking-widest font-semibold flex items-center gap-1">
                         Ref: <span class="text-blue-300 font-mono" x-text="refNumber"></span>
                         <span x-show="isReissuanceType" x-cloak class="text-amber-300"
-                              x-text="isLegacyReissuanceType ? '— Re-issued RofO (Pre-KLAES · all 3 copies)' : '— Re-issued RofO (Original only)'"></span>
+                              x-text="isLegacyReissuanceType ? '— Re-issued RofO (Pre-KLAES · all 3 copies)' : '— Re-issued RofO (KLAES · all 3 copies)'"></span>
                         {{-- A batch run puts many letters on paper at once, so the
                              count is part of knowing what the pass will do. --}}
                         <span x-show="isBatchMode" x-cloak class="text-violet-300"
@@ -77,6 +77,27 @@
                          letter carries its own — so reading the field made a fully
                          dated batch announce itself as MISSING in red while the line
                          below it said all its letters were dated. --}}
+                    {{-- Re-issuance only: the date of the letter this one supersedes.
+                         Printed as "supersedes the previous one issued on …". Same field
+                         as "Date the Original RofO Was Issued" on the recommendation form;
+                         for a KLAES RofO it starts from the date the original was generated. --}}
+                    <div x-show="showOriginalIssueDate" x-cloak
+                         class="p-4 rounded-2xl border space-y-2"
+                         :class="originalIssueDate ? 'border-amber-200 bg-amber-50/40' : 'border-red-300 bg-red-50/50'">
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-amber-700">
+                            Date the Original RofO Was Issued <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" x-model="originalIssueDate" :max="today" required
+                               class="w-full md:w-64 px-3 py-2 bg-white rounded-lg text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 border"
+                               :class="originalIssueDate ? 'border-amber-300' : 'border-red-400 bg-red-50/40'">
+                        <p class="text-[11px] text-slate-500 leading-relaxed">
+                            Printed on the re-issued letter as &ldquo;supersedes the previous one issued on &hellip;&rdquo;.
+                            Saved to the record when the print runs.
+                        </p>
+                        <p x-show="originalIssueDateError" x-cloak x-text="originalIssueDateError"
+                           class="text-[11.5px] font-bold text-red-600"></p>
+                    </div>
+
                     <div x-show="dateOnWhiteCopy" x-cloak
                          class="p-4 rounded-2xl border space-y-2"
                          :class="issueDateOutstanding ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-slate-50'">
@@ -687,6 +708,14 @@ document.addEventListener('alpine:init', () => {
         issueDateUnlocked: false,
         issueDateConfirming: false,
         issueDateError: '',
+        // A re-issued letter prints "supersedes the previous one issued on …". That
+        // date is the ORIGINAL letter's issue date (reissuance_original_date), not
+        // this letter's date of issue. Shown and editable here for a re-issuance and
+        // saved before the print runs, like the date of issue.
+        originalIssueDate: '',
+        originalIssueDateOnRecord: '',
+        originalIssueDateUrl: '',
+        originalIssueDateError: '',
         ossGeneratedState: {
             verification: false,
             acknowledgement: false,
@@ -738,6 +767,11 @@ document.addEventListener('alpine:init', () => {
                 : '{{ route('land-rofos.issue-date') }}';
             this.passesAllowed = !(data && data.passes === false);
             this.batch = (data && data.batch) ? data.batch : null;
+
+            this.originalIssueDateOnRecord = (data && data.originalIssueDate) ? String(data.originalIssueDate) : '';
+            this.originalIssueDate = this.originalIssueDateOnRecord;
+            this.originalIssueDateUrl = (data && data.originalIssueDateUrl) ? String(data.originalIssueDateUrl) : '';
+            this.originalIssueDateError = '';
 
             // Splitting a print into two runs is a BATCH operation: run 1 puts every
             // Original on security paper, the tray is reloaded, run 2 puts every
@@ -1027,6 +1061,44 @@ document.addEventListener('alpine:init', () => {
             this.issueDateConfirming = false;
         },
 
+        // One re-issued letter, from a page that said where to save the date.
+        get showOriginalIssueDate() {
+            return this.isReissuanceType && !this.isBatchMode && !!this.recordId && !!this.originalIssueDateUrl;
+        },
+
+        async persistOriginalIssueDate() {
+            this.originalIssueDateError = '';
+            if (!this.showOriginalIssueDate) return true;
+
+            if (!this.originalIssueDate) {
+                this.originalIssueDateError = 'Enter the date the original RofO was issued before printing.';
+                return false;
+            }
+            if (this.originalIssueDate === this.originalIssueDateOnRecord) return true;
+
+            try {
+                const response = await fetch(this.originalIssueDateUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ reissuance_original_date: this.originalIssueDate })
+                });
+                const result = response.ok ? await response.json() : null;
+                if (!result || result.success !== true) {
+                    throw new Error((result && result.message) || ('HTTP ' + response.status));
+                }
+                this.originalIssueDateOnRecord = this.originalIssueDate;
+                return true;
+            } catch (error) {
+                this.originalIssueDateError = 'Could not save the original issue date: ' + error.message;
+                return false;
+            }
+        },
+
         // A pass cannot be pressed while the date is outstanding. The tiles are the
         // only way to print from here, so this is the gate — the checks in
         // persistIssueDate() and runBatchPass() stay as the backstop.
@@ -1051,6 +1123,9 @@ document.addEventListener('alpine:init', () => {
         // never replaced by accident.
         async persistIssueDate() {
             this.issueDateError = '';
+            // Every print path comes through here, so the re-issuance's original date
+            // is saved (or demanded) on the same gate as the date of issue.
+            if (!(await this.persistOriginalIssueDate())) return false;
             if (!this.supportsIssueDate) return true;
 
             if (!this.issueDate) {
@@ -1214,15 +1289,14 @@ document.addEventListener('alpine:init', () => {
             return String(this.docType || '').includes('Re-issuance');
         },
 
-        // A KLAES-generated RofO already had its Original/Duplicate/Triplicate set
-        // issued, so its re-issuance is the Original copy only. A pre-KLAES (legacy)
-        // one was never issued from here, so it prints the full set.
+        // KLAES-generated or pre-KLAES (legacy): both re-issuances print the full
+        // set — Original, Duplicate, Triplicate (decided 2026-10-02).
         get isLegacyReissuanceType() {
             return this.isReissuanceType && String(this.docType).includes('Legacy');
         },
 
         get isSingleStepType() {
-            if (this.isReissuanceType) return !this.isLegacyReissuanceType;
+            if (this.isReissuanceType) return false;
             return ['Recommendation For Grant', 'ST CofO', 'Commissioning Sheet', 'Bill Balance',
                     'Legal Search Pay-Per-Search', 'Legal Search Online', 'Legal Search Official'].includes(this.docType);
         },

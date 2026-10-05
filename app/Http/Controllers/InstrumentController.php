@@ -39,6 +39,7 @@ class InstrumentController extends Controller
         $landType = config('land_registration.instrument_type');
         $typeFilter = trim((string) $request->query('instrument_type', ''));
         $volumeFilter = trim((string) $request->query('volume', ''));
+        $search = trim((string) $request->query('search', ''));
 
         $statsBase = DB::connection('sqlsrv')->table('instrument_capture')
             ->where('instrument_type', '<>', $landType)
@@ -72,13 +73,22 @@ class InstrumentController extends Controller
                     $query->where('ic.instrument_type', $typeFilter);
                 }
             })
-            ->when($volumeFilter !== '', fn ($query) => $query->where('dr.volume_no', $volumeFilter))
+            ->when($volumeFilter !== '', fn ($query) => $query->whereRaw($this->captureRegistrationColumn('volume_no') . ' = ?', [$volumeFilter]))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    foreach (['mlsFNo', 'kangisFileNo', 'NewKANGISFileno', 'temp_fileno', 'prop_id',
+                        'registration_number', 'instrument_type', 'party_1_name', 'party_2_name',
+                        'party_3_name', 'solicitor_name', 'land_use'] as $column) {
+                        $query->orWhere('ic.' . $column, 'like', '%' . $search . '%');
+                    }
+                });
+            })
             ->select(
                 'ic.*',
-                'dr.volume_no',
-                'dr.page_no',
-                'dr.serial_no',
-                'dr.deeds_date',
+                DB::raw($this->captureRegistrationColumn('volume_no') . ' as volume_no'),
+                DB::raw($this->captureRegistrationColumn('page_no') . ' as page_no'),
+                DB::raw($this->captureRegistrationColumn('serial_no') . ' as serial_no'),
+                DB::raw('COALESCE(dr.deeds_date, ic.reg_date) as deeds_date'),
                 'dr.deeds_time',
                 // CONCAT() in SQL Server treats NULL as '', which would yield the literal string
                 // 'deed_reg_' for unregistered rows and trigger "Instrument not found" when the
@@ -154,7 +164,7 @@ class InstrumentController extends Controller
         $states = DB::connection('sqlsrv')->table('States')->orderBy('StateName')->get();
         $solicitorDistricts = $this->getDistrictsForSelect()->pluck('name')->values();
 
-        return view('instruments.index', compact('PageTitle', 'PageDescription', 'instruments', 'totalCount', 'pendingCount', 'verifiedCount', 'todayCount', 'fullDataForJs', 'instrumentTypes', 'states', 'solicitorDistricts', 'timelineCounts', 'typeFilter', 'volumeFilter'));
+        return view('instruments.index', compact('PageTitle', 'PageDescription', 'instruments', 'totalCount', 'pendingCount', 'verifiedCount', 'todayCount', 'fullDataForJs', 'instrumentTypes', 'states', 'solicitorDistricts', 'timelineCounts', 'typeFilter', 'volumeFilter', 'search'));
     }
 
     public function create()
@@ -2573,10 +2583,10 @@ class InstrumentController extends Controller
                     ->whereRaw("LOWER(LTRIM(RTRIM(ISNULL(ic.instrument_type, '')))) <> ?", ['deed of purchase'])
                     ->select(
                         'ic.*',
-                        'dr.volume_no',
-                        'dr.page_no',
-                        'dr.serial_no as reg_serial_no',
-                        'dr.deeds_date as reg_date'
+                        DB::raw($this->captureRegistrationColumn('volume_no') . ' as volume_no'),
+                        DB::raw($this->captureRegistrationColumn('page_no') . ' as page_no'),
+                        DB::raw($this->captureRegistrationColumn('serial_no') . ' as reg_serial_no'),
+                        DB::raw('COALESCE(dr.deeds_date, ic.reg_date) as reg_date')
                     );
 
                 if ($instrumentType) {
@@ -2594,7 +2604,7 @@ class InstrumentController extends Controller
                 }
 
                 if ($volumeNo) {
-                    $query->where('dr.volume_no', $volumeNo);
+                    $query->whereRaw($this->captureRegistrationColumn('volume_no') . ' = ?', [$volumeNo]);
                 }
 
                 if ($startDate) {
@@ -2740,6 +2750,13 @@ class InstrumentController extends Controller
         $fileNo = trim((string) $fileNo);
 
         return ($fileNo === '' || stripos($fileNo, 'TEMP') === 0) ? null : $fileNo;
+    }
+
+    /** Prefer DR particulars, retaining captured values when DR is absent or blank. */
+    private function captureRegistrationColumn(string $column): string
+    {
+        return "COALESCE(NULLIF(LTRIM(RTRIM(CAST(dr.{$column} AS NVARCHAR(255)))), ''), "
+            . "NULLIF(LTRIM(RTRIM(CAST(ic.{$column} AS NVARCHAR(255)))), ''))";
     }
 
     /**

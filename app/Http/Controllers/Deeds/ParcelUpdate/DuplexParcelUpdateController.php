@@ -1182,7 +1182,9 @@ class DuplexParcelUpdateController extends Controller
             $sourceFileNo = $duplex->files()
                 ->whereNotNull('source_file_no')
                 ->where('source_file_no', '<>', '')
-                ->orderBy('sequence')
+                // reorder(): the relation already orders by sequence, and sqlsrv
+                // refuses a column named twice in ORDER BY.
+                ->reorder('sequence')
                 ->value('source_file_no');
 
             $path = app(ParcelDocumentIngestService::class)->ingest(

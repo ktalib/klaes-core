@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-triangle-exclamation"></i> 4.3 · Cadastral Information</div>
 
 <div class="caveat">
     <i class="fas fa-circle-info"></i>

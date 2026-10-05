@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-users"></i> 4.3 · Cadastral Information</div>
 
 <div class="kpi-grid">
     <div class="kpi-card">

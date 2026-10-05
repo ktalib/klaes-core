@@ -9,6 +9,7 @@ use App\Http\Controllers\Survey\GknController;
 use App\Http\Controllers\Survey\LookupController;
 use App\Http\Controllers\Survey\LpknController;
 use App\Http\Controllers\Survey\MiscKnController;
+use App\Http\Controllers\Survey\MobileCaseController;
 use App\Http\Controllers\Survey\OpController;
 use App\Http\Controllers\Survey\PlotAllocationController;
 use App\Http\Controllers\Survey\ProjectController;
@@ -105,6 +106,14 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::delete('/misc/{misc}', [MiscKnController::class, 'destroy'])->name('misc.destroy');
 
         Route::get('/lpkn', [LpknController::class, 'index'])->name('lpkn');
+        foreach (['instruction', 'report', 'coordinates', 'observations'] as $section) {
+            Route::get('/lpkn/' . $section, [LpknController::class, 'section'])
+                ->defaults('section', $section)->name('lpkn.' . $section);
+        }
+        Route::put('/lpkn/{lpkn}/instruction', [LpknController::class, 'saveInstruction'])->name('lpkn.instruction.save');
+        Route::put('/lpkn/{lpkn}/report', [LpknController::class, 'saveReport'])->name('lpkn.report.save');
+        Route::post('/lpkn/{lpkn}/coordinates', [LpknController::class, 'saveCoordinate'])->name('lpkn.coordinates.save');
+        Route::delete('/lpkn/{lpkn}/coordinates/{coordinate}', [LpknController::class, 'deleteCoordinate'])->name('lpkn.coordinates.delete');
         Route::post('/lpkn', [LpknController::class, 'store'])->name('lpkn.store');
         Route::put('/lpkn/{lpkn}', [LpknController::class, 'update'])->name('lpkn.update');
         Route::delete('/lpkn/{lpkn}', [LpknController::class, 'destroy'])->name('lpkn.destroy');
@@ -141,5 +150,27 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/streets', [LookupController::class, 'streets'])->name('streets');
         Route::get('/lgas', [LookupController::class, 'lgas'])->name('lgas');
         Route::get('/states', [LookupController::class, 'states'])->name('states');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Survey Mobile — Register Compensation Case in the field
+|--------------------------------------------------------------------------
+| Its own URL and login page, like the VFC and File Tracker mobile apps. The
+| login routes sit outside `auth` so a signed-out officer is not bounced to the
+| desktop login; RequireLoginOtp still asks for the sign-in code.
+*/
+Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(function () {
+    Route::get('/login', [MobileCaseController::class, 'loginForm'])->name('login');
+    Route::post('/login', [MobileCaseController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
+    Route::post('/logout', [MobileCaseController::class, 'logout'])->name('logout');
+
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/', [MobileCaseController::class, 'index'])->name('index');           // dashboard
+        Route::get('/register', [MobileCaseController::class, 'create'])->name('register');
+        Route::post('/cases', [MobileCaseController::class, 'store'])->name('cases.store');
+        Route::get('/cases/{case}', [MobileCaseController::class, 'show'])->name('cases.show');
+        Route::post('/cases/{case}/submit', [MobileCaseController::class, 'submit'])->name('cases.submit');
     });
 });

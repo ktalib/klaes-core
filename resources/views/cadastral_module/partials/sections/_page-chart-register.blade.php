@@ -7,7 +7,6 @@
         : route('cadastral-module.charting.store');
 @endphp
 
-<div class="unit-tag"><i class="fas fa-pen-ruler"></i> 4.3 · Cadastral Information</div>
 
 <div class="page-header">
     <div>
@@ -55,85 +54,96 @@
     </div>
 @endif
 
-<form method="POST" action="{{ $action }}" class="form-container">
+@include('cadastral_module.partials._wizard')
+
+<form method="POST" action="{{ $action }}" class="form-container" data-wizard
+      data-wizard-errors="{{ json_encode($errors->keys()) }}" novalidate>
     @csrf
     @if ($isEdit) @method('PUT') @endif
 
-    <div class="form-body">
-        <fieldset style="border:none;padding:0;margin:0 0 18px;">
-            <div class="ab-legend">The Parcel</div>
+    <div class="form-stepper" data-wizard-header></div>
 
+    <div class="form-body">
+
+        {{-- 1. The file: a registered intake file that still needs charting. --}}
+        <section class="form-step" data-step data-title="File" data-icon="folder-search"
+                 data-subtitle="{{ $isEdit ? 'The file is fixed once charted. Greyed fields come from its intake receipt.' : 'Pick a registered intake file. Conversion files are not charted, and a file already charted gets a new version of its chart instead.' }}">
             <div class="form-grid">
-                <div class="form-group">
-                    <label>File Number <span class="required">*</span></label>
-                    <input type="text" name="file_number" value="{{ old('file_number', $chart->file_number) }}"
-                           placeholder="e.g. RES-1981-1" required />
-                    <div class="helper-text">
-                        A <code>CON-</code> prefix marks the chart as a conversion file and switches
-                        charting off — the category is read from the number, not chosen here.
-                    </div>
-                </div>
+                @include('cadastral_module.partials._file_picker', [
+                    'scope'   => 'receipt',
+                    'purpose' => $isEdit ? null : 'chart',
+                    'hidden'  => $isEdit ? [] : ['cadastral_file_receipt_id'],
+                    'initial' => $picked ?? null,
+                    'fixed'   => $isEdit,
+                    'number'  => $chart->file_number,
+                    'help'    => $isEdit ? null : 'The category (direct or conversion) is read from the file number, not chosen here.',
+                ])
 
                 <div class="form-group">
                     <label>File Title</label>
-                    <input type="text" name="file_title" value="{{ old('file_title', $chart->file_title) }}" />
+                    <input type="text" name="file_title" value="{{ old('file_title', $chart->file_title) }}" maxlength="500" />
                 </div>
 
                 <div class="form-group">
                     <label>Plot Number</label>
-                    <input type="text" name="plot_no" value="{{ old('plot_no', $chart->plot_no) }}" />
+                    <input type="text" name="plot_no" value="{{ old('plot_no', $chart->plot_no) }}" maxlength="50" />
                 </div>
 
                 <div class="form-group">
                     <label>Block Number</label>
-                    <input type="text" name="block_no" value="{{ old('block_no', $chart->block_no) }}" />
+                    <input type="text" name="block_no" value="{{ old('block_no', $chart->block_no) }}" maxlength="50" />
                 </div>
 
                 <div class="form-group">
                     <label>Layout Name</label>
-                    <input type="text" name="layout_name" value="{{ old('layout_name', $chart->layout_name) }}" />
-                </div>
-
-                <div class="form-group">
-                    <label>Approved Plan No.</label>
-                    <input type="text" name="approved_plan_no" value="{{ old('approved_plan_no', $chart->approved_plan_no) }}" />
-                </div>
-
-                <div class="form-group">
-                    <label>TP Plan No.</label>
-                    <input type="text" name="tp_plan_no" value="{{ old('tp_plan_no', $chart->tp_plan_no) }}" />
-                </div>
-
-                <div class="form-group">
-                    <label>Scheme Plan No.</label>
-                    <input type="text" name="scheme_plan_no" value="{{ old('scheme_plan_no', $chart->scheme_plan_no) }}" />
+                    <input type="text" name="layout_name" value="{{ old('layout_name', $chart->layout_name) }}" maxlength="255" />
                 </div>
             </div>
-        </fieldset>
 
-        <fieldset style="border:none;padding:0;margin:0 0 18px;">
-            <div class="ab-legend">Sheets and Charting</div>
+            @include('cadastral_module.partials._address_builder', [
+                'prefix' => 'prop_',
+                'mode'   => 'property',
+                'model'  => $chart,
+                'legend' => 'Property Location',
+                'plotField' => 'plot_no',
+            ])
+        </section>
 
+        {{-- 2. Plan numbers, sheets and the charting itself. --}}
+        <section class="form-step" data-step data-title="Chart Details" data-icon="map"
+                 data-subtitle="Plan numbers, sheet references and who charted it.">
             <div class="form-grid">
                 <div class="form-group">
+                    <label>Approved Plan No.</label>
+                    <input type="text" name="approved_plan_no" value="{{ old('approved_plan_no', $chart->approved_plan_no) }}" maxlength="100" />
+                </div>
+                <div class="form-group">
+                    <label>TP Plan No.</label>
+                    <input type="text" name="tp_plan_no" value="{{ old('tp_plan_no', $chart->tp_plan_no) }}" maxlength="100" />
+                </div>
+                <div class="form-group">
+                    <label>Scheme Plan No.</label>
+                    <input type="text" name="scheme_plan_no" value="{{ old('scheme_plan_no', $chart->scheme_plan_no) }}" maxlength="100" />
+                </div>
+                <div class="form-group">
                     <label>Metric Sheet Index</label>
-                    <input type="text" name="sheet_metric_index" value="{{ old('sheet_metric_index', $chart->sheet_metric_index) }}" />
+                    <input type="text" name="sheet_metric_index" value="{{ old('sheet_metric_index', $chart->sheet_metric_index) }}" maxlength="100" />
                 </div>
                 <div class="form-group">
                     <label>Metric Sheet No.</label>
-                    <input type="text" name="sheet_metric_no" value="{{ old('sheet_metric_no', $chart->sheet_metric_no) }}" />
+                    <input type="text" name="sheet_metric_no" value="{{ old('sheet_metric_no', $chart->sheet_metric_no) }}" maxlength="100" />
                 </div>
                 <div class="form-group">
                     <label>Imperial Sheet</label>
-                    <input type="text" name="sheet_imperial" value="{{ old('sheet_imperial', $chart->sheet_imperial) }}" />
+                    <input type="text" name="sheet_imperial" value="{{ old('sheet_imperial', $chart->sheet_imperial) }}" maxlength="100" />
                 </div>
                 <div class="form-group">
                     <label>Imperial Sheet No.</label>
-                    <input type="text" name="sheet_imperial_no" value="{{ old('sheet_imperial_no', $chart->sheet_imperial_no) }}" />
+                    <input type="text" name="sheet_imperial_no" value="{{ old('sheet_imperial_no', $chart->sheet_imperial_no) }}" maxlength="100" />
                 </div>
                 <div class="form-group">
                     <label>Chart Officer</label>
-                    <input type="text" name="chart_officer_name" value="{{ old('chart_officer_name', $chart->chart_officer_name) }}" />
+                    <input type="text" name="chart_officer_name" value="{{ old('chart_officer_name', $chart->chart_officer_name) }}" maxlength="255" />
                 </div>
                 <div class="form-group">
                     <label>Charted On</label>
@@ -142,17 +152,17 @@
                 <div class="form-group">
                     <label>Manual Chart (scan path)</label>
                     <input type="text" name="manual_chart_path" value="{{ old('manual_chart_path', $chart->manual_chart_path) }}"
-                           placeholder="Trimsheet / topsheet scan" />
+                           placeholder="Trimsheet / topsheet scan" maxlength="500" />
                 </div>
                 <div class="form-group">
                     <label>Digital Chart (path)</label>
-                    <input type="text" name="digital_chart_path" value="{{ old('digital_chart_path', $chart->digital_chart_path) }}" />
+                    <input type="text" name="digital_chart_path" value="{{ old('digital_chart_path', $chart->digital_chart_path) }}" maxlength="500" />
                 </div>
                 <div class="form-group">
                     <label>Area (sqm)</label>
-                    <input type="number" step="0.001" name="area_sqm" value="{{ old('area_sqm', $chart->area_sqm) }}" />
+                    <input type="number" step="0.001" min="0" name="area_sqm" value="{{ old('area_sqm', $chart->area_sqm) }}" />
                     <div class="helper-text">
-                        Leave blank to use the area computed from the beacon ring below.
+                        Leave blank to use the area computed from the beacon ring.
                         A figure typed here is recorded as hand-entered.
                     </div>
                 </div>
@@ -168,22 +178,22 @@
                     <label>Conflict Status</label>
                     <select name="conflict_status">
                         @foreach (['none' => 'None', 'suspected' => 'Suspected', 'confirmed' => 'Confirmed', 'cleared' => 'Cleared'] as $k => $label)
-                            <option value="{{ $k }}" @selected(old('conflict_status', $chart->conflict_status)===$k)>{{ $label }}</option>
+                            <option value="{{ $k }}" @selected(old('conflict_status', $chart->conflict_status ?: 'none')===$k)>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="form-group" style="grid-column:1/-1;">
                     <label>Conflict Note</label>
-                    <input type="text" name="conflict_note" value="{{ old('conflict_note', $chart->conflict_note) }}" />
+                    <input type="text" name="conflict_note" value="{{ old('conflict_note', $chart->conflict_note) }}" maxlength="1000" />
                 </div>
             </div>
-        </fieldset>
+        </section>
 
-        {{-- GIS is linked to, not drawn here (plan Q6): the chart points at the
-             capture record it mirrors, and that record opens in its own screen. --}}
-        <fieldset style="border:none;padding:0;margin:0 0 18px;">
-            <div class="ab-legend">GIS Record</div>
-
+        {{-- 3. GIS is linked to, not drawn here (plan Q6): the chart points at the
+             capture record it mirrors, and that record opens in its own screen.
+             The beacon ring is entered on the chart once it exists. --}}
+        <section class="form-step" data-step data-title="GIS & Coordinates" data-icon="map-pinned"
+                 data-subtitle="{{ $isEdit ? 'The GIS record this chart mirrors. The beacon ring is edited below the form.' : 'The GIS record this chart mirrors, if any. The beacon ring is entered on the next screen, once the chart exists.' }}">
             <div class="form-grid">
                 <div class="form-group">
                     <label>Mirrors</label>
@@ -199,7 +209,7 @@
                            value="{{ old('gis_origin_id', in_array($chart->origin, ['gisCapture', 'surveyCadastral'], true) ? $chart->origin_id : '') }}" />
                     <div class="helper-text">Checked against the GIS table; nothing is written there.</div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" data-summary-skip>
                     <label>Open in GIS</label>
                     @if ($gis = $chart->gisLink())
                         <a class="btn btn-outline btn-sm" href="{{ $gis[1] }}" target="_blank" rel="noopener">
@@ -215,22 +225,29 @@
                     @endif
                 </div>
             </div>
-        </fieldset>
 
-        @include('cadastral_module.partials._address_builder', [
-            'prefix' => 'prop_',
-            'mode'   => 'property',
-            'model'  => $chart,
-            'legend' => 'Property Location',
-            'plotField' => 'plot_no',
-        ])
+            @unless ($isEdit)
+                <div class="comp-type-note" style="margin-top:12px;">
+                    <i data-lucide="locate-fixed" style="width:16px;height:16px;"></i>
+                    After the chart is created you are taken to it to enter the beacon coordinates;
+                    the area is computed from them.
+                </div>
+            @endunless
+        </section>
+
+        <section class="form-step" data-step data-review data-title="Review" data-icon="clipboard-check"
+                 data-subtitle="{{ $isEdit ? 'Check the changes, then save.' : 'Check everything, then create the chart.' }}">
+            <div data-wizard-summary></div>
+        </section>
     </div>
 
-    <div class="form-actions">
+    <div class="form-actions" data-wizard-nav>
         <a href="{{ route('cadastral-module.charting.index') }}" class="btn btn-secondary">Cancel</a>
+        <button type="button" class="btn btn-outline" data-wizard-back><i data-lucide="arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" data-wizard-next>Next <i data-lucide="arrow-right"></i></button>
         @canDo('Cad - Records', $isEdit ? 'edit' : 'create')
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save"></i> {{ $isEdit ? 'Save Chart' : 'Create Chart' }}
+            <button type="submit" class="btn btn-primary" data-wizard-submit>
+                <i data-lucide="{{ $isEdit ? 'save' : 'map-plus' }}"></i> {{ $isEdit ? 'Save Chart' : 'Create Chart' }}
             </button>
         @endcanDo
     </div>

@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Log Incoming File';
-  $PageDescription = 'Choose the source department, then pick the file from its index. Owner, type and location come from the source file.';
+  $PageDescription = 'Select the file with the file-number selector. Its source department, owner, type and location come from the file index.';
 @endphp
 
 @section('cadastral-content')

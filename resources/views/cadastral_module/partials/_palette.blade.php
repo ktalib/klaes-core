@@ -29,21 +29,10 @@
         border-color: var(--primary-dark);
     }
 
-    /* A unit strip above each page's tiles, so an officer can tell at a glance
-       which of the four units they are in. */
+    /* The "4.1 · Cadastral Registry" unit strips were removed: the page header
+       already names the page. Hidden here too, in case one comes back. */
     .cadastral-proto .unit-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 3px 10px;
-        margin-bottom: 12px;
-        border-radius: 999px;
-        background: var(--primary-light);
-        color: var(--primary-dark);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: .04em;
-        text-transform: uppercase;
+        display: none;
     }
 
     /* Honest-limit callout: used where a screen does less than the concept note

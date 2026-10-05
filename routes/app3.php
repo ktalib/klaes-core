@@ -995,6 +995,7 @@ Route::middleware(['auth'])->group(function () {
     // Deeds Application Routes
     Route::prefix('deeds-applications')->name('deeds-applications.')->group(function () {
         Route::get('/', [DeedsApplicationController::class, 'index'])->name('index');
+        Route::get('/data', [DeedsApplicationController::class, 'data'])->name('data');
         Route::get('/create', [DeedsApplicationController::class, 'create'])->name('create');
         Route::post('/', [DeedsApplicationController::class, 'store'])->name('store');
 
@@ -1240,6 +1241,9 @@ Route::middleware(['auth'])->group(function () {
         // the print form.
         Route::post('/issue-dates', [\App\Http\Controllers\LandRofoController::class, 'issueDates'])->name('issue-dates');
         Route::post('/issue-date', [\App\Http\Controllers\LandRofoController::class, 'saveIssueDate'])->name('issue-date');
+        // A re-issued letter's "supersedes the previous one issued on …" date, set
+        // from the Print Manager.
+        Route::post('/{id}/original-issue-date', [\App\Http\Controllers\LandRofoController::class, 'saveOriginalIssueDate'])->name('original-issue-date');
         // Put a letter's print state back so it can be printed again. Super Admin
         // only; the check is in the controller, and the menu that calls it is only
         // rendered for them.

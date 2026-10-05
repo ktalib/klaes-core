@@ -739,7 +739,9 @@
 
         $isReissuance   = request()->boolean('supersede');
         $reissueSource  = strtolower(trim((string) request('reissue_source', '')));
-        $originalOnly   = $isReissuance && $reissueSource !== 'legacy';
+        // Every re-issued letter, KLAES or pre-KLAES, prints the full set: Original,
+        // Duplicate and Triplicate (decided 2026-10-02). A KLAES re-issuance used to
+        // be the Original alone.
 
         // The three passes the Print Manager offers, as one status each:
         //   Batch  — the whole set, one run.
@@ -747,18 +749,14 @@
         //            once the plain paper is in the tray).
         //   <copy> — that copy on its own.
         $requestedStatus = request('status', 'Original');
-        $printVersions = $originalOnly
-            ? ['Original']
-            : (($requestedStatus === 'Batch')
-                ? ['Original', 'Duplicate', 'Triplicate']
-                : (($requestedStatus === 'Office') ? ['Duplicate', 'Triplicate'] : [$requestedStatus]));
+        $printVersions = ($requestedStatus === 'Batch')
+            ? ['Original', 'Duplicate', 'Triplicate']
+            : (($requestedStatus === 'Office') ? ['Duplicate', 'Triplicate'] : [$requestedStatus]);
 
         // A batch printed "by copy" needs all the Originals first, then all the
         // Duplicates, then all the Triplicates — so the caller renders each record
         // once per copy and orders the passes itself. $printVersionsOnly is how it
-        // asks for a single copy out of the set. Intersected rather than assigned:
-        // a re-issued letter is the ORIGINAL alone, and that stays true however the
-        // batch is being ordered.
+        // asks for a single copy out of the set.
         if (!empty($printVersionsOnly)) {
             $printVersions = array_values(array_intersect($printVersions, (array) $printVersionsOnly));
         }
@@ -784,7 +782,9 @@
         // such a row shows the capture date until the original date is filled in.
         $supersedeOn = trim((string) ($supersededDate ?? ''));
         if ($isReissuance && $supersedeOn === '') {
-            $originalIssuedAt = ($reissueSource === 'legacy' ? $recommendation->reissuance_original_date : null)
+            // The date keyed in as "Date the Original RofO Was Issued" (form or Print
+            // Manager) wins for KLAES and pre-KLAES alike.
+            $originalIssuedAt = $recommendation->reissuance_original_date
                 ?? $recommendation->rofo_generated_at
                 ?? $recommendation->created_at;
 

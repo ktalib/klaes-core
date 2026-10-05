@@ -171,6 +171,7 @@
                             <th class="px-4 py-3">Land Use</th>
                             <th class="px-4 py-3">Location</th>
                             <th class="px-4 py-3">Comment</th>
+                            <th class="px-4 py-3">Captured By</th>
                             <th class="px-4 py-3">Date Created</th>
                             @if ($canCorrect)
                                 <th class="px-4 py-3 text-center">Action</th>
@@ -211,6 +212,16 @@
                                         <span class="text-slate-300">—</span>
                                     @endif
                                 </td>
+                                <td class="px-4 py-3 text-slate-600 whitespace-nowrap">
+                                    @php $capturer = $capturers[$r->captured_by] ?? null; @endphp
+                                    @if ($capturer)
+                                        {{-- Opens the shared profile card (js/user-profile-card.js). --}}
+                                        <span class="upc-trigger" data-user-card data-user-id="{{ $capturer->id }}"
+                                              title="{{ __('View profile') }}">{{ trim($capturer->first_name . ' ' . $capturer->last_name) }}</span>
+                                    @else
+                                        <span class="text-slate-300">—</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-slate-500 whitespace-nowrap">
                                     {{ $r->created_at ? \Carbon\Carbon::parse($r->created_at)->format('d/m/Y') : '—' }}
                                 </td>
@@ -234,7 +245,7 @@
                                                 <button type="button"
                                                         @click="open = false"
                                                         onclick="regrantOpenCorrect({{ $r->id }}, @js($r->file_no), @js((string) $linkedFrom), {{ filled($r->see_fileno) ? 'true' : 'false' }})">
-                                                    <i data-lucide="replace" class="w-3.5 h-3.5 text-indigo-500"></i> Correct
+                                                    <i data-lucide="replace" class="w-3.5 h-3.5 text-indigo-500"></i> Swap
                                                 </button>
                                             </div>
                                         </div>
@@ -242,7 +253,7 @@
                                 @endif
                             </tr>
                         @empty
-                            <tr><td colspan="{{ $canCorrect ? 8 : 7 }}" class="px-4 py-10 text-center text-slate-400">No Re-grant records found.</td></tr>
+                            <tr><td colspan="{{ $canCorrect ? 9 : 8 }}" class="px-4 py-10 text-center text-slate-400">No Re-grant records found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

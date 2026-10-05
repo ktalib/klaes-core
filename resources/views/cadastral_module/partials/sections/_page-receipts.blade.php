@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-inbox"></i> 4.1 · Cadastral Registry</div>
 
 <div class="page-header">
     <div></div>

@@ -520,6 +520,10 @@ class FileNumberController extends Controller
                     mls.commissioning_date                    AS derived_commissioning_date,
                     mls.created_at                            AS derived_created_at,
                     mls.source                                AS derived_source,
+                    -- The generator's File Type (Re-grant, Subdivision, ...). source holds
+                    -- only the Application Type, so without this a Re-grant raised as a
+                    -- Conversion lists as plain \"Conversion\".
+                    mls.file_option                           AS derived_file_option,
                     mls.source_instrument_capture_id          AS derived_source_instrument_capture_id,
                     COALESCE(fn.lga,         mls.lga)         AS derived_lga,
                     COALESCE(fn.district,    mls.district)    AS derived_district,
@@ -552,7 +556,7 @@ class FileNumberController extends Controller
                     SELECT TOP 1
                         m.batch_no, m.land_use, m.customer_type, m.commissioning_date, m.created_at,
                         m.source, m.source_instrument_capture_id, m.source_pra_id, m.lga, m.district, m.created_by, m.purpose_id,
-                        m.old_fileno, m.phone_no, m.rep_phone_no
+                        m.old_fileno, m.phone_no, m.rep_phone_no, m.file_option
                     FROM mls_file_no m
                     WHERE m.full_file_number = fn.mlsfNo
                     ORDER BY m.id DESC
@@ -765,6 +769,7 @@ class FileNumberController extends Controller
                         $rowFileNo,
                         trim($row->derived_source ?? '') ?: (trim($row->SOURCE ?? '') ?: 'N/A')
                     ),
+                    'file_option' => trim($row->derived_file_option ?? ''),
                     'source_instrument_capture_id' => $row->derived_source_instrument_capture_id ? (int) $row->derived_source_instrument_capture_id : null,
                     'source_pra_id' => $row->derived_source_pra_id ? (int) $row->derived_source_pra_id : null,
                     'source_prop_id' => $row->derived_source_prop_id ? (int) $row->derived_source_prop_id : null,

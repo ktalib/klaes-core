@@ -1,7 +1,8 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-link"></i> 4.1 · Cadastral Registry</div>
 
+{{-- Temporarily hide the correspondence commissioning notice. --}}
+{{--
 <div class="caveat">
     <i class="fas fa-circle-info"></i>
     <div>
@@ -13,6 +14,7 @@
         Boundary conflicts can only be checked once a file is charted.
     </div>
 </div>
+--}}
 
 <div class="kpi-grid">
     <div class="kpi-card">

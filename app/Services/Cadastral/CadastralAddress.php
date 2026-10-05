@@ -3,6 +3,7 @@
 namespace App\Services\Cadastral;
 
 use App\Support\AddressBuilder;
+use Illuminate\Validation\Rule;
 
 /**
  * The one place the Cadastral module handles address-builder input.
@@ -25,10 +26,32 @@ use App\Support\AddressBuilder;
  */
 class CadastralAddress
 {
-    /** Validation rules for one address group — the Survey rule set, unchanged. */
+    /**
+     * Validation rules for one address group.
+     *
+     * SINGLE VALUES, not AddressBuilder::rules(). On 2026-10-02 the shared rules
+     * moved to the Survey module's multi-selects (district, street and LGA as
+     * arrays). The Cadastral builder posts ONE of each, so it keeps its own
+     * rules here; composition still goes through AddressBuilder, which accepts
+     * either shape.
+     */
     public static function rules(string $prefix, bool $required = true): array
     {
-        return AddressBuilder::rules($prefix, $required);
+        $req   = $required ? 'required' : 'nullable';
+        $other = fn (string $kind) => Rule::requiredIf(
+            fn () => strcasecmp(trim((string) request()->input($prefix . $kind)), 'Other') === 0
+        );
+
+        return [
+            $prefix . 'house'          => 'nullable|string|max:100',
+            $prefix . 'plot'           => 'nullable|string|max:100',
+            $prefix . 'street'         => 'nullable|string|max:255',
+            $prefix . 'street_other'   => ['nullable', 'string', 'max:255', $other('street')],
+            $prefix . 'district'       => $req . '|string|max:255',
+            $prefix . 'district_other' => ['nullable', 'string', 'max:255', $other('district')],
+            $prefix . 'lga'            => $req . '|string|max:255',
+            $prefix . 'state'          => $req . '|string|max:255',
+        ];
     }
 
     /** The messages every Cadastral form shows for an address group. */
@@ -36,7 +59,9 @@ class CadastralAddress
     {
         return [
             $prefix . 'district.required'          => 'The district is required.',
+            $prefix . 'district_other.required'    => 'Please specify the district.',
             $prefix . 'district_other.required_if' => 'Please specify the district.',
+            $prefix . 'street_other.required'      => 'Please specify the street.',
             $prefix . 'street_other.required_if'   => 'Please specify the street.',
             $prefix . 'lga.required'               => 'The LGA is required.',
             $prefix . 'state.required'             => 'The state is required.',

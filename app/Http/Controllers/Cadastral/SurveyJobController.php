@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Cadastral\CadastralIndexCard;
 use App\Models\Cadastral\CadastralSurveyJob;
 use App\Models\Cadastral\CadastralSurveyor;
+use App\Http\Controllers\Cadastral\Concerns\LocksFileValues;
 use App\Services\AuditService;
 use App\Services\Cadastral\CadastralAddress;
+use App\Services\Cadastral\CadastralRegistryLookup;
 use App\Services\Cadastral\SurveyJobNumberGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +30,14 @@ use Illuminate\Validation\ValidationException;
  * Generate at the same moment serialise rather than collide; the unique index on
  * job_number is the backstop.
  *
+ * THE FILE (rebuild D-UI). A job is registered against an INDEXED file, picked
+ * with the shared file picker: a survey job can come before the file reaches
+ * Cadastral intake (the card it is later written onto is commissioned after
+ * the job, often), so the scope is any live file_indexings row, not a receipt.
+ * The number is taken from that row, and the title and location from the
+ * file's registered receipt where it has one, else from the row
+ * (LocksFileValues); what both leave blank is the officer's.
+ *
  * INDEX-CARD SYNC (Phase 5). Whenever a job is registered, re-linked or issued
  * for a file that has an index card, the job is linked to the card and its
  * number is written onto the card (syncCard) -- inside the same transaction, so
@@ -39,9 +49,15 @@ class SurveyJobController extends Controller
     /** A job in one of these states is never written onto a card. */
     private const DEAD_STATUSES = ['Cancelled', 'Rejected'];
 
+    use LocksFileValues;
+
+    /** Form fields a job takes from its file; supplied ones are locked. The builder's prop_plot is the job's plot. */
+    private const FILE_FIELDS = ['file_title', 'prop_house', 'prop_plot', 'prop_street', 'prop_district', 'prop_lga', 'prop_state'];
+
     public function __construct(
         private SurveyJobNumberGenerator $numbers,
         private AuditService $audit,
+        private CadastralRegistryLookup $lookup,
     ) {}
 
     public function index(Request $r)
@@ -72,7 +88,13 @@ class SurveyJobController extends Controller
             ->orderBy('full_name')
             ->get();
 
+        // After a failed register, put the picked file back in the picker.
+        $picked = ($id = (int) old('file_indexing_id'))
+            ? $this->lookup->resolveFile(['file_indexing_id' => $id, 'scope' => 'indexed'])
+            : null;
+
         return view('cadastral_module.information.survey_jobs', [
+            'picked'            => $picked,
             'jobs'              => $jobs,
             'stats'             => $stats,
             'surveyors'         => $surveyors,
@@ -88,6 +110,12 @@ class SurveyJobController extends Controller
      */
     public function store(Request $r)
     {
+        $file = $this->requireIndexedFile($r->input('file_indexing_id'));
+
+        $this->lockFromFile($r, self::FILE_FIELDS, $this->latestRegisteredReceipt($file['file_number']), $file['id'], [
+            'file_number' => $file['file_number'],
+        ]);
+
         $data = $this->validated($r);
 
         [$job, $synced] = DB::connection('sqlsrv')->transaction(function () use ($data) {
@@ -111,7 +139,11 @@ class SurveyJobController extends Controller
 
     public function edit(CadastralSurveyJob $surveyJob)
     {
+        // The file is fixed; the picker shows it locked, as update() re-reads it.
+        $indexingId = $this->indexingIdFor($surveyJob->file_number);
+
         return view('cadastral_module.information.survey_job_register', [
+            'picked'            => $indexingId ? $this->lookup->resolveFile(['file_indexing_id' => $indexingId, 'scope' => 'indexed']) : null,
             'job'               => $surveyJob->load(['surveyor', 'indexCard']),
             'surveyors'         => CadastralSurveyor::where('is_active', true)->orderBy('full_name')->get(),
             'formatUnconfirmed' => $this->numbers->formatIsPlaceholder(),
@@ -123,6 +155,10 @@ class SurveyJobController extends Controller
         if (in_array($surveyJob->status, ['Accepted', 'Cancelled'], true)) {
             return back()->with('error', "{$surveyJob->job_number} is {$surveyJob->status} and can no longer be edited.");
         }
+
+        // The file number is the job's own; what its file supplies is re-read.
+        $this->lockFromFile($r, self::FILE_FIELDS, $this->latestRegisteredReceipt($surveyJob->file_number),
+            $this->indexingIdFor($surveyJob->file_number), ['file_number' => $surveyJob->file_number]);
 
         $data = $this->validated($r, $surveyJob);
 
@@ -316,6 +352,45 @@ class SurveyJobController extends Controller
         }
     }
 
+    /** The picked file, re-read: live, indexed and not decommissioned. */
+    private function requireIndexedFile($id): array
+    {
+        $file = $id ? $this->lookup->sourceFile(null, (int) $id) : null;
+
+        if (! $file) {
+            throw ValidationException::withMessages([
+                'file_indexing_id' => $id
+                    ? 'That file is no longer in the file index. Select it again with the file-number selector.'
+                    : 'Select the file with the file-number selector first.',
+            ]);
+        }
+
+        if ($file['decommissioned']) {
+            throw ValidationException::withMessages([
+                'file_indexing_id' => "{$file['file_number']} has been decommissioned"
+                    . ($file['successor'] ? " and replaced by {$file['successor']}" : '') . '. Register the job on the current file.',
+            ]);
+        }
+
+        return $file;
+    }
+
+    /**
+     * The file_indexings row behind a job's number: its receipt's pointer when
+     * it has one, else the one live row carrying the number. Several rows
+     * carrying it is not guessed between; the receipt's values still apply.
+     */
+    private function indexingIdFor(?string $fileNumber): ?int
+    {
+        if ($receipt = $this->latestRegisteredReceipt($fileNumber)) {
+            if ($receipt->file_indexing_id) return (int) $receipt->file_indexing_id;
+        }
+
+        $live = $this->lookup->matchIndexedFiles($fileNumber)->reject(fn ($m) => (bool) $m->is_decommissioned);
+
+        return $live->count() === 1 ? (int) $live->first()->id : null;
+    }
+
     private function validated(Request $r, ?CadastralSurveyJob $existing = null): array
     {
         $rules = [
@@ -326,11 +401,11 @@ class SurveyJobController extends Controller
             'cadastral_report_id'   => 'nullable|integer',
             'job_scope'             => 'nullable|string|max:8000',
             'status'                => ['nullable', Rule::in(CadastralSurveyJob::STATUSES)],
-        ] + CadastralAddress::rules('prop_');
+        ] + $this->addressRules($r, 'prop_');
 
         // No plot column of its own; the builder's prop_plot is it (the ITS prints it).
         $data = CadastralAddress::normalise(
-            $r->validate($rules, CadastralAddress::messages('prop_')),
+            $r->validate($rules, $this->addressMessages('prop_')),
             'prop_'
         );
 

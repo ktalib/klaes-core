@@ -1,151 +1,314 @@
-{{-- Consolidated cadastral bill — the printed demand note. Standalone. --}}
+{{--
+    The official sheet "Right of Occupancy - Cadastral Fees and Area"
+    (docs/templates/cadastral/Cadastral-Fees-and-Area-RightofOccupancy.html),
+    copied with its CSS, page size and layout, the blanks filled.
+
+    The grid's three empty columns are read as Quantity | Unit rate | Amount:
+    the label already names the rate, so the three columns are what is
+    multiplied and what it comes to. The Total row fills Amount only.
+
+    Every line prints from the bill's own snapshot (rate, quantity, amount), so
+    a reprint matches the issued copy after the rates change. Only the two
+    schedules at the foot are read live from Configurable Entries -> Cadastral,
+    with the row and band this bill was charged at highlighted.
+
+    Standalone page: no layout, so it prints alone.
+--}}
+@php
+    $n = function ($v) {
+        if ($v === null) return '';
+        $v = (float) $v;
+        return number_format($v, floor($v) == $v ? 0 : 2);
+    };
+    $m = fn ($v) => $v === null ? '' : number_format((float) $v, 2);
+    $rate = fn (string $key, string $paper) => $lines[$key]['rate'] !== null ? 'N' . $n($lines[$key]['rate']) : $paper;
+    $areaHa = $bill->area_ha !== null ? rtrim(rtrim(number_format((float) $bill->area_ha, 4), '0'), '.') : null;
+    $usedRow = $bill->schedule_row_ha !== null ? round((float) $bill->schedule_row_ha, 2) : null;
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <title>Cadastral Bill {{ $bill->bill_ref }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Right of Occupancy - Cadastral Fees and Area — {{ $bill->bill_ref }}</title>
     <style>
-        @page { size: A4; margin: 18mm; }
+        /* Global Page Setup for Single-Page Printing */
+        @page {
+            size: A4;
+            margin: 10mm 15mm;
+        }
 
-        body { font-family: "Times New Roman", Georgia, serif; font-size: 12.5px; color: #000; margin: 0; line-height: 1.5; }
-        .sheet { max-width: 180mm; margin: 0 auto; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
 
-        .head { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
-        .head h1 { font-size: 16px; margin: 0; letter-spacing: .06em; text-transform: uppercase; }
-        .head h2 { font-size: 12.5px; margin: 3px 0 0; font-weight: normal; }
-        .head h3 { font-size: 13.5px; margin: 10px 0 0; text-transform: uppercase; letter-spacing: .1em; }
+        .document-container {
+            background-color: #fff;
+            max-width: 750px;
+            margin: 0 auto;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            page-break-inside: avoid; /* Prevents splitting into 2 pages */
+        }
 
-        .refs { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 11.5px; }
+        /* Header Layout */
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 12px;
+            line-height: 1.3;
+        }
 
-        table.fields { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
-        table.fields td { padding: 4px 6px; vertical-align: top; }
-        table.fields .label { width: 26%; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #333; }
-        table.fields .value { border-bottom: 1px dotted #666; font-weight: bold; }
+        .header-left {
+            width: 50%;
+        }
 
-        table.bill { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        table.bill th, table.bill td { border: 1px solid #000; padding: 6px 8px; font-size: 11.5px; }
-        table.bill th { background: #eee; text-align: left; }
-        table.bill .amount { text-align: right; font-variant-numeric: tabular-nums; width: 24%; }
-        table.bill tr.total td { font-weight: bold; font-size: 13px; background: #f6f6f6; }
+        .header-right {
+            width: 40%;
+            text-align: left;
+        }
 
-        .note { margin-top: 12px; font-size: 10.5px; color: #333; }
+        .line-field {
+            border-bottom: 1px solid #000;
+            display: inline-block;
+        }
 
-        .sig { margin-top: 36px; display: flex; justify-content: space-between; }
-        .sig .block { width: 45%; }
-        .sig .rule { border-top: 1px solid #000; padding-top: 4px; font-size: 10.5px; }
+        /* Title Style */
+        .document-title {
+            text-align: center;
+            color: green;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 12px 0;
+            line-height: 1.2;
+        }
 
-        .foot { margin-top: 22px; border-top: 1px solid #999; padding-top: 6px; font-size: 9.5px; color: #444; }
+        /* Grid Table Breakdown */
+        .fee-breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+        }
 
-        .no-print { margin: 10px 0; }
-        @media print { .no-print { display: none; } }
+        .fee-breakdown-table td {
+            border: 1px solid green;
+            padding: 4px 6px;
+            height: 18px;
+            font-size: 12px;
+        }
+
+        .fee-breakdown-table td.label-col {
+            color: green;
+            font-weight: bold;
+            width: 60%;
+        }
+
+        .fee-breakdown-table td.empty-col {
+            width: 13.33%;
+        }
+
+        /* Info Text and Schedules */
+        .info-text {
+            font-size: 12px;
+            margin-bottom: 10px;
+            line-height: 1.3;
+        }
+
+        .schedule-title {
+            font-weight: bold;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .schedule-list {
+            font-size: 11px;
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+
+        .flex-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .signature-space {
+            text-align: right;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        /* Compact Schedule of Area Fee Table */
+        .area-fee-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            text-align: left;
+        }
+
+        .area-fee-table th, .area-fee-table td {
+            border: 1px solid green;
+            padding: 2px 5px;
+            line-height: 1.1;
+        }
+
+        .area-fee-table th {
+            color: green;
+            font-weight: bold;
+            font-size: 10px;
+            background-color: #fff;
+        }
+
+        /* Print Override */
+        @media print {
+            body {
+                background-color: #fff;
+                padding: 0;
+            }
+            .document-container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+            }
+        }
+
+        /* KLAES additions: filled values, the row charged, the screen toolbar. */
+        .fee-breakdown-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        .fee-breakdown-table td.qty { text-align: center; font-size: 11px; }
+        .area-fee-table tr.row-used td { background-color: #e3f2e3; font-weight: bold; }
+        .band-used { font-weight: bold; text-decoration: underline; }
+        .void-mark { text-align: center; color: #b00; font-weight: bold; font-size: 13px; letter-spacing: .2em; margin-bottom: 6px; }
+        .toolbar { max-width: 750px; margin: 10px auto; font-size: 13px; display: flex; gap: 12px; align-items: center; }
+        .toolbar .warn { color: #8a5a00; }
+        @media print { .toolbar { display: none; } }
     </style>
 </head>
 <body>
-<div class="sheet">
 
-    <div class="no-print">
-        @canDo('Cad - Records', 'print')
-            <button onclick="window.print()">Print</button>
-        @endcanDo
-        <a href="{{ route('cadastral-module.plan-description.edit', $record) }}">Back</a>
+<div class="toolbar">
+    @canDo('Cad - Records', 'print')
+        <button onclick="window.print()">Print</button>
+    @endcanDo
+    <a href="{{ route('cadastral-module.plan-description.fees', ['record' => $record->id]) }}">Back to the Fee Calculator</a>
+    <span>{{ $bill->bill_ref }} · {{ $bill->status }}</span>
+    @if ($bill->unconfirmed_rules)
+        <span class="warn">Issued under unconfirmed rule(s): {{ $bill->unconfirmed_rules }}</span>
+    @endif
+    @unless ($bill->is_fee_sheet)
+        <span class="warn">This bill predates the fee sheet; its lines are not on record.</span>
+    @endunless
+</div>
+
+<div class="document-container">
+
+    @if ($bill->status === 'Cancelled')
+        <div class="void-mark">CANCELLED{{ $bill->cancel_reason ? ' — ' . $bill->cancel_reason : '' }}</div>
+    @endif
+
+    <!-- Top Reference / Header Section -->
+    <div class="header-section">
+        <div class="header-left">
+            <strong>The Director Lands,<br>
+            Kano State Bureau for Land Management,<br>
+            Kano.</strong>
+        </div>
+        <div class="header-right">
+            Re CAD/ <span class="line-field" style="width: 130px;">{{ $bill->re_cad_ref }}</span><br>
+            Cadastral Department<br>
+            P.M.B 3083, Kano<br>
+            Date <span class="line-field" style="width: 130px;">{{ optional($bill->bill_date ?? $bill->issued_at)->format('d/m/Y') }}</span>
+        </div>
     </div>
 
-    <div class="head">
-        <h1>Kano State Ministry of Land and Physical Planning</h1>
-        <h2>Cadastral Department — Plan and Description Unit</h2>
-        <h3>Cadastral Fee Note</h3>
+    <!-- Document Title -->
+    <div class="document-title">
+        Right of Occupancy No <span class="line-field" style="min-width: 150px;">{{ $bill->rofo_no ?: $bill->file_number }}</span><br>
+        Cadastral Fees and Area
     </div>
 
-    <div class="refs">
-        <span><strong>Bill No.:</strong> {{ $bill->bill_ref }}</span>
-        <span><strong>File No.:</strong> {{ $bill->file_number }}</span>
-        <span><strong>Issued:</strong> {{ optional($bill->issued_at)->format('d F Y') ?: '—' }}</span>
-    </div>
-
-    <table class="fields">
+    <!-- Investigation and Fee breakdown Grid: Quantity | Unit rate | Amount -->
+    @php
+        $labels = [
+            'investigation' => 'Investigation and Search @ ' . $rate('investigation', 'N4,000'),
+            'beacon'        => 'Beacons @ (' . $rate('beacon', 'N4,000') . ' each)',
+            'area'          => 'Area fee @ (schedule below)',
+            'delay'         => 'Delay @ ' . $rate('delay', 'N 350') . ' (Per day)',
+            'transport'     => 'Transport @ Schedule below',
+            'field_work'    => 'Additional field work @ ' . $rate('field_work', 'N350:00') . ' (per day)',
+            'office_work'   => 'Office Work @ ' . $rate('office_work', 'N10,000') . ' (per day)',
+            'plan_print'    => 'Plan Prints @ ' . $rate('plan_print', 'N400:00') . ' (per file)',
+        ];
+    @endphp
+    <table class="fee-breakdown-table">
+        @foreach ($labels as $key => $label)
+            <tr>
+                <td class="label-col">{{ $label }}</td>
+                <td class="empty-col qty">{{ $lines[$key]['qty_label'] }}</td>
+                <td class="empty-col num">{{ $m($lines[$key]['rate']) }}</td>
+                <td class="empty-col num">{{ $m($lines[$key]['amount']) }}</td>
+            </tr>
+        @endforeach
         <tr>
-            <td class="label">File Title</td>
-            <td class="value" colspan="3">{{ $record->file_title ?: '—' }}</td>
-        </tr>
-        <tr>
-            {{-- District, LGA, State. The plot number has its own row. --}}
-            <td class="label">Location</td>
-            <td class="value">{{ $record->property_location ?: '—' }}</td>
-            <td class="label">Plot No.</td>
-            <td class="value">{{ $record->chart?->plot_no ?: $record->prop_plot ?: '—' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Land Use</td>
-            <td class="value">{{ $record->land_use ?: '—' }}</td>
-            <td class="label">Zone</td>
-            <td class="value">{{ \App\Models\Cadastral\CadastralPlanDescription::ZONES[$record->location_zone] ?? '—' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Area</td>
-            <td class="value" colspan="3">
-                {{ $areas['sqm'] !== null ? number_format($areas['sqm'], 2) : '—' }} sqm
-                @if ($areas['hectares'] !== null)
-                    · {{ number_format($areas['hectares'], 4) }} ha
-                    · {{ number_format($areas['acres'], 4) }} acres
-                    · {{ number_format($areas['plots'], 2) }} plots
-                @endif
-            </td>
+            <td class="label-col">Total</td>
+            <td></td><td></td><td class="num"><strong>{{ $m($bill->grand_total) }}</strong></td>
         </tr>
     </table>
 
-    <table class="bill">
+    <!-- Context Text Fields -->
+    <div class="info-text">
+        The Area of this plot is <span class="line-field" style="min-width: 120px; text-align: center;">{{ $areaHa }}</span> Hectares<br>
+        Please inform me you require the plans and Description to be issued.
+    </div>
+
+    <!-- Transport & Signature Row -->
+    <div class="flex-row">
+        <div>
+            <div class="schedule-title">Transport Schedule</div>
+            <div class="schedule-list">
+                @foreach ($bands as $band)
+                    <span class="{{ $bill->transport_qty && $band['label'] === $bill->transport_band_label ? 'band-used' : '' }}">{{ $band['label'] }} - N{{ number_format($band['fee'], 2) }}</span>@if (! $loop->last)<br>@endif
+                @endforeach
+            </div>
+            <div class="schedule-title">Schedule of area Fee: &nbsp;&nbsp;&nbsp;&nbsp;(Kano S.L.N. No 3 of 1983)</div>
+        </div>
+        <div class="signature-space">
+            For Director Cadastral
+        </div>
+    </div>
+
+    <!-- Schedule Matrix Table -->
+    <table class="area-fee-table">
         <thead>
-            <tr><th>Item</th><th>Basis</th><th class="amount">Amount (&#8358;)</th></tr>
+            <tr>
+                <th style="width: 18%;">HEACTARES</th>
+                <th style="width: 22%;">CURRENT FEES N</th>
+                <th style="width: 22%;">PROPOSED FEES N</th>
+                <th style="width: 20%;">ADDITIONAL N</th>
+                <th style="width: 18%;">PROPOSED N</th>
+            </tr>
         </thead>
         <tbody>
-            @foreach ($lines as $line)
-                <tr>
-                    <td>{{ $line['label'] }}</td>
-                    <td>{{ $line['detail'] }}</td>
-                    <td class="amount">{{ number_format($line['amount'], 2) }}</td>
+            @foreach ($schedule as $row)
+                <tr class="{{ $usedRow !== null && abs(round($row['hectares'], 2) - $usedRow) < 0.001 ? 'row-used' : '' }}">
+                    <td>{{ number_format($row['hectares'], 2) }}</td>
+                    <td>{{ $row['current_fee'] === null ? '' : number_format($row['current_fee'], 2) }}</td>
+                    <td>{{ $row['proposed_fee'] === null ? '' : number_format($row['proposed_fee'], 2) }}</td>
+                    <td>{{ $row['additional_note'] }}</td>
+                    <td>{{ $row['proposed_additional_note'] }}</td>
                 </tr>
             @endforeach
-            <tr class="total">
-                <td colspan="2">Grand Total</td>
-                <td class="amount">{{ number_format($bill->grand_total, 2) }}</td>
-            </tr>
         </tbody>
     </table>
 
-    <div class="note">
-        The rates above are those in force on the date of issue and are recorded with this bill, so
-        a reprint always matches the copy issued. Government and private pillars are charged at the
-        same rate.
-    </div>
-
-    @if ($bill->receipt_no)
-        <table class="fields" style="margin-top:14px;">
-            <tr>
-                <td class="label">Receipt No.</td>
-                <td class="value">{{ $bill->receipt_no }}</td>
-                <td class="label">Receipt Date</td>
-                <td class="value">{{ optional($bill->receipt_date)->format('d M Y') ?: '—' }}</td>
-            </tr>
-        </table>
-    @endif
-
-    <div class="sig">
-        <div class="block">
-            <div class="rule" style="margin-top:40px;">
-                Prepared — Plan and Description Unit
-            </div>
-        </div>
-        <div class="block">
-            <div class="rule" style="margin-top:40px;">
-                Approved — Assistant Director, Plans and Descriptions
-            </div>
-        </div>
-    </div>
-
-    <div class="foot">
-        {{ $bill->bill_ref }} · {{ $record->pd_ref }} · status {{ $bill->status }} ·
-        printed {{ now()->format('d M Y H:i') }}
-    </div>
 </div>
+
 </body>
 </html>

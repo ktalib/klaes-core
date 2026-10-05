@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-pen-ruler"></i> 4.3 · Cadastral Information</div>
 
 <div class="page-header">
     <div></div>

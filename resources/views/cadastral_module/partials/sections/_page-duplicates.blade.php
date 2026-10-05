@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-clone"></i> 4.1 · Cadastral Registry</div>
 
 <div class="caveat">
     <i class="fas fa-circle-info"></i>
@@ -13,17 +12,21 @@
     </div>
 </div>
 
-<form method="GET" class="table-toolbar">
-    <div class="left">
-        <input type="text" name="file_number" value="{{ $fileNumber }}"
-               placeholder="File number to check, e.g. RES-1981-1"
-               style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:300px;" />
-        <button class="btn btn-primary" type="submit"><i class="fas fa-magnifying-glass"></i> Check</button>
-        @if ($fileNumber)
-            <a class="btn btn-outline btn-sm" href="{{ route('cadastral-module.registry.duplicates') }}">Clear</a>
-        @endif
+{{-- Checking a file goes through the global file-number selector, like every
+     other file number in the module; the page then reads ?file_number=, so a
+     number that is not indexed can still be checked against the register. --}}
+<div class="table-toolbar" style="align-items:flex-end;">
+    <div class="left" style="flex:1;max-width:720px;">
+        @include('cadastral_module.partials._file_picker', [
+            'navigate' => route('cadastral-module.registry.duplicates'),
+            'label'    => 'File to check',
+            'number'   => $fileNumber,
+        ])
     </div>
-</form>
+    @if ($fileNumber)
+        <a class="btn btn-outline btn-sm" href="{{ route('cadastral-module.registry.duplicates') }}">Clear</a>
+    @endif
+</div>
 
 @if ($summary)
     <div class="dash-card" style="margin-bottom:18px;">
@@ -182,7 +185,7 @@
                         <tr>
                             <td colspan="{{ $holdsEnabled ? 7 : 6 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
                                 <i class="fas fa-circle-check" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
-                                Nothing is flagged. Type a file number above to check one.
+                                Nothing is flagged. Select a file number above to check one.
                             </td>
                         </tr>
                     @endforelse

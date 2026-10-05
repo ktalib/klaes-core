@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Cadastral\CadastralChart;
 use App\Models\Cadastral\CadastralChartCoordinate;
 use App\Models\Cadastral\CadastralFileReceipt;
+use App\Http\Controllers\Cadastral\Concerns\LocksFileValues;
 use App\Services\Cadastral\AreaCalculator;
 use App\Services\Cadastral\CadastralAddress;
+use App\Services\Cadastral\CadastralRegistryLookup;
 use App\Services\Cadastral\ChartConflictScanner;
 use App\Services\Cadastral\FileNumberFormat;
 use Illuminate\Http\Request;
@@ -34,15 +36,27 @@ use Illuminate\Validation\Rule;
  * the decision is read from the file number (FileNumberFormat::classify, stored
  * on the receipt as file_class), not from anything an officer ticks.
  *
+ * A CHART IS RAISED FROM A REGISTERED INTAKE FILE, picked with the shared
+ * file picker. The file number, owner, plot and location are taken from the
+ * receipt on the server (LocksFileValues); a conversion file, or one that
+ * already has a current chart, is refused — the second gets a new version of
+ * its chart instead.
+ *
  * GIS is linked out to, not embedded (plan Q6): a chart that mirrors a
  * gisCapture or surveyCadastral row by origin/origin_id opens that record in its
  * own screen (CadastralChart::gisLink).
  */
 class ChartingController extends Controller
 {
+    use LocksFileValues;
+
+    /** Form fields a chart takes from its file's receipt; supplied ones are locked. */
+    private const FILE_FIELDS = ['file_title', 'plot_no', 'prop_house', 'prop_street', 'prop_district', 'prop_lga', 'prop_state'];
+
     public function __construct(
         private ChartConflictScanner $conflicts,
         private AreaCalculator $area,
+        private CadastralRegistryLookup $lookup,
     ) {}
 
     public function index(Request $r)
@@ -115,10 +129,20 @@ class ChartingController extends Controller
             ->whereNotIn('status', ['Archived', 'Returned', 'Rejected']);
     }
 
+    /**
+     * Create a chart. The charting queue links here with ?file_number=; after
+     * a failed save the picked receipt is put back.
+     */
     public function create(Request $r)
     {
+        $receiptId = (int) old('cadastral_file_receipt_id');
+        $picked = match (true) {
+            $receiptId > 0                  => $this->lookup->resolveFile(['receipt' => $receiptId, 'scope' => 'receipt', 'purpose' => 'chart']),
+            (bool) $r->query('file_number') => $this->lookup->resolveFile(['file_number' => (string) $r->query('file_number'), 'scope' => 'receipt', 'purpose' => 'chart']),
+            default                         => null,
+        };
+
         $chart = new CadastralChart([
-            'file_number' => $r->query('file_number'),
             'status'      => 'Draft',
             'prop_state'  => 'Kano',
         ]);
@@ -128,11 +152,31 @@ class ChartingController extends Controller
             'coordinates' => collect(),
             'conflicts'   => [],
             'versions'    => collect(),
+            'picked'      => $picked,
         ]);
     }
 
     public function store(Request $r)
     {
+        $receipt = $this->requireRegisteredReceipt($r->input('cadastral_file_receipt_id'), 'be charted');
+
+        // Conversion files are not charted, and a charted file gets a new
+        // version of its chart rather than a second one. Both are refused
+        // before anything is written.
+        if (FileNumberFormat::isConversion($receipt->file_number)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cadastral_file_receipt_id' => "{$receipt->file_number} is a conversion file: charting is not required. Commission its index card instead.",
+            ]);
+        }
+
+        if ($current = CadastralChart::query()->current()->where('file_number', $receipt->file_number)->first()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cadastral_file_receipt_id' => "{$receipt->file_number} is already charted as {$current->chart_ref}. Open that chart and create a new version instead.",
+            ]);
+        }
+
+        $this->lockFromFile($r, self::FILE_FIELDS, $receipt, null, ['file_number' => $receipt->file_number]);
+
         $data = $this->validated($r);
 
         $this->applyClassification($data);
@@ -144,12 +188,6 @@ class ChartingController extends Controller
 
         $chart = CadastralChart::create($data);
 
-        if (! $chart->charting_required) {
-            return redirect()
-                ->route('cadastral-module.charting.index')
-                ->with('success', "{$chart->chart_ref} recorded. {$chart->file_number} is a conversion file, so no charting is required — commission its index card next.");
-        }
-
         return redirect()
             ->route('cadastral-module.charting.edit', $chart)
             ->with('success', "{$chart->chart_ref} created. Add the beacon coordinates to compute its area.");
@@ -159,8 +197,12 @@ class ChartingController extends Controller
     {
         $coordinates = $chart->coordinates()->get();
 
+        // The file is fixed; the picker shows it locked from its receipt.
+        $receipt = $this->latestRegisteredReceipt($chart->file_number);
+
         return view('cadastral_module.information.chart_register', [
             'chart'        => $chart,
+            'picked'       => $receipt ? $this->lookup->resolveFile(['receipt' => $receipt->id, 'scope' => 'receipt']) : null,
             'coordinates'  => $coordinates,
             'conflicts'    => $this->conflicts->scan($chart),
             'computedArea' => $this->area->areaSqm($coordinates),
@@ -179,6 +221,15 @@ class ChartingController extends Controller
     {
         if (! $chart->is_current) {
             return back()->with('error', "{$chart->chart_ref} is superseded and cannot be edited. Edit the current version instead.");
+        }
+
+        // The file number is the chart's own; what its receipt supplies is re-read.
+        $fixed = ['file_number' => $chart->file_number];
+
+        if ($receipt = $this->latestRegisteredReceipt($chart->file_number)) {
+            $this->lockFromFile($r, self::FILE_FIELDS, $receipt, null, $fixed);
+        } else {
+            $r->merge($fixed);
         }
 
         $data = $this->validated($r, $chart);
@@ -409,11 +460,11 @@ class ChartingController extends Controller
             // Link to the GIS capture this chart mirrors (linked out, not embedded).
             'gis_origin'         => ['nullable', Rule::in(array_keys(self::GIS_ORIGINS))],
             'gis_origin_id'      => 'nullable|required_with:gis_origin|integer|min:1',
-        ] + CadastralAddress::rules('prop_');
+        ] + $this->addressRules($r, 'prop_');
 
         // plot_no is the chart's plot field; prop_plot follows it.
         $data = CadastralAddress::normalise(
-            $r->validate($rules, CadastralAddress::messages('prop_')),
+            $r->validate($rules, $this->addressMessages('prop_')),
             'prop_',
             'plot_no'
         );

@@ -1,9 +1,9 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Examination — KLAES')
+@section('page-title', 'Examination/Verification — KLAES')
 
 @php
-  $PageTitle = 'Examination';
+  $PageTitle = 'Examination/Verification';
   $PageDescription = 'QA/QC verification queue for survey and compensation deliverables';
 @endphp
 

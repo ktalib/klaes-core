@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-route"></i> 4.1 · Cadastral Registry</div>
 
 <div class="caveat">
     <i class="fas fa-circle-info"></i>
@@ -12,17 +11,20 @@
     </div>
 </div>
 
-<form method="GET" class="table-toolbar">
-    <div class="left">
-        <input type="text" name="file_number" value="{{ $fileNumber }}"
-               placeholder="File number, e.g. RES-1981-1"
-               style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:300px;" />
-        <button class="btn btn-primary" type="submit"><i class="fas fa-magnifying-glass"></i> Trace</button>
-        @if ($fileNumber)
-            <a class="btn btn-outline btn-sm" href="{{ route('cadastral-module.registry.movements') }}">Clear</a>
-        @endif
+{{-- Looking a file up goes through the global file-number selector, like
+     every other file number in the module; the page then reads ?file_number=. --}}
+<div class="table-toolbar" style="align-items:flex-end;">
+    <div class="left" style="flex:1;max-width:720px;">
+        @include('cadastral_module.partials._file_picker', [
+            'navigate' => route('cadastral-module.registry.movements'),
+            'label'    => 'File to trace',
+            'number'   => $fileNumber,
+        ])
     </div>
-</form>
+    @if ($fileNumber)
+        <a class="btn btn-outline btn-sm" href="{{ route('cadastral-module.registry.movements') }}">Clear</a>
+    @endif
+</div>
 
 @if ($fileNumber === '')
     <div class="table-wrapper">
@@ -32,7 +34,7 @@
                     <tr>
                         <td style="text-align:center;padding:36px;color:var(--gray-500);">
                             <i class="fas fa-route" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
-                            Enter a file number to see where it has been.
+                            Select a file number to see where it has been.
                         </td>
                     </tr>
                 </tbody>

@@ -1,6 +1,5 @@
 @include('cadastral_module.partials._flash')
 
-<div class="unit-tag"><i class="fas fa-id-card"></i> 4.3 · Cadastral Information</div>
 
 <div class="page-header">
     <div><strong>{{ $card->card_ref }}</strong> · {{ $card->file_number }}</div>

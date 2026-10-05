@@ -108,6 +108,22 @@ class CaseController extends Controller
 
     public function store(Request $r)
     {
+        [, $msg, $error] = $this->registerCase($r);
+
+        return redirect()
+            ->route('survey-module.compensation.cases')
+            ->with($error ? 'error' : 'success', $msg);
+    }
+
+    /**
+     * Validate and save a new case, submitting it too when submit_now is set.
+     * Shared with the mobile register (MobileCaseController).
+     *
+     * @return array{0: SurveyCompCase, 1: string, 2: bool} the case, the message,
+     *         and whether the message reports a refused submission
+     */
+    protected function registerCase(Request $r): array
+    {
         $data    = $this->validated($r);
         $project = SurveyProject::findOrFail($data['survey_project_id']);
 
@@ -139,15 +155,13 @@ class CaseController extends Controller
 
         if ($r->boolean('submit_now')) {
             if ($problem = $this->submissionProblem($case)) {
-                return redirect()
-                    ->route('survey-module.compensation.cases')
-                    ->with('error', "{$msg} It was saved as a draft and not submitted: {$problem}");
+                return [$case, "{$msg} It was saved as a draft and not submitted: {$problem}", true];
             }
             $case->update(['status' => self::STATUS_REVIEW]);
             $msg .= ' Submitted — now Pending Review.';
         }
 
-        return redirect()->route('survey-module.compensation.cases')->with('success', $msg);
+        return [$case, $msg, false];
     }
 
     public function edit(SurveyCompCase $case)
@@ -283,7 +297,7 @@ class CaseController extends Controller
     /* ------------------------------------------------------------------ */
 
     /** Everything the six-step register needs, for both create and edit. */
-    private function formData(SurveyCompCase $case): array
+    protected function formData(SurveyCompCase $case): array
     {
         // Active projects, plus whichever project this case already belongs to
         // even if that project has since been closed.
@@ -309,13 +323,13 @@ class CaseController extends Controller
             ->get(['id', 'name', 'project_code', 'scheme_type']);
     }
 
-    private function schemeLabel(?string $type): string
+    protected function schemeLabel(?string $type): string
     {
         return $type === SurveyProject::SCHEME_LAND ? 'Land-for-Land (50:50)' : 'Monetary (Cash for Trees)';
     }
 
     /** Why this case may not be submitted yet, or null when it may. */
-    private function submissionProblem(SurveyCompCase $case): ?string
+    protected function submissionProblem(SurveyCompCase $case): ?string
     {
         if (! $case->beneficiaries()->exists()) {
             return 'it has no beneficiaries (Step 2).';
@@ -337,7 +351,7 @@ class CaseController extends Controller
      * (or from the case being edited) — never from the posted scheme_type, which
      * is ignored entirely.
      */
-    private function validated(Request $r, ?SurveyCompCase $existing = null): array
+    protected function validated(Request $r, ?SurveyCompCase $existing = null): array
     {
         // Blank template rows the user never filled in must not fail validation.
         $r->merge([
@@ -398,7 +412,7 @@ class CaseController extends Controller
     }
 
     /** Drop repeated rows whose key field is blank. */
-    private function pruneRows($rows, string $key): array
+    protected function pruneRows($rows, string $key): array
     {
         $out = [];
         foreach ((array) $rows as $row) {
@@ -415,7 +429,7 @@ class CaseController extends Controller
      * from the case rather than deleted — the person is still a real record and
      * stays in the beneficiaries register.
      */
-    private function syncBeneficiaries(SurveyCompCase $case, array $rows): void
+    protected function syncBeneficiaries(SurveyCompCase $case, array $rows): void
     {
         $keep = [];
 
@@ -447,7 +461,7 @@ class CaseController extends Controller
      * posted total is ignored. A line dropped from the form is deleted: it only
      * ever existed as part of this case's valuation.
      */
-    private function syncTrees(SurveyCompCase $case, array $rows): void
+    protected function syncTrees(SurveyCompCase $case, array $rows): void
     {
         $keep = [];
 

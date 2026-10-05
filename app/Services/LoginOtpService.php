@@ -43,6 +43,19 @@ class LoginOtpService
 
     private const OTP_EXEMPT_USERNAMES = ['USMANSCB'];
 
+    /**
+     * Accounts that are exempt from the staff sign-in code policy when their
+     * username is unavailable or has changed.  Keep addresses normalized so
+     * this remains an exact, case-insensitive account match.
+     */
+    private const OTP_EXEMPT_EMAILS = [
+        'katsoltech@gmail.com',
+        'dict@gmail.com',
+    ];
+
+    /** The ICT Director's account is also exempt from the mandatory photo gate. */
+    private const PROFILE_PHOTO_EXEMPT_EMAILS = ['dict@gmail.com'];
+
     public function __construct(
         private PhoneOtpService $phoneOtp,
         private BulkSmsNgService $gateway,
@@ -89,7 +102,17 @@ class LoginOtpService
 
     public static function isOtpExempt(User $user): bool
     {
-        return in_array((string) $user->username, self::OTP_EXEMPT_USERNAMES, true);
+        return in_array((string) $user->username, self::OTP_EXEMPT_USERNAMES, true)
+            || in_array(strtolower(trim((string) $user->email)), self::OTP_EXEMPT_EMAILS, true);
+    }
+
+    public static function isProfilePhotoExempt(User $user): bool
+    {
+        return in_array(
+            strtolower(trim((string) $user->email)),
+            self::PROFILE_PHOTO_EXEMPT_EMAILS,
+            true,
+        );
     }
 
     public function phoneFor(User $user): ?string

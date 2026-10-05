@@ -143,8 +143,13 @@
 
         <div class="form-group full">
             <label>{{ $mode === 'person' ? 'Full Address' : 'Property Location' }} (auto)</label>
-            <input type="text" class="ab-preview" readonly
-                   style="background:var(--gray-100);font-weight:600;color:var(--primary);"
+            {{-- Never editable: composed from the fields above. disabled (not just
+                 readonly) so it cannot take focus or a caret; it has no name, so
+                 nothing is lost by it not submitting. data-locked="always" tells
+                 any prefill/unlock script to leave it alone. --}}
+            <input type="text" class="ab-preview" readonly disabled tabindex="-1"
+                   aria-readonly="true" data-locked="always"
+                   style="background:#e5e7eb;color:#4b5563;font-weight:600;cursor:not-allowed;opacity:1;"
                    placeholder="{{ $mode === 'person' ? 'Street, Plot, District, LGA, State' : 'District, LGA, State' }}" />
             <p class="helper-text">
                 Built from the fields above. Stored as separate columns; this is the composed form.

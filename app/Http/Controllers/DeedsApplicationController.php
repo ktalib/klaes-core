@@ -16,11 +16,262 @@ class DeedsApplicationController extends Controller
 {
     public function index(): View
     {
-        $applications = ConsentApplication::where('application_type', 'application_for_censent')
-            ->orderBy('created_at', 'desc')
+        // The table is filled page by page from data(); the page itself only
+        // carries the counts and what the New Application form needs.
+        $consent = ConsentApplication::where('application_type', 'application_for_censent');
+        $typeCounts = (clone $consent)
+            ->selectRaw('consent_type, COUNT(*) as n')
+            ->groupBy('consent_type')
+            ->pluck('n', 'consent_type');
+
+        $stRows = $this->stAssignmentRows();
+
+        $counts = [
+            'total' => $typeCounts->sum() + $stRows->count(),
+            'today' => (clone $consent)->whereDate('created_at', now()->toDateString())->count()
+                + $stRows->filter(fn ($r) => $r->created_at->isToday())->count(),
+            'Assignment' => (int) ($typeCounts['Assignment'] ?? 0),
+            'ST Assignment' => $stRows->count(),
+            'Gift' => (int) ($typeCounts['Gift'] ?? 0),
+            'Mortgage' => (int) ($typeCounts['Mortgage'] ?? 0),
+        ];
+
+        $consentTypes = $typeCounts->keys()
+            ->map(fn ($t) => trim((string) $t))
+            ->filter()
+            ->when($stRows->isNotEmpty(), fn ($c) => $c->push('ST Assignment'))
+            ->unique()
+            ->sort()
+            ->values();
+
+        $states = DB::connection('sqlsrv')->table('States')->orderBy('StateName')->get();
+        $lgas = DB::connection('sqlsrv')
+            ->table('StatLGAs')
+            ->join('States', 'StatLGAs.StateID', '=', 'States.StateID')
+            ->where('States.StateName', 'Kano')
+            ->orderBy('LGAName')
             ->get();
-            
-        // Fetch ST Assignments from generated memos for APPROVED applications only
+        $districts = DB::connection('sqlsrv')->table('districts')->where('is_active', 1)->orderBy('name')->get();
+        $streetNames = StreetName::orderBy('name')->get(['id', 'name'])->toBase();
+        $landUseTypes = LandUseType::query()->where('is_active', 1)->orderBy('name')->get(['id', 'name']);
+        $purposes = Purpose::query()->orderBy('name')->get(['id', 'landuseid', 'name']);
+
+        return view('deeds_applications.index', compact('counts', 'consentTypes', 'states', 'lgas', 'districts', 'streetNames', 'landUseTypes', 'purposes'));
+    }
+
+    /**
+     * One page of the applications table, in the DataTables server-side shape.
+     *
+     * The list is two sources merged: consent applications and the ST
+     * Assignments raised from approved ST memos. Only the sort key of each row is
+     * read for the whole list; the full record is loaded for the page shown.
+     */
+    public function data(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $search = trim((string) $request->input('search.value', ''));
+        $typeFilter = trim((string) $request->input('consent_type', ''));
+        $start = max(0, (int) $request->input('start', 0));
+        $length = (int) $request->input('length', 10);
+
+        // Sortable columns by DataTables column name. Party 3 and the workflow
+        // strip are derived per row and are not sortable.
+        $sortable = [
+            'file_number' => 'file_number',
+            'consent_type' => 'consent_type',
+            'party1' => 'applicant_name',
+            'party2' => 'party_name',
+            'created_by' => 'created_by',
+            'app_date' => 'app_date',
+            'time' => 'created_at',
+            'date' => 'created_at',
+            'prints' => 'print_count',
+        ];
+        $orderIdx = $request->input('order.0.column');
+        $orderName = $orderIdx !== null ? $request->input("columns.$orderIdx.name") : null;
+        $sortKey = $sortable[$orderName] ?? 'created_at';
+        $sortDesc = $orderName === null || strtolower((string) $request->input('order.0.dir', 'desc')) === 'desc';
+
+        $consent = ConsentApplication::where('application_type', 'application_for_censent');
+        $recordsTotal = (clone $consent)->count();
+
+        if ($typeFilter !== '') {
+            $consent->where('consent_type', $typeFilter);
+        }
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $consent->where(function ($q) use ($like) {
+                foreach (['file_number', 'consent_type', 'applicant_name', 'party_name', 'created_by',
+                          'additional_applicants', 'additional_parties', 'additional_properties'] as $col) {
+                    $q->orWhere($col, 'like', $like);
+                }
+            });
+        }
+
+        $keys = $consent->get(['id', 'file_number', 'consent_type', 'applicant_name', 'party_name', 'created_by',
+                               'application_date', 'application_submitted_date', 'print_count', 'created_at'])
+            ->map(fn ($a) => (object) [
+                'kind' => 'consent',
+                'id' => $a->id,
+                'file_number' => strtoupper((string) $a->file_number),
+                'consent_type' => (string) $a->consent_type,
+                'applicant_name' => strtoupper((string) $a->applicant_name),
+                'party_name' => strtoupper((string) $a->party_name),
+                'created_by' => strtoupper((string) $a->created_by),
+                'app_date' => (string) ($a->application_submitted_date ?? $a->application_date ?? ''),
+                'print_count' => (int) $a->print_count,
+                'created_at' => (string) $a->created_at,
+            ]);
+
+        $stRows = $this->stAssignmentRows();
+        $recordsTotal += $stRows->count();
+
+        $stKeys = $stRows
+            ->filter(function ($st) use ($typeFilter, $search) {
+                if ($typeFilter !== '' && strcasecmp($typeFilter, 'ST Assignment') !== 0) {
+                    return false;
+                }
+                if ($search === '') {
+                    return true;
+                }
+                $haystack = implode(' ', [$st->file_number, 'ST Assignment', $st->applicant_name, $st->party_name,
+                    $st->created_by, collect($st->st_units)->pluck('party2_name')->implode(' ')]);
+                return stripos($haystack, $search) !== false;
+            })
+            ->map(fn ($st) => (object) [
+                'kind' => 'st',
+                'id' => $st->id,
+                'file_number' => strtoupper((string) $st->file_number),
+                'consent_type' => 'ST Assignment',
+                'applicant_name' => (string) $st->applicant_name,
+                'party_name' => (string) $st->party_name,
+                'created_by' => (string) $st->created_by,
+                'app_date' => (string) $st->application_date,
+                'print_count' => 0,
+                'created_at' => (string) $st->created_at,
+                'row' => $st,
+            ]);
+
+        $all = $keys->concat($stKeys)->values();
+        $all = $sortDesc
+            ? $all->sortByDesc($sortKey, SORT_NATURAL | SORT_FLAG_CASE)->values()
+            : $all->sortBy($sortKey, SORT_NATURAL | SORT_FLAG_CASE)->values();
+        $recordsFiltered = $all->count();
+
+        $page = $length < 0 ? $all->slice($start) : $all->slice($start, $length);
+
+        // Full records for the page only.
+        $consentIds = $page->where('kind', 'consent')->pluck('id')->all();
+        $full = $consentIds
+            ? ConsentApplication::with('user')->whereIn('id', $consentIds)->get()->keyBy('id')
+            : collect();
+        $registered = $this->registeredInInstrument($full);
+
+        $assignRoles = collect(explode(',', (string) (auth()->user()->assign_role ?? '')))->map(fn ($r) => trim($r))->filter();
+        $isSupperAdmin = $assignRoles->contains(fn ($r) => strcasecmp($r, 'Supper Admin') === 0);
+
+        $rows = [];
+        $sn = $start;
+        foreach ($page as $key) {
+            $sn++;
+            if ($key->kind === 'st') {
+                $application = $key->row;
+            } else {
+                $application = $full->get($key->id);
+                if (!$application) {
+                    continue;
+                }
+                $application->applicant_name = strtoupper((string) $application->applicant_name);
+                $application->party_name = strtoupper((string) $application->party_name);
+                $application->is_registered_in_instrument = $registered[$application->id] ?? false;
+            }
+
+            $html = view('deeds_applications.partials._table_row_cells', [
+                'application' => $application,
+                'sn' => $sn,
+                'isSupperAdmin' => $isSupperAdmin,
+            ])->render();
+
+            $cells = array_map('trim', explode('<!--cell-->', $html));
+            array_shift($cells); // text before the first marker
+            $rows[] = array_merge($cells, [
+                'DT_RowAttr' => ['data-id' => (string) $application->id, 'data-file-no' => (string) $application->file_number],
+            ]);
+        }
+
+        return response()->json([
+            'draw' => (int) $request->input('draw', 0),
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $rows,
+        ]);
+    }
+
+    /**
+     * Whether each application's dealing is already in Instrument Capture, which
+     * locks it against further edits. Looked up for the given rows only.
+     */
+    private function registeredInInstrument($applications): array
+    {
+        $files = $applications->pluck('file_number')
+            ->map(fn ($f) => trim((string) $f))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        if (!$files) {
+            return [];
+        }
+
+        // Chunked: each file number is bound twice, and sqlsrv caps a statement
+        // at 2,100 parameters ("Show All" asks for every row).
+        $instrumentMap = [];
+        foreach (array_chunk($files, 900) as $chunk) {
+            $instruments = DB::connection('sqlsrv')
+                ->table('instrument_capture')
+                ->where(function ($q) {
+                    $q->where('is_deleted', 0)->orWhereNull('is_deleted');
+                })
+                ->where(function ($q) use ($chunk) {
+                    $q->whereIn('mlsFNo', $chunk)->orWhereIn('temp_fileno', $chunk);
+                })
+                ->get(['mlsFNo', 'temp_fileno', 'instrument_type']);
+
+            foreach ($instruments as $inst) {
+                $instType = strtolower(trim($inst->instrument_type ?? ''));
+                foreach ([$inst->mlsFNo, $inst->temp_fileno] as $no) {
+                    if (!empty($no)) {
+                        $instrumentMap[strtolower(trim($no))][] = $instType;
+                    }
+                }
+            }
+        }
+
+        $result = [];
+        foreach ($applications as $app) {
+            $result[$app->id] = false;
+            $fileKey = strtolower(trim((string) $app->file_number));
+            if ($fileKey === '' || !isset($instrumentMap[$fileKey])) {
+                continue;
+            }
+            $consentType = strtolower(trim($app->consent_type ?? ''));
+            foreach ($instrumentMap[$fileKey] as $instType) {
+                if (str_contains($instType, $consentType) || str_contains($consentType, $instType)) {
+                    $result[$app->id] = true;
+                    break;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * ST Assignments, one per approved mother application with a generated
+     * primary / physical-planning memo, shaped like a ConsentApplication so the
+     * table renders both alike.
+     */
+    private function stAssignmentRows()
+    {
         $stMemos = DB::connection('sqlsrv')
             ->table('memos')
             ->join('mother_applications', 'memos.application_id', '=', 'mother_applications.id')
@@ -45,103 +296,60 @@ class DeedsApplicationController extends Controller
                 'users.first_name as user_first_name',
                 'users.last_name as user_last_name'
             )
-            // Use groupBy to ensure one record per mother_id if multiple memos exist
             ->orderBy('memos.created_at', 'desc')
             ->get()
             ->unique('mother_id');
 
-        $capturedInstruments = DB::connection('sqlsrv')
-            ->table('instrument_capture')
-            ->where(function ($q) {
-                $q->where('is_deleted', 0)->orWhereNull('is_deleted');
-            })
-            ->select('mlsFNo', 'temp_fileno', 'instrument_type')
-            ->get();
-
-        // Build an O(1) lookup map for extreme performance
-        $instrumentMap = [];
-        foreach ($capturedInstruments as $inst) {
-            $instType = strtolower(trim($inst->instrument_type ?? ''));
-            if (!empty($inst->mlsFNo)) {
-                $instrumentMap[strtolower(trim($inst->mlsFNo))][] = $instType;
-            }
-            if (!empty($inst->temp_fileno)) {
-                $instrumentMap[strtolower(trim($inst->temp_fileno))][] = $instType;
-            }
+        $motherIds = $stMemos->pluck('mother_id')->all();
+        if (!$motherIds) {
+            return collect();
         }
 
-        foreach ($applications as $app) {
-            $app->applicant_name = strtoupper((string)$app->applicant_name);
-            $app->party_name = strtoupper((string)$app->party_name);
-            
-            // Check if registered in Instrument Capture
-            $app->is_registered_in_instrument = false;
-            if (!empty($app->file_number)) {
-                $fileKey = strtolower(trim($app->file_number));
-                if (isset($instrumentMap[$fileKey])) {
-                    $consentType = strtolower(trim($app->consent_type ?? ''));
-                    foreach ($instrumentMap[$fileKey] as $instType) {
-                        if (str_contains($instType, $consentType) || str_contains($consentType, $instType)) {
-                            $app->is_registered_in_instrument = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // Units for every mother at once: buyer_list first (standard for ST memos),
+        // subapplications for a mother that has no buyers.
+        $buyersByMother = DB::connection('sqlsrv')
+            ->table('buyer_list')
+            ->leftJoin('st_file_numbers', 'buyer_list.id', '=', 'st_file_numbers.buyer_list_id')
+            ->whereIn('buyer_list.application_id', $motherIds)
+            ->orderBy('buyer_list.id')
+            ->get(['buyer_list.application_id', 'buyer_list.buyer_title', 'buyer_list.buyer_name', 'buyer_list.unit_no', 'st_file_numbers.fileno as unit_fileno'])
+            ->groupBy('application_id');
 
-        foreach ($stMemos as $memo) {
-            $party1 = $memo->corporate_name ?: trim("{$memo->applicant_title} {$memo->first_name} {$memo->surname}");
-            $party1 = strtoupper($party1);
-            
-            // Fetch units from buyer_list first (standard for ST Memos)
-            $buyers = DB::connection('sqlsrv')
-                ->table('buyer_list')
-                ->leftJoin('st_file_numbers', 'buyer_list.id', '=', 'st_file_numbers.buyer_list_id')
-                ->where('buyer_list.application_id', $memo->mother_id)
-                ->get(['buyer_list.id', 'buyer_list.buyer_title', 'buyer_list.buyer_name', 'buyer_list.unit_no', 'st_file_numbers.fileno as unit_fileno']);
-                
-            $unitsData = collect();
-            
-            foreach ($buyers as $buyer) {
-                $unitsData->push([
-                    'unit_number' => $buyer->unit_no,
-                    'party2_name' => strtoupper(trim("{$buyer->buyer_title} {$buyer->buyer_name}")),
-                    'unit_fileno' => $buyer->unit_fileno
+        $withoutBuyers = array_values(array_diff($motherIds, $buyersByMother->keys()->all()));
+        $subsByMother = $withoutBuyers
+            ? DB::connection('sqlsrv')
+                ->table('subapplications')
+                ->leftJoin('st_file_numbers', 'subapplications.id', '=', 'st_file_numbers.subapplication_id')
+                ->whereIn('subapplications.main_application_id', $withoutBuyers)
+                ->orderBy('subapplications.id')
+                ->get(['subapplications.main_application_id', 'subapplications.applicant_title', 'subapplications.first_name', 'subapplications.surname', 'subapplications.corporate_name', 'subapplications.unit_number', 'st_file_numbers.fileno as unit_fileno'])
+                ->groupBy('main_application_id')
+            : collect();
+
+        return $stMemos->map(function ($memo) use ($buyersByMother, $subsByMother) {
+            $party1 = strtoupper($memo->corporate_name ?: trim("{$memo->applicant_title} {$memo->first_name} {$memo->surname}"));
+
+            $unitsData = collect($buyersByMother->get($memo->mother_id, []))->map(fn ($buyer) => [
+                'unit_number' => $buyer->unit_no,
+                'party2_name' => strtoupper(trim("{$buyer->buyer_title} {$buyer->buyer_name}")),
+                'unit_fileno' => $buyer->unit_fileno,
+            ]);
+            if ($unitsData->isEmpty()) {
+                $unitsData = collect($subsByMother->get($memo->mother_id, []))->map(fn ($sub) => [
+                    'unit_number' => $sub->unit_number,
+                    'party2_name' => strtoupper($sub->corporate_name ?: trim("{$sub->applicant_title} {$sub->first_name} {$sub->surname}")),
+                    'unit_fileno' => $sub->unit_fileno,
                 ]);
             }
-            
-            // Fallback/additional check for subapplications if buyer_list is empty
-            if ($unitsData->isEmpty()) {
-                $subs = DB::connection('sqlsrv')
-                    ->table('subapplications')
-                    ->leftJoin('st_file_numbers', 'subapplications.id', '=', 'st_file_numbers.subapplication_id')
-                    ->where('subapplications.main_application_id', $memo->mother_id)
-                    ->get(['subapplications.id', 'subapplications.applicant_title', 'subapplications.first_name', 'subapplications.surname', 'subapplications.corporate_name', 'subapplications.unit_number', 'st_file_numbers.fileno as unit_fileno']);
-                    
-                foreach ($subs as $sub) {
-                    $unitsData->push([
-                        'unit_number' => $sub->unit_number,
-                        'party2_name' => strtoupper($sub->corporate_name ?: trim("{$sub->applicant_title} {$sub->first_name} {$sub->surname}")),
-                        'unit_fileno' => $sub->unit_fileno
-                    ]);
-                }
-            }
-                
+
             $party2 = 'N/A';
             if ($unitsData->count() > 0) {
-                $firstUnit = $unitsData->first();
-                $firstUnitName = $firstUnit['party2_name'];
-                
-                if ($unitsData->count() > 1) {
-                    $othersCount = $unitsData->count() - 1;
-                    $party2 = "{$firstUnitName} & ({$othersCount}) Others";
-                } else {
-                    $party2 = $firstUnitName;
-                }
+                $firstUnitName = $unitsData->first()['party2_name'];
+                $party2 = $unitsData->count() > 1
+                    ? "{$firstUnitName} & (" . ($unitsData->count() - 1) . ") Others"
+                    : $firstUnitName;
             }
-            
-            // Create a ConsentApplication-like instance
+
             $stApp = new ConsentApplication();
             $stApp->setAttribute('id', 'memo_' . $memo->memo_id);
             $stApp->setAttribute('file_number', $memo->file_number);
@@ -153,34 +361,13 @@ class DeedsApplicationController extends Controller
             $stApp->setAttribute('print_count', 0);
             $stApp->setAttribute('status', 'Approved');
             $stApp->setAttribute('created_by', strtoupper(trim("{$memo->user_first_name} {$memo->user_last_name}")) ?: $memo->created_by);
-            $stApp->setAttribute('st_units', $unitsData->toArray());
+            $stApp->setAttribute('st_units', $unitsData->values()->toArray());
             $stApp->setAttribute('is_st_assignment', true);
             $stApp->setAttribute('mother_party1', $party1);
             $stApp->setAttribute('memo_id', $memo->memo_id);
-            
-            $applications->push($stApp);
-        }
-        
-        // Re-sort the combined collection by created_at desc
-        $applications = $applications->sortByDesc('created_at')->values();
 
-        $states = DB::connection('sqlsrv')->table('States')->orderBy('StateName')->get();
-        $lgas = DB::connection('sqlsrv')
-            ->table('StatLGAs')
-            ->join('States', 'StatLGAs.StateID', '=', 'States.StateID')
-            ->where('States.StateName', 'Kano')
-            ->orderBy('LGAName')
-            ->get();
-        $districts = DB::connection('sqlsrv')->table('districts')->where('is_active', 1)->orderBy('name')->get();
-        $streetNames = StreetName::orderBy('name')->get(['id', 'name'])->toBase();
-        $landUseTypes = LandUseType::query()->where('is_active', 1)->orderBy('name')->get(['id', 'name']);
-        $purposes = Purpose::query()->orderBy('name')->get(['id', 'landuseid', 'name']);
-
-        $consentTodayCount = $applications->filter(function($app) {
-            return $app->created_at->isToday();
-        })->count();
-
-        return view('deeds_applications.index', compact('applications', 'states', 'lgas', 'districts', 'streetNames', 'landUseTypes', 'purposes', 'consentTodayCount'));
+            return $stApp;
+        })->values();
     }
 
     public function create(): View

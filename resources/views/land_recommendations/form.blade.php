@@ -98,17 +98,20 @@
                             </p>
                         </div>
                     </div>
-                    {{-- Legacy only: the original letter pre-dates KLAES, so nothing on record
-                         holds its issue date — but the re-issued letter has to print
-                         "supersedes the previous one issued on ...". The KLAES path already
-                         has that date on the existing record. --}}
-                    @if($reissuanceSource === 'legacy')
+                    {{-- The re-issued letter prints "supersedes the previous one issued on ...".
+                         A legacy original pre-dates KLAES, so nothing on record holds that
+                         date and it is keyed in; a KLAES original's generation date is on
+                         record and prefills the field. Also editable in the Print Manager. --}}
+                    {{-- Shown for both sources now: a KLAES re-issue starts from the date
+                         the original was generated (on record), a legacy one is keyed in. --}}
+                    @if(in_array($reissuanceSource, ['legacy', 'klaes'], true))
                         <div class="bg-white border border-amber-200 rounded-xl p-4">
                             <label for="reissuance_original_date" class="block text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">
                                 Date the Original RofO Was Issued <span class="text-red-500">*</span>
                             </label>
                             <input type="date" name="reissuance_original_date" id="reissuance_original_date" required
-                                value="{{ old('reissuance_original_date', optional($recommendation->reissuance_original_date ?? null)->format('Y-m-d')) }}"
+                                value="{{ old('reissuance_original_date', optional(($recommendation->reissuance_original_date ?? null)
+                                    ?? ($reissuanceSource === 'klaes' ? ($recommendation->rofo_generated_at ?? null) : null))->format('Y-m-d')) }}"
                                 class="w-full md:w-64 border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none">
                             <p class="mt-1 text-xs text-slate-500">
                                 Printed on the re-issued letter as &ldquo;supersedes the previous one issued on &hellip;&rdquo;.
@@ -3290,6 +3293,9 @@ document.addEventListener('DOMContentLoaded', function () {
         var label = m.file_number + ' — ' + m.children + ' ' + (m.children === 1 ? 'child' : 'children');
         if (m.children_used) {
             label += ' left of ' + m.children_total + ' (' + m.children_used + ' already done)';
+        }
+        if (m.subdivided_as) {
+            label += ' · subdivided as ' + m.subdivided_as;
         }
         return label;
     }

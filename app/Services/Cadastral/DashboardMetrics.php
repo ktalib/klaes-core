@@ -729,26 +729,33 @@ class DashboardMetrics
     }
 
     /**
-     * What issued billing is made of. Part-to-whole across the four fee lines,
-     * in a fixed order so the colours never move.
+     * What raised billing is made of: the official fee sheet's eight lines
+     * (CadastralBill::LINES — investigation, beacons, area, delay, transport,
+     * field work, office work, plan prints), summed from each line's own
+     * {line}_amount column across Issued and Paid bills — the same bills Fees
+     * YTD counts. Sheet order, fixed, so a line never moves.
+     *
+     * Bills issued before the fee sheet carry no per-line amounts and add
+     * nothing here; before the fee-sheet columns exist every line is zero.
      */
     private function feeMix(): array
     {
-        $b = CadastralBill::where('status', '!=', 'Cancelled')
-            ->selectRaw('SUM(area_fee) a, SUM(pillar_fee) p, SUM(description_fee_amount) d, SUM(service_charge) s')
-            ->first();
+        $keys = array_keys(CadastralBill::LINES);
+        $b    = null;
 
-        $counts = collect([
-            ['key' => 'area',        'label' => 'Area charge',   'value' => (int) round((float) ($b->a ?? 0))],
-            ['key' => 'pillar',      'label' => 'Pillars',       'value' => (int) round((float) ($b->p ?? 0))],
-            ['key' => 'description', 'label' => 'Description',   'value' => (int) round((float) ($b->d ?? 0))],
-            ['key' => 'service',     'label' => 'Service charge','value' => (int) round((float) ($b->s ?? 0))],
+        if (CadastralBill::feeSheetInstalled()) {
+            $b = CadastralBill::whereIn('status', self::RAISED_BILL_STATUSES)
+                ->selectRaw(implode(', ', array_map(fn ($k) => "SUM([{$k}_amount]) AS [{$k}]", $keys)))
+                ->first();
+        }
+
+        $counts = collect($keys)->map(fn ($k) => [
+            'key'   => $k,
+            'label' => CadastralBill::LINES[$k],
+            'value' => (int) round((float) ($b?->{$k} ?? 0)),
         ]);
 
-        return $this->parts($counts, ['area', 'pillar', 'description', 'service'], [
-            'area' => 'Area charge', 'pillar' => 'Pillars',
-            'description' => 'Description', 'service' => 'Service charge',
-        ]);
+        return $this->parts($counts, $keys, CadastralBill::LINES);
     }
 
     /** Parcels by size band — ordered, so it reads as a distribution. */

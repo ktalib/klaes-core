@@ -7,6 +7,7 @@ use App\Models\Cadastral\CadastralChart;
 use App\Models\Cadastral\CadastralFileReceipt;
 use App\Models\Cadastral\CadastralIndexCard;
 use App\Models\Cadastral\CadastralSurveyJob;
+use App\Http\Controllers\Cadastral\Concerns\LocksFileValues;
 use App\Services\Cadastral\CadastralAddress;
 use App\Services\Cadastral\CadastralDocuments;
 use App\Services\Cadastral\CadastralRegistryLookup;
@@ -34,8 +35,10 @@ use Illuminate\Validation\ValidationException;
  * source index again would let a card be raised for a file Cadastral has never
  * received, and would re-ask questions intake already answered.
  *
+ * The file is picked with the shared file picker (scope: registered receipt).
  * Owner, plot and location are copied from the receipt ON THE SERVER; nothing
- * the browser posts about them is used.
+ * the browser posts about them is used — except for a value the receipt left
+ * blank, which the officer may fill in here (LocksFileValues).
  *
  * MOVEMENT. The file's movement record is read live from file_tracker for the
  * same file number. The card's own stage inside Cadastral (Commissioned, With
@@ -44,6 +47,11 @@ use Illuminate\Validation\ValidationException;
  */
 class IndexCardController extends Controller
 {
+    use LocksFileValues;
+
+    /** Form fields a card takes from its receipt; supplied ones are locked. */
+    private const FILE_FIELDS = ['file_title', 'plot_no', 'prop_house', 'prop_street', 'prop_district', 'prop_lga', 'prop_state'];
+
     /** Receipts in these states can no longer have a card raised from them. */
     private const DEAD_RECEIPTS = ['Rejected', 'Returned'];
 
@@ -79,9 +87,9 @@ class IndexCardController extends Controller
             'with_job' => CadastralIndexCard::whereNotNull('survey_job_number')->count(),
         ];
 
-        // After a failed commission, put the picked receipt back in the picker.
+        // After a failed commission, put the picked file back in the picker.
         $picked = ($id = (int) old('cadastral_file_receipt_id'))
-            ? ($this->formatReceipts(CadastralFileReceipt::whereKey($id)->get())[0] ?? null)
+            ? $this->lookup->resolveFile(['receipt' => $id, 'scope' => 'receipt', 'purpose' => 'commission'])
             : null;
 
         return view('cadastral_module.information.index_cards', [
@@ -161,20 +169,29 @@ class IndexCardController extends Controller
      */
     public function store(Request $r)
     {
-        $data = $r->validate([
+        $receipt = $this->requireRegisteredReceipt($r->input('cadastral_file_receipt_id'), 'be given an index card');
+
+        // What the receipt supplies wins over the form; its blanks are the officer's.
+        $this->lockFromFile($r, self::FILE_FIELDS, $receipt);
+
+        $data = Validator::make($r->all(), [
             'cadastral_file_receipt_id' => 'required|integer',
             'cadastral_survey_job_id'   => 'nullable|integer',
             'initial_stage'             => ['required', Rule::in(array_keys(IndexCardMovements::STAGES))],
             'movement_note'             => 'nullable|string|max:1000',
+            'file_title'                => 'nullable|string|max:500',
+            'plot_no'                   => 'nullable|string|max:50',
             'block_no'                  => 'nullable|string|max:50',
             'layout_name'               => 'nullable|string|max:255',
             'image_folder'              => 'nullable|string|max:255',
-        ], [
-            'cadastral_file_receipt_id.required' => 'Pick the file from the registered intake files.',
-        ]);
+        ] + $this->addressRules($r, 'prop_', false), [
+            'cadastral_file_receipt_id.required' => 'Select the file with the file-number selector first.',
+        ] + $this->addressMessages('prop_'))->validate();
 
-        $receipt = $this->requireReceipt((int) $data['cadastral_file_receipt_id']);
-        $job     = $this->requireJob($data['cadastral_survey_job_id'] ?? null, $receipt->file_number);
+        // plot_no is the card's plot field; prop_plot follows it.
+        $data = CadastralAddress::normalise($data, 'prop_', 'plot_no');
+
+        $job = $this->requireJob($data['cadastral_survey_job_id'] ?? null, $receipt->file_number);
 
         try {
             $card = DB::connection('sqlsrv')->transaction(function () use ($data, $receipt, $job) {
@@ -192,13 +209,18 @@ class IndexCardController extends Controller
                     ]);
                 }
 
+                $address = [];
+                foreach (\App\Support\AddressBuilder::columns('prop_') as $col) {
+                    $address[$col] = $data[$col] ?? null;
+                }
+
                 $card = new CadastralIndexCard(array_merge(
-                    CadastralAddress::inherit($receipt, 'prop_'),
+                    $address,
                     [
                         'card_ref'          => CadastralIndexCard::nextRef('card_ref', 'IDX', 4),
                         'file_number'       => $receipt->file_number,
-                        'file_title'        => $receipt->file_title,
-                        'plot_no'           => $receipt->prop_plot,
+                        'file_title'        => $data['file_title'] ?? null,
+                        'plot_no'           => $data['plot_no'] ?? null,
                         'block_no'          => $data['block_no'] ?? null,
                         'layout_name'       => $data['layout_name'] ?? null,
                         'image_folder'      => $data['image_folder'] ?? null,
@@ -309,20 +331,6 @@ class IndexCardController extends Controller
 
     /* ------------------------------ helpers ------------------------------ */
 
-    /** A registered, still-live receipt, or a validation error. */
-    private function requireReceipt(int $id): CadastralFileReceipt
-    {
-        $receipt = CadastralFileReceipt::find($id);
-
-        if (! $receipt || ! $receipt->registered_at || in_array($receipt->status, self::DEAD_RECEIPTS, true)) {
-            throw ValidationException::withMessages([
-                'cadastral_file_receipt_id' => 'Only a file registered at intake can be given an index card. Pick it again from the list.',
-            ]);
-        }
-
-        return $receipt;
-    }
-
     /** The chosen survey job, which must belong to the same file. */
     private function requireJob($jobId, string $fileNumber): ?CadastralSurveyJob
     {
@@ -418,9 +426,9 @@ class IndexCardController extends Controller
             'cadastral_chart_id' => 'nullable|integer',
             'survey_job_number'  => 'nullable|string|max:50',
             'image_folder'       => 'nullable|string|max:255',
-        ] + CadastralAddress::rules('prop_', false);
+        ] + $this->addressRules($r, 'prop_', false);
 
-        $validator = Validator::make($r->all(), $rules, CadastralAddress::messages('prop_'));
+        $validator = Validator::make($r->all(), $rules, $this->addressMessages('prop_'));
 
         $validator->after(function ($v) use ($r, $card) {
             $chartId = $r->input('cadastral_chart_id');

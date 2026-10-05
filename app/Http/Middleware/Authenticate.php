@@ -20,6 +20,11 @@ class Authenticate extends Middleware
                 return route('valuation-compensations.mobile.login');
             }
             
+            // Survey Mobile — Register Compensation Case
+            if ($request->is('survey-module/mobile*') && ! $request->is('survey-module/mobile/login')) {
+                return route('survey-module.mobile.login');
+            }
+
             // Check for Generic Mobile File Tracker (exclude login page itself)
             if ($request->is('mobile*') && ! $request->is('mobile/login')) {
                 return route('mobile.login');

@@ -158,6 +158,9 @@ class LandRofoController extends Controller
                 'rofo_status', 'status', 'approved_at', 'land_rofo_serial_no',
                 'created_at', 'updated_at', 'created_by', 'updated_by', 'land_use', 'land_use_id', 'purpose_id',
                 'is_reissuance', 'reissuance_source',
+                // The Print Manager's "Date the Original RofO Was Issued" panel opens on
+                // these: the keyed-in date, else (KLAES) the original's generation date.
+                'reissuance_original_date', 'rofo_generated_at',
                 // The Print Manager's Date Issued panel opens showing the date the
                 // record already holds; without it every row would look undated and
                 // ask for a date it already has.
@@ -962,6 +965,35 @@ class LandRofoController extends Controller
         $this->applyIssueDate($request, $records);
 
         return response()->json(['success' => true, 'count' => $records->count()]);
+    }
+
+    /**
+     * Save the date the ORIGINAL RofO was issued on a re-issued letter — what it
+     * prints as "supersedes the previous one issued on …". The same column the
+     * recommendation form's "Date the Original RofO Was Issued" writes, so the
+     * form, the Print Manager and the letter all read one value. Re-issues only.
+     */
+    public function saveOriginalIssueDate(Request $request, $id)
+    {
+        $request->validate([
+            'reissuance_original_date' => 'required|date|before_or_equal:today',
+        ]);
+
+        $recommendation = LandRecommendation::findOrFail($id);
+
+        if (!$recommendation->is_reissuance) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This RofO is not a re-issuance.',
+            ], 422);
+        }
+
+        $recommendation->update([
+            'reissuance_original_date' => $request->input('reissuance_original_date'),
+            'updated_by'               => Auth::id(),
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     /**

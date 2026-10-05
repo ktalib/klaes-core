@@ -9,5 +9,7 @@ class SurveyLpkn extends SurveyModel
     protected $casts = [
         'record_date' => 'date',
         'area_ha'     => 'decimal:2',
+        'its_issued_at' => 'date',
+        'report_date' => 'date',
     ];
 }

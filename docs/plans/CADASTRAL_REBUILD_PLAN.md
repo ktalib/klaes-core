@@ -1,6 +1,13 @@
 # Cadastral Module — Rebuild Plan
 
-Status: **for review, nothing built yet.** Written 2026-10-01.
+Status (2026-10-02): **Phases 1–7 built and live**, and every migration so far has been run: settings, receipt holds, report questionnaire, documents and bill lines.
+
+- **Every form now uses the global file number selector,** with prefilled fields locked. Long forms are step wizards.
+- **Phase 8 (Push to Revenue) is blocked on Q5.**
+- **Still to do:** Phase 9's Property History section, and Phase 10 (permissions and posts).
+- **Officer posts are not assigned yet.** That was decided: for now only Super Admin completes steps that need a post.
+
+Plan written 2026-10-01.
 
 Inputs:
 - Functional brief: [cadasral_implementation.md](cadasral_implementation.md), which reconstructs the UI video and the concept note

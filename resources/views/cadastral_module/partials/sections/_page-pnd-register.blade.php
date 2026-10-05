@@ -5,10 +5,28 @@
     $action = $isEdit
         ? route('cadastral-module.plan-description.update', $record)
         : route('cadastral-module.plan-description.store');
-    $fees = config('cadastral_module.fees');
+    $fees = app(\App\Services\Cadastral\CadastralSettings::class)->feeRates();
+
+    // The picked file as CadastralRegistryLookup::resolveFile() describes it
+    // (PlanDescriptionController::create/edit). Its supplied values go on the
+    // in-memory model so the fields and the builder render them before the
+    // picker locks them; nothing saves.
+    $picked = $picked ?? null;
+    if ($picked && $picked['status'] === 'ok') {
+        foreach (\App\Services\Cadastral\CadastralRegistryLookup::lockedInput($picked['values'], ['file_title', 'prop_house', 'prop_plot', 'prop_street', 'prop_district', 'prop_lga', 'prop_state']) as $col => $value) {
+            $record->{$col} = $value;
+        }
+    }
+
+    // Land use the file gives is locked; otherwise it is the officer's.
+    $luLocked = ($fileLandUse ?? null) !== null;
+    $luValue  = $luLocked ? $fileLandUse : old('land_use', $record->land_use);
+
+    // The chart and report are found from the file on save, never typed.
+    $chart     = $chart ?? null;
+    $reportRef = $isEdit ? optional($record->report)->report_ref : ($picked['records']['reports'][0]['ref'] ?? null);
 @endphp
 
-<div class="unit-tag"><i class="fas fa-ruler-combined"></i> 4.4 · Plan and Description</div>
 
 <div class="page-header">
     <div>@if ($isEdit) <strong>{{ $record->pd_ref }}</strong> · {{ $record->file_number }} @endif</div>
@@ -27,6 +45,7 @@
         hand-entered, so nobody later mistakes it for a computed one.
     </div>
 </div>
+
 
 {{-- Area in every unit --}}
 <div class="calc-grid" style="margin-bottom:18px;">
@@ -51,103 +70,194 @@
     </div>
 </div>
 
-<form method="POST" action="{{ $action }}" class="form-container">
+@include('cadastral_module.partials._wizard')
+
+<form method="POST" action="{{ $action }}" class="form-container" id="pnd-register-form" data-wizard
+      data-edit-url="{{ route('cadastral-module.plan-description.edit', '__id__') }}"
+      data-wizard-errors="{{ json_encode($errors->keys()) }}" novalidate>
     @csrf
     @if ($isEdit) @method('PUT') @endif
 
+    <div class="form-stepper" data-wizard-header></div>
+
     <div class="form-body">
-        <div class="form-grid">
-            <div class="form-group">
-                <label>File Number <span class="required">*</span></label>
-                <input type="text" name="file_number" value="{{ old('file_number', $record->file_number) }}" required />
+
+        {{-- 1. The file. Only the global selector can set it, and only a file
+             registered at intake is taken. --}}
+        <section class="form-step" data-step data-title="Select File" data-icon="folder-search"
+                 data-subtitle="{{ $isEdit ? 'The file is fixed once the record exists.' : 'Pick a file registered at intake with the file-number selector. A file that already has a record opens that record.' }}">
+            <div class="form-grid">
+                @include('cadastral_module.partials._file_picker', [
+                    'scope'   => 'receipt',
+                    'hidden'  => $isEdit ? [] : ['cadastral_file_receipt_id'],
+                    'initial' => $picked,
+                    'fixed'   => $isEdit,
+                    'number'  => $record->file_number ?? '',
+                    'help'    => $isEdit ? null : 'Only a file received and registered at intake can have a plan-description record.',
+                ])
+
+                <div class="form-group">
+                    <label>Type</label>
+                    <input type="text" data-fp-value="type" class="cad-locked" disabled
+                           value="{{ $picked['file']['type'] ?? '' }}" placeholder="From the file number" />
+                </div>
+                <div class="form-group">
+                    <label>Chart</label>
+                    <input type="text" id="pnd-reg-chart" class="cad-locked" disabled
+                           value="{{ $chart ? $chart->chart_ref . ' (v' . $chart->version . ', ' . $chart->status . ')' : ($isEdit || $picked ? 'Not charted' : '') }}"
+                           placeholder="Found from the file" />
+                    <div class="helper-text">The file's current chart, linked on save. Its beacon ring gives the area when none is typed.</div>
+                </div>
+                <div class="form-group">
+                    <label>Report</label>
+                    <input type="text" id="pnd-reg-report" class="cad-locked" disabled
+                           value="{{ $reportRef ?: ($isEdit || $picked ? 'None' : '') }}" placeholder="Found from the file" />
+                </div>
             </div>
-            <div class="form-group">
-                <label>File Title</label>
-                <input type="text" name="file_title" value="{{ old('file_title', $record->file_title) }}" />
-            </div>
-            <div class="form-group">
-                <label>Chart ID</label>
-                <input type="number" name="cadastral_chart_id" value="{{ old('cadastral_chart_id', $record->cadastral_chart_id) }}" />
-                <div class="helper-text">Linking a chart lets the area be computed from its beacon ring.</div>
-            </div>
-            <div class="form-group">
-                <label>Report ID</label>
-                <input type="number" name="cadastral_report_id" value="{{ old('cadastral_report_id', $record->cadastral_report_id) }}" />
-            </div>
-            <div class="form-group">
-                <label>Land Use</label>
-                <select name="land_use">
-                    <option value="">—</option>
-                    @foreach (\App\Models\Cadastral\CadastralPlanDescription::LAND_USES as $u)
-                        <option value="{{ $u }}" @selected(old('land_use', $record->land_use)===$u)>
-                            {{ $u }} (×{{ rtrim(rtrim(number_format($fees['land_use_multiplier'][$u] ?? 1, 2), '0'), '.') }})
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Location Zone</label>
-                <select name="location_zone">
-                    <option value="">—</option>
-                    @foreach (\App\Models\Cadastral\CadastralPlanDescription::ZONES as $k => $label)
-                        <option value="{{ $k }}" @selected(old('location_zone', $record->location_zone)===$k)>
-                            {{ $label }} (×{{ rtrim(rtrim(number_format($fees['zone_multiplier'][$k] ?? 1, 2), '0'), '.') }})
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Area (sqm)</label>
-                <input type="number" step="0.001" name="area_sqm" value="{{ old('area_sqm', $record->area_sqm) }}" />
-                <div class="helper-text">Leave blank to compute it from the linked chart's beacon ring.</div>
-            </div>
-            <div class="form-group">
-                <label>Plot Size (sqm)</label>
-                <input type="number" step="0.01" name="plot_size_sqm"
-                       value="{{ old('plot_size_sqm', $record->plot_size_sqm ?: app(\App\Services\Cadastral\CadastralSettings::class)->plotSizeSqm()) }}" />
-                <div class="helper-text">Snapshotted, so an old bill reprints the same plot count.</div>
-            </div>
-            <div class="form-group">
-                <label>Decimal Places</label>
-                <input type="number" min="0" max="6" name="area_precision"
-                       value="{{ old('area_precision', $record->area_precision ?: 2) }}" />
-            </div>
-            <div class="form-group">
-                <label>Description Complexity <span class="required">*</span></label>
-                <select name="description_complexity" required>
-                    @foreach (\App\Models\Cadastral\CadastralPlanDescription::COMPLEXITIES as $k => $label)
-                        <option value="{{ $k }}" @selected(old('description_complexity', $record->description_complexity ?: 'standard')===$k)>
-                            {{ $label }} (&#8358;{{ number_format($fees['description_fee'][$k] ?? 0, 2) }})
-                        </option>
-                    @endforeach
-                </select>
+        </section>
+
+        {{-- 2. What the file's records say about it. Supplied values are
+             locked; blanks stay open, and the server re-reads the file on save. --}}
+        <section class="form-step" data-step data-title="File Details" data-icon="file-text"
+                 data-subtitle="Filled from the intake receipt and the file index. Greyed fields come from the file; complete any it leaves blank.">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>File Title</label>
+                    <input type="text" name="file_title" maxlength="500" value="{{ old('file_title', $record->file_title) }}" />
+                </div>
+                <div class="form-group {{ $luLocked ? 'cad-fp-filled' : '' }}">
+                    <label>Land Use</label>
+                    <select name="land_use" data-land-use-lock
+                            @if ($luLocked) disabled class="cad-locked" data-from-file="1" @endif>
+                        <option value="">—</option>
+                        @foreach (\App\Models\Cadastral\CadastralPlanDescription::LAND_USES as $u)
+                            <option value="{{ $u }}" @selected($luValue === $u)>{{ $u }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Location Zone</label>
+                    <select name="location_zone">
+                        <option value="">—</option>
+                        @foreach (\App\Models\Cadastral\CadastralPlanDescription::ZONES as $k => $label)
+                            <option value="{{ $k }}" @selected(old('location_zone', $record->location_zone)===$k)>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
-            <div class="form-group"><label>Bounded North</label>
-                <input type="text" name="boundary_north" value="{{ old('boundary_north', $record->boundary_north) }}" /></div>
-            <div class="form-group"><label>Bounded South</label>
-                <input type="text" name="boundary_south" value="{{ old('boundary_south', $record->boundary_south) }}" /></div>
-            <div class="form-group"><label>Bounded East</label>
-                <input type="text" name="boundary_east" value="{{ old('boundary_east', $record->boundary_east) }}" /></div>
-            <div class="form-group"><label>Bounded West</label>
-                <input type="text" name="boundary_west" value="{{ old('boundary_west', $record->boundary_west) }}" /></div>
-        </div>
+            {{-- District, LGA and State compose "District, LGA, Kano". The plot
+                 number is its own box and never appears in the location. --}}
+            @include('cadastral_module.partials._address_builder', [
+                'prefix' => 'prop_',
+                'mode'   => 'property',
+                'model'  => $record,
+                'legend' => 'Property Location',
+            ])
+        </section>
 
-        @include('cadastral_module.partials._address_builder', [
-            'prefix' => 'prop_',
-            'mode'   => 'property',
-            'model'  => $record,
-            'legend' => 'Property Location',
-        ])
+        {{-- 3. Area and the plot standard. --}}
+        <section class="form-step" data-step data-title="Area & Plot" data-icon="ruler"
+                 data-subtitle="A typed area is kept as hand-entered; a blank one is computed from the chart's beacon ring.">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Area (sqm)</label>
+                    <input type="number" step="0.001" min="0" name="area_sqm" value="{{ old('area_sqm', $record->area_sqm) }}" />
+                    <div class="helper-text">Leave blank to compute it from the linked chart's beacon ring.</div>
+                </div>
+                <div class="form-group">
+                    <label>Plot Size (sqm)</label>
+                    <input type="number" step="0.01" min="1" name="plot_size_sqm"
+                           value="{{ old('plot_size_sqm', $record->plot_size_sqm ?: app(\App\Services\Cadastral\CadastralSettings::class)->plotSizeSqm()) }}" />
+                    <div class="helper-text">Snapshotted, so an old bill reprints the same plot count.</div>
+                </div>
+                <div class="form-group">
+                    <label>Decimal Places</label>
+                    <input type="number" min="0" max="6" name="area_precision"
+                           value="{{ old('area_precision', $record->area_precision ?: 2) }}" />
+                </div>
+                <div class="form-group">
+                    <label>Description Complexity <span class="required">*</span></label>
+                    <select name="description_complexity" required>
+                        @foreach (\App\Models\Cadastral\CadastralPlanDescription::COMPLEXITIES as $k => $label)
+                            <option value="{{ $k }}" @selected(old('description_complexity', $record->description_complexity ?: 'standard')===$k)>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        {{-- 4. What bounds the plot, for the description. --}}
+        <section class="form-step" data-step data-title="Boundaries" data-icon="compass"
+                 data-subtitle="What lies on each side of the plot. Used when the description is generated.">
+            <div class="form-grid">
+                <div class="form-group"><label>Bounded North</label>
+                    <input type="text" name="boundary_north" maxlength="255" value="{{ old('boundary_north', $record->boundary_north) }}" /></div>
+                <div class="form-group"><label>Bounded South</label>
+                    <input type="text" name="boundary_south" maxlength="255" value="{{ old('boundary_south', $record->boundary_south) }}" /></div>
+                <div class="form-group"><label>Bounded East</label>
+                    <input type="text" name="boundary_east" maxlength="255" value="{{ old('boundary_east', $record->boundary_east) }}" /></div>
+                <div class="form-group"><label>Bounded West</label>
+                    <input type="text" name="boundary_west" maxlength="255" value="{{ old('boundary_west', $record->boundary_west) }}" /></div>
+            </div>
+        </section>
+
+        <section class="form-step" data-step data-review data-title="Review & Save" data-icon="clipboard-check"
+                 data-subtitle="Check everything below. Saving re-reads the file from its receipt, so the greyed values are the file's, whatever this page shows.">
+            <div data-wizard-summary></div>
+        </section>
     </div>
 
-    <div class="form-actions">
+    <div class="form-actions" data-wizard-nav>
         <a href="{{ route('cadastral-module.plan-description.index') }}" class="btn btn-secondary">Cancel</a>
-        <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i> {{ $isEdit ? 'Save Record' : 'Create Record' }}
-        </button>
+        <button type="button" class="btn btn-outline" data-wizard-back><i data-lucide="arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" data-wizard-next>Next <i data-lucide="arrow-right"></i></button>
+        @canDo('Cad - Records', $isEdit ? 'edit' : 'create')
+            <button type="submit" class="btn btn-primary" data-wizard-submit>
+                <i data-lucide="{{ $isEdit ? 'save' : 'file-plus-2' }}"></i> {{ $isEdit ? 'Save Record' : 'Create Record' }}
+            </button>
+        @endcanDo
     </div>
 </form>
+
+@include('cadastral_module.pnd._pick_hooks')
+
+{{-- A fresh pick: a file that already has a record opens it; otherwise the
+     chart and report boxes follow the file. The server finds both again on save. --}}
+<script>
+document.addEventListener('DOMContentLoaded', function () { setTimeout(function () {
+    'use strict';
+
+    var form = document.getElementById('pnd-register-form');
+    if (!form) return;
+
+    form.addEventListener('cadastral:file-picked', function (e) {
+        var p = e.detail;
+        if (p && p.initial) return;
+
+        var ok  = !!(p && p.status === 'ok' && p.records);
+        var rec = ok ? p.records.plan_description : null;
+        var chart  = document.getElementById('pnd-reg-chart');
+        var report = document.getElementById('pnd-reg-report');
+
+        if (rec) {
+            chart.value = 'Already on ' + rec.ref + ' — opening it…';
+            window.location.href = form.dataset.editUrl.replace('__id__', encodeURIComponent(rec.id));
+            return;
+        }
+
+        var c = ok ? p.records.chart : null;
+        var r = ok && p.records.reports && p.records.reports.length ? p.records.reports[0] : null;
+        chart.value  = c ? c.ref + ' (' + c.status + ')' : (ok ? 'Not charted' : '');
+        report.value = r ? r.ref : (ok ? 'None' : '');
+    });
+}, 0); });
+</script>
+
 
 @if ($isEdit)
     {{-- Pillars --}}
@@ -156,7 +266,7 @@
             <strong>Pillars and Beacons</strong>
             <span class="helper-text" style="margin:0;">
                 Government and private pillars are priced the same —
-                &#8358;{{ number_format($fees['pillar_unit_price'], 2) }} each. The split is for the
+                &#8358;{{ number_format($fees['beacon'], 2) }} each. The split is for the
                 bill's breakdown, not a different rate.
             </span>
         </div>
@@ -271,59 +381,14 @@
         </form>
     </div>
 
-    {{-- The bill. The anchor is where "Next: Fee Calculator" lands until Phase 7. --}}
+    {{-- The bill lives on the Fee Calculator (Phase 7). The anchor keeps old "#fee-calculator" links landing here. --}}
     <div class="form-container" style="margin-top:22px;" id="fee-calculator">
         <div class="card-header">
-            <strong>Consolidated Bill</strong>
+            <strong>Cadastral Fees and Area</strong>
             <span class="helper-text" style="margin:0;">
-                Computed on the server from the stored area and the stored pillar rows. A total posted
-                from the browser is discarded.
+                The bill is worked out line by line from the official fee sheet on the Fee Calculator.
             </span>
         </div>
-
-        <div class="table-scroll">
-            <table>
-                <thead>
-                    <tr><th>Line</th><th>Basis</th><th class="money">Amount (&#8358;)</th></tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Area charge</td>
-                        <td>
-                            {{ $areas['sqm'] !== null ? number_format($areas['sqm'], 2) : '—' }} sqm
-                            @ {{ number_format($preview['area_rate_per_sqm'], 2) }}
-                            × {{ rtrim(rtrim(number_format($preview['land_use_multiplier'], 2), '0'), '.') }} use
-                            × {{ rtrim(rtrim(number_format($preview['zone_multiplier'], 2), '0'), '.') }} zone
-                        </td>
-                        <td class="money">{{ number_format($preview['area_fee'], 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Pillar verification</td>
-                        <td>
-                            {{ $preview['pillar_count_government'] }} government +
-                            {{ $preview['pillar_count_private'] }} private
-                            @ {{ number_format($preview['pillar_unit_price'], 2) }} each
-                        </td>
-                        <td class="money">{{ number_format($preview['pillar_fee'], 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Land description</td>
-                        <td>{{ ucfirst($record->description_complexity) }}</td>
-                        <td class="money">{{ number_format($preview['description_fee_amount'], 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Service charge</td>
-                        <td>{{ rtrim(rtrim(number_format($preview['service_charge_percent'], 3), '0'), '.') }}% of the above</td>
-                        <td class="money">{{ number_format($preview['service_charge'], 2) }}</td>
-                    </tr>
-                    <tr style="border-top:2px solid var(--gray-400);">
-                        <td colspan="2"><strong>Grand Total</strong></td>
-                        <td class="money"><strong>{{ number_format($preview['grand_total'], 2) }}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
         <div class="form-actions">
             @if ($bill)
                 <span class="status-badge {{ $bill->status_badge }}">
@@ -337,13 +402,9 @@
                     </a>
                 @endcanDo
             @endif
-
-            <form method="POST" action="{{ route('cadastral-module.plan-description.bill.generate', $record) }}">
-                @csrf
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-receipt"></i> {{ $bill ? 'Reissue the Bill' : 'Issue the Bill' }}
-                </button>
-            </form>
+            <a href="{{ route('cadastral-module.plan-description.fees', ['record' => $record->id]) }}" class="btn btn-primary">
+                <i class="fas fa-calculator"></i> Open the Fee Calculator
+            </a>
         </div>
     </div>
 

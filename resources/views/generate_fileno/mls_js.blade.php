@@ -1696,8 +1696,22 @@
                                 <div style="font-size:11px;font-weight:600;white-space:nowrap;${subColor}">${subLabel}</div>
                             </div>`;
                         }
-                        return sourceValue !== 'N/A'
-                            ? `<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:9999px;font-size:12px;font-weight:600;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8">${sourceValue}</span>`
+                        // source is only the Application Type (Direct Allocation /
+                        // Conversion); the File Type picked beside it (Re-grant,
+                        // Subdivision, ...) lives in file_option and, being the more
+                        // specific of the two, is what the badge shows when there is one.
+                        const fileTypeLabels = {
+                            temporary: 'Temporary', extension: 'Extension', miscellaneous: 'Miscellaneous',
+                            change_of_purpose: 'Change of Purpose', resettlement: 'Resettlement',
+                            regrant: 'Re-grant', reissuance: 'Re-Issuance', recertification: 'Recertification',
+                            subdivision: 'Subdivision', merger: 'Merger', separation: 'Separation', duplex: 'Duplex'
+                        };
+                        const fileOpt = String(row.file_option || '').trim().toLowerCase();
+                        const fileTypeLabel = fileTypeLabels[fileOpt] || '';
+                        const badgeValue = fileTypeLabel || sourceValue;
+                        if (type !== 'display') return badgeValue;
+                        return badgeValue !== 'N/A'
+                            ? `<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:9999px;font-size:12px;font-weight:600;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8">${badgeValue}</span>`
                             : 'N/A';
                     }
                 },

@@ -146,6 +146,18 @@
                     </div>
 
                     <div class="p-4">
+                        <form method="GET" action="{{ route('instruments.index') }}" class="flex items-center gap-2 mb-4" id="instrumentSearchForm">
+                            <input type="hidden" name="instrument_type" value="{{ $typeFilter ?? '' }}">
+                            <input type="hidden" name="volume" value="{{ $volumeFilter ?? '' }}">
+                            <label for="instrumentSearch" class="text-sm text-gray-700">Search:</label>
+                            <input type="search" id="instrumentSearch" name="search" value="{{ $search ?? '' }}"
+                                   placeholder="File no, registration or party name"
+                                   class="border border-gray-300 rounded px-3 py-2 text-sm w-72">
+                            <button type="submit" class="btn btn-primary">Search</button>
+                            @if(($search ?? '') !== '')
+                                <a class="btn btn-outline" href="{{ route('instruments.index', array_filter(['instrument_type' => $typeFilter ?? '', 'volume' => $volumeFilter ?? ''])) }}">Clear</a>
+                            @endif
+                        </form>
                         <div class="table-responsive">
                             <table id="instrumentsTable" class="w-full">
                                 <thead>
@@ -212,9 +224,9 @@
                                             </div>
                                         </td>
                                         <td class="align-top whitespace-nowrap text-sm">
-                                            @if($instrument->registered_instrument_id)
+                                            @if($instrument->registration_number || $instrument->serial_no || $instrument->page_no || $instrument->volume_no)
                                                 <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-md font-mono text-xs">
-                                                    {{ $instrument->serial_no ?? '0' }}/{{ $instrument->page_no ?? '0' }}/{{ $instrument->volume_no ?? '0' }}
+                                                    {{ ($instrument->serial_no || $instrument->page_no || $instrument->volume_no) ? (($instrument->serial_no ?? '0') . '/' . ($instrument->page_no ?? '0') . '/' . ($instrument->volume_no ?? '0')) : $instrument->registration_number }}
                                                 </span>
                                             @else
                                                 <span class="text-gray-400 text-xs">Unregistered</span>
@@ -679,7 +691,8 @@
         // ─── DataTables Initialisation ───────────────────────────────────────────
         $(document).ready(function () {
             var table = $('#instrumentsTable').DataTable({
-                dom: "<'dt-top-bar'f>t",
+                dom: 't',
+                searching: false, // Search is submitted to the full register before pagination.
                 paging: false,
                 info: false,
                 lengthChange: false,
@@ -739,12 +752,14 @@
         function filterInstrumentsTable() {
             var selectedType = $('#instrumentTypeFilter').val();
             var selectedVolume = $('#volumeFilter').val();
+            var search = $('#instrumentSearch').val().trim();
             // The register is server-paged. A DataTables client filter can only
             // see the 20 rendered rows, then falsely says no match while its
             // paginator still advertises the whole register.
             var url = new URL(window.location.href);
             if (selectedType) url.searchParams.set('instrument_type', selectedType); else url.searchParams.delete('instrument_type');
             if (selectedVolume) url.searchParams.set('volume', selectedVolume); else url.searchParams.delete('volume');
+            if (search) url.searchParams.set('search', search); else url.searchParams.delete('search');
             url.searchParams.delete('page');
             window.location.assign(url.toString());
         }

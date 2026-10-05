@@ -696,6 +696,46 @@
         lgaSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
+    /**
+     * Split a stored placeholder ("KNML 03471", "MLKN 001 (T)") back into the prefix
+     * select, the serial input and the Temporary box, the same way the KANGIS update
+     * page does. A prefix since retired from the list is added back as an option
+     * rather than dropped.
+     */
+    function applyStoredKangisPlaceholder(stored) {
+        let placeholder = String(stored || '').trim();
+        if (!placeholder) return;
+
+        const tempBox = document.getElementById('kangis-fileno-is-temp');
+        if (/\(\s*T\s*\)\s*$/i.test(placeholder)) {
+            placeholder = placeholder.replace(/\(\s*T\s*\)\s*$/i, '').trim();
+            if (tempBox) tempBox.checked = true;
+        }
+
+        // assembleKangisPlaceholder() writes the KN prefix without a space ("KN123").
+        const knJoined = placeholder.match(/^(KN)(\d+)$/i);
+        const parts = knJoined ? [knJoined[1], knJoined[2]] : placeholder.split(/\s+/);
+        const prefix = (parts.shift() || '').toUpperCase();
+        const serial = parts.join(' ').trim();
+
+        const prefixSelect = document.getElementById('kangis-fileno-prefix');
+        if (prefixSelect && prefix) {
+            let option = Array.from(prefixSelect.options).find(o => (o.value || '').toUpperCase() === prefix);
+            if (!option) {
+                option = new Option(prefix, prefix);
+                prefixSelect.appendChild(option);
+            }
+            prefixSelect.value = option.value;
+            prefixSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        const serialInput = document.getElementById('kangis-fileno-serial');
+        if (serialInput && serial) {
+            serialInput.value = serial;
+            serialInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
     function applyExistingIndexedRecord(record) {
         if (!record || !record.id) {
             return;
@@ -918,6 +958,11 @@
             }
         }
 
+        // KANGIS FileNo Placeholder. The registry change above reveals the prefix +
+        // serial fields empty; without putting the stored placeholder back, the edit
+        // form showed a KANGIS record as having none and made the officer re-key it.
+        applyStoredKangisPlaceholder(record.kangis_fileno_placeholder);
+
         setAutoFilledValue('physical-registry', record.physical_registry ?? '', { lock: false });
         const recordMdcBatch = record.mdc_batch_no
             ?? record.mdcBatchNo
@@ -987,10 +1032,21 @@
 
             if (relatedFiles.length === 0) {
                 // No related files on this record — clear anything a previously edited
-                // record left behind, so nothing is carried over.
+                // record left behind, so nothing is carried over. One blank row stays:
+                // "Add Another" works by cloning the first row, and emptying the wrapper
+                // left it nothing to clone, so ticking "Has Related File?" showed no
+                // field and the button did nothing.
                 const wrapper = document.getElementById('related-files-wrapper');
                 if (wrapper) {
-                    wrapper.innerHTML = '';
+                    const rows = Array.from(wrapper.querySelectorAll('.related-file-row'));
+                    rows.slice(1).forEach(r => r.remove());
+                    const first = rows[0];
+                    if (first) {
+                        const input = first.querySelector('.related-file-input');
+                        if (input) input.value = '';
+                    } else {
+                        wrapper.innerHTML = '';
+                    }
                 }
 
                 const hasRelatedCheckbox = document.getElementById('has-related-file');
@@ -6860,13 +6916,15 @@
 
         // KANGIS variant confirmation — if a placeholder is provided, ask the user
         // to confirm the automatic suffix assignment before submitting.
-        if (kangisUpdate && formData.kangis_fileno_placeholder && typeof Swal !== 'undefined') {
+        if ((kangisUpdate || isEditingExisting) && formData.kangis_fileno_placeholder && typeof Swal !== 'undefined') {
             // Updating an existing physical file — no suffix is allocated, so the
             // create-path confirmation below would state the opposite of what happens.
+            // The generic edit page (PUT /fileindexing/{id}) is an update too.
+            const keptFileNumber = kangisUpdate ? kangisUpdate.fileNumber : (formData.file_number || '');
             const confirmUpdate = await Swal.fire({
                 title: 'Confirm KANGIS Update',
                 html: `Physical file <strong>${formData.kangis_fileno_placeholder}</strong> will be updated.<br><br>` +
-                    `The file number stays <strong class="text-blue-700">${kangisUpdate.fileNumber}</strong> — no new variant is created.<br><br>` +
+                    `The file number stays <strong class="text-blue-700">${keptFileNumber}</strong> — no new variant is created.<br><br>` +
                     `Do you want to proceed?`,
                 icon: 'question',
                 showCancelButton: true,
@@ -8580,6 +8638,24 @@
                 return;
             }
 
+            // Updating a record that already exists: the update path never adds an _N
+            // suffix or renames a sibling (FileIndexingController::update and the KANGIS
+            // update endpoint both keep file_number as stored). The collision check
+            // below found the record itself and announced a rename that never happens.
+            const editingId = window.kangisUpdateMode
+                ? (window.editingRecord?.id || editModeState.recordId)
+                : (editModeState.isEditing ? editModeState.recordId : null);
+            if (editingId) {
+                const keptNumber = window.kangisUpdateMode?.fileNumber
+                    || editModeState.fileNumber
+                    || selectedFileNumber.trim();
+                fb.className = 'mt-2 flex items-center gap-2 text-xs rounded px-3 py-1.5 border text-green-700 bg-green-50 border-green-200';
+                fbText.innerHTML = `Updating the existing record — the file number stays <strong>${keptNumber}</strong>. No suffix is added and no other record is renamed.`;
+                fb.classList.remove('hidden');
+                if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [fb] });
+                return;
+            }
+
             try {
                 const resp = await fetch(`/api/kangis-placeholder/check?file_number=${encodeURIComponent(selectedFileNumber.trim())}`, {
                     headers: { Accept: 'application/json' },
@@ -8810,7 +8886,26 @@
         window.addRelatedFileRow = function (initialValue = '') {
             const rows = wrapper.querySelectorAll('.related-file-row');
             const template = rows[0];
-            if (!template) return;
+            if (!template) {
+                // Nothing to clone (the wrapper was emptied): build the first row from
+                // the same markup the section partial renders, rather than doing nothing.
+                const first = document.createElement('div');
+                first.className = 'related-file-row flex gap-2';
+                first.innerHTML =
+                    '<div class="flex-grow"><input type="text" name="related_fileno[]" readonly'
+                    + ' class="related-file-input block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"'
+                    + ' placeholder="Select related file number"></div>'
+                    + '<div class="flex gap-2">'
+                    + '<button type="button" class="select-related-btn inline-flex items-center px-3 py-2 border border-indigo-600 text-indigo-600 rounded-md hover:bg-indigo-50" title="Select File Number"><i data-lucide="search" class="h-4 w-4 text-indigo-600"></i></button>'
+                    + '<button type="button" class="clear-related-btn inline-flex items-center px-3 py-2 border border-red-600 text-red-600 rounded-md hover:bg-red-50" title="Remove/Clear"><i data-lucide="eraser" class="h-4 w-4 text-red-600"></i></button>'
+                    + '</div>';
+                first.querySelector('.related-file-input').value = initialValue || '';
+                wrapper.appendChild(first);
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons();
+                }
+                return;
+            }
 
             const newRow = template.cloneNode(true);
             const input = newRow.querySelector('.related-file-input');

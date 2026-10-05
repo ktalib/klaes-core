@@ -239,6 +239,8 @@ class SltrRecommendationController extends Controller
             // column above, so nothing downstream reads two fields for one idea.
             'purpose_of_clause_other' => 'nullable|string|max:300',
             'notes'            => 'nullable|string',
+        ], [
+            'sltr_number.unique' => 'This file number already exists in an SLTR recommendation. Please select a different file number.',
         ]);
 
         // "Other" becomes the words the officer typed; only the resolved unit is stored.
@@ -285,6 +287,8 @@ class SltrRecommendationController extends Controller
             // column above, so nothing downstream reads two fields for one idea.
             'purpose_of_clause_other' => 'nullable|string|max:300',
             'notes'            => 'nullable|string',
+        ], [
+            'sltr_number.unique' => 'This file number already exists in an SLTR recommendation. Please select a different file number.',
         ]);
 
         $validated = GroundRentUnit::resolve($validated);

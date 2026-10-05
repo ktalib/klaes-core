@@ -763,6 +763,10 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function getNeedsProfilePhotoAttribute(): bool
     {
+        if (\App\Services\LoginOtpService::isProfilePhotoExempt($this)) {
+            return false;
+        }
+
         return !$this->has_profile_photo || $this->photo_face_rejected;
     }
 
@@ -779,6 +783,10 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function getNeedsPhoneVerificationAttribute(): bool
     {
+        if (\App\Services\LoginOtpService::isOtpExempt($this)) {
+            return false;
+        }
+
         if ($this->needs_profile_photo) {
             return false;
         }

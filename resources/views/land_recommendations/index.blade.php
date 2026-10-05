@@ -689,11 +689,15 @@
                                                 if (!this.open) {
                                                     const btn = $event.currentTarget;
                                                     const rect = btn.getBoundingClientRect();
+                                                    // Anchored by its RIGHT edge to the button, so a
+                                                    // label wider than w-56 grows the menu leftwards
+                                                    // into the page instead of off its edge.
                                                     this.menuStyle = {
                                                         position: 'fixed',
                                                         top: (rect.bottom + 4) + 'px',
-                                                        left: (rect.right - 224) + 'px',
-                                                        zIndex: 9999
+                                                        right: Math.max(8, window.innerWidth - rect.right) + 'px',
+                                                        minWidth: '14rem',
+                                                        zIndex: 99999
                                                     };
                                                     // If menu would go below viewport, pop it up instead
                                                     const spaceBelow = window.innerHeight - rect.bottom;
@@ -709,7 +713,11 @@
                                                 <i data-lucide="more-vertical" class="h-5 w-5"></i>
                                             </button>
 
-                                            <div x-show="open" 
+                                            {{-- Teleported to <body>, like the batch and OSS menus: left inside
+                                                 the scrolling table with its sticky column, the menu is clipped
+                                                 at the table's edge and its labels are cut off. --}}
+                                            <template x-teleport="body">
+                                            <div x-show="open"
                                                  x-transition:enter="transition ease-out duration-100"
                                                  x-transition:enter-start="opacity-0 scale-95"
                                                  x-transition:enter-end="opacity-100 scale-100"
@@ -717,7 +725,7 @@
                                                  x-transition:leave-start="opacity-100 scale-100"
                                                  x-transition:leave-end="opacity-0 scale-95"
                                                  :style="menuStyle"
-                                                 class="w-56 rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden" 
+                                                 class="whitespace-nowrap text-left rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
                                                  style="display: none;">
                                                 <div class="py-1">
                                                                                                         @canDo('Letter of Grant (RofO)', 'edit')
@@ -954,6 +962,7 @@
                                                     @endif
                                                 </div>
                                             </div>
+                                            </template>
                                         </div>
                                     </td>
                                 @else
