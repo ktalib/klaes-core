@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>@yield('page-title', 'KLAES')</title>
+  <title>@yield('page-title', 'KLAES-CORE')</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="app-base-url" content="{{ url('/') }}">
   @auth
@@ -19,10 +19,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="icon" type="image/x-icon" href="{{ asset('favicon_io/favicon.ico') }}">
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon_io/favicon-32x32.png') }}">
-  <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon_io/favicon-16x16.png') }}">
-  <link rel="apple-touch-icon" href="{{ asset('favicon_io/apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
+  <link rel="apple-touch-icon" href="{{ asset('assets/logo/klas_core_logo.png') }}">
 
 
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -87,7 +85,7 @@
 <body class="bg-gray-100 flex h-screen font-sans antialiased">
   <!-- Preloader -->
     <div id="preloader" class="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50">
-    <img src="http://app.klaes.ng/assets/logo/klas_logo.gif" alt="Loading..." style="width: 300px; height: auto;">
+    <img src="{{ asset('assets/logo/klaes-core.gif') }}" alt="Loading..." style="width: 300px; height: auto;">
   </div>  
 
   <script>

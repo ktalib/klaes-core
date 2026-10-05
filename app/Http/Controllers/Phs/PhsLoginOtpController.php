@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\Phs\PhsLoginOtpService;
 use App\Services\PhoneOtpService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 /**
  * The PHS Portal sign-in code screen: steps 2 and 3 of signing in
@@ -43,14 +42,6 @@ class PhsLoginOtpController extends Controller
             'maskedEmail' => ($email = $this->otp->emailFor($member))
                 ? $this->phoneOtp->maskEmail($email)
                 : null,
-            // Only ever a number the member confirmed by code; see phoneFor().
-            'maskedPhone' => ($phone = $this->otp->phoneFor($member))
-                ? $this->phoneOtp->mask($phone)
-                : null,
-            'channel' => $last['channel'] ?? PhsLoginOtpService::CHANNEL_EMAIL,
-            // The networks hold SMS 19:45-08:00 Lagos time; only then is it
-            // worth warning that a text asked for now arrives in the morning.
-            'quietHours' => $this->otp->inQuietHours(),
             'organization' => $member->institution->name ?? null,
             'retryAfter' => $this->otp->cooldownRemaining($request),
             'ttlMinutes' => $this->otp->ttlMinutes(),
@@ -82,15 +73,11 @@ class PhsLoginOtpController extends Controller
 
     public function resend(Request $request)
     {
-        $validated = $request->validate([
-            'channel' => ['nullable', Rule::in([PhsLoginOtpService::CHANNEL_EMAIL, PhsLoginOtpService::CHANNEL_SMS])],
-        ]);
-
         if (!$this->otp->pendingMember($request)) {
             return $this->expired($request);
         }
 
-        $result = $this->otp->send($request, $validated['channel'] ?? null);
+        $result = $this->otp->send($request);
 
         return redirect()->route('phs.login.otp')
             ->with($result['sent'] ? 'status' : 'error', $result['message']);

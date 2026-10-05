@@ -1,0 +1,21 @@
+{
+    "backup": "C:\\xampp\\htdocs\\klas\\storage\\app\/maintenance\/ag-test-cleanup-before.json",
+    "files": [
+        "AG-2026-8",
+        "AG-2026-9"
+    ],
+    "deleted": {
+        "customers_staging": 2,
+        "entities_staging": 2,
+        "oss_applications": 2,
+        "file_tracker": 2,
+        "pra": 4,
+        "file_indexings": 2,
+        "fileNumber": 2,
+        "mls_file_no": 2,
+        "PropID_Master": 2
+    },
+    "serial_before": 9,
+    "serial_after": 7,
+    "deleted_count": 20
+}

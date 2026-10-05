@@ -242,9 +242,25 @@ class LaasProfileController extends Controller
             ]);
         }
 
+        // The temporary password from the commissioning SMS must actually be
+        // replaced, not re-entered as the "new" one.
+        if (Hash::check($request->input('password'), $applicant->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'Choose a password different from your current one.',
+            ]);
+        }
+
+        $wasTemporary = (bool) $applicant->must_change_password;
+
         $applicant->forceFill([
-            'password' => Hash::make($request->input('password')),
+            'password'             => Hash::make($request->input('password')),
+            'must_change_password' => false,
         ])->save();
+
+        if ($wasTemporary) {
+            return redirect()->route('laas.dashboard')
+                ->with('status', 'Your password has been set. Your files are listed below.');
+        }
 
         return back()->with('status', 'Your password has been changed.');
     }

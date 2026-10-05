@@ -48,7 +48,7 @@ Route::prefix('laas')->name('laas.')->group(function () {
     Route::post('login/verify/cancel', [LaasLoginOtpController::class, 'cancel'])->name('login.otp.cancel');
 
     // ---- Authenticated applicants ----
-    Route::middleware(['auth:laas', 'laas.otp'])->group(function () {
+    Route::middleware(['auth:laas', 'laas.otp', 'laas.password'])->group(function () {
         Route::post('logout', [LaasAuthController::class, 'logout'])->name('logout');
 
         Route::get('dashboard', [LaasDashboardController::class, 'index'])->name('dashboard');
@@ -78,6 +78,15 @@ Route::prefix('laas')->name('laas.')->group(function () {
         Route::post('application/{reference}/documents', [LaasApplicationController::class, 'uploadDocument'])->name('application.documents.upload');
         Route::get('application/{reference}/documents/{document}', [LaasApplicationController::class, 'downloadDocument'])->name('application.documents.download');
 
+        // The Folio page (sidebar), one file at a time.
+        Route::get('folio', [LaasApplicationController::class, 'folioIndex'])->name('folio.index');
+
+        // The folio: EDMS scans and system-drawn documents (commissioning sheet,
+        // LGA confirmation, tracking sheet, recommendation, RoFO, OSS prints).
+        // See App\Services\Laas\LaasFolioService.
+        Route::get('application/{reference}/folio/{key}', [LaasApplicationController::class, 'folio'])
+            ->where('key', '[a-z0-9-]+')->name('application.folio');
+
         // Lookup data for the form's dependent dropdowns. The portal's own gated
         // copy of the internal /api/reference/* endpoints — same tested
         // controller, behind auth:laas. Districts are fetched per-LGA rather
@@ -106,7 +115,7 @@ Route::prefix('alaes-portal')->name('alaes_portal.')->group(function () {
     Route::get('register', [AlaesPortalController::class, 'register'])->name('register');
     Route::post('register', [LaasAuthController::class, 'register'])->name('register.submit');
 
-    Route::middleware(['auth:laas', 'laas.otp'])->group(function () {
+    Route::middleware(['auth:laas', 'laas.otp', 'laas.password'])->group(function () {
         Route::post('logout', [LaasAuthController::class, 'logout'])->name('logout');
         Route::get('dashboard', [LaasDashboardController::class, 'index'])->name('dashboard');
         Route::get('notifications', [LaasDashboardController::class, 'notifications'])->name('notifications');
@@ -116,5 +125,8 @@ Route::prefix('alaes-portal')->name('alaes_portal.')->group(function () {
         Route::get('application/{reference}', [LaasApplicationController::class, 'show'])->name('application.show');
         Route::post('application/{reference}/documents', [LaasApplicationController::class, 'uploadDocument'])->name('application.documents.upload');
         Route::get('application/{reference}/documents/{document}', [LaasApplicationController::class, 'downloadDocument'])->name('application.documents.download');
+        Route::get('application/{reference}/folio/{key}', [LaasApplicationController::class, 'folio'])
+            ->where('key', '[a-z0-9-]+')->name('application.folio');
+        Route::get('folio', [LaasApplicationController::class, 'folioIndex'])->name('folio.index');
     });
 });

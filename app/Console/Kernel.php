@@ -63,6 +63,7 @@ class Kernel extends ConsoleKernel
         // and bulk-import writes bypass the controller's validation, so this drift report is
         // the only thing that catches them. Review the CSV, then repair with --apply.
         $schedule->command('propid:reconcile-indexing')->dailyAt('01:30')->withoutOverlapping();
+        $schedule->command('op:serial-integrity')->dailyAt('03:15')->withoutOverlapping();
 
         // Clean up expired Digital File Request temp copies daily at 03:00
         $schedule->command('dfr:cleanup-expired')->dailyAt('03:00')->withoutOverlapping();

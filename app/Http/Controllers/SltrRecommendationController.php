@@ -210,6 +210,39 @@ class SltrRecommendationController extends Controller
         return $data;
     }
 
+    /**
+     * An indexed plot size wins over whatever was posted.
+     *
+     * The form locks the field when the file's indexing carries a size, but a
+     * disabled input is only a hint - the server re-reads the indexing so a
+     * record can never disagree with the file it was keyed from. Files indexed
+     * without a size keep what the officer typed.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function resolvePlotSize(array $data): array
+    {
+        $indexed = \App\Support\SltrPlotSize::fromIndexing($data['sltr_number'] ?? null);
+
+        if ($indexed !== null) {
+            $data['plot_size'] = $indexed;
+        }
+
+        return $data;
+    }
+
+    /**
+     * The indexed plot size (m²) for a file number, for the form to prefill and
+     * lock. plot_size is null when the file has no usable indexed size.
+     */
+    public function plotSize(Request $request)
+    {
+        return response()->json([
+            'plot_size' => \App\Support\SltrPlotSize::fromIndexing($request->input('file_number')),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -230,6 +263,7 @@ class SltrRecommendationController extends Controller
             'ground_rent'      => 'nullable|numeric|min:0',
             'ground_rent_unit' => 'nullable|string|max:100',
             'ground_rent_unit_other' => 'nullable|string|max:100',
+            'plot_size'        => 'nullable|numeric|min:0',
             'processing_fee'   => 'nullable|numeric|min:0',
             // The schedule line the fee came from, or the sub-type named for "Other".
             'land_use_subtype' => 'nullable|string|max:255',
@@ -246,6 +280,7 @@ class SltrRecommendationController extends Controller
         // "Other" becomes the words the officer typed; only the resolved unit is stored.
         $validated = GroundRentUnit::resolve($validated);
         $validated = $this->resolvePurposeClause($validated);
+        $validated = $this->resolvePlotSize($validated);
 
         $rec = SltrRecommendation::create(array_merge($validated, [
             'status'     => SltrRecommendation::STATUS_PENDING,
@@ -278,6 +313,7 @@ class SltrRecommendationController extends Controller
             'ground_rent'      => 'nullable|numeric|min:0',
             'ground_rent_unit' => 'nullable|string|max:100',
             'ground_rent_unit_other' => 'nullable|string|max:100',
+            'plot_size'        => 'nullable|numeric|min:0',
             'processing_fee'   => 'nullable|numeric|min:0',
             // The schedule line the fee came from, or the sub-type named for "Other".
             'land_use_subtype' => 'nullable|string|max:255',
@@ -293,6 +329,7 @@ class SltrRecommendationController extends Controller
 
         $validated = GroundRentUnit::resolve($validated);
         $validated = $this->resolvePurposeClause($validated);
+        $validated = $this->resolvePlotSize($validated);
 
         $rec->update(array_merge($validated, ['updated_by' => Auth::id()]));
 

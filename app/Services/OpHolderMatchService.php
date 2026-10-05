@@ -651,6 +651,19 @@ class OpHolderMatchService
         }
 
         $id = DB::connection('sqlsrv')->transaction(function () use ($payload, $grantIds, $group) {
+            if ($grantIds !== []) {
+                $sources = DB::connection('sqlsrv')->table('pra')->whereIn('id', $grantIds)->lockForUpdate()->get();
+                if ($sources->count() !== count($grantIds)) throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'A merger source OP is missing.']);
+                $serials = [];
+                foreach ($sources as $source) {
+                    if (!empty($source->is_deleted) || !\App\Support\OpSerial::isMother((array) $source)) throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'A merger source is not an active OP.']);
+                    $serials[] = \App\Support\OpSerial::require($source->op_serial_number ?? null);
+                }
+                $serials = array_unique($serials); sort($serials, SORT_NATURAL);
+                $payload['op_serial_number'] = implode(', ', $serials);
+            } else {
+                $payload = \App\Support\OpSerial::guard($payload);
+            }
             $newId = (int) DB::connection('sqlsrv')->table('pra')->insertGetId($payload);
 
             // The permits and the transfer are one set. Stamped inside the same

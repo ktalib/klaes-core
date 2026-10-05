@@ -132,6 +132,7 @@ class PraRecordRepository
         $connection = DB::connection('sqlsrv');
 
         return $connection->transaction(function () use ($connection, $attributes) {
+            $attributes = app(\App\Services\OpSerialSourceResolver::class)->guard($attributes);
             $payload = $this->filterColumns($attributes);
 
             $now = now();
@@ -146,6 +147,7 @@ class PraRecordRepository
 
             if ($this->columnExists('id')) {
                 $id = $connection->table(self::TABLE)->insertGetId($payload);
+                app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $id);
 
                 return $this->findById((int) $id);
             }
@@ -181,6 +183,7 @@ class PraRecordRepository
                 return null;
             }
 
+            $attributes = app(\App\Services\OpSerialSourceResolver::class)->guard($attributes, $target);
             $payload = $this->filterColumns($attributes);
 
             if ($payload === []) {
@@ -200,6 +203,7 @@ class PraRecordRepository
             }
 
             $query->update($payload);
+            if (!empty($target['id'])) app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $target['id'], $target['op_serial_number'] ?? null);
 
             $updatedPropId = $payload['prop_id'] ?? $target['prop_id'] ?? $propId;
 

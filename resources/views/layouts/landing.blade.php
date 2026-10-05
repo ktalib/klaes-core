@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kano State LAnd ADmin  Enterprise 
-System</title>
+    <title>KLAES-CORE</title>
+  <link rel="icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
     <meta name="description" content="Official Land Administration System for Kano State - Manage land records, certificates, and property documentation efficiently.">
     <meta name="keywords" content="land administration, Kano State, property management, land registry, land certificates">
     <meta name="author" content="Kano State Government">
@@ -74,6 +74,14 @@ System">
             transform: translateX(100%);
         }
         
+        .landing-subtitle {
+            display: inline-block;
+            max-width: 100%;
+            color: #ffffff;
+            font-weight: 800;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5);
+        }
+
         /* Text colors for different themes */
         .theme1-text {
             color: white;
@@ -186,13 +194,13 @@ System">
             <div class="max-w-3xl mx-auto text-center">
                 <!-- Added logo -->
                 <div class="mx-auto mb-8 rounded-md flex items-center justify-center relative">
-                <img src="{{ asset('storage/upload/logo/logo.png') }}" alt="Logo" class="rounded-md" style="width: 30%; height: auto;">
+                <img src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE Logo" class="rounded-md" style="width: 30%; height: auto;">
                 </div>
                 
                 <h4 id="main-title" class="text-2xl md:text-4xl font-bold mb-4 shadow-text italic theme1-text" style="letter-spacing: -0.3px;">
-                    Kano State LAnd ADmin  Enterprise 
-                    System             
+                    KLAES-CORE
                 </h4>
+                <p class="landing-subtitle text-xl md:text-2xl leading-relaxed">Kano State LAnd ADmin Enterprise System</p>
             </div>
             </div>
         </main>

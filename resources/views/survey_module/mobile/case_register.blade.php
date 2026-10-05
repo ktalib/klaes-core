@@ -41,12 +41,15 @@
     };
 
     $purposes = ['Infrastructure Development', 'Housing', 'Commercial', 'Agricultural', 'Government Acquisition', 'Urban Renewal'];
-    $steps    = ['General', 'Beneficiaries', 'Farm Info', 'Trees', 'Compensation', 'Preview'];
+    $steps    = ['Project Setup', 'Beneficiaries', 'Farm Info', 'Trees', 'Compensation', 'Preview'];
+    $stepIcons = ['folder-tree', 'users', 'seedling', 'tree', 'scale-balanced', 'clipboard-check'];
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/SCF.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#be185d">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -56,13 +59,13 @@
     @include('survey_module.mobile._styles')
     <style>:root { --page-w: 880px; }</style>
 </head>
-<body>
+<body class="has-mobile-footer has-register-actions">
 
 {{-- ============================== APP BAR ============================== --}}
 <header class="appbar">
     <div class="appbar-row">
         <div class="appbar-logo">
-            <img src="{{ asset('storage/upload/logo/Klase.png') }}" alt="KLAES"
+            <img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF Survey Compensation"
                  onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-compass'}))">
         </div>
         <div class="appbar-title">
@@ -74,12 +77,12 @@
     </div>
 
     <div class="progress">
-        <div class="progress-meta"><span id="stepLabel">Step 1 of 6 · General</span><span id="stepPct">17%</span></div>
+        <div class="progress-meta"><span id="stepLabel">Step 1 of 6 · Project Setup</span><span id="stepPct">17%</span></div>
         <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:16.6%"></div></div>
         <div class="chips" id="chips">
             @foreach ($steps as $i => $label)
                 <button type="button" class="chip {{ $i === 0 ? 'active' : '' }}" data-step="{{ $i }}" onclick="reg.go({{ $i }})">
-                    <span class="n">{{ $i + 1 }}</span>{{ $label }}
+                    <span class="n">{{ $i + 1 }}</span><i class="fas fa-{{ $stepIcons[$i] }}" aria-hidden="true"></i>{{ $label }}
                 </button>
             @endforeach
         </div>
@@ -97,7 +100,7 @@
             <i class="fas fa-triangle-exclamation"></i>
             <div>
                 <strong>The case was not saved. Please fix:</strong>
-                <ul>@foreach (array_unique($errors->all()) as $e)<li>{{ $e }}</li>@endforeach</ul>
+                <ul>@foreach ($errors->messages() as $key => $messages)<li><button type="button" class="error-link" data-error-field="{{ $key }}" onclick="reg.error(this.dataset.errorField)">{{ $messages[0] }}</button></li>@endforeach</ul>
             </div>
         </div>
     @endif
@@ -111,7 +114,7 @@
             <div class="step-head">
                 <div class="step-icon"><i class="fas fa-folder-open"></i></div>
                 <div>
-                    <h2>General Information</h2>
+                    <h2>Project Setup</h2>
                     <p>Pick the project first. Its compensation scheme applies to this case and cannot be changed here.</p>
                 </div>
             </div>
@@ -280,7 +283,10 @@
                 </div>
             </div>
 
-            <button type="button" class="btn btn-outline" onclick="reg.addBen()"><i class="fas fa-user-plus"></i> Add farmer</button>
+            <div class="field" data-key="beneficiaries">
+                <button type="button" class="btn btn-outline" onclick="reg.addBen()"><i class="fas fa-user-plus"></i> Add farmer</button>
+                <div class="err">Add at least one farmer before submitting.</div>
+            </div>
 
             <div class="rows two" id="benRows">
                 @foreach ($benRows as $i => $row)
@@ -352,7 +358,10 @@
             </div>
 
             <div id="treesActive">
-                <button type="button" class="btn btn-outline" onclick="reg.addTree()"><i class="fas fa-plus"></i> Add tree</button>
+                <div class="field" data-key="trees">
+                    <button type="button" class="btn btn-outline" onclick="reg.addTree()"><i class="fas fa-plus"></i> Add tree</button>
+                    <div class="err">Add at least one economic tree line.</div>
+                </div>
                 <datalist id="treeCatalogue">
                     @foreach ($treeTypes as $t) <option value="{{ $t->name }}"></option> @endforeach
                 </datalist>
@@ -453,6 +462,7 @@
     var TREE_PRICES = @json($treePrices);
     var STEPS       = @json($steps);
     var ERROR_KEYS  = @json($errors->keys());
+    var ERRORS      = @json($errors->messages());
 
     var step = 0;
     var scheme = @json($scheme);
@@ -714,10 +724,36 @@
 
     /* ----------------------------- validation ---------------------------- */
 
-    function mark(el, bad) { var f = el.closest('.field') || el; f.classList.toggle('invalid', bad); return !bad; }
+    function mark(el, bad, message) {
+        var f = el.closest('.field') || el;
+        f.classList.toggle('invalid', bad);
+        var input = f.querySelector('input:not([type=hidden]), select, textarea, button');
+        if (input) input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+        if (bad && message) {
+            var error = f.querySelector('.err');
+            if (!error) { error = document.createElement('div'); error.className = 'err'; f.appendChild(error); }
+            error.textContent = message;
+        }
+        return !bad;
+    }
 
-    // Light checks so a field officer is told on the spot; the server re-validates everything.
-    function validStep(n) {
+    function fieldForKey(key) {
+        var parts = key.split('.'), name = parts.shift();
+        parts.forEach(function (part) { name += '[' + part + ']'; });
+        var input = all('[name]', $('caseForm')).find(function (el) { return el.name === name || el.name === name + '[]'; });
+        return input ? input.closest('.field') : all('[data-key]').find(function (el) { return el.dataset.key === key.split('.')[0]; });
+    }
+
+    function showError(key) {
+        var field = fieldForKey(key);
+        if (!field) return;
+        var section = field.closest('.step');
+        if (section) { step = Number(section.dataset.step); render(); }
+        setTimeout(function () { focusInvalid(field); }, 100);
+    }
+
+    // Check the whole form only when saving; the server re-validates every submission.
+    function validStep(n, submitNow) {
         var ok = true, check = function (cond) { ok = cond && ok; };
         if (n === 0) {
             check(mark($('caseProject'), !$('caseProject').value));
@@ -728,6 +764,7 @@
             check(mark(document.querySelector('[data-key=prop_district]'), !d.length));
             if (d.indexOf('Other') !== -1) check(mark($('propDistrictOther'), !$('propDistrictOther').value.trim()));
             check(mark(document.querySelector('[data-key=prop_lga]'), !pickerText('prop_lga[]').length));
+            check(mark($('propState'), !$('propState').value, 'Select the state.'));
             if (pickerText('prop_street[]').indexOf('Other') !== -1) {
                 var so = !$('propStreetOther').value.trim();
                 if (so) $('moreAddress').open = true;
@@ -735,33 +772,39 @@
             }
         }
         if (n === 1) {
+            check(mark(document.querySelector('[data-key=beneficiaries]'), submitNow && !all('#benRows .row-card').length));
             all('#benRows .row-card').forEach(function (c) {
                 check(mark(c.querySelector('[name$="[full_name]"]'), !c.querySelector('[name$="[full_name]"]').value.trim()));
             });
         }
         if (n === 2 && scheme === 'land') {
-            check(mark($('caseNumPlots'), !(Number($('caseNumPlots').value) >= 1)));
+            var plots = Number($('caseNumPlots').value);
+            check(mark($('caseNumPlots'), !(Number.isInteger(plots) && plots >= 1 && plots <= 1000000)));
         }
         if (n === 3 && scheme !== 'land') {
             var cards = all('#treeRows .row-card');
-            if (scheme === 'monetary' && !cards.length) { ok = false; toast('A monetary case needs at least one tree.'); }
+            check(mark(document.querySelector('[data-key=trees]'), !cards.length));
             cards.forEach(function (c) {
                 check(mark(c.querySelector('[name$="[tree_type]"]'), !c.querySelector('[name$="[tree_type]"]').value.trim()));
-                check(mark(c.querySelector('[name$="[quantity]"]'), !(Number(c.querySelector('[name$="[quantity]"]').value) >= 1)));
-                check(mark(c.querySelector('[name$="[unit_price]"]'), c.querySelector('[name$="[unit_price]"]').value === ''));
+                var quantity = Number(c.querySelector('[name$="[quantity]"]').value);
+                check(mark(c.querySelector('[name$="[quantity]"]'), !(Number.isInteger(quantity) && quantity >= 1)));
+                var price = c.querySelector('[name$="[unit_price]"]');
+                check(mark(price, price.value === '' || !Number.isFinite(Number(price.value)) || Number(price.value) < 0 || Number(price.value) > 99999999999));
             });
         }
         all('.chip')[n].classList.toggle('bad', !ok);
         return ok;
     }
 
-    function focusFirstInvalid() {
-        var bad = document.querySelector('.step.active .field.invalid');
+    function focusInvalid(bad) {
         if (!bad) return;
+        var details = bad.closest('details'); if (details) details.open = true;
         bad.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        var inp = bad.querySelector('input:not([type=hidden]), select, textarea');
+        var inp = bad.querySelector('input:not([type=hidden]), select, textarea, button');
         if (inp) setTimeout(function () { inp.focus({ preventScroll: true }); }, 300);
     }
+
+    function focusFirstInvalid() { focusInvalid(document.querySelector('.step.active .field.invalid')); }
 
     /* ------------------------------ stepper ------------------------------ */
 
@@ -790,12 +833,6 @@
 
     function go(n) {
         if (n < 0 || n >= STEPS.length || n === step) return;
-        // Moving forward checks the steps being left behind; going back never blocks.
-        if (n > step) {
-            for (var i = step; i < n; i++) {
-                if (!validStep(i)) { step = i; render(); setTimeout(focusFirstInvalid, 350); return; }
-            }
-        }
         step = n; render();
     }
 
@@ -842,11 +879,17 @@
     /* ------------------------------- save ------------------------------- */
 
     function save(submitNow) {
+        all('.field.invalid').forEach(function (field) { mark(field, false); });
+        var firstInvalid = null;
         for (var i = 0; i < STEPS.length - 1; i++) {
-            if (!validStep(i)) { step = i; render(); setTimeout(focusFirstInvalid, 350); toast('Please complete the highlighted fields.'); return; }
+            if (!validStep(i, submitNow) && firstInvalid === null) firstInvalid = i;
         }
-        if (submitNow && !all('#benRows .row-card').length) {
-            step = 1; render(); toast('A case needs at least one farmer before it can be submitted.'); return;
+        if (firstInvalid !== null) {
+            step = firstInvalid; render(); setTimeout(focusFirstInvalid, 100);
+            var field = document.querySelector('.step.active .field.invalid');
+            var message = field && field.querySelector('.err');
+            toast(message ? message.textContent : 'Please complete the highlighted field.');
+            return;
         }
         if (submitNow && !confirm('Save and submit this case for review?')) return;
 
@@ -857,6 +900,11 @@
         dirty = false;
         $('caseForm').submit();
     }
+
+    $('caseForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        save(1);
+    });
 
     /* -------------------------------- GPS -------------------------------- */
 
@@ -886,7 +934,7 @@
     /* -------------------------------- boot -------------------------------- */
 
     window.reg = {
-        go: go, step: function (d) { go(step + d); }, onProject: onProject,
+        go: go, step: function (d) { go(step + d); }, onProject: onProject, error: showError,
         addBen: addBen, addTree: addTree, save: save, gps: gps
     };
     window.addEventListener('beforeunload', function (ev) { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
@@ -896,22 +944,23 @@
 
     // A bounced submission: open the first step that holds an error.
     if (ERROR_KEYS.length) {
-        var stepOf = function (k) {
-            if (/^beneficiaries/.test(k)) return 1;
-            if (/^(coordinates|gps_reading|num_plots|boundary_file)$/.test(k)) return 2;
-            if (/^trees/.test(k)) return 3;
-            return 0;
-        };
-        var first = Math.min.apply(null, ERROR_KEYS.map(stepOf));
+        var first = null;
         ERROR_KEYS.forEach(function (k) {
-            var f = document.querySelector('[data-key="' + k.split('.')[0] + '"]');
-            if (f) f.classList.add('invalid');
-            all('.chip')[stepOf(k)].classList.add('bad');
+            var f = fieldForKey(k);
+            if (!f) return;
+            mark(f, true, ERRORS[k][0]);
+            var section = f.closest('.step');
+            if (!section) return;
+            var n = Number(section.dataset.step);
+            if (first === null || n < first) first = n;
+            all('.chip')[n].classList.add('bad');
         });
-        step = first;
+        if (first !== null) step = first;
     }
     render();
+    if (ERROR_KEYS.length) setTimeout(focusFirstInvalid, 100);
 })();
 </script>
+@include('survey_module.mobile._footer', ['activeTab' => 'register'])
 </body>
 </html>

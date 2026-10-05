@@ -226,8 +226,8 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">OP Serial Number</label>
-                                    <input type="text" class="opSerialNum w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                                    <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">OP Serial Number <span class="text-red-500">*</span></label>
+                                    <input type="text" required pattern="[1-9][0-9]*" maxlength="100" class="opSerialNum w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
                                         value="{{ $opRow->op_serial_number ?? '' }}" placeholder="Enter OP serial number">
                                 </div>
                                 <div>
@@ -666,6 +666,7 @@
                     if (!fileName) { Swal.fire('Required', 'File Nameis required.', 'warning'); return; }
                     if (!customerType) { Swal.fire('Required', 'Customer Type is required.', 'warning'); return; }
 
+                    if (!/^[1-9][0-9]*$/.test((opSerEl?.value || '').trim())) { Swal.fire('Required', 'Enter a valid OP Serial Number without leading zeros.', 'warning'); return; }
                     var opTypeEl = card.querySelector('.opTypeRadio:checked');
                     var payload = {
                         pra_id:             parseInt(praId),

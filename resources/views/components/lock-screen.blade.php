@@ -11,9 +11,9 @@
                 <div class="lock-screen-header">
                     <div class="brand-logos-container">
                         <div class="logo-wrapper">
-                            <img src="{{ asset('public/images/branding-logo-left.png') }}" alt="Left Logo" class="brand-logo-left" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <img src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE Logo" class="brand-logo-left" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                             <div class="logo-fallback" style="display: none;">
-                                <div class="fallback-text">KLAES</div>
+                                <div class="fallback-text">KLAES-CORE</div>
                             </div>
                         </div>
                         
@@ -109,7 +109,7 @@
                             </svg>
                             <span id="sessionTimer" class="timer-countdown">12:00</span>
                         </div>
-                        <p class="copyright">&copy; {{ date('Y') }} {{ config('app.name', 'KLAES') }}</p>
+                        <p class="copyright">&copy; {{ date('Y') }} KLAES-CORE</p>
                     </div>
                 </div>
             </div>

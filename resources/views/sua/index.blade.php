@@ -7,6 +7,7 @@
 @section('content')
     <div class="flex-1 overflow-auto">
         @include('admin.header')
+    @include('exports.consolidated_report_action', ['reportKey' => 'st-applications'])
 
         <div class="p-6">
             <div class="bg-white rounded-md shadow-sm border border-gray-200">

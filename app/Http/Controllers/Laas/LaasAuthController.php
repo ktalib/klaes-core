@@ -45,9 +45,7 @@ class LaasAuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $applicant = LaasApplicant::where('phone', $this->normalizePhone($credentials['phone']))
-            ->orWhere('email', $credentials['phone'])
-            ->first();
+        $applicant = $this->findForLogin($credentials['phone']);
 
         if (!$applicant || !Hash::check($credentials['password'], $applicant->password)) {
             throw ValidationException::withMessages([
@@ -200,6 +198,44 @@ class LaasAuthController extends Controller
      * A thin pass-through so sign-in, registration and the profile screen can
      * never drift apart on what counts as the same number.
      */
+    /**
+     * The account a sign-in names: by username, then email, then phone.
+     *
+     * The field is still posted as `phone` so old bookmarks and the error key
+     * keep working, but it now takes a username or an email — accounts opened
+     * by File Commissioning are told their username by SMS. A phone number is
+     * still accepted for the self-registered accounts that never had a
+     * username, but only when exactly one account holds it: commissioning can
+     * open two accounts on one number (two holders, one agent's phone), and
+     * picking either would be a guess.
+     */
+    private function findForLogin(string $login): ?LaasApplicant
+    {
+        $login = trim($login);
+        if ($login === '') {
+            return null;
+        }
+
+        $byUsername = LaasApplicant::where('username', mb_strtolower($login))->first();
+        if ($byUsername) {
+            return $byUsername;
+        }
+
+        if (str_contains($login, '@')) {
+            return LaasApplicant::where('email', mb_strtolower($login))->first()
+                ?? LaasApplicant::where('email', $login)->first();
+        }
+
+        $phone = $this->normalizePhone($login);
+        if ($phone === null) {
+            return null;
+        }
+
+        $byPhone = LaasApplicant::where('phone', $phone)->limit(2)->get();
+
+        return $byPhone->count() === 1 ? $byPhone->first() : null;
+    }
+
     private function normalizePhone(string $phone): ?string
     {
         return LaasApplicant::normalizePhone($phone);

@@ -6771,6 +6771,15 @@
             }
         }
 
+        if (document.getElementById('has-occupancy-permit-toggle')?.checked) {
+            const serialInput = document.getElementById('occupancy-permit-op-serial-number');
+            if (!/^[1-9][0-9]*$/.test((serialInput?.value || '').trim())) {
+                alert('OP Serial Number is required and must contain positive digits without leading zeros.');
+                serialInput?.focus();
+                return;
+            }
+        }
+
         // "Has New KANGIS FileNo" gate — if ticked, the KN-series number must be entered.
         if (typeof window.validateHasNewKangisFileno === 'function' && !window.validateHasNewKangisFileno()) {
             if (typeof Swal !== 'undefined') {

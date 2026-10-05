@@ -200,6 +200,53 @@ class LaasApplicationController extends Controller
         ]);
     }
 
+    /**
+     * The Folio page: one file's documents at a time, with a switcher across
+     * every file the applicant holds. ?file=<reference> picks the file; without
+     * it, the most recent one with a file number opens.
+     */
+    public function folioIndex(Request $request)
+    {
+        $applicant = Auth::guard('laas')->user();
+
+        $files = LaasApplication::where('laas_applicant_id', $applicant->id)
+            ->whereNotNull('file_number')
+            ->where('file_number', '<>', '')
+            ->orderByDesc('id')
+            ->get();
+
+        $selected = $files->firstWhere('reference_no', $request->query('file')) ?? $files->first();
+
+        return view('laas.folio', [
+            'files'         => $files,
+            'selected'      => $selected,
+            'folio'         => $selected ? app(\App\Services\Laas\LaasFolioService::class)->documents($selected) : [],
+            // Same seven-day count the dashboard shows on the Updates badge.
+            'unreadUpdates' => \App\Models\Laas\LaasApplicationEvent::query()
+                ->join('laas_applications', 'laas_applications.id', '=', 'laas_application_events.laas_application_id')
+                ->where('laas_applications.laas_applicant_id', $applicant->id)
+                ->where('laas_application_events.visible_to_applicant', true)
+                ->where('laas_application_events.created_at', '>=', now()->subDays(7))
+                ->count(),
+        ]);
+    }
+
+    /**
+     * One folio document: a scanned page streamed from EDMS, or a system copy
+     * drawn read-only. Ownership is settled by findOwned(); the service then
+     * only ever resolves documents of THIS application's file.
+     */
+    public function folio(string $reference, string $key)
+    {
+        $application = $this->findOwned($reference);
+
+        $response = app(\App\Services\Laas\LaasFolioService::class)->render($application, $key);
+
+        abort_if($response === null, 404, 'This document is not available.');
+
+        return $response;
+    }
+
     public function uploadDocument(Request $request, string $reference)
     {
         $application = $this->findOwned($reference);

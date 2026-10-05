@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head><body><select id="edit"><option value="">Select District</option><option value="Kano" selected="">Kano</option><option value="Dala">Dala</option><option value="&lt;District&gt;">&lt;District&gt;</option><option value="Others">Others</option></select><select id="multi" multiple=""><option value="Kano" selected="">Kano</option><option value="Custom" selected="">Custom</option><option value="Dala">Dala</option><option value="&lt;District&gt;">&lt;District&gt;</option></select><template id="sidebar"><select data-deferred-district="Other"><option value="">Select District</option><option value="Other">Other</option></select></template><div id="active"><select><option value="">Select District</option><option value="Kano">Kano</option><option value="Dala">Dala</option><option value="&lt;District&gt;">&lt;District&gt;</option><option value="Other">Other</option></select></div><pre id="result">PASS: saved selections, custom/multiple values, focus, cloned forms, duplicates, escaped text and both ownership labels</pre><script>window.ossDistrictNames=['Kano','Dala','kano','<District>','Other','Others'];</script><script>(function () {
+    'use strict';
+
+    // Keep one catalogue on the page; expand only the form being used.
+    window.populateDistrictOptions = function (root) {
+        if (!root) return;
+        const selects = root.matches?.('select[data-deferred-district]')
+            ? [root] : Array.from(root.querySelectorAll('select[data-deferred-district]'));
+        selects.forEach(function (select) {
+            const selected = Array.from(select.selectedOptions).map(option => option.value.toLowerCase());
+            const existing = new Set(Array.from(select.options).map(option => option.value.toLowerCase()));
+            const fragment = document.createDocumentFragment();
+            (window.ossDistrictNames || []).forEach(function (name) {
+                const key = String(name).toLowerCase();
+                if (existing.has(key) || key === 'other' || key === 'others') return;
+                existing.add(key);
+                const option = new Option(name, name, false, selected.includes(key));
+                fragment.appendChild(option);
+            });
+            const other = Array.from(select.options).find(option => /^(other|others)$/i.test(option.value));
+            select.insertBefore(fragment, other || null);
+            select.removeAttribute('data-deferred-district');
+        });
+    };
+
+    ['focusin', 'pointerdown'].forEach(function (event) {
+        document.addEventListener(event, function (e) {
+            if (e.target.matches?.('select[data-deferred-district]')) {
+                window.populateDistrictOptions(e.target);
+            }
+        }, true);
+    });
+})();
+</script><script>
+try {
+const assert=(condition,message)=>{if(!condition)throw Error(message);};
+const edit=document.getElementById('edit');
+assert(edit.options.length===3,'deferred before use');
+edit.dispatchEvent(new Event('focusin',{bubbles:true}));
+assert(edit.value==='Kano','saved selection preserved');
+assert(edit.options.length===5,'catalog hydrated and duplicates removed');
+assert(edit.options[edit.options.length-1].value==='Others','Others remains last');
+assert(edit.querySelector('district')===null,'district text safely escaped');
+window.populateDistrictOptions(edit);assert(edit.options.length===5,'hydration idempotent');
+const multi=document.getElementById('multi');window.populateDistrictOptions(multi);
+assert(Array.from(multi.selectedOptions).map(o=>o.value).join(',')==='Kano,Custom','multiple/custom selections preserved');
+const template=document.getElementById('sidebar');assert(template.content.querySelector('select').options.length===2,'hidden template stays deferred');
+const active=document.getElementById('active');active.appendChild(template.content.cloneNode(true));window.populateDistrictOptions(active);
+assert(active.querySelector('select').options.length===5,'cloned sidebar hydrated');assert(template.content.querySelector('select').options.length===2,'original template untouched');
+const label=data=>data.data?.system_sub_type === 'OSS' ? 'Change of Ownership' : 'No Change of Ownership';assert(label({data:{system_sub_type:'OSS'}})==='Change of Ownership','OSS label');assert(label({data:{system_sub_type:'MLS'}})==='No Change of Ownership','Land OP label');
+document.getElementById('result').textContent='PASS: saved selections, custom/multiple values, focus, cloned forms, duplicates, escaped text and both ownership labels';
+}catch(e){document.getElementById('result').textContent='FAIL: '+e.message;}
+</script></body></html>

@@ -246,6 +246,7 @@
                         <span class="text-sm font-semibold text-gray-800">${e(t.transaction_type)}</span>
                         ${t.root_of_title ? `<span class="tl-rot-tag">RoT: ${e(t.root_of_title)}</span>` : ''}
                         ${regPart}
+                        ${t.op_serial_number ? `<span class="text-xs text-gray-600 ml-2">OP Serial No: ${e(t.op_serial_number)}</span>` : ''}
                     </div>
                     <span class="text-xs text-gray-500 whitespace-nowrap">${e(t.display_date || t.transaction_date)}</span>
                 </div>

@@ -9,6 +9,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/SCF.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b2e">
     <title>{{ $case->case_ref }} — Survey Mobile</title>
@@ -30,11 +32,12 @@
         .li .amt { font-weight: 700; color: var(--ink); white-space: nowrap; }
     </style>
 </head>
-<body>
+<body class="has-mobile-footer {{ $canSubmit ? 'has-register-actions' : '' }}">
 
 <header class="appbar">
     <div class="appbar-row">
         <a href="{{ route('survey-module.mobile.index') }}" class="icon-btn" aria-label="Back to dashboard"><i class="fas fa-arrow-left"></i></a>
+        <div class="appbar-logo"><img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF Survey Compensation"></div>
         <div class="appbar-title">
             <h1>Case details</h1>
             <p>{{ $case->project?->project_code }} · {{ $case->project?->name }}</p>
@@ -150,5 +153,6 @@
         </form>
     </nav>
 @endif
+@include('survey_module.mobile._footer', ['activeTab' => 'cases'])
 </body>
 </html>

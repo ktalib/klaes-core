@@ -165,7 +165,7 @@
 
                         <!-- OP Serial Number (Hidden by default) -->
                         <div id="op_serial_number_container" class="mt-4 hidden">
-                            <label for="op_serial_number" class="text-xs font-semibold text-gray-800 mb-1 block">OP SerialNo</label>
+                            <label for="op_serial_number" class="text-xs font-semibold text-gray-800 mb-1 block">OP SerialNo <span class="text-red-500">*</span></label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <i data-lucide="hash" class="h-4 w-4 text-gray-400"></i>

@@ -1,4 +1,5 @@
 <link rel="stylesheet" href="{{ asset('css/admin-header.css') }}">
+<link rel="stylesheet" href="{{ asset('css/welcome-card.css') }}?v={{ filemtime(public_path('css/welcome-card.css')) }}">
 
 <div class="p-6 bg-white border-b border-gray-200" data-header-root
   data-auto-logout-enabled="{{ config('session.auto_logout_enabled', false) ? 'true' : 'false' }}"
@@ -11,17 +12,26 @@
       </button>
       <div>
         <h1 class="text-2xl font-bold">{{ $PageTitle ?? '' }}</h1>
-        <p class="text-gray-500 text-sm hidden sm:block">{{ $PageDescription ?? '' }}</p>
+        <p class="text-gray-500 text-sm hidden sm:block {{ ($PageDescriptionBold ?? false) ? 'font-bold' : '' }}">{{ $PageDescription ?? '' }}</p>
       </div>
     </div>
     <div class="flex items-center space-x-4">
       <!-- Back Button -->
+      @if(!empty($headerBackUrl))
+      <a href="{{ $headerBackUrl }}"
+        class="flex items-center px-3 py-2 border border-gray-300 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700"
+        title="Go Back">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+        Back
+      </a>
+      @else
       <button type="button" onclick="window.history.back()"
         class="flex items-center px-3 py-2 border border-gray-300 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700"
         title="Go Back">
         <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
         Back
       </button>
+      @endif
       <div class="relative">
         <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
         <input type="text" placeholder="Search applications..."
@@ -30,7 +40,7 @@
       <div class="relative" id="file-tracker-header-notifications" data-sound-url="{{ asset('sound/sound.wav') }}"
         data-endpoint="{{ route('file-tracker-dashboard.notifications', ['scope' => 'all']) }}"
         data-fallback-endpoint="{{ url('api/file-tracker-dashboard/notifications?scope=all') }}"
-        data-icon-url="{{ asset('assets/logo/logo.png') }}" data-poll-interval="20000"
+        data-icon-url="{{ asset('assets/logo/klas_core_logo.png') }}" data-poll-interval="20000"
         data-mark-all-endpoint="{{ route('notifications.api.mark-all-read') }}">
         <button type="button"
           class="relative flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition"
@@ -235,46 +245,23 @@
   data-mark-url="{{ route('markWelcomePopupShown') }}"
   data-should-show="{{ session()->pull('show_welcome_popup', false) ? 'true' : 'false' }}" data-force-show="false"
   data-test-enabled="false">
-  <div class="popup-content bg-white rounded-xl shadow-2xl w-11/12 max-w-md mx-auto overflow-hidden">
-    <!-- Brand Logos Header -->
+  <div class="popup-content welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
     @php
-      $defaultLogo = asset('assets/logo/logo.png');
-      $storageLogoPng = null;
-      $storageLogoJpeg = null;
-      if (class_exists(\Illuminate\Support\Facades\Storage::class)) {
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists('upload/logo/logo.png')) {
-          $storageLogoPng = asset('storage/upload/logo/logo.png');
-        }
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists('uploads/logo.jpeg')) {
-          $storageLogoJpeg = asset('storage/uploads/logo.jpeg');
-        }
-      }
-      $primaryLogo = $storageLogoPng ?? $defaultLogo;
-      $secondaryLogo = $storageLogoJpeg ?? asset('assets/logo/Left_Logo.png');
+      $secondaryLogo = \Illuminate\Support\Facades\Storage::disk('public')->exists('uploads/logo.jpeg')
+        ? asset('storage/uploads/logo.jpeg')
+        : asset('assets/logo/Left_Logo.png');
     @endphp
-    <div class="flex justify-center items-center space-x-6 pt-4">
-      <img src="{{ $primaryLogo }}" alt="KLAES Logo" class="h-12">
-      <img src="{{ $secondaryLogo }}" alt="LAAD-Sys Logo" class="h-12">
+    <div class="welcome-panel">
+    <div class="logos">
+      <img class="welcome-logo" src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE Logo">
+      <img class="partner-logo" src="{{ $secondaryLogo }}" alt="Land Admin Enterprise System">
     </div>
-
-
-    <!-- Popup Content -->
-    <div class="p-6">
-      <div class="mb-8 text-center">
-        <div class="flex justify-center mb-4">
-          <div class="w-16 h-1 rounded-full welcome-popup-divider"></div>
-        </div>
-
-        <p class="text-gray-600 mb-4">We're excited to have you here!</p>
-
-        <div class="flash-text py-3 px-4 rounded-lg welcome-popup-banner">
-          <h3 class="text-2xl md:text-3xl font-extrabold text-gray-900">
-            WELCOME TO KLAES
-          </h3>
-          <div class="flex justify-center mt-3">
-            <div data-user-avatar
-              class="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-md flex items-center justify-center bg-gray-100">
-              @if(Auth::check() && Auth::user()->profile_url)
+    <div class="divider"></div>
+    <p class="greeting">We're excited to have you here!</p>
+    <section class="banner" aria-labelledby="welcome-title">
+      <h1 id="welcome-title">WELCOME TO KLAES-CORE</h1>
+      <div class="avatar" data-user-avatar>
+@if(Auth::check() && Auth::user()->profile_url)
                 <img src="{{ auth()->user()->profile_url }}" alt="Profile"
                   class="w-full h-full object-cover">
               @else
@@ -284,28 +271,43 @@
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               @endif
-            </div>
-          </div>
-          <p class="text-xl md:text-2xl font-bold mt-2">
-            Dear <span id="username" class="text-brand-green-fallback">USERNAME</span>
-          </p>
-          @if (Auth::check() && Auth::user()->needs_profile_photo)
-            <button type="button" data-profile-photo-trigger
-              class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-amber-700 underline hover:text-amber-800">
-              {{ __('Add your profile picture') }}
-            </button>
-          @endif
-        </div>
       </div>
-
-      <div class="space-y-3">
-        <button id="continueBtn"
-          class="w-full bg-brand-green bg-brand-green-fallback hover-brand-green-fallback text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-opacity-50 transition welcome-popup-cta">
-          Continue to Site
+      <p class="name">Dear <span id="username">{{ Auth::user()->first_name ?? Auth::user()->name ?? 'User' }}</span></p>
+      @if (Auth::check() && Auth::user()->needs_profile_photo)
+        <button type="button" data-profile-photo-trigger>
+          {{ __('Add your profile picture') }}
         </button>
-      </div>
+      @endif
+    </section>
+    <button type="button" id="continueBtn">Continue to Site</button>
     </div>
-  </div>
+    <section class="suite-panel" aria-labelledby="pillars-title">
+    <h2 id="pillars-title">One ecosystem. Five pillars.</h2>
+    <p class="subtitle">A unified ecosystem designed to streamline land administration, geospatial intelligence, and revenue management.</p>
+      <div class="pillars">
+        <article class="pillar">
+          <span class="module-logo module-logo--core"><img src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE"></span>
+          <div><h3>KLAES-CORE</h3><p>The foundational platform for the Ministry of Lands and Physical Planning.</p></div>
+        </article>
+        <article class="pillar">
+          <span class="module-logo"><img src="{{ asset('assets/logo/KLAES-GIS.jpeg') }}" alt="KLAES-GIS (KANGIS)"></span>
+          <div><h3>KLAES-GIS (KANGIS)</h3><p>The Geospatial &amp; Title Foundation.</p></div>
+        </article>
+        <article class="pillar">
+          <span class="module-logo module-logo--metro"><img src="{{ asset('assets/logo/KLAES-METRO.jpeg') }}" alt="KLAES-METRO"></span>
+          <div><h3>KLAES-METRO</h3><p>The urban engine for KAMMA.</p></div>
+        </article>
+        <article class="pillar">
+          <span class="module-logo module-logo--control"><img src="{{ asset('assets/logo/KLAES-CONTROL.jpeg') }}" alt="KLAES-CONTROL"></span>
+          <div><h3>KLAES-CONTROL</h3><p>The regulatory shield for KADCA.</p></div>
+        </article>
+        <article class="pillar">
+          <span class="module-logo"><img src="{{ asset('assets/logo/KLAES-Rev-M.jpeg') }}" alt="KLAES Rev-M"></span>
+          <div><h3>KLAES Rev-M</h3><p>The unified Billing and Revenue System integrated with <strong>KIRS (KIRMAS)</strong> and <strong>INTERSWITCH</strong>.</p></div>
+        </article>
+      </div>
+    </section>
+    </div>
 </div>
 
 <script src="{{ asset('js/push-notification-center.js') }}?v={{ filemtime(public_path('js/push-notification-center.js')) }}" defer></script>

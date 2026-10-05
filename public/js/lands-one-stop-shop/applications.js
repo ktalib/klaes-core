@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function () {
         language: {
             info: 'Showing _START_ to _END_ of _TOTAL_ applications',
             infoEmpty: 'No applications available',
-            emptyTable: 'No applications found. Click "New Application" to create one.',
+            emptyTable: 'No applications found.',
             paginate: { previous: 'Prev', next: 'Next' }
         },
         drawCallback: function () {
@@ -1350,8 +1350,9 @@ function _ossApplyOccupancyPermitFromPra(d) {
     var editBtn = document.getElementById('oss_opd_edit_btn');
     var badge = document.getElementById('oss_opd_source_badge');
 
-    if (!opSerial) {
-        // Selected file has no Occupancy Permit → hide the details. Block saving
+    var opRecordId = parseInt(d.op_record_id, 10) || 0;
+    if (!opRecordId) {
+        // Selected file has no captured OP row → hide the details. Block saving
         // only on a new application: an application that already exists must stay
         // editable, otherwise a file whose OP was never captured locks its own
         // record out of every other correction.
@@ -1369,7 +1370,7 @@ function _ossApplyOccupancyPermitFromPra(d) {
     _ossSetSaveDisabled(false);
 
     // The PRA row this section will write back to on save.
-    _ossOpdRecordId = parseInt(d.op_record_id, 10) || 0;
+    _ossOpdRecordId = opRecordId;
 
     // Common backfill from the OP transaction.
     _ossSetOpdFileNumber((d.file_number || '').toString().trim());
@@ -1389,7 +1390,8 @@ function _ossApplyOccupancyPermitFromPra(d) {
 
     // Existing OP → lock the section and expose the Edit button.
     _ossOpdFromRecord = true;
-    _ossSetOpdLocked(true);
+    // A captured OP with a missing serial must remain visible and editable.
+    _ossSetOpdLocked(!!opSerial);
     if (editBtn) editBtn.classList.remove('hidden');
     if (badge) badge.classList.remove('hidden');
 }
@@ -1824,9 +1826,9 @@ function _ossValidatePayload(payload) {
     // OP Serial Number is mandatory for every Change of Name application. It is
     // sourced from the Occupancy Permit Details section — backfilled when the
     // record already has one, or entered by the user when it does not.
-    if (_ossIsChangeOfNamePage()) {
-        if (!(payload.op_serial_number || '').trim()) {
-            errors.push('OP Serial Number is required. Enter it in the "Occupancy Permit Details" section.');
+    if (_ossIsChangeOfNamePage() || payload.has_occupancy_permit) {
+        if (!/^[1-9][0-9]*$/.test((payload.op_serial_number || '').trim())) {
+            errors.push('A valid OP Serial Number is required. Enter positive digits without leading zeros in "Occupancy Permit Details".');
         }
     }
 

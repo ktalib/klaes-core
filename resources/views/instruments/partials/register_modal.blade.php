@@ -572,7 +572,7 @@
 
                         <!-- OP Serial Number (Hidden by default) -->
                         <div id="op_serial_number_container" class="mt-4 hidden">
-                            <label for="op_serial_number" class="text-xs font-semibold text-gray-800 mb-1 block">OP SerialNo</label>
+                            <label for="op_serial_number" class="text-xs font-semibold text-gray-800 mb-1 block">OP SerialNo <span class="text-red-500">*</span></label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <i data-lucide="hash" class="h-4 w-4 text-gray-400"></i>
@@ -768,7 +768,7 @@
                                 </div>
                                 <div id="district-container">
                                     <x-instrument-select id="firstPartyDistrict" label="" icon="map-pin"
-                                        :options="$districts->merge([(object)['name' => 'Others']])"
+                                        :defer-options="$deferDistrictOptions ?? false" :options="$districts->merge([(object)['name' => 'Others']])"
                                         placeholder="Select District" value="{{ $record->party_1_district ?? '' }}"
                                         optionValue="name" optionLabel="name" />
                                     <div id="manual_firstPartyDistrict_container" class="mt-2 hidden">
@@ -820,7 +820,7 @@
                                 </div>
                                 <div>
                                     <x-instrument-select id="secondPartyDistrict" label="" icon="map-pin"
-                                        :options="$districts->merge([(object)['name' => 'Others']])"
+                                        :defer-options="$deferDistrictOptions ?? false" :options="$districts->merge([(object)['name' => 'Others']])"
                                         placeholder="Select District" value="{{ $record->party_2_district ?? '' }}"
                                         optionValue="name" optionLabel="name" />
                                     <div id="manual_secondPartyDistrict_container" class="mt-2 hidden">
@@ -943,7 +943,7 @@
                             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <x-instrument-select id="desc_district" label="" icon="map-pin" :options="$districts->merge([(object)['name' => 'Others']])"
+                                    <x-instrument-select id="desc_district" label="" icon="map-pin" :defer-options="$deferDistrictOptions ?? false" :options="$districts->merge([(object)['name' => 'Others']])"
                                         placeholder="Select District " value="" optionValue="name" optionLabel="name" />
                                     <!-- Manual District Input -->
                                     <div id="manual_district_container" class="mt-2 hidden">
@@ -990,7 +990,7 @@
                             <x-instrument-input id="surveyPlanNo" label="" icon="file-text"
                                 placeholder="Survey Plan No" value="{{ $record->survey_plan_no ?? '' }}" />
                             <div>
-                                <x-instrument-select id="district" label="" icon="map-pin" :options="$districts->merge([(object)['name' => 'Others']])"
+                                <x-instrument-select id="district" label="" icon="map-pin" :defer-options="$deferDistrictOptions ?? false" :options="$districts->merge([(object)['name' => 'Others']])"
                                     placeholder="District" value="{{ $record->district ?? '' }}" optionValue="name" optionLabel="name" />
                                 <div id="manual_survey_district_container" class="mt-2 hidden">
                                     <x-instrument-input id="manual_survey_district" name="manual_survey_district" label="" icon="edit-3" placeholder="Specify District" />

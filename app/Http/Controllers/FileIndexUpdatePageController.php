@@ -145,7 +145,7 @@ class FileIndexUpdatePageController extends Controller
 
         return [
             'label' => 'Back to Indexed Files',
-            'route' => route('fileindex.index'),
+            'route' => route('indexed-files.index'),
         ];
     }
 

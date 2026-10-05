@@ -18,6 +18,14 @@ class UserPhoto
 {
     public const PLACEHOLDER = 'avatar.png';
 
+    /** Recognize the shared avatar in bare, disk-relative, and legacy path forms. */
+    public static function isPlaceholder($profile): bool
+    {
+        $value = str_replace('\\', '/', trim((string) ($profile ?? '')));
+
+        return strtolower(basename($value)) === self::PLACEHOLDER;
+    }
+
     /**
      * Resolve a raw `profile` value (optionally with its passport_photo_path fallback).
      *
@@ -43,7 +51,7 @@ class UserPhoto
         foreach ([$profile, $passportPath] as $candidate) {
             $value = trim((string) ($candidate ?? ''));
 
-            if ($value === '' || strtolower($value) === self::PLACEHOLDER) {
+            if ($value === '' || self::isPlaceholder($value)) {
                 continue;
             }
 
@@ -85,7 +93,7 @@ class UserPhoto
     {
         $value = trim((string) ($profile ?? ''));
 
-        if ($value === '' || strtolower($value) === self::PLACEHOLDER) {
+        if ($value === '' || self::isPlaceholder($value)) {
             return null;
         }
 

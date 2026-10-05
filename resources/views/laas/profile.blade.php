@@ -32,7 +32,7 @@
         @if($errors->hasAny(['name', 'email', 'nin', 'address']))
             <div role="alert" class="mb-5 rounded-xl border p-4"
                  style="border-color: var(--danger); background: rgba(159,18,57,.07);">
-                @foreach($errors->only(['name', 'email', 'nin', 'address']) as $messages)
+                @foreach(collect(['name', 'email', 'nin', 'address'])->map(fn ($key) => $errors->get($key)) as $messages)
                     @foreach((array) $messages as $message)
                         <p class="text-sm font-medium" style="color: var(--danger);">{{ $message }}</p>
                     @endforeach
@@ -109,7 +109,7 @@
         @if($errors->hasAny(['phone', 'code']))
             <div role="alert" class="mb-5 rounded-xl border p-4"
                  style="border-color: var(--danger); background: rgba(159,18,57,.07);">
-                @foreach($errors->only(['phone', 'code']) as $messages)
+                @foreach(collect(['phone', 'code'])->map(fn ($key) => $errors->get($key)) as $messages)
                     @foreach((array) $messages as $message)
                         <p class="text-sm font-medium" style="color: var(--danger);">{{ $message }}</p>
                     @endforeach
@@ -199,10 +199,27 @@
             Use at least 8 characters.
         </p>
 
-        @if($errors->has('current_password'))
+        @if($applicant->must_change_password)
+            {{-- Accounts opened by File Commissioning: the password came by SMS and
+                 every other page is held until it is replaced. --}}
+            <div class="mb-5 rounded-xl border p-4" style="border-color: var(--brand); background: rgba(0,0,0,.03);">
+                <p class="text-sm font-bold" style="color: var(--ink);">Choose your own password to continue.</p>
+                <p class="mt-1 text-xs" style="color: var(--ink-soft);">
+                    Your account was opened when your file was commissioned. Enter the temporary password from
+                    the SMS as your current password, then choose a new one.
+                    Your username is <strong>{{ $applicant->username }}</strong>.
+                </p>
+            </div>
+        @endif
+
+        @if($errors->hasAny(['current_password', 'password']))
             <div role="alert" class="mb-5 rounded-xl border p-4"
                  style="border-color: var(--danger); background: rgba(159,18,57,.07);">
-                <p class="text-sm font-medium" style="color: var(--danger);">{{ $errors->first('current_password') }}</p>
+                @foreach(collect(['current_password', 'password'])->map(fn ($key) => $errors->get($key)) as $messages)
+                    @foreach((array) $messages as $message)
+                        <p class="text-sm font-medium" style="color: var(--danger);">{{ $message }}</p>
+                    @endforeach
+                @endforeach
             </div>
         @endif
 

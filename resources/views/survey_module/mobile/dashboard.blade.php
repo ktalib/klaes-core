@@ -46,6 +46,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/SCF.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b2e">
     <title>Dashboard — Survey Mobile</title>
@@ -140,12 +142,12 @@
         @media (min-width: 1024px) { .fab { display: none; } }
     </style>
 </head>
-<body>
+<body class="has-mobile-footer">
 
 <header class="appbar">
     <div class="appbar-row">
         <div class="appbar-logo">
-            <img src="{{ asset('storage/upload/logo/Klase.png') }}" alt="KLAES"
+            <img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF Survey Compensation"
                  onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-compass'}))">
         </div>
         <div class="appbar-title">
@@ -362,5 +364,6 @@
     });
 })();
 </script>
+@include('survey_module.mobile._footer', ['activeTab' => 'cases'])
 </body>
 </html>

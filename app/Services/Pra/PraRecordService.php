@@ -100,6 +100,12 @@ class PraRecordService
      */
     public function createRecord(array $input, ?int $userId = null): array
     {
+        return DB::connection('sqlsrv')->transaction(fn () => $this->createRecordWithinTransaction($input, $userId));
+    }
+
+    private function createRecordWithinTransaction(array $input, ?int $userId): array
+    {
+        $input = app(\App\Services\OpSerialSourceResolver::class)->guard($input);
         $identifierSet = $this->gatherIdentifierSet($input);
         $propId = $this->allocatePropId($identifierSet);
 
@@ -134,6 +140,11 @@ class PraRecordService
      */
     public function updateRecord(string $propId, array $input, ?int $userId = null): array
     {
+        return DB::connection('sqlsrv')->transaction(fn () => $this->updateRecordWithinTransaction($propId, $input, $userId));
+    }
+
+    private function updateRecordWithinTransaction(string $propId, array $input, ?int $userId): array
+    {
         if ($propId === '') {
             throw ValidationException::withMessages([
                 'prop_id' => ['prop_id is required'],
@@ -148,6 +159,7 @@ class PraRecordService
             ]);
         }
 
+        $input = app(\App\Services\OpSerialSourceResolver::class)->guard($input, $existing);
         $identifierSet = $this->gatherIdentifierSet($input, $existing);
         $identifierSet['prop_id'] = $existing['prop_id'] ?? $propId;
 

@@ -50,7 +50,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
 
 @php
-    // Fetch all commissioning sheets and build a normalized lookup map (trimmed, uppercased keys)
+    // The shared modal already supplies this lookup; standalone generator pages load it here.
+    if (!isset($modalCommissioningSheets)) {
     $commissioningSheetsRaw = \DB::connection('sqlsrv')
         ->table('file_commissioning_sheets')
         ->select('id', 'file_number')
@@ -62,6 +63,7 @@
             'id' => $sheet->id,
             'file_number' => $sheet->file_number
         ];
+    }
     }
 @endphp
 
@@ -109,7 +111,7 @@
     }
 
     // Create a JS object for quick lookup (normalized keys)
-    const commissioningSheetsMap = @json($commissioningSheets);
+    const commissioningSheetsMap = window.modalCommissioningSheetsMap || @json($commissioningSheets);
 
     // Provide server time to prevent client-side time issues
     const getServerTime = () => {
@@ -1692,8 +1694,8 @@
                             const subLabel = sourceValue.replace(/^op\s+/i, '').toUpperCase();
                             const subColor = srcLower.includes('direct') ? 'color:#7c3aed' : 'color:#ea580c';
                             return `<div style="line-height:1.3">
-                                <div style="font-size:12px;font-weight:700;color:#0369a1;white-space:nowrap">Occupancy Permit (OP)</div>
                                 <div style="font-size:11px;font-weight:600;white-space:nowrap;${subColor}">${subLabel}</div>
+                                <div style="font-size:12px;font-weight:700;color:#0369a1;white-space:nowrap">Occupancy Permit (OP)</div>
                             </div>`;
                         }
                         // source is only the Application Type (Direct Allocation /
@@ -4857,6 +4859,7 @@
             // it has one allottee per entry, which the three fields above cannot
             // carry. Without this the detector's source guard skipped the entire
             // batch. Order matches locationEntries, which is how both were built.
+            op_batch: window.pendingOpBatch?.op_batch || '',
             op_batch_allottees: JSON.stringify(
                 Array.isArray(alpineData.opBatchAllottees) ? alpineData.opBatchAllottees : []
             ),
@@ -4872,6 +4875,8 @@
             separation_app_id: normalizeApplicationId(alpineData.separationAppId),
             // Contact fields
             phone_no: document.getElementById('generatePhoneNo')?.value || '',
+            // Optional; the applicant's LAAS Portal email (see the single-file form).
+            email: (document.getElementById('generateEmail')?.value || '').trim(),
             address: document.getElementById('generateAddress')?.value || '',
             rep_phone_no: document.getElementById('generateRepPhoneNo')?.value || '',
             rep_address: document.getElementById('generateRepAddress')?.value || '',
@@ -5033,7 +5038,7 @@
                                            (data.oss_application_summary.unchanged || 0)) > 0 ? `
                                             <li class="flex items-start gap-2.5">
                                                 <div class="mt-1 w-1 h-1 rounded-full bg-${summaryColor}-400"></div>
-                                                <span><b>${(data.oss_application_summary.created || 0) + (data.oss_application_summary.updated || 0) + (data.oss_application_summary.unchanged || 0)}</b> application record(s) are now available under <b>No Change of Ownership</b>.</span>
+                                                <span><b>${(data.oss_application_summary.created || 0) + (data.oss_application_summary.updated || 0) + (data.oss_application_summary.unchanged || 0)}</b> application record(s) are now available under <b>${data.data?.system_sub_type === 'OSS' ? 'Change of Ownership' : 'No Change of Ownership'}</b>.</span>
                                             </li>
                                         ` : ''}
                                         ${applicationType === 'subdivision' ? `

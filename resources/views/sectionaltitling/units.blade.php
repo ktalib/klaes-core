@@ -12,6 +12,7 @@
   <div class="flex-1 overflow-auto">
     <!-- Header -->
     @include('admin.header')
+    @include('exports.consolidated_report_action', ['reportKey' => 'st-applications'])
     <!-- Dashboard Content -->
     <div class="p-6">
       <!-- Stats Cards -->

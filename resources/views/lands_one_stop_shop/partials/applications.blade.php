@@ -1337,8 +1337,8 @@
                             </div>
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
-                                    <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">OP Serial No</label>
-                                    <input id="opEditOpSerialNumber" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Enter OP serial number">
+                                    <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">OP Serial No <span class="text-red-500">*</span></label>
+                                    <input id="opEditOpSerialNumber" type="text" required pattern="[1-9][0-9]*" maxlength="100" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Enter OP serial number">
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Instrument Type</label>

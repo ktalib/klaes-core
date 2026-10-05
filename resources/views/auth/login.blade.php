@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KLAES - Login</title>
+  <title>KLAES-CORE - Login</title>
+  <link rel="icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
@@ -25,16 +26,15 @@
     <div class="w-full md:w-1/2 flex flex-col items-center justify-center p-8 h-screen">
       <div class="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-lg">
         <div class="flex flex-col items-center justify-center">
-          <div class="w-32 h-32 relative mb-4">
+          <div class="w-48 h-32 relative mb-4">
             <img
-              src="{{ asset('storage/upload/logo/Klase.png') }}"
-              alt="KLAES Logo"
-              class="rounded-lg w-full h-full object-cover"
+              src="{{ asset('assets/logo/klas_core_logo.png') }}"
+              alt="KLAES-CORE Logo"
+              class="rounded-lg w-full h-full object-contain"
             />
           </div>
-          <h2 class="text-2xl font-bold text-gray-900">Welcome to KLAES</h2>
-          <p class="text-sm text-gray-600 mt-1">Kano State LAnd ADmin  Enterprise 
-            System</p>
+          <h2 class="text-2xl font-bold text-gray-900">Welcome to KLAES-CORE</h2>
+          <p class="text-sm text-gray-600 mt-1">Part of the KLAES 2.0 Suite</p>
         </div>
 
         <form action="{{ route('login') }}" method="post" id="loginForm" class="login-form">
@@ -166,17 +166,16 @@
         <div class="flex justify-center mb-6">
           <div class="w-64 h-auto relative">
             <img
-              src="http://klas.com.ng/storage/uploads/logo.jpeg"
-              alt="LAAD-SYS Logo"
+              src="{{ asset('assets/logo/klas_core_logo.png') }}"
+              alt="KLAES-CORE Logo"
               class="rounded-lg w-full h-auto"
             />
           </div>
         </div>
 
         <div class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-gray-900 mb-2">KLAES</h1>
-          <h2 class="text-2xl font-semibold text-gray-800 mb-3">Kano State Land Admin Enterprise 
-System</h2>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">KLAES-CORE</h1>
+          <h2 class="text-2xl font-semibold text-gray-800 mb-3">Kano State LAnd ADmin Enterprise System</h2>
           <p class="text-lg text-gray-700 font-medium italic">
             Powering a Smart, Secure & Integrated Future for Land Governance in Kano State whilst Leveraging on Block
             Chain Technology and AI

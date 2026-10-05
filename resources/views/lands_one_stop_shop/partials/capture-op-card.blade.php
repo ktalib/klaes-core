@@ -120,9 +120,9 @@
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">
-                    OP Serial Number <span class="cop-batch-req hidden text-rose-500">*</span>
+                    OP Serial Number <span class="text-red-500">*</span>
                 </label>
-                <input type="text" id="copOpSerial" placeholder="Enter OP serial number" inputmode="numeric"
+                <input type="text" id="copOpSerial" required pattern="[1-9][0-9]*" maxlength="100" placeholder="Enter OP serial number" inputmode="numeric"
                        oninput="copStripZeroPad(this); copLiveDupCheck()" onblur="copStripZeroPad(this); copLiveDupCheck()"
                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
             </div>
@@ -1226,7 +1226,7 @@
         if (!(f.op_serial_number || '').trim()) return 'OP Serial Number is required.';
         if (!(f.serial_no || '').trim()) return 'Serial No is required.';
         if (!(f.volume_no || '').trim()) return 'Vol No is required.';
-        if (!/^\d+$/.test((f.op_serial_number || '').trim())) return 'OP Serial Number must be a number.';
+        if (!/^[1-9][0-9]*$/.test((f.op_serial_number || '').trim())) return 'OP Serial Number must contain positive digits without leading zeros.';
         if (!/^\d+$/.test((f.serial_no || '').trim())) return 'Serial No must be a number.';
         if (!/^\d+$/.test((f.volume_no || '').trim())) return 'Vol No must be a number.';
         // Page No mirrors Serial No; flag a mismatch rather than silently overwriting it.

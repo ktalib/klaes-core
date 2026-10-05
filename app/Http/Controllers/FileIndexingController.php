@@ -1186,7 +1186,7 @@ class FileIndexingController extends Controller
                 'occupancy_permit_instrument_type' => 'nullable|string|max:255',
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
-                'occupancy_permit_op_serial_number' => 'nullable|string|max:100',
+                'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled($request->input('has_occupancy_permit', false)),
                 'occupancy_permit_date' => 'nullable|date',
                 'occupancy_permit_file_number' => 'nullable|string|max:255',
                 'occupancy_permit_land_use' => 'nullable|string|max:255',
@@ -3697,7 +3697,7 @@ class FileIndexingController extends Controller
                 'occupancy_permit_instrument_type' => 'nullable|string|max:255',
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
-                'occupancy_permit_op_serial_number' => 'nullable|string|max:100',
+                'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled($request->input('has_occupancy_permit', false)),
                 'occupancy_permit_date' => 'nullable|date',
                 'occupancy_permit_file_number' => 'nullable|string|max:255',
                 'occupancy_permit_land_use' => 'nullable|string|max:255',
@@ -5267,6 +5267,7 @@ class FileIndexingController extends Controller
 
     protected function syncOccupancyPermitRecord(FileIndexing $fileIndexing, Request $request, ?string $testControl = null, ?int $propId = null): void
     {
+        \App\Support\OpSerial::require($request->input('occupancy_permit_op_serial_number'), 'occupancy_permit_op_serial_number');
         $permitPayload = [
             'instrument_type' => $this->normalizeValue($request->input('occupancy_permit_instrument_type')),
             'op_type' => $this->normalizeValue($request->input('occupancy_permit_op_type')),
@@ -5343,10 +5344,18 @@ class FileIndexingController extends Controller
         }
 
         $table = DB::connection('sqlsrv')->table('pra');
-        $existing = $table->where($matchColumns)->first();
+        $candidates = DB::connection('sqlsrv')->table('pra')
+            ->where(fn ($q) => $q->where('mlsFNo', $fileIndexing->file_number)->orWhere('fileno', $fileIndexing->file_number))
+            ->where('instrument_type', 'like', '%Occupancy Permit%')
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()->get();
+        if ($candidates->count() > 1) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['occupancy_permit_op_serial_number' => 'This file has several OPs. Edit the exact OP through its transaction card.']);
+        }
+        $existing = $candidates->first();
 
         if ($existing) {
             $table->where('id', $existing->id)->update($recordPayload);
+            app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $existing->id, $existing->op_serial_number ?? null);
             $fileIndexing->update(['has_occupancy_permit' => true]);
             return;
         }
@@ -5354,7 +5363,8 @@ class FileIndexingController extends Controller
         $recordPayload['created_at'] = now();
         $recordPayload['created_by'] = Auth::id();
 
-        $table->insert(array_merge($matchColumns, $recordPayload));
+        $newId = $table->insertGetId(array_merge($matchColumns, $recordPayload));
+        app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $newId);
 
         // Update file indexing has_occupancy_permit flag
         $fileIndexing->update(['has_occupancy_permit' => true]);

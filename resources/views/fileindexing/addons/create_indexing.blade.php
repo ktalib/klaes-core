@@ -11,7 +11,7 @@
 
     <div class="flex-1 overflow-auto">
         <!-- Header -->
-        @include('admin.header')
+        @include('admin.header', ['headerBackUrl' => $backButton['route'] ?? null])
         <!-- Dashboard Content -->
         <div class="p-6">
 

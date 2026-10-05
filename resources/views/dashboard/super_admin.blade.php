@@ -1,7 +1,10 @@
 @extends('layouts.app')
-@section('page-title')
-    {{ __('Dashboard') }}
-@endsection
+@php
+    $PageTitle = 'KLAES-CORE';
+    $PageDescription = 'The foundational platform for the Ministry of Lands and Physical Planning.';
+    $PageDescriptionBold = true;
+@endphp
+@section('page-title', 'KLAES-CORE')
 @section('breadcrumb')
     <li class="breadcrumb-item" aria-current="page">{{ __('Dashboard') }}</li>
 @endsection

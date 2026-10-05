@@ -26,9 +26,15 @@
         </div>
 
         @if($application->file_number)
-            <div class="rounded-xl border border-[var(--brand-line)] bg-[var(--brand-tint)] px-4 py-3 dark:border-[var(--brand-line)] dark:bg-[var(--brand-tint)]">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--brand)] dark:text-[var(--brand)]">Your File Number</p>
-                <p class="mt-0.5 font-mono text-lg font-bold text-[var(--brand)] dark:text-[var(--brand)]">{{ $application->file_number }}</p>
+            <div class="flex flex-wrap items-center gap-3">
+                <a href="{{ route('laas.folio.index', ['file' => $application->reference_no]) }}"
+                   class="laas-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition">
+                    <i data-lucide="folder-open" class="h-4 w-4"></i> Open folio
+                </a>
+                <div class="rounded-xl border border-[var(--brand-line)] bg-[var(--brand-tint)] px-4 py-3 dark:border-[var(--brand-line)] dark:bg-[var(--brand-tint)]">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--brand)] dark:text-[var(--brand)]">Your File Number</p>
+                    <p class="mt-0.5 font-mono text-lg font-bold text-[var(--brand)] dark:text-[var(--brand)]">{{ $application->file_number }}</p>
+                </div>
             </div>
         @endif
     </div>

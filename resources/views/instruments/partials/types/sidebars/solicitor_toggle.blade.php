@@ -24,11 +24,11 @@
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <i data-lucide="map-pin" class="h-4 w-4 text-gray-400"></i>
                 </div>
-                <select id="solicitorDistrict" name="solicitorDistrict"
+                <select id="solicitorDistrict" name="solicitorDistrict" @if($deferDistrictOptions ?? false) data-deferred-district="Other" @endif
                     class="w-full pl-10 px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-sm appearance-none"
                     onchange="handleSolicitorDistrictChange(this)">
                     <option value="">Select District</option>
-                    @foreach($districts as $district)
+                    @foreach(($deferDistrictOptions ?? false) ? $districts->filter(fn ($district) => (is_object($district) ? $district->name : $district) === ($record->solicitor_district ?? '')) : $districts as $district)
                         @php $dName = is_object($district) ? $district->name : $district; @endphp
                         <option value="{{ $dName }}" {{ ($record->solicitor_district ?? '') === $dName ? 'selected' : '' }}>
                             {{ $dName }}

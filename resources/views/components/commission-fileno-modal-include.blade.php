@@ -22,10 +22,12 @@
     $modalLgas = DB::connection('sqlsrv')->table('lgas')->select('name')->orderBy('name')->get();
     $modalLandUses = \App\Models\LandUse::all();
     $modalAllPrefixes = \App\Models\Prefix::select('id', 'prefix', 'land_use_id')->get();
-    $modalUnallocatedEntries = \App\Models\AllocationListEntry::where('is_allocated', 0)->orderBy('first_name')->get();
+    $modalUnallocatedEntries = ($opCommissioningOnly ?? false)
+        ? collect()
+        : \App\Models\AllocationListEntry::where('is_allocated', 0)->orderBy('first_name')->get();
     
     // Commission sheets for lookup
-    $commissioningSheetsRaw = \DB::connection('sqlsrv')
+    $commissioningSheetsRaw = ($opCommissioningOnly ?? false) ? collect() : \DB::connection('sqlsrv')
         ->table('file_commissioning_sheets')
         ->select('id', 'file_number')
         ->get();

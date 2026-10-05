@@ -21,6 +21,9 @@
         'params'        => [],
         'filename'      => 'Records',
         'reportTitle'   => 'Records Register',
+        'department'    => 'LAND DEPARTMENT',
+        'dateLabel'     => 'Date',
+        'statusLabel'   => 'Status',
         'search'        => '',
         'statusOptions' => ['' => 'All Statuses'],
     ], $exportConfig ?? []);
@@ -32,6 +35,9 @@
         'params'      => (object) $cfg['params'],
         'filename'    => $cfg['filename'],
         'reportTitle' => $cfg['reportTitle'],
+        'department'  => $cfg['department'],
+        'dateLabel'   => $cfg['dateLabel'],
+        'statusLabel' => $cfg['statusLabel'],
     ];
 @endphp
 
@@ -51,6 +57,7 @@
                     <div>
                         <h3 class="text-xl font-bold text-white" id="records-export-title">{{ $cfg['title'] }}</h3>
                         <p class="text-emerald-100 text-sm opacity-90">{{ $cfg['subtitle'] }}</p>
+                        <p class="text-emerald-100 text-xs mt-1">{{ $cfg['department'] }} &middot; Filter by {{ strtolower($cfg['dateLabel']) }}</p>
                     </div>
                 </div>
                 <button type="button" onclick="closeRecordsExportModal()" class="text-white hover:text-emerald-100 transition-colors">
@@ -72,7 +79,7 @@
 
                         <!-- Status -->
                         <div class="space-y-1">
-                            <label for="recordsExportStatus" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                            <label for="recordsExportStatus" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">{{ $cfg['statusLabel'] }}</label>
                             <select id="recordsExportStatus" onchange="loadRecordsExportData()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none">
                                 @foreach($cfg['statusOptions'] as $value => $label)
@@ -158,4 +165,4 @@
 <script>
     window.recordsExportConfig = @json($exportJsConfig);
 </script>
-<script src="{{ asset('js/records_export.js') }}"></script>
+<script src="{{ asset('js/records_export.js') }}?v={{ filemtime(public_path('js/records_export.js')) }}"></script>

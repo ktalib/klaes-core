@@ -1413,6 +1413,12 @@
             // now, filled in at indexing. Party 2 stays required.
             this.applyPurchasePartyRules(isPurchaseTransaction);
 
+            const opSerialInput = this.form?.querySelector('[name="op_serial_number"]');
+            if (opSerialInput) {
+                opSerialInput.required = isOpTransaction;
+                opSerialInput.pattern = '[1-9][0-9]*';
+                opSerialInput.maxLength = 100;
+            }
             if (!isOpTransaction) {
                 this.setState('opType', '', { silent: true });
                 this.syncModelElement('opType', '');
@@ -2457,6 +2463,91 @@
             }
         }
 
+        async openForEditing(record) {
+            if (!this.resolveRecordId(record)) {
+                throw new Error('Missing property record identifier.');
+            }
+
+            await this.loadInstrumentTypeOptions();
+            this.resetForm();
+            this.setState('formMode', record.record_mode === 'index' ? 'index' : 'property');
+            this.enterUpdateMode(record, this.getRecordDisplayLabel(record));
+
+            const first = (...values) => values.find(value => value !== null && value !== undefined && String(value).trim() !== '') ?? '';
+            const date = value => String(value || '').split(/[T ]/)[0];
+            const thirdParty = first(record.Mortgagor_2, record.Surrenderor_2, record.party_3);
+            const fourthParty = first(record.Mortgagor_3, record.party_4);
+            const normalized = {
+                ...record,
+                transaction_type: first(record.transaction_type, record.transactionType, record.instrument_type),
+                firstParty: first(record.party_1, record.Assignor, record.Mortgagor, record.Vendor, record.Donor, record.Surrenderor, record.Lessor, record.Grantor, record.firstParty),
+                secondParty: first(record.party_2, record.Assignee, record.Mortgagee, record.Purchaser, record.Donee, record.Surrenderee, record.Lessee, record.Grantee, record.secondParty),
+                thirdParty,
+                fourthParty,
+                tripartiteHasThird: Boolean(thirdParty || fourthParty),
+                lga: first(record.lga, record.lgsaOrCity),
+                periodUnit: first(record.period_unit, record.periodUnit, 'Years'),
+                date_recommended: date(record.date_recommended),
+                date_approved: date(record.date_approved),
+                lease_begins: date(record.lease_begins),
+                lease_expires: date(record.lease_expires),
+                transaction_date: date(first(record.transaction_date, record.transactionDate)),
+                deeds_date: date(first(record.deeds_date, record.deedsDate)),
+                deeds_time: String(first(record.deeds_time, record.deedsTime)).slice(0, 8)
+            };
+
+            // Preserve historical instrument names that are absent from the current catalogue.
+            this.transactionTypeSelects.forEach(select => {
+                if (!Array.from(select.options).some(option => option.value === normalized.transaction_type)) {
+                    select.add(new Option(normalized.transaction_type, normalized.transaction_type));
+                }
+            });
+            this.prefillFormFromRecord(normalized);
+            this.setState('typeValue', first(record.type_value, record.op_type, record.cofo_type, record.instrument_subtype));
+            this.setState('instrumentCategory', record.instrument_category || '');
+            // Instrument rules set default parties; the saved record takes precedence on edit.
+            for (const key of ['firstParty', 'secondParty', 'thirdParty', 'fourthParty']) {
+                this.setState(key, normalized[key]);
+            }
+
+            // Use the address components' manual entry fallback for unlisted values.
+            this.applyComponentSelectValue(this.streetComponent, 'street-select', 'street-other', record.street_name || '');
+            this.applyComponentSelectValue(this.districtComponent, 'district-select', 'district-other', record.district || '');
+            for (const [key, value] of [['lga', normalized.lga], ['landUse', record.land_use || '']]) {
+                const select = this.modelElements.get(key);
+                if (value && select?.options && !this.applyPlainSelectValue(key, value)) {
+                    select.add(new Option(value, value));
+                    this.setState(key, value);
+                    this.syncModelElement(key, value);
+                }
+            }
+            this.setState('propertyDescription', record.property_description || record.location || '');
+
+            const fileNumber = first(record.mlsFNo, record.kangisFileNo, record.NewKANGISFileno, record.temp_fileno);
+            this.setState('fileNumber', fileNumber, { silent: true });
+            for (const id of ['fileno', 'primary_selected_fileno', 'fileno-display']) {
+                const input = this.container.querySelector('#' + id);
+                if (input) input.value = fileNumber;
+            }
+            this.setState('tempFileNumber', record.temp_fileno || '');
+            this.syncModelElement('tempFileNumber', record.temp_fileno || '');
+            const relatedInput = this.form.querySelector('[name="related_file_number"]');
+            if (relatedInput) relatedInput.value = first(record.related_file_number, record.related_fileno);
+
+            // Retain stored fields that the shared Add form does not expose.
+            for (const name of ['location', 'layout', 'schedule', 'instrumentType', 'party_5']) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.dataset.editPreserved = '1';
+                input.value = name === 'instrumentType' ? (record.instrument_type || '') : (record[name] || '');
+                this.form.appendChild(input);
+            }
+
+            this.dialog.classList.remove('hidden');
+            this.dialog.style.removeProperty('display');
+        }
+
         prefillFormFromRecord(record) {
             // First pass: basic flat mapping
             Object.entries(record).forEach(([key, value]) => {
@@ -3116,6 +3207,12 @@
             this.state.updateRecordId = recordId;
             this.state.isUpdateMode = true;
 
+            const titleElement = this.dialog?.querySelector('#form-title');
+            if (titleElement) {
+                titleElement.dataset.customTitle = 'Edit Property Record';
+                titleElement.textContent = 'Edit Property Record';
+            }
+
             if (this.propertyIdInput) {
                 this.propertyIdInput.value = recordId;
             }
@@ -3155,7 +3252,10 @@
             const titleElement = this.dialog ? this.dialog.querySelector('#form-title') : null;
             if (titleElement) {
                 delete titleElement.dataset.customTitle;
+                titleElement.textContent = this.state.formMode === 'index' ? 'Index Card' : 'Add New Property Record';
             }
+
+            this.form?.querySelectorAll('[data-edit-preserved]').forEach(input => input.remove());
 
             if (this.propertyIdInput) {
                 this.propertyIdInput.value = '';
@@ -3680,6 +3780,9 @@
             },
             resetForm() {
                 controller.resetForm();
+            },
+            openForEditing(record) {
+                return controller.openForEditing(record);
             },
             resetUpdateMode() {
                 controller.exitUpdateMode();

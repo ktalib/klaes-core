@@ -13,12 +13,11 @@
     <!-- Required meta tags-->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ env('APP_NAME') }} - @yield('tab-title')</title>
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
     <meta name="author" content="{{ !empty($settings['app_name']) ? $settings['app_name'] : env('APP_NAME') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ !empty($settings['app_name']) ? $settings['app_name'] : env('APP_NAME') }} - @yield('page-title') </title>
+    <title>KLAES-CORE - @yield('page-title') </title>
 
     <meta name="title" content="{{ $settings['meta_seo_title'] }}">
     <meta name="keywords" content="{{ $settings['meta_seo_keyword'] }}">
@@ -38,10 +37,8 @@
     <meta property="twitter:image"
         content="{{ asset(Storage::url('upload/seo')) . '/' . $settings['meta_seo_image'] }}">
 
-    <link rel="icon" type="image/x-icon" href="{{ asset('favicon_io/favicon.ico') }}" />
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon_io/favicon-32x32.png') }}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon_io/favicon-16x16.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('favicon_io/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/klas_core_logo.png') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
         id="main-font-link" />
     <link rel="stylesheet" href="{{ asset('assets/fonts/phosphor/duotone/style.css') }}" />
@@ -67,11 +64,11 @@
             <div class="auth-form">
                 <div class="logo">
                     <a href="{{ route('home') }}">
-                        <img src="https://i.ibb.co/prJ1bYp9/Whats-App-Image-2025-02-21-at-5-25-59-AM.jpg" alt="logo" style="width: 150px; height: auto;" />
+                        <img src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE Logo" style="width: 150px; height: auto;" />
                       
                     </a>
 <hr>
-                    <P CLASS="TEXT-SECONDARY" STYLE="DISPLAY: INLINE;"><b>KLAES (KANO STATE LAND ADMIN SYSTEM)</b></P>
+                    <P CLASS="TEXT-SECONDARY" STYLE="DISPLAY: INLINE;"><b>KLAES-CORE</b></P>
                     
                 </div>
 
@@ -87,7 +84,7 @@
                             <div class="carousel-inner">
                                 @foreach ($titles as $index => $title)
                                     <div class="carousel-item {{ $index == 0 ? 'active' : '' }}">
-                                        <h1 style="color:#1b934c"><b>LAAD-Sys </b></h1>
+                                        <h1 style="color:#1b934c"><b>KLAES-CORE</b></h1>
                                         <p class="f-12 mt-4">{{ $descriptions[$index] ?? '' }}</p>
                                     </div>
                                 @endforeach

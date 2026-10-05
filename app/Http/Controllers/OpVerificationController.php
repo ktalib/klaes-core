@@ -162,7 +162,7 @@ class OpVerificationController extends Controller
     {
         $validated = $request->validate([
             'status'               => 'required|string|in:' . implode(',', array_keys(OpVerification::STATUSES)),
-            'op_serial_number'     => 'required|string|max:100',
+            'op_serial_number'     => \App\Support\OpSerial::rules(),
             'record_key'           => 'nullable|string|max:100',
             'prop_id'              => 'nullable|string|max:50',
             'source_capture_id'    => 'nullable|integer',

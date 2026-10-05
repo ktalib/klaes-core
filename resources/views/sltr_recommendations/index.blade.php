@@ -697,7 +697,7 @@
                                  Recommendation and the RofO. The template used to append
                                  " per sq meter" to every record; now the record says. --}}
                             <div class="flex gap-2">
-                                <input type="number" step="0.01" id="f-ground_rent"
+                                <input type="number" step="0.01" id="f-ground_rent" oninput="updateGroundRentAmount()"
                                     class="flex-1 min-w-0 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition focus:bg-white text-sm font-medium"
                                     placeholder="0.00">
                                 <select id="f-ground_rent_unit" onchange="applyGroundRentUnit()"
@@ -711,6 +711,16 @@
                             </div>
                             <input type="text" id="f-ground_rent_unit_other" placeholder="State the unit, e.g. Per Acre"
                                 class="mt-2 w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition focus:bg-white text-sm font-medium hidden">
+                        </div>
+                        {{-- The rate above is per unit; what is owed is rate x plot size.
+                             Prefilled and locked when the file's indexing has a size. --}}
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Plot Size (m²)</label>
+                            <input type="number" step="0.01" min="0" id="f-plot_size" oninput="updateGroundRentAmount()"
+                                class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition focus:bg-white text-sm font-medium"
+                                placeholder="e.g. 450">
+                            <p id="plot-size-source" class="mt-1 text-[11px] text-slate-500 hidden">From file indexing</p>
+                            <p id="ground-rent-amount" class="mt-1 text-xs font-semibold text-teal-700"></p>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Land Use Sub-Type <span class="font-normal normal-case text-slate-400">(sets processing fee)</span></label>
@@ -830,6 +840,9 @@ function sltrOpenFileSelector() {
             // Check for duplicate file number
             sltrCheckDuplicateFileNumber(fileNo);
 
+            // Plot size from the file's indexing, locked when present
+            loadIndexedPlotSize(fileNo);
+
             // Backfill from fileNumber table record (file_name only)
             var r = fileData.record;
             if (r && r.file_name) {
@@ -894,6 +907,10 @@ function sltrClearFileNumber() {
     document.getElementById('f-sltr_number-display').value = '';
     document.getElementById('f-sltr-clear-btn').classList.add('hidden');
     sltrHideDuplicateWarning();
+    // A size that came from the cleared file's indexing goes with it.
+    const ps = document.getElementById('f-plot_size');
+    if (ps && ps.disabled) ps.value = '';
+    setPlotSizeLock(null);
 }
 
 // Tracks whether the currently selected file number is a duplicate (blocks save).
@@ -1081,7 +1098,7 @@ function resetPropBuilder() {
 const GROUND_RENT_UNITS   = @json(\App\Support\GroundRentUnit::OPTIONS);
 const GROUND_RENT_DEFAULT = @json(\App\Support\GroundRentUnit::LEGACY_DEFAULT);
 
-const SCALAR_FIELDS = ['applicant_name','applicant_phone','application_date','plot_number','page_application','page_survey','page_planning','purpose_of_clause','purpose_of_clause_other','term','revision_period','ground_rent','ground_rent_unit','ground_rent_unit_other','processing_fee','notes'];
+const SCALAR_FIELDS = ['applicant_name','applicant_phone','application_date','plot_number','page_application','page_survey','page_planning','purpose_of_clause','purpose_of_clause_other','term','revision_period','ground_rent','ground_rent_unit','ground_rent_unit_other','plot_size','processing_fee','notes'];
 
 /**
  * The ground rent unit's free-text box belongs to the "Other" choice only.
@@ -1116,6 +1133,47 @@ function applyGroundRentUnit() {
     other.classList.toggle('hidden', !isOther);
     // A unit left over from "Other" must not travel to a fixed choice.
     if (!isOther) other.value = '';
+    updateGroundRentAmount();
+}
+
+// ── Plot size & ground rent amount ───────────────────────────────────
+// The ground rent field is a RATE; the amount is rate x plot size. Mirrors
+// SltrPlotSize::amount() on the server.
+function updateGroundRentAmount() {
+    const out = document.getElementById('ground-rent-amount');
+    if (!out) return;
+    const rate = parseFloat(document.getElementById('f-ground_rent')?.value);
+    const size = parseFloat(document.getElementById('f-plot_size')?.value);
+    const unit = (document.getElementById('f-ground_rent_unit')?.value || '').trim().toLowerCase();
+    let qty = null;
+    if (unit === '' || unit === 'per square meters') qty = size;
+    else if (unit === 'ha') qty = size / 10000;
+    if (isNaN(rate) || isNaN(size) || qty === null) { out.textContent = ''; return; }
+    const ngn = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    out.textContent = `Ground rent amount: ₦${ngn(rate)} × ${ngn(size)} m²${unit === 'ha' ? ' (÷ 10,000)' : ''} = ₦${ngn(rate * qty)}`;
+}
+
+// Locked (and greyed) when the size came from the file's indexing; the server
+// re-reads the indexing on save, so the lock is a hint, not the guard.
+function setPlotSizeLock(sqm) {
+    const el = document.getElementById('f-plot_size');
+    const tag = document.getElementById('plot-size-source');
+    if (!el) return;
+    const locked = sqm !== null && sqm !== undefined;
+    if (locked) el.value = sqm;
+    el.disabled = locked;
+    el.style.backgroundColor = locked ? '#e2e8f0' : '';
+    el.style.color = locked ? '#64748b' : '';
+    el.style.cursor = locked ? 'not-allowed' : '';
+    if (tag) tag.classList.toggle('hidden', !locked);
+    updateGroundRentAmount();
+}
+
+function loadIndexedPlotSize(fileNo) {
+    if (!fileNo) { setPlotSizeLock(null); return; }
+    $.getJSON('{{ route("sltr-recommendations.plot-size") }}', { file_number: fileNo })
+        .done(res => setPlotSizeLock(res && res.plot_size !== null ? res.plot_size : null))
+        .fail(() => setPlotSizeLock(null));
 }
 function syncLandUseText() {
     const sel = document.getElementById('f-land_use_id');
@@ -1307,6 +1365,7 @@ function openCreateModal() {
     document.getElementById('f-sltr_number-display').value = '';
     document.getElementById('f-sltr-clear-btn').classList.add('hidden');
     sltrHideDuplicateWarning();
+    setPlotSizeLock(null);
     // Reset page number defaults
     // var pageDefaults = { 'page_application': 1, 'page_survey': 9, 'page_planning': 17 };
     // Object.keys(pageDefaults).forEach(function(k) {
@@ -1361,6 +1420,9 @@ function openEditModal(id, data) {
     document.getElementById('f-sltr_number-display').value = storedFileNo;
     if (storedFileNo) document.getElementById('f-sltr-clear-btn').classList.remove('hidden');
     else document.getElementById('f-sltr-clear-btn').classList.add('hidden');
+    // Unlock first (the stored size stays in the box), then lock if indexed.
+    setPlotSizeLock(null);
+    loadIndexedPlotSize(storedFileNo);
 
     // For edit, we set the hidden assembled fields directly and show them in previews.
     // The builder sub-fields will show "Other" fallback with the stored value.
@@ -1522,7 +1584,7 @@ document.getElementById('rec-form').addEventListener('submit', async function(e)
         const el = document.getElementById('f-' + f);
         if (!el) return;
         const v = el.value;
-        if (['term','revision_period','ground_rent','processing_fee'].includes(f)) {
+        if (['term','revision_period','ground_rent','plot_size','processing_fee'].includes(f)) {
             body[f] = v === '' ? null : (['term','revision_period'].includes(f) ? parseInt(v, 10) : parseFloat(v));
         } else {
             body[f] = v;

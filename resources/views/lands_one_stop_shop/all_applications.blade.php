@@ -218,12 +218,14 @@
                         <i data-lucide="download" class="w-4 h-4"></i>
                         Export Records
                     </button>
+                    {{-- Temporarily hidden at the user's request.
                     <button type="button" id="btn-new-application"
                         class="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold shadow-sm hover:bg-blue-700 transition whitespace-nowrap"
                         onclick="ossOpenCreateModal()">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                         New Application
                     </button>
+                    --}}
                 </div>
             </div>
 
@@ -482,7 +484,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $isNoChangeOfName ? 15 : 17 }}" class="px-4 py-10 text-center text-slate-400 italic">No applications found. Click "New Application" to create one.</td>
+                                    <td colspan="{{ $isNoChangeOfName ? 15 : 17 }}" class="px-4 py-10 text-center text-slate-400 italic">No applications found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

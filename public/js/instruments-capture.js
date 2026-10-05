@@ -1730,6 +1730,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Select2 fires native `change` events, so existing manual-toggle /
     // property-description listeners keep working unchanged.
     function initDistrictSelect2(root) {
+        if (window.populateDistrictOptions) window.populateDistrictOptions(root || document);
         if (!(window.jQuery && jQuery.fn.select2)) return;
 
         const districtIds = [
@@ -1777,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.initDistrictSelect2 = initDistrictSelect2;
-    initDistrictSelect2();
+    if (!window.populateDistrictOptions) initDistrictSelect2();
 
     /**
      * Property LGA is a MULTI select — a single property/layout can straddle more than one
@@ -6413,6 +6414,11 @@ document.addEventListener('DOMContentLoaded', function () {
             sidebarContainer.appendChild(clone);
         }
 
+        if (window.populateDistrictOptions) {
+            window.populateDistrictOptions(fieldsContainer);
+            if (sidebarContainer) window.populateDistrictOptions(sidebarContainer);
+        }
+
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
         setTimeout(() => {
@@ -6608,6 +6614,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function openRegistrationDialog(instrumentType) {
+        initDistrictSelect2(elements.registrationDialog);
         let typeKey = normalizeInstrumentTypeKey(instrumentType) || instrumentType;
         let type = instrumentTypes[typeKey] || instrumentTypes[instrumentType];
 
@@ -6931,6 +6938,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Show Serial Number Input
                 if (elements.opSerialNumberContainer) {
                     elements.opSerialNumberContainer.classList.remove('hidden');
+                    if (elements.opSerialNumberInput) elements.opSerialNumberInput.required = true;
                 }
 
                 // Hide select button
@@ -6982,6 +6990,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide Serial Number Input
                 if (elements.opSerialNumberContainer) {
                     elements.opSerialNumberContainer.classList.add('hidden');
+                    if (elements.opSerialNumberInput) elements.opSerialNumberInput.required = false;
                     if (elements.opSerialNumberInput && !isEditMode) elements.opSerialNumberInput.value = '';
                 }
             }

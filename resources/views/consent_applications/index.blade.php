@@ -16,6 +16,7 @@
             'PageTitle' => 'Letter',
             'PageDescription' => 'Generate and manage applications for consent for Deed of Assignment, Gift, and Mortgage.'
         ])
+    @include('exports.consolidated_report_action', ['reportKey' => 'consent'])
 
         <div class="p-6 space-y-8 max-w-7xl mx-auto">
             <!-- Hero -->

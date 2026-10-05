@@ -12,6 +12,7 @@
         'PageTitle' => 'Bill Balance Records',
         'PageDescription' => 'Track, generate, and manage bill balance references.',
     ])
+    @include('exports.consolidated_report_action', ['reportKey' => 'bill-balance'])
 
     <div class="max-w-7xl mx-auto p-6 space-y-6">
       @if($errors->any())

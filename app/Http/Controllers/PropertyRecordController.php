@@ -926,7 +926,7 @@ class PropertyRecordController extends Controller
             // one Category answer for every instrument. See App\Services\InstrumentTypeCatalog.
             'instrument_subtype' => 'nullable|string|max:100',
             'instrument_category' => 'nullable|string|max:100',
-            'op_serial_number' => 'nullable|string|max:255',
+            'op_serial_number' => \App\Support\OpSerial::rules('nullable'),
             'consideration_amount' => 'nullable|string|max:100',
             'receipt_no' => 'nullable|string|max:100',
             'has_official_file_number' => 'nullable|in:0,1',
@@ -950,7 +950,7 @@ class PropertyRecordController extends Controller
             // and carries its own Type, Category and OP serial. See InstrumentTypeCatalog.
             'extra_regs.*.type_value' => 'nullable|string|max:100',
             'extra_regs.*.instrument_category' => 'nullable|string|max:100',
-            'extra_regs.*.op_serial_number' => 'nullable|string|max:255',
+            'extra_regs.*.op_serial_number' => \App\Support\OpSerial::rules('nullable'),
             'party_4' => 'nullable|string|max:255',
             'Mortgagor_2' => 'nullable|string|max:255',
             'Mortgagor_3' => 'nullable|string|max:255',
@@ -964,6 +964,16 @@ class PropertyRecordController extends Controller
 
         // Add conditional validation for parties based on transaction type
         $validator->after(function ($validator) use ($request) {
+            if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
+                if (!\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
+                    $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required.');
+                }
+                foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
+                    if (!\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
+                        $validator->errors()->add("extra_regs.{$index}.op_serial_number", 'A valid OP Serial Number is required for each OP registration.');
+                    }
+                }
+            }
             $tx = strtolower((string) $request->transactionType);
             if (!$tx)
                 return;
@@ -1478,7 +1488,9 @@ class PropertyRecordController extends Controller
             \Log::info('Final data for insertion:', $primaryRecordData);
 
             // Insert primary record into database
+            $primaryRecordData = \App\Support\OpSerial::guard($primaryRecordData);
             $id = DB::connection('sqlsrv')->table($targetTable)->insertGetId($primaryRecordData);
+            if ($targetTable === 'pra') app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $id);
 
             // Handle extra registration number rows (same record, different serial/page/volume)
             $extraRegs = $request->input('extra_regs', []);
@@ -1542,6 +1554,7 @@ class PropertyRecordController extends Controller
                     if ($rowOpSerial !== '' && array_key_exists('op_serial_number', $extraData)) {
                         $extraData['op_serial_number'] = $rowOpSerial;
                     }
+                    $extraData = \App\Support\OpSerial::guard($extraData);
                     DB::connection('sqlsrv')->table($targetTable)->insert($extraData);
                 }
             }
@@ -1561,6 +1574,7 @@ class PropertyRecordController extends Controller
                     $this->applyInstrumentPartyValues($entryData, $entryType, $entry['party_from'], $entry['party_to'], $columns);
                     $this->applyInstrumentDateColumns($entryData, $entryType, $entryDate, $columns);
 
+                    $entryData = \App\Support\OpSerial::guard($entryData);
                     DB::connection('sqlsrv')->table($targetTable)->insert($entryData);
                 }
             }
@@ -1732,7 +1746,7 @@ class PropertyRecordController extends Controller
             'op_type' => 'nullable|string|max:255',
             'instrument_subtype' => 'nullable|string|max:100',
             'instrument_category' => 'nullable|string|max:100',
-            'op_serial_number' => 'nullable|string|max:255',
+            'op_serial_number' => \App\Support\OpSerial::rules('nullable'),
             'consideration_amount' => 'nullable|string|max:100',
             'receipt_no' => 'nullable|string|max:100',
             'party_3' => 'nullable|string|max:255',
@@ -1743,6 +1757,16 @@ class PropertyRecordController extends Controller
 
         // Add conditional validation for parties based on transaction type
         $validator->after(function ($validator) use ($request) {
+            if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
+                if (!\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
+                    $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required.');
+                }
+                foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
+                    if (!\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
+                        $validator->errors()->add("extra_regs.{$index}.op_serial_number", 'A valid OP Serial Number is required for each OP registration.');
+                    }
+                }
+            }
             $tx = strtolower((string) $request->transactionType);
             if (!$tx)
                 return;
@@ -1936,6 +1960,10 @@ class PropertyRecordController extends Controller
                 'temp_fileno' => $request->input('temp_fileno') ?? $existingProperty->temp_fileno,
             ];
 
+            // Preserve the stored type when a partial edit omits it.
+            if (!$request->exists('transactionType')) unset($data['transaction_type']);
+            if (!$request->exists('instrumentType')) unset($data['instrument_type']);
+
             // Safety check for update: if the transaction type or mlsFNo implies a temp record
             if (!$data['temp_fileno'] && $data['mlsFNo'] && strpos($data['mlsFNo'], 'TEMP-') === 0) {
                 $data['temp_fileno'] = $data['mlsFNo'];
@@ -1944,7 +1972,18 @@ class PropertyRecordController extends Controller
                 $data['location'] = $request->location;
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'lgsaOrCity')) {
-                $data['lgsaOrCity'] = $request->lgsaOrCity;
+                $data['lgsaOrCity'] = $request->input('lga', $request->input('lgsaOrCity'));
+            }
+            // The shared Add/Edit form submits the structured address and instrument dates.
+            // Only update supplied fields so older edit clients retain their stored values.
+            foreach ([
+                'plot_no', 'street_name', 'district', 'lga', 'state', 'tp_no', 'lpkn_no',
+                'approved_plan_no', 'plot_size', 'scale', 'date_recommended', 'date_approved',
+                'lease_begins', 'lease_expires', 'metric_sheet', 'deeds_date', 'deeds_time',
+            ] as $field) {
+                if ($request->exists($field) && Schema::connection('sqlsrv')->hasColumn($targetTable, $field)) {
+                    $data[$field] = $request->input($field);
+                }
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'layout')) {
                 $data['layout'] = $request->layout;
@@ -1968,7 +2007,7 @@ class PropertyRecordController extends Controller
                 $data['instrument_category'] = $request->input('instrument_category');
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_serial_number')) {
-                $data['op_serial_number'] = $request->input('op_serial_number');
+                if ($request->exists('op_serial_number')) $data['op_serial_number'] = $request->input('op_serial_number');
             }
             // Deed of Purchase: what was paid, and the receipt behind it.
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'consideration_amount')) {
@@ -2036,9 +2075,12 @@ class PropertyRecordController extends Controller
             \Log::info('Data to be sent to database: ', $data);
 
             // Update the database record in the correct table
-            $affectedRows = DB::connection('sqlsrv')->table($targetTable)
-                ->where('id', $id)
-                ->update($data);
+            $data = app(\App\Services\OpSerialSourceResolver::class)->guard($data, (array) $existingProperty);
+            $affectedRows = DB::connection('sqlsrv')->transaction(function () use ($targetTable, $id, $data, $existingProperty) {
+                $affected = DB::connection('sqlsrv')->table($targetTable)->where('id', $id)->update($data);
+                if ($targetTable === 'pra') app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $id, $existingProperty->op_serial_number ?? null);
+                return $affected;
+            });
 
             \Log::info('Number of rows affected by update: ' . $affectedRows);
 
@@ -2059,6 +2101,8 @@ class PropertyRecordController extends Controller
                 'table' => $targetTable,  // Include table info for debugging
                 'affected_rows' => $affectedRows
             ]);
+        } catch (ValidationException $e) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             // Add more detailed error logging
             \Log::error('Error updating property record: ' . $e->getMessage());
@@ -2503,6 +2547,11 @@ class PropertyRecordController extends Controller
 
                 foreach ($chunk as $row) {
                     $rowNum = $row['__row'];
+                    if (!\App\Support\OpSerial::valid($row['op_serial_number'] ?? null)) {
+                        $summary['skipped']++;
+                        $summary['errors'][] = 'Row '.$rowNum.': a valid OP Serial Number is required.';
+                        continue;
+                    }
 
                     // Build reg_no and party_1 for duplicate key (matching PRA columns)
                     $row['reg_no'] = $this->buildImportedRegNo($row['serial_no'], $row['page_no'], $row['volume_no']);
@@ -3199,7 +3248,7 @@ class PropertyRecordController extends Controller
                 'transactions' => 'required|array|min:1',
                 'transactions.*.transaction_type' => 'required|string',
                 'transactions.*.transaction_date' => 'nullable|date',
-                'transactions.*.op_serial_number' => 'nullable|string|max:255',
+                'transactions.*.op_serial_number' => \App\Support\OpSerial::rules('nullable'),
                 'transactions.*.consideration_amount' => 'nullable|string|max:100',
                 'transactions.*.receipt_no' => 'nullable|string|max:100',
                 'transactions.*.op_type' => 'nullable|string|max:255',
@@ -3216,7 +3265,7 @@ class PropertyRecordController extends Controller
                     $transactionType = trim((string) ($transaction['transaction_type'] ?? ''));
                     $opSerialNumber = trim((string) ($transaction['op_serial_number'] ?? ''));
 
-                    if (self::isOccupancyPermit($transactionType) && $opSerialNumber === '') {
+                    if (\App\Support\OpSerial::isOp(['transaction_type' => $transactionType]) && !\App\Support\OpSerial::valid($opSerialNumber)) {
                         $validator->errors()->add(
                             "transactions.{$index}.op_serial_number",
                             'OP serial number is required for Occupancy Permit (OP) transactions.'
@@ -3831,9 +3880,17 @@ class PropertyRecordController extends Controller
                             return in_array($key, $praTableColumnsUpdate, true);
                         }, ARRAY_FILTER_USE_KEY);
 
+                        $opBefore = DB::connection('sqlsrv')->table(self::PRA_TABLE)->where('id', $recordId)->lockForUpdate()->first();
+                        if (!$opBefore || !\App\Support\OpSerial::isMother((array) $opBefore)
+                            || (!in_array(strtoupper(trim((string) $fileNumber)), \App\Services\OpSerialRepairPlanner::files((array) $opBefore), true)
+                                && !DB::connection('sqlsrv')->table('mls_file_no')->where('full_file_number', $fileNumber)->where('source_pra_id', $recordId)->exists())) {
+                            throw ValidationException::withMessages(['transactions' => 'The selected OP does not belong to this file.']);
+                        }
+                        $praData = app(\App\Services\OpSerialSourceResolver::class)->guard($praData, (array) $opBefore);
                         DB::connection('sqlsrv')->table(self::PRA_TABLE)
                             ->where('id', $recordId)
                             ->update($praData);
+                        app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $recordId, $opBefore->op_serial_number ?? null);
 
                         $persistedRecords['pra_updated'][] = $recordId;
 

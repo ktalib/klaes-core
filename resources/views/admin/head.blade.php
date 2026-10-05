@@ -6,7 +6,7 @@
 
     <meta name="author" content="{{ !empty($settings['app_name']) ? $settings['app_name'] : env('APP_NAME') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ !empty($settings['app_name']) ? $settings['app_name'] : env('APP_NAME') }} - @yield('page-title') </title>
+    <title>KLAES-CORE - @yield('page-title') </title>
 
     <meta name="title" content="{{ $settings['meta_seo_title'] }}">
     <meta name="keywords" content="{{ $settings['meta_seo_keyword'] }}">
@@ -25,14 +25,8 @@
     <meta property="twitter:description" content="{{ $settings['meta_seo_description'] }}">
     <meta property="twitter:image" content="{{ asset(Storage::url('upload/seo')) . '/' . $settings['meta_seo_image'] }}">
 
-    @php
-        $faviconPath = !empty($settings['company_favicon']) && file_exists(public_path('storage/upload/logo/' . $settings['company_favicon']))
-            ? asset('storage/upload/logo/' . $settings['company_favicon'])
-            : asset('favicon_io/favicon.ico');
-    @endphp
-    <!-- shortcut icon-->
-    <link rel="icon" href="{{ $faviconPath }}" type="image/x-icon">
-    <link rel="shortcut icon" href="{{ $faviconPath }}" type="image/x-icon">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
+    <link rel="shortcut icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
 
         <link rel="stylesheet" href="{{ asset('assets/css/plugins/notifier.css') }}" />
     <!-- [Page specific CSS] start -->

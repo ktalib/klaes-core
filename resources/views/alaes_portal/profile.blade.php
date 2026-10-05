@@ -32,7 +32,7 @@
         @if($errors->hasAny(['name', 'email', 'nin', 'address']))
             <div role="alert" class="mb-5 rounded-xl border p-4"
                  style="border-color: var(--danger); background: rgba(159,18,57,.07);">
-                @foreach($errors->only(['name', 'email', 'nin', 'address']) as $messages)
+                @foreach(collect(['name', 'email', 'nin', 'address'])->map(fn ($key) => $errors->get($key)) as $messages)
                     @foreach((array) $messages as $message)
                         <p class="text-sm font-medium" style="color: var(--danger);">{{ $message }}</p>
                     @endforeach
@@ -109,7 +109,7 @@
         @if($errors->hasAny(['phone', 'code']))
             <div role="alert" class="mb-5 rounded-xl border p-4"
                  style="border-color: var(--danger); background: rgba(159,18,57,.07);">
-                @foreach($errors->only(['phone', 'code']) as $messages)
+                @foreach(collect(['phone', 'code'])->map(fn ($key) => $errors->get($key)) as $messages)
                     @foreach((array) $messages as $message)
                         <p class="text-sm font-medium" style="color: var(--danger);">{{ $message }}</p>
                     @endforeach

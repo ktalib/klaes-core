@@ -16,6 +16,7 @@
             --err: #dc2626;
             --radius: 18px;
             --bar-h: 76px;
+            --nav-h: 68px;
             --page-w: 1100px;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -102,6 +103,7 @@
         .field.invalid .input, .field.invalid .picker-box { border-color: var(--err); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
         .field .err { display: none; color: var(--err); font-size: 13px; margin-top: 5px; }
         .field.invalid .err { display: block; }
+        .error-link { border: 0; background: transparent; color: inherit; text-align: left; text-decoration: underline; cursor: pointer; padding: 2px 0; }
         .hint { font-size: 13px; color: var(--muted); margin-top: 5px; }
 
         .note { display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; font-size: 14px; background: #f3f4f6; color: #374151; }
@@ -177,6 +179,17 @@
             padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
         }
         .actionbar-inner { max-width: var(--page-w); margin: 0 auto; display: flex; gap: 10px; }
+        .has-mobile-footer { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 20px); }
+        .has-register-actions { padding-bottom: calc(var(--nav-h) + var(--bar-h) + env(safe-area-inset-bottom) + 20px); }
+        .has-register-actions .actionbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+        .has-register-actions .toast { bottom: calc(var(--nav-h) + var(--bar-h) + env(safe-area-inset-bottom) + 20px); }
+        .mobile-footer { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: var(--ink); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid rgba(255,255,255,.12); }
+        .mobile-footer-inner { display: flex; height: var(--nav-h); max-width: var(--page-w); margin: 0 auto; }
+        .mobile-tab { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border: 0; background: transparent; color: #a8a5b5; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .mobile-tab i { font-size: 23px; }
+        .mobile-tab.active { color: #34d399; }
+        .mobile-tab:focus-visible { outline: 2px solid #34d399; outline-offset: -4px; }
+        .has-mobile-footer .fab { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); }
         .actionbar .btn { flex: 1; }
         .actionbar .btn-ghost { flex: 0 0 auto; }
         @media (min-width: 768px) { .actionbar .btn { flex: 0 0 auto; min-width: 150px; } .actionbar-inner .spacer { flex: 1; } }

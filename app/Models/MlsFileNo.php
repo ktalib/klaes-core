@@ -47,6 +47,9 @@ class MlsFileNo extends Model
         // column stayed 100% empty. The commissioning SMS needs them.
         'phone_no',
         'rep_phone_no',
+        // Optional applicant email from the commissioning form; becomes the
+        // LAAS Portal account's email. See LaasCommissioningAccountService.
+        'email',
         'sit_reason',
         // Old (duplicated) file number kept when a file number is re-issued.
         'old_fileno'

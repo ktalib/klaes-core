@@ -77,6 +77,10 @@ class MlsCommissioningOssApplicationService
         $payload = $this->payload($row, $fileNumber, $targetSource);
 
         if ($existing) {
+            if ($payload['op_serial_number'] !== null && \App\Support\OpSerial::valid($existing->op_serial_number ?? null)
+                && trim((string) $existing->op_serial_number) !== $payload['op_serial_number']) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The OSS application has a conflicting OP serial. Correct its source before commissioning.']);
+            }
             // Respect data entered through OSS. Only fill fields that are currently blank.
             $changes = [];
             foreach ($payload as $column => $value) {
@@ -85,7 +89,7 @@ class MlsCommissioningOssApplicationService
                 }
 
                 $current = $existing->{$column} ?? null;
-                if (($current === null || trim((string) $current) === '') && $value !== null && $value !== '') {
+                if (($current === null || trim((string) $current) === '' || ($column === 'op_serial_number' && trim((string) $current) === '0')) && $value !== null && $value !== '') {
                     $changes[$column] = $value;
                 }
             }
@@ -141,7 +145,11 @@ class MlsCommissioningOssApplicationService
             $commissionedAt = now();
         }
 
+        $opSerial = $this->isOpBackedCommissioning($row)
+            ? app(OpSerialSourceResolver::class)->serial($row) : null;
+
         $payload = [
+            'op_serial_number' => $opSerial,
             'application_type' => $this->resolveApplicationType($row['land_use'] ?? null, $fileNumber),
             'applicant_name' => $this->nullable($row['file_name'] ?? null),
             'file_no' => $fileNumber,

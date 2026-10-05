@@ -1730,6 +1730,35 @@ class MlsFileNoController extends Controller
     }
 
     /**
+     * Open (or reuse) the applicant's LAAS Portal account for the files just
+     * commissioned, and text them the sign-in details. Land and OSS both come
+     * through here, single and batch alike.
+     *
+     * After the commit, for the same reason as the commissioning SMS. Never
+     * throws, and returns no passwords: the summary card only needs to say what
+     * happened, and a password in the response would sit in the officer's
+     * browser.
+     */
+    private function openLaasPortalAccounts(array $fileNumbers, array $validated): array
+    {
+        try {
+            $report = app(\App\Services\Laas\LaasCommissioningAccountService::class)->provisionForFiles($fileNumbers, [
+                'phone_confirmed' => (bool) ($validated['phone_confirmed'] ?? false),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('LAAS portal account hook failed', ['files' => $fileNumbers, 'error' => $e->getMessage()]);
+
+            return [];
+        }
+
+        return array_map(static function (array $account) {
+            unset($account['temp_password']);
+
+            return $account;
+        }, $report);
+    }
+
+    /**
      * Tell the applicant their file has been commissioned.
      *
      * Land and OSS Change of Ownership are two different messages raised by the
@@ -2265,6 +2294,9 @@ class MlsFileNoController extends Controller
                 // would block every edit of a legacy record.
                 'phone_no' => ['required', 'string', 'max:100', new NigerianPhone()],
                 'rep_phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
+                // Optional. Becomes the applicant's LAAS Portal email; left blank, the
+                // portal account gets a generated placeholder instead.
+                'email' => 'nullable|email|max:150',
                 'phone_confirmed' => 'nullable|boolean',
                 'allocated_by_filter' => 'nullable|string|max:100',
                 'default_allocation_type' => 'nullable|string|max:50',
@@ -2409,6 +2441,12 @@ class MlsFileNoController extends Controller
                     'success' => false,
                     'message' => 'Source OP record is required before commissioning. Please select an existing OP and continue.',
                 ], 422);
+            }
+
+            if ($requireOpSource || !empty($validated['source_instrument_capture_id']) || !empty($validated['source_pra_id'])
+                || str_starts_with(strtoupper((string) ($validated['sub_source'] ?? '')), 'OP ')) {
+                $validated['source_op_serial_number'] = app(\App\Services\OpSerialSourceResolver::class)
+                    ->serial($validated, $validated['source_op_serial_number'] ?? null);
             }
 
             if ($flowIssue = $this->opCommissioningFlowIssue($validated)) {
@@ -2623,6 +2661,7 @@ class MlsFileNoController extends Controller
                             // commissioning SMS was skipped for having no one to text.
                             'phone_no' => $validated['phone_no'] ?? null,
                             'rep_phone_no' => $validated['rep_phone_no'] ?? null,
+                            'email' => $validated['email'] ?? null,
                         ]);
                     }
 
@@ -2884,6 +2923,8 @@ class MlsFileNoController extends Controller
 
                     DB::connection('sqlsrv')->commit();
 
+                    $laasPortal = $this->openLaasPortalAccounts([$fullFileNumber], $validated);
+
                     // Change-of-Purpose returns before the common single-file tail below,
                     // so file and attach its passport here as part of the same single mode.
                     $edmsFolder = $this->ensureEdmsScanFolder($fullFileNumber);
@@ -2898,6 +2939,7 @@ class MlsFileNoController extends Controller
                     return response()->json([
                         'success' => true,
                         'message' => 'Change of Purpose generated successfully.',
+                        'laas_portal' => $laasPortal,
                         'decommission_summary' => [
                             'archived' => [$originalFileNo],
                         ],
@@ -3234,11 +3276,12 @@ class MlsFileNoController extends Controller
                     // anything later that needs to reach the holder.
                     'phone_no' => $validated['phone_no'] ?? null,
                     'rep_phone_no' => $validated['rep_phone_no'] ?? null,
+                    'email' => $validated['email'] ?? null,
                     'sit_reason' => $fileOption === 'sit' ? ($validated['sit_reason'] ?? null) : null,
                     'old_fileno' => $fileOption === 'reissuance' ? ($validated['old_fileno'] ?? null) : null,
                 ]);
 
-                $ossApplicationMirror = app(MlsCommissioningOssApplicationService::class)->sync($mlsRecord);
+                $ossApplicationMirror = app(MlsCommissioningOssApplicationService::class)->sync(array_merge($mlsRecord->getAttributes(), ['op_serial_number' => $validated['source_op_serial_number'] ?? null]));
 
                 // Re-Issuance: the duplicated number the new file replaces. Recorded in
                 // the old_file_numbers ledger and mirrored onto file_indexings.old_fileno
@@ -3274,6 +3317,7 @@ class MlsFileNoController extends Controller
                         // compat table for a contact number found nothing.
                         'phone_no' => $validated['phone_no'] ?? null,
                         'rep_phone_no' => $validated['rep_phone_no'] ?? null,
+                        'email' => $validated['email'] ?? null,
                         'updated_at' => now()
                     ];
                     if (!empty($validated['related_fileno'])) {
@@ -3577,6 +3621,7 @@ class MlsFileNoController extends Controller
                                     'location' => (string) ($validated['location'] ?? ''),
                                     'property_description' => (string) ($validated['location'] ?? ''),
                                     'instrument_type' => 'Occupancy Permit (OP)',
+                                    'op_serial_number' => $validated['source_op_serial_number'] ?? null,
                                     'op_type' => $opPraMetadata['op_type'],
                                     'Grantor' => self::MLS_PRA_GRANTOR,
                                     'party_1' => self::MLS_PRA_GRANTOR,
@@ -3598,10 +3643,7 @@ class MlsFileNoController extends Controller
                                 ]);
                             } // end else (no existing IC/DR)
                         } catch (\Exception $praError) {
-                            Log::error('MLS generate basic PRA creation failed (non-critical)', [
-                                'error' => $praError->getMessage(),
-                                'file_number' => $fullFileNumber,
-                            ]);
+                            throw $praError;
                         }
                     } elseif (!$skipAutoPra && in_array($praSourceValue, ['Subdivision', 'Merger', 'Extension', 'Separation'])) {
                         // Create PRA transaction records for Subdivision/Merger/Extension/Separation
@@ -4288,6 +4330,8 @@ class MlsFileNoController extends Controller
                  */
                 $this->sendCommissioningSms($mlsRecord, $validated, $fullFileNumber);
 
+                $laasPortal = $this->openLaasPortalAccounts([$fullFileNumber], $validated);
+
                 $edmsFolder = $this->ensureEdmsScanFolder($fullFileNumber);
                 $passportUpload = $this->storeCommissioningPassport($request, $fullFileNumber, $edmsFolder);
                 if (!empty($passportUpload['stored']) && !empty($passportUpload['path'])) {
@@ -4314,6 +4358,8 @@ class MlsFileNoController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'File number generated successfully',
+                    // The applicant's LAAS Portal account (no passwords).
+                    'laas_portal' => $laasPortal,
                     'mirror_created' => $shouldMirror,
                     'decommission_summary' => $decommissionSummary,
                     'skipped_serials' => $skippedSerials,
@@ -4738,9 +4784,13 @@ class MlsFileNoController extends Controller
                 // Same shape as file_name, which is already batch-wide with a per-entry
                 // override.
                 'phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
+                // Optional applicant email, batch-wide like phone_no; see the single path.
+                'email' => 'nullable|email|max:150',
+                'phone_confirmed' => 'nullable|boolean',
                 // Party 2 of each captured OP, by batch sequence. JSON because the batch
                 // payload is sent as flat form fields, not a nested array.
                 'op_batch_allottees' => ['nullable', 'string', 'max:20000'],
+                'op_batch' => 'nullable|string|max:50',
             ]);
 
             // Same guard as the single path: the TP picker's "Other" placeholder is a UI
@@ -4846,6 +4896,17 @@ class MlsFileNoController extends Controller
             DB::connection('sqlsrv')->beginTransaction();
 
             try {
+                $batchOpSources = [];
+                if (!empty($validated['op_batch'])) {
+                    $batchOpSources = DB::connection('sqlsrv')->table('pra')
+                        ->where('op_batch', $validated['op_batch'])->where('instrument_type', 'Occupancy Permit (OP)')
+                        ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->orderBy('id')->lockForUpdate()->get()->all();
+                    if (count($batchOpSources) !== count($validated['location_entries'])
+                        || DB::connection('sqlsrv')->table('mls_file_no')->where('op_batch', $validated['op_batch'])->exists()) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['op_batch' => 'Select an uncommissioned OP batch with one OP per file.']);
+                    }
+                    foreach ($batchOpSources as $i => $op) \App\Support\OpSerial::require($op->op_serial_number, "ops.{$i}.op_serial_number");
+                }
                 $generatedFiles = [];
                 $mlsRecords = [];
 
@@ -5262,12 +5323,15 @@ class MlsFileNoController extends Controller
                         'source' => $sourceValue,
                         'sub_source' => $validated['sub_source'] ?? null,
                         'system_sub_type' => $batchSystemSubType,
-                        'source_instrument_capture_id' => $validated['source_instrument_capture_id'] ?? null,
+                        'source_instrument_capture_id' => empty($batchOpSources) ? ($validated['source_instrument_capture_id'] ?? null) : null,
+                        'source_pra_id' => $batchOpSources[$index]->id ?? ($validated['source_pra_id'] ?? null),
+                        'op_batch' => $validated['op_batch'] ?? null,
                         // Per-file applicant contact. This was already validated
                         // on location_entries.*.phone_no and then dropped here,
                         // so batch-commissioned files had no number at all. The
                         // batch-wide number covers the entries that carry none.
                         'phone_no' => $entry['phone_no'] ?? ($validated['phone_no'] ?? null),
+                        'email' => $entry['email'] ?? ($validated['email'] ?? null),
                         'created_at' => $now,
                         'updated_at' => $now
                     ];
@@ -5289,6 +5353,7 @@ class MlsFileNoController extends Controller
                         'is_deleted' => 0,
                         'created_by' => $commissionedBy,
                         'phone_no' => $entry['phone_no'] ?? ($validated['phone_no'] ?? null),
+                        'email' => $entry['email'] ?? ($validated['email'] ?? null),
                         'created_at' => $now,
                         'updated_at' => $now
                     ];
@@ -5536,7 +5601,7 @@ class MlsFileNoController extends Controller
                     // ->value('prop_id') lookup silently dropped that fallback and left
                     // pra.parent_prop_id empty on every batch-commissioned child.
 
-                    if ($opPraMetadata !== null) {
+                    if ($opPraMetadata !== null && empty($batchOpSources)) {
                         foreach ($validated['location_entries'] as $index => $entry) {
                             $batchFileNumber = $allFileNumbers[$index];
                             $batchTrackingId = $mlsData[$index]['tracking_id'] ?? null;
@@ -5581,6 +5646,7 @@ class MlsFileNoController extends Controller
                                 'lgsaOrCity' => (string) ($entry['lga'] ?? ''),
                                 'location' => (string) ($entry['location'] ?? ''),
                                 'property_description' => (string) ($entry['location'] ?? ''),
+                                'op_serial_number' => app(\App\Services\OpSerialSourceResolver::class)->serial($validated),
                                 'instrument_type' => 'Occupancy Permit (OP)',
                                 'op_type' => $opPraMetadata['op_type'],
                                 'Grantor' => self::MLS_PRA_GRANTOR,
@@ -5691,10 +5757,7 @@ class MlsFileNoController extends Controller
                         ]);
                     }
                 } catch (\Exception $praError) {
-                    $this->logPlotsWorkflow('error', 'Batch PRA creation failed (non-critical)', [
-                        'error' => $praError->getMessage(),
-                        'land_use' => $landUse,
-                    ]);
+                    throw $praError;
                 }
 
 
@@ -5895,6 +5958,13 @@ class MlsFileNoController extends Controller
                     $this->logPlotsWorkflow('info', 'Batch Separation application marked as commissioned', ['app_id' => $validated['separation_app_id']]);
                 }
 
+                if (!empty($batchOpSources)) {
+                    $linkResponse = app(\App\Http\Controllers\LandsOneStopShop\OpResettlementApplicationController::class)
+                        ->linkOpBatchToCommissioned(new Request(['op_batch' => $validated['op_batch'], 'files' => $generatedFiles]));
+                    if ($linkResponse->getStatusCode() >= 400) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['op_batch' => $linkResponse->getData(true)['message'] ?? 'OP batch linking failed.']);
+                    }
+                }
                 DB::connection('sqlsrv')->commit();
 
                 /*
@@ -5907,6 +5977,8 @@ class MlsFileNoController extends Controller
                  | resolver fills in the ones the officer left blank.
                  */
                 $this->sendBatchCommissioningSms($generatedFiles, $validated, $batchSystemSubType ?? null, $batchNo);
+
+                $laasPortal = $this->openLaasPortalAccounts($generatedFiles, $validated);
 
                 $edmsFolders = [];
                 foreach ($generatedFiles as $generatedFileNumber) {
@@ -5977,6 +6049,7 @@ class MlsFileNoController extends Controller
                     'success' => true,
                     'message' => "Successfully generated {$batchQuantity} file numbers",
                     'files' => $generatedFiles,
+                    'laas_portal' => $laasPortal,
                     'decommission_summary' => $decommissionSummary,
                     'skipped_serials' => $skippedSerials,
                     'notice' => $skipNotice,
@@ -5985,6 +6058,7 @@ class MlsFileNoController extends Controller
                     'passport_uploads' => $passportUploads,
                     'oss_application_summary' => $ossApplicationActions,
                     'data' => [
+                        'system_sub_type' => $batchSystemSubType,
                         'batch_size' => $batchQuantity,
                         'land_use' => $landUse,
                         'application_type' => in_array($validated['file_option'] ?? '', ['subdivision', 'merger', 'extension', 'separation'])

@@ -13,6 +13,16 @@ class DashboardController extends Controller
 {
     protected $connection = 'sqlsrv';
 
+    public function applicationAnalytics(Request $request)
+    {
+        $data = $request->validate([
+            'period' => 'nullable|in:week,month,quarter,year',
+            'status' => 'nullable|in:all,approved,pending,rejected',
+        ]);
+        return response()->json(['success' => true, 'data' => app(\App\Services\DashboardApplicationAnalytics::class)
+            ->get($data['period'] ?? 'week', $data['status'] ?? 'all')]);
+    }
+
     /* ─────────────────────────────────────────────────────────────────────
      | COMBINED – single request loads all top-level stats
      | GET /api/dashboard/all-stats
@@ -372,6 +382,36 @@ class DashboardController extends Controller
                     ->whereIn('application_status', ['rejected', 'Rejected', 'REJECTED'])->count();
                 $rejectedTotal = $rejectedMother + $rejectedSub;
 
+                /* ── Application pipeline: status split per stream ───────────
+                 | Same three streams and same live-row filter as the chart above
+                 | it (DashboardApplicationAnalytics), so the numbers reconcile.
+                 | A NULL status counts as pending, as it does everywhere else. */
+                $pipeline = [];
+                foreach ([
+                    'st_primary' => ['mother_applications', 'application_status'],
+                    'st_sub'     => ['subapplications',     'application_status'],
+                    'oss'        => ['oss_applications',    'status'],
+                ] as $key => [$table, $col]) {
+                    $state = "LOWER(LTRIM(RTRIM(ISNULL($col, 'pending'))))";
+                    $live  = fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+
+                    $counts = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'other' => 0];
+                    foreach ($db->table($table)->where($live)
+                        ->selectRaw("$state AS s, COUNT(*) AS n")->groupByRaw($state)->get() as $r) {
+                        $bucket = array_key_exists($r->s, $counts) ? $r->s : 'other';
+                        $counts[$bucket] += (int) $r->n;
+                    }
+
+                    $oldestPending = $db->table($table)->where($live)
+                        ->whereRaw("$state = 'pending'")->min('created_at');
+
+                    $pipeline[$key] = $counts + [
+                        'total'               => array_sum($counts),
+                        'oldest_pending_days' => $oldestPending
+                            ? (int) Carbon::parse($oldestPending)->diffInDays($now) : null,
+                    ];
+                }
+
                 /* ── Recent applications: OSS (5) + ST Mother (2) + PuA (2) + SUA (2) ── */
 
                 // Helper: resolve applicant name from first_name/surname/corporate_name
@@ -469,19 +509,7 @@ class DashboardController extends Controller
                     ->values();
 
                 /* ── Weekly application trend (last 7 days) ──────────── */
-                $weeklyData = [];
-                for ($i = 6; $i >= 0; $i--) {
-                    $day     = $now->copy()->subDays($i);
-                    $dayStr  = $day->format('D');
-                    $dayDate = $day->toDateString();
-
-                    $dayCount = $db->table('mother_applications')
-                        ->whereDate('created_at', $dayDate)->count()
-                        + $db->table('subapplications')
-                        ->whereDate('created_at', $dayDate)->count();
-
-                    $weeklyData[] = ['day' => $dayStr, 'count' => $dayCount, 'date' => $dayDate];
-                }
+                $weeklyData = app(\App\Services\DashboardApplicationAnalytics::class)->get();
 
                 /* ── Application type breakdown ──────────────────────── */
                 $appTypes = $db->table('mother_applications')
@@ -510,6 +538,7 @@ class DashboardController extends Controller
                     'info_products'      => $infoProducts,
                     'approved_apps'      => $approvedTotal,
                     'rejected_apps'      => $rejectedTotal,
+                    'pipeline'           => $pipeline,
                     'recent_apps'        => $recentApps,
                     'weekly_trend'       => $weeklyData,
                     'app_type_breakdown' => $appTypes,

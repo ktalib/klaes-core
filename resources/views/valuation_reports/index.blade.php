@@ -10,6 +10,7 @@
             'PageTitle' => 'Valuation Reports',
             'PageDescription' => 'Generate and manage Valuation Reports for landed properties and buildings.'
         ])
+    @include('exports.consolidated_report_action', ['reportKey' => 'valuation'])
 
         <div class="p-6 space-y-8 max-w-7xl mx-auto">
             <!-- Hero -->

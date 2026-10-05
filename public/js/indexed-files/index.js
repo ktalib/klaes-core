@@ -511,7 +511,12 @@ function buildActionsMenu(row, viewUrl) {
   const hasTimelineTarget = timelineFileNumber !== '' && timelineFileNumber !== '-';
   const viewTransactionsButton = `<button type="button" class="view-transactions-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm ${hasTimelineTarget ? 'text-violet-700 hover:bg-violet-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-file-id="${id}" data-file-number="${safeFileNumber}" ${hasTimelineTarget ? '' : 'disabled="disabled"'}>
           <i data-lucide="history" class="h-4 w-4 mt-0.5 shrink-0 ${hasTimelineTarget ? 'text-violet-600' : 'text-gray-300'}"></i>
-          <span class="leading-snug">View File Transactions</span>
+          <span class="leading-snug">View Transactions</span>
+        </button>`;
+
+  const viewRelatedFilesButton = `<button type="button" class="view-related-files-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm ${row.has_related_files ? 'text-blue-700 hover:bg-blue-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-id="${id}" ${row.has_related_files ? '' : 'disabled="disabled"'}>
+          <i data-lucide="link" class="h-4 w-4 mt-0.5 shrink-0 ${row.has_related_files ? 'text-blue-600' : 'text-gray-300'}"></i>
+          <span class="leading-snug">View Related File(s)</span>
         </button>`;
 
   const isKangisVariant = (config.tableVariant || '') === 'kangis';
@@ -684,18 +689,19 @@ function buildActionsMenu(row, viewUrl) {
           <div class="px-4 py-2 border-b border-slate-50 mb-1">
              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">File Actions</p>
           </div>
-          ${editButton}
           ${viewButton}
           ${viewTransactionsButton}
+          ${viewRelatedFilesButton}
+          ${unlinkRelatedButton}
           ${trackingButton}
+          ${editButton}
           ${commissionSheetButton}
-          ${moveToDuplicatesButton}
           ${duplicateCallupButton}
           ${tempFileButton}
           ${mccFileNoButton}
           ${mppFileNoButton}
-          ${unlinkRelatedButton}
           ${updatePlaceholderButton}
+          ${moveToDuplicatesButton}
           ${deleteButton ? '<div class="border-t border-slate-50 my-1.5"></div>' + deleteButton : ''}
         </div>
       </div>

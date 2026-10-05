@@ -1,8 +1,10 @@
 @extends('layouts.app')
-@section('page-title')
-    {{ __('Welcome to KLAES - Kano State Land Administration Enterprise 
-System') }}
-@endsection
+@php
+    $PageTitle = 'KLAES-CORE';
+    $PageDescription = 'The foundational platform for the Ministry of Lands and Physical Planning.';
+    $PageDescriptionBold = true;
+@endphp
+@section('page-title', 'KLAES-CORE')
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -676,7 +678,8 @@ System') }}
             <div id="overview" class="tab-content active space-y-6">
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                     <!-- Enhanced Applications Overview Chart -->
-                    <div class="lg:col-span-4 bg-white rounded-lg border-0 shadow-enhanced overflow-hidden">
+                    <div class="lg:col-span-4 flex flex-col gap-4">
+                    <div class="bg-white rounded-lg border-0 shadow-enhanced overflow-hidden">
                         <!-- Chart Header -->
                         <div class="p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
                             <div class="flex items-center justify-between mb-4">
@@ -722,35 +725,35 @@ System') }}
                             <!-- Quick Stats Row -->
                             <div class="grid grid-cols-4 gap-4">
                                 <div class="chart-stats-card">
-                                    <div class="text-2xl font-bold text-blue-600" id="total-applications">720</div>
+                                    <div class="text-2xl font-bold text-blue-600" id="total-applications">0</div>
                                     <div class="text-xs text-gray-600">Total Applications</div>
                                     <div class="trend-indicator trend-up mt-1">
                                         <i data-lucide="trending-up" class="h-3 w-3"></i>
-                                        +12.5%
+                                        Selected period
                                     </div>
                                 </div>
                                 <div class="chart-stats-card">
-                                    <div class="text-2xl font-bold text-green-600" id="avg-processing">2.8</div>
+                                    <div class="text-2xl font-bold text-green-600" id="avg-processing">&mdash;</div>
                                     <div class="text-xs text-gray-600">Avg. Days</div>
                                     <div class="trend-indicator trend-up mt-1">
                                         <i data-lucide="trending-down" class="h-3 w-3"></i>
-                                        -0.4 days
+                                        Not available
                                     </div>
                                 </div>
                                 <div class="chart-stats-card">
-                                    <div class="text-2xl font-bold text-purple-600" id="success-rate">94.2%</div>
+                                    <div class="text-2xl font-bold text-purple-600" id="success-rate">&mdash;</div>
                                     <div class="text-xs text-gray-600">Success Rate</div>
                                     <div class="trend-indicator trend-up mt-1">
                                         <i data-lucide="trending-up" class="h-3 w-3"></i>
-                                        +2.1%
+                                        Approved / total
                                     </div>
                                 </div>
                                 <div class="chart-stats-card">
-                                    <div class="text-2xl font-bold text-orange-600" id="peak-day">Thu</div>
+                                    <div class="text-2xl font-bold text-orange-600" id="peak-day">&mdash;</div>
                                     <div class="text-xs text-gray-600">Peak Day</div>
                                     <div class="trend-indicator trend-neutral mt-1">
                                         <i data-lucide="calendar" class="h-3 w-3"></i>
-                                        136 apps
+                                        <span id="peak-day-count">No applications</span>
                                     </div>
                                 </div>
                             </div>
@@ -802,30 +805,18 @@ System') }}
                             <div class="flex items-center justify-center gap-6 mt-6 pt-4 border-t bg-gray-50 rounded-b-lg -mx-6 -mb-6 px-6 py-4">
                                 <div class="chart-legend-item" onclick="toggleChartSeries('sectional')" id="legend-sectional">
                                     <div class="h-3 w-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-400"></div>
-                                    <span class="text-sm font-medium">Sectional Titling</span>
-                                    <span class="text-sm text-gray-500" id="total-sectional">(318)</span>
-                                    <div class="trend-indicator trend-up ml-2">
-                                        <i data-lucide="trending-up" class="h-3 w-3"></i>
-                                        +8%
-                                    </div>
+                                    <span class="text-sm font-medium">ST Primary</span>
+                                    <span class="text-sm text-gray-500" id="total-sectional">(0)</span>
                                 </div>
                                 <div class="chart-legend-item" onclick="toggleChartSeries('recertification')" id="legend-recertification">
                                     <div class="h-3 w-3 rounded-full bg-gradient-to-r from-green-500 to-green-400"></div>
-                                    <span class="text-sm font-medium">Recertification</span>
-                                    <span class="text-sm text-gray-500" id="total-recertification">(226)</span>
-                                    <div class="trend-indicator trend-up ml-2">
-                                        <i data-lucide="trending-up" class="h-3 w-3"></i>
-                                        +15%
-                                    </div>
+                                    <span class="text-sm font-medium">ST PuA</span>
+                                    <span class="text-sm text-gray-500" id="total-recertification">(0)</span>
                                 </div>
                                 <div class="chart-legend-item" onclick="toggleChartSeries('allocation')" id="legend-allocation">
                                     <div class="h-3 w-3 rounded-full bg-gradient-to-r from-yellow-500 to-yellow-400"></div>
-                                    <span class="text-sm font-medium">Allocation</span>
-                                    <span class="text-sm text-gray-500" id="total-allocation">(176)</span>
-                                    <div class="trend-indicator trend-down ml-2">
-                                        <i data-lucide="trending-down" class="h-3 w-3"></i>
-                                        -3%
-                                    </div>
+                                    <span class="text-sm font-medium">OSS Applications</span>
+                                    <span class="text-sm text-gray-500" id="total-allocation">(0)</span>
                                 </div>
                             </div>
                         </div>
@@ -859,6 +850,29 @@ System') }}
                         </div>
                     </div>
 
+                    <!-- Application Pipeline (fills the column under the chart) -->
+                    <div class="flex-1 bg-white rounded-lg border-0 shadow-enhanced p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-xl font-semibold">Application Pipeline</h3>
+                                <p class="text-gray-600">Where every application stands right now</p>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-gray-500">
+                                <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-yellow-400"></span>Pending</span>
+                                <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-green-500"></span>Approved</span>
+                                <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-red-500"></span>Rejected</span>
+                            </div>
+                        </div>
+                        <div class="space-y-4" id="pipeline-rows">
+                            <div class="flex items-center justify-center py-6 text-gray-400">
+                                <i data-lucide="loader-2" class="h-5 w-5 animate-spin mr-2"></i>
+                                <span class="text-sm">Loading pipeline…</span>
+                            </div>
+                        </div>
+                        <div class="mt-5 pt-4 border-t flex items-center justify-between text-sm" id="pipeline-footer"></div>
+                    </div>
+                    </div>
+
                     <!-- Enhanced Chart Tooltip -->
                     <div id="enhanced-chart-tooltip" class="chart-tooltip">
                         <div class="font-semibold text-white mb-2" id="tooltip-day"></div>
@@ -866,21 +880,21 @@ System') }}
                             <div class="flex items-center justify-between gap-4">
                                 <div class="flex items-center gap-2">
                                     <div class="w-2 h-2 rounded-full bg-blue-400"></div>
-                                    <span class="text-xs">Sectional Titling:</span>
+                                    <span class="text-xs">ST Primary:</span>
                                 </div>
                                 <span id="tooltip-sectional" class="font-medium text-xs">0</span>
                             </div>
                             <div class="flex items-center justify-between gap-4">
                                 <div class="flex items-center gap-2">
                                     <div class="w-2 h-2 rounded-full bg-green-400"></div>
-                                    <span class="text-xs">Recertification:</span>
+                                    <span class="text-xs">ST PuA:</span>
                                 </div>
                                 <span id="tooltip-recertification" class="font-medium text-xs">0</span>
                             </div>
                             <div class="flex items-center justify-between gap-4">
                                 <div class="flex items-center gap-2">
                                     <div class="w-2 h-2 rounded-full bg-yellow-400"></div>
-                                    <span class="text-xs">Allocation:</span>
+                                    <span class="text-xs">OSS Applications:</span>
                                 </div>
                                 <span id="tooltip-allocation" class="font-medium text-xs">0</span>
                             </div>
@@ -933,7 +947,7 @@ System') }}
                                     <p class="text-sm font-medium">New application submitted</p>
                                     <p class="text-xs text-gray-500">John Smith • 10 minutes ago</p>
                                 </div>
-                                <span class="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full border">Sectional Titling</span>
+                                <span class="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full border">ST Primary</span>
                             </div>
 
                             <div class="flex items-start space-x-4 p-2 rounded-lg hover:bg-gray-50 transition-colors">
@@ -993,7 +1007,7 @@ System') }}
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
                                         <i data-lucide="building-2" class="h-4 w-4 text-blue-600"></i>
-                                        <span class="text-sm">Sectional Titling</span>
+                                        <span class="text-sm">ST Primary</span>
                                     </div>
                                     <span class="text-sm font-medium">42%</span>
                                 </div>
@@ -1006,7 +1020,7 @@ System') }}
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
                                         <i data-lucide="file-check" class="h-4 w-4 text-green-600"></i>
-                                        <span class="text-sm">Recertification</span>
+                                        <span class="text-sm">ST PuA</span>
                                     </div>
                                     <span class="text-sm font-medium">28%</span>
                                 </div>
@@ -1333,7 +1347,7 @@ System') }}
                                             <p class="text-2xl font-bold text-green-900">2.8 days</p>
                                             <p class="text-xs text-green-600 flex items-center mt-1">
                                                 <i data-lucide="trending-down" class="h-3 w-3 mr-1"></i>
-                                                -0.4 days improved
+                                                Not available improved
                                             </p>
                                         </div>
                                         <i data-lucide="clock" class="h-8 w-8 text-green-600 opacity-60"></i>
@@ -1347,7 +1361,7 @@ System') }}
                                             <p class="text-2xl font-bold text-purple-900">94.2%</p>
                                             <p class="text-xs text-purple-600 flex items-center mt-1">
                                                 <i data-lucide="trending-up" class="h-3 w-3 mr-1"></i>
-                                                +2.1% improvement
+                                                Approved / total improvement
                                             </p>
                                         </div>
                                         <i data-lucide="target" class="h-8 w-8 text-purple-600 opacity-60"></i>
@@ -1500,7 +1514,7 @@ System') }}
                                                 <td class="p-4 font-medium">Average Processing Time</td>
                                                 <td class="p-4">2.8 days</td>
                                                 <td class="p-4">3.2 days</td>
-                                                <td class="p-4 text-green-600">-0.4 days</td>
+                                                <td class="p-4 text-green-600">Not available</td>
                                                 <td class="p-4">
                                                     <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Improved</span>
                                                 </td>
@@ -1509,7 +1523,7 @@ System') }}
                                                 <td class="p-4 font-medium">Application Success Rate</td>
                                                 <td class="p-4">94.2%</td>
                                                 <td class="p-4">92.1%</td>
-                                                <td class="p-4 text-green-600">+2.1%</td>
+                                                <td class="p-4 text-green-600">Approved / total</td>
                                                 <td class="p-4">
                                                     <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Excellent</span>
                                                 </td>
@@ -1721,78 +1735,7 @@ System') }}
 
         // Enhanced Chart Data with more realistic values and analytics
         // Initial placeholder data – replaced with real DB data after API responds
-        var enhancedChartData = [
-            { 
-                day: "Mon", 
-                sectional: 45, 
-                recertification: 32, 
-                allocation: 28, 
-                total: 105,
-                successRate: 92.4,
-                avgProcessingTime: 2.8,
-                rejectionRate: 7.6
-            },
-            { 
-                day: "Tue", 
-                sectional: 52, 
-                recertification: 28, 
-                allocation: 35, 
-                total: 115,
-                successRate: 94.8,
-                avgProcessingTime: 2.6,
-                rejectionRate: 5.2
-            },
-            { 
-                day: "Wed", 
-                sectional: 38, 
-                recertification: 45, 
-                allocation: 22, 
-                total: 105,
-                successRate: 89.5,
-                avgProcessingTime: 3.1,
-                rejectionRate: 10.5
-            },
-            { 
-                day: "Thu", 
-                sectional: 61, 
-                recertification: 35, 
-                allocation: 40, 
-                total: 136,
-                successRate: 96.3,
-                avgProcessingTime: 2.4,
-                rejectionRate: 3.7
-            },
-            { 
-                day: "Fri", 
-                sectional: 48, 
-                recertification: 38, 
-                allocation: 32, 
-                total: 118,
-                successRate: 93.2,
-                avgProcessingTime: 2.7,
-                rejectionRate: 6.8
-            },
-            { 
-                day: "Sat", 
-                sectional: 35, 
-                recertification: 25, 
-                allocation: 18, 
-                total: 78,
-                successRate: 87.2,
-                avgProcessingTime: 3.4,
-                rejectionRate: 12.8
-            },
-            { 
-                day: "Sun", 
-                sectional: 28, 
-                recertification: 20, 
-                allocation: 15, 
-                total: 63,
-                successRate: 85.7,
-                avgProcessingTime: 3.6,
-                rejectionRate: 14.3
-            }
-        ];
+        var enhancedChartData = [];
 
         // Analytics chart data
         const monthlyTrendsData = [
@@ -1804,7 +1747,7 @@ System') }}
             { month: "Jun", value: 320 }
         ];
 
-        const maxChartValue = 150; // Fixed max for consistent scaling
+        let maxChartValue = 5;
         const maxAnalyticsValue = 350; // Max for analytics chart
 
         // Tab functionality
@@ -1860,6 +1803,10 @@ System') }}
             const margin = { top: 20, right: 40, bottom: 40, left: 60 };
             const innerWidth = chartWidth - margin.left - margin.right;
             const innerHeight = chartHeight - margin.top - margin.bottom;
+            const bucketCount = Math.max(enhancedChartData.length, 1);
+            maxChartValue = Math.max(5, Math.ceil(Math.max(0, ...enhancedChartData.map(d =>
+                ['sectional', 'recertification', 'allocation'].reduce((sum, series) =>
+                    sum + (hiddenSeries.has(series) ? 0 : d[series]), 0))) / 5) * 5);
 
             // Create grid lines
             const gridGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -1878,8 +1825,8 @@ System') }}
             }
 
             // Vertical grid lines
-            for (let i = 0; i <= 7; i++) {
-                const x = margin.left + (innerWidth / 7) * i;
+            for (let i = 0; i <= Math.min(bucketCount, 12); i++) {
+                const x = margin.left + (innerWidth / Math.min(bucketCount, 12)) * i;
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line.setAttribute('x1', x);
                 line.setAttribute('y1', margin.top);
@@ -1929,7 +1876,8 @@ System') }}
 
             // X-axis labels
             enhancedChartData.forEach((data, index) => {
-                const x = margin.left + (innerWidth / 7) * index + (innerWidth / 14);
+                if (bucketCount > 12 && index % Math.ceil(bucketCount / 12) !== 0) return;
+                const x = margin.left + (innerWidth / bucketCount) * index + (innerWidth / (bucketCount * 2));
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', x);
                 text.setAttribute('y', margin.top + innerHeight + 20);
@@ -1941,6 +1889,15 @@ System') }}
             });
 
             svg.appendChild(axesGroup);
+            if (!enhancedChartData.some(d => d.count > 0)) {
+                const empty = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                empty.setAttribute('x', chartWidth / 2);
+                empty.setAttribute('y', chartHeight / 2);
+                empty.setAttribute('text-anchor', 'middle');
+                empty.setAttribute('fill', '#6b7280');
+                empty.textContent = 'No applications in this period';
+                svg.appendChild(empty);
+            }
 
             // Create data visualization
             const dataGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -1949,8 +1906,8 @@ System') }}
             if (chartView === 'bar') {
                 // Create stacked bars
                 enhancedChartData.forEach((data, index) => {
-                    const barWidth = innerWidth / 7 * 0.6;
-                    const x = margin.left + (innerWidth / 7) * index + (innerWidth / 14) - barWidth / 2;
+                    const barWidth = innerWidth / bucketCount * 0.6;
+                    const x = margin.left + (innerWidth / bucketCount) * index + (innerWidth / (bucketCount * 2)) - barWidth / 2;
                     
                     let currentY = margin.top + innerHeight;
                     
@@ -2014,13 +1971,13 @@ System') }}
             } else {
                 // Create line chart
                 const points = enhancedChartData.map((data, index) => {
-                    const x = margin.left + (innerWidth / 7) * index + (innerWidth / 14);
-                    const y = margin.top + innerHeight - (data.total / maxChartValue) * innerHeight;
+                    const x = margin.left + (innerWidth / bucketCount) * index + (innerWidth / (bucketCount * 2));
+                    const y = margin.top + innerHeight - (['sectional', 'recertification', 'allocation'].reduce((sum, series) => sum + (hiddenSeries.has(series) ? 0 : data[series]), 0) / maxChartValue) * innerHeight;
                     return `${x},${y}`;
                 }).join(' ');
 
                 // Area fill
-                const areaPoints = `${margin.left + innerWidth / 14},${margin.top + innerHeight} ${points} ${margin.left + innerWidth - innerWidth / 14},${margin.top + innerHeight}`;
+                const areaPoints = `${margin.left + innerWidth / (bucketCount * 2)},${margin.top + innerHeight} ${points} ${margin.left + innerWidth - innerWidth / (bucketCount * 2)},${margin.top + innerHeight}`;
                 const area = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
                 area.setAttribute('points', areaPoints);
                 area.setAttribute('class', 'chart-area-fill');
@@ -2034,8 +1991,8 @@ System') }}
 
                 // Data points
                 enhancedChartData.forEach((data, index) => {
-                    const x = margin.left + (innerWidth / 7) * index + (innerWidth / 14);
-                    const y = margin.top + innerHeight - (data.total / maxChartValue) * innerHeight;
+                    const x = margin.left + (innerWidth / bucketCount) * index + (innerWidth / (bucketCount * 2));
+                    const y = margin.top + innerHeight - (['sectional', 'recertification', 'allocation'].reduce((sum, series) => sum + (hiddenSeries.has(series) ? 0 : data[series]), 0) / maxChartValue) * innerHeight;
                     
                     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     circle.setAttribute('cx', x);
@@ -2174,17 +2131,8 @@ System') }}
         // Filter chart data
         function filterChart(filter) {
             currentFilter = filter;
-            console.log(`Filtering chart by: ${filter}`);
-            const dropdown = document.getElementById('filter-dropdown');
-            if (dropdown) {
-                dropdown.classList.remove('show');
-            }
-            
-            // Here you would typically filter the data based on the selected filter
-            // For demo purposes, we'll just show an alert
-            if (filter !== 'all') {
-                alert(`Chart filtered to show only ${filter} applications`);
-            }
+            document.getElementById('filter-dropdown')?.classList.remove('show');
+            loadApplicationAnalytics();
         }
 
         // Toggle chart view between bar and line
@@ -2203,64 +2151,33 @@ System') }}
 
         // Show insights
         function showInsights() {
-            const insights = `
-📊 Key Insights from Applications Data:
-
-🔹 Peak Performance: Thursday shows highest application volume (136 apps) with 96.3% success rate
-🔹 Processing Efficiency: Average processing time improved by 0.4 days this week
-🔹 Success Trends: Overall success rate of 94.2% exceeds target of 90%
-🔹 Weekend Pattern: Lower volumes on weekends but higher rejection rates (12.8% Sat, 14.3% Sun)
-🔹 Sectional Titling: Leading application type with consistent high performance
-🔹 Opportunity: Recertification applications show 15% growth trend
-
-💡 Recommendations:
-• Investigate weekend processing quality issues
-• Optimize Thursday capacity to handle peak loads
-• Consider staff training for recertification processes
-            `;
-            alert(insights);
+            showChartDetails();
         }
 
         // Download chart
         function downloadChart() {
-            alert('Exporting comprehensive analytics report with charts, trends, and insights...');
+            const rows = ['Date,ST Primary,ST PuA,OSS Applications,Total,Approved',
+                ...enhancedChartData.map(d => [d.date, d.sectional, d.recertification, d.allocation, d.count, d.approved].join(','))];
+            const url = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'applications-analytics.csv';
+            link.click();
+            URL.revokeObjectURL(url);
         }
 
         // Refresh chart
         function refreshChart() {
-            generateEnhancedSVGChart();
-            generateAnalyticsChart();
-            alert('Chart data refreshed with latest analytics');
+            loadApplicationAnalytics();
         }
 
         // Show chart details
         function showChartDetails() {
-            const details = `
-📈 Applications Analytics Dashboard
-
-📊 Data Overview:
-• Total Applications: 720 (Last 7 days)
-• Average Daily Volume: 103 applications
-• Peak Day: Thursday (136 applications)
-• Success Rate: 94.2% (Above target)
-• Processing Time: 2.8 days average
-
-🎯 Performance Metrics:
-• Sectional Titling: 318 applications (44.2%)
-• Recertification: 226 applications (31.4%)
-• Allocation: 176 applications (24.4%)
-
-📈 Trends:
-• Week-over-week growth: +12.5%
-• Processing time improvement: -0.4 days
-• Success rate improvement: +2.1%
-
-🔍 Quality Indicators:
-• User Satisfaction: 4.7/5
-• System Uptime: 99.8%
-• Error Rate: <1%
-            `;
-            alert(details);
+            const total = enhancedChartData.reduce((sum, d) => sum + d.count, 0);
+            const approved = enhancedChartData.reduce((sum, d) => sum + d.approved, 0);
+            const peak = enhancedChartData.reduce((best, d) => d.count > (best?.count || 0) ? d : best, null);
+            alert('Applications in selected period: ' + total + '\nApproved: ' + approved +
+                '\nPeak date: ' + (peak ? peak.date + ' (' + peak.count + ' applications)' : 'No applications'));
         }
 
         // Close dropdowns when clicking outside
@@ -2475,46 +2392,7 @@ System') }}
         }
 
         function setupInteractiveFeatures() {
-            // Chart interaction functions
-            window.filterChart = function(filter) {
-                console.log('Filtering chart by:', filter);
-                showNotification(`Chart filtered by ${filter} status`, 'info');
-            };
-
-            window.downloadChart = function() {
-                showNotification('Chart data export initiated', 'success');
-            };
-
-            window.refreshChart = function() {
-                showNotification('Chart data refreshed', 'success');
-            };
-
-            window.showInsights = function() {
-                showNotification('AI-powered insights: Peak application times are between 10 AM - 2 PM', 'info');
-            };
-
-            window.toggleChartView = function() {
-                const text = document.getElementById('chart-view-text');
-                if (text && text.textContent === 'Line View') {
-                    text.textContent = 'Bar View';
-                    showNotification('Switched to line chart view', 'info');
-                } else if (text) {
-                    text.textContent = 'Line View';
-                    showNotification('Switched to bar chart view', 'info');
-                }
-            };
-
-            window.showChartDetails = function() {
-                showNotification('Detailed analytics: 94.2% success rate, 2.8 days avg processing time', 'info');
-            };
-
-            window.toggleChartSeries = function(series) {
-                const legend = document.getElementById(`legend-${series}`);
-                if (legend) {
-                    legend.classList.toggle('inactive');
-                    showNotification(`${series} series toggled`, 'info');
-                }
-            };
+            document.getElementById('chart-period')?.addEventListener('change', loadApplicationAnalytics);
         }
 
         // Add CSS for loading shimmer effect
@@ -2569,21 +2447,43 @@ System') }}
             return `<span class="${cls} px-2 py-1 text-xs rounded-full">${label}</span>`;
         }
 
-        /** Populate the weekly chart with real data */
-        function refreshWeeklyChart(weeklyTrend) {
-            if (!weeklyTrend || !weeklyTrend.length) return;
-            // Replace the static enhancedChartData array
-            window.enhancedChartData = weeklyTrend.map(d => ({
-                day            : d.day,
-                sectional      : Math.round(d.count * 0.44),
-                recertification: Math.round(d.count * 0.31),
-                allocation     : Math.round(d.count * 0.25),
-                total          : d.count,
-                successRate    : 94.2,
-                avgProcessingTime: 2.8,
-                rejectionRate  : 5.8,
+        /** Populate the chart using actual application sources. */
+        function refreshWeeklyChart(trend) {
+            enhancedChartData = (trend || []).map(d => ({
+                ...d,
+                sectional: Number(d.sectional || 0),
+                recertification: Number(d.recertification || 0),
+                allocation: Number(d.allocation || 0),
+                count: Number(d.count || 0),
+                total: Number(d.count || 0),
+                approved: Number(d.approved || 0),
+                successRate: d.count ? Math.round((d.approved || 0) / d.count * 1000) / 10 : 0,
             }));
+            const count = enhancedChartData.reduce((sum, d) => sum + d.count, 0);
+            const approved = enhancedChartData.reduce((sum, d) => sum + d.approved, 0);
+            const peak = enhancedChartData.reduce((best, d) => d.count > (best?.count || 0) ? d : best, null);
+            document.getElementById('avg-processing').textContent = '\u2014';
+            document.getElementById('success-rate').textContent = count ? (approved / count * 100).toFixed(1) + '%' : '\u2014';
+            document.getElementById('peak-day').textContent = peak?.day || '\u2014';
+            document.getElementById('peak-day-count').textContent = peak ? peak.count + ' apps' : 'No applications';
             generateEnhancedSVGChart();
+        }
+
+        let analyticsRequest = 0;
+        async function loadApplicationAnalytics() {
+            const request = ++analyticsRequest;
+            const period = document.getElementById('chart-period')?.value || 'week';
+            try {
+                const response = await fetch('/api/dashboard/application-analytics?period=' + period + '&status=' + currentFilter,
+                    { headers: { Accept: 'application/json' } });
+                if (!response.ok) throw new Error('Application analytics request failed');
+                const body = await response.json();
+                if (request !== analyticsRequest) return;
+                refreshWeeklyChart(body.data);
+            } catch (error) {
+                console.error(error);
+                showNotification('Application chart could not load. Use Refresh to retry.', 'error');
+            }
         }
 
         /** Main loader – ONE fetch for the whole page */
@@ -2628,6 +2528,63 @@ System') }}
                 if (appEl) appEl.textContent = Number(d.approved_apps ?? 0).toLocaleString();
                 const rejEl = document.getElementById('qs-rejected');
                 if (rejEl) rejEl.textContent = Number(d.rejected_apps ?? 0).toLocaleString();
+
+                /* ── Application Pipeline card ────────────────────────── */
+                const pipeRows = document.getElementById('pipeline-rows');
+                if (pipeRows && d.pipeline) {
+                    const streams = [
+                        { key: 'st_primary', label: 'ST Primary',         icon: 'building-2', color: 'text-blue-600' },
+                        { key: 'st_sub',     label: 'ST PuA', icon: 'layers',     color: 'text-green-600' },
+                        { key: 'oss',        label: 'OSS Applications',   icon: 'file-text',  color: 'text-yellow-600' },
+                    ];
+                    const fmt = n => Number(n ?? 0).toLocaleString();
+                    const pct = (n, t) => t ? (n / t * 100) : 0;
+                    let pendingAll = 0, oldest = null;
+
+                    pipeRows.innerHTML = streams.map(s => {
+                        const p = d.pipeline[s.key] || {};
+                        const t = p.total || 0;
+                        pendingAll += p.pending || 0;
+                        if (p.oldest_pending_days != null && (oldest == null || p.oldest_pending_days > oldest.days)) {
+                            oldest = { days: p.oldest_pending_days, label: s.label };
+                        }
+                        const other = p.other ? ` · Other <span class="font-medium text-gray-700">${fmt(p.other)}</span>` : '';
+                        return `
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="${s.icon}" class="h-4 w-4 ${s.color}"></i>
+                                    <span class="text-sm font-medium">${s.label}</span>
+                                    <span class="text-xs text-gray-400">${fmt(t)} total</span>
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    Pending <span class="font-medium text-yellow-700">${fmt(p.pending)}</span>
+                                    · Approved <span class="font-medium text-green-700">${fmt(p.approved)}</span>
+                                    · Rejected <span class="font-medium text-red-700">${fmt(p.rejected)}</span>${other}
+                                </div>
+                            </div>
+                            <div class="flex h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+                                <div class="bg-yellow-400" style="width:${pct(p.pending, t)}%"></div>
+                                <div class="bg-green-500"  style="width:${pct(p.approved, t)}%"></div>
+                                <div class="bg-red-500"    style="width:${pct(p.rejected, t)}%"></div>
+                                <div class="bg-gray-300"   style="width:${pct(p.other, t)}%"></div>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    const footer = document.getElementById('pipeline-footer');
+                    if (footer) {
+                        footer.innerHTML = `
+                            <div class="flex items-center gap-2 text-gray-600">
+                                <i data-lucide="hourglass" class="h-4 w-4 text-yellow-600"></i>
+                                Awaiting action: <span class="font-semibold text-gray-900">${fmt(pendingAll)}</span>
+                            </div>
+                            <div class="text-gray-500">${oldest
+                                ? `Oldest pending: <span class="font-semibold ${oldest.days > 30 ? 'text-red-600' : 'text-gray-900'}">${fmt(oldest.days)} days</span> <span class="text-xs">(${oldest.label})</span>`
+                                : 'Nothing pending'}</div>`;
+                    }
+                    lucide.createIcons();
+                }
 
                 /* ── Applications tab table ───────────────────────────── */
                 const tbody = document.getElementById('applications-table-body');
@@ -2718,7 +2675,7 @@ System') }}
                 }
 
                 /* ── Weekly chart ─────────────────────────────────────── */
-                refreshWeeklyChart(d.weekly_trend);
+                loadApplicationAnalytics();
 
                 /* ── System status ────────────────────────────────────── */
                 updateSystemStatus('operational', 'All systems operational');

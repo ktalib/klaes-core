@@ -4,7 +4,6 @@ namespace App\Services\Phs;
 
 use App\Mail\AccountVerificationCode;
 use App\Models\Phs\PhsMember;
-use App\Services\BulkSmsNgService;
 use App\Services\PhoneOtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -24,13 +23,7 @@ use Illuminate\Support\Facades\Mail;
  * started. The code itself is NOT in the session — it lives in the cache as an
  * HMAC, keyed to the member.
  *
- * EMAIL LEADS, with SMS as the second route once the member has a PROVED mobile
- * number (PhsPhoneSetupService). Email first because these are office users with
- * the mailbox already open, and because the only SMS route this gateway account
- * has is the promotional one, which the telcos hold overnight and never deliver
- * to a DND-blocked handset. A member who has not confirmed a number gets email
- * regardless — there is nothing else to use, and an UNPROVED number in the
- * column is exactly what must never be texted a sign-in code.
+ * Sign-in codes are delivered only by email. No mobile number is required.
  *
  * NOTHING IS WRITTEN TO phs_members, so this needs no migration and can be
  * switched off with one env key.
@@ -51,16 +44,10 @@ class PhsLoginOtpService
     /** Per-member code: hash, sent_at, channel, attempts. Shared by every session of the account. */
     public const CODE_CACHE = 'phs_login_otp.code.';
 
-    /** Per-member timestamps of SMS sent in the last hour, for the hourly cap. */
-    public const SMS_LOG_CACHE = 'phs_login_otp.sms.';
-
     public const CHANNEL_EMAIL = PhoneOtpService::CHANNEL_EMAIL;
-    public const CHANNEL_SMS = PhoneOtpService::CHANNEL_SMS;
 
-    public function __construct(
-        private PhoneOtpService $phoneOtp,
-        private BulkSmsNgService $gateway,
-    ) {
+    public function __construct(private PhoneOtpService $phoneOtp)
+    {
     }
 
     /* ── policy ───────────────────────────────────────────────────────────── */
@@ -73,36 +60,11 @@ class PhsLoginOtpService
     /**
      * Must this member type a code to sign in?
      *
-     * Only when there is somewhere to send one. A member with neither a usable
-     * address nor a proved mobile is let through on their password alone,
-     * because the alternative is an institution locked out of a service it pays
-     * for. In practice the phone card (RequirePhsPhone) means that case is a
-     * placeholder email and no confirmed number.
+     * Only when the member has a usable email address and email OTP is enabled.
      */
     public function requiredFor(PhsMember $member): bool
     {
-        if (!$this->enabled()) {
-            return false;
-        }
-
-        return $this->emailFor($member) !== null || $this->phoneFor($member) !== null;
-    }
-
-    /**
-     * The mobile the gateway can reach, or null.
-     *
-     * ONLY a number the member has confirmed by code. An unproved number is one
-     * somebody typed — possibly an administrator adding a colleague, possibly a
-     * typo — and texting a sign-in code to it would be sending the key to the
-     * account to whoever happens to hold that handset.
-     */
-    public function phoneFor(PhsMember $member): ?string
-    {
-        if (!$member->hasVerifiedPhone()) {
-            return null;
-        }
-
-        return BulkSmsNgService::normalizeNumber((string) $member->phone);
+        return $this->enabled() && $this->emailFor($member) !== null;
     }
 
     /** The address, or null when the row holds only a placeholder. */
@@ -152,9 +114,7 @@ class PhsLoginOtpService
         $reuseFor = max(0, (int) config('phone_verification.phs_login_otp.reuse_minutes', 5)) * 60;
 
         if ($live && now()->timestamp - $live['sent_at'] < $reuseFor) {
-            $where = ($live['channel'] ?? self::CHANNEL_EMAIL) === self::CHANNEL_SMS
-                ? $this->phoneOtp->mask($this->phoneFor($member))
-                : $this->phoneOtp->maskEmail($this->emailFor($member));
+            $where = $this->phoneOtp->maskEmail($this->emailFor($member));
 
             return [
                 'sent' => true,
@@ -162,38 +122,7 @@ class PhsLoginOtpService
             ];
         }
 
-        return $this->send($request, $this->firstChannel($member));
-    }
-
-    /**
-     * The route the first code takes: email unless configured otherwise, and
-     * always email when there is no proved mobile to text.
-     */
-    public function firstChannel(PhsMember $member): string
-    {
-        if ($this->phoneFor($member) === null) {
-            return self::CHANNEL_EMAIL;
-        }
-
-        if ($this->emailFor($member) === null) {
-            return self::CHANNEL_SMS;
-        }
-
-        return strtolower((string) config('phone_verification.phs_login_otp.channel', 'email')) === self::CHANNEL_SMS
-            ? self::CHANNEL_SMS
-            : self::CHANNEL_EMAIL;
-    }
-
-    /**
-     * config('app.timezone') is UTC on this deployment while Kano is WAT, so the
-     * office clock has to be read explicitly. Used only to warn on the code
-     * screen that a text sent now will not arrive until the morning.
-     */
-    public function inQuietHours(): bool
-    {
-        $hhmm = (int) now(config('phone_verification.timezone', 'Africa/Lagos'))->format('Hi');
-
-        return $hhmm >= 1945 || $hhmm < 800;
+        return $this->send($request);
     }
 
     /**
@@ -205,7 +134,7 @@ class PhsLoginOtpService
     {
         $code = Cache::get(self::CODE_CACHE . $member->id);
 
-        if (!is_array($code) || empty($code['hash']) || now()->timestamp - (int) $code['sent_at'] > $this->ttlMinutes() * 60) {
+        if (!is_array($code) || ($code['channel'] ?? self::CHANNEL_EMAIL) !== self::CHANNEL_EMAIL || empty($code['hash']) || now()->timestamp - (int) $code['sent_at'] > $this->ttlMinutes() * 60) {
             return null;
         }
 
@@ -217,7 +146,8 @@ class PhsLoginOtpService
     {
         $code = Cache::get(self::CODE_CACHE . $member->id);
 
-        return is_array($code) && !empty($code['sent_at']) ? $code : null;
+        return is_array($code) && ($code['channel'] ?? self::CHANNEL_EMAIL) === self::CHANNEL_EMAIL
+            && !empty($code['sent_at']) ? $code : null;
     }
 
     private function storeCode(PhsMember $member, ?string $hash, string $channel = self::CHANNEL_EMAIL, int $attempts = 0, ?int $sentAt = null): void
@@ -228,20 +158,6 @@ class PhsLoginOtpService
             'channel' => $channel,
             'attempts' => $attempts,
         ], now()->addMinutes($this->ttlMinutes())->addSeconds($this->cooldownSeconds()));
-    }
-
-    private function smsSentThisHour(PhsMember $member): int
-    {
-        $stamps = array_filter((array) Cache::get(self::SMS_LOG_CACHE . $member->id, []), fn ($t) => $t > now()->timestamp - 3600);
-
-        return count($stamps);
-    }
-
-    private function recordSms(PhsMember $member): void
-    {
-        $stamps = array_filter((array) Cache::get(self::SMS_LOG_CACHE . $member->id, []), fn ($t) => $t > now()->timestamp - 3600);
-        $stamps[] = now()->timestamp;
-        Cache::put(self::SMS_LOG_CACHE . $member->id, array_values($stamps), now()->addHour());
     }
 
     /**
@@ -288,19 +204,13 @@ class PhsLoginOtpService
         $request->session()->forget(self::SESSION_KEY);
     }
 
-    /**
-     * Seconds before another code may be asked for by $channel (null: by the
-     * route last used).
-     *
-     * Switching route is allowed at once: an SMS the network is holding until
-     * morning is exactly when the member is told to use email instead.
-     */
-    public function cooldownRemaining(Request $request, ?string $channel = null): int
+    /** Seconds before another email code may be requested. */
+    public function cooldownRemaining(Request $request): int
     {
         $member = $this->pendingMember($request);
         $last = $member ? $this->lastSend($member) : null;
 
-        if (!$last || ($channel !== null && $channel !== ($last['channel'] ?? self::CHANNEL_EMAIL))) {
+        if (!$last) {
             return 0;
         }
 
@@ -314,47 +224,22 @@ class PhsLoginOtpService
      *
      * @return array{sent:bool, message:string}
      */
-    public function send(Request $request, ?string $channel = null): array
+    public function send(Request $request): array
     {
         $member = $this->pendingMember($request);
         if (!$member) {
             return ['sent' => false, 'message' => 'Your sign-in has expired. Enter your username and password again.'];
         }
 
-        $channel = $channel === self::CHANNEL_SMS ? self::CHANNEL_SMS : self::CHANNEL_EMAIL;
-
-        // Asking for SMS on an account with no proved number falls back rather
-        // than refusing: the member cannot tell from the screen why a route they
-        // were offered would not work, and email always can.
-        if ($channel === self::CHANNEL_SMS && $this->phoneFor($member) === null) {
-            $channel = self::CHANNEL_EMAIL;
-        }
-
-        $wait = $this->cooldownRemaining($request, $channel);
+        $wait = $this->cooldownRemaining($request);
         if ($wait > 0) {
             return ['sent' => false, 'message' => "Wait {$wait} seconds before asking for another code."];
         }
 
-        if ($channel === self::CHANNEL_SMS) {
-            $cap = max(1, (int) config('phone_verification.phs_login_otp.max_sms_per_hour', 6));
-
-            if ($this->smsSentThisHour($member) >= $cap) {
-                return ['sent' => false, 'message' => 'Too many codes have been texted to this account in the last hour. Use the email option, or try again later.'];
-            }
-        }
-
         $code = $this->phoneOtp->generateCode();
 
-        // Stored before the send and kept if it fails: the mailer or the gateway
-        // may have handed the message off whatever it then answered, and the
-        // cooldown must apply either way.
-        $this->storeCode($member, $this->hash($code, $member), $channel);
-
-        if ($channel === self::CHANNEL_SMS) {
-            $this->recordSms($member);
-
-            return $this->sendBySms($member, $code);
-        }
+        // Keep the code and cooldown even if the mailer reports a failure.
+        $this->storeCode($member, $this->hash($code, $member));
 
         return $this->sendByEmail($request, $member, $code);
     }
@@ -387,58 +272,6 @@ class PhsLoginOtpService
 
         return ['sent' => true, 'message' => 'A sign-in code has been sent to ' . $this->phoneOtp->maskEmail($email)
             . '. It expires in ' . $this->ttlMinutes() . ' minutes.'];
-    }
-
-    private function sendBySms(PhsMember $member, string $code): array
-    {
-        $phone = $this->phoneFor($member);
-
-        $accepted = $this->gateway->sendFirstAccepted($phone, $this->messagesFor($code), $this->sender());
-        $status = $this->gateway->lastStatusCode();
-        $reason = $this->gateway->lastFailureReason();
-
-        if ($accepted === null) {
-            Log::warning('PhsLoginOtpService: sign-in code not delivered by SMS', [
-                'member_id' => $member->id,
-                'gateway_code' => $status,
-                'reason' => $reason,
-            ]);
-
-            return ['sent' => false, 'message' => $this->phoneOtp->explainFailure($status, $reason)];
-        }
-
-        return ['sent' => true, 'message' => 'A sign-in code has been sent to ' . $this->phoneOtp->mask($phone)
-            . '. It expires in ' . $this->ttlMinutes() . ' minutes.'];
-    }
-
-    /**
-     * The name the text arrives under. Follows the staff sign-in code rather
-     * than the server default; see LaasLoginOtpService::sender() for the night
-     * that cost.
-     */
-    private function sender(): ?string
-    {
-        $configured = config('phone_verification.phs_login_otp.sender');
-        if (!empty($configured)) {
-            return (string) $configured;
-        }
-
-        try {
-            return \App\Models\SmsSetting::senderFor(\App\Models\SmsSetting::KEY_PHONE_OTP);
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
-
-    /** @return array<int,string> */
-    private function messagesFor(string $code): array
-    {
-        $tokens = ['{code}' => $code, '{minutes}' => (string) $this->ttlMinutes()];
-
-        return array_values(array_filter([
-            strtr((string) config('phone_verification.phs_login_otp.message'), $tokens),
-            strtr((string) config('phone_verification.phs_login_otp.message_fallback'), $tokens),
-        ]));
     }
 
     /* ── verifying ────────────────────────────────────────────────────────── */

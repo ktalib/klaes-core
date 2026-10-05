@@ -33,11 +33,6 @@
 @endsection
 
 @section('content')
-@php
-    // SMS is only ever offered when the member has CONFIRMED a number, so
-    // $maskedPhone being set is the same thing as "the second route exists".
-    $sentBySms = $channel === 'sms' && $maskedPhone;
-@endphp
 
 <div class="h-screen flex overflow-hidden">
 
@@ -57,13 +52,8 @@
                      class="mx-auto mb-4 h-20 w-auto object-contain hidden dark:block">
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Enter your sign-in code</h1>
                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    @if ($sentBySms)
-                        We texted a {{ $codeLength }}-digit code to
-                        <span class="font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ $maskedPhone }}</span>.
-                    @else
-                        We emailed a {{ $codeLength }}-digit code to
-                        <span class="font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ $maskedEmail }}</span>.
-                    @endif
+                    We emailed a {{ $codeLength }}-digit code to
+                    <span class="font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{{ $maskedEmail }}</span>.
                 </p>
                 @if ($organization)
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">{{ $organization }}</p>
@@ -118,46 +108,21 @@
 
                 <div class="mt-6 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-4 py-3">
                     <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Didn&rsquo;t get the {{ $sentBySms ? 'text' : 'email' }}?
+                        Didn&rsquo;t get the email?
                     </p>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        @if ($sentBySms)
-                            Texts can take a few minutes to arrive.
-                        @else
-                            It can take a minute, and it sometimes lands in spam or junk.
-                        @endif
+                        It can take a minute, and it sometimes lands in spam or junk.
                     </p>
 
                     <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
                         <form action="{{ route('phs.login.otp.resend') }}" method="POST">
                             @csrf
-                            <input type="hidden" name="channel" value="{{ $sentBySms ? 'sms' : 'email' }}">
                             <button type="submit" id="resendButton" data-wait="{{ $retryAfter }}"
                                     class="font-semibold text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300">
-                                <span id="resendLabel">{{ $sentBySms ? 'Resend text' : 'Send another email' }}</span>
+                                <span id="resendLabel">Send another email</span>
                             </button>
                         </form>
-
-                        {{-- The other route, offered only when it can actually reach them. --}}
-                        @if ($sentBySms ? (bool) $maskedEmail : (bool) $maskedPhone)
-                            <span aria-hidden="true" class="text-gray-300 dark:text-gray-600">|</span>
-                            <form action="{{ route('phs.login.otp.resend') }}" method="POST">
-                                @csrf
-                                <input type="hidden" name="channel" value="{{ $sentBySms ? 'email' : 'sms' }}">
-                                <button type="submit"
-                                        class="font-semibold text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300">
-                                    {{ $sentBySms ? 'Email it to me instead' : 'Text it to me instead' }}
-                                </button>
-                            </form>
-                        @endif
                     </div>
-
-                    @if (!$sentBySms && $maskedPhone && $quietHours)
-                        <p class="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-                            <i data-lucide="moon" class="mt-px h-3.5 w-3.5 flex-shrink-0"></i>
-                            <span>The networks hold text messages between 7:45pm and 8:00am, so email is faster right now.</span>
-                        </p>
-                    @endif
                 </div>
             </div>
 
@@ -200,7 +165,7 @@
                 <li class="flex items-center">
                     <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-800 dark:bg-gray-200 text-sm font-semibold text-white dark:text-gray-900 ring-4 ring-gray-300 dark:ring-gray-600">2</span>
                     <span class="ml-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        Code sent to your {{ $sentBySms ? 'phone' : 'email' }}
+                        Code sent to your email
                     </span>
                 </li>
                 <li class="flex items-center">

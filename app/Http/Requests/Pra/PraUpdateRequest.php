@@ -28,7 +28,7 @@ class PraUpdateRequest extends FormRequest
             'serialNo' => ['sometimes', 'nullable', 'string'],
             'pageNo' => ['sometimes', 'nullable', 'string'],
             'volumeNo' => ['sometimes', 'nullable', 'string'],
-            'op_serial_number' => ['sometimes', 'nullable', 'string'],
+            'op_serial_number' => array_merge(['sometimes'], \App\Support\OpSerial::rules('nullable')),
             'op_type' => ['sometimes', 'nullable', 'string'],
             'regNo' => ['sometimes', 'nullable', 'string'],
             'purpose' => ['sometimes', 'nullable', 'string'],

@@ -41,7 +41,7 @@
                     </form>
                     <button type="button" onclick="openRecordsExportModal()"
                         class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200 whitespace-nowrap text-sm">
-                        <i data-lucide="download" class="h-4 w-4"></i> Export Records
+                        <i data-lucide="download" class="h-4 w-4"></i> Consolidated Report
                     </button>
                     @if(!$ossViewOnly)
                     <button type="button" onclick="openBatchPrintModal()"
@@ -3093,12 +3093,14 @@ function submitBatchPrint(ids, csrf, printWindow, copies, windowName, reload, ex
 {{-- Export (preview + date range + CSV + PDF) --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
 @include('exports.records_export_modal', ['exportConfig' => [
-    'title'         => $ossViewOnly ? 'Export OSS RofO' : 'Export Land RofO',
+    'title'         => $ossViewOnly ? 'OSS RofO Consolidated Report' : 'Land RofO Consolidated Report',
     'subtitle'      => 'Consolidated report generation & export filter',
     'endpoint'      => route('land-rofos.export'),
+    'department'    => 'Department of Land',
+    'dateLabel'     => 'Recommendation created date',
     'params'        => array_filter(['view' => $ossViewOnly ? 'only' : null]),
     'filename'      => $ossViewOnly ? 'OSS_RofO' : 'Land_RofO',
-    'reportTitle'   => $ossViewOnly ? 'OSS RofO Register' : 'Land RofO Register',
+    'reportTitle'   => $ossViewOnly ? 'OSS RofO Consolidated Report' : 'Land RofO Consolidated Report',
     'search'        => request('search'),
     'statusOptions' => $ossViewOnly
         ? ['' => 'All Records']

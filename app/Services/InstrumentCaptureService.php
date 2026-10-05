@@ -39,6 +39,8 @@ class InstrumentCaptureService
                 throw new Exception("Instrument type is required.");
             }
 
+            $data = \App\Support\OpSerial::guard($data);
+
             // Validate OP Serial Number for Occupancy Permits
             if (stripos($instrumentType, 'Occupancy Permit') !== false) {
                 if (empty($data['op_serial_number'])) {
@@ -368,6 +370,7 @@ class InstrumentCaptureService
             }
 
             $id = DB::connection('sqlsrv')->table('instrument_capture')->insertGetId($insertData);
+            app(OpSerialSynchronizer::class)->sync('instrument_capture', $id);
 
             // NEW: Universal Atomic Registration - persist to deed_registrations
             $deedRegId = null;
@@ -769,6 +772,7 @@ class InstrumentCaptureService
                 throw new Exception("Instrument record not found.");
             }
 
+            $data = \App\Support\OpSerial::guard($data, (array) $existing);
             // 2. Validation & Pre-processing (basic)
             $instrumentType = $data['instrument_type'] ?? $existing->instrument_type;
 
@@ -950,9 +954,13 @@ class InstrumentCaptureService
             DB::connection('sqlsrv')->table('instrument_capture')
                 ->where('id', $id)
                 ->update($updateData);
+            app(OpSerialSynchronizer::class)->sync('instrument_capture', $id, $existing->op_serial_number ?? null);
 
             // Propagate name changes to core tables for specific instrument types (Deed of Assignment/Gift)
-            $syncResult = $this->regService->syncPartyNames($primary, $instrumentType, $parties['party_2']['name']);
+            $syncResult = $this->regService->syncPartyNames($primary, $instrumentType, $parties['party_2']['name'], [
+                'instrument_capture_id' => $id,
+                'source' => 'capture_edit',
+            ]);
 
             return [
                 'success' => true,

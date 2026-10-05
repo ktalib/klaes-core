@@ -292,22 +292,8 @@ return [
     | PHS Portal sign-in code (institutional members)
     |--------------------------------------------------------------------------
     |
-    | EMAIL ONLY, and that is a fact about the schema rather than a preference:
-    | phs_members has no phone column at all. The model's $fillable lists one,
-    | but the table does not have it, so there is no mobile number on a PHS
-    | account to text. All seven live members hold a real, deliverable address.
-    |
-    | phs_institutions DOES carry a phone, and it is deliberately not used here.
-    | Two reasons. It is the ORGANISATION's line, shared by every member of that
-    | institution, so a personal sign-in code sent there is readable by
-    | colleagues — which is most of what the second factor was for. And the
-    | column is mostly seeded test data ("178-257-9000", "0856..." — not a
-    | Nigerian prefix), which BulkSmsNgService::normalizeNumber will happily
-    | turn into a 234-prefixed number that the gateway accepts, bills for and
-    | never delivers.
-    |
-    | Adding SMS later means adding phs_members.phone, collecting real numbers,
-    | and only then turning on a channel here.
+    | Sign-in codes are sent only to the member's email address.
+    | Phone collection and SMS verification are not part of PHS sign-in.
     |
     */
     'phs_login_otp' => [
@@ -334,37 +320,6 @@ return [
          | invalidate each other's code.
          */
         'reuse_minutes' => env('PHS_LOGIN_OTP_REUSE_MINUTES', 5),
-
-        /*
-         | Which route the FIRST code takes once the member has a PROVED mobile
-         | number: 'email' (default) or 'sms'. Email leads here, unlike the LAAS
-         | portal, for two reasons: PHS members are office users at a desk with
-         | the mailbox already open, and the only SMS route this account has is
-         | the promotional one, which the telcos hold overnight and never deliver
-         | to a DND-blocked handset. A member with no verified number gets email
-         | regardless, because there is nothing else to use.
-         |
-         | Either way the code screen offers the other route.
-         */
-        'channel' => env('PHS_LOGIN_OTP_CHANNEL', 'email'),
-
-        /* Per member, per rolling hour. Protects the handset and the wallet. */
-        'max_sms_per_hour' => env('PHS_LOGIN_OTP_MAX_SMS_PER_HOUR', 6),
-
-        /*
-         | The name the text arrives under. Blank follows the staff sign-in code
-         | (SmsSetting phone_otp, currently KLAES), which is the sender the
-         | gateway is actually delivering. NOT the server default: Bulk-SMS.ng
-         | accepts an unregistered sender ID, bills for it and delivers nothing.
-         */
-        'sender' => env('PHS_LOGIN_OTP_SENDER'),
-
-        'message' => env(
-            'PHS_LOGIN_OTP_MESSAGE',
-            'KLAES PHS: {code} is your sign-in number. It is valid for {minutes} minutes. Do not share it with anyone.'
-        ),
-
-        'message_fallback' => env('PHS_LOGIN_OTP_MESSAGE_FALLBACK', 'KLAES PHS: {code}'),
 
         'email_subject' => env('PHS_LOGIN_OTP_EMAIL_SUBJECT', 'Your PHS Portal sign-in code'),
     ],

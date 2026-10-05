@@ -33,8 +33,7 @@
                 <div class="hidden mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
                     data-role="update-banner">
                     <span class="font-semibold">Update Mode:</span>
-                    Updating existing PRA record <span data-role="update-label" class="font-mono"></span>. Submitting
-                    will overwrite the stored entry.
+                    Updating existing PRA record <span data-role="update-label" class="font-mono"></span>.
                 </div>
 
                 <div class="space-y-4 py-2 flex-1 max-h-[75vh] overflow-y-auto pr-1">

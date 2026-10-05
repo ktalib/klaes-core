@@ -1,0 +1,62 @@
+{
+    "criteria": [
+        [
+            "Export date",
+            "2026-10-03 (Africa/Lagos)"
+        ],
+        [
+            "Scope",
+            "Active file indexing records in Lands Registry with MLS file-number year 2026."
+        ],
+        [
+            "Year filter",
+            "The file number contains the year component -2026-. This is not an indexing-date filter."
+        ],
+        [
+            "Origin check",
+            "Matching fileNumber register row must have SOURCE=indexing."
+        ],
+        [
+            "Commissioning exclusion",
+            "No matching mls_file_no entry, commissioning sheet, or fileNumber commissioning date/commissioning or OSS source."
+        ],
+        [
+            "Indexed by",
+            "file_indexings.created_by; numeric user IDs resolved to users.first_name + users.last_name."
+        ],
+        [
+            "Title",
+            "file_indexings.file_title."
+        ],
+        [
+            "Review purpose",
+            "Candidates for mistakenly indexed 2026 file numbers; the export does not independently prove the year is incorrect."
+        ],
+        [
+            "Indexed records",
+            "282"
+        ],
+        [
+            "Distinct file numbers",
+            "282"
+        ],
+        [
+            "Blank titles",
+            "1"
+        ],
+        [
+            "Unresolved indexed by",
+            "0"
+        ],
+        [
+            "Database actions",
+            "Read-only SELECT queries; no records were changed."
+        ]
+    ],
+    "counts": {
+        "indexed_records": 282,
+        "distinct_file_numbers": 282,
+        "blank_titles": 1,
+        "unresolved_indexer": 0
+    }
+}

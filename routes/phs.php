@@ -10,7 +10,6 @@ use App\Http\Controllers\Phs\PhsOrganizationController;
 use App\Http\Controllers\Phs\PhsOnboardingController;
 use App\Http\Controllers\Phs\PhsFeedbackController;
 use App\Http\Controllers\Phs\PhsLoginOtpController;
-use App\Http\Controllers\Phs\PhsPhoneSetupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,28 +64,14 @@ Route::prefix('phs')->name('phs.')->group(function () {
     Route::post('payment/{id}/{token}/initiate', [PhsOnboardingController::class, 'initiatePaystackPayment'])->name('payment.initiate');
     Route::get('payment/{id}/{token}/callback', [PhsOnboardingController::class, 'handlePaystackCallback'])->name('payment.callback');
 
-    /*
-     | The mobile-number card. Signed in and past the sign-in code, but NOT
-     | behind `phs.phone` — a gate that blocked its own screens would leave the
-     | member bouncing between the card and itself. Logout sits here for the same
-     | reason: somebody who does not want to give a number must still be able to
-     | leave.
-     */
+    // Keep old bookmarks and in-progress phone screens out of SMS verification.
     Route::middleware(['auth:phs', 'phs.otp'])->group(function () {
-        Route::post('logout', [PhsAuthController::class, 'logout'])->name('logout');
-
-        Route::get('phone/confirm', [PhsPhoneSetupController::class, 'show'])->name('phone.setup');
-        Route::post('phone/confirm', [PhsPhoneSetupController::class, 'send'])
-            ->middleware('throttle:10,1')->name('phone.setup.send');
-        Route::post('phone/confirm/resend', [PhsPhoneSetupController::class, 'resend'])
-            ->middleware('throttle:6,1')->name('phone.setup.resend');
-        Route::post('phone/confirm/code', [PhsPhoneSetupController::class, 'confirm'])
-            ->middleware('throttle:10,1')->name('phone.setup.confirm');
-        Route::post('phone/confirm/change', [PhsPhoneSetupController::class, 'change'])->name('phone.setup.change');
+        Route::redirect('phone/confirm', '/phs/dashboard')->name('phone.setup');
     });
 
-    // ---- Authenticated PHS members ----
-    Route::middleware(['auth:phs', 'phs.otp', 'phs.phone'])->group(function () {
+    // ---- Authenticated PHS members: email OTP completes sign-in. ----
+    Route::middleware(['auth:phs', 'phs.otp'])->group(function () {
+        Route::post('logout', [PhsAuthController::class, 'logout'])->name('logout');
 
         Route::get('dashboard', [PhsDashboardController::class, 'index'])->name('dashboard');
         Route::post('search', [PhsDashboardController::class, 'search'])->name('search');

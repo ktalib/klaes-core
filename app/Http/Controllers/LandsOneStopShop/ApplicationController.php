@@ -885,9 +885,13 @@ class ApplicationController extends Controller
         // the PRA OP row and is synced separately below.
         unset($data['occupancy_permit'], $data['has_occupancy_permit'], $data['op_from_record']);
 
-        $record = LandsOneStopShopApplication::create($data);
-
-        $this->syncOccupancyPermitToPra($request, (string) ($record->file_no ?? ''));
+        $data = \App\Support\OpSerial::guard($data);
+        $record = DB::connection('sqlsrv')->transaction(function () use ($data, $request) {
+            $record = LandsOneStopShopApplication::create($data);
+            $this->syncOccupancyPermitToPra($request, (string) ($record->file_no ?? ''));
+            $this->syncApplicationOpSerial($record, $request, false);
+            return $record;
+        });
 
         return response()->json([
             'success' => true,
@@ -956,18 +960,12 @@ class ApplicationController extends Controller
 
         unset($data['occupancy_permit'], $data['has_occupancy_permit'], $data['op_from_record']);
 
-        // The form always posts op_serial_number, blank included — when the OP
-        // lookup returns nothing the input is empty, and writing that through
-        // would erase a serial the record already holds.
-        if (array_key_exists('op_serial_number', $data)
-            && trim((string) $data['op_serial_number']) === ''
-            && trim((string) ($record->op_serial_number ?? '')) !== '') {
-            unset($data['op_serial_number']);
-        }
-
-        $record->update($data);
-
-        $this->syncOccupancyPermitToPra($request, (string) ($record->file_no ?? ''));
+        $data = \App\Support\OpSerial::guard($data, $record->getAttributes());
+        DB::connection('sqlsrv')->transaction(function () use ($record, $data, $request) {
+            $record->update($data);
+            $this->syncOccupancyPermitToPra($request, (string) ($record->file_no ?? ''));
+            $this->syncApplicationOpSerial($record, $request, true);
+        });
 
         return response()->json([
             'success' => true,
@@ -4028,8 +4026,7 @@ class ApplicationController extends Controller
         $opRow = collect($records)
             ->map(static fn ($record) => (array) $record)
             ->filter(function (array $r): bool {
-                $t = strtoupper(trim((string) ($r['instrument_type'] ?? '') . ' ' . ($r['transaction_type'] ?? '')));
-                return str_contains($t, 'OCCUPANCY PERMIT') || str_contains($t, 'OP)');
+                return empty($r['is_deleted']) && \App\Support\OpSerial::isMother($r);
             })
             ->sortByDesc(fn (array $r) => $this->rowTimestampForMotherSelection($r))
             ->first() ?: [];
@@ -4410,7 +4407,7 @@ class ApplicationController extends Controller
             'system_source' => 'nullable|string|max:50',
             // OP Serial Number (for manual capture when not found in record).
             // Mandatory for Change of Name applications so no row is saved without one.
-            'op_serial_number' => 'required_if:system_source,OSSOPCHANGEOFNAME|nullable|string|max:100',
+            'op_serial_number' => array_merge(['required_if:system_source,OSSOPCHANGEOFNAME'], \App\Support\OpSerial::rules('nullable')),
 
             // ── Occupancy Permit Details ──
             // Not columns on oss_applications: this block is synced back onto the
@@ -4422,7 +4419,7 @@ class ApplicationController extends Controller
             'occupancy_permit.from_record' => 'nullable|boolean',
             'occupancy_permit.status' => 'nullable|string|max:100',
             'occupancy_permit.op_type' => 'nullable|string|max:100',
-            'occupancy_permit.op_serial_number' => 'nullable|string|max:100',
+            'occupancy_permit.op_serial_number' => array_merge(['required_with:occupancy_permit'], \App\Support\OpSerial::rules('nullable')),
             'occupancy_permit.transaction_date' => 'nullable|date',
             'occupancy_permit.file_number' => 'nullable|string|max:120',
             'occupancy_permit.land_use' => 'nullable|string|max:100',
@@ -4451,6 +4448,53 @@ class ApplicationController extends Controller
      * to mint a prop_id, and the form already hides this section (and blocks
      * Save) when the selected file has no OP, so that path cannot be reached.
      */
+    private function syncApplicationOpSerial(LandsOneStopShopApplication $record, Request $request, bool $isEdit): void
+    {
+        if (!\App\Support\OpSerial::isOp($record->getAttributes())) return;
+        $db = DB::connection('sqlsrv');
+        $fileNo = strtoupper(trim((string) $record->file_no));
+        $sourceTable = 'pra';
+        $sourceId = (int) $request->input('occupancy_permit.record_id', 0);
+        if (!$sourceId && !empty($record->instrument_capture_id)) {
+            $sourceTable = 'instrument_capture';
+            $sourceId = (int) $record->instrument_capture_id;
+        }
+        if (!$sourceId) {
+            $commissions = $db->table('mls_file_no')->where('full_file_number', $fileNo)->get();
+            $links = [];
+            foreach ($commissions as $commission) {
+                if (!empty($commission->source_pra_id)) $links['pra:'.$commission->source_pra_id] = ['pra', $commission->source_pra_id];
+                if (!empty($commission->source_instrument_capture_id)) $links['instrument_capture:'.$commission->source_instrument_capture_id] = ['instrument_capture', $commission->source_instrument_capture_id];
+            }
+            if (count($links) > 1) throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'Select the exact OP card; commissioning identifies multiple sources.']);
+            if ($links) [$sourceTable, $sourceId] = reset($links);
+        }
+        if (!$sourceId) {
+            $candidates = $db->table('pra')->where(fn ($q) => $q->where('mlsFNo', $fileNo)->orWhere('fileno', $fileNo))
+                ->where('instrument_type', 'like', '%Occupancy Permit%')->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()->get();
+            if ($candidates->count() !== 1) throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'Select one exact source OP card before saving this application.']);
+            $sourceId = $candidates->first()->id;
+        }
+        $source = $db->table($sourceTable)->where('id', $sourceId)->lockForUpdate()->first();
+        if ($source && !\App\Support\OpSerial::isMother((array) $source) && empty($source->merger_group_id)
+            && in_array($source->source_op_table ?? '', ['pra', 'instrument_capture'], true) && !empty($source->source_op_id)) {
+            $sourceTable = $source->source_op_table;
+            $sourceId = $source->source_op_id;
+            $source = $db->table($sourceTable)->where('id', $sourceId)->lockForUpdate()->first();
+        }
+        if (!$source || !empty($source->is_deleted) || !\App\Support\OpSerial::isMother((array) $source)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The source is not an active OP. Correct the OP selection.']);
+        }
+        $serial = \App\Support\OpSerial::require($record->op_serial_number);
+        $before = $source->op_serial_number ?? null;
+        if (\App\Support\OpSerial::valid($before) && trim((string) $before) !== $serial
+            && (!$isEdit || !$request->exists('op_serial_number'))) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The application serial differs from its source OP. Correct the OP card explicitly.']);
+        }
+        $db->table($sourceTable)->where('id', $sourceId)->update(['op_serial_number' => $serial, 'updated_at' => now()]);
+        app(\App\Services\OpSerialSynchronizer::class)->sync($sourceTable, $sourceId, $before);
+    }
+
     private function syncOccupancyPermitToPra(Request $request, string $fileNo): void
     {
         $op = $request->input('occupancy_permit');
@@ -4464,12 +4508,18 @@ class ApplicationController extends Controller
 
         $recordId = (int) ($op['record_id'] ?? 0);
         if ($recordId <= 0) {
-            Log::info('OSS: occupancy permit not synced — no PRA record id posted', [
-                'file_no' => $fileNo,
-            ]);
-            return;
+            throw \Illuminate\Validation\ValidationException::withMessages(['occupancy_permit.record_id' => 'Select the exact source OP before saving its details.']);
         }
 
+        $source = DB::connection('sqlsrv')->table('pra')->where('id', $recordId)->lockForUpdate()->first();
+        if (!$source || !empty($source->is_deleted) || !\App\Support\OpSerial::isMother((array) $source)
+            || !in_array(strtoupper(trim($fileNo)), array_map(fn ($v) => strtoupper(trim((string) $v)), [$source->fileno ?? '', $source->mlsFNo ?? '', $source->resolved_fileno ?? '']), true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['occupancy_permit.record_id' => 'The selected OP does not belong to this file.']);
+        }
+        $serial = \App\Support\OpSerial::require($op['op_serial_number'] ?? null, 'occupancy_permit.op_serial_number');
+        if ($request->filled('op_serial_number') && trim((string) $request->input('op_serial_number')) !== $serial) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The application and OP card serials must agree.']);
+        }
         $val = static function (array $op, string $key): ?string {
             $v = trim((string) ($op[$key] ?? ''));
             return $v === '' ? null : $v;
@@ -4521,6 +4571,7 @@ class ApplicationController extends Controller
                 ->where('id', $recordId)
                 ->update($updates);
 
+            app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $recordId, $source->op_serial_number ?? null);
             Log::info('OSS: occupancy permit synced to PRA', [
                 'pra_id' => $recordId,
                 'file_no' => $fileNo,
@@ -4528,12 +4579,7 @@ class ApplicationController extends Controller
                 'fields' => array_keys($updates),
             ]);
         } catch (\Throwable $e) {
-            // A failed OP sync must not roll back the application itself.
-            Log::error('OSS: occupancy permit sync failed', [
-                'pra_id' => $recordId,
-                'file_no' => $fileNo,
-                'error' => $e->getMessage(),
-            ]);
+            throw $e;
         }
     }
 }

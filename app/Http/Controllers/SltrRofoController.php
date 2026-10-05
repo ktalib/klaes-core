@@ -35,12 +35,21 @@ class SltrRofoController extends Controller
 
         $recommendations = $query->latest()->paginate(20);
 
+        $groundRentAmounts = SltrRecommendation::where('rofo_status', SltrRecommendation::ROFO_GENERATED)
+            ->whereNotNull('plot_size')
+            ->get(['ground_rent', 'ground_rent_unit', 'plot_size'])
+            ->map(fn ($r) => $r->ground_rent_amount)
+            ->filter(fn ($a) => $a !== null);
+
         $stats = [
             'total_eligible'      => SltrRecommendation::where('status', SltrRecommendation::STATUS_APPROVED)->count(),
             'pending_generation'  => SltrRecommendation::where('status', SltrRecommendation::STATUS_APPROVED)
                                         ->where('rofo_status', SltrRecommendation::ROFO_PENDING)->count(),
             'generated'           => SltrRecommendation::where('rofo_status', SltrRecommendation::ROFO_GENERATED)->count(),
-            'total_ground_rent'   => SltrRecommendation::where('rofo_status', SltrRecommendation::ROFO_GENERATED)->sum('ground_rent'),
+            // ground_rent is the unit RATE; what is owed is rate x plot size. Null
+            // until at least one generated RofO has both, so the card shows a dash
+            // rather than a misleading zero.
+            'total_ground_rent'   => $groundRentAmounts->isEmpty() ? null : $groundRentAmounts->sum(),
         ];
 
         $PageTitle = 'SLTR RofO Management';

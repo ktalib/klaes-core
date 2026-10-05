@@ -95,8 +95,8 @@
                     </p>
                 </div>
                 <div>
-                    <label for="op_serial_number" class="text-xs">OP Serial Number</label>
-                    <input id="op_serial_number" name="op_serial_number" class="form-input text-xs py-1"
+                    <label for="op_serial_number" class="text-xs">OP Serial Number <span class="text-red-500">*</span></label>
+                    <input id="op_serial_number" name="op_serial_number" pattern="[1-9][0-9]*" maxlength="100" class="form-input text-xs py-1"
                         placeholder="Enter OP serial number" data-model="opSerialNumber"
                         oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
                         value="{{ old('op_serial_number') }}" type="text" autocomplete="off">
@@ -388,9 +388,9 @@
                 html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">' +
                     '<div></div>' +
                     '<div>' +
-                        '<label class="text-xs text-gray-600">OP Serial Number</label>' +
+                        '<label class="text-xs text-gray-600">OP Serial Number <span class="text-red-500">*</span></label>' +
                         '<input data-field="op_serial_number" name="extra_regs[' + idx + '][op_serial_number]" ' +
-                            'class="form-input text-xs py-1" placeholder="Enter OP serial number" type="text" ' +
+                            'class="form-input text-xs py-1" required pattern="[1-9][0-9]*" maxlength="100" placeholder="Enter OP serial number" type="text" ' +
                             'autocomplete="off" value="' + escapeHtml(prevSerial) + '" ' +
                             'oninput="this.value = this.value.replace(/[^0-9]/g, &quot;&quot;).replace(/^0+/, &quot;&quot;)">' +
                     '</div>' +

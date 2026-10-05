@@ -125,7 +125,7 @@ class ProfilePhotoService
         foreach ([$user->profile, $user->passport_photo_path] as $candidate) {
             $value = trim((string) ($candidate ?? ''));
 
-            if ($value !== '' && strtolower($value) !== self::PLACEHOLDER) {
+            if ($value !== '' && !\App\Support\UserPhoto::isPlaceholder($value)) {
                 return $value;
             }
         }
@@ -203,7 +203,7 @@ class ProfilePhotoService
     {
         $stored = trim($stored);
 
-        if ($stored === '' || strtolower($stored) === self::PLACEHOLDER) {
+        if ($stored === '' || \App\Support\UserPhoto::isPlaceholder($stored)) {
             return;
         }
 

@@ -20,14 +20,23 @@ class LaasApplicant extends Authenticatable
     public const OTP_TTL_MINUTES = 10;
     public const OTP_MAX_ATTEMPTS = 5;
 
+    /** Registered on the portal themselves. */
+    public const ORIGIN_PORTAL = 'portal';
+
+    /** Opened by File Commissioning (Land or OSS) on the applicant's behalf. */
+    public const ORIGIN_COMMISSIONING = 'commissioning';
+
     protected $fillable = [
         'name',
+        'username',
         'email',
         'phone',
         'password',
+        'must_change_password',
         'nin',
         'address',
         'status',
+        'account_origin',
         'phone_verified_at',
         'last_login_at',
         'pending_phone',
@@ -47,6 +56,7 @@ class LaasApplicant extends Authenticatable
         'last_login_at'                => 'datetime',
         'verification_code_expires_at' => 'datetime',
         'verification_attempts'        => 'integer',
+        'must_change_password'         => 'boolean',
     ];
 
     public function applications()

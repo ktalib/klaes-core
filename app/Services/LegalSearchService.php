@@ -3324,6 +3324,7 @@ class LegalSearchService
                 'reg_time',
                 'tp_no',
                 DB::raw("'file_history_staging' AS source_table"),
+                Schema::connection($conn->getName())->hasColumn('file_history_staging', 'op_serial_number') ? 'op_serial_number' : DB::raw('NULL AS op_serial_number'),
             ]);
 
         $this->applyFilters($query, $f, 'file_history_staging', ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno']);
@@ -3388,6 +3389,7 @@ class LegalSearchService
                 DB::raw("COALESCE(NULLIF(LTRIM(RTRIM(deeds_time)), ''), transaction_time) AS reg_time"),
                 DB::raw("NULL AS tp_no"),
                 DB::raw("'CofO_staging' AS source_table"),
+                Schema::connection($conn->getName())->hasColumn('CofO_staging', 'op_serial_number') ? 'op_serial_number' : DB::raw('NULL AS op_serial_number'),
             ]);
 
         $this->applyFilters($query, $f, 'CofO_staging', ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno']);
@@ -3451,6 +3453,7 @@ class LegalSearchService
                 DB::raw("NULL AS reg_time"),
                 'tp_no',
                 DB::raw("'pra' AS source_table"),
+                Schema::connection($conn->getName())->hasColumn('pra', 'op_serial_number') ? 'op_serial_number' : DB::raw('NULL AS op_serial_number'),
             ]);
 
         $this->applyFilters($query, $f, 'pra', ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno']);
@@ -3584,6 +3587,7 @@ class LegalSearchService
                 DB::raw("NULL AS reg_time"),
                 DB::raw("NULL AS tp_no"),
                 DB::raw("'deed_registrations' AS source_table"),
+                Schema::connection($conn->getName())->hasColumn('deed_registrations', 'op_serial_number') ? 'op_serial_number' : DB::raw('NULL AS op_serial_number'),
             ]);
 
         $this->applyFilters($query, $f, 'deed_registrations', ['fileno', 'parent_fileno']);
@@ -3908,6 +3912,7 @@ class LegalSearchService
             'registration' => $registration ?: '-',
             'regNo' => $row->regNo ?? '-',
             'serial_no' => $serialNo ?? '-',
+            'op_serial_number' => $row->op_serial_number ?? null,
             'page_no' => $pageNo ?? '-',
             'volume_no' => $volumeNo ?? '-',
             'size' => $row->size ?? '-',
@@ -6567,6 +6572,7 @@ class LegalSearchService
                 'reg_time' => $regTime,
                 'reg_date' => $regDate,
                 'reg_no' => $regNoDisplay,
+                'op_serial_number' => $t['op_serial_number'] ?? null,
                 'size' => $t['size'] ?: '-',
                 'caveat' => $t['caveat'] ?: '-',
                 'comments' => $t['is_caveated'] ? $tcComment($t['caveated_comment'] ?: ($t['comments'] ?: '-')) : $tcComment($t['comments'] ?: '-'),

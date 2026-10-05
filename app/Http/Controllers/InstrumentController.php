@@ -333,7 +333,7 @@ class InstrumentController extends Controller
             ];
 
             if (stripos($instrumentType, 'Occupancy Permit') !== false) {
-                $rules['op_serial_number'] = ['required', 'regex:/^[1-9][0-9]*$/'];
+                $rules['op_serial_number'] = \App\Support\OpSerial::rules();
             }
 
             $isAssignmentOrGift = stripos((string) $instrumentType, 'Deed of Assignment') !== false

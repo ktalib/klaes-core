@@ -88,6 +88,9 @@ class UserPhotoUrlTest extends TestCase
             'legacy public/ pfx'  => ['public/upload/profile/a.jpg', 'upload/profile/a.jpg'],
             'placeholder'         => ['avatar.png', null],
             'placeholder cased'   => ['Avatar.PNG', null],
+            'placeholder path'    => ['upload/profile/avatar.png', null],
+            'legacy placeholder'  => ['public/upload/profile/avatar.png', null],
+            'placeholder slashes' => ['upload\\profile\\Avatar.PNG', null],
             'empty'               => ['', null],
             'whitespace'          => ['   ', null],
         ];
@@ -109,6 +112,56 @@ class UserPhotoUrlTest extends TestCase
 
         $this->assertNull(UserPhoto::url(null, null));
         $this->assertNull(UserPhoto::url('avatar.png', 'avatar.png'));
+        $this->assertNull(UserPhoto::url('avatar.png', 'upload/profile/avatar.png'));
+    }
+
+    public function test_a_placeholder_profile_path_still_falls_back_to_a_real_passport_photo(): void
+    {
+        $this->servedFrom('https://klaes.test.gov.ng/x');
+
+        $this->assertSame(
+            'https://klaes.test.gov.ng/storage/upload/profile/passport.jpg',
+            UserPhoto::url('upload/profile/avatar.png', 'upload/profile/passport.jpg')
+        );
+    }
+
+    public function test_placeholder_accounts_require_a_photo_even_with_a_previous_pass_verdict(): void
+    {
+        $user = new \App\Models\User();
+        $user->forceFill([
+            'profile' => 'avatar.png',
+            'passport_photo_path' => 'upload/profile/avatar.png',
+            'photo_face_status' => \App\Services\ProfilePhotoService::FACE_PASS,
+            'photo_face_path' => 'upload/profile/avatar.png',
+        ]);
+
+        $this->assertFalse($user->has_profile_photo);
+        $this->assertTrue($user->needs_profile_photo);
+        $this->assertFalse($user->needs_photo_face_check);
+        $this->assertNull(\App\Services\ProfilePhotoService::currentPhotoPath($user));
+    }
+
+    public function test_placeholder_accounts_are_blocked_from_system_routes(): void
+    {
+        $user = new \App\Models\User();
+        $user->forceFill([
+            'id' => 123,
+            'profile' => 'avatar.png',
+            'passport_photo_path' => 'upload/profile/avatar.png',
+        ]);
+        $this->actingAs($user, 'web');
+
+        $impersonation = \Mockery::mock(\Lab404\Impersonate\Services\ImpersonateManager::class);
+        $impersonation->shouldReceive('isImpersonating')->andReturn(false);
+        $this->app->instance(\Lab404\Impersonate\Services\ImpersonateManager::class, $impersonation);
+
+        $request = Request::create('/users', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
+        $response = (new \App\Http\Middleware\RequireProfilePhoto())->handle($request, function () {
+            $this->fail('An avatar account must not reach a protected system route.');
+        });
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertTrue($response->getData(true)['profile_photo_required']);
     }
 
     /**
@@ -144,5 +197,10 @@ class UserPhotoUrlTest extends TestCase
         $this->assertFalse(UserPhoto::existsOnDisk('avatar.png'));
         $this->assertFalse(UserPhoto::existsOnDisk(''));
         $this->assertFalse(UserPhoto::existsOnDisk(null));
+
+        // A shared avatar is not a passport photo even when its file exists.
+        Storage::disk('public')->put('upload/profile/avatar.png', 'x');
+        $this->assertFalse(UserPhoto::existsOnDisk('upload/profile/avatar.png'));
+        $this->assertFalse(UserPhoto::existsOnDisk('public/upload/profile/avatar.png'));
     }
 }

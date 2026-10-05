@@ -72,6 +72,8 @@ class SltrRecommendation extends Model
         'ground_rent',
         // The unit the rent is charged by, stored as the words that print.
         'ground_rent_unit',
+        // Plot size in m², the quantity the ground rent rate is charged on.
+        'plot_size',
         'processing_fee',
         'purpose_of_clause',
         'notes',
@@ -105,6 +107,15 @@ class SltrRecommendation extends Model
         return \App\Support\GroundRentUnit::label($this->ground_rent, $this->ground_rent_unit);
     }
 
+    /**
+     * What is owed: the ground rent RATE times the plot size. Null until both are
+     * known, or when the rate is in a unit typed under "Other".
+     */
+    public function getGroundRentAmountAttribute(): ?float
+    {
+        return \App\Support\SltrPlotSize::amount($this->ground_rent, $this->ground_rent_unit, $this->plot_size);
+    }
+
     protected $casts = [
         'application_date'   => 'date',
         'date_issued'        => 'date',
@@ -113,6 +124,7 @@ class SltrRecommendation extends Model
         'rofo_date_generated'=> 'date',
         'printed_at'         => 'datetime',
         'ground_rent'        => 'decimal:2',
+        'plot_size'          => 'decimal:2',
         'processing_fee'     => 'decimal:2',
         'created_at'         => 'datetime',
         'updated_at'         => 'datetime',

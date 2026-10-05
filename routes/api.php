@@ -357,6 +357,7 @@ Route::get('/serial-status', function () {
 Route::prefix('dashboard')->controller(\App\Http\Controllers\Api\DashboardController::class)->group(function () {
     // Combined – one round-trip for the whole dashboard
     Route::get('/all-stats', 'getAllStats');
+    Route::get('/application-analytics', 'applicationAnalytics');
     // Individual endpoints (kept for backward compatibility)
     Route::get('/total-applications', 'getTotalApplications');
     Route::get('/pending-approvals', 'getPendingApprovals');

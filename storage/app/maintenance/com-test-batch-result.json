@@ -1,0 +1,31 @@
+{
+    "files": [
+        "COM-2026-1",
+        "COM-2026-2",
+        "COM-2026-3",
+        "COM-2026-4",
+        "COM-2026-5",
+        "COM-2026-6",
+        "COM-2026-7",
+        "COM-2026-27",
+        "COM-2026-28",
+        "COM-2026-34",
+        "COM-2026-59",
+        "COM-2026-60",
+        "COM-2026-362",
+        "COM-2026-363"
+    ],
+    "backup": "C:\\xampp\\htdocs\\klas\\storage\\app\/maintenance\/com-test-batch-before.json",
+    "deleted": {
+        "customers_staging": 14,
+        "entities_staging": 14,
+        "oss_applications": 14,
+        "file_tracker": 14,
+        "pra": 28,
+        "file_indexings": 14,
+        "fileNumber": 14,
+        "mls_file_no": 14,
+        "PropID_Master": 14
+    },
+    "deleted_count": 140
+}

@@ -288,6 +288,10 @@ function prepareFormForUpdateFromDuplicate(form, recordId, sourceType = null) {
 // Direct form submission handler with SweetAlert
 function submitPropertyForm() {
     const form = document.getElementById('property-record-form');
+    const praController = window.PraFormController?.controller;
+    if (praController?.form === form && praController.state.isUpdateMode) {
+        return praController.handleFormSubmit(new Event('submit', { cancelable: true }));
+    }
     const formData = new FormData(form);
 
     // Show loading
@@ -777,6 +781,7 @@ let _cofoPrecheckLastKey = '';
 
 async function runCofoDuplicatePreCheck(form, { force = false } = {}) {
     if (!form) return;
+    if (window.PraFormController?.controller?.state.isUpdateMode) return;
 
     const transactionType = getActiveTransactionType(form);
     const isCofOType = COFO_TRANSACTION_TYPES.includes(transactionType);
@@ -922,6 +927,9 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            if (window.PraFormController?.controller?.state.isUpdateMode) {
+                e.stopImmediatePropagation();
+            }
             submitPropertyForm();
             return false;
         }, true);

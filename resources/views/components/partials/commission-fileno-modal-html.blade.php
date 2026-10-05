@@ -490,6 +490,19 @@
                                            placeholder="Enter Address">
                                 </div>
 
+                                {{-- Row 5, Col 1: Email (optional), directly under the phone. It becomes
+                                     the applicant's LAAS Portal email; left blank, the portal account gets
+                                     a generated one. See LaasCommissioningAccountService. --}}
+                                <div>
+                                    <label for="generateEmail" class="block text-xs font-medium text-gray-600 mb-1">
+                                        Email of Applicant <span class="text-gray-400 font-normal">(optional)</span>
+                                    </label>
+                                    <input type="email" id="generateEmail" name="email" maxlength="150"
+                                           autocomplete="off"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="e.g. name@example.com">
+                                </div>
+
                                 {{-- Passport photograph — same control as the MLS File Number Generator
                                      card (generate_fileno/mlsfno.blade.php). Individual customers only:
                                      a Corporate, Multiple or Government file has no single applicant to

@@ -97,6 +97,10 @@ Route::post('land-recommendations/client-log', [\App\Http\Controllers\LandRecomm
 
 Route::middleware(['auth'])->group(function () {
 
+    Route::get('/consolidated-reports/{report}', [\App\Http\Controllers\ConsolidatedReportController::class, 'export'])
+        ->where('report', 'bill-balance|valuation|consent|st-fc|st-commissioning|st-applications|st-rofo|sltr-rofo')
+        ->name('consolidated-reports.export');
+
     // Mortgage Table Routes
     Route::prefix('mortgages')->name('mortgages.')->group(function () {
         Route::get('/', [MortgageController::class, 'index'])->name('index');
@@ -1264,6 +1268,8 @@ Route::middleware(['auth'])->group(function () {
     // The proofing copy — see SltrRecommendationController::printWhiteCopy().
     Route::get('/sltr-recommendations/{id}/white-copy', [\App\Http\Controllers\SltrRecommendationController::class, 'printWhiteCopy'])->name('sltr-recommendations.white-copy');
     Route::get('/sltr-recommendations/{id}/print', [\App\Http\Controllers\SltrRecommendationController::class, 'printRecommendation'])->name('sltr-recommendations.print');
+    // Above /{id} so 'plot-size' is never read as an id.
+    Route::get('/sltr-recommendations/plot-size', [\App\Http\Controllers\SltrRecommendationController::class, 'plotSize'])->name('sltr-recommendations.plot-size');
     Route::get('/sltr-recommendations/{id}', [\App\Http\Controllers\SltrRecommendationController::class, 'show'])->name('sltr-recommendations.show');
     Route::put('/sltr-recommendations/{id}', [\App\Http\Controllers\SltrRecommendationController::class, 'update'])->name('sltr-recommendations.update');
     Route::delete('/sltr-recommendations/{id}', [\App\Http\Controllers\SltrRecommendationController::class, 'destroy'])->name('sltr-recommendations.destroy');

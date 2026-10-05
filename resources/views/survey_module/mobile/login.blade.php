@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/SCF.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b2e">
     <title>Survey Mobile — Sign in</title>
@@ -124,7 +126,7 @@
         <div class="login-card">
             <div class="brand-section">
                 <div class="logo-box">
-                    <img src="{{ asset('storage/upload/logo/Klase.png') }}" alt="KLAES"
+                    <img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF Survey Compensation"
                          onerror="this.style.display='none'; document.getElementById('fallback-icon').style.display='block';">
                     <i class="fas fa-compass" id="fallback-icon" style="display:none"></i>
                 </div>

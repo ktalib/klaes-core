@@ -1,0 +1,30 @@
+{
+    "run_id": "20261004-065714-4f9e56",
+    "mode": "apply",
+    "summary": {
+        "pra": {
+            "valid_unlinked": 1
+        },
+        "oss_applications": {
+            "consistent": 1,
+            "conflict": 1
+        }
+    },
+    "repairs": [
+        {
+            "table": "oss_applications",
+            "id": 2,
+            "files": [
+                "RES-2023-6336"
+            ],
+            "before": "54",
+            "proposed": "109",
+            "source": {
+                "table": "pra",
+                "id": 1
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "conflict"
+        }
+    ]
+}

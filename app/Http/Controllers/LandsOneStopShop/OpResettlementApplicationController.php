@@ -1347,7 +1347,9 @@ class OpResettlementApplicationController extends Controller
     {
         $now = now();
 
+        $sourceSerial = app(\App\Services\OpSerialSourceResolver::class)->serial(['source_op_table' => $opTable, 'source_op_id' => $opId]);
         $totUpdate = [
+            'op_serial_number' => $sourceSerial,
             'source_op_table' => $opTable,
             'source_op_id' => $opId,
             // The whole point: the TOT's Part 1 is the OP's allottee (OP Part 2).
@@ -1370,6 +1372,7 @@ class OpResettlementApplicationController extends Controller
         }
 
         DB::connection('sqlsrv')->table('pra')->where('id', $tot->id)->update($totUpdate);
+        app(\App\Services\OpSerialSynchronizer::class)->sync($opTable, $opId);
 
         DB::connection('sqlsrv')->table('pra_tot_staging2')
             ->where('op_batch', $tot->op_batch)
@@ -1420,6 +1423,7 @@ class OpResettlementApplicationController extends Controller
             ], 409);
         }
 
+        \App\Support\OpSerial::require($op->op_serial_number ?? null);
         $allottee = trim((string) ($opTable === 'pra' ? ($op->party_2 ?? '') : ($op->party_2_name ?? '')));
         if ($allottee === '') {
             return response()->json([
@@ -1502,7 +1506,7 @@ class OpResettlementApplicationController extends Controller
             'op_type' => 'required|string|in:OP Resettlement,OP Direct Allocation',
             'status' => 'required|string|in:Normal',
             'system_fileno' => 'nullable|string|max:50',   // TEMP-XXXXX the OP will carry
-            'op_serial_number' => 'nullable|string|max:100',
+            'op_serial_number' => \App\Support\OpSerial::rules(),
             'transaction_date' => 'nullable|date',
             'land_use' => 'nullable|string|max:100',
             'location' => 'nullable|string|max:1000',
@@ -1723,7 +1727,7 @@ class OpResettlementApplicationController extends Controller
             'op_type' => 'required|string|in:OP Resettlement,OP Direct Allocation',
             'status' => 'required|string|in:Normal',
             'system_fileno' => 'nullable|string|max:50',
-            'op_serial_number' => 'nullable|string|max:100',
+            'op_serial_number' => \App\Support\OpSerial::rules(),
             'transaction_date' => 'nullable|date',
             'land_use' => 'nullable|string|max:100',
             'purpose' => 'nullable|string|max:255',
@@ -2003,7 +2007,7 @@ class OpResettlementApplicationController extends Controller
             'ops.*.grantee' => 'required|string|max:255',       // the allottee (becomes TOT Part 1 later)
             'ops.*.update_op_id' => 'nullable|integer',          // existing OP row to backfill instead of inserting
             'ops.*.system_fileno' => 'nullable|string|max:50',  // TEMP-XXXXX the OP carries
-            'ops.*.op_serial_number' => 'nullable|string|max:100',
+            'ops.*.op_serial_number' => \App\Support\OpSerial::rules(),
             'ops.*.transaction_date' => 'nullable|date',
             'ops.*.land_use' => 'nullable|string|max:100',
             'ops.*.purpose_id' => 'nullable',                     // commission purpose id (for backfill parity)
@@ -2055,6 +2059,7 @@ class OpResettlementApplicationController extends Controller
                         $existing = DB::connection('sqlsrv')->table('pra')
                             ->where('id', $updateId)
                             ->where('instrument_type', 'Occupancy Permit (OP)')
+                            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()
                             ->first();
                         if ($existing) {
                             DB::connection('sqlsrv')->table('pra')->where('id', $updateId)->update([
@@ -2078,6 +2083,7 @@ class OpResettlementApplicationController extends Controller
                                 'party_2' => $allottee,
                                 'updated_at' => $now->toDateTimeString(),
                             ]);
+                            app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $updateId, $existing->op_serial_number ?? null);
                             $created[] = [
                                 'sequence' => $seq, 'op_id' => $updateId, 'action' => 'updated',
                                 'temp_fileno' => $existing->temp_fileno ?: ($existing->mlsFNo ?: $existing->fileno),
@@ -2153,6 +2159,8 @@ class OpResettlementApplicationController extends Controller
                     ];
                 }
             });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
         } catch (\Throwable $e) {
             Log::channel('op_batch')->error('Batch Capture OP failed', [
                 'user' => Auth::id(), 'op_batch' => $opBatch, 'error' => $e->getMessage(),
@@ -2534,6 +2542,7 @@ class OpResettlementApplicationController extends Controller
         $ops = DB::connection('sqlsrv')->table('pra')
             ->where('op_batch', $opBatch)
             ->where('instrument_type', 'Occupancy Permit (OP)')
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->orderBy('id')
             ->get();
 
@@ -2549,6 +2558,10 @@ class OpResettlementApplicationController extends Controller
             fn ($f) => trim((string) $f) !== ''
         ));
 
+        if (count($files) !== $ops->count()) {
+            return response()->json(['success' => false, 'message' => 'Each OP must have exactly one commissioned file.'], 422);
+        }
+        foreach ($ops as $i => $op) \App\Support\OpSerial::require($op->op_serial_number, "ops.{$i}.op_serial_number");
         $now = now();
         $pairs = [];
         try {
@@ -2562,6 +2575,9 @@ class OpResettlementApplicationController extends Controller
                     $mfn = DB::connection('sqlsrv')->table('mls_file_no')
                         ->where('full_file_number', $fileNo)->first();
 
+                    if (!$mfn || (int) ($mfn->source_pra_id ?? 0) !== (int) $op->id) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['files' => 'A commissioned file is not linked to the selected batch OP.']);
+                    }
                     $allottee  = trim((string) ($op->party_2 ?? ''));        // OP Part 2 -> ToT Part 1
                     $newHolder = trim((string) ($mfn->file_name ?? ''));     // commissioned applicant
                     $location  = ($mfn && !empty($mfn->location))
@@ -2575,9 +2591,15 @@ class OpResettlementApplicationController extends Controller
                         ->first();
 
                     if ($existingTot) {
+                        $prior = trim((string) ($existingTot->op_serial_number ?? ''));
+                        if ($prior !== '' && $prior !== '0' && $prior !== trim((string) $op->op_serial_number)) {
+                            throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The existing Transfer of Title has a conflicting OP serial.']);
+                        }
                         DB::connection('sqlsrv')->table('pra')->where('id', $existingTot->id)->update([
                             'prop_id' => $op->prop_id,
                             'temp_fileno' => $op->temp_fileno,
+                            'op_serial_number' => \App\Support\OpSerial::require($op->op_serial_number),
+                            'regNo' => '0/0/0', 'serialNo' => '0', 'pageNo' => '0', 'volumeNo' => '0',
                             'source_op_table' => 'pra',
                             'source_op_id' => $op->id,
                             'party_1' => $allottee,
@@ -2606,6 +2628,7 @@ class OpResettlementApplicationController extends Controller
                             'lgsaOrCity' => ($mfn->lga ?? null) ?: $op->lgsaOrCity,
                             'land_use' => ($mfn->land_use ?? null) ?: $op->land_use,
                             'op_batch' => $opBatch,
+                            'regNo' => '0/0/0', 'serialNo' => '0', 'pageNo' => '0', 'volumeNo' => '0',
                             'source_op_table' => 'pra',
                             'source_op_id' => $op->id,
                             'source' => 'OP Batch Commissioning',
@@ -2631,6 +2654,7 @@ class OpResettlementApplicationController extends Controller
                         ->where('full_file_number', $fileNo)
                         ->update(['op_batch' => $opBatch, 'updated_at' => $now]);
 
+                    app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $op->id);
                     $pairs[] = [
                         'op_id' => $op->id,
                         'op_temp' => $op->temp_fileno,
@@ -2642,6 +2666,8 @@ class OpResettlementApplicationController extends Controller
                     ];
                 }
             });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
         } catch (\Throwable $e) {
             Log::channel('op_batch')->error('Link OP batch to commissioned failed', [
                 'user' => Auth::id(), 'op_batch' => $opBatch, 'error' => $e->getMessage(),
@@ -2723,7 +2749,8 @@ class OpResettlementApplicationController extends Controller
             return response()->json(['success' => false, 'message' => 'That row is not part of the OP batch remediation.'], 422);
         }
 
-        $update = ['updated_at' => now()->toDateTimeString(), 'updated_by' => (string) Auth::id()];
+        $guarded = app(\App\Services\OpSerialSourceResolver::class)->guard([], (array) $tot);
+        $update = ['op_serial_number' => $guarded['op_serial_number'], 'updated_at' => now()->toDateTimeString(), 'updated_by' => (string) Auth::id()];
         // Only overwrite a field when the form actually submitted a non-empty value.
         $set = function (string $key) use (&$update, $validated) {
             $v = isset($validated[$key]) ? trim((string) $validated[$key]) : '';
@@ -3367,7 +3394,7 @@ class OpResettlementApplicationController extends Controller
             'pra_id' => 'nullable|integer',
             'row_type' => 'nullable|string|in:op,transfer_of_title',
             'op_type' => 'nullable|string|max:50',
-            'op_serial_number' => 'nullable|string|max:100',
+            'op_serial_number' => \App\Support\OpSerial::rules(),
             'serial_no' => 'nullable|string|max:100',
             'page_no' => 'nullable|string|max:100',
             'volume_no' => 'nullable|string|max:100',
@@ -3559,12 +3586,13 @@ class OpResettlementApplicationController extends Controller
 
             // 3) Update linked instrument_capture for extra fields (purpose, district, phone, address)
             $captureId = $base->source_instrument_capture_id;
-            if (!$captureId && !empty($base->mlsfNo)) {
-                $captureId = DB::connection('sqlsrv')
-                    ->table($captureTable)
-                    ->where('mlsFNo', $base->mlsfNo)
-                    ->orderByDesc('id')
-                    ->value('id');
+            if (!empty($validated['pra_id'])) {
+                $selectedPra = DB::connection('sqlsrv')->table('pra')->where('id', $validated['pra_id'])->lockForUpdate()->first();
+                if ($selectedPra) {
+                    $isTransferOfTitle = !\App\Support\OpSerial::isMother((array) $selectedPra);
+                    $captureId = $selectedPra->instrument_capture_id
+                        ?? (($selectedPra->source_op_table ?? '') === 'instrument_capture' ? $selectedPra->source_op_id : null);
+                }
             }
 
             // Do NOT create a skeleton instrument_capture record here.
@@ -3681,7 +3709,13 @@ class OpResettlementApplicationController extends Controller
                 }
 
                 if (!empty($captureUpdates)) {
+                    $captureBefore = DB::connection('sqlsrv')->table($captureTable)->where('id', $captureId)->lockForUpdate()->first();
+                    if (!$captureBefore || !empty($captureBefore->is_deleted) || !\App\Support\OpSerial::isMother((array) $captureBefore)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The selected capture is not an active OP.']);
+                    }
+                    $captureUpdates = \App\Support\OpSerial::guard($captureUpdates, (array) $captureBefore);
                     DB::connection('sqlsrv')->table($captureTable)->where('id', $captureId)->update($captureUpdates);
+                    app(\App\Services\OpSerialSynchronizer::class)->sync('instrument_capture', $captureId, $captureBefore->op_serial_number ?? null);
                 }
             }
 
@@ -3690,6 +3724,16 @@ class OpResettlementApplicationController extends Controller
             $targetPraId = !empty($validated['pra_id']) ? (int) $validated['pra_id'] : null;
             $targetPraRow = null;
             $praPropId = null;
+            if (!$targetPraId && !$icOnlyMode) {
+                $candidates = DB::connection('sqlsrv')->table($praTable)
+                    ->where(fn ($q) => $q->where('mlsFNo', $base->mlsfNo)->orWhere('fileno', $base->mlsfNo))
+                    ->where('instrument_type', 'like', '%Occupancy Permit%')
+                    ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()->get();
+                if ($candidates->count() !== 1) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['pra_id' => 'Select the exact OP transaction card before editing.']);
+                }
+                $targetPraId = (int) $candidates->first()->id;
+            }
 
             // When a specific PRA row is selected, target it directly
             if ($targetPraId) {
@@ -3697,6 +3741,12 @@ class OpResettlementApplicationController extends Controller
                     ->table($praTable)
                     ->where('id', $targetPraId)
                     ->first();
+                if (!$targetPraRow || !empty($targetPraRow->is_deleted) || !\App\Support\OpSerial::isOp((array) $targetPraRow)
+                    || (!in_array(strtoupper(trim((string) $base->mlsfNo)), \App\Services\OpSerialRepairPlanner::files((array) $targetPraRow), true)
+                        && (int) ($base->source_pra_id ?? 0) !== (int) $targetPraId)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['pra_id' => 'The selected OP transaction does not belong to this file.']);
+                }
+                app(\App\Services\OpSerialSourceResolver::class)->guard(['op_serial_number' => $validated['op_serial_number']], (array) $targetPraRow);
                 $praPropId = $targetPraRow->prop_id ?? null;
 
                 // Derive row type from the actual PRA row rather than trusting the
@@ -3913,6 +3963,7 @@ class OpResettlementApplicationController extends Controller
                             ->table($praTable)
                             ->where('id', $targetPraId)
                             ->update($praUpdates);
+                        app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $targetPraId, $targetPraRow->op_serial_number ?? null);
                     } else {
                         $updatedRows = DB::connection('sqlsrv')
                             ->table($praTable)
@@ -3971,7 +4022,6 @@ class OpResettlementApplicationController extends Controller
                         'land_use',
                         'purpose',
                         'op_type',
-                        'op_serial_number',
                         'serialNo',
                         'serial_no',
                         'pageNo',
@@ -4166,6 +4216,9 @@ class OpResettlementApplicationController extends Controller
                 'success' => true,
                 'message' => 'Record updated successfully.',
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::connection('sqlsrv')->rollBack();
+            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $e->errors()], 422);
         } catch (\Throwable $e) {
             DB::connection('sqlsrv')->rollBack();
 

@@ -532,26 +532,17 @@ class LandRofoController extends Controller
     {
         return [
             ['key' => 'sn',             'label' => 'S/N',               'pdfWidth' => 9,  'wrap' => false],
-            ['key' => 'file_number',    'label' => 'File Number',       'pdfWidth' => 26, 'wrap' => false],
             ['key' => 'source',         'label' => 'Source',            'pdfWidth' => 11],
-            ['key' => 'applicant_name', 'label' => 'Applicant Name',    'pdfWidth' => 34],
+            ['key' => 'file_number',    'label' => 'File Number',       'pdfWidth' => 26, 'wrap' => false],
             ['key' => 'purpose',        'label' => 'Land Use / Purpose','pdfWidth' => 22],
+            ['key' => 'term',           'label' => 'Term',              'pdfWidth' => 10],
+            ['key' => 'applicant_name', 'label' => 'Applicant Name',    'pdfWidth' => 34],
+            ['key' => 'layout_plan_no', 'label' => 'Layout Plan',       'pdfWidth' => 14],
+            ['key' => 'plot_number',    'label' => 'Plot No',           'pdfWidth' => 12],
             // No pdfWidth: Location is the flexible column and absorbs the
             // remaining page width (see buildColumnStyles in records_export.js).
             ['key' => 'location',       'label' => 'Location'],
-            ['key' => 'plot_number',    'label' => 'Plot No',           'pdfWidth' => 12],
-            ['key' => 'layout_plan_no', 'label' => 'Layout Plan',       'pdfWidth' => 14],
-            ['key' => 'term',           'label' => 'Term',              'pdfWidth' => 10],
-            ['key' => 'ground_rent',    'label' => 'Ground Rent',       'pdfWidth' => 18, 'align' => 'right'],
-            ['key' => 'dev_period',     'label' => 'Dev. Period',       'pdfWidth' => 12],
-            ['key' => 'survey_fees',    'label' => 'Survey Fees',       'pdfWidth' => 18, 'align' => 'right'],
-            ['key' => 'dev_value',      'label' => 'Dev. Value',        'pdfWidth' => 18, 'align' => 'right'],
-            ['key' => 'dev_charge',     'label' => 'Dev. Charge',       'pdfWidth' => 18, 'align' => 'right'],
-            ['key' => 'status',         'label' => 'Status',            'pdfWidth' => 14],
-            ['key' => 'approved_on',    'label' => 'Approved On',       'pdfWidth' => 18],
-            ['key' => 'created_by',     'label' => 'Created By',        'pdfWidth' => 18],
-            ['key' => 'paper_code',     'label' => 'Security Paper Code','pdfWidth' => 18],
-            ['key' => 'date_generated', 'label' => 'Date Generated',    'pdfWidth' => 18],
+            ['key' => 'date_created',   'label' => 'Date Created',      'pdfWidth' => 24],
         ];
     }
 
@@ -567,8 +558,28 @@ class LandRofoController extends Controller
                 'plot_number', 'house_no', 'layout_plan_no', 'term', 'ground_rent', 'development_period',
                 'survey_fees', 'development_value', 'development_charge', 'type',
                 'rofo_status', 'status', 'approved_at', 'land_rofo_serial_no',
-                'created_at', 'created_by', 'land_use', 'land_use_id', 'purpose_id',
+                'created_at', 'created_by', 'land_use', 'land_use_id', 'purpose_id', 'district', 'lga', 'state',
             ]);
+
+        // Read the latest active OSS property's address, not the applicant's
+        // residential/correspondence address. Correlated subqueries preserve one
+        // export row per recommendation even when a file has multiple applications.
+        foreach ([
+            'oss_district' => 'district',
+            'oss_lga' => 'lga',
+            'oss_location' => 'location',
+            'oss_state' => "COALESCE(NULLIF(res_biz_state, ''), NULLIF(com_biz_state, ''), NULLIF(ind_biz_state, ''), NULLIF(agr_biz_state, ''))",
+        ] as $alias => $column) {
+            $query->selectSub(
+                DB::connection('sqlsrv')->table('oss_applications')
+                    ->selectRaw($column)
+                    ->whereColumn('file_no', 'land_recommendations.file_number')
+                    ->whereRaw("UPPER(land_recommendations.type) = 'OSS'")
+                    ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                    ->orderByDesc('id')->limit(1),
+                $alias
+            );
+        }
 
         if ($ossViewOnly) {
             $query->whereRaw("UPPER(ISNULL(type, '')) = 'OSS'");
@@ -617,29 +628,18 @@ class LandRofoController extends Controller
     {
         $isOss = strtoupper($rec->type ?? '') === 'OSS';
 
-        return [
+        return \App\Support\ConsolidatedReportFormatting::row([
             'sn'             => $sn,
             'file_number'    => $rec->file_number,
             'source'         => $isOss ? 'OSS' : 'Land',
             'applicant_name' => $rec->applicant_name,
             'purpose'        => $rec->purpose_of_clause,
-            'location'       => $rec->display_location,
+            'location'       => \App\Support\ConsolidatedReportFormatting::location($rec->district ?: $rec->oss_district, $rec->lga ?: $rec->oss_lga, $rec->state ?: $rec->oss_state, $rec->oss_location ?: $rec->location, $rec->plot_number),
             'plot_number'    => $rec->plot_number,
             'layout_plan_no' => $rec->layout_plan_no,
             'term'           => $rec->term,
-            'ground_rent'    => number_format((float) $rec->ground_rent, 2),
-            'dev_period'     => $rec->development_period,
-            'survey_fees'    => number_format((float) $rec->survey_fees, 2),
-            'dev_value'      => number_format((float) $rec->development_value, 2),
-            'dev_charge'     => number_format((float) $rec->development_charge, 2),
-            'status'         => $isOss
-                ? 'PRINT READY'
-                : ($rec->rofo_status === LandRecommendation::ROFO_GENERATED ? 'APPROVED' : 'PENDING'),
-            'approved_on'    => $isOss ? '' : ($rec->approved_at ? $rec->approved_at->format('Y-m-d h:i A') : 'N/A'),
-            'created_by'     => $rec->creator->name ?? 'System',
-            'paper_code'     => $rec->land_rofo_serial_no ?: 'Unassigned',
-            'date_generated' => $rec->created_at ? $rec->created_at->format('Y-m-d h:i A') : 'N/A',
-        ];
+            'date_created'   => $rec->created_at ? $rec->created_at->format('Y-m-d h:i A') : 'N/A',
+        ]);
     }
 
     public function export(Request $request)

@@ -35,6 +35,12 @@ class LaasApplication extends Model
     /** Terminal, and off the main line — a rejected application has no rank. */
     public const STAGE_REJECTED = 'rejected';
 
+    /** The applicant filed it on the portal. */
+    public const ORIGIN_PORTAL = 'portal';
+
+    /** Raised for the applicant when a Land or OSS officer commissioned the file. */
+    public const ORIGIN_COMMISSIONING = 'commissioning';
+
     /**
      * The main line, in order. Position in this array IS the stage's rank;
      * `rejected` is deliberately absent because it is not a point on the line.
@@ -88,9 +94,11 @@ class LaasApplication extends Model
         'existing_allocation_ref',
         'applicant_remarks',
         'stage',
+        'origin',
         'land_type',
         'form_data',
         'file_number',
+        'mls_file_no_id',
         'survey_report_request_id',
         'land_recommendation_id',
         'rofo_id',

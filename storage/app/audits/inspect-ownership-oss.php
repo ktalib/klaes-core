@@ -1,0 +1,4 @@
+<?php
+require 'C:/xampp/htdocs/klas/vendor/autoload.php';$app=require 'C:/xampp/htdocs/klas/bootstrap/app.php';$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();$db=Illuminate\Support\Facades\DB::connection('sqlsrv');$out=[];
+foreach(['oss_change_of_ownership','oss_verifications'] as $t){$cols=$db->getSchemaBuilder()->getColumnListing($t);$names=array_intersect($cols,['current_name','original_name','applicant_name','original_allottee']);$out[$t]=$db->table($t)->where(function($q)use($names){$q->whereIn('plot_no',['3655','3296','4765','169A']);foreach($names as $n)foreach(['%FATIMA%SADI%','%FATIMA%MUHAMMAD%','%KAWU%BALA%','%NUHU%AMADU%','%AUWAL%AFAMAI%'] as $v)$q->orWhere($n,'like',$v);})->get()->all();}
+file_put_contents(__DIR__.'/ownership-oss-evidence.json',json_encode($out,JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE));echo json_encode($out,JSON_PRETTY_PRINT|JSON_INVALID_UTF8_SUBSTITUTE);

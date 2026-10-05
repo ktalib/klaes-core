@@ -1,0 +1,114 @@
+{
+    "phone:07038376788": [
+        {
+            "id": 50087,
+            "name": "MUHAMMED YAKUBU",
+            "username": "MYAKUBU",
+            "active": "1"
+        },
+        {
+            "id": 70602,
+            "name": "AA AAA",
+            "username": "UsernameUsername",
+            "active": "1"
+        }
+    ],
+    "phone:09067227729": [
+        {
+            "id": 50516,
+            "name": "FATIMA AHMAD",
+            "username": "FArufai_MDC",
+            "active": "1"
+        },
+        {
+            "id": 101612,
+            "name": "FATIMA AHMAD RUFA'I",
+            "username": "Fatimaa_MDC",
+            "active": "1"
+        }
+    ],
+    "phone:07031172993": [
+        {
+            "id": 50524,
+            "name": "HASSANA ISAH",
+            "username": "HIhassan_MDC",
+            "active": "1"
+        },
+        {
+            "id": 50536,
+            "name": "FATIMA HASSAN",
+            "username": "FHmahe_MDC",
+            "active": "1"
+        }
+    ],
+    "phone:07068160684": [
+        {
+            "id": 80609,
+            "name": "ABUBAKAR HARUNA",
+            "username": "ABharuna0",
+            "active": "1"
+        },
+        {
+            "id": 101600,
+            "name": "ABUBAKAR HARUNNA",
+            "username": "ABUMDC",
+            "active": "1"
+        }
+    ],
+    "phone:07038463884": [
+        {
+            "id": 101460,
+            "name": "MUSA YAKUBU",
+            "username": "MUSAYAKUBU",
+            "active": "1"
+        },
+        {
+            "id": 101592,
+            "name": "MUSA YAKUBU",
+            "username": "MusaKano",
+            "active": "1"
+        }
+    ],
+    "email:musakano1994@gmail.com": [
+        {
+            "id": 101460,
+            "name": "MUSA YAKUBU",
+            "username": "MUSAYAKUBU",
+            "active": "1"
+        },
+        {
+            "id": 101592,
+            "name": "MUSA YAKUBU",
+            "username": "MusaKano",
+            "active": "1"
+        }
+    ],
+    "phone:08166451014": [
+        {
+            "id": 101601,
+            "name": "AMINU RABIU SALEH",
+            "username": "aminu_rabiu",
+            "active": "0"
+        },
+        {
+            "id": 101608,
+            "name": "AMINU RABIU SALEH",
+            "username": "Aminu_MDC",
+            "active": "1"
+        }
+    ],
+    "email:aminurabiusaleh2004@gmail.com": [
+        {
+            "id": 101601,
+            "name": "AMINU RABIU SALEH",
+            "username": "aminu_rabiu",
+            "active": "0"
+        },
+        {
+            "id": 101608,
+            "name": "AMINU RABIU SALEH",
+            "username": "Aminu_MDC",
+            "active": "1"
+        }
+    ]
+}

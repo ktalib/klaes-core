@@ -13,6 +13,7 @@
 @section('content')
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
+    @include('exports.consolidated_report_action', ['reportKey' => 'sltr-rofo'])
     <div class="py-12 bg-slate-50 min-h-screen">
         <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -80,6 +81,8 @@
                         <span>Completed offers</span><span class="text-blue-500">Processed</span>
                     </div>
                 </div>
+                {{-- ground_rent is the unit RATE (e.g. 8.00 per m2); the total is the sum of
+                     rate x plot size over generated RofOs that have a plot size. --}}
                 <div class="p-6 rounded-3xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative text-white bg-gradient-to-br from-teal-600 to-teal-800 border-none">
                     <div class="flex items-center gap-4 relative z-10">
                         <div class="p-3 bg-white/20 text-white rounded-2xl border border-white/30">
@@ -87,11 +90,17 @@
                         </div>
                         <div>
                             <p class="text-[10px] font-black text-teal-100 uppercase tracking-widest">Total Ground Rent</p>
-                            <h3 class="text-2xl font-black tracking-tight text-white">₦{{ number_format($stats['total_ground_rent']) }}</h3>
+                            <h3 class="text-2xl font-black tracking-tight text-white">
+                                @if ($stats['total_ground_rent'] === null)
+                                    ₦ &mdash;
+                                @else
+                                    ₦{{ number_format($stats['total_ground_rent'], 2) }}
+                                @endif
+                            </h3>
                         </div>
                     </div>
                     <div class="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[10px] font-bold text-teal-100 uppercase tracking-widest">
-                        <span>Revenue Stream</span>
+                        <span>Rate &times; Plot Size</span>
                     </div>
                 </div>
             </div>

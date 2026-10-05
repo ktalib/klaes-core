@@ -40,11 +40,11 @@
 
                 <div>
                     <label for="phone" class="block text-sm font-bold" style="color: var(--ink);">
-                        Phone number or email
+                        Username or email
                     </label>
                     <input id="phone" type="text" name="phone" value="{{ old('phone') }}" required autofocus
                            autocapitalize="none" autocomplete="username" spellcheck="false"
-                           placeholder="08031234567" class="ALAES-input mt-2">
+                           placeholder="e.g. aminu.bello27" class="ALAES-input mt-2">
                 </div>
 
                 <div>

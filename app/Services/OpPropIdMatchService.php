@@ -432,7 +432,7 @@ class OpPropIdMatchService
             'source_table' => $table,
             'record_id' => $recordId,
             'record_kind' => $kind,
-            'op_serial_number' => $serial,
+            'op_serial_number' => \App\Support\OpSerial::require($serial),
             'record_file_number' => $fileNumber,
             'previous_prop_id' => $oldPropId !== '' ? $oldPropId : null,
             'new_prop_id' => (string) $targetPropId,

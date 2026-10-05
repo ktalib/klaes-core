@@ -91,11 +91,9 @@ class Kernel extends HttpKernel
         // The LAAS Portal's sign-in-code backstop. Route middleware, not part of
         // the `web` group: it applies only behind `auth:laas`. See the class.
         'laas.otp' => \App\Http\Middleware\RequireLaasLoginOtp::class,
+        'laas.password' => \App\Http\Middleware\RequireLaasPasswordChange::class,
         // The same for the PHS Portal, behind `auth:phs`.
         'phs.otp' => \App\Http\Middleware\RequirePhsLoginOtp::class,
-        // Holds a PHS member at the mobile-number card until one is proved.
-        // Runs after phs.otp so the two cards are never shown at once.
-        'phs.phone' => \App\Http\Middleware\RequirePhsPhone::class,
         'super.admin' => \App\Http\Middleware\EnsureSuperAdmin::class,
     ];
 }

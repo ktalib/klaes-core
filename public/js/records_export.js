@@ -14,6 +14,16 @@
 
     window.recordsExportData = [];
     window.recordsExportColumns = [];
+    var requestVersion = 0;
+    var loadedFilters = null;
+
+    function clearLoadedReport() {
+        window.recordsExportData = [];
+        window.recordsExportColumns = [];
+        loadedFilters = null;
+        var count = document.getElementById('recordsExportCount');
+        if (count) count.textContent = '0';
+    }
 
     function config() {
         return window.recordsExportConfig || {};
@@ -29,7 +39,9 @@
     }
 
     function csvValue(value) {
-        return '"' + String(value === null || value === undefined ? '' : value).replace(/"/g, '""') + '"';
+        var text = String(value === null || value === undefined ? '' : value);
+        if (/^[\s]*[=+@-]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
     }
 
     function fieldValue(id) {
@@ -97,7 +109,8 @@
     function filterLabelSuffix() {
         var filters = currentFilters();
         var parts = [];
-        if (filters.status) parts.push('Status: ' + filters.status.toUpperCase());
+        if (filters.status) parts.push((config().statusLabel || 'Status') + ': ' + filters.status.toUpperCase());
+        if (config().dateLabel) parts.push('Date basis: ' + config().dateLabel);
         if (filters.search) parts.push('Search: "' + filters.search + '"');
         if (filters.start_date && filters.end_date) {
             parts.push('Period: ' + filters.start_date + ' to ' + filters.end_date);
@@ -137,6 +150,8 @@
         if (head) head.innerHTML = '';
 
         modal.classList.remove('hidden');
+        requestVersion++;
+        clearLoadedReport();
 
         // Don't hammer the database on open — the user picks filters first.
         renderMessage(
@@ -155,6 +170,7 @@
     };
 
     window.closeRecordsExportModal = function () {
+        requestVersion++;
         var modal = document.getElementById('recordsExportModal');
         if (modal) modal.classList.add('hidden');
     };
@@ -162,6 +178,14 @@
     window.loadRecordsExportData = async function () {
         var body = document.getElementById('recordsExportBody');
         if (!body) return;
+
+        var version = ++requestVersion;
+        var filters = currentFilters();
+        clearLoadedReport();
+        if (filters.start_date && filters.end_date && filters.start_date > filters.end_date) {
+            renderMessage('End date must be on or after start date.', 8);
+            return;
+        }
 
         renderMessage(
             '<div class="flex flex-col items-center gap-2 italic">' +
@@ -175,16 +199,24 @@
         try {
             var response = await fetch(buildUrl(), { headers: { 'Accept': 'application/json' } });
             var result = await response.json();
+            if (version !== requestVersion) return;
 
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to fetch data');
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || result.message || 'Failed to fetch data');
             }
 
             var columns = result.columns || [];
-            var rows = result.data || [];
+            var rows = (result.data || []).map(function (row) {
+                var formatted = {};
+                Object.keys(row).forEach(function (key) {
+                    formatted[key] = typeof row[key] === 'string' ? row[key].toUpperCase() : row[key];
+                });
+                return formatted;
+            });
 
             window.recordsExportColumns = columns;
             window.recordsExportData = rows;
+            loadedFilters = JSON.stringify(filters);
 
             renderHeaders(columns);
 
@@ -209,11 +241,17 @@
                 '</tr>';
             }).join('');
         } catch (e) {
+            if (version !== requestVersion) return;
+            clearLoadedReport();
             renderMessage('<span class="text-red-500">Error: ' + escapeHtml(e.message) + '</span>', 8);
         }
     };
 
     function guardEmpty() {
+        if (loadedFilters && loadedFilters !== JSON.stringify(currentFilters())) {
+            alert('The filters have changed. Refresh the preview before exporting.');
+            return true;
+        }
         if (!window.recordsExportData || window.recordsExportData.length === 0) {
             if (window.Swal) {
                 Swal.fire('No Data', 'Load a preview first — there is nothing to export.', 'warning');
@@ -321,6 +359,7 @@
             loadImage('/assets/logo/ministry2.jpeg'),
             loadImage('/assets/logo/Nigerian-Coat-of-Arms.png')
         ]).then(function (logos) {
+            if (guardEmpty()) return;
             try {
                 var headerLeftLogo = logos[0];
                 var headerRightLogo = logos[1];
@@ -371,7 +410,7 @@
                     doc.setFontSize(12);
                     doc.text('MINISTRY OF LAND AND PHYSICAL PLANNING', pageCenter, 20, { align: 'center' });
                     doc.setFontSize(11);
-                    doc.text('LAND DEPARTMENT', pageCenter, 26, { align: 'center' });
+                    doc.text((config().department || 'LAND DEPARTMENT').toUpperCase(), pageCenter, 26, { align: 'center' });
                     doc.setLineWidth(0.5);
                     doc.line(10, 32, pageWidth - 10, 32);
                 }
@@ -379,9 +418,23 @@
                 var columns = window.recordsExportColumns;
                 var columnStyles = buildColumnStyles(columns, pageWidth - 20);
                 var fontSize = columns.length > 14 ? 6.5 : 7.5;
+                // Keep identifiers marked as non-wrapping complete on one line.
+                // Shrink only that column when its longest value needs more room.
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(fontSize);
+                columns.forEach(function (column, index) {
+                    if (column.wrap !== false) return;
+                    var longest = window.recordsExportData.reduce(function (width, row) {
+                        return Math.max(width, doc.getTextWidth(String(row[column.key] == null ? '' : row[column.key])));
+                    }, 0);
+                    var available = columnStyles[index].cellWidth - 2.4;
+                    columnStyles[index].fontSize = longest > available ? fontSize * available / longest : fontSize;
+                    columnStyles[index].overflow = 'visible';
+                });
 
                 var reportTitle = config().reportTitle || 'Records Register';
                 var subtitleParts = filterLabelSuffix();
+                subtitleParts.unshift('Total Records: ' + window.recordsExportData.length.toLocaleString());
                 subtitleParts.push('Generated on: ' + new Date().toLocaleDateString());
                 var subtitle = subtitleParts.join(' | ');
 

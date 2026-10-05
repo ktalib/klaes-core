@@ -28,7 +28,7 @@ class PraStoreRequest extends FormRequest
             'serialNo' => ['nullable', 'string'],
             'pageNo' => ['nullable', 'string'],
             'volumeNo' => ['nullable', 'string'],
-            'op_serial_number' => ['nullable', 'string'],
+            'op_serial_number' => \App\Support\OpSerial::rules('nullable'),
             // Deed of Purchase: what was paid, and the receipt behind it.
             'consideration_amount' => ['nullable', 'string', 'max:100'],
             'receipt_no' => ['nullable', 'string', 'max:100'],

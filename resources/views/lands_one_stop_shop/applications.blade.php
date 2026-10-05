@@ -147,6 +147,8 @@
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @php
         $isChangeOfName = request()->filled('type') && request()->query('type') === 'change-of-name';
+        $deferDistrictOptions = true;
+        $opCommissioningOnly = true;
         $isGenerateChangeOfName = $isChangeOfName && request()->query('source') === 'lands-one-stop-shop';
 
         // OP Batch Commissioning mode. Defaulted here because this view is also rendered
@@ -168,6 +170,8 @@
         $assignRoles = collect(explode(',', (string) (auth()->user()->assign_role ?? '')))->map(fn($r) => trim($r))->filter();
         $isSupperAdmin = $assignRoles->contains(fn($r) => strcasecmp($r, 'Supper Admin') === 0);
     @endphp
+    <script>window.ossDistrictNames = @json($districts->pluck('name')->values());</script>
+    <script src="{{ asset('js/deferred-district-options.js') }}"></script>
     @include('admin.header', [
         'PageTitle' => $pageTitle,
         'PageDescription' => $pageDescription
@@ -797,14 +801,14 @@
                                                     <i class="fas fa-file-pen w-3.5 h-3.5 text-indigo-500"></i> Update OP
                                                 </a>
                                                 @endif
-                                                @if($isSupperAdmin && stripos($record['source'] ?? '', 'Transfer of Title') !== false)
-                                                <button type="button" onclick="deleteMasterRecord('{{ $record['pra_id'] }}', '{{ $record['mls_file_no'] }}')" class="inline-flex items-center gap-2 !text-rose-600 hover:!text-rose-800 hover:!bg-rose-50 font-semibold">
-                                                    <i class="fas fa-trash-can w-3.5 h-3.5 text-rose-500"></i> Delete Master
-                                                </button>
-                                                @endif
                                                 @if($isSupperAdmin && !empty($record['mls_file_no']) && $record['mls_file_no'] !== '—')
                                                 <button type="button" onclick="moveCommissioningRegistry(event, '{{ addslashes($record['mls_file_no']) }}', 'MLS')" class="inline-flex items-center gap-2">
                                                     <i class="fas fa-right-left w-3.5 h-3.5 text-blue-500"></i> Move to Land
+                                                </button>
+                                                @endif
+                                                @if($isSupperAdmin && stripos($record['source'] ?? '', 'Transfer of Title') !== false)
+                                                <button type="button" onclick="deleteMasterRecord('{{ $record['pra_id'] }}', '{{ $record['mls_file_no'] }}')" class="inline-flex items-center gap-2 !text-rose-600 hover:!text-rose-800 hover:!bg-rose-50 font-semibold">
+                                                    <i class="fas fa-trash-can w-3.5 h-3.5 text-rose-500"></i> Delete Master
                                                 </button>
                                                 @endif
                                                 <button type="button" style="display: none;" class="inline-flex items-center gap-2 !text-red-500 hover:!text-red-700 hover:!bg-red-50">
@@ -1437,11 +1441,8 @@
 
                     <div>
                         <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">District</label>
-                        <select id="opEditDistrict" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                        <select id="opEditDistrict" data-deferred-district="" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
                             <option value="">Select District</option>
-                            @foreach($districts as $districtItem)
-                                <option value="{{ $districtItem->name }}">{{ $districtItem->name }}</option>
-                            @endforeach
                         </select>
                     </div>
 
@@ -1483,8 +1484,8 @@
                             </div>
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
-                                    <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">OP Serial No</label>
-                                    <input id="opEditOpSerialNumber" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Enter OP serial number">
+                                    <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">OP Serial No <span class="text-red-500">*</span></label>
+                                    <input id="opEditOpSerialNumber" type="text" required pattern="[1-9][0-9]*" maxlength="100" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Enter OP serial number">
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Instrument Type</label>
@@ -2991,6 +2992,7 @@
     function _opSetSelectByText(selectId, value) {
         var select = document.getElementById(selectId);
         if (!select) return;
+        if (window.populateDistrictOptions) window.populateDistrictOptions(select);
         var raw = _opSafeInputValue(value).toString().trim().toUpperCase();
         if (!raw) { select.value = ''; return; }
         for (var i = 0; i < select.options.length; i++) {

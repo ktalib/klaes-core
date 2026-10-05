@@ -222,6 +222,7 @@
 
     <div class="flex-1 overflow-auto">
         @include($headerPartial ?? 'admin.header')
+    @include('exports.consolidated_report_action', ['reportKey' => 'st-rofo'])
 
         <div class="wrap">
             <div class="card">

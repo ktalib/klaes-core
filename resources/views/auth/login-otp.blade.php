@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KLAES - Sign-in code</title>
+  <title>KLAES-CORE - Sign-in code</title>
+  <link rel="icon" type="image/png" href="{{ asset('assets/logo/klas_core_logo.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <style>
     .otp-box { caret-color: transparent; transition: border-color .15s, box-shadow .15s, background-color .15s; }
@@ -30,8 +31,8 @@
 
         <div class="flex items-center justify-between mb-6">
           <div class="flex items-center">
-            <img src="{{ asset('storage/upload/logo/Klase.png') }}" alt="KLAES Logo" class="w-9 h-9 rounded-md object-cover">
-            <span class="ml-2 text-sm font-bold tracking-wide text-gray-900">KLAES</span>
+            <img src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE Logo" class="w-16 h-10 rounded-md object-contain">
+            <span class="ml-2 text-sm font-bold tracking-wide text-gray-900">KLAES-CORE</span>
           </div>
           <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Step 2 of 2</span>
         </div>
@@ -133,7 +134,7 @@
     {{-- Right: what this step is for (desktop only, like the login page's panel) --}}
     <div class="hidden md:flex md:w-1/2 items-center justify-center bg-gray-100 px-12 py-8">
       <div class="w-full max-w-sm">
-        <img src="{{ asset('storage/upload/logo/Klase.png') }}" alt="LAnd ADmin Enterprise System" class="h-16 w-auto rounded-md shadow-sm mb-6">
+        <img src="{{ asset('assets/logo/klas_core_logo.png') }}" alt="KLAES-CORE Logo" class="h-16 w-auto rounded-md shadow-sm mb-6">
         <h2 class="text-2xl font-bold text-gray-900">Two-step sign-in</h2>
         <p class="mt-2 text-gray-600 leading-relaxed">
           Your password proves who you are. The code proves you have your phone.
@@ -153,7 +154,7 @@
           </li>
           <li class="flex items-center">
             <span class="flex items-center justify-center w-8 h-8 rounded-full border-2 border-gray-300 text-gray-400 text-sm font-semibold flex-shrink-0">3</span>
-            <span class="ml-3 text-sm text-gray-500">Into KLAES</span>
+            <span class="ml-3 text-sm text-gray-500">Into KLAES-CORE</span>
           </li>
         </ol>
 

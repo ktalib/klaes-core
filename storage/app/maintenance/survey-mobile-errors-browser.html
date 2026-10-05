@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="file:///C:/xampp/htdocs/klas/public/assets/logo/SCF.png">
+    <link rel="apple-touch-icon" href="file:///C:/xampp/htdocs/klas/public/assets/logo/SCF.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#be185d">
+    <meta name="csrf-token" content="45op8TB5Ugnw5j5VTtYCAgWakgBaYuVNYQy27sDD">
+    <title>Register Compensation Case — Survey Mobile</title>
+    
+    
+    <style>
+        :root {
+            --primary: #db2777;
+            --primary-dark: #be185d;
+            --primary-50: #fdf2f8;
+            --primary-100: #fce7f3;
+            --ink: #1e1b2e;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --line: #e5e7eb;
+            --bg: #f6f4f9;
+            --card: #ffffff;
+            --ok: #059669;
+            --warn: #d97706;
+            --err: #dc2626;
+            --radius: 18px;
+            --bar-h: 76px;
+            --nav-h: 68px;
+            --page-w: 1100px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html { scroll-padding-top: 140px; }
+        body {
+            font-family: 'Outfit', system-ui, sans-serif; background: var(--bg); color: var(--text);
+            font-size: 16px; line-height: 1.45; min-height: 100vh; min-height: 100dvh;
+            padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom) + 12px);
+        }
+        button, input, select, textarea { font-family: inherit; font-size: 16px; color: inherit; }
+        a { color: var(--primary-dark); }
+
+        /* ---------- App bar ---------- */
+        .appbar {
+            position: sticky; top: 0; z-index: 40; color: #fff;
+            background: linear-gradient(135deg, var(--ink) 0%, #4a1d3f 60%, var(--primary-dark) 100%);
+            padding: calc(env(safe-area-inset-top) + 12px) 16px 0;
+            box-shadow: 0 6px 20px -8px rgba(30, 27, 46, .5);
+        }
+        .appbar-row { display: flex; align-items: center; gap: 12px; max-width: var(--page-w); margin: 0 auto; }
+        .appbar-logo { width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.12); display: grid; place-items: center; flex: none; }
+        .appbar-logo img { width: 28px; height: 28px; object-fit: contain; }
+        .appbar-title { flex: 1; min-width: 0; }
+        .appbar-title h1 { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .appbar-title p { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .icon-btn {
+            width: 40px; height: 40px; border-radius: 12px; border: 0; background: rgba(255,255,255,.12); color: #fff;
+            display: grid; place-items: center; cursor: pointer; flex: none; position: relative;
+        }
+        .icon-btn:active { transform: scale(.96); }
+        .icon-btn .count {
+            position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+            background: #fff; color: var(--primary-dark); font-size: 11px; font-weight: 700; display: grid; place-items: center;
+        }
+
+        /* Progress + step chips */
+        .progress { max-width: var(--page-w); margin: 12px auto 0; }
+        .progress-meta { display: flex; justify-content: space-between; font-size: 13px; opacity: .9; margin-bottom: 6px; }
+        .progress-track { height: 4px; background: rgba(255,255,255,.18); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #fff; border-radius: 4px; transition: width .35s ease; }
+        .chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 12px; scrollbar-width: none; }
+        .chips::-webkit-scrollbar { display: none; }
+        .chip {
+            flex: none; border: 0; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+            background: rgba(255,255,255,.12); color: rgba(255,255,255,.85); display: flex; align-items: center; gap: 6px;
+        }
+        .chip .n { width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.2); display: grid; place-items: center; font-size: 11px; }
+        .chip.done .n { background: #34d399; color: var(--ink); }
+        .chip.active { background: #fff; color: var(--primary-dark); }
+        .chip.active .n { background: var(--primary); color: #fff; }
+        .chip.bad .n { background: #fca5a5; color: #7f1d1d; }
+
+        /* ---------- Layout ---------- */
+        .wrap { max-width: var(--page-w); margin: 0 auto; padding: 16px; }
+        @media (min-width: 1024px) { .wrap { padding: 24px; } }
+
+        .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px -12px rgba(30,27,46,.12); border: 1px solid #efedf3; }
+        .card-pad { padding: 20px 16px; }
+        @media (min-width: 640px) { .card-pad { padding: 28px; } }
+
+        .step { display: none; animation: stepIn .25s ease; }
+        .step.active { display: block; }
+        @keyframes stepIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .step, .progress-fill { animation: none; transition: none; } }
+        .step-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 18px; }
+        .step-icon { width: 44px; height: 44px; border-radius: 14px; background: var(--primary-50); color: var(--primary); display: grid; place-items: center; font-size: 18px; flex: none; }
+        .step-head h2 { font-size: 20px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+        .step-head p { font-size: 14px; color: var(--muted); margin-top: 2px; }
+
+        .grid { display: grid; gap: 14px; }
+        @media (min-width: 640px) { .grid.two { grid-template-columns: 1fr 1fr; } .span-2 { grid-column: 1 / -1; } }
+
+        .field label, .flabel { display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+        .req { color: var(--err); }
+        .input, select.input, textarea.input {
+            width: 100%; min-height: 50px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px;
+            background: #fff; outline: none; transition: border-color .2s, box-shadow .2s; appearance: none; -webkit-appearance: none;
+        }
+        select.input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b7280' d='M6 8 0 0h12z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+        textarea.input { min-height: 96px; resize: vertical; }
+        .input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(219,39,119,.12); }
+        .input[readonly] { background: #f9fafb; color: var(--muted); }
+        .input:disabled { background: #f3f4f6; color: #9ca3af; }
+        .field.invalid .input, .field.invalid .picker-box { border-color: var(--err); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
+        .field .err { display: none; color: var(--err); font-size: 13px; margin-top: 5px; }
+        .field.invalid .err { display: block; }
+        .error-link { border: 0; background: transparent; color: inherit; text-align: left; text-decoration: underline; cursor: pointer; padding: 2px 0; }
+        .hint { font-size: 13px; color: var(--muted); margin-top: 5px; }
+
+        .note { display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; font-size: 14px; background: #f3f4f6; color: #374151; }
+        .note i { margin-top: 3px; }
+        .note.pink { background: var(--primary-50); color: #831843; }
+        .note.green { background: #ecfdf5; color: #065f46; }
+        .note.amber { background: #fffbeb; color: #92400e; }
+
+        .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+        .badge.monetary { background: #ecfdf5; color: #047857; }
+        .badge.land { background: #eef2ff; color: #4338ca; }
+
+        .section-title { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+        /* ---------- Picker (searchable multi-select) ---------- */
+        .picker { position: relative; }
+        .picker-box {
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 50px; padding: 7px 10px;
+            border: 1.5px solid var(--line); border-radius: 14px; background: #fff; cursor: text;
+        }
+        .picker.open .picker-box { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(219,39,119,.12); }
+        .tag { display: inline-flex; align-items: center; gap: 6px; background: var(--primary-100); color: #831843; border-radius: 10px; padding: 5px 6px 5px 10px; font-size: 14px; font-weight: 600; max-width: 100%; }
+        .tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tag button { border: 0; background: rgba(131,24,67,.12); color: inherit; width: 22px; height: 22px; border-radius: 7px; cursor: pointer; flex: none; }
+        .picker-search { flex: 1; min-width: 120px; border: 0; outline: none; padding: 6px 4px; background: transparent; }
+        .picker-list {
+            display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; max-height: 260px; overflow-y: auto;
+            background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px -12px rgba(30,27,46,.25);
+        }
+        .picker.open .picker-list { display: block; }
+        .picker-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; text-align: left; border: 0; background: none; padding: 13px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; }
+        .picker-list button:hover, .picker-list button:focus { background: var(--primary-50); outline: none; }
+        .picker-list button.on { color: var(--primary-dark); font-weight: 700; }
+        .picker-list .empty { padding: 14px; color: var(--muted); font-size: 14px; }
+
+        /* ---------- Repeating rows ---------- */
+        .rows { display: grid; gap: 12px; margin-top: 14px; }
+        @media (min-width: 768px) { .rows.two { grid-template-columns: 1fr 1fr; } }
+        .row-card { border: 1.5px solid var(--line); border-radius: 16px; padding: 14px; background: #fcfbfd; animation: stepIn .2s ease; }
+        .row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+        .row-head strong { font-size: 14px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+        .row-head .num { width: 26px; height: 26px; border-radius: 8px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 13px; }
+        .row-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+        .row-grid .full { grid-column: 1 / -1; }
+        .row-grid label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px; }
+        .row-grid .input { min-height: 46px; padding: 10px 12px; border-radius: 12px; }
+        .line-total { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 14px; color: var(--muted); }
+        .line-total b { color: var(--ink); font-size: 16px; }
+        .del { border: 0; background: #fef2f2; color: var(--err); width: 36px; height: 36px; border-radius: 10px; cursor: pointer; }
+        .empty-state { text-align: center; padding: 26px 16px; border: 2px dashed var(--line); border-radius: 16px; color: var(--muted); font-size: 14px; margin-top: 14px; }
+        .empty-state i { font-size: 26px; color: #d1d5db; display: block; margin-bottom: 8px; }
+
+        /* ---------- Buttons ---------- */
+        .btn {
+            min-height: 50px; padding: 0 18px; border-radius: 14px; border: 0; cursor: pointer; font-weight: 700;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .1s, background .2s;
+            text-decoration: none; white-space: nowrap;
+        }
+        .btn:active { transform: scale(.98); }
+        .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 8px 18px -8px rgba(219,39,119,.7); }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--ok); color: #fff; box-shadow: 0 8px 18px -8px rgba(5,150,105,.7); }
+        .btn-ghost { background: #f3f4f6; color: #374151; }
+        .btn-outline { background: #fff; color: var(--primary-dark); border: 1.5px dashed #f9a8d4; width: 100%; }
+        .btn-sm { min-height: 40px; padding: 0 12px; font-size: 14px; border-radius: 12px; }
+        .btn[disabled] { opacity: .6; pointer-events: none; }
+
+        /* Sticky action bar */
+        .actionbar {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: rgba(255,255,255,.96);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-top: 1px solid var(--line);
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        }
+        .actionbar-inner { max-width: var(--page-w); margin: 0 auto; display: flex; gap: 10px; }
+        .has-mobile-footer { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 20px); }
+        .has-register-actions { padding-bottom: calc(var(--nav-h) + var(--bar-h) + env(safe-area-inset-bottom) + 20px); }
+        .has-register-actions .actionbar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+        .has-register-actions .toast { bottom: calc(var(--nav-h) + var(--bar-h) + env(safe-area-inset-bottom) + 20px); }
+        .mobile-footer { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: var(--ink); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid rgba(255,255,255,.12); }
+        .mobile-footer-inner { display: flex; height: var(--nav-h); max-width: var(--page-w); margin: 0 auto; }
+        .mobile-tab { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border: 0; background: transparent; color: #a8a5b5; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .mobile-tab i { font-size: 23px; }
+        .mobile-tab.active { color: #34d399; }
+        .mobile-tab:focus-visible { outline: 2px solid #34d399; outline-offset: -4px; }
+        .has-mobile-footer .fab { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); }
+        .actionbar .btn { flex: 1; }
+        .actionbar .btn-ghost { flex: 0 0 auto; }
+        @media (min-width: 768px) { .actionbar .btn { flex: 0 0 auto; min-width: 150px; } .actionbar-inner .spacer { flex: 1; } }
+
+        /* ---------- Summary / compensation ---------- */
+        .stat { border-radius: 18px; padding: 20px; text-align: center; background: linear-gradient(135deg, var(--primary-50), #fff); border: 1.5px solid var(--primary-100); }
+        .stat .lbl { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+        .stat .big { font-size: clamp(28px, 8vw, 38px); font-weight: 800; color: var(--primary-dark); margin: 6px 0; word-break: break-word; }
+        .split { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 14px; }
+        .split div { background: #fff; border-radius: 14px; padding: 14px 8px; border: 1px solid var(--line); }
+        .split b { display: block; font-size: 26px; color: var(--ink); }
+        .split small { color: var(--muted); font-size: 13px; }
+        .breakdown { margin-top: 14px; text-align: left; font-size: 14px; }
+        .breakdown div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+
+        .review { display: grid; gap: 0; }
+        @media (min-width: 640px) { .review { grid-template-columns: 1fr 1fr; column-gap: 24px; } }
+        .review div { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid #f3f4f6; font-size: 15px; }
+        .review div span:first-child { color: var(--muted); flex: none; }
+        .review div span:last-child { font-weight: 600; text-align: right; word-break: break-word; }
+        .review .wide { grid-column: 1 / -1; }
+        .review .edit { border: 0; background: none; color: var(--primary); font-weight: 700; cursor: pointer; font-size: 13px; }
+
+        /* ---------- Flash ---------- */
+        .flash { border-radius: var(--radius); padding: 16px; display: flex; gap: 12px; align-items: flex-start; }
+        .flash i { font-size: 20px; margin-top: 1px; }
+        .flash.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .flash.bad { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .flash ul { margin: 6px 0 0 18px; font-size: 14px; }
+        .flash .ref { display: inline-block; margin-top: 6px; font-weight: 800; font-size: 18px; letter-spacing: .02em; }
+
+
+
+        /* ---------- Status pills ---------- */
+        .pill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+        .st-draft { background: #f3f4f6; color: #4b5563; } .st-review { background: #fef3c7; color: #92400e; }
+        .st-active { background: #dbeafe; color: #1e40af; } .st-done { background: #d1fae5; color: #065f46; } .st-rejected { background: #fee2e2; color: #991b1b; }
+
+        .menu { position: absolute; right: 16px; top: calc(env(safe-area-inset-top) + 58px); background: #fff; color: var(--text); border-radius: 14px; box-shadow: 0 18px 40px -12px rgba(30,27,46,.35); min-width: 220px; padding: 8px; display: none; z-index: 70; }
+        .menu.open { display: block; }
+        .menu .who { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+        .menu .who b { display: block; }
+        .menu .who small { color: var(--muted); }
+        .menu a, .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border-radius: 10px; border: 0; background: none; text-decoration: none; color: inherit; cursor: pointer; font-size: 15px; }
+        .menu a:hover, .menu button:hover { background: #f3f4f6; }
+
+        .toast { position: fixed; left: 50%; bottom: calc(var(--bar-h) + 20px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 80; max-width: calc(100% - 32px); }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .short { display: none; }
+        @media (max-width: 420px) {
+            .long { display: none; } .short { display: inline; }
+            .actionbar .btn { padding: 0 14px; }
+            .gps-lbl { display: none; }
+        }
+        .gps-row { display: flex; gap: 8px; }
+        .gps-row .input { flex: 1; min-width: 0; }
+</style>
+    <style>:root { --page-w: 880px; }</style>
+</head>
+<script>window.confirm=()=>true;window.testSaves=0;HTMLFormElement.prototype.submit=function(){window.testSaves++;};</script><body class="has-mobile-footer has-register-actions">
+
+
+<header class="appbar">
+    <div class="appbar-row">
+        <div class="appbar-logo">
+            <img src="file:///C:/xampp/htdocs/klas/public/assets/logo/SCF.png" alt="SCF Survey Compensation"
+                 onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-compass'}))">
+        </div>
+        <div class="appbar-title">
+            <h1><span class="long">Register Compensation Case</span><span class="short">New Case</span></h1>
+            <p>Survey Mobile ·  </p>
+        </div>
+        <a href="http://localhost/survey-module/mobile" class="icon-btn" aria-label="Dashboard"><i class="fas fa-house"></i></a>
+        <button type="button" class="icon-btn" onclick="ui.menu()" aria-label="Account menu"><i class="fas fa-user"></i></button>
+    </div>
+
+    <div class="progress">
+        <div class="progress-meta"><span id="stepLabel">Step 1 of 6 · Project Setup</span><span id="stepPct">17%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:16.6%"></div></div>
+        <div class="chips" id="chips">
+                            <button type="button" class="chip active" data-step="0" onclick="reg.go(0)">
+                    <span class="n">1</span><i class="fas fa-folder-tree" aria-hidden="true"></i>Project Setup
+                </button>
+                            <button type="button" class="chip " data-step="1" onclick="reg.go(1)">
+                    <span class="n">2</span><i class="fas fa-users" aria-hidden="true"></i>Beneficiaries
+                </button>
+                            <button type="button" class="chip " data-step="2" onclick="reg.go(2)">
+                    <span class="n">3</span><i class="fas fa-seedling" aria-hidden="true"></i>Farm Info
+                </button>
+                            <button type="button" class="chip " data-step="3" onclick="reg.go(3)">
+                    <span class="n">4</span><i class="fas fa-tree" aria-hidden="true"></i>Trees
+                </button>
+                            <button type="button" class="chip " data-step="4" onclick="reg.go(4)">
+                    <span class="n">5</span><i class="fas fa-scale-balanced" aria-hidden="true"></i>Compensation
+                </button>
+                            <button type="button" class="chip " data-step="5" onclick="reg.go(5)">
+                    <span class="n">6</span><i class="fas fa-clipboard-check" aria-hidden="true"></i>Preview
+                </button>
+                    </div>
+    </div>
+</header>
+
+<div class="menu" id="menu">
+    <div class="who"><b> </b><small>preview@example.test</small></div>
+    <a href="http://localhost/survey-module/mobile"><i class="fas fa-house"></i> Dashboard</a>
+    <a href="http://localhost/survey-module/mobile/register"><i class="fas fa-plus"></i> Register new case</a>
+    <a href="http://localhost/survey-module/compensation/cases"><i class="fas fa-desktop"></i> Open desktop module</a>
+    <form method="POST" action="http://localhost/survey-module/mobile/logout">
+        <input type="hidden" name="_token" value="45op8TB5Ugnw5j5VTtYCAgWakgBaYuVNYQy27sDD">        <button type="submit"><i class="fas fa-right-from-bracket"></i> Sign out</button>
+    </form>
+</div>
+<script>
+    window.ui = window.ui || {};
+    window.ui.menu = function () { document.getElementById('menu').classList.toggle('open'); };
+    document.addEventListener('click', function (ev) {
+        if (!ev.target.closest('#menu') && !ev.target.closest('[aria-label="Account menu"]')) {
+            document.getElementById('menu').classList.remove('open');
+        }
+    });
+</script>
+
+<div class="wrap">
+<main class="main">
+
+    
+            <div class="flash bad" style="margin-bottom:16px;" role="alert">
+            <i class="fas fa-triangle-exclamation"></i>
+            <div>
+                <strong>The case was not saved. Please fix:</strong>
+                <ul><li><button type="button" class="error-link" data-error-field="trees.4.quantity" onclick="reg.error(this.dataset.errorField)">The tree quantity must be at least 1.</button></li></ul>
+            </div>
+        </div>
+    
+    <form method="POST" action="http://localhost/survey-module/mobile/cases" id="caseForm" novalidate>
+        <input type="hidden" name="_token" value="45op8TB5Ugnw5j5VTtYCAgWakgBaYuVNYQy27sDD">        <input type="hidden" name="submit_now" id="submitNow" value="0">
+
+        
+        <section class="step card card-pad active" data-step="0">
+            <div class="step-head">
+                <div class="step-icon"><i class="fas fa-folder-open"></i></div>
+                <div>
+                    <h2>Project Setup</h2>
+                    <p>Pick the project first. Its compensation scheme applies to this case and cannot be changed here.</p>
+                </div>
+            </div>
+
+            <div class="grid two">
+                <div class="field span-2" data-key="survey_project_id">
+                    <label for="caseProject">Project <span class="req">*</span></label>
+                    <select class="input" name="survey_project_id" id="caseProject" onchange="reg.onProject()">
+                        <option value="">— Choose a registered project —</option>
+                                                    <option value="1" >
+                                TEST-1 · Kwali Highway Right-of-Way (Land-for-Land)
+                            </option>
+                                                    <option value="2" selected>
+                                TEST-2 · Tree Compensation (Monetary)
+                            </option>
+                                            </select>
+                    <div class="err">Select the project this case belongs to.</div>
+                                    </div>
+
+                <div class="span-2" id="schemeBox" style="display:none;">
+                    <div class="note pink" style="align-items:center;flex-wrap:wrap;">
+                        <span class="badge" id="schemeBadge"></span>
+                        <span id="schemeText" style="flex:1;min-width:200px;"></span>
+                    </div>
+                </div>
+
+                <div class="field" data-key="purpose">
+                    <label for="casePurpose">Purpose</label>
+                    <select class="input" name="purpose" id="casePurpose">
+                        <option value="">Select purpose…</option>
+                                                    <option value="Infrastructure Development" >Infrastructure Development</option>
+                                                    <option value="Housing" >Housing</option>
+                                                    <option value="Commercial" >Commercial</option>
+                                                    <option value="Agricultural" >Agricultural</option>
+                                                    <option value="Government Acquisition" >Government Acquisition</option>
+                                                    <option value="Urban Renewal" >Urban Renewal</option>
+                                            </select>
+                </div>
+
+                <div class="field" data-key="survey_officer">
+                    <label for="caseOfficer">Survey Officer <span class="req">*</span></label>
+                    <input class="input" type="text" name="survey_officer" id="caseOfficer" autocomplete="name"
+                           value="Preview Officer" placeholder="Officer's full name">
+                    <div class="err">Enter the survey officer's name.</div>
+                </div>
+
+                <div class="field" data-key="case_date">
+                    <label for="caseDate">Date <span class="req">*</span></label>
+                    <input class="input" type="date" name="case_date" id="caseDate"
+                           value="2026-10-04">
+                    <div class="err">Enter the date.</div>
+                </div>
+
+                <div class="field" data-key="area_ha">
+                    <label for="caseArea">Area (Ha) <span class="req">*</span></label>
+                    <input class="input" type="number" inputmode="decimal" step="0.01" min="0.01" name="area_ha" id="caseArea"
+                           value="1.80" placeholder="e.g. 2.40">
+                    <div class="err">Enter an area of at least 0.01 Ha.</div>
+                </div>
+
+                <div class="field span-2" data-key="description">
+                    <label for="caseDescription">Description</label>
+                    <textarea class="input" name="description" id="caseDescription" maxlength="4000"
+                              placeholder="Brief description of the case…"></textarea>
+                </div>
+            </div>
+
+            
+            <div class="section-title"><i class="fas fa-location-dot"></i> Case property location</div>
+            <div class="grid two">
+                <div class="field span-2" data-key="prop_district">
+                    <label>District <span class="req">*</span></label>
+                    <div class="picker" data-name="prop_district[]" data-url="http://localhost/survey-module/lookup/districts"
+                         data-other="districtOther" data-placeholder="Search district…">
+                        <div class="picker-box">
+                                                            <span class="tag" data-v="GRA"><span>GRA</span><button type="button" aria-label="Remove">×</button><input type="hidden" name="prop_district[]" value="GRA"></span>
+                                                        <input class="picker-search" type="search" autocomplete="off" placeholder="Search district…">
+                        </div>
+                        <div class="picker-list"></div>
+                    </div>
+                    <div class="err">Pick at least one district.</div>
+                    <div class="hint">Pick more than one if the land straddles a boundary.</div>
+                </div>
+
+                <div class="field span-2" id="districtOther" data-key="prop_district_other" style="display:none;">
+                    <label for="propDistrictOther">Specify District <span class="req">*</span></label>
+                    <input class="input" type="text" name="prop_district_other" id="propDistrictOther"
+                           value="" placeholder="Type the district name">
+                    <div class="err">Type the district name.</div>
+                </div>
+
+                <div class="field" data-key="prop_lga">
+                    <label>LGA <span class="req">*</span></label>
+                    <div class="picker" data-name="prop_lga[]" data-options="[&quot;Dala&quot;]" data-placeholder="Select LGA…">
+                        <div class="picker-box">
+                                                            <span class="tag" data-v="Dala"><span>Dala</span><button type="button" aria-label="Remove">×</button><input type="hidden" name="prop_lga[]" value="Dala"></span>
+                                                        <input class="picker-search" type="search" autocomplete="off" placeholder="Select LGA…">
+                        </div>
+                        <div class="picker-list"></div>
+                    </div>
+                    <div class="err">Pick the LGA.</div>
+                </div>
+
+                <div class="field" data-key="prop_state">
+                    <label for="propState">State <span class="req">*</span></label>
+                    <select class="input" name="prop_state" id="propState">
+                                                    <option value="Kano" selected>Kano</option>
+                                            </select>
+                </div>
+
+                <div class="span-2">
+                    <details id="moreAddress" >
+                        <summary style="cursor:pointer;color:var(--primary-dark);font-weight:600;font-size:14px;padding:4px 0;">
+                            Street, house and plot number (optional)
+                        </summary>
+                        <div class="grid two" style="margin-top:12px;">
+                            <div class="field span-2" data-key="prop_street">
+                                <label>Street Name</label>
+                                <div class="picker" data-name="prop_street[]" data-url="http://localhost/survey-module/lookup/streets"
+                                     data-other="streetOther" data-placeholder="Search street…">
+                                    <div class="picker-box">
+                                                                                <input class="picker-search" type="search" autocomplete="off" placeholder="Search street…">
+                                    </div>
+                                    <div class="picker-list"></div>
+                                </div>
+                            </div>
+                            <div class="field span-2" id="streetOther" data-key="prop_street_other" style="display:none;">
+                                <label for="propStreetOther">Specify Street <span class="req">*</span></label>
+                                <input class="input" type="text" name="prop_street_other" id="propStreetOther"
+                                       value="" placeholder="Type the street name">
+                                <div class="err">Type the street name.</div>
+                            </div>
+                            <div class="field" data-key="prop_house">
+                                <label for="propHouse">House No.</label>
+                                <input class="input" type="text" name="prop_house" id="propHouse" value="" placeholder="e.g. 12">
+                            </div>
+                            <div class="field" data-key="prop_plot">
+                                <label for="propPlot">Plot No.</label>
+                                <input class="input" type="text" name="prop_plot" id="propPlot" value="" placeholder="e.g. 4">
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="span-2">
+                    <div class="note"><i class="fas fa-map"></i><span>Property location: <strong id="locPreview">—</strong></span></div>
+                </div>
+            </div>
+        </section>
+
+        
+        <section class="step card card-pad" data-step="1">
+            <div class="step-head">
+                <div class="step-icon"><i class="fas fa-users"></i></div>
+                <div>
+                    <h2>Beneficiaries</h2>
+                    <p>Farmers and landowners affected. At least one is needed before the case can be submitted.</p>
+                </div>
+            </div>
+
+            <div class="field" data-key="beneficiaries">
+                <button type="button" class="btn btn-outline" onclick="reg.addBen()"><i class="fas fa-user-plus"></i> Add farmer</button>
+                <div class="err">Add at least one farmer before submitting.</div>
+            </div>
+
+            <div class="rows two" id="benRows">
+                            </div>
+            <div class="empty-state" id="benEmpty" style="">
+                <i class="fas fa-user-group"></i>No farmers added yet. You can save a draft without them.
+            </div>
+            <p class="hint" style="margin-top:12px;">Bank details and full addresses are captured in the Beneficiaries register on the desktop module.</p>
+        </section>
+
+        
+        <section class="step card card-pad" data-step="2">
+            <div class="step-head">
+                <div class="step-icon"><i class="fas fa-seedling"></i></div>
+                <div>
+                    <h2>Farm Information</h2>
+                    <p>Survey detail for the affected land.</p>
+                </div>
+            </div>
+
+            <div class="grid two">
+                <div class="field span-2" data-key="coordinates">
+                    <label for="caseCoordinates">Coordinates</label>
+                    <div class="gps-row">
+                        <input class="input" type="text" name="coordinates" id="caseCoordinates" maxlength="255"
+                               value="" placeholder="e.g. 12.0022° N, 8.5920° E">
+                        <button type="button" class="btn btn-ghost" id="gpsBtn" onclick="reg.gps()" aria-label="Use my location">
+                            <i class="fas fa-location-crosshairs"></i><span class="gps-lbl">Use GPS</span>
+                        </button>
+                    </div>
+                    <div class="hint" id="gpsHint">Stand on the land and tap Use GPS to fill this from the phone.</div>
+                </div>
+                <div class="field" data-key="gps_reading">
+                    <label for="caseGps">GPS Reading</label>
+                    <input class="input" type="text" name="gps_reading" id="caseGps" maxlength="255"
+                           value="" placeholder="e.g. N 12°00'07.9&quot;, E 08°35'31.2&quot;">
+                </div>
+                <div class="field" data-key="num_plots" id="plotsField">
+                    <label for="caseNumPlots">Number of Plots <span class="req" id="plotsReq" style="display:none;">*</span></label>
+                    <input class="input" type="number" inputmode="numeric" min="0" step="1" name="num_plots" id="caseNumPlots"
+                           value="4" placeholder="e.g. 10">
+                    <div class="err">A land-for-land case needs the number of plots.</div>
+                    <div class="hint" id="plotsHint">Drives the 50:50 split.</div>
+                </div>
+                <div class="field span-2" data-key="boundary_file">
+                    <label for="caseBoundary">Boundary File reference</label>
+                    <input class="input" type="text" name="boundary_file" id="caseBoundary" maxlength="500"
+                           value="" placeholder="Shapefile / KML / GeoJSON reference">
+                    <div class="hint">Reference only. The GIS unit handles the file itself.</div>
+                </div>
+            </div>
+        </section>
+
+        
+        <section class="step card card-pad" data-step="3">
+            <div class="step-head">
+                <div class="step-icon"><i class="fas fa-tree"></i></div>
+                <div>
+                    <h2>Economic Trees</h2>
+                    <p id="treesSub">Trees on the affected land: type × quantity × unit price.</p>
+                </div>
+            </div>
+
+            <div class="note" id="treesNA" style="display:none;">
+                <i class="fas fa-ban"></i>
+                <span><strong>Not applicable.</strong> Land-for-Land compensation pays no cash for trees, so nothing is recorded on this step.</span>
+            </div>
+
+            <div id="treesActive">
+                <div class="field" data-key="trees">
+                    <button type="button" class="btn btn-outline" onclick="reg.addTree()"><i class="fas fa-plus"></i> Add tree</button>
+                    <div class="err">Add at least one economic tree line.</div>
+                </div>
+                <datalist id="treeCatalogue">
+                                    </datalist>
+                <div class="rows two" id="treeRows">
+                                            <div class="row-card">
+    <div class="row-head">
+        <strong><span class="num"></span> Tree line</strong>
+        <button type="button" class="del" aria-label="Remove tree line"><i class="fas fa-trash"></i></button>
+    </div>
+    <input type="hidden" name="trees[4][id]" value="">
+    <div class="row-grid">
+        <div class="field full">
+            <label>Tree type <span class="req">*</span></label>
+            <input class="input" type="text" list="treeCatalogue" name="trees[4][tree_type]" value="Mango"
+                   maxlength="255" autocomplete="off" placeholder="e.g. Mango">
+            <div class="err">Enter the tree type.</div>
+        </div>
+        <div class="field">
+            <label>Quantity <span class="req">*</span></label>
+            <input class="input" type="number" inputmode="numeric" min="1" step="1" name="trees[4][quantity]"
+                   value="0" placeholder="0">
+            <div class="err">At least 1.</div>
+        </div>
+        <div class="field">
+            <label>Unit price (₦) <span class="req">*</span></label>
+            <input class="input" type="number" inputmode="decimal" min="0" step="0.01" name="trees[4][unit_price]"
+                   value="50" placeholder="0.00">
+            <div class="err">Enter a price.</div>
+        </div>
+    </div>
+    <div class="line-total"><span>Line total</span><b data-role="line">₦0.00</b></div>
+</div>
+                                    </div>
+                <div class="empty-state" id="treeEmpty" style="display:none;">
+                    <i class="fas fa-tree"></i>No trees yet. A monetary case needs at least one.
+                </div>
+                <div class="note pink" style="margin-top:14px;justify-content:space-between;">
+                    <span>Total trees value</span><strong id="treeTotal">₦0.00</strong>
+                </div>
+            </div>
+        </section>
+
+        
+        <section class="step card card-pad" data-step="4">
+            <div class="step-head">
+                <div class="step-icon"><i class="fas fa-scale-balanced"></i></div>
+                <div>
+                    <h2>Compensation Summary</h2>
+                    <p>The scheme is exclusive: monetary or land-for-land, never both.</p>
+                </div>
+            </div>
+
+            <div class="note amber" id="compUnknown"><i class="fas fa-circle-info"></i><span>Choose a project on Step 1 to see its compensation.</span></div>
+
+            <div id="compMonetary" style="display:none;">
+                <div class="stat">
+                    <div class="lbl"><i class="fas fa-money-bill-wave"></i> Cash compensation</div>
+                    <div class="big" id="cashTotal">₦0.00</div>
+                    <div class="hint">Tree type × quantity × unit price, paid to the beneficiaries</div>
+                    <div class="breakdown" id="cashBreakdown"></div>
+                </div>
+                <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>No plots are allocated on a monetary case. Totals are recalculated when saved.</span></div>
+            </div>
+
+            <div id="compLand" style="display:none;">
+                <div class="stat">
+                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Land-for-Land (50:50)</div>
+                    <div class="big"><span id="landPlots">0</span> plots</div>
+                    <div class="hint">Physical land allocation · no cash component</div>
+                    <div class="split">
+                        <div><b>Farmer</b><small>½ share</small></div>
+                        <span style="font-size:24px;color:#d1d5db;">:</span>
+                        <div><b>Government</b><small>½ share, odd plot</small></div>
+                    </div>
+                </div>
+                <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>The exact Farmer : Government numbers are calculated by the system when the case is saved.</span></div>
+            </div>
+        </section>
+
+        
+        <section class="step card card-pad" data-step="5">
+            <div class="step-head">
+                <div class="step-icon"><i class="fas fa-clipboard-check"></i></div>
+                <div>
+                    <h2>Preview &amp; Submit</h2>
+                    <p>Check the details. Save as a draft, or save and submit for review.</p>
+                </div>
+            </div>
+
+            <div class="review" id="review"></div>
+
+            <div class="note pink" style="margin-top:16px;">
+                <i class="fas fa-route"></i>
+                <span>Submitting sets the case to <strong>Pending Review</strong> and routes it Survey → GIS → Commissioner → Deeds → Land/OSS.</span>
+            </div>
+        </section>
+    </form>
+</main>
+</div>
+
+
+<nav class="actionbar">
+    <div class="actionbar-inner">
+        <button type="button" class="btn btn-ghost" id="btnBack" onclick="reg.step(-1)" aria-label="Back"><i class="fas fa-arrow-left"></i></button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="btnDraft" onclick="reg.save(0)" style="display:none;"><i class="fas fa-floppy-disk"></i> <span class="long">Save draft</span><span class="short">Draft</span></button>
+        <button type="button" class="btn btn-primary" id="btnNext" onclick="reg.step(1)">Next <i class="fas fa-arrow-right"></i></button>
+        <button type="button" class="btn btn-success" id="btnSubmit" onclick="reg.save(1)" style="display:none;"><i class="fas fa-paper-plane"></i> <span class="long">Save &amp; Submit</span><span class="short">Submit</span></button>
+    </div>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+
+<template id="benTpl"><div class="row-card">
+    <div class="row-head">
+        <strong><span class="num"></span> Farmer</strong>
+        <button type="button" class="del" aria-label="Remove farmer"><i class="fas fa-trash"></i></button>
+    </div>
+    <input type="hidden" name="beneficiaries[__I__][id]" value="">
+    <div class="row-grid">
+        <div class="field full">
+            <label>Full name <span class="req">*</span></label>
+            <input class="input" type="text" name="beneficiaries[__I__][full_name]" value=""
+                   maxlength="255" autocomplete="off" placeholder="e.g. Musa Ibrahim">
+            <div class="err">Enter the farmer's name.</div>
+        </div>
+        <div class="field">
+            <label>Phone</label>
+            <input class="input" type="tel" inputmode="tel" name="beneficiaries[__I__][phone]" value=""
+                   maxlength="50" placeholder="080…">
+        </div>
+        <div class="field">
+            <label>NIN</label>
+            <input class="input" type="text" inputmode="numeric" name="beneficiaries[__I__][nin]" value=""
+                   maxlength="20" placeholder="11 digits">
+        </div>
+        <div class="field full">
+            <label>Status</label>
+            <select class="input" name="beneficiaries[__I__][status]">
+                                    <option value="Pending" selected>Pending</option>
+                                    <option value="Verified" >Verified</option>
+                                    <option value="Review" >Review</option>
+                            </select>
+        </div>
+    </div>
+</div>
+</template>
+<template id="treeTpl"><div class="row-card">
+    <div class="row-head">
+        <strong><span class="num"></span> Tree line</strong>
+        <button type="button" class="del" aria-label="Remove tree line"><i class="fas fa-trash"></i></button>
+    </div>
+    <input type="hidden" name="trees[__I__][id]" value="">
+    <div class="row-grid">
+        <div class="field full">
+            <label>Tree type <span class="req">*</span></label>
+            <input class="input" type="text" list="treeCatalogue" name="trees[__I__][tree_type]" value=""
+                   maxlength="255" autocomplete="off" placeholder="e.g. Mango">
+            <div class="err">Enter the tree type.</div>
+        </div>
+        <div class="field">
+            <label>Quantity <span class="req">*</span></label>
+            <input class="input" type="number" inputmode="numeric" min="1" step="1" name="trees[__I__][quantity]"
+                   value="" placeholder="0">
+            <div class="err">At least 1.</div>
+        </div>
+        <div class="field">
+            <label>Unit price (₦) <span class="req">*</span></label>
+            <input class="input" type="number" inputmode="decimal" min="0" step="0.01" name="trees[__I__][unit_price]"
+                   value="" placeholder="0.00">
+            <div class="err">Enter a price.</div>
+        </div>
+    </div>
+    <div class="line-total"><span>Line total</span><b data-role="line">₦0.00</b></div>
+</div>
+</template>
+
+<script>
+(function () {
+    'use strict';
+
+    var PROJECTS    = {"1":{"name":"Kwali Highway Right-of-Way","code":"TEST-1","scheme":"land","purpose":"Housing","label":"Land-for-Land (50:50)"},"2":{"name":"Tree Compensation","code":"TEST-2","scheme":"monetary","purpose":null,"label":"Monetary (Cash for Trees)"}};
+    var TREE_PRICES = [];
+    var STEPS       = ["Project Setup","Beneficiaries","Farm Info","Trees","Compensation","Preview"];
+    var ERROR_KEYS  = ["trees.4.quantity"];
+    var ERRORS      = {"trees.4.quantity":["The tree quantity must be at least 1."]};
+
+    var step = 0;
+    var scheme = "monetary";
+    var benIndex = 0;
+    var treeIndex = 5;
+    var dirty = false;
+
+    function $(id) { return document.getElementById(id); }
+    function all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+    function money(n) { return '₦' + (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function toast(msg) {
+        var t = $('toast'); t.textContent = msg; t.classList.add('show');
+        clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.remove('show'); }, 2600);
+    }
+
+    /* ------------------------------ picker ------------------------------ */
+
+    function Picker(el) {
+        var box = el.querySelector('.picker-box'), search = el.querySelector('.picker-search'), list = el.querySelector('.picker-list');
+        var name = el.dataset.name, url = el.dataset.url, options = el.dataset.options ? JSON.parse(el.dataset.options) : null;
+        var otherId = el.dataset.other, timer = null, seq = 0;
+
+        function values() { return all('input[type=hidden]', box).map(function (i) { return i.value; }); }
+
+        function syncOther() {
+            if (!otherId) return;
+            var on = values().indexOf('Other') !== -1, wrap = $(otherId);
+            wrap.style.display = on ? '' : 'none';
+            if (!on) { var inp = wrap.querySelector('input'); if (inp) inp.value = ''; }
+        }
+
+        function add(value, text) {
+            if (values().indexOf(value) !== -1) return;
+            var tag = document.createElement('span'); tag.className = 'tag'; tag.dataset.v = value;
+            var s = document.createElement('span'); s.textContent = text;
+            var b = document.createElement('button'); b.type = 'button'; b.textContent = '×'; b.setAttribute('aria-label', 'Remove');
+            var h = document.createElement('input'); h.type = 'hidden'; h.name = name; h.value = value;
+            tag.appendChild(s); tag.appendChild(b); tag.appendChild(h);
+            box.insertBefore(tag, search);
+            changed();
+        }
+
+        function changed() {
+            syncOther(); dirty = true;
+            var f = el.closest('.field'); if (f) f.classList.remove('invalid');
+            updateLocation();
+        }
+
+        function render(items) {
+            list.textContent = '';
+            var cur = values();
+            if (!items.length) {
+                var e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No matches.'; list.appendChild(e); return;
+            }
+            items.forEach(function (it) {
+                var btn = document.createElement('button'); btn.type = 'button';
+                var on = cur.indexOf(it.id) !== -1;
+                if (on) btn.className = 'on';
+                var s = document.createElement('span'); s.textContent = it.text; btn.appendChild(s);
+                if (on) { var ic = document.createElement('i'); ic.className = 'fas fa-check'; btn.appendChild(ic); }
+                btn.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+                btn.addEventListener('click', function () {
+                    if (on) removeValue(it.id); else add(it.id, it.text);
+                    search.value = ''; load('');
+                    search.focus();
+                });
+                list.appendChild(btn);
+            });
+        }
+
+        function removeValue(v) {
+            all('.tag', box).forEach(function (t) { if (t.dataset.v === v) t.remove(); });
+            changed();
+        }
+
+        function load(term) {
+            if (options) {
+                var t = term.toLowerCase();
+                render(options.filter(function (o) { return !t || o.toLowerCase().indexOf(t) !== -1; })
+                              .map(function (o) { return { id: o, text: o }; }));
+                return;
+            }
+            var mine = ++seq;
+            var e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Searching…';
+            list.textContent = ''; list.appendChild(e);
+            fetch(url + '?q=' + encodeURIComponent(term) + '&page=1', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then(function (d) { if (mine === seq) render(d.results || []); })
+                .catch(function () {
+                    if (mine !== seq) return;
+                    list.textContent = '';
+                    var x = document.createElement('div'); x.className = 'empty'; x.textContent = 'Could not load the list. Check your connection.'; list.appendChild(x);
+                });
+        }
+
+        box.addEventListener('click', function (ev) {
+            var rm = ev.target.closest('.tag button');
+            if (rm) { removeValue(rm.parentNode.dataset.v); return; }
+            search.focus();
+        });
+        search.addEventListener('focus', function () { el.classList.add('open'); load(search.value.trim()); });
+        search.addEventListener('blur', function () { setTimeout(function () { el.classList.remove('open'); }, 120); });
+        search.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { load(search.value.trim()); }, options ? 0 : 250); });
+        search.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); var first = list.querySelector('button'); if (first) first.click(); }
+            if (ev.key === 'Backspace' && !search.value) { var tags = all('.tag', box); if (tags.length) removeValue(tags[tags.length - 1].dataset.v); }
+            if (ev.key === 'Escape') search.blur();
+        });
+
+        return { values: values };
+    }
+
+    var pickers = {};
+    all('.picker').forEach(function (el) { pickers[el.dataset.name] = Picker(el); });
+
+    function pickerText(name) {
+        var p = pickers[name]; if (!p) return '';
+        return p.values().map(function (v) { return v; });
+    }
+
+    // "District, LGA, State" — the same composition AddressBuilder::propertyLocation() makes.
+    function resolve(vals, other) {
+        var out = vals.filter(function (v) { return v !== 'Other'; });
+        if (vals.indexOf('Other') !== -1 && other) out.push(other);
+        return out.join(' & ');
+    }
+    function locationText() {
+        var parts = [
+            resolve(pickerText('prop_district[]'), ($('propDistrictOther').value || '').trim()),
+            resolve(pickerText('prop_lga[]'), ''),
+            $('propState').value
+        ].filter(Boolean);
+        return parts.join(', ');
+    }
+    function updateLocation() { $('locPreview').textContent = locationText() || '—'; }
+
+    /* ------------------------------ scheme ------------------------------ */
+
+    function applyScheme(next) {
+        scheme = next || null;
+        var mon = scheme === 'monetary', land = scheme === 'land';
+
+        $('schemeBox').style.display = scheme ? '' : 'none';
+        var badge = $('schemeBadge');
+        badge.className = 'badge ' + (mon ? 'monetary' : 'land');
+        badge.textContent = mon ? 'Monetary (Cash for Trees)' : 'Land-for-Land (50:50)';
+        $('schemeText').textContent = mon
+            ? 'Record economic trees and the cash they are worth. No plots are allocated.'
+            : 'Plots are split 50:50 between Farmer and Government. No cash is paid for trees.';
+
+        $('treesNA').style.display = land ? '' : 'none';
+        $('treesActive').style.display = land ? 'none' : '';
+        $('treesSub').textContent = land
+            ? 'Not applicable: this case is compensated with plots, not cash.'
+            : 'Required for a monetary case: type × quantity × unit price.';
+
+        var plots = $('caseNumPlots');
+        plots.disabled = mon;
+        $('plotsReq').style.display = land ? '' : 'none';
+        $('plotsHint').textContent = mon ? 'Not used: a monetary case allocates no plots.' : 'Drives the 50:50 split.';
+
+        $('compUnknown').style.display = scheme ? 'none' : '';
+        $('compMonetary').style.display = mon ? '' : 'none';
+        $('compLand').style.display = land ? '' : 'none';
+    }
+
+    function onProject() {
+        var meta = PROJECTS[$('caseProject').value];
+        var purpose = $('casePurpose');
+        if (meta && !purpose.value && meta.purpose) purpose.value = meta.purpose;
+        applyScheme(meta ? meta.scheme : null);
+        $('caseProject').closest('.field').classList.remove('invalid');
+    }
+
+    /* ------------------------------- rows ------------------------------- */
+
+    function cloneRow(tplId, containerId, index) {
+        var frag = $(tplId).content.cloneNode(true);
+        var card = frag.querySelector('.row-card');
+        all('[name]', card).forEach(function (i) { i.name = i.name.replace('__I__', index); });
+        $(containerId).appendChild(frag);
+        return $(containerId).lastElementChild;
+    }
+
+    function renumber() {
+        all('#benRows .row-card').forEach(function (c, i) { c.querySelector('.num').textContent = i + 1; });
+        all('#treeRows .row-card').forEach(function (c, i) { c.querySelector('.num').textContent = i + 1; });
+        $('benEmpty').style.display = all('#benRows .row-card').length ? 'none' : '';
+        $('treeEmpty').style.display = all('#treeRows .row-card').length ? 'none' : '';
+    }
+
+    function addBen() {
+        var card = cloneRow('benTpl', 'benRows', benIndex++);
+        renumber(); dirty = true;
+        var first = card.querySelector('input[type=text]');
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(function () { first.focus(); }, 250);
+    }
+
+    function addTree() {
+        var card = cloneRow('treeTpl', 'treeRows', treeIndex++);
+        renumber(); dirty = true;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(function () { card.querySelector('input').focus(); }, 250);
+    }
+
+    function lineTotal(card) {
+        var q = Number(card.querySelector('[name$="[quantity]"]').value) || 0;
+        var p = Number(card.querySelector('[name$="[unit_price]"]').value) || 0;
+        return q * p;
+    }
+
+    function refreshTotals() {
+        var total = 0, bd = $('cashBreakdown');
+        bd.textContent = '';
+        all('#treeRows .row-card').forEach(function (card) {
+            var t = lineTotal(card); total += t;
+            card.querySelector('[data-role=line]').textContent = money(t);
+            var line = document.createElement('div');
+            var l = document.createElement('span');
+            l.textContent = (card.querySelector('[name$="[tree_type]"]').value || 'Tree') + ' × ' + (card.querySelector('[name$="[quantity]"]').value || 0);
+            var r = document.createElement('span'); r.textContent = money(t);
+            line.appendChild(l); line.appendChild(r); bd.appendChild(line);
+        });
+        $('treeTotal').textContent = money(total);
+        $('cashTotal').textContent = money(total);
+        $('landPlots').textContent = (Number($('caseNumPlots').value) || 0).toLocaleString();
+        return total;
+    }
+
+    document.addEventListener('click', function (ev) {
+        var del = ev.target.closest('.row-card .del');
+        if (!del) return;
+        var card = del.closest('.row-card');
+        var label = card.closest('#benRows') ? 'this farmer' : 'this tree line';
+        if (!confirm('Remove ' + label + ' from the case?')) return;
+        card.remove(); renumber(); refreshTotals(); dirty = true;
+    });
+
+    document.addEventListener('input', function (ev) {
+        var t = ev.target;
+        if (!t.closest || !t.closest('#caseForm')) return;
+        dirty = true;
+        var f = t.closest('.field'); if (f) f.classList.remove('invalid');
+        if (t.closest('#treeRows')) refreshTotals();
+        if (t.id === 'propDistrictOther') updateLocation();
+        if (t.id === 'caseNumPlots') refreshTotals();
+    });
+    document.addEventListener('change', function (ev) {
+        var t = ev.target;
+        if (t.id === 'propState') updateLocation();
+        // Fill the catalogue price when a known tree is chosen and no price is typed yet.
+        if (t.name && /\[tree_type\]$/.test(t.name)) {
+            var price = t.closest('.row-card').querySelector('[name$="[unit_price]"]');
+            var known = TREE_PRICES[(t.value || '').trim()];
+            if (price && !price.value && known != null) { price.value = known; refreshTotals(); }
+        }
+    });
+
+    /* ----------------------------- validation ---------------------------- */
+
+    function mark(el, bad, message) {
+        var f = el.closest('.field') || el;
+        f.classList.toggle('invalid', bad);
+        var input = f.querySelector('input:not([type=hidden]), select, textarea, button');
+        if (input) input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+        if (bad && message) {
+            var error = f.querySelector('.err');
+            if (!error) { error = document.createElement('div'); error.className = 'err'; f.appendChild(error); }
+            error.textContent = message;
+        }
+        return !bad;
+    }
+
+    function fieldForKey(key) {
+        var parts = key.split('.'), name = parts.shift();
+        parts.forEach(function (part) { name += '[' + part + ']'; });
+        var input = all('[name]', $('caseForm')).find(function (el) { return el.name === name || el.name === name + '[]'; });
+        return input ? input.closest('.field') : all('[data-key]').find(function (el) { return el.dataset.key === key.split('.')[0]; });
+    }
+
+    function showError(key) {
+        var field = fieldForKey(key);
+        if (!field) return;
+        var section = field.closest('.step');
+        if (section) { step = Number(section.dataset.step); render(); }
+        setTimeout(function () { focusInvalid(field); }, 100);
+    }
+
+    // Check the whole form only when saving; the server re-validates every submission.
+    function validStep(n, submitNow) {
+        var ok = true, check = function (cond) { ok = cond && ok; };
+        if (n === 0) {
+            check(mark($('caseProject'), !$('caseProject').value));
+            check(mark($('caseOfficer'), !$('caseOfficer').value.trim()));
+            check(mark($('caseDate'), !$('caseDate').value));
+            check(mark($('caseArea'), !(Number($('caseArea').value) >= 0.01)));
+            var d = pickerText('prop_district[]');
+            check(mark(document.querySelector('[data-key=prop_district]'), !d.length));
+            if (d.indexOf('Other') !== -1) check(mark($('propDistrictOther'), !$('propDistrictOther').value.trim()));
+            check(mark(document.querySelector('[data-key=prop_lga]'), !pickerText('prop_lga[]').length));
+            check(mark($('propState'), !$('propState').value, 'Select the state.'));
+            if (pickerText('prop_street[]').indexOf('Other') !== -1) {
+                var so = !$('propStreetOther').value.trim();
+                if (so) $('moreAddress').open = true;
+                check(mark($('propStreetOther'), so));
+            }
+        }
+        if (n === 1) {
+            check(mark(document.querySelector('[data-key=beneficiaries]'), submitNow && !all('#benRows .row-card').length));
+            all('#benRows .row-card').forEach(function (c) {
+                check(mark(c.querySelector('[name$="[full_name]"]'), !c.querySelector('[name$="[full_name]"]').value.trim()));
+            });
+        }
+        if (n === 2 && scheme === 'land') {
+            var plots = Number($('caseNumPlots').value);
+            check(mark($('caseNumPlots'), !(Number.isInteger(plots) && plots >= 1 && plots <= 1000000)));
+        }
+        if (n === 3 && scheme !== 'land') {
+            var cards = all('#treeRows .row-card');
+            check(mark(document.querySelector('[data-key=trees]'), !cards.length));
+            cards.forEach(function (c) {
+                check(mark(c.querySelector('[name$="[tree_type]"]'), !c.querySelector('[name$="[tree_type]"]').value.trim()));
+                var quantity = Number(c.querySelector('[name$="[quantity]"]').value);
+                check(mark(c.querySelector('[name$="[quantity]"]'), !(Number.isInteger(quantity) && quantity >= 1)));
+                var price = c.querySelector('[name$="[unit_price]"]');
+                check(mark(price, price.value === '' || !Number.isFinite(Number(price.value)) || Number(price.value) < 0 || Number(price.value) > 99999999999));
+            });
+        }
+        all('.chip')[n].classList.toggle('bad', !ok);
+        return ok;
+    }
+
+    function focusInvalid(bad) {
+        if (!bad) return;
+        var details = bad.closest('details'); if (details) details.open = true;
+        bad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var inp = bad.querySelector('input:not([type=hidden]), select, textarea, button');
+        if (inp) setTimeout(function () { inp.focus({ preventScroll: true }); }, 300);
+    }
+
+    function focusFirstInvalid() { focusInvalid(document.querySelector('.step.active .field.invalid')); }
+
+    /* ------------------------------ stepper ------------------------------ */
+
+    function render() {
+        all('.step').forEach(function (s, i) { s.classList.toggle('active', i === step); });
+        all('.chip').forEach(function (c, i) {
+            c.classList.toggle('active', i === step);
+            c.classList.toggle('done', i < step && !c.classList.contains('bad'));
+        });
+        var pct = Math.round((step + 1) / STEPS.length * 100);
+        $('progressFill').style.width = pct + '%';
+        $('stepPct').textContent = pct + '%';
+        $('stepLabel').textContent = 'Step ' + (step + 1) + ' of ' + STEPS.length + ' · ' + STEPS[step];
+        all('.chip')[step].scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+
+        var last = step === STEPS.length - 1;
+        $('btnBack').style.visibility = step === 0 ? 'hidden' : 'visible';
+        $('btnNext').style.display = last ? 'none' : '';
+        $('btnDraft').style.display = last ? '' : 'none';
+        $('btnSubmit').style.display = last ? '' : 'none';
+
+        if (step === 3 || step === 4) refreshTotals();
+        if (step === 5) fillReview();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function go(n) {
+        if (n < 0 || n >= STEPS.length || n === step) return;
+        step = n; render();
+    }
+
+    /* ------------------------------ review ------------------------------ */
+
+    function fillReview() {
+        var meta = PROJECTS[$('caseProject').value];
+        var bens = all('#benRows .row-card').length;
+        var trees = all('#treeRows .row-card');
+        var rows = [
+            ['Project', meta ? meta.code + ' · ' + meta.name : '—', 0, true],
+            ['Scheme', meta ? meta.label : '—', 0],
+            ['Purpose', $('casePurpose').value || '—', 0],
+            ['Survey officer', $('caseOfficer').value || '—', 0],
+            ['Date', $('caseDate').value || '—', 0],
+            ['Area', ($('caseArea').value || '0') + ' Ha', 0],
+            ['Location', locationText() || '—', 0, true],
+            ['Beneficiaries', bens + ' farmer(s)', 1],
+            ['Coordinates', $('caseCoordinates').value || '—', 2]
+        ];
+        if (scheme === 'land') {
+            rows.push(['Land compensation', (Number($('caseNumPlots').value) || 0) + ' plots · 50:50 split on save', 2, true]);
+        } else {
+            var qty = trees.reduce(function (s, c) { return s + (Number(c.querySelector('[name$="[quantity]"]').value) || 0); }, 0);
+            rows.push(['Economic trees', trees.length + ' line(s), ' + qty + ' tree(s)', 3]);
+            rows.push(['Cash compensation', money(refreshTotals()), 3]);
+        }
+        rows.push(['Description', $('caseDescription').value || '—', 0, true]);
+
+        var box = $('review'); box.textContent = '';
+        rows.forEach(function (r) {
+            var d = document.createElement('div'); if (r[3]) d.className = 'wide';
+            var k = document.createElement('span'); k.textContent = r[0] + ' ';
+            var e = document.createElement('button'); e.type = 'button'; e.className = 'edit'; e.textContent = 'Edit';
+            e.addEventListener('click', function () { step = r[2]; render(); });
+            k.appendChild(e);
+            var v = document.createElement('span'); v.textContent = r[1];
+            d.appendChild(k); d.appendChild(v); box.appendChild(d);
+        });
+
+        if (!bens) toast('Add at least one farmer before submitting. A draft can still be saved.');
+    }
+
+    /* ------------------------------- save ------------------------------- */
+
+    function save(submitNow) {
+        all('.field.invalid').forEach(function (field) { mark(field, false); });
+        var firstInvalid = null;
+        for (var i = 0; i < STEPS.length - 1; i++) {
+            if (!validStep(i, submitNow) && firstInvalid === null) firstInvalid = i;
+        }
+        if (firstInvalid !== null) {
+            step = firstInvalid; render(); setTimeout(focusFirstInvalid, 100);
+            var field = document.querySelector('.step.active .field.invalid');
+            var message = field && field.querySelector('.err');
+            toast(message ? message.textContent : 'Please complete the highlighted field.');
+            return;
+        }
+        if (submitNow && !confirm('Save and submit this case for review?')) return;
+
+        $('submitNow').value = submitNow ? '1' : '0';
+        ['btnDraft', 'btnSubmit', 'btnBack'].forEach(function (id) { $(id).disabled = true; });
+        var b = submitNow ? $('btnSubmit') : $('btnDraft');
+        b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+        dirty = false;
+        $('caseForm').submit();
+    }
+
+    $('caseForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        save(1);
+    });
+
+    /* -------------------------------- GPS -------------------------------- */
+
+    function dms(v, pos, neg) {
+        var a = Math.abs(v), d = Math.floor(a), mf = (a - d) * 60, m = Math.floor(mf), s = ((mf - m) * 60).toFixed(1);
+        return (v >= 0 ? pos : neg) + ' ' + String(d).padStart(2, '0') + '°' + String(m).padStart(2, '0') + "'" + String(s).padStart(4, '0') + '"';
+    }
+
+    function gps() {
+        var hint = $('gpsHint'), btn = $('gpsBtn');
+        if (!navigator.geolocation) { hint.textContent = 'This device or browser cannot read GPS.'; return; }
+        btn.disabled = true; hint.textContent = 'Reading location…';
+        navigator.geolocation.getCurrentPosition(function (p) {
+            var lat = p.coords.latitude, lng = p.coords.longitude;
+            $('caseCoordinates').value = Math.abs(lat).toFixed(5) + '° ' + (lat >= 0 ? 'N' : 'S') + ', ' + Math.abs(lng).toFixed(5) + '° ' + (lng >= 0 ? 'E' : 'W');
+            $('caseGps').value = dms(lat, 'N', 'S') + ', ' + dms(lng, 'E', 'W');
+            hint.textContent = 'Filled from GPS · accuracy about ' + Math.round(p.coords.accuracy) + ' m.';
+            btn.disabled = false; dirty = true;
+        }, function (err) {
+            hint.textContent = err.code === 1
+                ? 'Location permission was refused. Allow it in the browser settings, or type the coordinates.'
+                : 'Could not get a GPS fix. Move into the open and try again, or type the coordinates.';
+            btn.disabled = false;
+        }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    }
+
+    /* -------------------------------- boot -------------------------------- */
+
+    window.reg = {
+        go: go, step: function (d) { go(step + d); }, onProject: onProject, error: showError,
+        addBen: addBen, addTree: addTree, save: save, gps: gps
+    };
+    window.addEventListener('beforeunload', function (ev) { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
+
+    applyScheme(scheme || (PROJECTS[$('caseProject').value] || {}).scheme);
+    renumber(); refreshTotals(); updateLocation();
+
+    // A bounced submission: open the first step that holds an error.
+    if (ERROR_KEYS.length) {
+        var first = null;
+        ERROR_KEYS.forEach(function (k) {
+            var f = fieldForKey(k);
+            if (!f) return;
+            mark(f, true, ERRORS[k][0]);
+            var section = f.closest('.step');
+            if (!section) return;
+            var n = Number(section.dataset.step);
+            if (first === null || n < first) first = n;
+            all('.chip')[n].classList.add('bad');
+        });
+        if (first !== null) step = first;
+    }
+    render();
+    if (ERROR_KEYS.length) setTimeout(focusFirstInvalid, 100);
+})();
+</script>
+<footer class="mobile-footer">
+    <nav class="mobile-footer-inner" aria-label="Survey mobile navigation">
+        <a href="http://localhost/survey-module/mobile/register" class="mobile-tab active"  aria-current="page" >
+            <i class="fas fa-pen-to-square" aria-hidden="true"></i><span>Register</span>
+        </a>
+        <a href="http://localhost/survey-module/mobile" class="mobile-tab " >
+            <i class="fas fa-folder-open" aria-hidden="true"></i><span>Cases</span>
+        </a>
+        <button type="button" class="mobile-tab" onclick="ui.menu()" aria-label="Account menu">
+            <i class="fas fa-circle-user" aria-hidden="true"></i><span>Profile</span>
+        </button>
+    </nav>
+</footer>
+<pre id="testResult" style="position:fixed;top:0;left:0;z-index:1000;background:white;font-size:10px"></pre><script>(async function(){const assert=(x,m)=>{if(!x)throw Error(m);};const pause=ms=>new Promise(r=>setTimeout(r,ms));try{await pause(500);assert(document.querySelector('.step.active').dataset.step==='3','server error opens tree step');assert(document.activeElement.name==='trees[4][quantity]','server nested error focuses exact row/field');assert(document.activeElement.closest('.field').querySelector('.err').textContent==='The tree quantity must be at least 1.','server message appears at exact field');reg.go(0);document.querySelector('[data-error-field]').click();await pause(500);assert(document.activeElement.name==='trees[4][quantity]','error summary returns to exact field');assert(document.getElementById('stepLabel').textContent.includes('Project Setup')||document.querySelector('.chip').textContent.includes('Project Setup'),'step title');const footer=document.querySelector('.mobile-footer'),action=document.querySelector('.actionbar');assert(action.getBoundingClientRect().bottom<=footer.getBoundingClientRect().top+1,'footer and action buttons do not overlap');document.querySelector('.mobile-footer button').click();assert(document.getElementById('menu').classList.contains('open'),'Profile opens account menu');document.getElementById('testResult').textContent='PASS: errors navigation, exact validation focus and footer';}catch(e){document.getElementById('testResult').textContent='FAIL: '+e.message;}})();</script></body>
+</html>

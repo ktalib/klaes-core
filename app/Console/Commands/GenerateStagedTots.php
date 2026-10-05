@@ -329,7 +329,7 @@ class GenerateStagedTots extends Command
             . $now->toDateString() . " (tot:generate-from-staging, staging ID {$staging->id})."
         );
 
-        return $payload;
+        return \App\Support\OpSerial::guard($payload);
     }
 
     /**

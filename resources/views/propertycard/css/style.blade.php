@@ -1,6 +1,7 @@
 <style>
     /* Custom styles */
-    #property-form-dialog.dialog-overlay {
+    #property-form-dialog.dialog-overlay,
+    #property-edit-dialog.dialog-overlay {
         position: fixed;
         top: 0;
         left: 0;
@@ -13,7 +14,8 @@
         z-index: 1000040; /* Make it display on top of Instrument Capture which has z-index around 1000020 */
     }
     
-    #property-form-dialog .dialog-content {
+    #property-form-dialog .dialog-content,
+    #property-edit-dialog .dialog-content {
         background-color: white;
         border-radius: 0.5rem;
         padding: 1.5rem;
@@ -38,7 +40,8 @@
        The height now comes from the flex chain instead of that class. Every
        link needs `min-height: 0`, or a flex item refuses to shrink below its
        content and the clipping comes straight back. */
-    #property-form-dialog .dialog-content form {
+    #property-form-dialog .dialog-content form,
+    #property-edit-dialog .dialog-content form {
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
@@ -56,7 +59,8 @@
         overflow: hidden;
     }
 
-    #property-form-dialog .dialog-content .max-h-\[75vh\] {
+    #property-form-dialog .dialog-content .max-h-\[75vh\],
+    #property-edit-dialog .dialog-content .max-h-\[75vh\] {
         overflow-y: auto;
         flex: 1 1 auto;
         min-height: 0;
@@ -65,7 +69,9 @@
     
     /* Add this to ensure close buttons are clickable */
     #property-form-dialog .dialog-content button[id^="close-"], 
-    #property-form-dialog .dialog-content button[id^="cancel-"] {
+    #property-form-dialog .dialog-content button[id^="cancel-"],
+    #property-edit-dialog .dialog-content button[id^="close-"],
+    #property-edit-dialog .dialog-content button[id^="cancel-"] {
         cursor: pointer;
         z-index: 100;
         position: relative;
