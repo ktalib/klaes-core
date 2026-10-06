@@ -104,20 +104,20 @@
 
         <div class="grid grid-cols-3 gap-4 mt-4">
             <div class="form-group">
-                <label for="cofo-serial-no" class="block text-sm font-medium text-gray-700 mb-2">Serial No</label>
+                <label for="cofo-serial-no" class="block text-sm font-medium text-gray-700 mb-2">Serial No <span class="text-red-500">*</span></label>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" id="cofo-serial-no" name="cofo_serial_no"
                     oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             </div>
             <div class="form-group">
-                <label for="cofo-page-no" class="block text-sm font-medium text-gray-700 mb-2">Page No</label>
+                <label for="cofo-page-no" class="block text-sm font-medium text-gray-700 mb-2">Page No <span class="text-red-500">*</span></label>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" id="cofo-page-no" name="cofo_page_no"
                     oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"
                     readonly style="cursor: default;">
             </div>
             <div class="form-group">
-                <label for="cofo-vol-no" class="block text-sm font-medium text-gray-700 mb-2">Vol No</label>
+                <label for="cofo-vol-no" class="block text-sm font-medium text-gray-700 mb-2">Vol No <span class="text-red-500">*</span></label>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" id="cofo-vol-no" name="cofo_vol_no"
                     oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">

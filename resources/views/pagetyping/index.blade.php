@@ -2893,6 +2893,9 @@
             existingUrl: replacing ? getDocumentUrl(scanning.file_url || scanning.document_path) : '',
             title: replacing ? `Replace page ${index + 1} with LF Scan` : 'Add LF Scan — requires page typing',
             confirmLabel: replacing ? 'Confirm Replacement' : 'Add LF Scan',
+            // LF scans are filed one folder per file number on the records
+            // server, so the picker opens inside this file's own folder.
+            fileIndexingId: file.id,
             onConfirm: async entry => {
               const result = await LargeFormatScans.save({ source: entry.path, file_indexing_id: file.id,
                 registry: file.registry, ...(replacing ? { scanning_id: scanning.id,

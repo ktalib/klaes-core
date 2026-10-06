@@ -389,6 +389,7 @@
     </style>
 
     @yield('extra_styles')
+    @include('components.table-columns-assets', ['columnPreferenceGuard' => 'phs'])
 </head>
 
 <body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 dark:text-gray-100">

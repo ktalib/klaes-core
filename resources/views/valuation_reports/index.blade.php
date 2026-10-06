@@ -90,10 +90,10 @@
                         <thead class="bg-slate-50 border-b border-slate-100">
                             <tr>
                                 <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">S/N</th>
-                                <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">File Number</th>
                                 {{-- Where the file stands in Valuation -> Consent -> Registration.
                                      Painted by public/js/deeds-pipeline.js from one batched lookup. --}}
                                 <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap" title="Valuation → Consent → Registration">Workflow</th>
+                                <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">File Number</th>
                                 <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Owner / Client</th>
                                 <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Property Type</th>
                                 <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">House No</th>
@@ -114,11 +114,11 @@
                             @forelse($reports as $report)
                                 <tr class="hover:bg-slate-50/50 transition duration-200">
                                     <td class="px-6 py-4 text-slate-500 font-semibold">{{ $reports->firstItem() + $loop->index }}</td>
-                                    <td class="px-6 py-4 text-slate-900 font-bold whitespace-nowrap">
-                                        {{ $report->file_number }}
-                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span data-pipeline-file="{{ $report->file_number }}"></span>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-900 font-bold whitespace-nowrap">
+                                        {{ $report->file_number }}
                                     </td>
                                     <td class="px-6 py-4 text-slate-900 font-semibold">{{ $report->full_name }}</td>
                                     <td class="px-6 py-4 text-slate-600 font-medium">{{ $report->property_type }}</td>

@@ -158,7 +158,7 @@
                                         </button>
                                         <div
                                             id="${menuId}"
-                                            class="action-menu hidden absolute right-0 z-10 mt-2 w-36 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                                            class="action-menu hidden absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
                                             role="menu"
                                         >
                                             <div class="py-1">
@@ -187,6 +187,7 @@
                                                    role="menuitem">
                                                     Duplicate Call-up Sheet
                                                 </a>
+                                                ${window.txnFileNoCorrectionMenuItem ? window.txnFileNoCorrectionMenuItem('file_history_staging', row.id) : ''}
                                             </div>
                                         </div>
                                     </div>
@@ -461,6 +462,10 @@
                     table.ajax.reload(null, false); // Reload without resetting pagination
                 }
             };
+
+            window.TxnFileNoCorrection = Object.assign(window.TxnFileNoCorrection || {}, {
+                onChanged: () => table && table.ajax.reload(null, false),
+            });
         });
 
 
@@ -470,4 +475,5 @@
         //  )
     </script>
     <script src="{{ asset('js/property-timeline-modal.js') }}"></script>
+    @include('components.transaction-file-number-correction')
 @endsection

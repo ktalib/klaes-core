@@ -223,19 +223,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ── Duplicate file-number check ──────────────────────────────────────────
-    // Warns when a recommendation already exists for the selected file number.
-    // On the edit page the current record is excluded via data-record-id.
+    // A file number that already has a recommendation is BLOCKED — there is no
+    // "Save Anyway". The officer opens the existing record instead; a deliberate
+    // second letter goes through the re-issuance flow. The server enforces the
+    // same rule. On the edit page the current record is excluded via
+    // data-record-id, and keeping the record's own number is never a duplicate
+    // (a re-issuance shares its source's number by design).
     const dupCheckUrl = form?.dataset.dupcheckUrl || '';
     const excludeId   = form?.dataset.recordId || '';
-    const dupConfirmedInput = document.getElementById('duplicate_confirmed');
+    const originalFileNo = excludeId && fileNoInput ? fileNoInput.value.trim().toUpperCase() : '';
     let lastDuplicate = null; // cache the most recent check result
 
     function checkDuplicateFileNo(fileNo) {
         lastDuplicate = null;
-        // Any fresh check invalidates a previous "Save Anyway" — picking a
-        // different file number must not inherit the earlier confirmation.
+        // Any fresh check invalidates an earlier clean result.
         if (typeof window._resetDupConfirmation === 'function') window._resetDupConfirmation();
         if (!dupCheckUrl || !fileNo) return Promise.resolve(null);
+        if (originalFileNo && String(fileNo).trim().toUpperCase() === originalFileNo) return Promise.resolve(null);
 
         const params = new URLSearchParams({ file_number: fileNo });
         if (excludeId) params.append('exclude_id', excludeId);
@@ -251,28 +255,24 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(() => null);
     }
 
-    function warnDuplicate(dup) {
-        if (!dup || typeof Swal === 'undefined') return;
-        // A re-issuance is a deliberate second record for the same file number.
-        if (window._reissuanceMode) return;
-        Swal.fire({
-            icon: 'warning',
-            title: 'Possible Duplicate',
+    // The one dialog for a blocked file number, shown on pick and on save. The
+    // only ways on are editing the existing record or choosing another file.
+    function blockDuplicate(dup) {
+        if (!dup || typeof Swal === 'undefined') return Promise.resolve();
+        return Swal.fire({
+            icon: 'error',
+            title: 'Duplicate Not Allowed',
             html:
-                'A recommendation already exists for <strong>' + (dup.file_number || '') + '</strong>.' +
+                'A recommendation already exists for <strong>' + (dup.file_number || fileNoInput.value) + '</strong>.' +
                 '<div style="text-align:left;margin-top:10px;font-size:0.85rem;color:#475569">' +
                     '<div><strong>Applicant:</strong> ' + (dup.applicant_name || '—') + '</div>' +
                     '<div><strong>Status:</strong> ' + (dup.status || '—') + '</div>' +
                     '<div><strong>Created:</strong> ' + (dup.created_at || '—') + '</div>' +
-                '</div>',
-            // "Continue Anyway" carries on with a plain new recommendation — it is
-            // NOT a re-issuance (nothing here sets is_reissuance; that flag comes
-            // only from the re-issuance flow that opens this form with it). And
-            // "Open Existing" is an ordinary edit of the record that already exists.
-            // The save still confirms once more before it writes.
+                '</div>' +
+                '<div style="margin-top:10px">It cannot be captured again. Open the existing record to make changes, or select a different file number.</div>',
             showCancelButton: true,
             confirmButtonText: 'Open Existing',
-            cancelButtonText: 'Continue Anyway',
+            cancelButtonText: 'Choose Another File',
             confirmButtonColor: '#2563eb',
             cancelButtonColor: '#64748b',
         }).then(result => {
@@ -280,6 +280,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.location.href = dup.edit_url;
             }
         });
+    }
+
+    function warnDuplicate(dup) {
+        // A re-issuance is a deliberate second record for the same file number.
+        if (window._reissuanceMode) return;
+        blockDuplicate(dup);
     }
 
     // A conversion file carries CON in its number (CON-RES, CON-AG-RC …). One rule,
@@ -322,50 +328,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Form submission validation
     if (form) {
-        // Set either when a check comes back clean or when the user deliberately
-        // saves through a duplicate. Both mean "this submit may proceed".
+        // Set only when a check comes back clean: "this submit may proceed".
         let dupConfirmed = false;
 
         window._resetDupConfirmation = function () {
             dupConfirmed = false;
-            if (dupConfirmedInput) dupConfirmedInput.value = '0';
         };
-
-        // The last word before a duplicate is written. Saving through it produces an
-        // ordinary second recommendation for the file — not a re-issuance: is_reissuance
-        // is set only by the re-issuance flow, which opens this form with its own hidden
-        // field and skips this guard entirely.
-        function promptDuplicate(dup) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Possible Duplicate',
-                html:
-                    'A recommendation already exists for <strong>' + (dup.file_number || fileNoInput.value) + '</strong>.' +
-                    '<div style="text-align:left;margin-top:10px;font-size:0.85rem;color:#475569">' +
-                        '<div><strong>Applicant:</strong> ' + (dup.applicant_name || '—') + '</div>' +
-                        '<div><strong>Status:</strong> ' + (dup.status || '—') + '</div>' +
-                        '<div><strong>Created:</strong> ' + (dup.created_at || '—') + '</div>' +
-                    '</div>' +
-                    '<div style="margin-top:10px">Save this one anyway?</div>',
-                showCancelButton: true,
-                confirmButtonText: 'Save Anyway',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: '#dc2626',
-                cancelButtonColor: '#64748b',
-            }).then(result => {
-                if (result.isConfirmed) {
-                    dupConfirmed = true;
-                    // The server rejects a duplicate unless this flag comes with the post.
-                    if (dupConfirmedInput) dupConfirmedInput.value = '1';
-                    form.requestSubmit ? form.requestSubmit() : form.submit();
-                    return;
-                }
-                // Cancelled: the save never started, so the button must come back.
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                }
-            });
-        }
 
         form.addEventListener('submit', function (e) {
             // A Plot Subdivision batch has no single file number, land use or
@@ -385,6 +353,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 Swal.fire({ icon: 'warning', title: 'Land Use Required', text: 'Please select a land use category.' });
                 return;
             }
+            // "Other" posts a placeholder until the real number is typed into
+            // "Specify TP No…"; without this the server would save it as blank.
+            const tpSelect = document.getElementById('layout_plan_no');
+            if (tpSelect && /^(__other__|others?)$/i.test(String(tpSelect.value || '').trim())) {
+                e.preventDefault();
+                Swal.fire({ icon: 'warning', title: 'TP No. Not Specified', text: 'You chose Other for TP No. Type the TP No. in the "Specify TP No..." box, or clear the selection.' });
+                const tpOther = document.getElementById('layout_plan_no_other');
+                if (tpOther) { tpOther.style.display = ''; tpOther.focus(); }
+                return;
+            }
 
             // Always re-check on submit rather than trusting `lastDuplicate`: the
             // file number may have been set without going through the picker, or an
@@ -395,7 +373,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 e.preventDefault();
                 checkDuplicateFileNo(fileNoInput.value).then(dup => {
                     if (dup) {
-                        promptDuplicate(dup);
+                        // Blocked: the save never started, so the button must come back.
+                        if (submitBtn) submitBtn.disabled = false;
+                        blockDuplicate(dup);
                         return;
                     }
                     dupConfirmed = true; // nothing to confirm — let the next submit through

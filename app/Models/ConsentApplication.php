@@ -14,6 +14,9 @@ class ConsentApplication extends Model
         'file_number',
         'c_of_o_no',
         'consent_type',
+        // A key of config('consent_bill.transaction_types'). consent_type is
+        // derived from it on save; null on consents captured before it existed.
+        'transaction_type',
         'applicant_name',
         'applicant_address',
         'applicant_phone',
@@ -56,6 +59,9 @@ class ConsentApplication extends Model
         'stamp_duty_rate',
         'registration_rate',
         'stamp_duty_amount',
+        // KIRS or FIRS — where the letter directs stamp duty. Not billed by
+        // the Ministry, so never part of bill_total on a typed consent.
+        'stamp_duty_payee',
         'registration_fee',
         'assignment_fee',
         'processing_fee',

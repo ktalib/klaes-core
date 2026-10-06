@@ -207,6 +207,7 @@
         }
     </style>
     @stack('styles')
+    @include('components.table-columns-assets', ['columnPreferenceGuard' => 'laas'])
 </head>
 <body>
     <a href="#laas-main" class="laas-skip">Skip to main content</a>

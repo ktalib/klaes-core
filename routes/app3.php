@@ -307,6 +307,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/applications/op-resettlement/{id}/passport', [OpResettlementApplicationController::class, 'updatePassport'])->name('applications.update-passport')->where('id', '[0-9]+|pra-[0-9]+|ic-[0-9]+');
         Route::get('/applications/match-op/preview', [OpResettlementApplicationController::class, 'matchOpPreview'])->name('applications.match-op-preview');
         Route::post('/applications/match-op', [OpResettlementApplicationController::class, 'matchOp'])->name('applications.match-op');
+        // Action menu (OSS FC / FEFR): put the record on Applications (Change of Ownership).
+        Route::post('/applications/send-to-oss-applications', [\App\Http\Controllers\OssApplicationSendController::class, 'fromOpPage'])->name('applications.send-to-oss-applications');
         Route::delete('/applications/delete-master/{id}', [OpResettlementApplicationController::class, 'deleteMaster'])->name('applications.delete-master');
         Route::delete('/applications/delete-master-bulk', [OpResettlementApplicationController::class, 'deleteMasterBulk'])->name('applications.delete-master-bulk');
         Route::post('/applications/op-resettlement/pra/flag-merger', [OpResettlementApplicationController::class, 'flagMergerOp'])->name('applications.pra-flag-merger');
@@ -922,6 +924,8 @@ Route::middleware(['auth'])->group(function () {
         // Dropdown values for the Advanced Search panel, read from the rows that
         // actually exist (cached) rather than from a hand-kept list.
         Route::get('/filter-options', [IndexedFileTableController::class, 'filterOptions'])->name('filter-options');
+        // Export feed for the table (preview + CSV + PDF), same filters as /list.
+        Route::get('/export', [IndexedFileTableController::class, 'export'])->name('export');
         Route::post('/{id}/mark-duplicate', [IndexedFileTableController::class, 'markAsDuplicate'])->name('mark-duplicate');
         Route::get('/{id}/indexing-duplicate-preview', [IndexedFileTableController::class, 'previewIndexingDuplicateMove'])->name('indexing-duplicate-preview');
         Route::post('/{id}/move-to-indexing-duplicates', [IndexedFileTableController::class, 'moveToIndexingDuplicates'])->name('move-to-indexing-duplicates');
@@ -1102,6 +1106,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/preview-demo', [ConsentApplicationController::class, 'previewDemo'])->name('preview-demo');
         Route::post('/', [ConsentApplicationController::class, 'store'])->name('store');
         Route::put('/{id}', [ConsentApplicationController::class, 'update'])->name('update');
+        Route::patch('/{id}/transaction-type', [ConsentApplicationController::class, 'updateTransactionType'])->name('transaction-type');
         Route::get('/{id}', [ConsentApplicationController::class, 'show'])->name('show');
         Route::post('/log-print/{id}', [ConsentApplicationController::class, 'logPrint'])->name('log-print');
     });
@@ -1320,6 +1325,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('land-recommendations/export', [\App\Http\Controllers\LandRecommendationController::class, 'export'])->name('land-recommendations.export');
     // Duplicate check by file number — must also stay above the resource route
     Route::get('land-recommendations/check-duplicate', [\App\Http\Controllers\LandRecommendationController::class, 'checkDuplicate'])->name('land-recommendations.check-duplicate');
+    // Indexed plot size (m²) for the form to prefill and lock — must stay above the resource route
+    Route::get('land-recommendations/plot-size', [\App\Http\Controllers\LandRecommendationController::class, 'plotSize'])->name('land-recommendations.plot-size');
     // Plot Subdivision batch capture — both must stay above the resource route
     Route::get('land-recommendations/subdivision-mothers', [\App\Http\Controllers\LandRecommendationController::class, 'subdivisionMothers'])->name('land-recommendations.subdivision-mothers');
     Route::get('land-recommendations/subdivision-children', [\App\Http\Controllers\LandRecommendationController::class, 'subdivisionChildren'])->name('land-recommendations.subdivision-children');

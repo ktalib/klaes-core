@@ -140,15 +140,21 @@ class IndexedFilesFilterOptions
         return Cache::remember($cacheKey, self::TTL, function () use ($registry) {
             $lga = $this->lgaOptions($registry);
             $createdBy = $this->createdByOptions($registry);
+            $landUse = $this->landUseOptions($registry);
 
             return [
                 'options' => [
-                    'general_registry' => $this->plainColumn('general_registry', $registry),
-                    'land_use_type' => $this->plainColumn('land_use_type', $registry),
+                    // "Other" is a catch-all, not a registry, so it is not offered.
+                    'general_registry' => array_values(array_filter(
+                        $this->plainColumn('general_registry', $registry),
+                        fn ($o) => strcasecmp(trim((string) ($o['value'] ?? '')), 'Other') !== 0
+                    )),
+                    'land_use_type' => $landUse['options'],
                     'lga' => $lga['options'],
                     'created_by' => $createdBy['options'],
                 ],
                 'variants' => [
+                    'land_use_type' => $landUse['variants'],
                     'lga' => $lga['variants'],
                     'created_by' => $createdBy['variants'],
                 ],
@@ -162,6 +168,68 @@ class IndexedFilesFilterOptions
      *
      * @return list<string>
      */
+    /**
+     * The four known land uses, in this order. Each stands for every raw spelling
+     * the clerks used for it, so picking Residential also finds RES, RESIDENCIAL,
+     * CON-RES and the rest. Mixed use, Government and junk values (file numbers
+     * typed into the wrong box) are not offered.
+     */
+    private const LAND_USES = ['RESIDENTIAL', 'COMMERCIAL', 'INDUSTRIAL', 'AGRICULTURAL'];
+
+    /** Normalised spelling => land use, for the abbreviations and misspellings seen. */
+    private const LAND_USE_ALIASES = [
+        'RES' => 'RESIDENTIAL', 'RESIDENCIAL' => 'RESIDENTIAL', 'RESDENTIAL' => 'RESIDENTIAL',
+        'REAIDENTIAL' => 'RESIDENTIAL', 'RESIDENTIA' => 'RESIDENTIAL', 'REIDENTIAL' => 'RESIDENTIAL',
+        'CON RES' => 'RESIDENTIAL',
+        'COM' => 'COMMERCIAL', 'COMMACIAL' => 'COMMERCIAL', 'CON COM' => 'COMMERCIAL',
+        'IND' => 'INDUSTRIAL', 'INDUSTRY' => 'INDUSTRIAL',
+        'AG' => 'AGRICULTURAL', 'AGRICULTURE' => 'AGRICULTURAL', 'AGARICULTURAL' => 'AGRICULTURAL',
+        'CON AG' => 'AGRICULTURAL',
+    ];
+
+    /**
+     * Land use options: only the four known uses, each with the raw values it matches.
+     */
+    private function landUseOptions(string $registry): array
+    {
+        $totals = array_fill_keys(self::LAND_USES, 0);
+        $variants = array_fill_keys(self::LAND_USES, []);
+
+        foreach ($this->countsFor('land_use_type', $registry) as $raw => $total) {
+            $key = self::normalize($raw);
+            $use = self::LAND_USE_ALIASES[$key] ?? null;
+
+            if ($use === null) {
+                foreach (self::LAND_USES as $candidate) {
+                    // "COMMERCIAL (SHOPS)" or "INDUSTRIAL (SMALL SCALE)" is a sub-type of
+                    // its use; "COMMERCIAL AND RESIDENTIAL" is mixed and belongs to neither.
+                    if ($key === $candidate
+                        || (str_starts_with($key, $candidate . ' ') && !preg_match('/\b(RESIDENTIAL|COMMERCIAL|INDUSTRIAL|AGRICULTURAL)\b/', substr($key, strlen($candidate))))) {
+                        $use = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            if ($use === null) {
+                continue;
+            }
+
+            $totals[$use] += (int) $total;
+            $variants[$use][] = (string) $raw;
+        }
+
+        $options = [];
+        foreach (self::LAND_USES as $use) {
+            $options[] = ['value' => $use, 'label' => ucfirst(strtolower($use)), 'total' => $totals[$use]];
+            if ($variants[$use] === []) {
+                $variants[$use] = [$use];
+            }
+        }
+
+        return ['options' => $options, 'variants' => $variants];
+    }
+
     public function rawValuesFor(string $column, string $choice, string $registry = ''): array
     {
         $built = $this->build($registry);
@@ -285,14 +353,10 @@ class IndexedFilesFilterOptions
             $options[] = ['value' => $name, 'total' => $total];
         }
 
-        // Offered last, and only when there is something in it. Without this the rows
-        // whose lga holds a district or a date would be unreachable from the panel.
+        // Values that are not a listed LGA (districts, dates, other states' LGAs) are
+        // not offered: the dropdown lists real LGAs only. The variants stay, so a
+        // bookmarked filter still resolves; the rows remain reachable from search.
         if ($unmappedTotal > 0) {
-            $options[] = [
-                'value' => self::LGA_OTHER,
-                'label' => 'Other / not a listed LGA',
-                'total' => $unmappedTotal,
-            ];
             $variants[self::LGA_OTHER] = $unmapped;
         }
 

@@ -601,6 +601,10 @@ function buildActionsMenu(row, viewUrl) {
           <span class="leading-snug">Match Shadow File ${isPpMatchedRow ? ' <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-50 text-green-600 border border-green-200 align-middle">MATCHED</span>' : ''}</span>
         </button>`;
 
+  // Not in the action menu for now (the menu was getting long): unlinking is done
+  // from the View Related File(s) card, which has an Unlink button on every row.
+  // Kept so it can be put back by adding ${unlinkRelatedButton} to the menu.
+  //
   // Disabled when the record has no related file numbers at all. When it does, the
   // handler opens the Related Files list rather than guessing: the row only knows
   // *that* related files exist, not how many (link-sourced rows show "Linked Records"
@@ -692,7 +696,6 @@ function buildActionsMenu(row, viewUrl) {
           ${viewButton}
           ${viewTransactionsButton}
           ${viewRelatedFilesButton}
-          ${unlinkRelatedButton}
           ${trackingButton}
           ${editButton}
           ${commissionSheetButton}
@@ -4796,7 +4799,28 @@ async function loadFilterOptions() {
     }
 
     const query = params.toString();
-    const payload = await fetchJson(query ? `${config.filterOptionsUrl}?${query}` : config.filterOptionsUrl);
+    const url = query ? `${config.filterOptionsUrl}?${query}` : config.filterOptionsUrl;
+
+    // The server intermittently answers a request with a 500 that has nothing to do
+    // with this endpoint (a request occasionally runs without its .env loaded), and
+    // one bad response used to leave every dropdown on "Any". Retry a few times
+    // before giving up; a later open of the panel tries again as well.
+    let payload = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 3 && payload === null; attempt += 1) {
+      try {
+        if (attempt > 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, 400 * attempt));
+        }
+        payload = await fetchJson(url);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (payload === null) {
+      throw lastError || new Error('Filter options could not be loaded.');
+    }
+
     const data = payload && payload.data ? payload.data : {};
 
     advDom.root.querySelectorAll('select[data-adv-options]').forEach((select) => {
@@ -4807,15 +4831,13 @@ async function loadFilterOptions() {
 
       const current = select.value;
       const placeholder = select.options[0] ? select.options[0].outerHTML : '<option value=""></option>';
-      // The row count rides in the label so a value that only two files carry reads
-      // as the outlier it is, rather than looking like a peer of "Lands Registry".
+      // Labels only - no row counts in the list.
       select.innerHTML = placeholder + values
         .map((entry) => {
           // `label` is only sent where the stored value is not what a person should
           // read - the LGA bucket that gathers everything which is not a listed LGA.
           const text = escapeHtml(entry.label || entry.value);
-          const total = formatNumber(entry.total);
-          return `<option value="${escapeHtml(entry.value)}">${text} (${total})</option>`;
+          return `<option value="${escapeHtml(entry.value)}">${text}</option>`;
         })
         .join('');
       select.value = current;
@@ -4834,6 +4856,28 @@ function attachAdvancedSearchListeners() {
   if (advDom.toggle) {
     advDom.toggle.addEventListener('click', () => {
       setAdvancedPanelOpen(advDom.panel.classList.contains('hidden'));
+    });
+  }
+
+  // Export: download a CSV of exactly what the table is showing - the search box
+  // and the applied Advanced Search filters. No preview, no extra dialog.
+  const exportButton = document.getElementById('indexed-files-export-btn');
+  if (exportButton && config.exportUrl) {
+    exportButton.addEventListener('click', () => {
+      const params = new URLSearchParams();
+      if ((state.search || '').trim()) {
+        params.set('search', state.search.trim());
+      }
+      if (config.registry) {
+        params.set('registry', config.registry);
+      }
+      Object.entries(state.advanced).forEach(([key, value]) => params.set(key, value));
+      if (Object.keys(state.advanced).length) {
+        params.set('adv_match_mode', state.advancedMatchMode);
+      }
+
+      const query = params.toString();
+      window.location.href = query ? `${config.exportUrl}?${query}` : config.exportUrl;
     });
   }
 

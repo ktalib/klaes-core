@@ -2,7 +2,9 @@
     // Read before <head> because the stationery scan is applied as a CSS
     // background inside the <style> block below. A full URL is used as given;
     // anything else is resolved against the app's own public directory.
-    $letterheadImage = (string) config('consent_letter.letterhead_image', '');
+    // $letterheadOverride is passed only by the preview page (?letterhead=1);
+    // a real letter always takes the configured value.
+    $letterheadImage = (string) ($letterheadOverride ?? config('consent_letter.letterhead_image', ''));
     $letterheadUrl = $letterheadImage === ''
         ? ''
         : (preg_match('#^(https?:)?//#i', $letterheadImage) ? $letterheadImage : asset($letterheadImage));
@@ -266,13 +268,17 @@
             margin-bottom: 0.25rem;
         }
 
+        /* Smaller than the body, as on the original consent letter, so the
+           four lines never crowd the foot of the page. */
         .signature-block div {
             text-transform: uppercase;
-            line-height: 1.32;
+            font-size: 12pt;
+            line-height: 1.3;
         }
 
         .signature-block .signatory {
             font-weight: bold;
+            font-size: 13pt;
         }
 
         /* QR in the top-right corner, beside the crest. Absolute, so a long
@@ -479,6 +485,29 @@
                 el.style.fontSize = size + 'pt';
             }
         });
+
+        // One A4 page, always. Print clips the sheet to 297mm, so a long name or
+        // address pushed the last signature line ("Kano State") off the page.
+        // The body text steps down from 14.5pt (no further than 12pt) until the
+        // signature sits above the bottom margin.
+        function fitLetterToPage() {
+            var sheet = document.querySelector('.page-sheet');
+            var sig = sheet && sheet.querySelector('.signature-block');
+            if (!sig) return;
+            var mm = sheet.getBoundingClientRect().width / 210;
+            var limit = function () {
+                return sheet.getBoundingClientRect().top + 297 * mm
+                    - parseFloat(getComputedStyle(sheet).paddingBottom);
+            };
+            var size = 14.5;
+            sheet.style.fontSize = size + 'pt';
+            while (sig.getBoundingClientRect().bottom > limit() && size > 12) {
+                size -= 0.25;
+                sheet.style.fontSize = size + 'pt';
+            }
+        }
+        fitLetterToPage();
+        window.addEventListener('beforeprint', fitLetterToPage);
 
         // Keep the subject heading to exactly two lines, whatever the file number.
         document.querySelectorAll('[data-fit-line]').forEach(function (el) {

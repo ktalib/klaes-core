@@ -45,6 +45,51 @@ class LandRecommendationController extends Controller
     }
 
     /**
+     * An indexed plot size wins over whatever was posted for area_sqm.
+     *
+     * The form locks the field when the file's indexing carries a size, but a
+     * disabled input is only a hint - the size is re-read from file_indexings on
+     * save so a recommendation can never disagree with the file it was keyed from.
+     * Files indexed without a size keep what the officer typed.
+     *
+     * @param  array $data  A request payload, or one child / row of a batch.
+     */
+    /**
+     * The indexed plot size (m²) for a file number, for the form to prefill and
+     * lock. plot_size is null when the file has no usable indexed size.
+     */
+    public function plotSize(Request $request)
+    {
+        return response()->json([
+            'plot_size' => \App\Support\PlotSize::fromIndexing($request->input('file_number')),
+        ]);
+    }
+
+    /**
+     * Plot size (m²) is required on single capture and edit — the ground rent
+     * amount is rate x plot size, so a record without one cannot be billed. A file
+     * whose indexing carries a size is exempt: resolveIndexedPlotSize() fills it
+     * from the indexing on save whatever was posted.
+     */
+    private function plotSizeRule(?string $fileNumber): string
+    {
+        return \App\Support\PlotSize::fromIndexing($fileNumber) !== null
+            ? 'nullable|numeric|min:0'
+            : 'required|numeric|gt:0';
+    }
+
+    private function resolveIndexedPlotSize(array $data, ?string $fileNumber): array
+    {
+        $indexed = \App\Support\PlotSize::fromIndexing($fileNumber);
+
+        if ($indexed !== null) {
+            $data['area_sqm'] = $indexed;
+        }
+
+        return $data;
+    }
+
+    /**
      * Grant-condition columns a regular batch may set per file rather than once
      * for the whole batch. Kept in step with GRANT_FIELDS in the form's Grant
      * Conditions stepper — a column added to one and not the other is a value the
@@ -52,6 +97,8 @@ class LandRecommendationController extends Controller
      */
     private const PER_CHILD_GRANT_FIELDS = [
         'term', 'cofo_year', 'selected_year', 'ground_rent', 'ground_rent_unit',
+        // Plot size (m²): the quantity the ground rent rate is charged on.
+        'area_sqm',
         'development_period',
         'development_value', 'development_charge', 'survey_fees',
         'preparation_fees', 'preparation_fees_words',
@@ -1157,19 +1204,15 @@ class LandRecommendationController extends Controller
     }
 
     /**
-     * Reject a save that would duplicate an existing file number, unless the user
-     * explicitly confirmed it (the "Save Anyway" path sets `duplicate_confirmed`).
-     * Confirming produces an ordinary second recommendation for the file — it is
-     * not a re-issuance, which carries `is_reissuance` and skips this guard from
-     * its caller. The client-side check only warns; this is what actually stops a
-     * duplicate from a stale page, a failed fetch or a direct POST.
+     * Reject a save that would duplicate an existing file number. This is a hard
+     * block: there is no "Save Anyway". The officer edits the existing record
+     * instead, and a deliberate second letter for the same file goes through the
+     * re-issuance flow, which carries `is_reissuance` and skips this guard from
+     * its caller. The form blocks too; this is what stops a stale page, a failed
+     * fetch or a direct POST.
      */
     private function guardAgainstDuplicate(Request $request, $excludeId = null): void
     {
-        if ($request->boolean('duplicate_confirmed')) {
-            return;
-        }
-
         $existing = $this->findDuplicate((string) $request->input('file_number', ''), $excludeId);
 
         if (!$existing) {
@@ -1178,7 +1221,7 @@ class LandRecommendationController extends Controller
 
         throw ValidationException::withMessages([
             'file_number' => sprintf(
-                'A recommendation already exists for %s (applicant: %s, status: %s, created %s). Re-select the file number and choose "Save Anyway" if this is intentional.',
+                'A recommendation already exists for %s (applicant: %s, status: %s, created %s). Open and edit the existing record instead of capturing it again.',
                 $existing->file_number,
                 $existing->applicant_name ?: '—',
                 $existing->status ?: '—',
@@ -1217,6 +1260,8 @@ class LandRecommendationController extends Controller
 
     public function store(Request $request)
     {
+        $this->clearTpNoPlaceholder($request);
+
         // Store one canonical number for the Contact Applicant action and SMS.
         // This accepts common officer input (+234 801..., 0801 234...) but the
         // validation below still rejects anything that is not a Nigerian mobile
@@ -1263,6 +1308,7 @@ class LandRecommendationController extends Controller
                 'ground_rent' => 'nullable|numeric',
                 'ground_rent_unit' => 'nullable|string|max:100',
                 'ground_rent_unit_other' => 'nullable|string|max:100',
+                'area_sqm' => $this->plotSizeRule($request->input('file_number')),
                 'effective_date' => 'nullable|date',
                 'premium' => 'nullable|numeric',
                 'development_period' => 'nullable|string',
@@ -1338,6 +1384,7 @@ class LandRecommendationController extends Controller
         // Map survey method radio to YES/NO flags
         // "Other" becomes the words the officer typed; only the resolved unit is stored.
         $validated = $this->resolveGroundRentUnit($validated);
+        $validated = $this->resolveIndexedPlotSize($validated, $validated['file_number'] ?? null);
 
         $validated['rofo_director_survey']  = ($request->rofo_survey_method === 'DIRECTOR') ? 'YES' : 'NO';
         $validated['rofo_licensed_surveyor'] = ($request->rofo_survey_method === 'LICENSED') ? 'YES' : 'NO';
@@ -1767,13 +1814,19 @@ class LandRecommendationController extends Controller
             })
             ->pluck('file_number');
 
-        $workflowChildren = DB::connection('sqlsrv')->table('mls_file_no')
-            ->whereIn('full_file_number', $linkedFileNumbers)
-            ->where('source', 'Subdivision')
-            ->where(function ($q) {
-                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
-            })
-            ->pluck('full_file_number');
+        // Chunked: a subdivision can now hold 2000 plots, and a grandmother adds the
+        // children of every file it was subdivided as -- past SQL Server's 2100
+        // parameters in one whereIn.
+        $workflowChildren = collect();
+        foreach ($linkedFileNumbers->chunk(1000) as $slice) {
+            $workflowChildren = $workflowChildren->merge(DB::connection('sqlsrv')->table('mls_file_no')
+                ->whereIn('full_file_number', $slice->values()->all())
+                ->where('source', 'Subdivision')
+                ->where(function ($q) {
+                    $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                })
+                ->pluck('full_file_number'));
+        }
 
         // Source 2 — subdivided manually before the workflow existed and backfilled
         // through Legacy Parcel Update. Those children pre-date the workflow, so they
@@ -1965,19 +2018,28 @@ class LandRecommendationController extends Controller
         // mls_file_no under a different source, only in file_indexings, or in neither.
         $childFileNumbers = $fileNumbers;
 
-        $mlsByFile = DB::connection('sqlsrv')->table('mls_file_no')
-            ->whereIn('full_file_number', $childFileNumbers)
-            ->where(function ($q) {
-                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
-            })
-            ->get(['full_file_number', 'file_name', 'plot_no', 'location', 'lga', 'district', 'land_use', 'tracking_id', 'address'])
-            ->keyBy(fn ($r) => $key($r->full_file_number));
+        // Chunked to stay under SQL Server's 2100-parameter ceiling: a batch can now
+        // carry well over 2000 children (a 2000-plot subdivision plus a grandmother's
+        // earlier ones).
+        $mlsByFile = collect();
+        $indexByFile = collect();
+        foreach ($childFileNumbers->chunk(1000) as $slice) {
+            $slice = $slice->values()->all();
 
-        $indexByFile = DB::connection('sqlsrv')->table('file_indexings')
-            ->whereIn('file_number', $childFileNumbers)
-            ->get(['file_number', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
-                'residence_address', 'location', 'current_holder', 'original_holder'])
-            ->keyBy(fn ($r) => $key($r->file_number));
+            $mlsByFile = $mlsByFile->merge(DB::connection('sqlsrv')->table('mls_file_no')
+                ->whereIn('full_file_number', $slice)
+                ->where(function ($q) {
+                    $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                })
+                ->get(['full_file_number', 'file_name', 'plot_no', 'location', 'lga', 'district', 'land_use', 'tracking_id', 'address']));
+
+            $indexByFile = $indexByFile->merge(DB::connection('sqlsrv')->table('file_indexings')
+                ->whereIn('file_number', $slice)
+                ->get(['file_number', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
+                    'residence_address', 'location', 'current_holder', 'original_holder']));
+        }
+        $mlsByFile = $mlsByFile->keyBy(fn ($r) => $key($r->full_file_number));
+        $indexByFile = $indexByFile->keyBy(fn ($r) => $key($r->file_number));
 
         // Fourth name source, and the one the other three miss most often. A file
         // commissioned outside the MLS path (KANGIS, ST, a temporary number) has its
@@ -2066,14 +2128,19 @@ class LandRecommendationController extends Controller
         // the row is unticked (the duplicate guard would reject it) and shows what
         // was already captured rather than the registry defaults, so the user can
         // see the existing letter's details instead of guessing why it is excluded.
-        $existingByFile = LandRecommendation::whereIn('file_number', $childFileNumbers)
-            ->orderByDesc('id')
-            ->get([
-                'id', 'file_number', 'applicant_name', 'applicant_address', 'plot_number',
-                'location', 'land_use_id', 'purpose_id', 'page', 'page_2', 'page_3',
-                'status', 'rofo_status', 'rofo_batch_id',
-            ])
-            ->keyBy(fn ($r) => $key($r->file_number));
+        // Chunked by file number to stay under SQL Server's parameter ceiling. The
+        // order is re-applied across chunks exactly as the single query had it
+        // (id descending, then keyBy, which keeps the last row per file).
+        $existingByFile = collect();
+        foreach ($childFileNumbers->chunk(1000) as $slice) {
+            $existingByFile = $existingByFile->merge(LandRecommendation::whereIn('file_number', $slice->values()->all())
+                ->get([
+                    'id', 'file_number', 'applicant_name', 'applicant_address', 'plot_number',
+                    'location', 'land_use_id', 'purpose_id', 'page', 'page_2', 'page_3',
+                    'status', 'rofo_status', 'rofo_batch_id',
+                ]));
+        }
+        $existingByFile = $existingByFile->sortByDesc('id')->keyBy(fn ($r) => $key($r->file_number));
 
         // mls_file_no.land_use holds file-number prefixes (RES, CON-AG, IND-RC …)
         // while land_uses holds full names, so route the value through the shared
@@ -2603,6 +2670,7 @@ class LandRecommendationController extends Controller
             'children.*.ground_rent'        => 'nullable|numeric',
             'children.*.ground_rent_unit'   => 'nullable|string|max:100',
             'children.*.ground_rent_unit_other' => 'nullable|string|max:100',
+            'children.*.area_sqm'           => 'nullable|numeric|min:0',
             'children.*.development_period' => 'nullable|string',
             'children.*.development_value'  => 'nullable|numeric',
             'children.*.development_charge' => 'nullable|string',
@@ -2643,6 +2711,7 @@ class LandRecommendationController extends Controller
             'ground_rent'        => 'nullable|numeric',
             'ground_rent_unit'   => 'nullable|string|max:100',
             'ground_rent_unit_other' => 'nullable|string|max:100',
+            'area_sqm' => 'nullable|numeric|min:0',
             'premium'            => 'nullable|numeric',
             'premium_words'      => 'nullable|string',
             'development_period' => 'nullable|string',
@@ -2773,6 +2842,8 @@ class LandRecommendationController extends Controller
      */
     public function storeBatch(Request $request)
     {
+        $this->clearTpNoPlaceholder($request);
+
         // Absent means subdivision: the only kind that existed before regular
         // batches, so an old form (or a resumed draft keyed by one) still posts
         // exactly what it always did.
@@ -2917,6 +2988,8 @@ class LandRecommendationController extends Controller
                 // against THIS file - a batch may price one plot per square metre
                 // and the next per hectare.
                 $child = $this->resolveGroundRentUnit($child);
+                // Its own indexed plot size, when the file has one (see resolveIndexedPlotSize).
+                $child = $this->resolveIndexedPlotSize($child, $child['file_number'] ?? null);
 
                 foreach (self::PER_CHILD_GRANT_FIELDS as $field) {
                     if (array_key_exists($field, $child)) {
@@ -3163,6 +3236,8 @@ class LandRecommendationController extends Controller
      */
     public function updateBatch(Request $request, string $batchId)
     {
+        $this->clearTpNoPlaceholder($request);
+
         $existing = LandRecommendation::where('rofo_batch_id', $batchId)->get();
 
         if ($existing->isEmpty()) {
@@ -3255,6 +3330,9 @@ class LandRecommendationController extends Controller
             }
 
             foreach (array_values($validated['children']) as $child) {
+                // As posted, before the resolvers below add keys of their own — an
+                // issued record takes only what was actually sent for it.
+                $posted = $child;
                 $row = $common;
                 $row['file_number']       = trim($child['file_number']);
                 $row['applicant_name']    = $child['applicant_name'];
@@ -3274,6 +3352,8 @@ class LandRecommendationController extends Controller
                 // against THIS file - a batch may price one plot per square metre
                 // and the next per hectare.
                 $child = $this->resolveGroundRentUnit($child);
+                // Its own indexed plot size, when the file has one (see resolveIndexedPlotSize).
+                $child = $this->resolveIndexedPlotSize($child, $child['file_number'] ?? null);
 
                 foreach (self::PER_CHILD_GRANT_FIELDS as $field) {
                     if (array_key_exists($field, $child)) {
@@ -3306,15 +3386,13 @@ class LandRecommendationController extends Controller
                 $record = $byFile->get($key($child['file_number']));
 
                 if ($record) {
-                    // Do not overwrite an issued RoFO with data from a reopened
-                    // recommendation batch. A missing applicant address is the one
-                    // exception: it can be completed without changing any issued
-                    // RofO field, and is then propagated to the source records for
-                    // future recommendation/backfill use.
+                    // An issued RoFO may be corrected from a reopened batch, but
+                    // only field by field: nothing from the batch-wide set, no
+                    // blank over a value, and nothing equal to what is stored.
+                    // The form posts a per-file condition for these rows only when
+                    // the officer changed it, so a field left alone is never sent.
                     if ($record->rofo_status === LandRecommendation::ROFO_GENERATED) {
-                        $address = trim((string) ($child['applicant_address'] ?? ''));
-                        if (blank($record->applicant_address) && $address !== '') {
-                            $record->applicant_address = $address;
+                        if ($this->applyIssuedBatchCorrections($record, $posted, $child, $row)) {
                             $record->updated_by = Auth::id();
                             $record->save();
                             $this->propagateToFileSources($record);
@@ -3380,6 +3458,107 @@ class LandRecommendationController extends Controller
 
         return redirect()->route('land-recommendations.index', ['type' => 'ROFO', 'tab' => 'batches'])
             ->with('success', $summary);
+    }
+
+    /**
+     * The TP No. select's "Other" option posts the placeholder `__other__` until
+     * the officer types the real number into "Specify TP No…". A save that arrives
+     * with the placeholder means no TP No. was given, so it is treated as blank
+     * rather than stored (one record, 41507, was saved that way). An issued batch
+     * record then keeps whatever it already had, since a blank never overwrites.
+     */
+    private function clearTpNoPlaceholder(Request $request): void
+    {
+        $isPlaceholder = fn ($v) => in_array(strtolower(trim((string) $v)), ['__other__', 'other', 'others'], true);
+
+        if ($request->has('layout_plan_no') && $isPlaceholder($request->input('layout_plan_no'))) {
+            $request->merge(['layout_plan_no' => null]);
+        }
+
+        $children = $request->input('children');
+        if (is_array($children)) {
+            $changed = false;
+            foreach ($children as $i => $child) {
+                if (is_array($child) && array_key_exists('layout_plan_no', $child) && $isPlaceholder($child['layout_plan_no'])) {
+                    $children[$i]['layout_plan_no'] = null;
+                    $changed = true;
+                }
+            }
+            if ($changed) {
+                $request->merge(['children' => $children]);
+            }
+        }
+    }
+
+    /**
+     * Correct an issued (RoFO generated) record from a reopened batch without
+     * disturbing anything that was saved correctly. Fills $record and returns
+     * whether anything changed; the caller saves.
+     *
+     * - Table cells (name, address, plot, location, land use, purpose, pages)
+     *   always post, seeded from the record, so only a value that differs from
+     *   what is stored is taken.
+     * - Per-file conditions (TP No., ground rent, plot size, ...) are taken only
+     *   when posted for this file. The form sends one for an issued row only when
+     *   the officer changed it; the batch-wide set is never applied.
+     * - A blank never overwrites a stored value.
+     *
+     * @param array $posted The child exactly as posted.
+     * @param array $child  The child after the unit / plot-size resolvers.
+     * @param array $row    The row built for a non-issued child (cells resolved).
+     */
+    private function applyIssuedBatchCorrections(LandRecommendation $record, array $posted, array $child, array $row): bool
+    {
+        $same = function ($stored, $incoming): bool {
+            $a = trim((string) $stored);
+            $b = trim((string) $incoming);
+            if (is_numeric($a) && is_numeric($b)) {
+                return abs((float) $a - (float) $b) < 0.000001;
+            }
+            return $a === $b;
+        };
+        $take = function (string $field, $value) use ($record, $same) {
+            if ($value === null || trim((string) $value) === '') return;
+            if ($same($record->{$field}, $value)) return;
+            $record->{$field} = is_string($value) ? trim($value) : $value;
+        };
+
+        foreach (['applicant_name', 'applicant_address', 'plot_number', 'location', 'page', 'page_2', 'page_3'] as $field) {
+            $take($field, $row[$field] ?? null);
+        }
+
+        if (!$same($record->land_use_id, $row['land_use_id'] ?? null)) {
+            $take('land_use_id', $row['land_use_id'] ?? null);
+            $take('land_use', $row['land_use'] ?? null);
+        }
+
+        // Purpose: "Other" is a null purpose_id with the words in purpose_of_clause.
+        $purposeId = $posted['purpose_id'] ?? null;
+        if ($purposeId === 'other') {
+            $text = trim((string) ($posted['purpose_id_other'] ?? ''));
+            if ($text !== '' && ($record->purpose_id !== null || !$same($record->purpose_of_clause, $text))) {
+                $record->purpose_id        = null;
+                $record->purpose_of_clause = $text;
+            }
+        } elseif (filled($purposeId) && !$same($record->purpose_id, $purposeId)) {
+            $record->purpose_id        = $row['purpose_id'] ?? $purposeId;
+            $record->purpose_of_clause = $row['purpose_of_clause'] ?? $record->purpose_of_clause;
+        }
+
+        foreach (self::PER_CHILD_GRANT_FIELDS as $field) {
+            $sent = array_key_exists($field, $posted)
+                || ($field === 'ground_rent_unit' && array_key_exists('ground_rent_unit_other', $posted));
+            if ($sent) {
+                $take($field, $child[$field] ?? null);
+            }
+        }
+
+        if (filled($posted['rofo_survey_method'] ?? null)) {
+            $take('rofo_director_survey', $posted['rofo_survey_method'] === 'DIRECTOR' ? 'YES' : 'NO');
+            $take('rofo_licensed_surveyor', $posted['rofo_survey_method'] === 'LICENSED' ? 'YES' : 'NO');
+        }
+
+        return $record->isDirty();
     }
 
     /**
@@ -3573,13 +3752,22 @@ class LandRecommendationController extends Controller
 
     public function update(Request $request, $id)
     {
+        $this->clearTpNoPlaceholder($request);
+
         $recommendation = LandRecommendation::findOrFail($id);
 
         $request->merge([
             'applicant_phone' => NigerianPhone::normalize($request->input('applicant_phone')),
         ]);
 
-        $this->guardAgainstDuplicate($request, $recommendation->id);
+        // Only a change of file number can create a duplicate. A re-issuance shares
+        // its source's number by design, and older duplicate pairs predate the hard
+        // block — neither may be locked out of ordinary edits.
+        $fileNumberChanged = strtoupper(trim((string) $request->input('file_number', '')))
+            !== strtoupper(trim((string) $recommendation->file_number));
+        if ($fileNumberChanged) {
+            $this->guardAgainstDuplicate($request, $recommendation->id);
+        }
 
         $validated = $request->validate([
             'file_number' => 'required|string',
@@ -3599,6 +3787,7 @@ class LandRecommendationController extends Controller
             'ground_rent' => 'nullable|numeric',
             'ground_rent_unit' => 'nullable|string|max:100',
             'ground_rent_unit_other' => 'nullable|string|max:100',
+            'area_sqm' => $this->plotSizeRule($request->input('file_number')),
             'effective_date' => 'nullable|date',
             'premium' => 'nullable|numeric',
             'development_period' => 'nullable|string',
@@ -3655,6 +3844,7 @@ class LandRecommendationController extends Controller
 
         // "Other" becomes the words the officer typed; only the resolved unit is stored.
         $validated = $this->resolveGroundRentUnit($validated);
+        $validated = $this->resolveIndexedPlotSize($validated, $validated['file_number'] ?? null);
 
         $validated['rofo_director_survey']  = ($request->rofo_survey_method === 'DIRECTOR') ? 'YES' : 'NO';
         $validated['rofo_licensed_surveyor'] = ($request->rofo_survey_method === 'LICENSED') ? 'YES' : 'NO';

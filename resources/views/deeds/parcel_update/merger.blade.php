@@ -157,7 +157,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">#</th>
+                                <th class="px-4 py-3 text-left">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant Name</th>
                                 <th class="px-4 py-3 text-left">Temp File No</th>
                                 <th class="px-4 py-3 text-left">Source Plots</th>
@@ -171,7 +171,7 @@
                         <tbody class="divide-y divide-slate-100">
                             @forelse($records as $record)
                                 <tr>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $record->id }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3">
                                         <div class="font-bold text-slate-900">{{ $record->applicant_name ?: '—' }}</div>
                                        

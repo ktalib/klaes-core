@@ -343,11 +343,11 @@
               @endif
               <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">S/N</th>
 
-              <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                File Number</th>
               {{-- Where the file stands in Valuation -> Consent -> Registration.
                    Painted by public/js/deeds-pipeline.js from one batched lookup. --}}
               <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap" title="Valuation → Consent → Registration">Workflow</th>
+              <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                File Number</th>
               <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Consent Type</th>
               <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Party 1</th>
               <th class="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Party 2</th>
@@ -520,8 +520,8 @@
         // Order must match partials/_table_row_cells.blade.php.
         const columns = [
           { name: 'sn', orderable: false, className: 'px-6 py-4 text-slate-600 font-bold italic' },
-          { name: 'file_number', className: 'px-6 py-4 text-slate-900 font-bold whitespace-nowrap' },
           { name: 'workflow', orderable: false, className: 'px-6 py-4 whitespace-nowrap' },
+          { name: 'file_number', className: 'px-6 py-4 text-slate-900 font-bold whitespace-nowrap' },
           { name: 'consent_type', className: 'px-6 py-4' },
           { name: 'party1', className: 'px-6 py-4 text-slate-900 font-semibold uppercase' },
           { name: 'party2', className: 'px-6 py-4 text-slate-900 font-semibold uppercase' },
@@ -662,9 +662,18 @@
                       `;
           }
 
+          // A consent captured before transaction types has none: Print first
+          // asks for one (consent type and percentages too), saves it, then
+          // opens the new letter. Handled by .consent-print-needs-type in
+          // public/js/consent_applications.js.
+          const needsType = !app.transaction_type;
+          const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
           if (canPrint) {
             html += `
-                          <a href="/consent-applications/${app.id}" target="_blank" class="flex items-center gap-3 px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 transition font-bold">
+                          <a href="/consent-applications/${app.id}" target="_blank"
+                              class="${needsType ? 'consent-print-needs-type ' : ''}flex items-center gap-3 px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 transition font-bold"
+                              data-id="${esc(app.id)}" data-file="${esc(app.file_number)}" data-consent-type="${esc(app.consent_type)}">
                               <i data-lucide="printer" class="h-4 w-4"></i>
                               <span>Print</span>
                           </a>

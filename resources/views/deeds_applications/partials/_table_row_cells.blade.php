@@ -14,6 +14,9 @@
 <!--cell-->
 {{ $sn }}
 <!--cell-->
+{{-- Painted by public/js/deeds-pipeline.js, one batched lookup per page drawn. --}}
+<span data-pipeline-file="{{ $application->file_number }}"></span>
+<!--cell-->
 <button type="button" class="view-properties-btn flex items-center gap-2 hover:text-blue-600 transition outline-none"
         data-main-file="{{ $application->file_number }}"
         data-main-desc="{{ $application->property_description }}"
@@ -30,9 +33,6 @@
         </span>
     @endif
 </button>
-<!--cell-->
-{{-- Painted by public/js/deeds-pipeline.js, one batched lookup per page drawn. --}}
-<span data-pipeline-file="{{ $application->file_number }}"></span>
 <!--cell-->
 @php
 $badgeClass = match($application->consent_type) {

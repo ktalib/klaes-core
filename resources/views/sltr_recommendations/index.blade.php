@@ -715,8 +715,8 @@
                         {{-- The rate above is per unit; what is owed is rate x plot size.
                              Prefilled and locked when the file's indexing has a size. --}}
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Plot Size (m²)</label>
-                            <input type="number" step="0.01" min="0" id="f-plot_size" oninput="updateGroundRentAmount()"
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Plot Size (m²) <span class="text-red-500">*</span></label>
+                            <input type="number" step="0.01" min="0.01" id="f-plot_size" oninput="updateGroundRentAmount()"
                                 class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition focus:bg-white text-sm font-medium"
                                 placeholder="e.g. 450">
                             <p id="plot-size-source" class="mt-1 text-[11px] text-slate-500 hidden">From file indexing</p>
@@ -1572,6 +1572,16 @@ document.getElementById('rec-form').addEventListener('submit', async function(e)
             text: 'Enter an 11-digit phone number starting with 0, such as 08012345678.'
         });
         phoneEl.focus();
+        return;
+    }
+
+    // ── Plot size ───────────────────────────────────────────────────
+    // Required: the ground rent amount is rate x plot size. A size locked from
+    // the file's indexing is already filled, so this only stops a blank one.
+    const plotSizeEl = document.getElementById('f-plot_size');
+    if (plotSizeEl && !(parseFloat(plotSizeEl.value) > 0)) {
+        Swal.fire({ icon: 'warning', title: 'Plot Size Required', text: 'Enter the plot size in square metres before saving.' });
+        if (!plotSizeEl.disabled) plotSizeEl.focus();
         return;
     }
 

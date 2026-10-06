@@ -33,6 +33,10 @@ Route::prefix('/mls-fileno')->middleware(['auth'])->group(function () {
     Route::post('/generate', [MlsFileNoController::class, 'generateMlsFileNumber'])->name('mls-fileno.generate');
     Route::post('/plot-extension', [MlsPlotExtensionController::class, 'store'])->name('mls-fileno.plot-extension.store');
     Route::post('/generate-batch', [MlsFileNoController::class, 'generateBatch'])->name('mls-fileno.generate-batch');
+    // Live "X of Y files" for a batch / duplex commissioning the modal is waiting on.
+    Route::get('/commissioning-progress/{token}', [MlsFileNoController::class, 'commissioningProgress'])
+        ->where('token', '[A-Za-z0-9_-]{8,64}')
+        ->name('mls-fileno.commissioning-progress');
     Route::get('/preview-tracking-id', [MlsFileNoController::class, 'previewTrackingId'])->name('mls-fileno.preview-tracking-id');
     // Serial initialization moved to System Admin → Configurable Entries →
     // Serial Initialization (ConfigurableEntriesController::initializeSerial).
@@ -43,6 +47,10 @@ Route::prefix('/mls-fileno')->middleware(['auth'])->group(function () {
     // Serials the counter has already passed that nothing holds any more — offered only
     // when the officer asks, and only for the land use they have selected.
     Route::get('/reclaimable-serials', [MlsFileNoController::class, 'getReclaimableSerials'])->name('mls-fileno.reclaimable-serials');
+    // Did commissioning write every table it should? (action-menu card + post-commission check)
+    Route::post('/commissioning-checklist', [\App\Http\Controllers\CommissioningChecklistController::class, 'check'])->name('mls-fileno.commissioning-checklist');
+    // Action menu: put a commissioned file on Applications (No Change of Ownership).
+    Route::post('/send-to-oss-applications', [\App\Http\Controllers\OssApplicationSendController::class, 'fromMlpp'])->name('mls-fileno.send-to-oss-applications');
 
     // These MUST be last because they use route parameters
     Route::get('/{id}', [MlsFileNoController::class, 'show'])->name('mls-fileno.show');

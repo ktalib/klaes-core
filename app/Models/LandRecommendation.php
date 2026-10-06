@@ -14,6 +14,21 @@ class LandRecommendation extends Model
     public $timestamps = true;
 
     /**
+     * A record flagged is_deleted = 1 is hidden everywhere the model is used —
+     * listings, duplicate checks, edit links. Records are flagged, never erased;
+     * use withoutGlobalScope('not_deleted') to reach a hidden one.
+     */
+    protected static function booted()
+    {
+        static::addGlobalScope('not_deleted', function ($query) {
+            $table = $query->getModel()->getTable();
+            $query->where(function ($q) use ($table) {
+                $q->whereNull($table . '.is_deleted')->orWhere($table . '.is_deleted', 0);
+            });
+        });
+    }
+
+    /**
      * The completion time as it should read on a letter.
      *
      * The form captures a plain number of years, but the records keyed before it
@@ -55,6 +70,15 @@ class LandRecommendation extends Model
     public function getGroundRentLabelAttribute(): string
     {
         return \App\Support\GroundRentUnit::label($this->ground_rent, $this->ground_rent_unit);
+    }
+
+    /**
+     * What is owed: the ground rent RATE times the plot size (area_sqm, m²). Null
+     * until both are known, or when the rate is in a unit typed under "Other".
+     */
+    public function getGroundRentAmountAttribute(): ?float
+    {
+        return \App\Support\PlotSize::amount($this->ground_rent, $this->ground_rent_unit, $this->area_sqm);
     }
 
     const STATUS_PENDING = 'pending';
@@ -188,6 +212,7 @@ class LandRecommendation extends Model
         'meeting_date' => 'date',
         'premium' => 'decimal:2',
         'ground_rent' => 'decimal:2',
+        'area_sqm' => 'decimal:2',
         'survey_fees' => 'decimal:2',
         'development_value' => 'decimal:2',
         // development_charge is stored as free text (e.g. "To follow"), so it must

@@ -816,8 +816,93 @@
         });
     }
 
+    // The progress dialog that is open, if any; hideGlobalLoading() stops its polling
+    // too, so every existing error path that closes the spinner also closes this.
+    let activeCommissioningProgress = null;
+
     function hideGlobalLoading() {
+        if (activeCommissioningProgress) {
+            const p = activeCommissioningProgress;
+            activeCommissioningProgress = null;
+            p.stop();
+            return;
+        }
         Swal.close();
+    }
+
+    /**
+     * Progress dialog for a batch / duplex commissioning.
+     *
+     * The request carries the returned token as progress_token; the server writes
+     * "done of total" against it and this polls it, so a 1,500-file run shows how
+     * far it has got instead of a bare spinner. Call stop() when the request returns.
+     */
+    function startCommissioningProgress(title, expectedTotal = 0) {
+        const token = 'cp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        const started = Date.now();
+        let timer = null;
+        let stopped = false;
+
+        const elapsed = () => {
+            const s = Math.floor((Date.now() - started) / 1000);
+            return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        };
+
+        Swal.fire({
+            title: title,
+            html: `
+                <div class="text-left">
+                    <div class="flex justify-between items-baseline mb-1">
+                        <span id="cpCount" class="text-sm font-bold text-gray-800">0 of ${expectedTotal || '…'} files</span>
+                        <span id="cpPercent" class="text-sm font-bold text-emerald-700">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div id="cpBar" class="bg-emerald-600 h-3 rounded-full" style="width:0%;transition:width .4s ease"></div>
+                    </div>
+                    <p id="cpStage" class="text-xs text-gray-600 mt-3"></p>
+                    <p id="cpPhase" class="text-xs text-gray-500 mt-1">Starting…</p>
+                    <p class="text-xs text-gray-400 mt-2">Elapsed <span id="cpElapsed">0:00</span> · keep this page open</p>
+                </div>`,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+        });
+
+        const paint = (p) => {
+            const total = Number(p.total) || expectedTotal || 0;
+            const done = Math.min(Number(p.done) || 0, total || Infinity);
+            const pct = total ? Math.floor((done / total) * 100) : 0;
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            set('cpCount', `${done.toLocaleString()} of ${total ? total.toLocaleString() : '…'} files`);
+            set('cpPercent', pct + '%');
+            const bar = document.getElementById('cpBar');
+            if (bar) bar.style.width = pct + '%';
+            if (p.stage !== undefined) set('cpStage', p.stage || '');
+            if (p.phase) set('cpPhase', p.phase);
+        };
+
+        const url = `{{ url('mls-fileno/commissioning-progress') }}/${token}`;
+        const poll = () => {
+            if (stopped) return;
+            const el = document.getElementById('cpElapsed');
+            if (el) el.textContent = elapsed();
+            fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+                .then(r => r.ok ? r.json() : null)
+                .then(p => { if (p && !p.pending && !stopped) paint(p); })
+                .catch(() => {})
+                .finally(() => { if (!stopped) timer = setTimeout(poll, 1500); });
+        };
+        timer = setTimeout(poll, 1000);
+
+        activeCommissioningProgress = {
+            token,
+            stop() {
+                stopped = true;
+                if (timer) clearTimeout(timer);
+                Swal.close();
+            },
+        };
+        return activeCommissioningProgress;
     }
 
     function formatLandUse(landUse, mlsfNo) {
@@ -2205,6 +2290,20 @@
                                         <span class="font-medium">Edit${batchCount > 1 ? ` <span class="text-[10px] font-semibold text-amber-700">(batch of ${batchCount})</span>` : ''}</span>
                                     </button>
 
+                                    <!-- Did commissioning write every table it should? -->
+                                    <button onclick="openCommissioningChecklist('${moveFileNo}', '${batchNo}', ${batchCount})"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 flex items-center space-x-3">
+                                        <i data-lucide="list-checks" class="w-4 h-4 text-emerald-500"></i>
+                                        <span class="font-medium">Commissioning Checklist</span>
+                                    </button>
+
+                                    <!-- MLPP is never a change of ownership: always Land Applications (No Change) -->
+                                    <button onclick="sendToOssApplications(window.MLPP_SEND_TO_OSS_URL, { file_number: '${moveFileNo}' }, { label: '${moveFileNo}', list: 'Land Applications (No Change of Ownership)', title: 'Send to Land Applications?' })"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-sky-700 hover:bg-sky-50 flex items-center space-x-3">
+                                        <i data-lucide="send" class="w-4 h-4 text-sky-500"></i>
+                                        <span class="font-medium">Send to Land Applications</span>
+                                    </button>
+
                                     ${isFileNumberRow ? `
                                     <!-- Direct Allocation -->
                                     <button onclick="directAllocation(${row.id}, '${row.type || ''}')"
@@ -2551,6 +2650,44 @@
         const modalContainer = document.querySelector('[x-data="fileNumberGenerator()"]');
         if (modalContainer && modalContainer._x_dataStack && modalContainer._x_dataStack[0]) {
             const component = modalContainer._x_dataStack[0];
+
+            {{-- Everything the card holds goes back to what a freshly opened card has,
+                 for every file type: batch mode and its per-file entries, the subdivision /
+                 merger / separation / CoP / duplex selection and its progress banner,
+                 location, phone, reclaimed serial, related files. Field-by-field resets
+                 kept missing the newer workflows, which is how a commissioned subdivision's
+                 "2 of 4 plots" was still on the card the next time it opened.
+
+                 The defaults are read from the component definition itself, so a field
+                 added later is reset without anyone remembering to list it here. Kept as
+                 they are: the lookup lists loaded with the page, the page's own hide-batch
+                 setting, map objects, and getters. The explicit assignments below still
+                 run afterwards and win where they differ. --}}
+            if (typeof fileNumberGenerator === 'function') {
+                const KEEP = new Set(['allAllPrefixes', 'landUses', 'relatedFileTypes', 'hideBatchMode']);
+                const fresh = fileNumberGenerator();
+
+                if (component.tpSearchTimer) clearTimeout(component.tpSearchTimer);
+                if (typeof component.clearPassport === 'function') component.clearPassport();
+
+                Object.entries(Object.getOwnPropertyDescriptors(fresh)).forEach(([key, desc]) => {
+                    if (!('value' in desc) || typeof desc.value === 'function') return; // getters, methods
+                    if (KEEP.has(key) || key.startsWith('_location')) return;
+
+                    const value = desc.value;
+                    component[key] = (value && typeof value === 'object')
+                        ? JSON.parse(JSON.stringify(value))
+                        : value;
+                });
+            }
+
+            // A duplex also keeps its plan outside Alpine.
+            window._duplexRecordId = null;
+            window._duplexPlan = null;
+            const duplexBox = document.getElementById('duplexPlanReview');
+            if (duplexBox) { duplexBox.classList.add('hidden'); duplexBox.innerHTML = ''; }
+            const duplexBreakdown = document.getElementById('duplexBatchBreakdown');
+            if (duplexBreakdown) duplexBreakdown.innerHTML = '';
 
             // Reset all form fields to initial values
             component.applicationType = 'new';
@@ -3383,7 +3520,10 @@
             // A duplex is several commissionings in a declared order, so it runs
             // through its own committer rather than this form's single/batch paths.
             if (alpineData.fileOption === 'duplex') {
-                window.commissionDuplexFromModal(alpineData);
+                // Through the same summary card as any batch first: it is where the
+                // destination the files are dispatched to, and Commissioned By / Date /
+                // Time, are captured. Skipping it left a duplex's files untracked.
+                showDuplexSummaryModal(alpineData);
                 return;
             }
 
@@ -3919,6 +4059,11 @@
                     const motherFileNo = data.data?.mother_file_no || 'N/A';
                     const sourceFiles = data.data?.source_files || [];
                     const generatedFileNumberValue = data.data?.file_number || 'N/A';
+
+                    // Confirm every table got its row (tracking, OSS mirror, staging...).
+                    if (typeof window.autoCommissioningChecklist === 'function') {
+                        window.autoCommissioningChecklist([generatedFileNumberValue]);
+                    }
 
                     Swal.fire({
                         width: '650px',
@@ -4684,6 +4829,48 @@
         }
     }
 
+    /**
+     * The summary card for a duplex: the same card, the same destination picker, but
+     * filled from the duplex plan instead of one serial range. Its per-file list shows
+     * the stages rather than every file -- a duplex can run to 2000 of them.
+     */
+    let pendingDuplexAlpine = null;
+
+    function showDuplexSummaryModal(alpineData) {
+        summaryModalMode = 'duplex';
+        pendingSingleSubmitEvent = null;
+        pendingDuplexAlpine = alpineData;
+        setSummaryModalHeader('Duplex Commissioning Summary', 'Choose where the files go, then confirm');
+
+        const groups = (window._duplexGroups || []);
+        const pending = alpineData.duplexFileCount || 0;
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+        set('summaryBatchSize', `${pending} files`);
+        set('summaryTotalFiles', pending);
+        set('summarySerialRange', groups.filter(g => !g.done).map(g => g.serial_preview).join('; ') || '-');
+        set('summaryFileNumbers', groups.map(g => `${g.rank}. ${g.label}: ${g.serial_preview}`).join('  |  '));
+        set('summaryLandUse', groups.map(g => g.land_use).filter(Boolean).join(', ') || '-');
+        set('summaryFileName', alpineData.fileName || '-');
+
+        const now = new Date();
+        const timeInput = document.getElementById('commissionTime');
+        if (timeInput) timeInput.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        const list = document.getElementById('summaryLocationList');
+        if (list) {
+            list.innerHTML = groups.map(g => `
+                <div class="mb-3 pb-3 border-b border-gray-200 last:border-0 text-xs">
+                    <p class="font-bold text-gray-800">${g.rank}. ${g.label} — ${g.entry_count} file(s)${g.done ? ' <span class="text-slate-400">(already done, skipped)</span>' : ''}</p>
+                    <p class="font-mono text-emerald-700">${g.serial_preview}</p>
+                </div>`).join('');
+        }
+
+        document.getElementById('batchSummaryModal').classList.remove('hidden');
+        loadSummaryDestinationOffices();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
     function closeBatchSummaryModal() {
         document.getElementById('batchSummaryModal').classList.add('hidden');
         pendingSingleSubmitEvent = null;
@@ -4698,6 +4885,17 @@
             return;
         }
         pendingSummaryDestination = summaryDestinationPayload();
+
+        // Duplex: hand the destination to the duplex committer. The card is only
+        // hidden, not reset, so Commissioned By / Date / Time are still readable.
+        if (summaryModalMode === 'duplex') {
+            document.getElementById('batchSummaryModal').classList.add('hidden');
+            summaryModalMode = 'batch';
+            const alpineData = pendingDuplexAlpine;
+            pendingDuplexAlpine = null;
+            if (alpineData) window.commissionDuplexFromModal(alpineData, pendingSummaryDestination);
+            return;
+        }
 
         // Single mode: close the summary and replay the original submit, which now
         // skips the confirmation gate and proceeds straight to generation.
@@ -4717,7 +4915,10 @@
         const originalText = confirmBtn.innerHTML;
 
         showLoadingButton(confirmBtn, originalText);
-        showGlobalLoading('Generating batch file numbers...');
+        const batchProgress = startCommissioningProgress(
+            'Commissioning batch…',
+            parseInt(document.querySelector('[x-data="fileNumberGenerator()"]')?._x_dataStack?.[0]?.batchQuantity) || 0
+        );
 
         // Get Alpine.js data
         const modalContainer = document.querySelector('[x-data="fileNumberGenerator()"]');
@@ -4772,6 +4973,27 @@
                         alpineData.locationEntries[i].address = currentApplicant.address;
                     }
                 }
+            }
+        }
+
+        // A batch raised from an OP Batch is one file per OP. If the quantity was changed
+        // after the batch was loaded, stop here with the numbers rather than letting the
+        // server refuse the whole batch.
+        if (window.pendingOpBatch && window.pendingOpBatch.op_batch) {
+            const opCount = Number(window.pendingOpBatch.count || 0);
+            const fileCount = (alpineData.locationEntries || []).length;
+            if (opCount > 0 && fileCount !== opCount) {
+                hideGlobalLoading();
+                hideLoadingButton(confirmBtn, originalText);
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Quantity does not match the OP batch',
+                    html: 'OP batch <strong>' + window.pendingOpBatch.op_batch + '</strong> has <strong>' + opCount
+                        + '</strong> OP(s), but <strong>' + fileCount + '</strong> file numbers are set to be generated.<br><br>'
+                        + 'Set the batch quantity to <strong>' + opCount + '</strong> (one file per OP), or use '
+                        + '<em>Back to OP Batch</em> to add or remove OPs.',
+                });
+                return;
             }
         }
 
@@ -4842,6 +5064,8 @@
             commission_date: document.getElementById('commissionDate').value,
             commission_time: document.getElementById('commissionTime').value,
             customer_type: alpineData.customerType,
+            // Batch-wide like customer_type; never sent before, so batch files had no gender.
+            gender: alpineData.gender || '',
             purpose_id: alpineData.purpose,
             // The applicant's phone as typed on the form. The per-entry copy is only
             // written for the entry on screen (saveCurrentApplicantToEntry), so unless
@@ -4883,7 +5107,9 @@
             // Typed related files apply to every file in the batch
             related_files: JSON.stringify(alpineData.relatedFilesPayload ? alpineData.relatedFilesPayload() : []),
             // Every file in the batch is dispatched to the same next destination.
-            ...(pendingSummaryDestination || {})
+            ...(pendingSummaryDestination || {}),
+            // Lets the dialog show "X of Y files" while the batch runs.
+            progress_token: batchProgress.token
         };
         pendingSummaryDestination = null;
 
@@ -4966,6 +5192,11 @@
                         // Batch is now commissioned — retire the "Back to OP Batch" button, since
                         // its records are no longer editable.
                         if (alpineData) alpineData.pendingOpBatchId = '';
+                    }
+
+                    // Confirm every file in the batch got all its rows.
+                    if (typeof window.autoCommissioningChecklist === 'function' && Array.isArray(data.files)) {
+                        window.autoCommissioningChecklist(data.files);
                     }
 
                     let batchSuccessTitle = 'Batch Generated!';
@@ -13790,7 +14021,17 @@
                     let serialStart = null;
                     let preview     = '--';
 
-                    if (st.consumes_serial === false) {
+                    // A stage an earlier, failed attempt already finished: the commit
+                    // skips it and carries its files on, so it takes no serial now and
+                    // the preview shows what it actually issued.
+                    const issued = files.map(f => f.final).filter(Boolean);
+                    const done   = files.length > 0 && issued.length === files.length;
+
+                    if (done) {
+                        preview = 'done: ' + (issued.length > 1
+                            ? `${issued[0]} … ${issued[issued.length - 1]}`
+                            : issued[0]);
+                    } else if (st.consumes_serial === false) {
                         preview = 'renumbers the incoming file — no serial taken';
                     } else if (single && files.length) {
                         if (dxNextBySeries[series] === undefined) {
@@ -13834,6 +14075,7 @@
                         carried:          (st.files || []).length - files.length,
                         serial_start:     serialStart,
                         serial_preview:   preview,
+                        done:             done,
                         files:            files,
                     };
                 }).filter(g => g.entry_count > 0);
@@ -13858,7 +14100,7 @@
                                         <span class="w-4 h-4 rounded bg-blue-100 text-blue-700 text-[9px] font-black flex items-center justify-center">${g.rank}</span>
                                         ${g.label} — ${how}
                                     </span>
-                                    <span class="font-mono text-[10px] text-emerald-700 pl-5">${g.serial_preview}</span>
+                                    <span class="font-mono text-[10px] ${g.done ? 'text-slate-400' : 'text-emerald-700'} pl-5">${g.serial_preview}</span>
                                 </button>`;
                     }).join('');
                 }
@@ -13867,7 +14109,11 @@
                 const container = document.querySelector('[x-data="fileNumberGenerator()"]');
                 if (container && container._x_dataStack) {
                     const total = (d.stages || []).reduce((sum, st) => sum + (st.files || []).filter(f => !f.carried).length, 0);
-                    container._x_dataStack[0].duplexFileCount = total;
+                    // What is still to be issued, which is what the box promises. The
+                    // per-file entries stay sized to the whole run (batchQuantity): the
+                    // commit walks them stage by stage, finished stages included.
+                    const pending = (d.stages || []).reduce((sum, st) => sum + (st.files || []).filter(f => !f.carried && !f.final).length, 0);
+                    container._x_dataStack[0].duplexFileCount = pending;
                     container._x_dataStack[0].batchQuantity = total;
                     container._x_dataStack[0].duplexStages = dxGroups;
                     container._x_dataStack[0].duplexStageIndex = 0;
@@ -14075,7 +14321,7 @@
      * against the same engine. Two cards follow — the duplex account, then the usual
      * commissioning summary — because the officer needs both.
      */
-    window.commissionDuplexFromModal = async function (alpineData) {
+    window.commissionDuplexFromModal = async function (alpineData, destination = null) {
         const id = alpineData.duplexRecordId;
         if (!id) {
             Swal.fire({ icon: 'warning', title: 'No duplex selected', text: 'Pick the duplex to commission first.' });
@@ -14083,19 +14329,25 @@
         }
 
         const plan = window._duplexPlan || {};
+        // A duplex an earlier attempt part-commissioned resumes: only what is still
+        // pending is generated, so that is the number the officer is asked to confirm.
+        const doneStages = (window._duplexGroups || []).filter(g => g.done).length;
+        const toGenerate = alpineData.duplexFileCount || (plan.planned || []).length;
         const confirmed = await Swal.fire({
             icon: 'warning',
-            title: 'Commission this duplex?',
+            title: doneStages ? 'Resume this duplex?' : 'Commission this duplex?',
             html: `<b>${plan.duplex ? plan.duplex.duplex_id : ''}</b> — `
-                + `${(plan.planned || []).length} file number(s) will be generated and `
-                + `${plan.totals ? plan.totals.retired || (plan.sources || []).length : '?'} retired. This cannot be undone.`,
+                + (doneStages ? `${doneStages} stage(s) already done and skipped; ` : '')
+                + `${toGenerate} file number(s) will be generated`
+                + (doneStages ? '.' : ` and ${plan.totals ? plan.totals.retired || (plan.sources || []).length : '?'} retired.`)
+                + ' This cannot be undone.',
             showCancelButton: true,
             confirmButtonText: 'Yes, commission',
             confirmButtonColor: '#059669',
         });
         if (!confirmed.isConfirmed) return;
 
-        showGlobalLoading('Commissioning duplex…');
+        const duplexProgress = startCommissioningProgress('Commissioning duplex…', Number(toGenerate) || 0);
 
         const res = await fetch(`{{ url('duplex-parcel-update') }}/${id}/commit`, {
             method: 'POST',
@@ -14113,6 +14365,11 @@
                 // Per-file applicant and location details, in the order the files are
                 // generated. Left blank they fall back to what the duplex captured.
                 location_entries: alpineData.locationEntries || [],
+                // Where the produced files are dispatched (summary card); the server
+                // opens their tracking once every stage is commissioned.
+                ...(destination || {}),
+                // Lets the dialog show "X of Y files" across every stage.
+                progress_token: duplexProgress.token,
             }),
         }).then(r => r.json()).catch(e => ({ success: false, message: e.message }));
 
@@ -14130,11 +14387,22 @@
 
         // 2. The commissioning summary the officer expects after any file is created.
         const files = (res.summary || []).flatMap(x => x.files || []);
+        if (typeof window.autoCommissioningChecklist === 'function') {
+            window.autoCommissioningChecklist(files);
+        }
+        // A duplex can issue 2000 numbers; past a screenful, say how many and the range.
+        const fileList = files.length > 20
+            ? `${files.length} files: ${files[0]} … ${files[files.length - 1]}`
+            : files.join('<br>');
+        const dispatched = destination && destination.destination_office_name
+            ? `<p class="text-sm text-gray-600 mt-3">${res.tracked || 0} file(s) dispatched to <b>${destination.destination_office_name}</b>.</p>`
+            : '';
         await Swal.fire({
             icon: 'success',
             title: 'Duplex commissioned',
             html: '<p class="text-sm text-gray-600 mb-2">File numbers generated:</p>'
-                + '<p class="font-mono text-sm font-bold text-emerald-700">' + files.join('<br>') + '</p>',
+                + '<p class="font-mono text-sm font-bold text-emerald-700">' + fileList + '</p>'
+                + dispatched,
             confirmButtonColor: '#059669',
             // The page reloads after this, so a stray click must not skip past the list
             // of numbers that were just issued.
@@ -14202,6 +14470,9 @@
         }
 
         const files = ((res.result || {}).files) || [];
+        if (typeof window.autoCommissioningChecklist === 'function') {
+            window.autoCommissioningChecklist(files);
+        }
         await Swal.fire({
             icon: 'success',
             title: `${files.length} file numbers issued`,

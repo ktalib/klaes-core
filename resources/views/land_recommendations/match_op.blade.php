@@ -130,7 +130,7 @@
            RA…" behind a scrollbar amounted to. overflow-x-auto is kept only as the
            safety net for a genuinely narrow screen. --}}
       <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse table-fixed">
+        <table class="w-full text-left border-collapse table-fixed" data-column-picker="off">
           <thead>
             <tr class="text-slate-500 text-[10px] uppercase tracking-wider bg-white border-b border-slate-200">
               <th class="px-4 py-3 font-bold w-[19%]">File No</th>

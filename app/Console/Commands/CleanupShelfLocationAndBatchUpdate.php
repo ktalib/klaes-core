@@ -51,10 +51,12 @@ class CleanupShelfLocationAndBatchUpdate extends Command
             $updatedLocations = $this->updateShelfLocations($isDryRun);
             $this->line("   Updated shelf_location for {$updatedLocations} records");
 
-            // Step 3: Clear orphaned shelf_location data
-            $this->info('🧹 Clearing orphaned shelf_location data...');
-            $clearedOrphaned = $this->clearOrphanedShelfLocations($isDryRun);
-            $this->line("   Cleared orphaned shelf_location for {$clearedOrphaned} records");
+            // Step 3: Report (never clear) shelf_location values without a shelf_label_id.
+            // Those come from print-label batches, the file tracker and imports, none of
+            // which set shelf_label_id - they are real shelves, not orphans.
+            $this->info('🔎 Counting shelf_location values not linked to a shelf label...');
+            $unlinked = $this->countUnlinkedShelfLocations();
+            $this->line("   {$unlinked} records carry a shelf_location without shelf_label_id (kept)");
 
             // Step 4: Update Rack_Shelf_Labels is_used flags
             $this->info('🏷️  Updating Rack_Shelf_Labels is_used flags...');
@@ -151,23 +153,13 @@ class CleanupShelfLocationAndBatchUpdate extends Command
         return $count;
     }
 
-    private function clearOrphanedShelfLocations($isDryRun)
+    private function countUnlinkedShelfLocations()
     {
-        $query = DB::connection('sqlsrv')->table('file_indexings')
+        return DB::connection('sqlsrv')->table('file_indexings')
             ->whereNull('shelf_label_id')
             ->whereNotNull('shelf_location')
-            ->where('shelf_location', '!=', '');
-
-        $count = $query->count();
-
-        if (!$isDryRun && $count > 0) {
-            $query->update([
-                'shelf_location' => null,
-                'updated_at' => now()
-            ]);
-        }
-
-        return $count;
+            ->where('shelf_location', '!=', '')
+            ->count();
     }
 
     private function updateShelfUsageFlags($isDryRun)

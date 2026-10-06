@@ -257,7 +257,7 @@
                         @endif
 
                         @if(!isset($recordType) || $recordType === 'fefr')
-                            <button type="button" id="btn-ffr" onclick="openFfrModal()"
+                            <button type="button" id="btn-ffr" onclick="openFfrModalFresh()"
                                 class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 border border-slate-300  text-white rounded-xl text-sm font-semibold shadow-sm hover:bg-orange-700 transition">
                                 <i data-lucide="folder-search-2" class="w-4 h-4"></i>
                                 Fetch Existing File Record
@@ -795,6 +795,14 @@
                                                 <button type="button" onclick="openCommissioningSheetForOP(this)" class="inline-flex items-center gap-2">
                                                     <i class="fas fa-file-text w-3.5 h-3.5 text-violet-500"></i> Commissioning Sheet
                                                 </button>
+                                                @if(!empty($record['pra_id']))
+                                                {{-- FC / FEFR is a change of ownership: always the Change of Ownership list --}}
+                                                <button type="button"
+                                                    onclick="sendToOssApplications(window.OP_SEND_TO_OSS_URL, { pra_id: {{ (int) $record['pra_id'] }} }, { label: @js(($record['mls_file_no'] ?? '') !== '—' ? $record['mls_file_no'] : ($record['file_title'] ?? '')), list: 'Applications (Change of Ownership)' })"
+                                                    class="inline-flex items-center gap-2">
+                                                    <i class="fas fa-paper-plane w-3.5 h-3.5 text-sky-500"></i> Send to OSS Applications
+                                                </button>
+                                                @endif
                                                 @if($canUpdateOp)
                                                 <a href="{{ url('lands-one-stop-shop/applications/op-resettlement/' . ($record['id'] ?: 'pra-' . $record['pra_id']) . '/capture-edit') }}"
                                                    class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-all">
@@ -1084,10 +1092,17 @@
                     <p class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Fetch Existing File Record</p>
                     <h3 class="mt-1 text-2xl font-extrabold text-slate-900">FEFR</h3>
                     <p class="mt-1 text-sm text-slate-500">Select source file number, detect OP record in PRA, then continue with New or Existing flow.</p>
-                </div> 
-                <button type="button" onclick="closeFfrModal()" class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
-                    <i data-lucide="x" class="h-5 w-5"></i>
-                </button>
+                </div>
+                <div class="flex shrink-0 items-center gap-1">
+                    <button type="button" onclick="ffrResetForm()" title="Clear the card and start again"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-800">
+                        <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i>
+                        Reset
+                    </button>
+                    <button type="button" onclick="closeFfrModal()" title="Close" class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+                        <i data-lucide="x" class="h-5 w-5"></i>
+                    </button>
+                </div>
             </div>
          
             <div class="space-y-4 p-5">
@@ -1673,6 +1688,8 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+<script>window.OP_SEND_TO_OSS_URL = @json(route('lands-one-stop-shop.applications.send-to-oss-applications'));</script>
+<script src="{{ asset('js/send-to-oss-applications.js') }}?v={{ @filemtime(public_path('js/send-to-oss-applications.js')) }}"></script>
 <script>
     window.InstrumentCaptureConfig = Object.assign({}, window.InstrumentCaptureConfig || {}, {
         csrfToken: "{{ csrf_token() }}",
@@ -3702,9 +3719,129 @@
         ffrResetState();
     }
 
+    // The page's "Fetch Existing File Record" button. The card is only HIDDEN (not
+    // reset) when it hands off to the New / Existing / Direct OP flows, so without
+    // this a cancelled hand-off left the previous file on the card next time.
+    // The "another transaction" reopen paths still call openFfrModal() and keep state.
+    function openFfrModalFresh() {
+        ffrResetState();
+        openFfrModal();
+    }
+
+    // Header "Reset" button: clear everything and start again, card stays open.
+    function ffrResetForm() {
+        ffrResetState();
+        if (window.lucide) window.lucide.createIcons();
+        ffrToast('info', 'FEFR card cleared.');
+    }
+
+    // ──────────────── OP Serial card ────────────────
+    // Match OP copies the OP's serial onto the Transfer of Title, and the server
+    // refuses an OP whose serial is blank or malformed. This card asks for it before
+    // the match is sent (and again if the server still finds one missing). The
+    // serial typed here is saved onto the OP record itself, with the match.
+
+    function opSerialValid(v) {
+        return /^[1-9][0-9]*$/.test(String(v == null ? '' : v).trim());
+    }
+
+    // Same clean-up as the server's suggestOpSerial(): 0109 -> 109, 1O63 -> 1063,
+    // 530- -> 530. Nothing for a blank or an ambiguous value (R12658).
+    function opSerialSuggest(v) {
+        var s = String(v == null ? '' : v).trim().toUpperCase().replace(/^[\s`'".,\-_/\\]+|[\s`'".,\-_/\\]+$/g, '');
+        if (s !== '' && /^[0-9O]+$/.test(s) && /[0-9]/.test(s)) s = s.replace(/O/g, '0');
+        s = s.replace(/^0+/, '');
+        return opSerialValid(s) ? s : '';
+    }
+
+    function opSerialEsc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    /**
+     * ops: [{pra_id, file_no, grantee, location, current, suggested}]
+     * Resolves to {pra_id: serial} or null when cancelled.
+     */
+    async function opSerialCard(ops) {
+        var rows = ops.map(function (o, i) {
+            var current = (o.current == null || String(o.current).trim() === '')
+                ? '<span class="text-red-600 font-semibold">blank</span>'
+                : '<code class="text-red-600">' + opSerialEsc(o.current) + '</code>';
+            var suggested = o.suggested || opSerialSuggest(o.current);
+            var hint = suggested && String(o.current || '').trim() !== suggested
+                ? '<p class="text-[11px] text-emerald-700 mt-1">Cleaned up from <code>' + opSerialEsc(o.current) + '</code> — check it against the paper OP.</p>'
+                : '<p class="text-[11px] text-slate-500 mt-1">Enter the serial printed on the Occupancy Permit.</p>';
+            return '<div class="rounded-lg border border-amber-200 bg-amber-50/50 p-3 mb-2 text-left">'
+                + '<div class="flex flex-wrap justify-between gap-1 text-xs text-slate-600">'
+                + '<span>OP file <b class="text-slate-800">' + opSerialEsc(o.file_no || '—') + '</b> · PRA #' + opSerialEsc(o.pra_id) + '</span>'
+                + '<span>Stored serial: ' + current + '</span></div>'
+                + (o.grantee ? '<p class="text-xs text-slate-600 mt-1">Allottee: <b class="text-slate-800">' + opSerialEsc(o.grantee) + '</b></p>' : '')
+                + (o.location ? '<p class="text-[11px] text-slate-500">' + opSerialEsc(o.location) + '</p>' : '')
+                + '<label class="block text-xs font-semibold text-slate-700 mt-2">OP Serial Number <span class="text-red-500">*</span></label>'
+                + '<input type="text" inputmode="numeric" autocomplete="off" data-pra-id="' + opSerialEsc(o.pra_id) + '" id="opSerialInput' + i + '"'
+                + ' class="op-serial-input mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500"'
+                + ' placeholder="e.g. 109" value="' + opSerialEsc(suggested) + '">'
+                + hint
+                + '</div>';
+        }).join('');
+
+        var result = await Swal.fire({
+            icon: 'warning',
+            title: ops.length === 1 ? 'OP Serial Number needed' : ops.length + ' OP Serial Numbers needed',
+            html: '<p class="text-sm text-slate-600 mb-3 text-left">'
+                + (ops.length === 1 ? 'This OP has' : 'These OPs have')
+                + ' no valid OP Serial Number. It must be digits only, with no leading zero (for example <b>109</b>). '
+                + 'What you enter is saved on the OP record and the match then continues.</p>'
+                + '<div style="max-height:340px;overflow-y:auto;">' + rows + '</div>',
+            width: 560,
+            showCancelButton: true,
+            confirmButtonText: 'Save serial & continue',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#0d9488',
+            cancelButtonColor: '#64748b',
+            allowOutsideClick: false,
+            focusConfirm: false,
+            didOpen: function () {
+                var first = document.querySelector('.op-serial-input');
+                if (first) first.focus();
+            },
+            preConfirm: function () {
+                var out = {};
+                var inputs = document.querySelectorAll('.op-serial-input');
+                for (var i = 0; i < inputs.length; i++) {
+                    var v = (inputs[i].value || '').trim();
+                    if (!opSerialValid(v)) {
+                        inputs[i].classList.add('border-red-500');
+                        inputs[i].focus();
+                        Swal.showValidationMessage('OP Serial Number must be digits only, with no leading zero (for example 109).');
+                        return false;
+                    }
+                    out[inputs[i].getAttribute('data-pra-id')] = v;
+                }
+                return out;
+            }
+        });
+
+        return result.isConfirmed ? result.value : null;
+    }
+
+    function opSerialCardItem(row) {
+        return {
+            pra_id: row.id,
+            file_no: row.mlsFNo || row.fileno || row.temp_fileno || '',
+            grantee: row.Grantee || row.party_2 || ((row.parties && (row.parties.party_2 || row.parties.grantee)) || ''),
+            location: row.location || '',
+            current: row.op_serial_number,
+            suggested: opSerialSuggest(row.op_serial_number)
+        };
+    }
+
     // ──────────────── Match OP ────────────────
 
     function openMatchOpModal(prefilledFileNo) {
+        window.__matchOpSerialFix = null;
         document.getElementById('matchOpModal').classList.remove('hidden');
         var fileNoInput = document.getElementById('matchOpFileNo');
         fileNoInput.value = prefilledFileNo || '';
@@ -3864,7 +4001,7 @@
         if (window.lucide) window.lucide.createIcons();
     }
 
-    function matchOpConfirm() {
+    async function matchOpConfirm() {
         var praId = (document.getElementById('matchOpSelectedPraId').value || '').trim();
         var currentHolder = (document.getElementById('matchOpCurrentHolder').value || '').trim();
         var allottee = (document.getElementById('matchOpGranteeInput').value || '').trim();
@@ -3873,6 +4010,15 @@
         if (!praId) {
             Swal.fire({ icon: 'warning', title: 'No PRA selected', text: 'Run Preview first.', confirmButtonColor: '#0d9488' });
             return;
+        }
+
+        // An OP without a valid serial cannot be matched: ask for it first.
+        var serialFix = window.__matchOpSerialFix || {};
+        var selectedRow = (window.__matchOpRows || []).find(function (r) { return String(r.id) === praId; });
+        if (selectedRow && !opSerialValid(selectedRow.op_serial_number) && !opSerialValid(serialFix[praId])) {
+            var typed = await opSerialCard([opSerialCardItem(selectedRow)]);
+            if (!typed) return;
+            serialFix = window.__matchOpSerialFix = typed;
         }
 
         document.getElementById('matchOpConfirmBtn').disabled = true;
@@ -3887,14 +4033,25 @@
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': csrfToken ? csrfToken.getAttribute('content') : ''
             },
-            body: JSON.stringify({ pra_id: parseInt(praId), current_holder: currentHolder, allottee: allottee, override_holder: overrideHolder })
+            body: JSON.stringify({ pra_id: parseInt(praId), current_holder: currentHolder, allottee: allottee, override_holder: overrideHolder, op_serial_number: serialFix[praId] || null })
         })
         .then(function(r) { return r.json(); })
-        .then(function(data) {
+        .then(async function(data) {
             document.getElementById('matchOpConfirmBtn').disabled = false;
             document.getElementById('matchOpConfirmBtn').textContent = 'Yes';
 
+            // The server found the OP's serial missing or invalid: card, then retry.
+            if (!data.success && data.needs_op_serial) {
+                var typedSerials = await opSerialCard(data.ops || []);
+                if (typedSerials) {
+                    window.__matchOpSerialFix = Object.assign({}, window.__matchOpSerialFix || {}, typedSerials);
+                    matchOpConfirm();
+                }
+                return;
+            }
+
             if (data.success) {
+                window.__matchOpSerialFix = null;
                 closeMatchOpModal();
                 Swal.fire({
                     icon: 'success',
@@ -3942,7 +4099,17 @@
         window.ffrExistingManualRegistration = false;
         window.ffrDirectOpMode = false;
         window.ffrIndexedFileData = null;
+        // A lookup still in flight must not refill the card after it was cleared.
+        ffrLookupRequestId += 1;
         document.getElementById('ffrSourceFileNo').value = '';
+        var locationBadge = document.getElementById('ffrLocationBadgeContainer');
+        if (locationBadge) locationBadge.classList.add('hidden');
+        var idxFileNo = document.getElementById('ffrIdxFileNo');
+        if (idxFileNo) idxFileNo.textContent = '—';
+        var idxFileName = document.getElementById('ffrIdxFileName');
+        if (idxFileName) idxFileName.textContent = '—';
+        var partyLabel = document.getElementById('ffrPartyFromOpLabel');
+        if (partyLabel) partyLabel.textContent = 'Party 1 (From OP Party 2)';
         var matchOpBtn = document.getElementById('ffrMatchOpBtn');
         if (matchOpBtn) matchOpBtn.classList.add('hidden');
         var badgeEl = document.getElementById('ffrDetailsBadges');
@@ -4060,6 +4227,15 @@
         var praIds = opRecords.map(function (r) { return r.id; }).filter(Boolean);
         var csrfToken = document.querySelector('meta[name="csrf-token"]');
 
+        // Every OP in the merger needs a valid serial; ask for the missing ones first.
+        var opSerials = {};
+        var missingSerials = opRecords.filter(function (r) { return r.id && !opSerialValid(r.op_serial_number); });
+        if (missingSerials.length) {
+            var typed = await opSerialCard(missingSerials.map(opSerialCardItem));
+            if (!typed) return;
+            opSerials = typed;
+        }
+
         try {
             var resp = await fetch('{{ route("lands-one-stop-shop.applications.match-op") }}', {
                 method: 'POST',
@@ -4069,9 +4245,27 @@
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': csrfToken ? csrfToken.getAttribute('content') : '',
                 },
-                body: JSON.stringify({ pra_ids: praIds }),
+                body: JSON.stringify({ pra_ids: praIds, op_serials: opSerials }),
             });
             var data = await resp.json();
+
+            // The server still found an OP without a valid serial: card, then retry once.
+            if (!data.success && data.needs_op_serial) {
+                var more = await opSerialCard(data.ops || []);
+                if (!more) return;
+                opSerials = Object.assign(opSerials, more);
+                resp = await fetch('{{ route("lands-one-stop-shop.applications.match-op") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken ? csrfToken.getAttribute('content') : '',
+                    },
+                    body: JSON.stringify({ pra_ids: praIds, op_serials: opSerials }),
+                });
+                data = await resp.json();
+            }
 
             if (data.success) {
                 var matchOpBtnEl = document.getElementById('ffrMatchOpBtn');
@@ -4444,6 +4638,14 @@
             // Without this, a single underlying OP can be counted twice and falsely trigger
             // the "Join 2 OPs & Match" merger button when there is really only one OP.
             (function dedupeOpRecords() {
+                // An OP serial identifies exactly one OP. The same OP is often stored twice -
+                // once in instrument_capture (captured earlier, under its TEMP file number)
+                // and once in pra (under the commissioned number) - so the copies differ in
+                // file number and location text but share the serial. Key on the serial when
+                // there is one, and keep the pra copy: the match step only reads pra.
+                var isPra = function (row) {
+                    return String(row.source_table || 'pra').toLowerCase() === 'pra';
+                };
                 var seen = {};
                 var unique = [];
                 opRecords.forEach(function (row) {
@@ -4455,10 +4657,14 @@
                         ''
                     ).toString().trim().toUpperCase();
                     var prop   = (row.property_description || row.location || '').toString().trim().toUpperCase();
-                    var key    = ['op', fileNo, serial, party2, prop].join('|');
-                    if (!seen[key]) {
-                        seen[key] = true;
+                    var key    = (serial && serial !== '0')
+                        ? 'serial|' + serial
+                        : ['op', fileNo, serial, party2, prop].join('|');
+                    if (!(key in seen)) {
+                        seen[key] = unique.length;
                         unique.push(row);
+                    } else if (!isPra(unique[seen[key]]) && isPra(row)) {
+                        unique[seen[key]] = row;
                     }
                 });
                 opRecords = unique;
@@ -5165,10 +5371,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        var ffrBtn = document.getElementById('btn-ffr');
-        if (ffrBtn) {
-            ffrBtn.addEventListener('click', openFfrModal);
-        }
+        // The button's own onclick opens the card fresh (openFfrModalFresh); binding a
+        // second opener here ran it twice per click.
     });
 
     function setCaptureFormValue(name, value) {

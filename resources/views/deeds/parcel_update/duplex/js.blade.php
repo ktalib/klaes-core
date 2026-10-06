@@ -8,6 +8,11 @@
     /** The site-plan endpoint for the duplex currently open. Same URL for POST and DELETE. */
     const SITE_PLAN_URL = () => '{{ url('duplex-parcel-update') }}/' + state.duplex.id + '/site-plan';
     const TYPES = @json($types);
+
+    // The same ceiling the controller validates against, for every update type.
+    const MAX_PLOTS = {{ \App\Models\DuplexParcelUpdate::MAX_PLOTS }};
+    const maxPlotsFor = () => MAX_PLOTS;
+
     const LGAS = @json(collect($lgas)->pluck('name')->values());
     const DISTRICTS = @json(collect($districts)->pluck('name')->values());
 
@@ -570,7 +575,7 @@
                 + '<br><br>How many plots will it produce?',
             input: 'number',
             inputValue: split.count || '',
-            inputAttributes: { min: 1, max: 200, step: 1 },
+            inputAttributes: { min: 1, max: maxPlotsFor(split.type), step: 1 },
             showCancelButton: true,
             confirmButtonText: 'Set',
             cancelButtonText: 'Remove this update',
@@ -580,7 +585,7 @@
             inputValidator: v => {
                 const n = parseInt(v, 10);
                 if (!n || n < 1) return 'Enter how many plots the ' + TYPES[split.type] + ' produces.';
-                if (n > 200) return 'That is more plots than a duplex can carry.';
+                if (n > maxPlotsFor(split.type)) return 'A ' + TYPES[split.type] + ' in a duplex can produce at most ' + maxPlotsFor(split.type) + ' plots.';
                 return null;
             },
         }).then(r => {
@@ -1724,7 +1729,7 @@
                                        transition inline-flex items-center gap-1 shrink-0">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Stripes
                             </button>` : ''}
-                        <input type="number" min="1" max="200" ${fixed ? 'disabled' : ''}
+                        <input type="number" min="1" max="${maxPlotsFor(p.type)}" ${fixed ? 'disabled' : ''}
                             value="${shown}"
                             data-idx="${idx}"
                             oninput="renderQuantities()"
@@ -1773,7 +1778,14 @@
     function collectQuantities() {
         document.querySelectorAll('.dx-qty').forEach(input => {
             const entry = state.plan[Number(input.dataset.idx)];
-            if (entry) entry.count = parseInt(input.value || '1', 10) || 1;
+            if (!entry) return;
+
+            // The max attribute is not enforced on typing, and the grid builds one cell
+            // per plot — clamp for real before 5000 cells are built.
+            const max = maxPlotsFor(entry.type);
+            if (Number(input.value) > max) input.value = max;
+
+            entry.count = parseInt(input.value || '1', 10) || 1;
         });
     }
 

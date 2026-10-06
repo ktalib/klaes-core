@@ -627,6 +627,65 @@
             }
         };
 
+        // Kebab menu for row actions that need more than an icon. Empty when the user has no
+        // item to show (txnFileNoCorrectionMenuItem returns '' without permission). Only PRA
+        // rows qualify: in index mode (record_mode=index) this table lists `pic`, not `pra`.
+        const isPraRecordMode = new URL(window.location.href).searchParams.get('record_mode') !== 'index';
+        const renderPraActionMenu = (id) => {
+            const correctItem = (isPraRecordMode && window.txnFileNoCorrectionMenuItem)
+                ? window.txnFileNoCorrectionMenuItem('pra', id)
+                : '';
+            if (!correctItem) {
+                return '';
+            }
+            return `
+                <div class="relative inline-block text-left">
+                    <button type="button" class="pra-row-menu-toggle text-gray-500 hover:text-gray-700" title="More actions">
+                        <i data-lucide="more-vertical" class="h-4 w-4"></i>
+                    </button>
+                    <div class="txn-fileno-menu hidden absolute right-0 z-20 mt-2 w-56 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
+                        <div class="py-1">${correctItem}</div>
+                    </div>
+                </div>`;
+        };
+
+        document.addEventListener('click', function (e) {
+            const toggle = e.target.closest('.pra-row-menu-toggle');
+            const menus = document.querySelectorAll('#property-records-table .txn-fileno-menu');
+            if (!toggle) {
+                if (!e.target.closest('.txn-fileno-menu')) {
+                    menus.forEach(m => m.classList.add('hidden'));
+                }
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const menu = toggle.parentElement.querySelector('.txn-fileno-menu');
+            const willOpen = menu && menu.classList.contains('hidden');
+            menus.forEach(m => m.classList.add('hidden'));
+            if (menu && willOpen) {
+                // Fixed, so the scrollX body of the table cannot clip it.
+                const rect = toggle.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.top = (rect.bottom + 4) + 'px';
+                menu.style.left = Math.max(8, rect.right - 224) + 'px';
+                menu.style.right = 'auto';
+                menu.classList.remove('hidden');
+            }
+        }, true);
+
+        window.addEventListener('scroll', function () {
+            document.querySelectorAll('#property-records-table .txn-fileno-menu').forEach(m => m.classList.add('hidden'));
+        }, true);
+
+        window.TxnFileNoCorrection = Object.assign(window.TxnFileNoCorrection || {}, {
+            onChanged: () => {
+                if (window.propertyRecordsTableInstance) {
+                    window.propertyRecordsTableInstance.ajax.reload(null, false);
+                }
+            },
+        });
+
         const propertyTable = $('#property-records-table').DataTable({
             dom: 'lrtip',
             processing: true,
@@ -809,6 +868,7 @@
                                 <button class="text-red-500 hover:text-red-700 transition-colors delete-property" data-id="${data}">
                                     <i data-lucide="trash-2" class="h-4 w-4 text-red-500"></i>
                                 </button>
+                                ${renderPraActionMenu(data)}
                             </div>
                         `;
                     }

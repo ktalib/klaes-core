@@ -2255,7 +2255,9 @@ class MlsFileNoController extends Controller
                 // the next one off the counter. Re-verified inside the transaction below —
                 // the dropdown was built before the form was filled in.
                 'reclaimed_serial' => 'nullable|integer|min:1',
-                'file_name' => 'nullable|string|max:500',
+                // Required when commissioned from an OP: the name becomes the Transfer of
+                // Title's new holder (Party 2) and the file title. Blank left both empty.
+                'file_name' => 'required_with:source_pra_id|nullable|string|max:500',
                 'house_no' => 'nullable|string|max:100',
                 'street_name' => 'nullable|string|max:255',
                 'plot_no' => 'nullable|string|max:100',
@@ -3824,6 +3826,16 @@ class MlsFileNoController extends Controller
                             $relatedFileNumbers = json_encode($mergedRelated);
                         }
 
+                        // A plot the officer did not pin inherits its lineage file's pin.
+                        $lineageLat = $validated['latitude'] ?? null;
+                        $lineageLng = $validated['longitude'] ?? null;
+                        if (!filled($lineageLat) || !filled($lineageLng)) {
+                            $lineage = $relatedFileNumbers
+                                ? (array) (json_decode($relatedFileNumbers, true) ?: [])
+                                : ($relatedFileNo ? [$relatedFileNo] : []);
+                            [$lineageLat, $lineageLng] = $this->inheritedCoordinates($lineage);
+                        }
+
                         $fileIndexing = $fileIndexingService->createFromFileNumberData([
                             'tracking_id' => $trackingId,
                             'file_number' => $fullFileNumber,
@@ -3835,8 +3847,8 @@ class MlsFileNoController extends Controller
                             'street_name' => $validated['street_name'] ?? null,
                             'location' => $validated['location'] ?? null,
                             'lga' => $validated['lga'] ?? null,
-                            'latitude' => $validated['latitude'] ?? null,
-                            'longitude' => $validated['longitude'] ?? null,
+                            'latitude' => $lineageLat,
+                            'longitude' => $lineageLng,
                             'created_by' => $commissionedBy,
                             'original_holder' => $motherOwner ?? ($validated['file_name'] ?? null),
                             'parent_prop_id' => $parentPropId,
@@ -4702,9 +4714,142 @@ class MlsFileNoController extends Controller
     }
 
     /**
-     * Generate multiple MLS file numbers in batch mode
+     * Bulk insert on sqlsrv, chunked so no statement binds more than 2000 parameters
+     * (SQL Server's ceiling is 2100). Rows per chunk come from the widest row, so a
+     * column added to any of these tables later cannot push a batch over the limit.
+     */
+    private function insertWithinParameterLimit(string $table, array $rows): void
+    {
+        if (empty($rows)) {
+            return;
+        }
+
+        $columns = max(array_map(fn ($row) => count((array) $row), $rows));
+        $perChunk = max(1, intdiv(2000, max(1, $columns)));
+
+        foreach (array_chunk($rows, $perChunk) as $chunk) {
+            DB::connection('sqlsrv')->table($table)->insert($chunk);
+        }
+    }
+
+    /**
+     * whereIn() for a VARCHAR column that keeps the index usable.
+     *
+     * The sqlsrv driver binds every string as NVARCHAR. Against a VARCHAR column under
+     * the SQL_Latin1 collation that makes SQL Server convert the column side, so the
+     * index is skipped and the table is scanned: 200 file numbers against grouping
+     * (7.4M rows) took 13 s, against fileNumber ~0.5 s. Casting the parameters to
+     * VARCHAR instead puts it back to an index seek -- 12 ms for the same lookups.
+     *
+     * Only for VARCHAR columns (fileNumber.mlsfNo / tracking_id, grouping.*).
+     * file_indexings, mls_file_no and pra are NVARCHAR and already seek.
+     */
+    private function whereInVarchar($query, string $column, array $values, int $length = 150)
+    {
+        $values = array_values(array_unique(array_map('strval', $values)));
+
+        if (empty($values)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $wrapped = $query->getGrammar()->wrap($column);
+        $placeholders = implode(',', array_fill(0, count($values), "CAST(? AS VARCHAR({$length}))"));
+
+        return $query->whereRaw("{$wrapped} IN ({$placeholders})", $values);
+    }
+
+    /**
+     * The map pin a parcel-update output inherits from the file it came from.
+     *
+     * Subdivided, separated, merged and extended plots sit on the mother's land, so
+     * when the officer did not pin a plot itself, it takes the first lineage file
+     * that has coordinates. A lineage file with none (a Change of Purpose output
+     * commissioned without a pin) is followed one step further, to its own related
+     * file. Returns [lat, lng], or [null, null] when nothing in the lineage is pinned.
+     */
+    private function inheritedCoordinates(array $lineageFiles, int $hops = 1): array
+    {
+        $lineageFiles = array_values(array_filter(array_map(fn ($f) => trim((string) $f), $lineageFiles)));
+        if (empty($lineageFiles)) {
+            return [null, null];
+        }
+
+        try {
+            $rows = DB::connection('sqlsrv')->table('file_indexings')
+                ->whereIn('file_number', $lineageFiles)
+                ->get(['file_number', 'latitude', 'longitude', 'related_fileno']);
+        } catch (\Throwable $e) {
+            Log::warning('Lineage coordinate lookup failed', ['files' => $lineageFiles, 'error' => $e->getMessage()]);
+            return [null, null];
+        }
+
+        $usable = fn ($v) => is_numeric(trim((string) $v)) && (float) trim((string) $v) != 0.0;
+
+        foreach ($lineageFiles as $file) {
+            foreach ($rows->where('file_number', $file) as $row) {
+                if ($usable($row->latitude) && $usable($row->longitude)) {
+                    return [trim((string) $row->latitude), trim((string) $row->longitude)];
+                }
+            }
+        }
+
+        if ($hops > 0) {
+            $parents = [];
+            foreach ($rows as $row) {
+                $parents = array_merge($parents, (array) (json_decode((string) $row->related_fileno, true) ?: []));
+            }
+            $parents = array_diff(array_unique($parents), $lineageFiles);
+
+            return $this->inheritedCoordinates($parents, $hops - 1);
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Progress of a batch or duplex commissioning, polled by the modal while it waits.
+     */
+    public function commissioningProgress(string $token)
+    {
+        return response()->json(\App\Services\CommissioningProgress::get($token) ?? ['pending' => true])
+            ->header('Cache-Control', 'no-store');
+    }
+
+    /**
+     * Generate multiple MLS file numbers in batch mode.
+     *
+     * Opens a progress run when the modal sent a progress_token (a duplex calling in
+     * already has one open, and this reports into it), and closes it whichever way
+     * the batch ends.
      */
     public function generateBatch(Request $request)
+    {
+        $ownsProgress = \App\Services\CommissioningProgress::begin(
+            $request->input('progress_token'),
+            (int) $request->input('batch_quantity'),
+            'Checking the batch…'
+        );
+
+        try {
+            $response = $this->runGenerateBatch($request);
+        } catch (\Throwable $e) {
+            if ($ownsProgress) {
+                \App\Services\CommissioningProgress::fail($e->getMessage());
+            }
+            throw $e;
+        }
+
+        if ($ownsProgress) {
+            $data = $response instanceof \Illuminate\Http\JsonResponse ? $response->getData(true) : [];
+            !empty($data['success'])
+                ? \App\Services\CommissioningProgress::finish('Done')
+                : \App\Services\CommissioningProgress::fail($data['message'] ?? 'Commissioning failed');
+        }
+
+        return $response;
+    }
+
+    protected function runGenerateBatch(Request $request)
     {
         try {
             // A normal batch arrives as JSON. An Individual subdivision batch with a
@@ -4758,6 +4903,11 @@ class MlsFileNoController extends Controller
                 'location_entries.*.file_name' => 'nullable|string|max:500',
                 'location_entries.*.phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
                 'location_entries.*.address' => 'nullable|string|max:500',
+                'location_entries.*.gender' => 'nullable|string|in:Male,Female,Corporate,Joint',
+                // Batch-wide applicant gender, as picked once on the form; an entry's own
+                // gender wins. Never validated here before, so every batch file was
+                // commissioned with no gender at all.
+                'gender' => 'nullable|string|in:Male,Female,Corporate,Joint',
                 'commissioned_by' => 'nullable|string|max:255',
                 'commission_date' => 'nullable|date',
                 'commission_time' => 'nullable|string',
@@ -4773,6 +4923,10 @@ class MlsFileNoController extends Controller
                 'oss_commission' => 'nullable|boolean',
                 'subdivision_app_id' => 'nullable|integer',
                 'separation_app_id' => 'nullable|integer',
+                // Set only by DuplexCommitService on the 2nd..Nth chunk of a separation
+                // larger than one batch run: the mother is already retired, so the chunk
+                // widens its successor list instead of archiving it again.
+                'separation_continuation' => 'nullable|boolean',
                 'merger_app_id' => 'nullable|integer',
                 // JSON array of {file_no, title, type, indexing_id}; see parseRelatedFiles().
                 'related_files' => 'nullable|string',
@@ -4901,9 +5055,21 @@ class MlsFileNoController extends Controller
                     $batchOpSources = DB::connection('sqlsrv')->table('pra')
                         ->where('op_batch', $validated['op_batch'])->where('instrument_type', 'Occupancy Permit (OP)')
                         ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->orderBy('id')->lockForUpdate()->get()->all();
-                    if (count($batchOpSources) !== count($validated['location_entries'])
-                        || DB::connection('sqlsrv')->table('mls_file_no')->where('op_batch', $validated['op_batch'])->exists()) {
-                        throw \Illuminate\Validation\ValidationException::withMessages(['op_batch' => 'Select an uncommissioned OP batch with one OP per file.']);
+                    // Two different mistakes used to share one vague message; name the one
+                    // that happened so the officer knows what to fix.
+                    $alreadyCommissioned = DB::connection('sqlsrv')->table('mls_file_no')
+                        ->where('op_batch', $validated['op_batch'])->pluck('full_file_number')->all();
+                    if ($alreadyCommissioned) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['op_batch' =>
+                            "OP batch {$validated['op_batch']} was already commissioned (" . implode(', ', array_slice($alreadyCommissioned, 0, 5))
+                            . (count($alreadyCommissioned) > 5 ? ', …' : '') . '). Reload the page and pick an uncommissioned batch.']);
+                    }
+                    $opCount = count($batchOpSources);
+                    $fileCount = count($validated['location_entries']);
+                    if ($opCount !== $fileCount) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['op_batch' =>
+                            "OP batch {$validated['op_batch']} has {$opCount} OP(s), but {$fileCount} file numbers are being generated. "
+                            . "Set the batch quantity to {$opCount} (one file per OP), or go back to the OP batch to add or remove OPs."]);
                     }
                     foreach ($batchOpSources as $i => $op) \App\Support\OpSerial::require($op->op_serial_number, "ops.{$i}.op_serial_number");
                 }
@@ -4955,7 +5121,7 @@ class MlsFileNoController extends Controller
                     $takenIndexing = $this->takenInFileIndexings(array_values($candidateNumbers));
 
                     $takenFileNumber = DB::connection('sqlsrv')->table('fileNumber')
-                        ->whereIn('mlsfNo', array_values($candidateNumbers))
+                        ->where(fn ($q) => $this->whereInVarchar($q, 'mlsfNo', array_values($candidateNumbers)))
                         ->pluck('mlsfNo')
                         ->all();
                     $takenFileNumber = array_flip($takenFileNumber);
@@ -5058,7 +5224,7 @@ class MlsFileNoController extends Controller
 
                     // Fast exact matches first (index-friendly)
                     $exactMatches = DB::connection('sqlsrv')->table($tableName)
-                        ->whereIn($fileNoColumn, $allFileNumbers)
+                        ->where(fn ($q) => $this->whereInVarchar($q, $fileNoColumn, $allFileNumbers))
                         ->select(['id', $fileNoColumn, 'tracking_id', 'mls_fileno', 'mapping'])
                         ->get();
 
@@ -5180,7 +5346,7 @@ class MlsFileNoController extends Controller
 
                             if (!empty($missingFiles)) {
                                 $registryTitles = DB::connection('sqlsrv')->table('fileNumber')
-                                    ->whereIn('mlsfNo', $missingFiles)
+                                    ->where(fn ($q) => $this->whereInVarchar($q, 'mlsfNo', $missingFiles))
                                     ->pluck('FileName')
                                     ->unique()
                                     ->filter()
@@ -5248,6 +5414,11 @@ class MlsFileNoController extends Controller
                     $motherOwner = $extFile->file_title ?? 'Original Owner';
                 }
 
+                // Plots the officer did not pin inherit the mother's/source's map pin.
+                [$lineageLat, $lineageLng] = $relatedFileNumbers
+                    ? $this->inheritedCoordinates((array) (json_decode($relatedFileNumbers, true) ?: []))
+                    : [null, null];
+
                 // What the indexing rows record as related: the resolved lineage plus any
                 // officer-entered related files. $relatedFileNumbers itself is left alone
                 // because file_indexing_links treats it as the pure parent/source list.
@@ -5300,6 +5471,8 @@ class MlsFileNoController extends Controller
                         }
                     }
 
+                    $entryGender = ($entry['gender'] ?? null) ?: ($validated['gender'] ?? null);
+
                     // Prepare MLS  File numbers record
                     $mlsData[] = [
                         'land_use' => $landUse,
@@ -5316,6 +5489,8 @@ class MlsFileNoController extends Controller
                         'district' => $entry['district'] ?? null,
                         'tracking_id' => $trackingId,
                         'customer_type' => $validated['customer_type'],
+                        'gender' => $entryGender,
+                        'gender_source' => $entryGender ? \App\Services\GenderNormalizer::SOURCE_CAPTURED : null,
                         'file_option' => $validated['file_option'],
                         'batch_no' => $batchNo,
                         'created_by' => $commissionedBy,
@@ -5364,13 +5539,15 @@ class MlsFileNoController extends Controller
                         'file_number' => $fullFileNumber,
                         'file_title' => $entry['file_name'] ?? ($validated['file_name'] ?? null),
                         'land_use_type' => $this->simpleExtractLandUseType($landUse),
+                        'gender' => $entryGender,
+                        'gender_source' => $entryGender ? \App\Services\GenderNormalizer::SOURCE_CAPTURED : null,
                         'plot_number' => $entry['plotNo'] ?? null,
                         'tp_no' => $entry['tpNo'] ?? null,
                         'street_name' => $entry['streetName'] ?? null,
                         'location' => $entry['location'] ?? null,
                         'lga' => $entry['lga'] ?? null,
-                        'latitude' => $entry['latitude'] ?? null,
-                        'longitude' => $entry['longitude'] ?? null,
+                        'latitude' => filled($entry['latitude'] ?? null) ? $entry['latitude'] : $lineageLat,
+                        'longitude' => filled($entry['longitude'] ?? null) ? $entry['longitude'] : $lineageLng,
                         'created_by' => $commissionedBy,
                         'current_holder' => $entry['file_name'] ?? ($validated['file_name'] ?? null),
                         'original_holder' => $motherOwner ?? ($entry['file_name'] ?? ($validated['file_name'] ?? null)),
@@ -5425,17 +5602,14 @@ class MlsFileNoController extends Controller
                 }
 
                 // Bulk Inserts
-                // SQL Server caps a single statement at 2100 parameters, so chunk the rows
-                // to keep (columns * rows) under that limit (21/14/20 columns respectively).
-                foreach (array_chunk($mlsData, 90) as $chunk) {
-                    DB::connection('sqlsrv')->table('mls_file_no')->insert($chunk);
-                }
-                foreach (array_chunk($fileNumberData, 140) as $chunk) {
-                    DB::connection('sqlsrv')->table('fileNumber')->insert($chunk);
-                }
-                foreach (array_chunk($indexingData, 90) as $chunk) {
-                    DB::connection('sqlsrv')->table('file_indexings')->insert($chunk);
-                }
+                // SQL Server caps a single statement at 2100 parameters. The chunk sizes
+                // used to be fixed (90/140/90, for 21/14/20 columns); columns were added
+                // since, and mls_file_no at 25 columns x 90 rows = 2250 failed every
+                // batch over ~84 files. Sized from the rows actually being written now.
+                \App\Services\CommissioningProgress::report(0, 'Saving ' . count($mlsData) . ' file records…');
+                $this->insertWithinParameterLimit('mls_file_no', $mlsData);
+                $this->insertWithinParameterLimit('fileNumber', $fileNumberData);
+                $this->insertWithinParameterLimit('file_indexings', $indexingData);
 
                 $ossApplicationActions = [];
                 $ossApplicationSyncer = app(MlsCommissioningOssApplicationService::class);
@@ -5456,7 +5630,7 @@ class MlsFileNoController extends Controller
                     try {
                         foreach (array_chunk($generatedFiles, 500) as $chunk) {
                             DB::connection('sqlsrv')->table('fileNumber')
-                                ->whereIn('mlsfNo', $chunk)
+                                ->where(fn ($q) => $this->whereInVarchar($q, 'mlsfNo', $chunk))
                                 ->update(['related_fileno' => $batchRelatedFileNumbers]);
                         }
                     } catch (\Throwable $e) {
@@ -5557,9 +5731,7 @@ class MlsFileNoController extends Controller
 
                             if (!empty($batchLinksToCreate)) {
                                 // Insert in chunks if the batch is large to avoid SQL limits
-                                foreach (array_chunk($batchLinksToCreate, 100) as $chunk) {
-                                    DB::connection('sqlsrv')->table('file_indexing_links')->insert($chunk);
-                                }
+                                $this->insertWithinParameterLimit('file_indexing_links', $batchLinksToCreate);
                                 Log::info('Batch lineage links created', ['count' => count($batchLinksToCreate)]);
                             }
                         }
@@ -5603,6 +5775,7 @@ class MlsFileNoController extends Controller
 
                     if ($opPraMetadata !== null && empty($batchOpSources)) {
                         foreach ($validated['location_entries'] as $index => $entry) {
+                            \App\Services\CommissioningProgress::report($index + 1, 'Creating property records');
                             $batchFileNumber = $allFileNumbers[$index];
                             $batchTrackingId = $mlsData[$index]['tracking_id'] ?? null;
 
@@ -5672,6 +5845,7 @@ class MlsFileNoController extends Controller
                         // Note: $motherOwner, $parentPropId, and $relatedFileNumbers were resolved above
 
                         foreach ($validated['location_entries'] as $index => $entry) {
+                            \App\Services\CommissioningProgress::report($index + 1, 'Creating property records');
                             $entryFileName = $entry['file_name'] ?? $globalFileName;
                             $grantee = $entryFileName;
                             $grantor = ($sourceValue === 'Subdivision' || $sourceValue === 'Merger' || $sourceValue === 'Extension' || $sourceValue === 'Separation') ? ($motherOwner ?: $entryFileName) : $entryFileName;
@@ -5835,7 +6009,7 @@ class MlsFileNoController extends Controller
                                     ]);
 
                                 DB::connection('sqlsrv')->table('fileNumber')
-                                    ->whereIn('mlsfNo', $allFileNumbers)
+                                    ->where(fn ($q) => $this->whereInVarchar($q, 'mlsfNo', $allFileNumbers))
                                     ->update([
                                         'parent_prop_id' => implode(',', array_unique($oldPropIds)),
                                         'related_fileno' => json_encode(array_values($sourceFiles))
@@ -5867,7 +6041,7 @@ class MlsFileNoController extends Controller
                                 ]);
 
                             DB::connection('sqlsrv')->table('fileNumber')
-                                ->whereIn('mlsfNo', $allFileNumbers)
+                                ->where(fn ($q) => $this->whereInVarchar($q, 'mlsfNo', $allFileNumbers))
                                 ->update([
                                     'parent_prop_id' => $motherIndexing->prop_id,
                                     'related_fileno' => json_encode([$motherFile])
@@ -5928,32 +6102,49 @@ class MlsFileNoController extends Controller
                                 ]);
 
                             DB::connection('sqlsrv')->table('fileNumber')
-                                ->whereIn('mlsfNo', $allFileNumbers)
+                                ->where(fn ($q) => $this->whereInVarchar($q, 'mlsfNo', $allFileNumbers))
                                 ->update([
                                     'parent_prop_id' => $motherIndexing->prop_id,
                                     'related_fileno' => json_encode([$motherFile])
                                 ]);
                         }
 
-                        // Decommission mother if exists in registry
-                        $motherExists = DB::connection('sqlsrv')->table('fileNumber')->where('mlsfNo', $motherFile)->exists()
-                            || DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $motherFile)->exists();
+                        $continuation = !empty($validated['separation_continuation'])
+                            && $workflowService->isDecommissioned($motherFile);
 
-                        if ($motherExists) {
-                            // Pass every new fragment as the successor (CSV) so the Decommissioned Files
-                            // list's Related File column shows all fragments, not just the first.
-                            $res = $workflowService->decommissionFiles([$motherFile], "Plot Separation into batch of " . count($allFileNumbers) . " fragments", $commissionedBy, (!empty($allFileNumbers) ? implode(',', $allFileNumbers) : null), false);
-                            $decommissionSummary['archived'] = array_merge($decommissionSummary['archived'], $res['archived']);
+                        if ($continuation) {
+                            // A later chunk of a separation bigger than one batch run (only the
+                            // duplex sends these). The first chunk retired the mother; archiving
+                            // it again would write a second event for one separation, so only
+                            // widen the successor list with this chunk.
+                            $workflowService->appendSuccessors($motherFile, $allFileNumbers);
+
+                            $separationApp->update([
+                                'status' => \App\Models\PlotSeparationApplication::STATUS_COMMISSIONED,
+                                'remarks' => trim(($separationApp->remarks ? $separationApp->remarks . PHP_EOL : '') . "Further batch of {$batchQuantity} files (First: {$allFileNumbers[0]}) on " . now()->toDateTimeString()),
+                                'updated_by' => Auth::id()
+                            ]);
+                        } else {
+                            // Decommission mother if exists in registry
+                            $motherExists = DB::connection('sqlsrv')->table('fileNumber')->where('mlsfNo', $motherFile)->exists()
+                                || DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $motherFile)->exists();
+
+                            if ($motherExists) {
+                                // Pass every new fragment as the successor (CSV) so the Decommissioned Files
+                                // list's Related File column shows all fragments, not just the first.
+                                $res = $workflowService->decommissionFiles([$motherFile], "Plot Separation into batch of " . count($allFileNumbers) . " fragments", $commissionedBy, (!empty($allFileNumbers) ? implode(',', $allFileNumbers) : null), false);
+                                $decommissionSummary['archived'] = array_merge($decommissionSummary['archived'], $res['archived']);
+                            }
+
+                            $separationApp->update([
+                                'status' => \App\Models\PlotSeparationApplication::STATUS_COMMISSIONED,
+                                'remarks' => "Commissioned to Batch of {$batchQuantity} files (First: {$allFileNumbers[0]}) on " . now()->toDateTimeString(),
+                                'updated_by' => Auth::id()
+                            ]);
+
+                            // Notify Deeds users
+                            $parcelNotifier->notifyCommissioned('separation', $separationApp->id, $motherFile, $allFileNumbers[0] ?? '', $commissionedBy);
                         }
-
-                        $separationApp->update([
-                            'status' => \App\Models\PlotSeparationApplication::STATUS_COMMISSIONED,
-                            'remarks' => "Commissioned to Batch of {$batchQuantity} files (First: {$allFileNumbers[0]}) on " . now()->toDateTimeString(),
-                            'updated_by' => Auth::id()
-                        ]);
-
-                        // Notify Deeds users
-                        $parcelNotifier->notifyCommissioned('separation', $separationApp->id, $motherFile, $allFileNumbers[0] ?? '', $commissionedBy);
                     }
                     $this->logPlotsWorkflow('info', 'Batch Separation application marked as commissioned', ['app_id' => $validated['separation_app_id']]);
                 }
@@ -5976,6 +6167,8 @@ class MlsFileNoController extends Controller
                  | Each file carries its own number from location_entries; the
                  | resolver fills in the ones the officer left blank.
                  */
+                \App\Services\CommissioningProgress::report(count($generatedFiles), 'Opening LAAS accounts, OSS and EDMS folders…');
+
                 $this->sendBatchCommissioningSms($generatedFiles, $validated, $batchSystemSubType ?? null, $batchNo);
 
                 $laasPortal = $this->openLaasPortalAccounts($generatedFiles, $validated);
@@ -6651,7 +6844,7 @@ class MlsFileNoController extends Controller
         // Check against DB in one query
         $existing = DB::connection('sqlsrv')
             ->table('fileNumber')
-            ->whereIn('tracking_id', $candidates)
+            ->where(fn ($q) => $this->whereInVarchar($q, 'tracking_id', $candidates))
             ->pluck('tracking_id')
             ->toArray();
 

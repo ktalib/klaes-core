@@ -122,9 +122,31 @@ class ManualFileLinkageController extends Controller
      * Persist the linkage, decommission old files, patch lineage on new files.
      * For Subdivision, accepts a children[] array so all N child plots are linked in one transaction.
      */
+    /** Which module a linkage is being made from: 'Land' or 'Deeds'. */
+    private string $linkageSource = 'Deeds';
+
+    /**
+     * Land opens this page as /manual-linkage?url=land_view, Deeds as /manual-linkage.
+     * The form posts which one it was opened from; anything else counts as Deeds.
+     */
+    private function linkageSourceFrom(Request $request): string
+    {
+        return $request->input('linkage_source') === 'Land'
+            || $request->query('url') === 'land_view'
+            ? 'Land'
+            : 'Deeds';
+    }
+
+    /** The list page for the module the linkage was made from. */
+    private function indexUrl(): string
+    {
+        return route('admin.manual-linkage.index') . ($this->linkageSource === 'Land' ? '?url=land_view' : '');
+    }
+
     public function store(Request $request)
     {
         $workflowType = $request->input('workflow_type');
+        $this->linkageSource = $this->linkageSourceFrom($request);
 
         // Strip empty values submitted by hidden inputs in non-active panels
         $request->merge([
@@ -682,12 +704,12 @@ class ManualFileLinkageController extends Controller
 
                 $childCount = count($children);
                 if (!empty($decommissionWarnings)) {
-                    return redirect()->route('admin.manual-linkage.index')
+                    return redirect()->to($this->indexUrl())
                         ->with('warning', "Subdivision linkage saved: {$firstOldFile} → {$childCount} child plot(s) linked, "
                             . 'but the parent file was NOT decommissioned — ' . implode('; ', $decommissionWarnings));
                 }
 
-                return redirect()->route('admin.manual-linkage.index')
+                return redirect()->to($this->indexUrl())
                     ->with('success', "Subdivision linkage saved: {$firstOldFile} → {$childCount} child plot(s) decommissioned and linked.");
 
             } else {
@@ -892,12 +914,12 @@ class ManualFileLinkageController extends Controller
                 $this->clearCache();
 
                 if (!empty($decommissionWarnings)) {
-                    return redirect()->route('admin.manual-linkage.index')
+                    return redirect()->to($this->indexUrl())
                         ->with('warning', "Linkage saved for {$workflowType}, but not every source file was decommissioned — "
                             . implode('; ', $decommissionWarnings));
                 }
 
-                return redirect()->route('admin.manual-linkage.index')
+                return redirect()->to($this->indexUrl())
                     ->with('success', "Successfully linked manually processed files for {$workflowType}!");
             }
 
@@ -979,6 +1001,7 @@ class ManualFileLinkageController extends Controller
             'survey_plan_no'     => $surveyPlanNo,
             'linkage_group_id'   => $linkageGroupId,
             'holding_file_no'    => $holdingFileNo,
+            'source'             => $this->linkageSource,
         ];
 
         foreach ($optional as $col => $value) {

@@ -29,6 +29,7 @@
                     </button>
                 </div>
             </div>
+            @include('fileindexing.partials.year_override')
         </div>
 
         <div id="kangis-placeholder-feedback" class="hidden mt-2 flex items-center gap-2 text-xs rounded px-3 py-1.5 border">

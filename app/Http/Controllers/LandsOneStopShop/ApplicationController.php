@@ -2919,6 +2919,10 @@ class ApplicationController extends Controller
                 'district' => data_get($motherOpRecord, 'district'),
                 'lga' => $resolvedLga ?: data_get($motherOpRecord, 'lga'),
                 'land_use' => $resolvedLandUse ?: data_get($motherOpRecord, 'land_use'),
+                // A change-of-name row must carry its OP serial (OpSerialSourceResolver);
+                // without it every FEFR capture's mirror failed and the file never
+                // reached Applications -> Change of Ownership.
+                'op_serial_number' => data_get($motherOpRecord, 'op_serial_number'),
                 'system_sub_type' => \App\Support\OssOpCommissionFilter::OSS,
                 'sub_source' => 'OP Change of Ownership',
                 'created_at' => now(),

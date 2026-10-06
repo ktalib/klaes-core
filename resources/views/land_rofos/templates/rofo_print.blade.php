@@ -951,21 +951,14 @@
                     // column a child saved through a real batch keeps it in — except that
                     // this one was typed by hand rather than picked from the register.
                     //
-                    // It replaces the plot / layout-plan pair in the PLOT/PLAN No. box, the
-                    // way a subdivided plot cites the file it was cut from. $planNoRef above
-                    // needs no special case: it already prefers old_file_number, so the
-                    // body's "as per plan No." line names the mother by the same rule it has
-                    // always applied.
-                    $useSubdivisionTemplate = (bool) ($recommendation->use_subdivision_template ?? false)
-                        && $oldFileNumber !== '';
+                    // The mother is cited only in the body's "as per plan No." line —
+                    // $planNoRef above already prefers old_file_number. The PLOT/PLAN No.
+                    // box keeps the plot's own plot and layout plan numbers, the same as
+                    // every other record and the batch template.
 
                     // PLOT/PLAN No. always prints whatever is on the record: both parts when
                     // present, otherwise whichever one exists (blank when neither does).
-                    // A record flagged for the subdivision template but carrying no mother
-                    // file number falls back to this rather than printing an empty box.
-                    $plotPlanNo = $useSubdivisionTemplate
-                        ? $oldFileNumber
-                        : implode(' / ', array_filter([$plotNo, $layoutPlanNo], fn ($v) => $v !== ''));
+                    $plotPlanNo = implode(' / ', array_filter([$plotNo, $layoutPlanNo], fn ($v) => $v !== ''));
                 @endphp
                 <!-- REF-GRID SECTION -->
                 <div class="ref-grid">

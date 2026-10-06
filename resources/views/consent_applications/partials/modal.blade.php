@@ -75,6 +75,45 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
+                        {{-- Transaction type: its own choice, beside the consent type. It fixes
+                             the default rates, the stamp duty payee (KIRS / FIRS) and the letter
+                             that prints. Only the party options (Individual / Company) are listed:
+                             a Gift or a Mortgage settles the type by itself, so choosing either as
+                             the Consent Type locks this field to it (applyConsentTypeToTransaction()).
+                             Those implied options stay in the list, hidden, so they can be set.
+                             Profiles come from config/consent_bill.php, the same table the server
+                             recalculates from. --}}
+                        @php
+                            $consentTransactionTypes = config('consent_bill.transaction_types', []);
+                            $consentPayees = config('consent_bill.payees', []);
+                            $consentImpliedTypes = config('consent_bill.consent_type_transactions', []);
+                        @endphp
+                        <div>
+                            <label for="transaction_type" class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Transfer
+                                Type <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <select name="transaction_type" id="transaction_type" required
+                                    data-types="{{ json_encode($consentTransactionTypes) }}"
+                                    data-payees="{{ json_encode($consentPayees) }}"
+                                    data-implied="{{ json_encode($consentImpliedTypes) }}"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition focus:bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer">
+                                    <option value="">Select transfer type…</option>
+                                    @foreach ($consentTransactionTypes as $typeKey => $typeProfile)
+                                        <option value="{{ $typeKey }}" @if (in_array($typeKey, $consentImpliedTypes, true)) hidden data-implied-only="1" @endif>{{ $typeProfile['label'] }}</option>
+                                    @endforeach
+                                </select>
+                                <div
+                                    class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                                </div>
+                            </div>
+                            <p id="transaction_type_error" class="hidden mt-1.5 text-xs font-semibold text-red-600"></p>
+
+                            {{-- What the choice means, filled in by applyTransactionType(). --}}
+                            <div id="transaction-type-summary"
+                                class="hidden mt-3 p-3 rounded-xl border text-xs leading-relaxed"></div>
+                        </div>
+
                         <div>
                             <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Consent
                                 Type <span class="text-red-500">*</span></label>
@@ -128,6 +167,11 @@
                                     <i data-lucide="plus" class="h-5 w-5"></i>
                                 </button>
                             </div>
+
+                            {{-- The field is readonly, and the browser skips constraint
+                                 validation on readonly inputs, so a missing file used to fail
+                                 silently. validateWizardStep() writes the reason here. --}}
+                            <p id="file_number_error" class="hidden mt-1.5 text-xs font-semibold text-red-600"></p>
 
                             <div id="additional-file-numbers-container" class="space-y-2 mt-2">
                                 <!-- Additional file numbers cloned here -->
@@ -803,7 +847,8 @@
                      recalculates on save and discards anything posted here. --}}
                 <div class="pt-6 mt-6 border-t border-slate-100" id="consent-bill-section"
                     data-stamp-duty-rate="{{ config('consent_bill.rates.stamp_duty') }}"
-                    data-registration-rate="{{ config('consent_bill.rates.registration') }}">
+                    data-registration-rate="{{ config('consent_bill.rates.registration') }}"
+                    data-processing-fee="{{ config('consent_bill.fixed_fees.processing') }}">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
                             <i data-lucide="receipt" class="h-4 w-4"></i>
@@ -841,26 +886,47 @@
                         <p class="text-[11px] text-slate-400 mt-1" id="bill_valuation_source"></p>
                     </div>
 
-                    <div class="rounded-xl border border-slate-200 overflow-hidden">
-                        @foreach ([
-                            // A percentage line is zero until a valuation is linked; a fixed
-                            // fee never depends on one, so it shows its configured amount
-                            // from the outset rather than a misleading ₦0.00.
-                            // Rates come from config through the same formatter the letter
-                            // uses, so the card and the printed letter cannot disagree.
-                            ['id' => 'bill_stamp_duty', 'key' => 'stamp_duty_amount', 'default' => 0,
-                                'label' => 'Stamp Duty (' . \App\Services\ConsentBillCalculator::formatRate(config('consent_bill.rates.stamp_duty')) . ')',
-                                'note' => 'Percentage of valuation'],
+                    @php
+                        $fmtRate = fn($r) => \App\Services\ConsentBillCalculator::formatRate($r);
+                        // The Ministry's lines. Stamp duty is rendered separately below
+                        // the total: under a transaction type it is paid to KIRS / FIRS,
+                        // not to the Ministry, and is not part of the bill.
+                        // A percentage line is zero until a valuation is linked; a fixed
+                        // fee never depends on one, so it shows its configured amount
+                        // from the outset rather than a misleading zero.
+                        $ministryRows = [
                             ['id' => 'bill_registration_fee', 'key' => 'registration_fee', 'default' => 0,
-                                'label' => 'Registration Fee (' . \App\Services\ConsentBillCalculator::formatRate(config('consent_bill.rates.registration')) . ')',
-                                'note' => 'Percentage of valuation'],
-                            ['id' => 'bill_processing_fee', 'key' => 'processing_fee', 'label' => 'Processing Fee', 'note' => 'Fixed fee', 'default' => config('consent_bill.fixed_fees.processing')],
-                        ] as $row)
+                                'label' => 'Registration Fee (' . $fmtRate(config('consent_bill.rates.registration')) . ')',
+                                'name' => 'Registration Fee', 'rate_key' => 'registration',
+                                'rate' => rtrim($fmtRate(config('consent_bill.rates.registration')), '%'),
+                                'note' => 'Percentage of assessed amount'],
+                            ['id' => 'bill_processing_fee', 'key' => 'processing_fee', 'label' => 'Processing Fee',
+                                'note' => 'Fixed fee', 'default' => config('consent_bill.fixed_fees.processing')],
+                        ];
+                        $stampRow = ['id' => 'bill_stamp_duty', 'key' => 'stamp_duty_amount', 'default' => 0,
+                            'label' => 'Stamp Duty (' . $fmtRate(config('consent_bill.rates.stamp_duty')) . ')',
+                            'name' => 'Stamp Duty', 'rate_key' => 'stamp_duty',
+                            'rate' => rtrim($fmtRate(config('consent_bill.rates.stamp_duty')), '%'),
+                            'note' => 'Percentage of assessed amount'];
+                    @endphp
+                    <div class="rounded-xl border border-slate-200 overflow-hidden">
+                        @foreach ($ministryRows as $row)
                             <div class="px-4 py-3 border-b border-slate-100 bg-white bill-row"
                                 data-fee="{{ $row['key'] }}" data-default="{{ number_format((float) $row['default'], 2, '.', '') }}">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <div class="text-sm font-medium text-slate-700">{{ $row['label'] }}</div>
+                                        @if (!empty($row['rate_key']))
+                                            <div class="text-sm font-medium text-slate-700 flex items-center gap-1">
+                                                <span>{{ $row['name'] }} (</span>
+                                                <input type="text" inputmode="decimal" data-rate-input="{{ $row['rate_key'] }}"
+                                                    id="{{ $row['id'] }}_rate" value="{{ $row['rate'] }}"
+                                                    class="w-16 px-1.5 py-0.5 rounded-md border border-slate-200 bg-white text-xs font-bold font-mono text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                                    title="Edit the percentage if this consent is charged at a different rate">
+                                                <span>%)</span>
+                                            </div>
+                                        @else
+                                            <div class="text-sm font-medium text-slate-700" id="{{ $row['id'] }}_label">{{ $row['label'] }}</div>
+                                        @endif
                                         <div class="text-[11px] text-slate-400 bill-row-note">{{ $row['note'] }}</div>
                                     </div>
                                     <div class="flex items-center gap-2">
@@ -904,7 +970,71 @@
 
                         <div class="flex items-center justify-between px-4 py-3 bg-slate-50">
                             <div class="text-sm font-bold text-slate-800 uppercase tracking-wider">Total</div>
-                            <div class="text-base font-bold text-emerald-700 font-mono" id="bill_total">₦{{ number_format(array_sum(array_map('floatval', array_values(config('consent_bill.fixed_fees', [])))), 2) }}</div>
+                            <div class="text-base font-bold text-emerald-700 font-mono" id="bill_total">₦{{ number_format((float) config('consent_bill.fixed_fees.processing'), 2) }}</div>
+                        </div>
+                    </div>
+
+                    {{-- Stamp duty: computed on the same basis but payable to the revenue
+                         authority the transaction type names, so it sits outside the
+                         Ministry total. The payee line is filled by applyTransactionType(). --}}
+                    <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 overflow-hidden" id="stamp-duty-box">
+                            <div class="px-4 py-3 bill-row"
+                                data-fee="{{ $stampRow['key'] }}" data-default="{{ number_format((float) $stampRow['default'], 2, '.', '') }}">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        @if (!empty($stampRow['rate_key']))
+                                            <div class="text-sm font-medium text-slate-700 flex items-center gap-1">
+                                                <span>{{ $stampRow['name'] }} (</span>
+                                                <input type="text" inputmode="decimal" data-rate-input="{{ $stampRow['rate_key'] }}"
+                                                    id="{{ $stampRow['id'] }}_rate" value="{{ $stampRow['rate'] }}"
+                                                    class="w-16 px-1.5 py-0.5 rounded-md border border-slate-200 bg-white text-xs font-bold font-mono text-right focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+                                                    title="Edit the percentage if this consent is charged at a different rate">
+                                                <span>%)</span>
+                                            </div>
+                                        @else
+                                            <div class="text-sm font-medium text-slate-700" id="{{ $stampRow['id'] }}_label">{{ $stampRow['label'] }}</div>
+                                        @endif
+                                        <div class="text-[11px] text-slate-400 bill-row-note">{{ $stampRow['note'] }}</div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="text-sm font-bold text-slate-700 font-mono" id="{{ $stampRow['id'] }}">₦{{ number_format((float) $stampRow['default'], 2) }}</div>
+                                        <button type="button"
+                                            class="bill-edit-btn p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                                            title="Override this amount">
+                                            <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {{-- Override editor. Hidden until the pencil is used, and the
+                                     inputs carry no name until then, so an untouched row posts
+                                     nothing and stays on the calculated amount. --}}
+                                <div class="bill-override hidden mt-3 pt-3 border-t border-dashed border-slate-200">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                                Manual Amount (₦)
+                                            </label>
+                                            <input type="text" inputmode="decimal" data-override-amount="{{ $stampRow['key'] }}"
+                                                class="w-full px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-sm font-medium font-mono"
+                                                placeholder="0.00">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                                Reason <span class="text-red-500">*</span>
+                                            </label>
+                                            <input type="text" data-override-reason="{{ $stampRow['key'] }}"
+                                                class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
+                                                placeholder="Why this amount differs">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="bill-revert-btn mt-2 text-[11px] font-bold text-slate-500 hover:text-red-600">
+                                        Revert to calculated amount
+                                    </button>
+                                </div>
+                            </div>
+                        <div class="px-4 py-2 text-[11px] font-semibold text-amber-800 border-t border-amber-100" id="stamp-duty-payee-note">
+                            Not included in the total. Select a transfer type to see who it is paid to.
                         </div>
                     </div>
                 </div>

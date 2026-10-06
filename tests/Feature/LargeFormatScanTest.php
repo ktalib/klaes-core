@@ -22,7 +22,12 @@ class LargeFormatScanTest extends TestCase
         DB::purge('sqlsrv');
         Storage::fake('public');
         Storage::fake('lf_test_source');
-        config(['large_format_scans.folder' => Storage::disk('lf_test_source')->path('')]);
+        // The source reads the per-library folder; pin both so the test never
+        // reaches the real records-server share named in .env.
+        config([
+            'large_format_scans.folder' => Storage::disk('lf_test_source')->path(''),
+            'large_format_scans.libraries.lfs.folder' => Storage::disk('lf_test_source')->path(''),
+        ]);
         Storage::disk('lf_test_source')->put('new.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII='));
         $schema = Schema::connection('sqlsrv');
         $schema->create('file_indexings', function (Blueprint $t) {

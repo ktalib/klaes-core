@@ -83,6 +83,58 @@
             });
         }
 
+        // Kebab menu for the CofO row; empty when the user has no item to show
+        // (txnFileNoCorrectionMenuItem returns '' without permission).
+        function renderCofoActionMenu(id) {
+            var correctItem = window.txnFileNoCorrectionMenuItem
+                ? window.txnFileNoCorrectionMenuItem('CofO_staging', id)
+                : '';
+            if (!correctItem) {
+                return '';
+            }
+            return ' <span class="relative inline-block text-left align-middle">' +
+                '<button type="button" class="cofo-row-menu-toggle btn btn-xs" style="border:1px solid #e5e7eb;background:#fff;color:#4b5563;" title="More actions">' +
+                '<i class="fas fa-ellipsis-v"></i></button>' +
+                '<div class="txn-fileno-menu hidden z-20 w-56 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">' +
+                '<div class="py-1">' + correctItem + '</div></div></span>';
+        }
+
+        document.addEventListener('click', function (e) {
+            var toggle = e.target.closest('.cofo-row-menu-toggle');
+            var menus = document.querySelectorAll('#cofo-records-table .txn-fileno-menu');
+            if (!toggle) {
+                if (!e.target.closest('.txn-fileno-menu')) {
+                    menus.forEach(function (m) { m.classList.add('hidden'); });
+                }
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            var menu = toggle.parentElement.querySelector('.txn-fileno-menu');
+            var willOpen = menu && menu.classList.contains('hidden');
+            menus.forEach(function (m) { m.classList.add('hidden'); });
+            if (menu && willOpen) {
+                // Fixed, so the table wrapper cannot clip it.
+                var rect = toggle.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.top = (rect.bottom + 4) + 'px';
+                menu.style.left = Math.max(8, rect.right - 224) + 'px';
+                menu.classList.remove('hidden');
+            }
+        }, true);
+
+        window.addEventListener('scroll', function () {
+            document.querySelectorAll('#cofo-records-table .txn-fileno-menu').forEach(function (m) { m.classList.add('hidden'); });
+        }, true);
+
+        window.TxnFileNoCorrection = Object.assign(window.TxnFileNoCorrection || {}, {
+            onChanged: function () {
+                if (cofoTable) {
+                    cofoTable.ajax.reload(null, false);
+                }
+            }
+        });
+
         function initializeCofOTable() {
             if (cofoTable) {
                 console.log('CofO table already initialized');
@@ -261,7 +313,7 @@
 
                                 return '<button type="button" class="btn btn-secondary btn-xs cofo-view-btn" data-id="' + row.id + '">' +
                                     '<i class="fas fa-eye mr-1"></i>View' +
-                                '</button>' + timelineBtn;
+                                '</button>' + timelineBtn + renderCofoActionMenu(row.id);
                             }
                         }
                     ],

@@ -289,15 +289,30 @@ class PropertySearchController extends Controller
         try {
             $aliasColumns = ['primary_file_number', 'mlsFNo', 'kangisFileNo', 'NewKANGISFileno', 'temp_fileno'];
 
-            $propId = DB::connection('sqlsrv')->table('PropID_Master')
-                ->where(function ($q) use ($aliasColumns, $fileNumber) {
-                    foreach ($aliasColumns as $col) {
-                        $q->orWhere($col, $fileNumber);
-                    }
-                })
-                ->value('prop_id');
+            // A "(T)" number is the same physical file as its main number and shares its
+            // prop_id, but PropID_Master often only records the main number (temp_fileno
+            // empty). Try the exact number first, then the main number.
+            $candidates = [$fileNumber];
+            $mainNumber = trim((string) preg_replace('/\s*\(\s*T\s*\)\s*$/i', '', $fileNumber));
+            if ($mainNumber !== '' && $mainNumber !== $fileNumber) {
+                $candidates[] = $mainNumber;
+            }
 
-            return $propId !== null && trim((string) $propId) !== '' ? (string) $propId : null;
+            foreach ($candidates as $candidate) {
+                $propId = DB::connection('sqlsrv')->table('PropID_Master')
+                    ->where(function ($q) use ($aliasColumns, $candidate) {
+                        foreach ($aliasColumns as $col) {
+                            $q->orWhere($col, $candidate);
+                        }
+                    })
+                    ->value('prop_id');
+
+                if ($propId !== null && trim((string) $propId) !== '') {
+                    return (string) $propId;
+                }
+            }
+
+            return null;
         } catch (\Throwable $e) {
             return null;
         }

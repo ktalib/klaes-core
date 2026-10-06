@@ -319,14 +319,24 @@ class LandRofoController extends Controller
             COUNT(CASE WHEN UPPER(ISNULL(type,'')) <> 'OSS' AND status = 'approved' AND ISNULL(rofo_status,'') = 'pending'   THEN 1 END)   AS pending_generation,
             COUNT(CASE WHEN UPPER(ISNULL(type,'')) <> 'OSS' AND ISNULL(rofo_status,'') = 'generated'                        THEN 1 END)   AS generated,
             COUNT(CASE WHEN UPPER(ISNULL(type,'')) <> 'OSS'                                                                THEN 1 END)   AS total_land,
-            ISNULL(SUM(CASE WHEN UPPER(ISNULL(type,'')) <> 'OSS' AND ISNULL(rofo_status,'') = 'generated' THEN ISNULL(rofo_dev_charge,0) ELSE 0 END), 0) AS total_dev_charge
-        ")->first();
+            ISNULL(SUM(CASE WHEN UPPER(ISNULL(type,'')) <> 'OSS' AND ISNULL(rofo_status,'') = 'generated' THEN ISNULL(rofo_dev_charge,0) ELSE 0 END), 0) AS total_dev_charge,
+            -- Ground rent is a RATE; what is owed is rate x plot size (area_sqm, m2).
+            -- Same rule as App\\Support\\PlotSize::amount(): per m2 (or no unit) is
+            -- rate x m2, Ha is rate x m2 / 10,000, and an 'Other' unit is not converted.
+            SUM(CASE WHEN UPPER(ISNULL(type,'')) <> 'OSS' AND ISNULL(rofo_status,'') = 'generated'
+                          AND area_sqm IS NOT NULL AND ground_rent IS NOT NULL THEN
+                     CASE WHEN LOWER(LTRIM(RTRIM(ISNULL(ground_rent_unit,'')))) IN ('', 'per square meters') THEN ground_rent * area_sqm
+                          WHEN LOWER(LTRIM(RTRIM(ground_rent_unit))) = 'ha' THEN ground_rent * area_sqm / 10000.0
+                     END
+                END) AS total_ground_rent
+        ")->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })->first();
 
         // Printed / Not-Printed counts — same printedPredicateSql() the tabs use, so the
         // card totals cannot disagree with the rows listed. Scoped to the same record set
         // the tabs filter, so the OSS-only view counts OSS rows alone rather than the
         // whole RofO register.
-        $rofoScopeQuery = DB::connection('sqlsrv')->table('land_recommendations');
+        $rofoScopeQuery = DB::connection('sqlsrv')->table('land_recommendations')
+            ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); });
         if ($ossViewOnly) {
             $rofoScopeQuery->whereRaw("UPPER(ISNULL(type,'')) = 'OSS'");
         } else {
@@ -371,6 +381,9 @@ class LandRofoController extends Controller
             'reissuance'        => (int) $reissuanceCount,
             'total_land'        => (int) ($statsRow->total_land         ?? 0),
             'total_dev_charge'  => (float) ($statsRow->total_dev_charge ?? 0),
+            // Null until a generated RofO has both a rate and a plot size, so the card
+            // shows a dash rather than a misleading zero.
+            'total_ground_rent' => $statsRow->total_ground_rent === null ? null : (float) $statsRow->total_ground_rent,
             'oss_total'         => $ossTotal,
             'oss_daily'         => $ossDailyTotal,
         ];

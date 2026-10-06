@@ -233,6 +233,18 @@ class SltrRecommendationController extends Controller
     }
 
     /**
+     * Plot size (m²) is required — the ground rent amount is rate x plot size.
+     * A file whose indexing carries a size is exempt: resolvePlotSize() fills it
+     * from the indexing on save whatever was posted.
+     */
+    private function plotSizeRule(?string $sltrNumber): string
+    {
+        return \App\Support\SltrPlotSize::fromIndexing($sltrNumber) !== null
+            ? 'nullable|numeric|min:0'
+            : 'required|numeric|gt:0';
+    }
+
+    /**
      * The indexed plot size (m²) for a file number, for the form to prefill and
      * lock. plot_size is null when the file has no usable indexed size.
      */
@@ -263,7 +275,7 @@ class SltrRecommendationController extends Controller
             'ground_rent'      => 'nullable|numeric|min:0',
             'ground_rent_unit' => 'nullable|string|max:100',
             'ground_rent_unit_other' => 'nullable|string|max:100',
-            'plot_size'        => 'nullable|numeric|min:0',
+            'plot_size'        => $this->plotSizeRule($request->input('sltr_number')),
             'processing_fee'   => 'nullable|numeric|min:0',
             // The schedule line the fee came from, or the sub-type named for "Other".
             'land_use_subtype' => 'nullable|string|max:255',
@@ -313,7 +325,7 @@ class SltrRecommendationController extends Controller
             'ground_rent'      => 'nullable|numeric|min:0',
             'ground_rent_unit' => 'nullable|string|max:100',
             'ground_rent_unit_other' => 'nullable|string|max:100',
-            'plot_size'        => 'nullable|numeric|min:0',
+            'plot_size'        => $this->plotSizeRule($request->input('sltr_number')),
             'processing_fee'   => 'nullable|numeric|min:0',
             // The schedule line the fee came from, or the sub-type named for "Other".
             'land_use_subtype' => 'nullable|string|max:255',

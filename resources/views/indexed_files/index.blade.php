@@ -183,6 +183,13 @@
                                         class="hidden inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold">0</span>
                                     <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400" id="adv-search-chevron"></i>
                                 </button>
+                                {{-- Exports the rows the table is showing: same search box and
+                                     Advanced Search filters, sent along by index.js. --}}
+                                <button type="button" id="indexed-files-export-btn"
+                                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition">
+                                    <i data-lucide="download" class="h-4 w-4"></i>
+                                    Export
+                                </button>
                                 <div id="adv-active-chips" class="flex flex-wrap items-center gap-2"></div>
                             </div>
 
@@ -599,6 +606,7 @@
             listUrl: @json(route('indexed-files.api.list')),
             viewListUrl: @json(route('indexed-files.api.view-list')),
             filterOptionsUrl: @json(route('indexed-files.api.filter-options')),
+            exportUrl: @json(route('indexed-files.api.export')),
             statsUrl: @json(route('indexed-files.api.stats')),
             updateCoordinatesUrlTemplate: @json(route('indexed-files.api.update-coordinates', ['id' => '__ID__'])),
             showUrlTemplate: @json(route('fileindex.show', ['fileindex' => '__ID__'])),

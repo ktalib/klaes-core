@@ -35,8 +35,8 @@
                 </div>
             </div>
 
-            <!-- Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Stats (id used by refreshConsentTable() to update in place) -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="consent-stats">
                 <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                     <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Generated</p>
                     <p class="text-3xl font-bold text-slate-900 mt-2">{{ count($applications) }}</p>
@@ -112,6 +112,18 @@
                                         <span class="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase border {{ $badgeClass }}">
                                             {{ $app->consent_type }}
                                         </span>
+                                        {{-- The transaction type decides the letter, rates and payee.
+                                             Consents from before it existed show a prompt instead. --}}
+                                        @php
+                                            $txProfile = \App\Services\ConsentBillCalculator::transactionType($app->transaction_type);
+                                        @endphp
+                                        @if ($txProfile)
+                                            <div class="mt-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">
+                                                {{ $txProfile['label'] }} · {{ $txProfile['payee'] }}
+                                            </div>
+                                        @else
+                                            <div class="mt-1.5 text-[10px] font-semibold text-amber-600 whitespace-nowrap">No transfer type</div>
+                                        @endif
                                     </td>
                                     @php
                                         $titles = collect([$app->applicant_name]);
@@ -200,9 +212,16 @@
                                                                 <span>Edit</span>
                                                             </div>
                                                         @endif
+                                                        {{-- A consent captured before transaction types has none,
+                                                             so Print first asks for one (with the consent type and
+                                                             percentages), saves it, then opens the letter. See
+                                                             .consent-print-needs-type in consent_applications.js. --}}
                                                         @if($app->print_count < 2)
                                                             <a href="{{ route('consent-applications.show', $app->id) }}" target="_blank"
-                                                                class="flex items-center gap-3 px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 transition font-bold"
+                                                                class="{{ $app->transaction_type ? '' : 'consent-print-needs-type' }} flex items-center gap-3 px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 transition font-bold"
+                                                                data-id="{{ $app->id }}"
+                                                                data-file="{{ $app->file_number }}"
+                                                                data-consent-type="{{ $app->consent_type }}"
                                                                 @click="open = false">
                                                                 <i data-lucide="printer" class="h-4 w-4"></i>
                                                                 <span>Print</span>
@@ -291,8 +310,11 @@
             closeBtns.forEach(btn => btn.addEventListener('click', closePropertiesModal));
             if (overlay) overlay.addEventListener('click', closePropertiesModal);
 
-            document.querySelectorAll('.view-properties-btn').forEach(btn => {
-                btn.addEventListener('click', function(e) {
+            // Delegated, so rows re-rendered by refreshConsentTable() keep working.
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('.view-properties-btn');
+                if (!btn) return;
+                (function(e) {
                     e.stopPropagation();
                     const mainFile = this.dataset.mainFile;
                     const mainDesc = this.dataset.mainDesc || 'No description available';
@@ -340,7 +362,7 @@
                     void propertiesModal.offsetWidth;
                     propertiesModalContent.classList.remove('scale-95', 'opacity-0');
                     propertiesModalContent.classList.add('scale-100', 'opacity-100');
-                });
+                }).call(btn, e);
             });
         });
     </script>

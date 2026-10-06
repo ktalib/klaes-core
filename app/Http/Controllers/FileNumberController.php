@@ -1850,6 +1850,7 @@ class FileNumberController extends Controller
                     'purpose_id'     => $temp->purpose_id,
                     'phone_no'       => $temp->phone_no,
                     'address'        => $temp->address,
+                    'gender'         => $temp->gender ?? null,
                     'rep_phone_no'   => $temp->rep_phone_no,
                     'rep_address'    => $temp->rep_address,
                     'related_fileno' => null,
@@ -1877,8 +1878,24 @@ class FileNumberController extends Controller
                     'fileNumber.mlsfNo'
                 )
                 ->leftJoin('file_indexings as fi', 'fi.id', '=', 'fi_max.max_id')
+                // Latest OSS application for the file — the commissioning form files the
+                // applicant's address and sex there, often with nothing on fileNumber.
+                ->leftJoinSub(
+                    DB::connection('sqlsrv')->table('oss_applications')
+                        ->select(['file_no', DB::raw('MAX(id) as max_id')])
+                        ->groupBy('file_no'),
+                    'oss_max',
+                    'oss_max.file_no',
+                    '=',
+                    'fileNumber.mlsfNo'
+                )
+                ->leftJoin('oss_applications as oss', 'oss.id', '=', 'oss_max.max_id')
                 ->select([
                     'fileNumber.*',
+                    // fileNumber has no gender column and its address is empty on most
+                    // commissioned rows, so the edit form came up blank for both.
+                    DB::raw("COALESCE(NULLIF(LTRIM(RTRIM(fileNumber.address)), ''), NULLIF(LTRIM(RTRIM(mls_file_no.address)), ''), NULLIF(LTRIM(RTRIM(fi.residence_address)), ''), NULLIF(LTRIM(RTRIM(oss.address)), '')) as address"),
+                    DB::raw("COALESCE(NULLIF(LTRIM(RTRIM(mls_file_no.gender)), ''), NULLIF(LTRIM(RTRIM(fi.gender)), ''), NULLIF(LTRIM(RTRIM(oss.sex)), '')) as gender"),
                     // Coalesce crucial fields across every source so the edit form
                     // backfills whatever data exists (fileNumber -> mls_file_no ->
                     // file indexing -> mother application).
@@ -1953,6 +1970,29 @@ class FileNumberController extends Controller
     }
 
     /**
+     * Gender was shown on the edit form but never saved. Only rows whose value actually
+     * changes are written, so re-saving a form that merely displays a backfilled gender
+     * keeps that row's gender_source provenance. An empty pick leaves gender untouched.
+     */
+    private function persistEditedGender(Request $request, array $fileNoCandidates): void
+    {
+        $gender = trim((string) $request->input('gender', ''));
+        if ($gender === '' || empty($fileNoCandidates)) {
+            return;
+        }
+
+        foreach (['mls_file_no' => 'full_file_number', 'file_indexings' => 'file_number'] as $table => $fileCol) {
+            DB::connection('sqlsrv')->table($table)
+                ->whereIn($fileCol, $fileNoCandidates)
+                ->whereRaw("ISNULL(gender, '') <> ?", [$gender])
+                ->update([
+                    'gender' => $gender,
+                    'gender_source' => \App\Services\GenderNormalizer::SOURCE_CAPTURED,
+                ]);
+        }
+    }
+
+    /**
      * Update a record (file name, KANGIS file number, and New KANGIS file number can be updated)
      */
     public function update(Request $request, $id)
@@ -1972,6 +2012,7 @@ class FileNumberController extends Controller
             'address' => 'nullable|string|max:255',
             'rep_phone_no' => 'nullable|string|max:50',
             'rep_address' => 'nullable|string|max:255',
+            'gender' => 'nullable|string|in:Male,Female,Corporate,Joint',
             'related_fileno' => 'nullable|string|max:255',
             'is_old_fileno' => 'nullable|boolean',
             // Batch scope. A batch row stands for N files; `apply_to_batch` opts into
@@ -2195,12 +2236,27 @@ class FileNumberController extends Controller
                 throw $e;
             }
 
-            // The photograph belongs to the file that was opened, not to its batch
-            // siblings — a batch shares an allocation, not an applicant's passport.
             $passportUpload = $this->storePassportIfSent(
                 $request,
                 $record->mlsfNo ?? $record->kangisFileNo ?? $record->NewKANGISFileNo ?? null
             );
+
+            // An edit applied to the whole batch has just written ONE holder name onto
+            // every file in it, so they are all that applicant's files and the photograph
+            // belongs on each -- the same rule batch commissioning already follows
+            // ("Subdivision batches share one applicant photo"). Filing it on the opened
+            // file only left the rest blank in every listing that reads the photo per
+            // file: a 200-file batch edited with a passport showed it on 1 file of 200.
+            // A single-file edit still touches only that file.
+            if ($passportUpload && !empty($passportUpload['stored']) && $targets->count() > 1) {
+                $openedNumber = $record->mlsfNo ?? $record->kangisFileNo ?? $record->NewKANGISFileNo ?? null;
+                foreach ($targets as $target) {
+                    $siblingNumber = $target->mlsfNo ?? $target->kangisFileNo ?? $target->NewKANGISFileNo ?? null;
+                    if ($siblingNumber && $siblingNumber !== $openedNumber) {
+                        $this->storePassportIfSent($request, $siblingNumber);
+                    }
+                }
+            }
             $passportRemoved = !$passportUpload && $this->removePassportIfRequested(
                 $request,
                 $record->mlsfNo ?? $record->kangisFileNo ?? $record->NewKANGISFileNo ?? null
@@ -2874,6 +2930,8 @@ class FileNumberController extends Controller
                 DB::connection('sqlsrv')->table('file_indexings')
                     ->whereIn('file_number', $fileNoCandidates)
                     ->update($fiUpdate);
+
+                $this->persistEditedGender($request, $fileNoCandidates);
             } catch (\Exception $e) {
                 Log::warning('Failed to propagate FileName to file_indexings', [
                     'fileNumber_id' => $id,
@@ -3085,6 +3143,8 @@ class FileNumberController extends Controller
                 $db->table('file_indexings')
                     ->whereIn('file_number', $fileNoCandidates)
                     ->update($fiUpdate);
+
+                $this->persistEditedGender($request, $fileNoCandidates);
             } catch (\Exception $e) {
                 Log::warning('Failed to propagate temporary file edit to file_indexings', [
                     'mls_file_no_id' => $id,

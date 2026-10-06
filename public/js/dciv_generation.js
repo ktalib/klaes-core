@@ -816,14 +816,22 @@ function dcivGenerator(config) {
                     this.nextDciv = result.data[0];
                     if (!useManualSerial) this.formData.serial_number = result.next_serial;
                     if (!manualYear) this.formData.year = result.year;
+                } else if (result.success && result.is_initialized === false && this.serialMode === 'manual' && !this.editMode) {
+                    // Manual does not use the counter: the operator types the serial
+                    // and the lookup only fetches its tracking ID. Until a serial is
+                    // typed there is nothing to look up, so just leave the field open.
+                    this.nextDciv = useManualSerial
+                        ? { tracking_id: 'Not Found', dciv_awaiting_fileno: 'No Records Found' }
+                        : null;
                 } else if (result.success && result.is_initialized === false) {
                     // Not initialized — the counter has no starting serial yet.
                     this.nextDciv = null;
                     if (!useManualSerial) this.formData.serial_number = 'NOT SET';
                     if (!manualYear) this.formData.year = result.year || config.currentYear;
-                    
+
                     // The counter is set once, under System Admin → Configurable Entries →
                     // Serial Initialization, and locked there. Nothing on this page can set it.
+                    // Only Auto depends on it, so only Auto is told.
                     if (this.showGenerateModal) {
                         Swal.fire({
                             icon: 'warning',

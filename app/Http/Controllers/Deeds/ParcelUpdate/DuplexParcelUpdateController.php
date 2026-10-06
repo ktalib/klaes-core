@@ -54,7 +54,7 @@ class DuplexParcelUpdateController extends Controller
 
         $records = DuplexParcelUpdate::query()
             ->visible()
-            ->with('stageRows')
+            ->with(['stageRows', 'capturedBy:id,first_name,last_name'])
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('duplex_id', 'LIKE', "%{$search}%")
@@ -104,13 +104,13 @@ class DuplexParcelUpdateController extends Controller
             // One value per file, or a single value for a one-file duplex.
             'file_title'       => 'nullable',
             'file_title.*'     => 'nullable|string|max:500',
-            'source_entries'               => 'nullable|array|max:50',
+            'source_entries'               => 'nullable|array|max:' . DuplexParcelUpdate::MAX_PLOTS,
             'source_entries.*.file_no'     => 'required_with:source_entries|string|max:100',
             'source_entries.*.file_title'  => 'nullable|string|max:500',
             'source_entries.*.plot_no'     => 'nullable|string|max:100',
             'source_entries.*.district'    => 'nullable|string|max:255',
             'source_entries.*.lga'         => 'nullable|string|max:255',
-            'source_file_nos'  => 'required|array|min:1',
+            'source_file_nos'  => 'required|array|min:1|max:' . DuplexParcelUpdate::MAX_PLOTS,
             'source_file_nos.*' => 'required|string|max:100',
             // TWO or more. A duplex is a combination of parcel updates; with one there
             // is nothing to combine, and the single-workflow page for that update is
@@ -118,11 +118,11 @@ class DuplexParcelUpdateController extends Controller
             'stages'           => 'required|array|min:2',
             'stages.*.type'    => 'required|string|in:' . implode(',', array_keys(DuplexParcelUpdate::TYPES)),
             'stages.*.rank'    => 'required|integer|min:1',
-            'stages.*.count'   => 'nullable|integer|min:1|max:200',
+            'stages.*.count'   => 'nullable|integer|min:1|max:' . DuplexParcelUpdate::MAX_PLOTS,
             // A first-leg Change of Purpose is answered on step 1, while the officer
             // is still looking at the source files, because its holding numbers are
             // minted from the answer.
-            'stages.*.cop_rows'                    => 'nullable|array|max:200',
+            'stages.*.cop_rows'                    => 'nullable|array|max:' . DuplexParcelUpdate::MAX_PLOTS,
             'stages.*.cop_rows.*.file_no'          => 'required_with:stages.*.cop_rows|string|max:100',
             'stages.*.cop_rows.*.current_land_use' => 'nullable|string|max:50',
             'stages.*.cop_rows.*.new_land_use'     => 'required_with:stages.*.cop_rows|string|max:50',
@@ -331,7 +331,7 @@ class DuplexParcelUpdateController extends Controller
             ->findOrFail($stageId);
 
         $count = (int) $request->query('count', 1);
-        $count = max(0, min($count, 200));
+        $count = max(0, min($count, DuplexParcelUpdate::MAX_PLOTS));
 
         // The stage's own rows are excluded because saveStage clears them
         // before allocating: a stage being re-filled reclaims its numbers.
@@ -544,7 +544,7 @@ class DuplexParcelUpdateController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'plot_count'        => 'nullable|integer|min:1|max:200',
+            'plot_count'        => 'nullable|integer|min:1|max:' . DuplexParcelUpdate::MAX_PLOTS,
             'new_land_use'      => 'nullable|string|max:50',
             // The purpose the stage's parcels are changing FROM. A later Change of
             // Purpose has no file rows to read it off, and it is not the duplex's own
@@ -554,7 +554,7 @@ class DuplexParcelUpdateController extends Controller
             'applies_to.*'      => 'nullable|string|max:100',
             // One row per file being changed: each file names its OWN new purpose,
             // because a duplex may bring several land uses to a common one.
-            'cop_rows'                  => 'nullable|array|max:200',
+            'cop_rows'                  => 'nullable|array|max:' . DuplexParcelUpdate::MAX_PLOTS,
             'cop_rows.*.file_no'        => 'required_with:cop_rows|string|max:100',
             'cop_rows.*.current_land_use' => 'nullable|string|max:50',
             'cop_rows.*.new_land_use'   => 'required_with:cop_rows|string|max:50',
@@ -1264,10 +1264,85 @@ class DuplexParcelUpdateController extends Controller
         return response()->json(['success' => true, 'message' => 'Site plan removed.']);
     }
 
+    /**
+     * Open tracking for the files the duplex finally produced, to the chosen office.
+     *
+     * Only the LAST stage's new files: every earlier stage's output is consumed and
+     * retired by the stage after it (CON-RES-2026-3053 was subdivided straight away),
+     * and a file the last stage merely carried through was not commissioned here.
+     * A file that already has a tracker is left alone. Never fails the commit: the
+     * files are issued either way, and an untracked file can still be logged out.
+     */
+    protected function trackFinalFiles(DuplexParcelUpdate $duplex, array $destination): int
+    {
+        if (empty($destination)) {
+            return 0;
+        }
+
+        try {
+            $last = $duplex->stageRows()->get()->last();
+            if (!$last) {
+                return 0;
+            }
+
+            $files = $last->files()
+                ->where('role', \App\Models\DuplexParcelUpdateFile::ROLE_RESULT)
+                ->pluck('final_file_no')
+                ->filter()
+                ->values()
+                ->all();
+
+            $service = app(\App\Services\FileCommissioningTrackingService::class);
+            $tracked = 0;
+
+            foreach (array_chunk($files, 1000) as $chunk) {
+                $rows = $service->untrackedQuery()
+                    ->whereIn('full_file_number', $chunk)
+                    ->get(['full_file_number', 'file_name', 'commissioning_date', 'commissioning_time', 'created_by', 'created_at', 'tracking_id', 'source']);
+
+                foreach ($rows as $row) {
+                    if ($service->startTracking($service->hydrate($row), $destination)) {
+                        $tracked++;
+                    }
+                }
+            }
+
+            Log::info('Duplex files dispatched at commissioning', [
+                'duplex_id'   => $duplex->duplex_id,
+                'destination' => $destination['office_name'] ?? $destination['office_code'] ?? null,
+                'tracked'     => $tracked,
+            ]);
+
+            return $tracked;
+        } catch (\Throwable $e) {
+            Log::warning('Duplex commissioning tracking failed', [
+                'duplex_id' => $duplex->duplex_id,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return 0;
+        }
+    }
+
     /** One click, one pass: every file number for the whole duplex. */
     public function commit(Request $request, int $id): JsonResponse
     {
         $duplex = DuplexParcelUpdate::with(['stageRows.files', 'files'])->findOrFail($id);
+
+        // A 2000-plot subdivision stage is ten batch runs in this one request. Raise the
+        // limit only if it is currently lower (public/.htaccess narrows web requests to
+        // 600); set_time_limit() sets the ceiling outright, so never cut a higher one.
+        $configuredLimit = (int) ini_get('max_execution_time');
+        if ($configuredLimit > 0 && $configuredLimit < 3600) {
+            @set_time_limit(3600);
+        }
+
+        // "X of Y files" for the modal, which polls it while this request runs.
+        $ownsProgress = \App\Services\CommissioningProgress::begin(
+            $request->input('progress_token'),
+            $this->committer->pendingFileCount($duplex),
+            'Starting the duplex…'
+        );
 
         try {
             $summary = $this->committer->commit($duplex, [
@@ -1281,12 +1356,32 @@ class DuplexParcelUpdateController extends Controller
                 'location_entries' => (array) $request->input('location_entries', []),
             ]);
 
+            // Where the files go next, picked on the same summary card a normal batch
+            // uses. Until this the duplex skipped that card, so nothing it commissioned
+            // was ever dispatched -- DPX-2026-0014's 1,534 plots had to be tracked to
+            // Director Cadastral by hand afterwards.
+            \App\Services\CommissioningProgress::report(0, 'Dispatching the files…');
+
+            $tracked = $this->trackFinalFiles(
+                $duplex,
+                app(\App\Services\FileCommissioningTrackingService::class)->destinationFromRequest($request)
+            );
+
+            if ($ownsProgress) {
+                \App\Services\CommissioningProgress::finish('Done');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Duplex ' . $duplex->duplex_id . ' commissioned.',
                 'summary' => $summary,
+                'tracked' => $tracked,
             ]);
         } catch (\Exception $e) {
+            if ($ownsProgress) {
+                \App\Services\CommissioningProgress::fail($e->getMessage());
+            }
+
             Log::error('Duplex commit failed', [
                 'duplex_id' => $duplex->duplex_id,
                 'error'     => $e->getMessage(),

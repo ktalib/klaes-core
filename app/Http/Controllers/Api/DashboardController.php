@@ -342,7 +342,7 @@ class DashboardController extends Controller
                     ->count();
 
                 // Right of Occupancy – land_recommendations + sltr_recommendations
-                $rofoTotal = $db->table('land_recommendations')->count()
+                $rofoTotal = $db->table('land_recommendations')->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })->count()
                            + $db->table('sltr_recommendations')->count();
 
                 // Letter of Administration – no dedicated table yet

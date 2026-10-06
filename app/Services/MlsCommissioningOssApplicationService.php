@@ -219,21 +219,51 @@ class MlsCommissioningOssApplicationService
         return true;
     }
 
+    /**
+     * The OSS application type for a land use.
+     *
+     * Read from the land-use code, token by token, with CON (conversion) and RC
+     * (recertification) skipped: they qualify a land use, they are not one. The old
+     * rule matched the word CON as commercial, and the hyphen in "CON-RES" is a word
+     * boundary, so every converted residential file was typed commercial (4,551
+     * mirrors by 2026-10-05) and CON-AG came out commercial instead of agricultural.
+     * The file number is only consulted when the land use says nothing.
+     */
     public function resolveApplicationType($landUse, string $fileNumber = ''): string
     {
-        $value = strtoupper(trim((string) $landUse) . ' ' . trim($fileNumber));
-
-        if (preg_match('/\b(AGR|AGRICULTURAL|AGRICULTURE)\b/', $value)) {
-            return 'agricultural';
-        }
-        if (preg_match('/\b(IND|INDUSTRIAL|INDUSTRY)\b/', $value)) {
-            return 'industrial';
-        }
-        if (preg_match('/\b(COM|CON|COMMERCIAL|COMMERCIAL CONCESSION)\b/', $value)) {
-            return 'commercial';
+        foreach ([(string) $landUse, $fileNumber] as $candidate) {
+            $type = $this->applicationTypeFromCode($candidate);
+            if ($type !== null) {
+                return $type;
+            }
         }
 
         return 'residential';
+    }
+
+    private function applicationTypeFromCode(string $value): ?string
+    {
+        $tokens = preg_split('/[^A-Z]+/', strtoupper($value), -1, PREG_SPLIT_NO_EMPTY);
+
+        foreach ($tokens as $token) {
+            if ($token === 'CON' || $token === 'RC') {
+                continue;
+            }
+            if (in_array($token, ['AG', 'AGR', 'AGRIC', 'AGRICULTURAL', 'AGRICULTURE'], true)) {
+                return 'agricultural';
+            }
+            if (in_array($token, ['IND', 'INDUSTRIAL', 'INDUSTRY'], true)) {
+                return 'industrial';
+            }
+            if (in_array($token, ['COM', 'COMMERCIAL'], true)) {
+                return 'commercial';
+            }
+            if (in_array($token, ['RES', 'RESIDENTIAL', 'SIT'], true)) {
+                return 'residential';
+            }
+        }
+
+        return null;
     }
 
     /** @return array<string,string> */

@@ -145,8 +145,9 @@
                     </div>
                 </div>
 
-                <!-- Total Dev Charges -->
-                <div class="p-6 rounded-3xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative text-white bg-gradient-to-br from-indigo-600 to-indigo-800 border-none">
+                {{-- Ground Rent: rate x plot size over generated RofOs that have a plot size.
+                     Replaces the Total Dev. Charges card. --}}
+                <div class="p-6 rounded-3xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative text-white bg-gradient-to-br from-red-600 to-red-800 border-none">
                     <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
                         <i data-lucide="coins" class="h-32 w-32 text-white"></i>
                     </div>
@@ -155,12 +156,18 @@
                             <i data-lucide="coins" class="h-6 w-6"></i>
                         </div>
                         <div>
-                            <p class="text-[10px] font-black text-indigo-100 uppercase tracking-widest">Total Dev. Charges</p>
-                            <h3 class="text-2xl font-black tracking-tight text-white">₦{{ number_format($stats['total_dev_charge']) }}</h3>
+                            <p class="text-[10px] font-black text-red-100 uppercase tracking-widest">Ground Rent</p>
+                            <h3 class="text-2xl font-black tracking-tight text-white">
+                                @if ($stats['total_ground_rent'] === null)
+                                    ₦ &mdash;
+                                @else
+                                    ₦{{ number_format($stats['total_ground_rent'], 2) }}
+                                @endif
+                            </h3>
                         </div>
                     </div>
-                    <div class="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[10px] font-bold text-indigo-100 uppercase tracking-widest">
-                        <span>Revenue Stream</span>
+                    <div class="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[10px] font-bold text-red-100 uppercase tracking-widest">
+                        <span>Rate &times; Plot Size</span>
                         <!-- <span class="px-2 py-0.5 bg-white/20 text-white rounded-lg border border-white/20">SQLSRV</span> -->
                     </div>
                 </div>

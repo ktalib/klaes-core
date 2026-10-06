@@ -394,15 +394,44 @@ class MlsSerialAllocationService
             return [];
         }
 
-        $normalized = "LTRIM(RTRIM(REPLACE(REPLACE(file_number, CHAR(13), ''), CHAR(10), '')))";
-        $placeholders = implode(',', array_fill(0, count($candidates), '?'));
+        /*
+         | Prefix match on the series, cleaned in PHP.
+         |
+         | This used to compare LTRIM(RTRIM(REPLACE(...file_number...))) IN (...): a
+         | function wrapped round the column, so SQL Server could not use any of the
+         | seven indexes on file_number and scanned all 173k rows -- 28 of the 33 seconds
+         | a 20-file batch took, paid again on every 200-file chunk of a big subdivision.
+         |
+         | The dirt is only ever TRAILING (a CR/LF after the number; none leading, as of
+         | 2026-10-05), so a LIKE on the series stem ("RES-2026-") still finds the dirty
+         | rows, and it is an index seek: ~3,400 rows in ~15 ms. The same CR/LF/space
+         | clean-up then runs on that handful in PHP. Compared case-insensitively, as the
+         | database collation did.
+         */
+        $wanted = [];
+        $stems  = [];
+        foreach ($candidates as $candidate) {
+            $wanted[strtoupper($candidate)] = $candidate;
+            $dash = strrpos($candidate, '-');
+            $stems[$dash === false ? $candidate : substr($candidate, 0, $dash + 1)] = true;
+        }
 
-        $found = DB::connection('sqlsrv')->table('file_indexings')
-            ->whereRaw("{$normalized} IN ({$placeholders})", $candidates)
-            ->selectRaw("{$normalized} AS normalized_file_number")
-            ->pluck('normalized_file_number')
-            ->all();
+        $found = [];
+        foreach (array_keys($stems) as $stem) {
+            $pattern = str_replace(['!', '%', '_', '['], ['!!', '!%', '!_', '!['], $stem) . '%';
 
-        return array_flip($found);
+            $rows = DB::connection('sqlsrv')->table('file_indexings')
+                ->whereRaw("file_number LIKE ? ESCAPE '!'", [$pattern])
+                ->pluck('file_number');
+
+            foreach ($rows as $stored) {
+                $clean = strtoupper(trim(str_replace(["\r", "\n"], '', (string) $stored), ' '));
+                if (isset($wanted[$clean])) {
+                    $found[$wanted[$clean]] = true;
+                }
+            }
+        }
+
+        return $found;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -33,6 +34,20 @@ class DuplexParcelUpdate extends Model
         'extension'         => 'Extension',
         'separation'        => 'Separation',
     ];
+
+    /**
+     * Plots, files or source parcels any one stage may carry, whatever its type, and
+     * source files per duplex. Matches the single-workflow subdivision ceiling,
+     * PlotSubdivisionController::MAX_PLOTS, so a layout that fits there also fits here.
+     */
+    public const MAX_PLOTS = 2000;
+
+    /**
+     * Files the commissioning engine mints per batch run (generateBatch max:200). A
+     * Subdivision or Separation stage bigger than this is commissioned in chunks of
+     * this size by DuplexCommitService::commissionStandard().
+     */
+    public const BATCH_CAP = 200;
 
     protected $fillable = [
         'source_module',
@@ -99,6 +114,15 @@ class DuplexParcelUpdate extends Model
     {
         return $this->hasMany(DuplexParcelUpdateStage::class, 'duplex_parcel_update_id')
             ->orderBy('rank');
+    }
+
+    /**
+     * The officer who started the instruction. captured_by holds the user id
+     * (Auth::id() at store), not a name.
+     */
+    public function capturedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'captured_by');
     }
 
     public function files(): HasMany

@@ -470,7 +470,12 @@ class DcivGenerationController extends Controller
                 ->where('year', $year)
                 ->first();
 
-            if (!$control || !$control->is_initialized) {
+            $initialized = $control && $control->is_initialized;
+
+            // The counter only matters to Auto, which takes last_serial + 1. A typed
+            // (manual) serial just needs its tracking ID from the grouping table, so
+            // an uninitialized counter does not block it.
+            if (!$initialized && !$isManual) {
                 return response()->json([
                     'success' => true,
                     'data' => [],
@@ -515,11 +520,11 @@ class DcivGenerationController extends Controller
                 'success' => true,
                 'data' => $dcivRecords,
                 'next_serial' => $nextSerial,
-                'auto_serial' => $control->last_serial + 1,
+                'auto_serial' => $initialized ? $control->last_serial + 1 : null,
                 'is_manual' => $isManual,
                 'taken' => $taken,
                 'year' => $year,
-                'is_initialized' => true
+                'is_initialized' => $initialized
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching available DCIV: ' . $e->getMessage());
@@ -548,7 +553,7 @@ class DcivGenerationController extends Controller
 
         $year = (int) $requested;
 
-        return ($year >= 2000 && $year <= $current) ? $year : $current;
+        return ($year >= 1900 && $year <= $current) ? $year : $current;
     }
 
     /**
@@ -565,7 +570,7 @@ class DcivGenerationController extends Controller
             'serial_mode' => 'nullable|in:auto,manual',
             'serial_number' => 'required_if:serial_mode,manual|nullable|integer|min:1',
             // Only read in manual mode; an auto generate is always the current year.
-            'year' => 'nullable|integer|min:2000|max:2100',
+            'year' => 'nullable|integer|min:1900|max:2100',
             'land_use_id' => 'nullable|integer',
             'purpose_id' => 'nullable|integer',
             'quantity' => 'required_if:batch_mode,true|integer|min:1|max:50',
@@ -611,7 +616,11 @@ class DcivGenerationController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$control || !$control->is_initialized) {
+            // Auto needs the counter to know what is next. A manual serial names its
+            // own number and only needs that number's tracking ID, so it goes ahead
+            // without one.
+            $initialized = $control && $control->is_initialized;
+            if (!$initialized && !$manualSerial) {
                 throw new \Exception("Serial numbering for {$selectedPrefix} in {$currentYear} has not been initialized.");
             }
 
@@ -838,11 +847,16 @@ class DcivGenerationController extends Controller
             // Update Control Table. A manual serial may sit behind the counter
             // (filling a gap), so never let last_serial move backwards - that would
             // hand the same number out twice on the next auto generate.
-            $control->update([
-                'last_serial' => max($control->last_serial, $nextSerial + $quantity - 1),
-                'is_locked' => true, // Lock after first generate as per user request
-                'updated_at' => $now,
-            ]);
+            // An uninitialized counter is left alone: advancing and locking it from a
+            // manual serial would set its starting point by accident, and that is
+            // only ever done under Serial Initialization.
+            if ($initialized) {
+                $control->update([
+                    'last_serial' => max($control->last_serial, $nextSerial + $quantity - 1),
+                    'is_locked' => true, // Lock after first generate as per user request
+                    'updated_at' => $now,
+                ]);
+            }
 
             DB::connection('sqlsrv')->commit();
 

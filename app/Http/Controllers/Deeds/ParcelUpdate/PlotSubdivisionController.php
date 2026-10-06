@@ -37,9 +37,9 @@ class PlotSubdivisionController extends Controller
      * test was run at. Raising it means re-timing the save, not just editing this line.
      *
      * Unrelated to BATCH_CAP above -- that is how many FILE NUMBERS are minted per
-     * commissioning run, so a full 1000-plot application is commissioned in 5 runs.
+     * commissioning run, so a full 2000-plot application is commissioned in 10 runs.
      */
-    public const MAX_PLOTS = 1000;
+    public const MAX_PLOTS = 2000;
 
     /**
      * Rows per INSERT when writing child plots.
@@ -119,9 +119,9 @@ class PlotSubdivisionController extends Controller
             'file_no' => 'required|string|max:100',
             'file_title' => 'required|string|max:500',
             'applicant_name' => 'nullable|string|max:255',
-            // 1000 is a deliberate hard ceiling, not a guess at what the form can carry.
-            // Raised from 600 (2026-09-28) so a large industrial layout can be captured in
-            // one application; the largest ever captured before this was 530.
+            // MAX_PLOTS is a deliberate hard ceiling, not a guess at what the form can carry.
+            // Raised from 600 to 1000 (2026-09-28) so a large industrial layout can be
+            // captured in one application, then to 2000 (2026-10-05).
             'num_plots' => 'required|integer|min:1|max:' . self::MAX_PLOTS,
             'plot_no' => 'nullable|string|max:100',
             'house_no' => 'nullable|string|max:100',
@@ -240,7 +240,7 @@ class PlotSubdivisionController extends Controller
              |
              | Chunked at INSERT_CHUNK rows (8 columns, so 1600 of SQL Server's 2100
              | parameters), the same technique the commissioning path already uses at
-             | MlsFileNoController::generateBatch. 1000 plots is 5 statements.
+             | MlsFileNoController::generateBatch. 2000 plots is 10 statements.
              |
              | The query builder bypasses Eloquent, so timestamps are set by hand -- the
              | model does keep them (usesTimestamps() is true) and rows written the old way
@@ -315,9 +315,10 @@ class PlotSubdivisionController extends Controller
      *   - shrink an application that is past 'pending' or has any plot commissioned.
      *     A capture still in draft can be corrected downward, and that is the only
      *     case where a child row is removed.
-     *   - re-open a finished subdivision. Once the last plot is minted the register
-     *     entry is closed; more plots there are a new application, not a bigger old
-     *     one.
+     *   - leave a finished subdivision closed when plots are added to it. Raising the
+     *     count on a fully commissioned application re-opens it to 'approved', so the
+     *     generator offers only the new plots (2/2 done, raised to 5: 3 to commission);
+     *     the minted ones are never offered again.
      *
      * Raising num_plots on an APPROVED application is deliberate and is the point of
      * the whole thing: remainingPlots() grows, so the next commissioning run simply
@@ -343,10 +344,32 @@ class PlotSubdivisionController extends Controller
 
         $commissioned = $record->commissionedCount();
 
-        if ($record->status === PlotSubdivisionApplication::STATUS_COMMISSIONED || ($commissioned > 0 && $record->isCommissioningComplete())) {
+        // A duplex stage's application belongs to the duplex: its plots are accounted
+        // for stage by stage there, so it is widened through the duplex, not here.
+        if (str_starts_with((string) $record->remarks, '[Duplex ')) {
             return response()->json([
                 'success' => false,
-                'message' => "All {$record->num_plots} plots have been commissioned, so this application is closed. Capture a new subdivision for any further plots.",
+                'message' => 'This subdivision was created by a duplex. Change it through the Duplex (APU) workflow.',
+            ], 422);
+        }
+
+        /*
+         | A fully commissioned subdivision may be RE-OPENED to add plots: 2 of 2 done,
+         | raised to 5, becomes "2/5 done" with 3 left. The minted plots stay exactly
+         | as they are -- the schedule loop below reads past every row under the
+         | commissioned mark -- and the generator only ever offers remainingPlots().
+         |
+         | That relies on commissioned_count being right. An application marked
+         | commissioned with a count short of its plots predates the counter; re-opening
+         | it would offer the already-minted plots for minting again, so it is refused.
+         */
+        $fullyCommissioned = $record->status === PlotSubdivisionApplication::STATUS_COMMISSIONED
+            || ($commissioned > 0 && $record->isCommissioningComplete());
+
+        if ($fullyCommissioned && $commissioned < (int) $record->num_plots) {
+            return response()->json([
+                'success' => false,
+                'message' => "This application is marked commissioned but only {$commissioned} of {$record->num_plots} plots are on record as minted, so it cannot be re-opened safely. Report it with the file number.",
             ], 422);
         }
 
@@ -393,7 +416,22 @@ class PlotSubdivisionController extends Controller
 
         // Same reconciliation the capture does -- the count and the schedule must agree,
         // or nothing is written -- plus the floor this application may not drop below.
-        $validator->after(function ($validator) use ($request, $floor, $commissioned, $existingCount, $record) {
+        $validator->after(function ($validator) use ($request, $floor, $commissioned, $existingCount, $record, $fullyCommissioned) {
+            // Re-opening is for adding plots; with nothing added there is nothing to do.
+            if ($fullyCommissioned && (int) $request->input('num_plots') <= $commissioned) {
+                $validator->errors()->add('num_plots', sprintf(
+                    'All %d plots have been commissioned. Raise "No. of Plots" above %d to add more.',
+                    $commissioned,
+                    $commissioned
+                ));
+            }
+
+            // The mother file is what the minted plots were cut from (and, once
+            // commissioning starts, what was retired); it cannot be swapped under them.
+            if ($commissioned > 0 && strcasecmp(trim((string) $request->input('file_no')), trim((string) $record->file_no)) !== 0) {
+                $validator->errors()->add('file_no', 'Plots have already been commissioned from ' . $record->file_no . ', so the file number cannot be changed.');
+            }
+
             $declared = (int) $request->input('num_plots');
             $received = count((array) $request->input('plot_sizes', []));
 
@@ -474,6 +512,19 @@ class PlotSubdivisionController extends Controller
                     now()->toDateTimeString()
                 );
                 $payload['remarks'] = trim(($record->remarks ? $record->remarks . PHP_EOL : '') . $line);
+            }
+
+            // Re-opened: back to 'approved', which is what the generator looks up, so the
+            // new plots can be commissioned. Approval is kept, as it is for any scope
+            // growth on an approved application; only completion is undone.
+            if ($fullyCommissioned && $numPlots > $commissioned) {
+                $payload['status'] = PlotSubdivisionApplication::STATUS_APPROVED;
+                $payload['commissioning_completed_at'] = null;
+                $payload['remarks'] = trim(($payload['remarks'] ?? $record->remarks ?? '') . PHP_EOL . sprintf(
+                    'Re-opened after %d plots commissioned; %d more to commission',
+                    $commissioned,
+                    $numPlots - $commissioned
+                ));
             }
 
             // A document is replaced only when a new one is uploaded; an update that

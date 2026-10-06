@@ -314,7 +314,10 @@
     <div class="ack-qr">
       <img src="{{ $ackQrUrl }}" alt="Consent tracking QR code">
     </div>
-    <h1 class="header-title">Consent to Assign</h1>
+    {{-- The verb and deed follow the consent type when the including letter
+         sets them ($verb, $deedName from _consent_letter_2026); the earlier
+         Assignment letter sets neither and keeps the Assignment wording. --}}
+    <h1 class="header-title">Consent to {{ $verb ?? 'Assign' }}</h1>
     <h2 class="header-subtitle">Acknowledgement for Collection of Consent Letter</h2>
   </header>
 
@@ -343,7 +346,7 @@
 
     <p>
       Please keep the original consent letter in a safe place for future reference. It is one of the requirements for
-      the registration of your Deed of Assignment.
+      the registration of your {{ $deedName ?? 'Deed of Assignment' }}.
     </p>
   </section>
 
@@ -426,10 +429,10 @@
   </section>
 
   <!-- Footer -->
-  <footer class="footer">
+  <!-- <footer class="footer">
     {{-- logo.png, not Klase.png — the latter 404s and rendered as a broken-image
          icon on every acknowledgement sheet. --}}
     <img src="{{ asset('storage/upload/logo/logo.png') }}" alt="KLAES Logo">
-  </footer>
+  </footer> -->
 
 </div>

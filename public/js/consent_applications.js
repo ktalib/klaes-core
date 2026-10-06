@@ -28,6 +28,223 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastBilledFileNumber = null;
 
     /**
+     * Transaction types — config/consent_bill.php, rendered onto the select.
+     *
+     * The type fixes the registration rate, the processing fee, the stamp duty
+     * rate and who stamp duty is paid to (KIRS / FIRS). The server recomputes
+     * from the same table on save; these are for display only.
+     */
+    const transactionTypeSelect = document.getElementById('transaction_type');
+    const readJson = (el, attr) => {
+        try { return JSON.parse((el && el.getAttribute(attr)) || '{}') || {}; } catch (e) { return {}; }
+    };
+    const TRANSACTION_TYPES = readJson(transactionTypeSelect, 'data-types');
+    const STAMP_DUTY_PAYEES = readJson(transactionTypeSelect, 'data-payees');
+    // Consent types that settle the transaction type by themselves:
+    // { Gift: 'gift', Mortgage: 'mortgage', ... } — config consent_type_transactions.
+    const IMPLIED_TYPES = readJson(transactionTypeSelect, 'data-implied');
+    const impliedValues = Object.values(IMPLIED_TYPES);
+
+    /**
+     * Lock or free the Transaction Type according to the Consent Type.
+     *
+     * A Gift or a Mortgage needs no further choice, so the field is set to the
+     * implied type and locked (not disabled: a disabled field would not post).
+     * An Assignment frees it and offers only the three party options; a value
+     * left over from a Gift/Mortgage is cleared so the officer must choose.
+     */
+    function syncTransactionTypeWithConsentType() {
+        if (!transactionTypeSelect || !consentTypeSelect) return;
+        const implied = IMPLIED_TYPES[consentTypeSelect.value] || '';
+
+        if (implied) {
+            transactionTypeSelect.value = implied;
+        } else if (impliedValues.includes(transactionTypeSelect.value)) {
+            transactionTypeSelect.value = '';
+        }
+
+        const locked = !!implied;
+        transactionTypeSelect.dataset.locked = locked ? '1' : '';
+        transactionTypeSelect.setAttribute('aria-readonly', locked ? 'true' : 'false');
+        transactionTypeSelect.tabIndex = locked ? -1 : 0;
+        transactionTypeSelect.classList.toggle('bg-slate-100', locked);
+        transactionTypeSelect.classList.toggle('cursor-not-allowed', locked);
+        transactionTypeSelect.classList.toggle('pointer-events-none', locked);
+        transactionTypeSelect.classList.toggle('bg-slate-50', !locked);
+        transactionTypeSelect.classList.toggle('cursor-pointer', !locked);
+    }
+
+    // A locked field must not be changed from the keyboard either.
+    if (transactionTypeSelect) {
+        transactionTypeSelect.addEventListener('keydown', function (e) {
+            if (this.dataset.locked === '1' && e.key !== 'Tab') e.preventDefault();
+        });
+    }
+
+    function currentTransactionType() {
+        const key = transactionTypeSelect ? transactionTypeSelect.value : '';
+        return key && TRANSACTION_TYPES[key] ? Object.assign({ key: key }, TRANSACTION_TYPES[key]) : null;
+    }
+
+    // "5%", "1.5%", "0.375%" — the same shape ConsentBillCalculator::formatRate() prints.
+    const formatRate = (rate) => String(parseFloat(Number(rate || 0).toFixed(4))) + '%';
+
+    const formatMoney = (v) => '₦' + Number(v || 0).toLocaleString('en-NG', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+
+    function setFieldError(id, message) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = message || '';
+        el.classList.toggle('hidden', !message);
+    }
+
+    /**
+     * Apply the chosen transaction type to the form.
+     *
+     * The Consent Type comes first in the logic: a Gift or Mortgage settles
+     * the transaction type (syncTransactionTypeWithConsentType()); for an
+     * Assignment the officer picks the party option. When the choice is the
+     * officer's (fromUser) the percentages reset to the type's rates; when a
+     * saved record is loaded, its own rates are kept. Also rewrites the payee
+     * note and rebills the selected file. Safe to call repeatedly.
+     */
+    function applyTransactionType(fromUser) {
+        syncTransactionTypeWithConsentType();
+        const profile = currentTransactionType();
+        const summary = document.getElementById('transaction-type-summary');
+        const section = document.getElementById('consent-bill-section');
+        fromUser = fromUser === true || (fromUser && fromUser.type === 'change');
+
+        if (profile) setFieldError('transaction_type_error', '');
+
+        const registrationRate = profile ? profile.registration_rate : (section ? section.dataset.registrationRate : 0);
+        const stampRate = profile ? profile.stamp_duty_rate : (section ? section.dataset.stampDutyRate : 0);
+        const processing = profile ? profile.processing_fee : (section ? section.dataset.processingFee : 0);
+        const payeeName = profile ? (STAMP_DUTY_PAYEES[profile.payee] || profile.payee) : '';
+
+        // The type's rates become the percentage fields' defaults. A user
+        // choice resets the fields to them; a loaded record keeps its own.
+        setRateDefault('registration', registrationRate, fromUser);
+        setRateDefault('stamp_duty', stampRate, fromUser);
+
+        // The processing fee's fallback follows the type (₦12,000 / ₦20,000).
+        const processingEl = document.getElementById('bill_processing_fee');
+        const processingRow = processingEl ? processingEl.closest('.bill-row') : null;
+        if (processingRow) processingRow.dataset.default = Number(processing || 0).toFixed(2);
+
+        const payeeNote = document.getElementById('stamp-duty-payee-note');
+        if (payeeNote) {
+            payeeNote.textContent = profile
+                ? 'Not included in the total. Payable to the ' + payeeName + '.'
+                : 'Select a transfer type to see who stamp duty is paid to.';
+        }
+
+        if (summary) {
+            summary.classList.toggle('hidden', !profile);
+            if (profile) {
+                const isFederal = profile.payee === 'FIRS';
+                summary.className = 'mt-3 p-3 rounded-xl border text-xs leading-relaxed '
+                    + (isFederal ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900');
+                const setByConsent = transactionTypeSelect.dataset.locked === '1'
+                    ? ' <span class="font-normal opacity-75">(set by Consent Type)</span>' : '';
+                summary.innerHTML = '<div class="font-bold mb-0.5">' + profile.label + setByConsent + '</div>'
+                    + 'Registration ' + formatRate(profile.registration_rate)
+                    + ' + Processing ' + formatMoney(profile.processing_fee) + ' to the Ministry.<br>'
+                    + 'Stamp duty <strong>' + formatRate(profile.stamp_duty_rate) + '</strong> payable to the <strong>'
+                    + payeeName + '</strong>.';
+            }
+        }
+
+        // Rebill under the new rates. loadConsentBill() keys its cache on the
+        // file AND the type, so this refetches only when something changed.
+        const fileNumber = filenoInput ? filenoInput.value.trim() : '';
+        if (fileNumber) {
+            loadConsentBill(fileNumber);
+        } else {
+            updateBillTotalPreview();
+        }
+    }
+
+    if (transactionTypeSelect) {
+        transactionTypeSelect.addEventListener('change', applyTransactionType);
+    }
+    // Choosing Gift / Mortgage locks the Transaction Type; Assignment frees it.
+    if (consentTypeSelect) {
+        consentTypeSelect.addEventListener('change', applyTransactionType);
+    }
+
+    /**
+     * Editable percentages (registration, stamp duty).
+     *
+     * Each field remembers the type's rate as its default. It gains the name
+     * bill_rate[key] only while its value differs from that default, so an
+     * untouched rate posts nothing and the server keeps the configured one; an
+     * edited rate is recomputed and audited server-side.
+     */
+    const rateInput = (key) => document.querySelector(`[data-rate-input="${key}"]`);
+
+    function syncRateName(input) {
+        const value = parseFloat(String(input.value).replace(/[^0-9.]/g, ''));
+        const fallback = parseFloat(input.dataset.default || '0');
+        const edited = !isNaN(value) && Math.abs(value - fallback) > 0.00005;
+        if (edited) {
+            input.name = `bill_rate[${input.dataset.rateInput}]`;
+        } else {
+            input.removeAttribute('name');
+        }
+        input.classList.toggle('border-amber-300', edited);
+        input.classList.toggle('bg-amber-50', edited);
+        input.classList.toggle('bg-white', !edited);
+    }
+
+    function setRateDefault(key, rate, resetValue) {
+        const input = rateInput(key);
+        if (!input) return;
+        const shown = String(parseFloat(Number(rate || 0).toFixed(4)));
+        input.dataset.default = shown;
+        if (resetValue || input.value.trim() === '' || !input.name) {
+            input.value = shown;
+        }
+        syncRateName(input);
+    }
+
+    // Load a saved record's own percentages into the fields.
+    function setRateValues(registrationRate, stampRate) {
+        [['registration', registrationRate], ['stamp_duty', stampRate]].forEach(([key, rate]) => {
+            const input = rateInput(key);
+            if (!input || rate === null || rate === undefined || rate === '') return;
+            input.value = String(parseFloat(Number(rate).toFixed(4)));
+            syncRateName(input);
+        });
+    }
+
+    const currentRate = (key, fallback) => {
+        const input = rateInput(key);
+        const value = input ? parseFloat(String(input.value).replace(/[^0-9.]/g, '')) : NaN;
+        return isNaN(value) ? (parseFloat(fallback) || 0) : value;
+    };
+
+    // The amount the percentages are taken of: the overridden assessed amount
+    // when the operator unlocked it, otherwise the valuation last loaded.
+    let lastBillBase = 0;
+    function currentBillBase() {
+        const flag = document.getElementById('bill_basis_overridden');
+        if (flag && flag.value === '1' && financialInput) {
+            return parseFloat(financialInput.value.replace(/[^0-9.]/g, '')) || 0;
+        }
+        return lastBillBase;
+    }
+
+    document.addEventListener('input', function (event) {
+        const input = event.target.closest && event.target.closest('[data-rate-input]');
+        if (!input) return;
+        syncRateName(input);
+        rebasePercentageFees(currentBillBase());
+    });
+
+    /**
      * Paint the Deeds workflow strip for the chosen file, and stop the wizard
      * when the file has not been valued.
      *
@@ -112,10 +329,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Entering the Payments step repeatedly must not re-hit the endpoint,
         // and must not re-run the consideration prefill over an edited figure.
-        if (fileNumber && fileNumber === lastBilledFileNumber) {
+        // Keyed on the transaction type too: changing it changes every rate.
+        const typeKey = (transactionTypeSelect && transactionTypeSelect.value) || '';
+        const billKey = fileNumber ? fileNumber + '|' + typeKey : null;
+        if (billKey && billKey === lastBilledFileNumber) {
             return;
         }
-        lastBilledFileNumber = fileNumber || null;
+        lastBilledFileNumber = billKey;
 
         const statusEl = document.getElementById('bill-status');
         const amountEl = document.getElementById('bill_valuation_amount');
@@ -139,6 +359,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 processing_fee: 'bill_processing_fee'
             };
 
+            // Under a transaction type stamp duty is paid to KIRS / FIRS and is
+            // not part of the Ministry total; the server's bill_total agrees.
+            const stampExcluded = !!currentTransactionType();
             let fallbackTotal = 0;
             Object.keys(byKey).forEach((key) => {
                 const el = document.getElementById(byKey[key]);
@@ -146,7 +369,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 const row = el.closest('.bill-row');
                 const fallback = row ? parseFloat(row.dataset.default || '0') || 0 : 0;
                 const value = bill ? bill[key] : fallback;
-                fallbackTotal += Number(value) || 0;
+                if (!(stampExcluded && key === 'stamp_duty_amount')) {
+                    fallbackTotal += Number(value) || 0;
+                }
                 el.textContent = money(value);
             });
 
@@ -183,7 +408,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             const response = await fetch(
-                `/consent-applications/valuation-bill?file_number=${encodeURIComponent(fileNumber)}`,
+                `/consent-applications/valuation-bill?file_number=${encodeURIComponent(fileNumber)}`
+                    + `&transaction_type=${encodeURIComponent(typeKey)}`,
                 { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
             );
             const result = await response.json();
@@ -192,11 +418,15 @@ document.addEventListener('DOMContentLoaded', function () {
             // at zero: it must never read as a genuine ₦0.00 assessment.
             if (!result.success || !result.has_valuation) {
                 const message = result.message || 'No valuation available for this file.';
-                statusEl.innerHTML = 'No valuation';
-                statusEl.className = 'text-xs font-medium text-amber-600';
+                // A Gift is not valued (no consideration changes hands, and the
+                // deeds pipeline skips its valuation stage), so the missing
+                // report is expected there, not a problem to warn about.
+                const isGift = consentTypeSelect && consentTypeSelect.value === 'Gift';
+                statusEl.innerHTML = isGift ? 'Valuation not required for a Gift' : 'No valuation';
+                statusEl.className = 'text-xs font-medium ' + (isGift ? 'text-slate-500' : 'text-amber-600');
                 amountEl.value = '';
                 if (sourceEl) sourceEl.textContent = '';
-                showWarning(message);
+                showWarning(isGift ? null : message);
                 setRows(null);
                 return;
             }
@@ -204,6 +434,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const bill = result.data;
             amountEl.value = money(bill.valuation_amount);
             setRows(bill);
+            lastBillBase = Number(bill.valuation_amount) || 0;
+            // The server computed at the type's default rates. An overridden
+            // assessed amount or an edited percentage keeps governing the
+            // percentage lines, so recompute on screen with them.
+            const basisFlag = document.getElementById('bill_basis_overridden');
+            const ratesEdited = !!document.querySelector('[data-rate-input][name]');
+            if ((basisFlag && basisFlag.value === '1') || ratesEdited) {
+                rebasePercentageFees(currentBillBase());
+            }
             statusEl.innerHTML = 'Valuation linked';
             statusEl.className = 'text-xs font-medium text-emerald-600';
             showWarning(null);
@@ -386,9 +625,10 @@ document.addEventListener('DOMContentLoaded', function () {
             minimumFractionDigits: 2, maximumFractionDigits: 2
         });
 
+        const profile = currentTransactionType();
         const pairs = [
-            ['bill_stamp_duty', parseFloat(section.dataset.stampDutyRate) || 0],
-            ['bill_registration_fee', parseFloat(section.dataset.registrationRate) || 0]
+            ['bill_stamp_duty', currentRate('stamp_duty', profile ? profile.stamp_duty_rate : section.dataset.stampDutyRate)],
+            ['bill_registration_fee', currentRate('registration', profile ? profile.registration_rate : section.dataset.registrationRate)]
         ];
 
         pairs.forEach(([id, rate]) => {
@@ -484,8 +724,11 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        const stampExcluded = !!currentTransactionType();
         let total = 0;
         section.querySelectorAll('.bill-row').forEach((row) => {
+            // Paid to KIRS / FIRS, not the Ministry — see applyTransactionType().
+            if (stampExcluded && row.dataset.fee === 'stamp_duty_amount') return;
             const override = row.querySelector('[data-override-amount]');
             const useOverride = override && override.name && override.value.trim() !== '';
             const raw = useOverride
@@ -876,6 +1119,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const stepEl = wizardSteps.find(step => Number(step.dataset.step) === stepNumber);
         if (!stepEl) return true;
 
+        // Step 1's two required choices get inline messages. The file number is
+        // readonly — filled only by the selector — and the browser skips
+        // constraint validation on readonly inputs, so without this a missing
+        // file let the wizard stall with nothing on screen to say why.
+        if (stepNumber === 1) {
+            let ok = true;
+            if (transactionTypeSelect && !transactionTypeSelect.disabled && !transactionTypeSelect.value) {
+                setFieldError('transaction_type_error', 'Select the transfer type before continuing.');
+                ok = false;
+            }
+            if (filenoInput && !filenoInput.disabled && !filenoInput.value.trim()) {
+                setFieldError('file_number_error', 'No file selected. Use the search button to pick the file this consent is for.');
+                ok = false;
+            } else {
+                setFieldError('file_number_error', '');
+            }
+            if (!ok) {
+                const firstError = stepEl.querySelector('[id$="_error"]:not(.hidden)');
+                if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
+        }
+
         const inputs = [...stepEl.querySelectorAll('input, select, textarea')]
             .filter(el => !el.disabled && isElementVisible(el));
 
@@ -1107,6 +1373,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 consentTypeSelect.value = appData.consent_type;
                 consentTypeSelect.dispatchEvent(new Event('change'));
             }
+            // Blank on consents captured before transaction types existed; the
+            // officer must choose one before the edit can be saved. The
+            // record's own consent type and percentages are kept.
+            if (transactionTypeSelect) {
+                transactionTypeSelect.value = appData.transaction_type || '';
+                applyTransactionType(false);
+                if (appData.transaction_type) {
+                    setRateValues(appData.registration_rate, appData.stamp_duty_rate);
+                }
+            }
 
             parseAndPopulateAddress(appData.applicant_address, 'applicant');
             parseAndPopulateAddress(appData.party_address, 'party');
@@ -1278,6 +1554,10 @@ document.addEventListener('DOMContentLoaded', function () {
             clearAdditionalParties();
             if (typeof clearAdditionalApplicants === 'function') clearAdditionalApplicants();
             clearAdditionalFileNumbers();
+            setFieldError('transaction_type_error', '');
+            setFieldError('file_number_error', '');
+            lastBillBase = 0;
+            applyTransactionType(true);
             resetWizard();
         }
     }
@@ -1453,6 +1733,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 consentTypeSelect.value = appData.consent_type;
                 consentTypeSelect.dispatchEvent(new Event('change'));
             }
+            // Blank on consents captured before transaction types existed; the
+            // officer must choose one before the edit can be saved. The
+            // record's own consent type and percentages are kept.
+            if (transactionTypeSelect) {
+                transactionTypeSelect.value = appData.transaction_type || '';
+                applyTransactionType(false);
+                if (appData.transaction_type) {
+                    setRateValues(appData.registration_rate, appData.stamp_duty_rate);
+                }
+            }
 
             // Explicitly set application_type from record (preserve original)
             if (applicationTypeInput && appData.application_type) {
@@ -1474,6 +1764,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         console.log('File selected:', result);
                         if (result && result.fileNumber) {
                             filenoInput.value = result.fileNumber;
+                            setFieldError('file_number_error', '');
             loadConsentBill(filenoInput.value);
                             setRightOfOccupancyNumber(result.fileNumber);
                             if (selectionIndicator) selectionIndicator.classList.remove('hidden');
@@ -2665,6 +2956,208 @@ document.addEventListener('DOMContentLoaded', function () {
         formData.delete('additional_property_street_manual[]');
     }
 
+    /**
+     * Re-render the consent table and the stat cards from the server without a
+     * page reload. The page is fetched again and only those two regions are
+     * swapped; Alpine picks up the new row menus on its own, and the row
+     * buttons are handled by delegated listeners, so nothing needs rebinding.
+     */
+    window.refreshConsentTable = async function () {
+        // The Deeds Applications page reuses this wizard, and its
+        // #consent-table is a server-side DataTable: swapping its tbody would
+        // empty it, so ask DataTables to redraw the current page instead.
+        const $ = window.jQuery;
+        if ($ && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable('#consent-table')) {
+            $('#consent-table').DataTable().ajax.reload(null, false);
+            return;
+        }
+        if (!document.querySelector('#consent-table')) {
+            window.location.reload();
+            return;
+        }
+        try {
+            const response = await fetch(window.location.href, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
+                cache: 'no-store'
+            });
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+
+            ['#consent-table tbody', '#consent-stats'].forEach((selector) => {
+                const fresh = doc.querySelector(selector);
+                const current = document.querySelector(selector);
+                if (fresh && current) current.innerHTML = fresh.innerHTML;
+            });
+
+            if (window.lucide) window.lucide.createIcons();
+        } catch (error) {
+            // The save itself succeeded; a failed refresh only leaves the table
+            // stale, so fall back to a reload rather than hiding the new row.
+            console.error('Consent table refresh failed:', error);
+            window.location.reload();
+        }
+    };
+
+    /**
+     * Print on a consent captured before transaction types existed.
+     *
+     * Those rows have no type, so their letter would print without the fee
+     * schedule or the KIRS / FIRS payee. Clicking Print first asks for the
+     * transaction type (and lets the consent type and percentages be adjusted),
+     * saves the choice over AJAX — the server recomputes the bill — and then
+     * opens the letter. Rows that already have a type print straight away.
+     */
+    const escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+
+    document.addEventListener('click', async function (e) {
+        const link = e.target.closest('.consent-print-needs-type');
+        if (!link) return;
+        if (typeof Swal === 'undefined') return; // fall through to a plain print
+
+        e.preventDefault();
+        // The Deeds Applications page shows its row menu as a floating panel
+        // that would otherwise stay open behind the dialog.
+        const floatingMenu = document.getElementById('deeds-global-dropdown');
+        if (floatingMenu) floatingMenu.style.visibility = 'hidden';
+
+        const id = link.getAttribute('data-id');
+        const fileNumber = link.getAttribute('data-file') || '';
+        const consentType = link.getAttribute('data-consent-type') || 'Assignment';
+        const letterUrl = link.getAttribute('href');
+
+        // Only the party options: Gift and Mortgage are settled by the consent type.
+        const typeOptions = Object.keys(TRANSACTION_TYPES).filter((key) => !impliedValues.includes(key)).map((key) =>
+            `<option value="${escapeHtml(key)}">${escapeHtml(TRANSACTION_TYPES[key].label)}</option>`).join('');
+        const consentOptions = ['Assignment', 'Gift', 'Mortgage'].map((v) =>
+            `<option value="${v}" ${v === consentType ? 'selected' : ''}>${v}</option>`).join('');
+        const field = 'w-full px-3 py-2 rounded-lg border border-slate-200 text-sm';
+        const label = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 text-left';
+
+        const choice = await Swal.fire({
+            title: 'Before printing',
+            width: 560,
+            html: `
+                <p class="text-sm text-slate-600 mb-4 text-left">File <strong>${escapeHtml(fileNumber)}</strong> was captured
+                    before transfer types. Choose one so the letter prints with the right fees and stamp duty payee.
+                    The choice is saved on the consent.</p>
+                <div class="grid grid-cols-2 gap-3 text-left">
+                    <div class="col-span-2">
+                        <label class="${label}">Consent Type</label>
+                        <select id="pt-consent" class="${field}">${consentOptions}</select>
+                    </div>
+                    <div class="col-span-2" id="pt-type-wrap">
+                        <label class="${label}">Transfer Type *</label>
+                        <select id="pt-type" class="${field}"><option value="">Select transfer type…</option>${typeOptions}</select>
+                    </div>
+                    <div>
+                        <label class="${label}">Registration (%)</label>
+                        <input id="pt-reg" type="text" inputmode="decimal" class="${field} font-mono">
+                    </div>
+                    <div>
+                        <label class="${label}">Stamp Duty (%)</label>
+                        <input id="pt-sd" type="text" inputmode="decimal" class="${field} font-mono">
+                    </div>
+                    <div class="col-span-2 text-xs text-slate-500" id="pt-payee"></div>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'Save & Print',
+            confirmButtonColor: '#2563eb',
+            focusConfirm: false,
+            showLoaderOnConfirm: true,
+            didOpen: () => {
+                const typeSel = document.getElementById('pt-type');
+                const consentSel = document.getElementById('pt-consent');
+                // The transaction type in force: implied by Gift / Mortgage,
+                // otherwise the party option chosen.
+                const effectiveType = () => IMPLIED_TYPES[consentSel.value] || typeSel.value;
+                const refresh = () => {
+                    const implied = IMPLIED_TYPES[consentSel.value];
+                    document.getElementById('pt-type-wrap').classList.toggle('hidden', !!implied);
+                    const profile = TRANSACTION_TYPES[effectiveType()];
+                    if (!profile) {
+                        document.getElementById('pt-payee').textContent = '';
+                        return;
+                    }
+                    // Defaults follow the type; the percentages stay editable.
+                    document.getElementById('pt-reg').value = String(profile.registration_rate);
+                    document.getElementById('pt-sd').value = String(profile.stamp_duty_rate);
+                    document.getElementById('pt-payee').textContent = profile.label + ': stamp duty payable to the '
+                        + (STAMP_DUTY_PAYEES[profile.payee] || profile.payee)
+                        + '. Processing fee ' + formatMoney(profile.processing_fee) + '.';
+                };
+                typeSel.addEventListener('change', refresh);
+                consentSel.addEventListener('change', refresh);
+                refresh();
+            },
+            preConfirm: async () => {
+                const consentValue = document.getElementById('pt-consent').value;
+                const type = IMPLIED_TYPES[consentValue] || document.getElementById('pt-type').value;
+                if (!type) {
+                    Swal.showValidationMessage('Select a transfer type.');
+                    return false;
+                }
+                const profile = TRANSACTION_TYPES[type];
+                const body = {
+                    transaction_type: type,
+                    consent_type: document.getElementById('pt-consent').value,
+                    bill_rate: {}
+                };
+                // Only rates that differ from the type's are sent as edits.
+                [['registration', 'pt-reg', profile.registration_rate], ['stamp_duty', 'pt-sd', profile.stamp_duty_rate]]
+                    .forEach(([key, el, fallback]) => {
+                        const v = parseFloat(document.getElementById(el).value);
+                        if (!isNaN(v) && Math.abs(v - Number(fallback)) > 0.00005) body.bill_rate[key] = v;
+                    });
+
+                try {
+                    const token = document.querySelector('meta[name="csrf-token"]')?.content
+                        || document.querySelector('input[name="_token"]')?.value;
+                    const response = await fetch(`/consent-applications/${id}/transaction-type`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': token
+                        },
+                        body: JSON.stringify(body)
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok || !result.success) {
+                        const errors = result.errors ? Object.values(result.errors).flat() : [];
+                        throw new Error(errors[0] || result.message || 'The update failed.');
+                    }
+                    return result;
+                } catch (error) {
+                    Swal.showValidationMessage(error.message);
+                    return false;
+                }
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        });
+
+        if (!choice.isConfirmed || !choice.value) return;
+
+        // Still inside the click's activation window in most browsers; if the
+        // pop-up is blocked anyway, offer a real link to click instead.
+        const opened = window.open(letterUrl, '_blank');
+        window.refreshConsentTable();
+        if (!opened) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved',
+                html: `${escapeHtml(choice.value.message)}<br><br>
+                    <a href="${escapeHtml(letterUrl)}" target="_blank" class="inline-block px-4 py-2 rounded-lg bg-blue-600 text-white font-bold">Open Letter</a>`,
+                showConfirmButton: false,
+                showCloseButton: true
+            });
+        }
+    });
+
+    applyTransactionType(true);
+
     // Handle Form Submission
     if (form) {
         form.onsubmit = async function (e) {
@@ -2743,29 +3236,47 @@ document.addEventListener('DOMContentLoaded', function () {
                     body: formData,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
                     }
                 });
 
-                const result = await response.json();
+                const result = await response.json().catch(() => ({}));
 
-                if (result.success) {
+                if (response.ok && result.success) {
+                    // Saved over AJAX: close the wizard and refresh the table in
+                    // place, rather than reloading the whole page.
+                    toggleModal(false);
+                    await window.refreshConsentTable();
+
+                    const printUrl = result.id ? `/consent-applications/${result.id}` : null;
+                    const notice = result.pipeline_warning ? '\n\n' + result.pipeline_warning : '';
                     if (typeof Swal !== 'undefined') {
-                        const isApplication = consentVariant === 'application';
                         Swal.fire({
-                            title: 'Success!',
-                            text: result.message,
-                            icon: 'success',
-                            confirmButtonText: 'Close'
-                        }).then(() => {
-                            window.location.reload();
+                            title: isEdit ? 'Updated' : 'Saved',
+                            text: result.message + notice,
+                            icon: result.pipeline_warning ? 'warning' : 'success',
+                            showCancelButton: !!printUrl,
+                            confirmButtonText: 'Close',
+                            cancelButtonText: 'Open Letter',
+                        }).then((choice) => {
+                            if (printUrl && choice.dismiss === Swal.DismissReason.cancel) {
+                                window.open(printUrl, '_blank');
+                            }
                         });
                     } else {
-                        alert(result.message);
-                        window.location.reload();
+                        alert(result.message + notice);
                     }
                 } else {
-                    throw new Error(result.message || 'Validation failed');
+                    // Laravel's 422 carries per-field messages; show them all
+                    // instead of the generic "The given data was invalid."
+                    const fieldErrors = result.errors
+                        ? Object.values(result.errors).flat().filter(Boolean)
+                        : [];
+                    if (result.errors && result.errors.transaction_type) {
+                        setFieldError('transaction_type_error', result.errors.transaction_type[0]);
+                    }
+                    throw new Error(fieldErrors.length ? fieldErrors.join('\n') : (result.message || 'Validation failed'));
                 }
             } catch (error) {
                 console.error('Submission error:', error);

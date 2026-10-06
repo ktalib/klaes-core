@@ -22,6 +22,7 @@
     </script>
     <script src="https://unpkg.com/lucide@0.429.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     @stack('styles')
+    @include('components.table-columns-assets', ['columnPreferenceGuard' => 'online_ls'])
 </head>
 <body class="min-h-screen bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 antialiased" style="font-family: Inter, sans-serif;">
     @yield('body')

@@ -44,6 +44,12 @@ return [
     // 'letterhead_image' => 'https://i.ibb.co/G3rnsZJQ/bg.png',
     'letterhead_image' => '',
 
+    // The same scan, used ONLY by the preview page when it is opened with
+    // ?letterhead=1 (consent-applications/preview-demo?type=...&letterhead=1),
+    // so the layout can be proofed against the stationery without switching
+    // the background on for real letters.
+    'letterhead_proof_image' => 'https://i.ibb.co/G3rnsZJQ/bg.png',
+
     'approving_authority' => 'the Honourable Commissioner',
     'fees_payable_label' => 'Fees Payable',
 
@@ -56,7 +62,7 @@ return [
 
     // Left empty until an authorised name is supplied: the letter then prints
     // the signature rule and the office alone, never a placeholder name.
-    'signatory_name' => '',
+    'signatory_name' => 'ALH. ABDULJABBAR M. UMAR',
     'signatory_designation' => 'Honourable Commissioner',
     'ministry_name' => 'Ministry of Land and Physical Planning',
     'state_name' => 'Kano State',
@@ -64,6 +70,17 @@ return [
     'registry_name' => 'Kano State Land Registry',
     'payee_name' => 'the Kano State Government',
     'payment_centre_name' => 'KANGIS',
+
+    // The instrument the penalty clause names, by consent type: an Assignment
+    // is perfected by a Deed of Assignment, a Gift by a Deed of Gift, a
+    // Mortgage by a Deed of Mortgage. A type not listed falls back to the
+    // Assignment wording.
+    'deed_names' => [
+        'Assignment' => 'Deed of Assignment',
+        'Gift' => 'Deed of Gift',
+        'Mortgage' => 'Deed of Mortgage',
+        'Tripartite Mortgage' => 'Deed of Tripartite Mortgage',
+    ],
 
     'deadline_days' => 84,
     'deadline_days_words' => 'eighty-four',

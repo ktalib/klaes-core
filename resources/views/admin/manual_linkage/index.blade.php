@@ -51,7 +51,12 @@
         'PageDescription' => 'Backfill lineage for files already processed manually before Change of Purpose and Parcel Update workflows were built.'
     ])
   
-    @php $viewOnly = request()->query('url') === 'land_view'; @endphp
+    @php
+        // Land opens this page as ?url=land_view, Deeds without it. Both can create;
+        // each linkage records which module made it.
+        $linkageSource = request()->query('url') === 'land_view' ? 'Land' : 'Deeds';
+        $viewOnly = false;
+    @endphp
     <div class="py-10 bg-slate-50 min-h-screen">
         <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
 
@@ -139,6 +144,11 @@
                                             @elseif($link->workflow_type === 'Plot Extension') bg-emerald-50 text-emerald-700
                                             @else bg-blue-50 text-blue-700 @endif">
                                             {{ $link->workflow_type }}
+                                        </span>
+                                        @php $linkSource = $link->source ?? 'Deeds'; @endphp
+                                        <span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap {{ $linkSource === 'Land' ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-slate-100 text-slate-600 border border-slate-200' }}"
+                                              title="Created from the {{ $linkSource }} module">
+                                            {{ $linkSource }}
                                         </span>
                                         @if(!empty($link->linkage_group_id ?? null))
                                             <span class="block mt-1 text-[9px] font-mono text-slate-300 truncate max-w-[80px]" title="Group: {{ $link->linkage_group_id }}">
@@ -294,6 +304,7 @@
                 <form action="{{ route('admin.manual-linkage.store') }}" method="POST" id="linkage-form">
                     @csrf
                     <input type="hidden" name="workflow_type" id="hidden_workflow_type">
+                    <input type="hidden" name="linkage_source" value="{{ $linkageSource }}">
                     {{-- Single canonical destination file number (written by every workflow's selector) --}}
                     <input type="hidden" name="new_file_number" id="new_file_number" value="">
 

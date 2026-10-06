@@ -173,12 +173,14 @@
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
                             <tr>
+                                <th class="px-4 py-3 text-left">S/N</th>
                                 <th class="px-4 py-3 text-left">Duplex ID</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left">Source File(s)</th>
                                 <th class="px-4 py-3 text-left">Stages (execution order)</th>
                                 <th class="px-4 py-3 text-left">Source</th>
                                 <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left">Created By</th>
                                 <th class="px-4 py-3 text-left">Status</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
@@ -186,6 +188,7 @@
                         <tbody class="divide-y divide-slate-100">
                             @forelse ($records as $record)
                             <tr class="hover:bg-slate-50/60">
+                                <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-3 font-black text-slate-700 whitespace-nowrap holding-no">{{ $record->duplex_id }}</td>
                                 {{-- One case for the column: names arrive as the officer typed
                                      them, so a register listing "IBRAHIM DANLADI" beside
@@ -224,6 +227,16 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-slate-500 text-xs">{{ $record->created_at?->format('M d, Y') }}</td>
+                                {{-- captured_by is the user id; a row whose user no longer
+                                     exists shows "—" rather than a bare number. --}}
+                                @php
+                                    $creatorName = $record->capturedBy
+                                        ? trim($record->capturedBy->first_name . ' ' . $record->capturedBy->last_name)
+                                        : '';
+                                @endphp
+                                <td class="px-4 py-3 text-slate-600 text-xs font-semibold whitespace-nowrap">
+                                    {{ $creatorName !== '' ? \App\Support\PersonName::display($creatorName) : '—' }}
+                                </td>
                                 <td class="px-4 py-3">
                                     @php
                                         $tone = match ($record->status) {
@@ -488,7 +501,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-16 text-center">
+                                <td colspan="10" class="px-4 py-16 text-center">
                                     <i data-lucide="layers" class="w-8 h-8 text-slate-300 mx-auto"></i>
                                     <p class="text-sm font-bold text-slate-500 mt-3">No duplex records yet</p>
                                     <p class="text-xs text-slate-400 mt-1">Start one to carry several parcel updates as a single instruction.</p>

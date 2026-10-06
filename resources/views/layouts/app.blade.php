@@ -68,6 +68,7 @@
        deferred script would have finished. --}}
   <script src="{{ asset('js/property-location.js') }}?v={{ filemtime(public_path('js/property-location.js')) }}"></script>
 
+  @include('components.table-columns-assets')
   @yield('styles')
   @stack('styles')
 

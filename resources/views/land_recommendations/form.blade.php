@@ -510,7 +510,8 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto max-h-[32rem] overflow-y-auto">
+                    {{-- data-column-picker="off": no shared "Columns" button on this grid. --}}
+                    <div class="overflow-x-auto max-h-[32rem] overflow-y-auto" data-column-picker="off">
                         {{-- min-width must be at least the sum of the column widths below
                              (1376px). Any less and table-fixed squeezes the columns under
                              their declared widths on a narrow screen, which is what put
@@ -522,7 +523,7 @@
                             <colgroup>
                                 <col style="width: 36px">
                                 <col style="width: 46px">
-                                <col style="width: 50px">
+                                <col id="batch-colgroup-src" style="width: 50px">
                                 <col style="width: 250px">
                                 <col style="width: 120px">
                                 <col style="width: 168px">
@@ -640,11 +641,6 @@
                                 placeholder="NO FILE SELECTED"
                                 class="w-full bg-white border border-blue-200 rounded-lg px-4 py-3 text-slate-900 font-bold font-mono placeholder:text-slate-400 text-lg shadow-sm outline-none focus:ring-2 focus:ring-blue-500 transition">
                             <input type="hidden" name="tracking_id" id="tracking_id" value="{{ old('tracking_id', $recommendation->tracking_id ?? '') }}">
-                            {{-- Set to 1 only when the user answers "Save Anyway" on the duplicate
-                                 prompt; the server rejects a duplicate file number unless this is
-                                 present. It records a deliberate second recommendation for the
-                                 file — it is not a re-issuance, which has its own flag. --}}
-                            <input type="hidden" name="duplicate_confirmed" id="duplicate_confirmed" value="0">
                         </div>
                         <div class="flex flex-shrink-0 items-end">
                             <button type="button" id="select-fileno-btn"
@@ -943,7 +939,7 @@
                             Set the mother file in <span class="font-black uppercase tracking-wider">Mother File Number</span> below.
                             It does not have to be in the register &mdash; the file number selector's
                             <span class="font-black uppercase tracking-wider">Manual</span> method builds one from its parts.
-                            It prints in the <span class="font-black uppercase tracking-wider">PLOT/PLAN No.</span> position on the R of O.
+                            It prints on the <span class="font-black uppercase tracking-wider">as per plan No.</span> line of the R of O.
                         </p>
                     </div>
 
@@ -1001,7 +997,7 @@
                             <span id="subdivision-mother-help" class="hidden">
                                 The mother file this plot was subdivided from. Use <span class="font-semibold">Select File Number</span> &mdash;
                                 if it is not in the register, build it there with the selector's <span class="font-semibold">Manual</span> method.
-                                It prints in the PLOT/PLAN No. position on the R of O.
+                                It prints on the "as per plan No." line of the R of O.
                             </span>
                         </p>
                     </div>
@@ -1556,7 +1552,7 @@
                                 <span class="per-file-step-untick hidden px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-600 uppercase tracking-wide"
                                       title="This file is unticked in the table, so these values will not be saved">Not in batch</span>
                                 <button type="button" id="grant-card-apply-all"
-                                        data-card-fields="cofo_year,selected_year,term,development_value,development_period,ground_rent,ground_rent_unit,ground_rent_unit_other,development_charge,survey_fees,preparation_fees,preparation_fees_words"
+                                        data-card-fields="cofo_year,selected_year,term,development_value,development_period,ground_rent,ground_rent_unit,ground_rent_unit_other,area_sqm,development_charge,survey_fees,preparation_fees,preparation_fees_words"
                                         class="px-2.5 py-1.5 text-[11px] font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition inline-flex items-center gap-1.5"
                                         title="Copy every value on this card onto every file in the batch">
                                     <i data-lucide="copy" class="h-3.5 w-3.5"></i>
@@ -1681,6 +1677,17 @@
                                         value="{{ old('ground_rent_unit_other', $grUnitIsOther ? $grUnit : '') }}"
                                         placeholder="State the unit, e.g. Per Acre"
                                         class="mt-2 w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition bg-white shadow-sm {{ $grUnitIsOther ? '' : 'hidden' }}">
+                                </div>
+                                {{-- The rate above is per unit; what is owed is rate x plot size.
+                                     Prefilled and locked when the file's indexing has a size, and
+                                     re-read from the indexing on save. Stepped per file in a batch. --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Plot Size (m²): <span class="text-red-500">*</span></label>
+                                    <input type="number" step="0.01" min="0.01" name="area_sqm" id="area_sqm" required
+                                        value="{{ old('area_sqm', $recommendation->area_sqm ?? '') }}" placeholder="e.g. 450"
+                                        class="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition bg-white shadow-sm">
+                                    <p id="area_sqm_source" class="mt-1 text-[11px] text-slate-500 hidden">From file indexing</p>
+                                    <p id="ground_rent_amount" class="mt-1 text-xs font-semibold text-blue-700"></p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Dev. Charge: </label>
@@ -2512,6 +2519,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // because in an edit each child is a record with values of its own.
     var BATCH_EDIT = @json($batchEdit);
 
+    // Each saved child's per-file values exactly as loaded. An issued RoFO row
+    // posts only the fields that differ from these (see syncGrantInputs).
+    var savedGrant = {};
+    ((BATCH_EDIT && BATCH_EDIT.children) || []).forEach(function (c) {
+        if (c && c.file_number && c.grant) savedGrant[c.file_number] = Object.assign({}, c.grant);
+    });
+
     var toggle      = document.getElementById('batch-mode-toggle');
     var hint        = document.getElementById('batch-mode-hint');
     var fileNoCard  = document.getElementById('file-number-card');
@@ -2571,6 +2585,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var copyLegend  = document.getElementById('batch-copy-legend');
     var bandHeader  = document.getElementById('batch-band-header');
     var colSrc      = document.getElementById('batch-col-src');
+    var colSrcCol   = document.getElementById('batch-colgroup-src');
+    var colSrcAnchor = colSrcCol ? colSrcCol.previousElementSibling : null;
 
     // Per-file capture, regular batch only. Two cards carry a stepper — Grant
     // Conditions and Applicant & Property — and both are driven from one index, so
@@ -2608,6 +2624,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Grant Conditions
         'cofo_year', 'selected_year', 'term', 'development_value',
         'development_period', 'ground_rent', 'ground_rent_unit', 'ground_rent_unit_other',
+        'area_sqm',
         'development_charge',
         'survey_fees', 'preparation_fees', 'preparation_fees_words',
         // Applicant & Property. A hand-picked set spans layouts, so TP No. cannot
@@ -2877,6 +2894,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (copyLegend)  copyLegend.classList.toggle('hidden', regular);
         if (bandHeader)  bandHeader.classList.toggle('hidden', regular);
         if (colSrc)      colSrc.classList.toggle('hidden', regular);
+        // The Src <col> must leave with its cells. Hidden cells drop out of the grid
+        // but a <col> does not, so every later column slid one track left and the
+        // File No landed in Src's 50px — "COM-…" instead of the whole number.
+        if (colSrcCol) {
+            if (regular && colSrcCol.parentNode) {
+                colSrcCol.parentNode.removeChild(colSrcCol);
+            } else if (!regular && !colSrcCol.parentNode && colSrcAnchor && colSrcAnchor.parentNode) {
+                colSrcAnchor.parentNode.insertBefore(colSrcCol, colSrcAnchor.nextSibling);
+            }
+        }
         rowsBody.querySelectorAll('.batch-src-cell').forEach(function (td) {
             td.classList.toggle('hidden', regular);
         });
@@ -3009,18 +3036,19 @@ document.addEventListener('DOMContentLoaded', function () {
         // rejects a batch containing one, so leaving it ticked would only produce a
         // failed save. Its fields still show what was captured.
         var alreadyDone = !!child.has_recommendation;
-        // Issued RoFO rows stay in the batch, but are no longer editable drafts.
+        // Issued RoFO rows stay in the batch and cannot be removed from it, but
+        // their fields can be corrected. Only what the officer actually changes is
+        // saved for them: the stepper posts a field only when it differs from the
+        // value loaded with the page, and the server ignores the batch-wide set
+        // and any blank for these rows (see updateBatch()).
         var rofoLocked = !!child.rofo_locked;
-        // An issued record normally stays immutable. The one safe exception is a
-        // missing correspondence address: there is no issued address to overwrite,
-        // and the officer must be able to complete that missing data alongside any
-        // newly added batch rows.
+        // A missing correspondence address is still called out on the row.
         var addressCorrection = rofoLocked && !String(child.applicant_address || '').trim();
 
         return ''
             // The source row is marked with a bar down its left edge rather than a row
             // background, which the column tints would sit on top of anyway.
-            + '<tr class="batch-row border-b border-slate-100 transition' + (isSource ? ' batch-source-row' : '') + (rofoLocked ? ' bg-slate-100/80 opacity-55' : '') + '" data-index="' + i + '" data-rofo-locked="' + (rofoLocked ? '1' : '0') + '" data-address-correction="' + (addressCorrection ? '1' : '0') + '">'
+            + '<tr class="batch-row border-b border-slate-100 transition' + (isSource ? ' batch-source-row' : '') + (rofoLocked ? ' bg-slate-50' : '') + '" data-index="' + i + '" data-rofo-locked="' + (rofoLocked ? '1' : '0') + '" data-address-correction="' + (addressCorrection ? '1' : '0') + '">'
             + '<td class="px-2 py-2.5 text-center">'
             +   '<input type="checkbox" class="batch-row-check w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500 cursor-pointer"'
             +     ' data-had-rec="' + (alreadyDone ? '1' : '0') + '"'
@@ -3044,7 +3072,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // No register has anything on this number, so the row came back blank.
             // Said on the row itself, or a blank line reads as a load that failed.
             +   (rofoLocked
-                    ? '<span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-600" title="' + (addressCorrection ? 'RoFO generated; only the missing applicant address may be completed' : 'RoFO has been generated; this file cannot be edited or removed from the batch') + '">' + (addressCorrection ? 'Address required' : 'RoFO generated - locked') + '</span>'
+                    ? '<span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-600" title="' + (addressCorrection ? 'RoFO generated; the applicant address is missing' : 'RoFO has been generated. It stays in this batch; only fields you change are saved') + '">' + (addressCorrection ? 'RoFO generated - address required' : 'RoFO generated - changes only') + '</span>'
                     : '')
             +   (child.is_unknown
                     ? '<span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800" title="Nothing is on file for this number — key its details by hand">Not on file</span>'
@@ -3144,17 +3172,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // still carrying their existing values through the batch save.
             el.disabled = !on;
             if (locked) {
-                var mayCorrectAddress = addressCorrection && el.dataset.f === 'applicant_address';
+                // Editable; the server keeps every field the officer leaves as loaded.
                 el.disabled = false;
-                el.readOnly = !mayCorrectAddress;
-                el.tabIndex = mayCorrectAddress ? 0 : -1;
-                if (mayCorrectAddress) {
-                    el.removeAttribute('aria-disabled');
-                    el.classList.remove('pointer-events-none', 'bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
-                } else {
-                    el.setAttribute('aria-disabled', 'true');
-                    el.classList.add('pointer-events-none', 'bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
-                }
+                el.readOnly = false;
+                el.removeAttribute('tabindex');
+                el.removeAttribute('aria-disabled');
+                el.classList.remove('pointer-events-none', 'bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
             } else {
                 el.readOnly = false;
                 el.removeAttribute('aria-disabled');
@@ -3189,6 +3212,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
 
+        // A stepped TP No. left on "Other" without the number typed in posts the
+        // placeholder, which the server drops. Say which file, before posting.
+        if (!missing && perFileOn() && grantStore.length) {
+            commitGrant();
+            var unspecified = grantStore.filter(function (g) {
+                return g && /^(__other__|others?)$/i.test(String(g.layout_plan_no || '').trim());
+            })[0];
+            if (unspecified) {
+                setStatus('TP No. for ' + (unspecified.__file || 'a file') + ' is set to Other but not typed in. '
+                    + 'Step to that file and type it in "Specify TP No...", or clear it.', 'error');
+                return false;
+            }
+        }
+
         if (!missing) return true;
 
         var label = {
@@ -3216,12 +3253,11 @@ document.addEventListener('DOMContentLoaded', function () {
         other.classList.toggle('hidden', !isOther);
         var locked = tr.dataset.rofoLocked === '1';
         other.disabled = !isOther || !tr.querySelector('.batch-row-check').checked;
+        // An issued row's checkbox is disabled but the row is in the batch, so its
+        // Other text stays live; the server keeps it unless it was changed.
         if (locked && isOther) {
             other.disabled = false;
-            other.readOnly = true;
-            other.tabIndex = -1;
-            other.setAttribute('aria-disabled', 'true');
-            other.classList.add('pointer-events-none', 'bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+            other.readOnly = false;
         }
 
         // A value that belongs to a previous Other selection must never be
@@ -3900,11 +3936,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function grantRows() {
         return allGrantRows().filter(function (tr) {
             var check = tr.querySelector('.batch-row-check');
-            // An issued RoFO is shown in Saved Batch Records for audit and
-            // counting only. It must never become a stepper/apply-to-all target:
-            // doing so would make an edit page appear to overwrite an issued
-            // record. Newly added (non-locked) rows are the only editable set.
-            return !!(check && check.checked && tr.dataset.rofoLocked !== '1');
+            // Issued RoFO rows are stepped too, so a missing TP No. or other
+            // condition can be completed. What protects them is syncGrantInputs():
+            // for an issued row it posts only the fields changed from the value
+            // loaded with the page, and the server applies nothing else.
+            return !!(check && check.checked);
         });
     }
 
@@ -4069,12 +4105,21 @@ document.addEventListener('DOMContentLoaded', function () {
         commitGrant();
         var baseline = readGrantCard();
         var html = '';
+        var str = function (x) { return (x === undefined || x === null) ? '' : String(x); };
         grantStore.forEach(function (g) {
             var rowIndex = g && g.__rowIndex;
             if (rowIndex === undefined || rowIndex === null || rowIndex === '') return;
+            var tr = rowsBody.querySelector('.batch-row[data-index="' + rowIndex + '"]');
+            // An issued row is compared with what it was saved with, not with the
+            // card: a field left as loaded is not posted, so it is not touched.
+            var original = (tr && tr.dataset.rofoLocked === '1') ? (savedGrant[g.__file] || {}) : null;
             PER_FILE_FIELDS.forEach(function (f) {
-                var v = (g && g[f] !== undefined && g[f] !== null) ? String(g[f]) : '';
-                if (v === String(baseline[f] === undefined || baseline[f] === null ? '' : baseline[f])) return;
+                var v = str(g && g[f]);
+                if (original) {
+                    if (v === str(original[f]) || v === '') return;
+                } else if (v === str(baseline[f])) {
+                    return;
+                }
                 html += '<input type="hidden" name="children[' + rowIndex + '][' + f + ']" value="' + esc(v) + '">';
             });
         });
@@ -4110,13 +4155,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            // An issued RoFO file only has its blanks filled: a value it was saved
+            // with is correct data and is not overwritten by a bulk copy. Changing
+            // one of those is done on that file, through the stepper.
+            var kept = 0;
             grantStore.forEach(function (g, i) {
                 if (i === grantIndex || !g) return;
-                fields.forEach(function (f) { g[f] = source[f]; });
+                var tr = rowsBody.querySelector('.batch-row[data-index="' + g.__rowIndex + '"]');
+                var saved = (tr && tr.dataset.rofoLocked === '1') ? (savedGrant[g.__file] || {}) : null;
+                fields.forEach(function (f) {
+                    if (saved && String(saved[f] == null ? '' : saved[f]).trim() !== '') { kept++; return; }
+                    g[f] = source[f];
+                });
             });
 
             renderGrantStep();
-            setStatus(cardLabel + ' copied onto ' + (grantStore.length - 1) + ' other file(s).', 'warn');
+            setStatus(cardLabel + ' copied onto ' + (grantStore.length - 1) + ' other file(s).'
+                + (kept ? ' ' + kept + ' value(s) already saved on issued files were kept.' : ''), 'warn');
             // Real work, and a lot of it at once — drafted rather than left waiting on
             // the next keystroke. No-op while a saved batch is being edited.
             scheduleSave();
@@ -6302,6 +6357,83 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         })();
     });
+</script>
+<script>
+// ── Plot size & ground rent amount ───────────────────────────────────
+// Ground Rent is a RATE; the amount is rate x plot size. Mirrors
+// App\Support\PlotSize::amount() on the server. The plot size is prefilled and
+// locked (readonly, so it still posts and still steps per file) when the file's
+// indexing carries one; the server re-reads it on save either way.
+document.addEventListener('DOMContentLoaded', function () {
+    var sizeEl = document.getElementById('area_sqm');
+    var tagEl  = document.getElementById('area_sqm_source');
+    var outEl  = document.getElementById('ground_rent_amount');
+    var rateEl = document.querySelector('input[name="ground_rent"]');
+    var unitEl = document.getElementById('ground_rent_unit');
+    var fileEl = document.getElementById('file_number');
+    var formEl = document.getElementById('land-recommendation-form');
+    if (!sizeEl) return;
+
+    var inBatch = function () { return !!(formEl && formEl.classList.contains('batch-mode')); };
+    var ngn = function (n) { return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+
+    function updateAmount() {
+        if (!outEl) return;
+        var rate = parseFloat(rateEl ? rateEl.value : '');
+        var size = parseFloat(sizeEl.value);
+        var unit = ((unitEl && unitEl.value) || '').trim().toLowerCase();
+        var qty = null;
+        if (unit === '' || unit === 'per square meters') qty = size;
+        else if (unit === 'ha') qty = size / 10000;
+        if (isNaN(rate) || isNaN(size) || qty === null) { outEl.textContent = ''; return; }
+        outEl.textContent = 'Ground rent amount: ₦' + ngn(rate) + ' × ' + ngn(size) + ' m²'
+            + (unit === 'ha' ? ' (÷ 10,000)' : '') + ' = ₦' + ngn(rate * qty);
+    }
+
+    function setLock(sqm) {
+        var locked = sqm !== null && sqm !== undefined && !inBatch();
+        if (locked) sizeEl.value = sqm;
+        sizeEl.readOnly = locked;
+        // Required on single capture and edit; a batch steps it per file and
+        // saves through its own endpoint, so the browser must not block there.
+        sizeEl.required = !inBatch();
+        sizeEl.style.backgroundColor = locked ? '#e2e8f0' : '';
+        sizeEl.style.color = locked ? '#64748b' : '';
+        sizeEl.style.cursor = locked ? 'not-allowed' : '';
+        if (tagEl) tagEl.classList.toggle('hidden', !locked);
+        updateAmount();
+    }
+
+    var lastFile = null;
+    function lookup() {
+        var fileNo = ((fileEl && fileEl.value) || '').trim();
+        if (fileNo === lastFile) return;
+        lastFile = fileNo;
+        if (!fileNo || inBatch()) { setLock(null); return; }
+        fetch('{{ route("land-recommendations.plot-size") }}?file_number=' + encodeURIComponent(fileNo), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.ok ? r.json() : { plot_size: null }; })
+            .then(function (res) { setLock(res && res.plot_size !== null ? res.plot_size : null); })
+            .catch(function () { setLock(null); });
+    }
+
+    [rateEl, unitEl, sizeEl].forEach(function (el) {
+        if (el) { el.addEventListener('input', updateAmount); el.addEventListener('change', updateAmount); }
+    });
+    if (fileEl) { fileEl.addEventListener('change', lookup); fileEl.addEventListener('input', lookup); }
+    var batchToggle = document.getElementById('batch-mode-toggle');
+    if (batchToggle) batchToggle.addEventListener('change', function () { lastFile = null; lookup(); });
+    // The batch-mode class may land after the toggle's change listeners run, so
+    // follow the class itself for the required flag.
+    if (formEl && window.MutationObserver) {
+        new MutationObserver(function () { sizeEl.required = !inBatch(); })
+            .observe(formEl, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    lookup();
+    updateAmount();
+});
 </script>
 @endpush
 @endsection

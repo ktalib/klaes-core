@@ -217,6 +217,16 @@ window.LargeFormatScans = (() => {
                 // number, and the only way to reach a different file's folder
                 // on a share whose root cannot be browsed, so it stays offered.
                 find('[data-locate]').hidden = !result.can_locate;
+                // When the caller named the file, its number is the folder: shown
+                // prefilled and locked, never typed (file numbers come from the
+                // record, not from the keyboard).
+                const lockedNumber = fileIndexingId && result.file_number ? result.file_number : '';
+                const locateInput = find('[data-locate-input]');
+                locateInput.value = lockedNumber;
+                locateInput.disabled = !!lockedNumber;
+                locateInput.title = lockedNumber ? 'Taken from the file being worked on' : '';
+                find('[data-locate] button').disabled = !!lockedNumber;
+                find('[data-locate] label').textContent = lockedNumber ? 'File number' : 'Open a folder by name';
                 find('input').value = ''; error.textContent = ''; render();
                 if (result.matched === false) find('[data-count]').textContent = 'Nothing to show';
             } catch (e) { if (request === generation) { error.textContent = e.message; find('[data-count]').textContent = 'Folder unavailable'; } }
@@ -229,6 +239,7 @@ window.LargeFormatScans = (() => {
         };
         find('[data-locate]').onsubmit = event => {
             event.preventDefault();
+            if (find('[data-locate-input]').disabled) return;
             const name = find('[data-locate-input]').value.trim();
             if (name && !busy) browse(name);
         };

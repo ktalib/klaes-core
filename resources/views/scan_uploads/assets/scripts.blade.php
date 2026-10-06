@@ -4718,6 +4718,7 @@
         if (!doc || state.uploadStatus === 'uploading') return;
         const existingUrl = doc.previewDataUrl || doc.downloadUrl || (doc.file ? await fileToUrl(doc.file) : '');
         LargeFormatScans.open({ existingUrl, title: `Replace page ${index + 1} with Large-Format Scan`, confirmLabel: 'Confirm Replacement',
+            fileIndexingId: state.selectedIndexedFile,
             onConfirm: async entry => {
                 const file = await LargeFormatScans.file(entry);
                 const preview = await fileToUrl(file);
@@ -4737,6 +4738,7 @@
         const doc = batch?.documents.find(doc => String(doc.scanId || doc.id) === String(scanId));
         if (!doc) return;
         LargeFormatScans.open({ existingUrl: resolveDocumentSrc(doc), title: `Replace ${doc.fileName || 'selected page'} with LF Scan`, confirmLabel: 'Confirm Replacement',
+            fileIndexingId: doc.fileIndexingId || resolveFileIndexingIdFromBatch(batch),
             onConfirm: async entry => {
                 const result = await LargeFormatScans.save({ source: entry.path, scanning_id: Number(scanId),
                     file_indexing_id: doc.fileIndexingId || resolveFileIndexingIdFromBatch(batch), expected_path: doc.storedDocumentPath || doc.documentPath });
@@ -6648,7 +6650,7 @@
             if (state.uploadStatus === 'uploading') return;
             if (!state.selectedIndexedFile) { alert('Select an indexed file first.'); return; }
             const fileId = state.selectedIndexedFile;
-            LargeFormatScans.open({ confirmLabel: 'Add to Upload Pages', onConfirm: async entry => {
+            LargeFormatScans.open({ confirmLabel: 'Add to Upload Pages', fileIndexingId: fileId, onConfirm: async entry => {
                 const file = await LargeFormatScans.file(entry);
                 if (fileId !== state.selectedIndexedFile) throw new Error('The indexed file changed. Select it again.');
                 state.uploadDocuments.push({ file, fileName: file.name, fileSize: file.size, paperSize: 'Custom',

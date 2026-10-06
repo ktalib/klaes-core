@@ -52,7 +52,8 @@ class DuplicateCheckService
     // ──────────────────────────────────────────────
     protected function checkRofo(array $params)
     {
-        $query = DB::connection('sqlsrv')->table('land_recommendations');
+        $query = DB::connection('sqlsrv')->table('land_recommendations')
+            ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); });
 
         if (!empty($params['exclude_id'])) {
             $query->where('id', '!=', $params['exclude_id']);

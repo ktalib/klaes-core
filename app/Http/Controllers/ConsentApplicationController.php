@@ -123,9 +123,140 @@ class ConsentApplicationController extends Controller
         }
     }
 
+    /**
+     * Validate the transaction type.
+     *
+     * The wizard asks who the parties are (individual / company), whether it is
+     * a mortgage, or a gift; that choice fixes the default rates, the stamp duty
+     * payee and the letter. consent_type — Assignment / Gift / Mortgage — is a
+     * separate dropdown the officer sets; choosing a transaction type only
+     * suggests one. It is filled from the transaction type here only when the
+     * request carries none (the print-time dialog on an older consent).
+     *
+     * Required on create. On update it is optional so a consent captured before
+     * transaction types existed can still be edited; such a row keeps its own
+     * consent_type and its legacy letter until a type is chosen.
+     */
+    private function applyTransactionType(Request $request, bool $required): void
+    {
+        // A Gift or a Mortgage settles the transaction type by itself
+        // (config consent_bill.consent_type_transactions); only an Assignment
+        // needs the officer to say whether individuals or companies are party.
+        $implied = (array) config('consent_bill.consent_type_transactions', []);
+        $consentType = trim((string) $request->input('consent_type'));
+
+        if (isset($implied[$consentType])) {
+            $request->merge(['transaction_type' => $implied[$consentType]]);
+        }
+
+        // For anything else, the types a consent type implies are not on offer.
+        $partyTypes = $consentType === '' || isset($implied[$consentType])
+            ? array_keys(config('consent_bill.transaction_types', []))
+            : array_values(array_diff(array_keys(config('consent_bill.transaction_types', [])), array_values($implied)));
+
+        // "Individual to Individual, …, or Company to Company", from config, so
+        // the message always lists exactly what the dropdown offers.
+        $partyLabels = collect(config('consent_bill.transaction_types', []))
+            ->except(array_values($implied))
+            ->pluck('label');
+        $partyList = $partyLabels->count() > 1
+            ? $partyLabels->slice(0, -1)->implode(', ') . ' or ' . $partyLabels->last()
+            : (string) $partyLabels->first();
+
+        $request->validate([
+            'transaction_type' => [
+                $required ? 'required' : 'nullable',
+                \Illuminate\Validation\Rule::in($partyTypes),
+            ],
+        ], [
+            'transaction_type.required' => 'Select the transfer type (' . $partyList . ').',
+            'transaction_type.in' => 'For an Assignment, choose ' . $partyList . '.',
+        ]);
+
+        $profile = ConsentBillCalculator::transactionType($request->input('transaction_type'));
+
+        if ($profile && trim((string) $request->input('consent_type')) === '') {
+            $request->merge(['consent_type' => $profile['consent_type']]);
+        }
+    }
+
+    /**
+     * Percentages the officer edited on the form, validated.
+     *
+     * The registration and stamp duty rates default to the transaction type's,
+     * but may be changed when a consent is charged differently. The form only
+     * names a rate field once its value differs from the default, so an
+     * untouched rate posts nothing. Blank, negative, non-numeric or over-100
+     * values are ignored rather than stored.
+     *
+     * @return array<string, float> keyed 'registration' / 'stamp_duty'
+     */
+    private function submittedRates(?Request $request): array
+    {
+        if (!$request) {
+            return [];
+        }
+
+        $rates = [];
+
+        foreach ((array) $request->input('bill_rate', []) as $key => $raw) {
+            if (!in_array($key, ['registration', 'stamp_duty'], true)) {
+                continue;
+            }
+
+            $raw = trim((string) $raw);
+
+            if ($raw === '' || str_starts_with($raw, '-')) {
+                continue;
+            }
+
+            $value = preg_replace('/[^0-9.]/', '', $raw);
+
+            if ($value === '' || !is_numeric($value) || (float) $value > 100) {
+                continue;
+            }
+
+            $rates[$key] = round((float) $value, 4);
+        }
+
+        return $rates;
+    }
+
+    /**
+     * Audit entries for edited rates, in the bill_overrides shape.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function rateAudit(array $rates, ?array $profile): array
+    {
+        $defaults = [
+            'registration' => (float) ($profile['registration_rate'] ?? config('consent_bill.rates.registration', 0)),
+            'stamp_duty' => (float) ($profile['stamp_duty_rate'] ?? config('consent_bill.rates.stamp_duty', 0)),
+        ];
+        $audit = [];
+
+        foreach ($rates as $key => $rate) {
+            if (abs($rate - $defaults[$key]) < 0.00005) {
+                continue;
+            }
+
+            $audit[$key . '_rate'] = [
+                'calculated' => $defaults[$key],
+                'effective' => $rate,
+                'reason' => 'Percentage edited on the consent form',
+                'by' => trim(Auth::user()?->first_name . ' ' . Auth::user()?->last_name),
+                'user_id' => Auth::id(),
+                'at' => now()->toDateTimeString(),
+            ];
+        }
+
+        return $audit;
+    }
+
     public function store(Request $request)
     {
         $this->normalizeApplicantPhone($request);
+        $this->applyTransactionType($request, true);
 
         $applicationDateRule = $request->filled('application_submitted_date') ? 'nullable|date' : 'required|date';
         $request->validate([
@@ -406,6 +537,8 @@ class ConsentApplicationController extends Controller
             ], 403);
         }
 
+        $this->applyTransactionType($request, false);
+
         $applicationDateRule = $request->filled('application_submitted_date') ? 'nullable|date' : 'required|date';
         $request->validate([
             'file_number' => 'required|string',
@@ -571,6 +704,110 @@ class ConsentApplicationController extends Controller
     }
 
     /**
+     * Set (or change) the transaction type on a consent already captured.
+     *
+     * Consents raised before transaction types existed print the old letter
+     * with no fee schedule; this is how they move onto the new one without
+     * re-keying. It is reachable from the row's action menu even after a first
+     * print, because those are exactly the letters that need reissuing — but
+     * not once both prints (original + certified duplicate) are used up, since
+     * nothing could be printed from the change.
+     *
+     * The bill is recomputed under the type's rates from the same basis the
+     * consent was billed on: the overridden assessed amount if one was
+     * recorded, otherwise the valuation figure. Per-line overrides are dropped
+     * — they were adjustments to the old rates and no longer describe anything.
+     * A consent with no basis at all keeps a null bill, and the letter works
+     * its fees out from the consideration (see letterFees()).
+     */
+    public function updateTransactionType(Request $request, $id)
+    {
+        $application = ConsentApplication::findOrFail($id);
+
+        if ((int) $application->print_count >= 2) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This consent has already been printed twice and cannot be reissued.',
+            ], 403);
+        }
+
+        $chosenConsentType = in_array($request->input('consent_type'), ['Assignment', 'Gift', 'Mortgage'], true)
+            ? $request->input('consent_type')
+            : $application->consent_type;
+        $request->merge(['consent_type' => $chosenConsentType]);
+        $this->applyTransactionType($request, true);
+
+        $type = $request->input('transaction_type');
+        $profile = ConsentBillCalculator::transactionType($type);
+        $calculator = app(ConsentBillCalculator::class);
+        $rates = $this->submittedRates($request);
+
+        $overrides = (array) ($application->bill_overrides ?? []);
+        $basis = isset($overrides['valuation_amount']['effective'])
+            ? (float) $overrides['valuation_amount']['effective']
+            : (float) $application->valuation_amount;
+
+        $columns = [
+            'transaction_type' => $type,
+            // The consent type the officer chose in the dialog, else the
+            // existing one — a print-time choice never silently reclassifies.
+            'consent_type' => in_array($request->input('consent_type'), ['Assignment', 'Gift', 'Mortgage'], true)
+                ? $request->input('consent_type')
+                : $application->consent_type,
+            'stamp_duty_payee' => $profile['payee'],
+            // Stored even when there is no bill, so the letter's
+            // consideration-based fees use the chosen percentages.
+            'registration_rate' => $rates['registration'] ?? (float) $profile['registration_rate'],
+            'stamp_duty_rate' => $rates['stamp_duty'] ?? (float) $profile['stamp_duty_rate'],
+        ];
+
+        $rateAudit = $this->rateAudit($rates, $profile);
+
+        if ($basis > 0) {
+            $bill = $calculator->compute($basis, $type, $rates);
+
+            $columns += [
+                'stamp_duty_rate' => $bill['stamp_duty_rate'],
+                'stamp_duty_amount' => $bill['stamp_duty_amount'],
+                'registration_rate' => $bill['registration_rate'],
+                'registration_fee' => $bill['registration_fee'],
+                'processing_fee' => $bill['processing_fee'],
+                'bill_total' => $bill['bill_total'],
+                'bill_computed_at' => now(),
+                // Only the basis audit survives: it still explains the figure
+                // the new bill was raised on.
+                'bill_overrides' => (isset($overrides['valuation_amount'])
+                    ? ['valuation_amount' => $overrides['valuation_amount']]
+                    : []) + $rateAudit ?: null,
+            ];
+        } elseif ($rateAudit !== []) {
+            $columns['bill_overrides'] = $rateAudit;
+        }
+
+        $previous = $application->transaction_type ?: $application->consent_type;
+        $application->update($columns);
+
+        if (class_exists('\App\Services\AuditService')) {
+            app(\App\Services\AuditService::class)->logAction(
+                'Consent Transaction Type Updated',
+                'consent_applications',
+                $application->id,
+                null,
+                null,
+                'Consent ' . ($application->application_tracking_no ?: '#' . $application->id)
+                    . ' for file ' . $application->file_number
+                    . ' changed from ' . $previous . ' to ' . $profile['label']
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Transfer type set to ' . $profile['label'] . '. The letter now prints with its fees and payee.',
+            'id' => $application->id,
+        ]);
+    }
+
+    /**
      * The district the subject line names.
      *
      * The wizard stores no district column of its own — it composes
@@ -612,7 +849,10 @@ class ConsentApplicationController extends Controller
     private function billColumnsFor(?string $fileNumber, ?Request $request = null): array
     {
         $calculator = app(ConsentBillCalculator::class);
-        $bill = $calculator->computeForFile((string) $fileNumber);
+        $transactionType = $request ? $request->input('transaction_type') : null;
+        $profile = ConsentBillCalculator::transactionType($transactionType);
+        $rates = $this->submittedRates($request);
+        $bill = $calculator->computeForFile((string) $fileNumber, $transactionType, $rates);
         $overrides = $this->submittedOverrides($request);
         $basis = $this->submittedBasis($request);
 
@@ -622,7 +862,7 @@ class ConsentApplicationController extends Controller
         // what the property was valued at — and the audit holds both.
         $basisAudit = null;
         if ($basis !== null) {
-            $rebased = $calculator->compute($basis);
+            $rebased = $calculator->compute($basis, $transactionType, $rates);
             unset($rebased['valuation_amount']);
             $bill = array_merge($bill, $rebased);
 
@@ -642,6 +882,20 @@ class ConsentApplicationController extends Controller
             'registration_fee', 'assignment_fee', 'processing_fee',
             'bill_total', 'bill_computed_at', 'bill_overrides',
         ], null);
+
+        // The payee follows the transaction type, not the valuation, so it is
+        // recorded even on an unbilled consent: the letter still has to say
+        // where stamp duty goes.
+        $nulled['stamp_duty_payee'] = $profile['payee'] ?? null;
+
+        // Edited percentages are kept even on an unbilled consent, so the
+        // letter's consideration-based fees use them (see letterFees()).
+        if (isset($rates['stamp_duty'])) {
+            $nulled['stamp_duty_rate'] = $rates['stamp_duty'];
+        }
+        if (isset($rates['registration'])) {
+            $nulled['registration_rate'] = $rates['registration'];
+        }
 
         // With neither a valuation nor a manual figure there is nothing to bill.
         // Everything stays null rather than being stored as a ₦0.00 assessment.
@@ -663,11 +917,12 @@ class ConsentApplicationController extends Controller
             'processing_fee' => $bill['processing_fee'],
             'bill_computed_at' => $bill['bill_computed_at'],
             'bill_overrides' => null,
+            'stamp_duty_payee' => $bill['stamp_duty_payee'],
         ];
 
         // An override replaces the effective amount but never the calculated
         // one, which is kept in the audit entry so the bill stays explainable.
-        $audit = $basisAudit ? ['valuation_amount' => $basisAudit] : [];
+        $audit = ($basisAudit ? ['valuation_amount' => $basisAudit] : []) + $this->rateAudit($rates, $profile);
         foreach ($overrides as $key => $override) {
             $audit[$key] = [
                 'calculated' => $columns[$key],
@@ -685,9 +940,11 @@ class ConsentApplicationController extends Controller
         }
 
         // Summed from the effective amounts, so the total always matches the
-        // lines the letter prints.
+        // lines the letter prints. Under a transaction type stamp duty is paid
+        // to KIRS/FIRS, not the Ministry, so it stays out of the total — see
+        // ConsentBillCalculator::compute().
         $columns['bill_total'] = round(
-            $columns['stamp_duty_amount'] + $columns['registration_fee'] + $columns['processing_fee'],
+            ($profile ? 0 : $columns['stamp_duty_amount']) + $columns['registration_fee'] + $columns['processing_fee'],
             2
         );
 
@@ -852,7 +1109,11 @@ class ConsentApplicationController extends Controller
             return response()->json(['success' => false, 'message' => 'File number is required.'], 400);
         }
 
-        $bill = app(ConsentBillCalculator::class)->computeForFile($fileNumber);
+        $bill = app(ConsentBillCalculator::class)->computeForFile(
+            $fileNumber,
+            $request->query('transaction_type'),
+            $this->submittedRates($request)
+        );
 
         if (!$bill['has_valuation']) {
             return response()->json([
@@ -1119,11 +1380,16 @@ class ConsentApplicationController extends Controller
      *
      * @return \Illuminate\Contracts\View\View
      */
-    public function previewDemo()
+    public function previewDemo(Request $request)
     {
+        // ?type=<transaction type> previews that type's letter with the fee
+        // schedule; with no type the original Assignment letter is shown.
+        $profile = ConsentBillCalculator::transactionType($request->query('type'));
+
         $application = new ConsentApplication([
             'file_number' => 'COM-2023-652',
-            'consent_type' => 'Assignment',
+            'consent_type' => $profile['consent_type'] ?? 'Assignment',
+            'transaction_type' => $profile ? $request->query('type') : null,
             'applicant_name' => 'Alh Hussaini Na',
             'applicant_address' => 'Kwari Market, Unity Bank, Fagge, Kano',
             'party_name' => 'Yusuf Sani',
@@ -1138,7 +1404,23 @@ class ConsentApplicationController extends Controller
         $application->created_at = Carbon::parse('2026-09-24');
         $application->print_count = 0;
 
-        return view('consent_applications.templates.assignment_2026', [
+        // ?letterhead=1 lays the stationery scan under the sample letter, to
+        // proof alignment before printing. Preview only: real letters print onto
+        // pre-printed paper and keep consent_letter.letterhead_image (off).
+        $letterhead = $request->boolean('letterhead')
+            ? ['letterheadOverride' => (string) config('consent_letter.letterhead_proof_image', '')]
+            : [];
+
+        if ($profile) {
+            return view('consent_applications.templates.' . $profile['template'], [
+                'application' => $application,
+                'fees' => $this->letterFees($application),
+                'demo' => true,
+                'trackingId' => 'KLS0001',
+            ] + $letterhead);
+        }
+
+        return view('consent_applications.templates.assignment_2026', $letterhead + [
             'application' => $application,
             'demo' => true,
             // Supplied so the preview does not go looking up a file number that
@@ -1158,6 +1440,17 @@ class ConsentApplicationController extends Controller
     public function show($id)
     {
         $application = ConsentApplication::findOrFail($id);
+
+        // A consent captured with a transaction type prints that type's letter:
+        // the fee schedule, the stamp duty rate and the payee (KIRS / FIRS) all
+        // follow from it. Consents from before transaction types fall through
+        // to the consent_type map below and reprint exactly as issued.
+        if ($profile = ConsentBillCalculator::transactionType($application->transaction_type)) {
+            return view('consent_applications.templates.' . $profile['template'], [
+                'application' => $application,
+                'fees' => $this->letterFees($application),
+            ]);
+        }
 
         $template = strtolower($application->consent_type);
         // Map types to template names if they differ
@@ -1192,6 +1485,60 @@ class ConsentApplicationController extends Controller
             // demand for ₦0.00 or claim a payment position it does not have.
             'draft' => $application->bill_total === null,
         ]);
+    }
+
+    /**
+     * The fee schedule a transaction-type letter prints.
+     *
+     * Read from the saved bill so a reprint shows the figures the consent was
+     * issued under. A consent with no saved bill (no valuation, no override)
+     * is worked out from its consideration with the type's current rates —
+     * that is what the approved specimens bill against — and never printed as
+     * a row of zeros: a figure that cannot be worked out is null, and the
+     * template leaves a blank for it.
+     *
+     * @return array{registration_rate: float, registration_fee: ?float,
+     *               processing_fee: ?float, total: ?float,
+     *               stamp_duty_rate: float, stamp_duty_amount: ?float,
+     *               payee: string, payee_name: string}
+     */
+    private function letterFees(ConsentApplication $application): array
+    {
+        $profile = ConsentBillCalculator::transactionType($application->transaction_type) ?? [];
+
+        if ($application->bill_total !== null) {
+            $fees = [
+                'registration_rate' => (float) ($application->registration_rate ?: ($profile['registration_rate'] ?? 0)),
+                'registration_fee' => (float) $application->registration_fee,
+                'processing_fee' => (float) $application->processing_fee,
+                'total' => (float) $application->bill_total,
+                'stamp_duty_rate' => (float) ($application->stamp_duty_rate ?: ($profile['stamp_duty_rate'] ?? 0)),
+                'stamp_duty_amount' => (float) $application->stamp_duty_amount,
+            ];
+        } else {
+            $digits = preg_replace('/[^0-9.]/', '', (string) $application->consideration);
+            $basis = ($digits !== '' && is_numeric($digits)) ? (float) $digits : 0.0;
+            $bill = app(ConsentBillCalculator::class)->compute($basis, $application->transaction_type, array_filter([
+                'registration' => $application->registration_rate !== null ? (float) $application->registration_rate : null,
+                'stamp_duty' => $application->stamp_duty_rate !== null ? (float) $application->stamp_duty_rate : null,
+            ], fn($rate) => $rate !== null));
+
+            $fees = [
+                'registration_rate' => (float) $bill['registration_rate'],
+                'registration_fee' => $basis > 0 ? $bill['registration_fee'] : null,
+                'processing_fee' => $bill['processing_fee'],
+                'total' => $basis > 0 ? $bill['bill_total'] : null,
+                'stamp_duty_rate' => (float) $bill['stamp_duty_rate'],
+                'stamp_duty_amount' => $basis > 0 ? $bill['stamp_duty_amount'] : null,
+            ];
+        }
+
+        $payee = $application->stamp_duty_payee ?: ($profile['payee'] ?? 'KIRS');
+
+        return $fees + [
+            'payee' => $payee,
+            'payee_name' => ConsentBillCalculator::payeeName($payee),
+        ];
     }
 
     /**

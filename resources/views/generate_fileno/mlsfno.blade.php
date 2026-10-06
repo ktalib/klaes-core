@@ -677,8 +677,14 @@
                                         Number of Files to Generate
                                     </label>
                                     <div class="flex items-center space-x-3">
+                                        {{-- Disabled while a duplex is picked: the duplex sets batchQuantity
+                                             to its whole run (1535 for a 1534-plot subdivision plus a CoP),
+                                             which is far past this box's max of 200. Hidden but still enabled,
+                                             it failed the browser's own form check and blocked Generate with
+                                             "invalid form control is not focusable". The box has no name and
+                                             is never posted, so disabling it changes nothing else. --}}
                                         <input type="number" id="batchQuantity" x-model="batchQuantity" @input="updateBatchPreview()"
-                                               min="2" max="200"
+                                               min="2" max="200" :disabled="!!duplexRecordId"
                                                class="w-32 px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                         <span class="text-sm text-gray-600">files (Max: 200)</span>
                                         <div class="flex-1"></div>
@@ -3728,6 +3734,10 @@
         <script src="{{ asset('js/duplex-summary-card.js') }}?v={{ @filemtime(public_path('js/duplex-summary-card.js')) }}"></script>
         {{-- window.generateConversionApplication — shared with the ST File Commissioning table. --}}
         <script src="{{ asset('js/shared/conversion-application-print.js') }}?v={{ @filemtime(public_path('js/shared/conversion-application-print.js')) }}"></script>
+        <script>window.COMMISSIONING_CHECKLIST_URL = @json(route('mls-fileno.commissioning-checklist'));</script>
+        <script src="{{ asset('js/commissioning-checklist.js') }}?v={{ @filemtime(public_path('js/commissioning-checklist.js')) }}"></script>
+        <script>window.MLPP_SEND_TO_OSS_URL = @json(route('mls-fileno.send-to-oss-applications'));</script>
+        <script src="{{ asset('js/send-to-oss-applications.js') }}?v={{ @filemtime(public_path('js/send-to-oss-applications.js')) }}"></script>
         @include('generate_fileno.mls_js')
         @include('generate_fileno.view_batches')
         {{--

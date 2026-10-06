@@ -96,7 +96,7 @@
                     <table id="plot-extension-table" class="w-full text-sm" style="min-width:1200px">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">#</th>
+                                <th class="px-4 py-3 text-left">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left">R of Occupancy</th>
                                 <th class="px-4 py-3 text-left">Existing Land Use</th>
@@ -111,7 +111,7 @@
                         <tbody>
                             @forelse($records as $record)
                                 <tr data-record='@json($record)'>
-                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $record->id }}</td>
+                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->file_no ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->land_use ?: '—' }}</td>
@@ -1163,8 +1163,18 @@
             dom: '<"overflow-x-auto"t><"px-4 py-3 flex items-center justify-between border-t border-slate-100"ip>',
             pageLength: parseInt(document.getElementById('pe-length')?.value || '50', 10),
             lengthChange: false,
-            order: [[7, 'desc']],
-            columnDefs: [{ orderable: false, targets: [8] }],
+            order: [[8, 'desc']],
+            columnDefs: [
+                { orderable: false, targets: [0, 9] },
+                { searchable: false, targets: [0] }
+            ],
+            drawCallback: function () {
+                const api = this.api();
+                const start = {{ $records->firstItem() ?? 1 }} + api.page.info().start;
+                api.column(0, { page: 'current' }).nodes().each(function (cell, index) {
+                    cell.textContent = start + index;
+                });
+            },
             language: {
                 info: 'Showing _START_ to _END_ of _TOTAL_ plot extension records',
                 emptyTable: 'No plot extension applications found.',

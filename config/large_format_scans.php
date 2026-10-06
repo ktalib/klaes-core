@@ -15,9 +15,19 @@ return [
     // Scan Upload and Page Typing workspaces that predate the split.
     'default_library' => 'lfs',
     'libraries' => [
+        // Large-format scans on the records server, laid out like the archive
+        // share below (one folder per file number, A3/A4 inside):
+        //
+        //   \\10.50.1.1\backup\LargeFormatImages\RES-1981-17\A3\Scan0001.jpg
+        //
+        // Its root holds thousands of folders, more than max_entries, so the
+        // picker opens inside the folder of the file being typed.
         'lfs' => [
             'label' => 'Master LFS Folder',
             'folder' => env('MASTER_LFS_FOLDER', storage_path('app/master-lfs')),
+            'layout' => 'file_number',
+            'browse_root' => false,
+            'display' => 'LF scans (records server)',
         ],
         // File Archive page restores: ordinary document pages whose scanned
         // image went missing, recovered from the raw scans kept on the records

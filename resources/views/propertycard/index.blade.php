@@ -267,4 +267,5 @@
     @include('propertycard.js.javascript')
     @include('propertycard.partials.property_form_sweetalert')
     <script src="{{ asset('js/property-timeline-modal.js') }}"></script>
+    @include('components.transaction-file-number-correction')
 @endsection

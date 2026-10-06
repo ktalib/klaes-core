@@ -14,6 +14,7 @@
             background: #fff;
         }
     </style>
+    @include('components.table-columns-assets')
 </head>
 <body class="bg-white">
     @yield('content')

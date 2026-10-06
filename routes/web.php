@@ -1280,6 +1280,9 @@ Route::group(['middleware' => ['auth', 'XSS']], function () {
     Route::get('property-records/create', [App\Http\Controllers\PropertyRecordController::class, 'create'])->name('property-records.create');
     Route::get('property-records/temp-file-number', [App\Http\Controllers\PropertyRecordController::class, 'fetchTempFileNumber'])->name('property-records.temp-file-number');
     Route::get('property-records/check-cofo-duplicate', [App\Http\Controllers\PropertyRecordController::class, 'checkCofoDuplicate'])->name('property-records.check-cofo-duplicate');
+    // Move a PRA / File History / CofO transaction between a file's main and "(T)" number (prop_id kept).
+    Route::get('property-records/file-number-correction/candidates', [App\Http\Controllers\TransactionFileNumberCorrectionController::class, 'candidates'])->name('property-records.file-number-correction.get-candidates');
+    Route::post('property-records/file-number-correction', [App\Http\Controllers\TransactionFileNumberCorrectionController::class, 'update'])->name('property-records.file-number-correction.update');
     Route::post('property-records/store-from-indexing', [App\Http\Controllers\PropertyRecordController::class, 'storeFromIndexing'])->name('property-records.storeFromIndexing');
      Route::get('property-records/op-import-template', [App\Http\Controllers\PropertyRecordController::class, 'downloadOpImportTemplate'])->name('property-records.op-import-template');
     Route::post('property-records/import-op', [App\Http\Controllers\PropertyRecordController::class, 'importOpToPra'])->name('property-records.import-op');

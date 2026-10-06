@@ -614,6 +614,7 @@
                                                 Change
                                             </button>
                                         </div>
+                                        @include('fileindexing.partials.year_override')
                                         @php
                                             $fi_tracking_id = $fileIndexing->tracking_id ?? null;
                                         @endphp
@@ -2215,7 +2216,9 @@
                             initialValue: isChange ? currentValue : null, // Pre-populate if changing
                             // This is the indexed file's own number — same year restriction
                             // as the create form. Published by fileindexing.partials.year_policy.
-                            blockedYears: Array.isArray(window.FILEINDEXING_NON_INDEXABLE_YEARS)
+                            // ...unless a Super Admin ticked the year override box.
+                            blockedYears: (Array.isArray(window.FILEINDEXING_NON_INDEXABLE_YEARS)
+                                && !document.getElementById('fileindexing-year-override')?.checked)
                                 ? window.FILEINDEXING_NON_INDEXABLE_YEARS
                                 : [],
                             callback: async function (fileData) {

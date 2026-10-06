@@ -5,12 +5,21 @@
     // Passed only to the pickers that set the file's OWN number — a related or
     // counterpart file may still point at one of these years.
     function nonIndexableYears() {
+        // Super Admin override box (fileindexing.partials.year_override) lifts it.
+        if (yearOverrideChecked()) {
+            return [];
+        }
         const years = window.FILEINDEXING_NON_INDEXABLE_YEARS;
         if (!Array.isArray(years)) {
             console.warn('[FileIndexing] year policy not published on this page; no year restriction applied');
             return [];
         }
         return years.map(Number).filter(Number.isInteger);
+    }
+
+    function yearOverrideChecked() {
+        const box = document.getElementById('fileindexing-year-override');
+        return !!(box && box.checked);
     }
 
     const referenceDataStore = {
@@ -6403,6 +6412,7 @@
 
         const formData = {
             file_number: hasTempFile ? tempFileNo : baseFileNumber,
+            override_year_block: yearOverrideChecked() ? 1 : 0,
             has_temp_file: hasTempFile,
             temp_file_no: tempFileNo,
             file_title: collectArrayValues('file_title') || fileTitle,
@@ -6771,12 +6781,45 @@
             }
         }
 
+        // Same rule for the CofO: Serial No / Page No / Vol No are required when the
+        // file has one. Page No mirrors Serial No (read-only), so point at Serial No.
+        if (document.getElementById('has-cofo-toggle')?.checked || document.getElementById('has-cofo')?.checked) {
+            const cofoParticulars = [
+                ['cofo-serial-no', 'Serial No', 'cofo-serial-no'],
+                ['cofo-page-no', 'Page No', 'cofo-serial-no'],
+                ['cofo-vol-no', 'Vol No', 'cofo-vol-no'],
+            ];
+            for (const [id, label, focusId] of cofoParticulars) {
+                if ((document.getElementById(id)?.value || '').trim() === '') {
+                    alert(`${label} is required for the Certificate of Occupancy (CofO).`);
+                    document.getElementById(focusId)?.focus();
+                    return;
+                }
+            }
+        }
+
         if (document.getElementById('has-occupancy-permit-toggle')?.checked) {
             const serialInput = document.getElementById('occupancy-permit-op-serial-number');
             if (!/^[1-9][0-9]*$/.test((serialInput?.value || '').trim())) {
                 alert('OP Serial Number is required and must contain positive digits without leading zeros.');
                 serialInput?.focus();
                 return;
+            }
+
+            // Serial No / Page No / Vol No are the deeds registration particulars and
+            // are required whenever the file has an OP. Page No mirrors Serial No and
+            // is read-only, so a blank one means Serial No is blank: focus that instead.
+            const particulars = [
+                ['occupancy-permit-serial-no', 'Serial No', 'occupancy-permit-serial-no'],
+                ['occupancy-permit-page-no', 'Page No', 'occupancy-permit-serial-no'],
+                ['occupancy-permit-vol-no', 'Vol No', 'occupancy-permit-vol-no'],
+            ];
+            for (const [id, label, focusId] of particulars) {
+                if ((document.getElementById(id)?.value || '').trim() === '') {
+                    alert(`${label} is required for the Occupancy Permit.`);
+                    document.getElementById(focusId)?.focus();
+                    return;
+                }
             }
         }
 

@@ -156,7 +156,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">#</th>
+                                <th class="px-4 py-3 text-left">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left whitespace-nowrap">File No</th>
                                 <th class="px-4 py-3 text-left">File Title</th>
@@ -170,7 +170,7 @@
                         <tbody class="divide-y divide-slate-100">
                             @forelse($records as $record)
                                 <tr>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $record->id }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 text-slate-700 font-bold">{{ $record->applicant_name ?: '—' }}</td>
                                     <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no }}</td>
                                     <td class="px-4 py-3 text-slate-600">{{ $record->file_title }}</td>
@@ -212,14 +212,14 @@
                                                 /**
                                                  * May this application still be edited?
                                                  *
-                                                 * A rejected one carries a decision, and a fully commissioned one has
-                                                 * every plot minted behind it — more plots there are a new application.
-                                                 * Everything else, including an application part-way through
-                                                 * commissioning, may be added to; the plots already minted are locked
-                                                 * in the form and read past by the controller.
+                                                 * A rejected one carries a decision, and a duplex stage's application
+                                                 * is changed through the duplex. Everything else may be added to,
+                                                 * including a fully commissioned one, which re-opens for the new plots;
+                                                 * the plots already minted are locked in the form and read past by
+                                                 * the controller.
                                                  */
-                                                $canUpdate = !in_array($record->status, ['rejected', 'commissioned'], true)
-                                                    && !($record->commissionedCount() > 0 && $record->isCommissioningComplete());
+                                                $fromDuplex = str_starts_with((string) $record->remarks, '[Duplex ');
+                                                $canUpdate = $record->status !== 'rejected' && !$fromDuplex;
                                             @endphp
 
                                             <div class="relative inline-block text-left" id="dropdown-{{ $record->id }}">
@@ -238,7 +238,7 @@
                                                             </button>
                                                         @else
                                                             <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50"
-                                                                    title="{{ $record->status === 'rejected' ? 'A rejected application cannot be edited' : 'Every plot has been commissioned — capture a new subdivision for further plots' }}">
+                                                                    title="{{ $record->status === 'rejected' ? 'A rejected application cannot be edited' : 'Created by a duplex — change it through the Duplex (APU) workflow' }}">
                                                                 <i data-lucide="square-pen" class="w-4 h-4 text-slate-300"></i> Update / Add Plots
                                                             </button>
                                                         @endif

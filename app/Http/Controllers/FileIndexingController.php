@@ -30,6 +30,7 @@ use App\Services\IndexingStorageSummaryService;
 use App\Services\FileRangeTrackingService;
 use App\Services\EdmsScanUploadFolderService;
 use App\Services\FileSnapshotService;
+use App\Support\FileIndexingYearPolicy;
 
 class FileIndexingController extends Controller
 {
@@ -1077,6 +1078,29 @@ class FileIndexingController extends Controller
                 ], 422);
             }
 
+            // Only a CHANGE of file number is checked: a record already filed under a
+            // blocked year (indexed before the rule, or by a Super Admin override) must
+            // stay editable.
+            $incomingFileNumber = trim((string) $request->input('file_number', ''));
+            $currentNumbers = array_map(
+                static fn ($v) => strtoupper(trim((string) $v)),
+                [$existingRecord->file_number ?? '', $existingRecord->temp_file_no ?? '']
+            );
+            if ($incomingFileNumber !== '' && !in_array(strtoupper($incomingFileNumber), $currentNumbers, true)) {
+                $yearRefusal = FileIndexingYearPolicy::refusal(
+                    [$incomingFileNumber],
+                    $request->boolean(FileIndexingYearPolicy::OVERRIDE_FIELD),
+                    $request->user()
+                );
+                if ($yearRefusal !== null) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $yearRefusal,
+                        'error_type' => 'blocked_year',
+                    ], 422);
+                }
+            }
+
             $validated = $request->validate([
                 'file_number' => 'required|string|max:255',
                 'file_title' => 'required', // Allow array or string
@@ -1193,13 +1217,17 @@ class FileIndexingController extends Controller
                 'occupancy_permit_grantor' => 'nullable|string|max:255',
                 'occupancy_permit_grantee' => 'nullable|string|max:255',
                 'occupancy_permit_status' => 'nullable|string|max:50',
-                'occupancy_permit_serial_no' => 'nullable|string|max:100',
-                'occupancy_permit_page_no' => 'nullable|string|max:100',
-                'occupancy_permit_vol_no' => 'nullable|string|max:100',
+                'occupancy_permit_serial_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'occupancy_permit_page_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'occupancy_permit_vol_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
                 'occupancy_permit_deeds_time' => 'nullable|string|max:10',
                 'occupancy_permit_deeds_date' => 'nullable|date',
                 'cofo_status' => 'nullable|string|max:50',
                 'cofo_type' => 'nullable|string|max:100',
+                // Deeds registration particulars: required whenever the file has a CofO.
+                'cofo_serial_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_cofo', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'cofo_page_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_cofo', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'cofo_vol_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_cofo', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
                 'has_temp_file' => 'nullable|boolean',
                 'temp_file_no' => 'nullable|string|max:255',
                 // KANGIS placeholder is required only when KANGIS registry is selected.
@@ -3471,6 +3499,21 @@ class FileIndexingController extends Controller
                 ]);
             }
 
+            // Same year rule the File Number selector applies in the browser; a Super
+            // Admin can lift it per save with the override box on the form.
+            $yearRefusal = FileIndexingYearPolicy::refusal(
+                [$request->input('file_number'), $request->input('mls_file_no'), $request->input('kangis_file_no')],
+                $request->boolean(FileIndexingYearPolicy::OVERRIDE_FIELD),
+                $request->user()
+            );
+            if ($yearRefusal !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $yearRefusal,
+                    'error_type' => 'blocked_year',
+                ], 422);
+            }
+
             // Check for duplicate file number before processing
             // Skip duplicate check when a KANGIS FileNo Placeholder is supplied —
             // the user is intentionally creating a new physical-variant record for
@@ -3704,13 +3747,17 @@ class FileIndexingController extends Controller
                 'occupancy_permit_grantor' => 'nullable|string|max:255',
                 'occupancy_permit_grantee' => 'nullable|string|max:255',
                 'occupancy_permit_status' => 'nullable|string|max:50',
-                'occupancy_permit_serial_no' => 'nullable|string|max:100',
-                'occupancy_permit_page_no' => 'nullable|string|max:100',
-                'occupancy_permit_vol_no' => 'nullable|string|max:100',
+                'occupancy_permit_serial_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'occupancy_permit_page_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'occupancy_permit_vol_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
                 'occupancy_permit_deeds_time' => 'nullable|string|max:10',
                 'occupancy_permit_deeds_date' => 'nullable|date',
                 'cofo_status' => 'nullable|string|max:50',
                 'cofo_type' => 'nullable|string|max:100',
+                // Deeds registration particulars: required whenever the file has a CofO.
+                'cofo_serial_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_cofo', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'cofo_page_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_cofo', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
+                'cofo_vol_no' => [\Illuminate\Validation\Rule::requiredIf(filter_var($request->input('has_cofo', false), FILTER_VALIDATE_BOOLEAN)), 'nullable', 'string', 'max:100'],
                 'has_temp_file' => 'nullable|boolean',
                 'temp_file_no' => 'nullable|string|max:255',
                 // KANGIS placeholder is required only when KANGIS registry is selected.

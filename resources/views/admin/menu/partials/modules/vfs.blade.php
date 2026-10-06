@@ -14,7 +14,7 @@
      middleware. A hidden menu item is not access control, and this entry is hidden
      precisely because the module is restricted. --}}
 @if(auth()->check() && auth()->user()->isSuperAdmin())
-<a href="{{ route('vfs.index') }}"
+<a href="" onclick="event.preventDefault()"
    class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('vfs.*') ? 'active' : '' }}">
   <i data-lucide="folder-tree" class="h-4 w-4 text-amber-500"></i>
   <span>Virtual Folder System</span>

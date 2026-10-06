@@ -64,6 +64,16 @@ class BlindScanningController extends Controller
             return;
         }
 
+        // SQL Server caps a statement at 2100 bound parameters, so split the
+        // chunk into batches of rows x columns that stay under it.
+        $rowsPerInsert = max(1, intdiv(2000, max(1, count(reset($records)))));
+        if (count($records) > $rowsPerInsert) {
+            foreach (array_chunk($records, $rowsPerInsert) as $batch) {
+                $this->insertBlindScanChunk($batch);
+            }
+            return;
+        }
+
         try {
             BlindScanning::insert($records);
         } catch (\Exception $e) {

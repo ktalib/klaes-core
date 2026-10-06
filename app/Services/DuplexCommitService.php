@@ -88,6 +88,8 @@ class DuplexCommitService
             }
         }
 
+        $this->assertMergersFit($duplex, $stages);
+
         $summary = [];
 
         // Per-file overrides typed on the commissioning modal are indexed across the
@@ -106,7 +108,53 @@ class DuplexCommitService
                 );
             }
 
+            /*
+             | Resume. Stages commit one after another, and so do the chunks inside a
+             | big one, so a commit that fails part-way leaves the earlier stages issued.
+             | Pressing Commission again must carry on from there, not issue them twice:
+             | a stage whose every row already has its real file number was finished by
+             | an earlier attempt, so its files are taken as they are and passed on.
+             */
+            $rows = $stage->files()->get();
+            if ($rows->isNotEmpty() && $rows->every(fn ($r) => trim((string) $r->final_file_no) !== '')) {
+                $files = $rows->pluck('final_file_no')->values()->all();
+
+                $summary[] = [
+                    'rank'           => $stage->rank,
+                    'type'           => $stage->type,
+                    'label'          => $stage->label(),
+                    'inputs'         => $carry,
+                    'files'          => $files,
+                    'decommissioned' => $carry,
+                    'resumed'        => true,
+                ];
+
+                // Same cursor step commitStage takes: one per file the stage minted.
+                $meta['_cursor'] = ($meta['_cursor'] ?? 0)
+                    + $rows->where('role', '!=', DuplexParcelUpdateFile::ROLE_CARRIED)->count();
+
+                Log::info('Duplex stage already committed, resuming past it', [
+                    'duplex_id' => $duplex->duplex_id,
+                    'stage'     => $stage->rank,
+                    'files'     => count($files),
+                ]);
+
+                $carry = $files;
+                continue;
+            }
+
+            // Progress: this stage's files count on from what earlier stages issued.
+            $progressBase = CommissioningProgress::base();
+            CommissioningProgress::setBase(
+                $progressBase,
+                "Stage {$stage->rank} of {$stages->count()} · {$stage->label()}"
+            );
+
             $result = $this->commitStage($duplex, $stage, $meta, $carry);
+
+            CommissioningProgress::setBase(
+                $progressBase + $rows->where('role', '!=', DuplexParcelUpdateFile::ROLE_CARRIED)->count()
+            );
 
             $summary[] = [
                 'rank'           => $stage->rank,
@@ -134,6 +182,71 @@ class DuplexCommitService
         ]);
 
         return $summary;
+    }
+
+    /**
+     * How many file numbers a commit (or a resumed one) still has to issue: every
+     * non-carried row of every stage an earlier attempt did not finish.
+     */
+    public function pendingFileCount(DuplexParcelUpdate $duplex): int
+    {
+        $count = 0;
+        foreach ($duplex->stageRows()->get() as $stage) {
+            $rows = $stage->files()->get();
+            if ($rows->isNotEmpty() && $rows->every(fn ($r) => trim((string) $r->final_file_no) !== '')) {
+                continue;
+            }
+            $count += $rows->where('role', '!=', DuplexParcelUpdateFile::ROLE_CARRIED)->count();
+        }
+
+        return $count;
+    }
+
+    /**
+     * Refuse, before stage 1 mints anything, a merger the registry cannot record.
+     *
+     * The merged file's parent_prop_id on fileNumber / file_indexings is every source's
+     * prop_id, comma-joined. While that column is nvarchar(255) it holds about 28 of
+     * them (prop_ids run to 8 characters); a bigger merger fails on "would be
+     * truncated" half-way through the commit, with the earlier stages already issued.
+     * Once the column is widened to nvarchar(max) (2026_10_05 migration) the check
+     * passes for any merger up to MAX_PLOTS.
+     */
+    protected function assertMergersFit(DuplexParcelUpdate $duplex, $stages): void
+    {
+        $capacity = null;
+        foreach (['fileNumber', 'file_indexings'] as $table) {
+            $bytes = DB::connection('sqlsrv')->selectOne(
+                'SELECT COL_LENGTH(?, ?) AS b', [$table, 'parent_prop_id']
+            )->b ?? null;
+
+            if ($bytes !== null && (int) $bytes !== -1) {
+                $chars = intdiv((int) $bytes, 2); // nvarchar: two bytes a character
+                $capacity = $capacity === null ? $chars : min($capacity, $chars);
+            }
+        }
+
+        if ($capacity === null) {
+            return; // nvarchar(max): any merger fits
+        }
+
+        $maxSources = max(2, intdiv($capacity, 9)); // 8-character prop_id + comma
+        $incoming = count(array_filter((array) ($duplex->source_file_nos ?? [])));
+
+        foreach ($stages as $stage) {
+            if ($stage->type === 'merger' && $incoming > $maxSources) {
+                throw new \RuntimeException(
+                    "Stage {$stage->rank} merges {$incoming} files, but the registry can currently record at most "
+                    . "{$maxSources} parent property IDs on one file. Nothing has been commissioned. "
+                    . 'Widen parent_prop_id (migration 2026_10_05_120000) before commissioning this duplex.'
+                );
+            }
+
+            // A Change of Purpose renames some files and passes the rest on.
+            if ($stage->type !== 'change_of_purpose') {
+                $incoming = $stage->outputCount();
+            }
+        }
     }
 
     /**
@@ -210,6 +323,12 @@ class DuplexCommitService
         $tag     = "[Duplex {$duplex->duplex_id} · stage {$stage->rank}]";
         $payload = (array) ($stage->payload ?? []);
 
+        // An earlier attempt may already have written this stage's application before
+        // failing. Reuse it rather than writing a second one for the same stage.
+        if (($existing = $this->existingApplication($stage->type, $primary, $tag)) !== null) {
+            return $existing;
+        }
+
         $common = [
             'file_no'        => $primary,
             'file_title'     => $duplex->file_title ?: $duplex->applicant_name,
@@ -257,8 +376,12 @@ class DuplexCommitService
 
                 // Merger lineage is read back off these rows: the engine collects
                 // every source_file_no to build parent_prop_id and related_fileno.
+                // Chunked inserts: a merger can take up to MAX_PLOTS sources, and
+                // 9 columns x 200 rows = 1800 of SQL Server's 2100 parameters.
+                $now = now();
+                $rows = [];
                 foreach (array_values($inputs) as $i => $sourceFileNo) {
-                    PlotApplicationSize::create([
+                    $rows[] = [
                         'application_id'    => $app->id,
                         'application_type'  => 'merger',
                         'plot_number'       => $plots[$i]['plot_no'] ?? ('Plot ' . ($i + 1)),
@@ -266,7 +389,12 @@ class DuplexCommitService
                         'source_file_title' => $plots[$i]['file_title'] ?? '—',
                         'plot_size'         => $plots[$i]['size'] ?? 0,
                         'type'              => 'merger_source',
-                    ]);
+                        'created_at'        => $now,
+                        'updated_at'        => $now,
+                    ];
+                }
+                foreach (array_chunk($rows, 200) as $chunk) {
+                    DB::connection('sqlsrv')->table((new PlotApplicationSize)->getTable())->insert($chunk);
                 }
                 return $app->id;
 
@@ -307,16 +435,76 @@ class DuplexCommitService
         return null;
     }
 
+    /**
+     * The application a previous, failed attempt materialised for this stage, if any.
+     *
+     * Found by the stage tag materialiseApplication() writes first into remarks (the
+     * commissioning engine only ever appends to remarks after it). A subdivision is
+     * reused whatever its progress: it books every chunk, so commissionStandard() can
+     * carry on from its commissioned count. Any other type that the engine already
+     * marked commissioned has issued its files with no record of which, so it is
+     * refused rather than issued again.
+     */
+    protected function existingApplication(string $type, string $primary, string $tag): ?int
+    {
+        $model = match ($type) {
+            'subdivision'       => PlotSubdivisionApplication::class,
+            'separation'        => PlotSeparationApplication::class,
+            'merger'            => PlotMergerApplication::class,
+            'extension'         => PlotExtensionApplication::class,
+            'change_of_purpose' => ChangeOfPurposeApplication::class,
+            default             => null,
+        };
+
+        if ($model === null) {
+            return null;
+        }
+
+        // Matched in PHP: '[' is a wildcard in a SQL Server LIKE.
+        $app = $model::where('file_no', $primary)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn ($a) => str_starts_with((string) $a->remarks, $tag));
+
+        if (!$app) {
+            return null;
+        }
+
+        if ($type !== 'subdivision' && $app->status === 'commissioned') {
+            throw new \RuntimeException(
+                "Stage {$tag} was already commissioned by an earlier attempt (application #{$app->id}) but its files "
+                . 'were not recorded on the duplex. Nothing more was issued; reconcile this stage before retrying.'
+            );
+        }
+
+        Log::info('Duplex reusing application from an earlier attempt', [
+            'tag' => $tag, 'type' => $type, 'application_id' => $app->id,
+        ]);
+
+        return (int) $app->id;
+    }
+
     protected function writeSizes(int $appId, string $appType, string $rowType, array $plots): void
     {
+        // Chunked inserts rather than a create() per plot: a stage can carry 2000
+        // plots. 7 columns x 200 rows = 1400 of SQL Server's 2100 parameters.
+        $now = now();
+        $rows = [];
+
         foreach (array_values($plots) as $i => $plot) {
-            PlotApplicationSize::create([
+            $rows[] = [
                 'application_id'   => $appId,
                 'application_type' => $appType,
                 'plot_number'      => $plot['plot_no'] ?? ('Plot ' . ($i + 1)),
                 'plot_size'        => $plot['size'] ?? 0,
                 'type'             => $rowType,
-            ]);
+                'created_at'       => $now,
+                'updated_at'       => $now,
+            ];
+        }
+
+        foreach (array_chunk($rows, 200) as $chunk) {
+            DB::connection('sqlsrv')->table((new PlotApplicationSize)->getTable())->insert($chunk);
         }
     }
 
@@ -363,6 +551,9 @@ class DuplexCommitService
             'file_option'             => $stage->type,
             'land_use'                => $landUse,
             'customer_type'           => $meta['customer_type'] ?? 'Individual',
+            // Shared by the single and batch calls below; the batch call used to omit it,
+            // so every multi-plot stage commissioned its files with no gender.
+            'gender'                  => $meta['gender'] ?? 'Male',
             'commissioned_by'         => $meta['commissioned_by'] ?? null,
             'commission_date'         => $meta['commission_date'] ?? now()->toDateString(),
             'commission_time'         => $meta['commission_time'] ?? now()->format('H:i'),
@@ -405,7 +596,6 @@ class DuplexCommitService
                 'district'         => $this->pick($entry, 'district', $duplex->district),
                 'phone_no'         => $this->pick($entry, 'phone_no', $duplex->phone),
                 'address'          => $this->pick($entry, 'address', $duplex->address),
-                'gender'           => $meta['gender'] ?? 'Male',
                 'original_file_no' => $inputs[0],
             ]);
         }
@@ -434,14 +624,70 @@ class DuplexCommitService
             ];
         }
 
-        return $this->callBatch($base + [
-            'batch_mode'       => true,
-            'batch_quantity'   => $quantity,
-            'year'             => (int) date('Y'),
-            'serial_start'     => $this->nextSerial($landUse, (int) date('Y')),
-            'file_name'        => $duplex->file_title ?: $duplex->applicant_name,
-            'location_entries' => $entries,
-        ]);
+        // generateBatch mints at most BATCH_CAP files per run. A larger stage is run in
+        // chunks against the same application. A subdivision books each chunk itself
+        // (recordCommissionedBatch), retiring the mother on the first and appending
+        // successors on the rest; a separation is told a chunk is a continuation so it
+        // does the same. The serial is read afresh per chunk because the previous chunk
+        // has already committed.
+        $files = [];
+        $offset = 0;
+
+        // Resuming a subdivision an earlier attempt part-commissioned: the application
+        // books every chunk, so the files already issued are taken from it and only
+        // the rest are run. The engine itself also refuses to go past remainingPlots().
+        if ($stage->type === 'subdivision' && $appId
+            && ($app = PlotSubdivisionApplication::find($appId))
+            && $app->commissionedCount() > 0) {
+            $files  = $app->commissionedFileNumbers();
+            $offset = count($files);
+
+            if ($offset >= $quantity) {
+                return array_slice($files, 0, $quantity);
+            }
+        }
+
+        $first = true;
+        $progressBase = CommissioningProgress::base();
+        foreach ($this->chunkSizes($quantity - $offset) as $size) {
+            // The batch engine reports per file within the chunk; shift it onto the
+            // duplex's running count.
+            CommissioningProgress::setBase($progressBase + $offset);
+            $files = array_merge($files, $this->callBatch($base + [
+                'separation_continuation' => $stage->type === 'separation' && !$first,
+                'batch_mode'       => true,
+                'batch_quantity'   => $size,
+                'year'             => (int) date('Y'),
+                'serial_start'     => $this->nextSerial($landUse, (int) date('Y')),
+                'file_name'        => $duplex->file_title ?: $duplex->applicant_name,
+                'location_entries' => array_slice($entries, $offset, $size),
+            ]));
+            $offset += $size;
+            $first = false;
+        }
+
+        return $files;
+    }
+
+    /**
+     * Split a batch into runs of at most BATCH_CAP, none smaller than 2 (generateBatch
+     * refuses a quantity of 1): 2000 -> 10 x 200, 201 -> 199 + 2.
+     */
+    protected function chunkSizes(int $quantity): array
+    {
+        $cap = DuplexParcelUpdate::BATCH_CAP;
+        $sizes = array_fill(0, intdiv($quantity, $cap), $cap);
+        $rest = $quantity % $cap;
+
+        if ($rest === 1 && $sizes) {
+            $sizes[count($sizes) - 1] = $cap - 1;
+            $rest = 2;
+        }
+        if ($rest > 0) {
+            $sizes[] = $rest;
+        }
+
+        return $sizes;
     }
 
     /**

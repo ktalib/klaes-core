@@ -2580,6 +2580,11 @@ class OpResettlementApplicationController extends Controller
                     }
                     $allottee  = trim((string) ($op->party_2 ?? ''));        // OP Part 2 -> ToT Part 1
                     $newHolder = trim((string) ($mfn->file_name ?? ''));     // commissioned applicant
+                    if ($newHolder === '') {
+                        // The new holder IS the Transfer of Title's Party 2; without it the
+                        // ToT records a transfer to nobody.
+                        throw \Illuminate\Validation\ValidationException::withMessages(['files' => "Commissioned file {$fileNo} has no applicant name, so the Transfer of Title has no new holder. Add the name to the file first."]);
+                    }
                     $location  = ($mfn && !empty($mfn->location))
                         ? $mfn->location
                         : ($op->location ?: $op->property_description);
@@ -5122,6 +5127,9 @@ class OpResettlementApplicationController extends Controller
                 'district' => data_get($opRow, 'district'),
                 'lga' => data_get($opRow, 'lga') ?? data_get($opRow, 'lgsaOrCity'),
                 'land_use' => data_get($opRow, 'land_use'),
+                // Required on a change-of-name row (OpSerialSourceResolver); without it
+                // this mirror failed on every match and the file stayed off the list.
+                'op_serial_number' => data_get($opRow, 'op_serial_number'),
                 'system_sub_type' => \App\Support\OssOpCommissionFilter::OSS,
                 'sub_source' => 'OP Change of Ownership',
                 'created_at' => $createdAt ?? now(),
@@ -5158,6 +5166,8 @@ class OpResettlementApplicationController extends Controller
             'current_holder' => 'nullable|string|max:255',
             'allottee' => 'nullable|string|max:255',
             'override_holder' => 'nullable|boolean',
+            // Typed on the OP serial card when the OP record has none (or a bad one).
+            'op_serial_number' => 'nullable|string|max:100',
         ]);
 
         $praId = (int) $validated['pra_id'];
@@ -5253,8 +5263,22 @@ class OpResettlementApplicationController extends Controller
             ], 422);
         }
 
+        // The ToT copies the OP's serial, and an OP without a valid one is refused
+        // further down. Ask for it up front instead: the page shows the serial card.
+        $serialFixes = $this->opSerialFixes(collect([$opRow]), [
+            (int) $opRow->id => $request->input('op_serial_number'),
+        ]);
+        if ($serialFixes instanceof JsonResponse) {
+            return $serialFixes;
+        }
+        if (isset($serialFixes[(int) $opRow->id])) {
+            $opRow->op_serial_number = $serialFixes[(int) $opRow->id];
+        }
+
         try {
-            $result = $db->transaction(function () use ($db, $praService, $praId, $opRow, $mlsFNo, $allottee, $currentHolder, $userId, $overrideHolder) {
+            $result = $db->transaction(function () use ($db, $praService, $praId, $opRow, $mlsFNo, $allottee, $currentHolder, $userId, $overrideHolder, $serialFixes) {
+                $this->saveOpSerialFixes($db, $serialFixes, $userId);
+
                 // ── Step 1: Allocate TEMP file numbers ──
                 // OP keeps its own temp (allocated here if not already assigned).
                 // ToT gets a SEPARATE temp so it never shares an identifier with
@@ -5430,11 +5454,105 @@ class OpResettlementApplicationController extends Controller
      * Handle merger OP match: flag all OPs as a group, create one ToT row
      * with concatenated Party 2 names, nulling out OP-specific identifiers.
      */
+    /**
+     * OP serials to write before a match, keyed by PRA id, or the 422 that makes the
+     * page show the OP serial card.
+     *
+     * An OP whose serial is valid is left alone. One whose serial is blank or
+     * malformed (0109, 1O63, 530-) takes what the officer typed on the card; until
+     * they have, the response lists those OPs, with a cleaned-up suggestion where
+     * the stored value has an obvious one.
+     *
+     * @param \Illuminate\Support\Collection $opRows
+     * @param array $supplied pra_id => serial typed on the card
+     * @return array|JsonResponse
+     */
+    private function opSerialFixes($opRows, array $supplied)
+    {
+        $fixes = [];
+        $needed = [];
+
+        foreach ($opRows as $row) {
+            if (\App\Support\OpSerial::valid($row->op_serial_number ?? null)) {
+                continue;
+            }
+
+            $typed = trim((string) ($supplied[(int) $row->id] ?? ''));
+            if (\App\Support\OpSerial::valid($typed)) {
+                $fixes[(int) $row->id] = $typed;
+                continue;
+            }
+
+            $needed[] = [
+                'pra_id'    => (int) $row->id,
+                'file_no'   => $row->mlsFNo ?: ($row->fileno ?: ($row->temp_fileno ?? null)),
+                'grantee'   => trim((string) ($row->Grantee ?? '')) ?: trim((string) ($row->party_2 ?? '')),
+                'location'  => $row->location ?? null,
+                'current'   => $row->op_serial_number,
+                'suggested' => self::suggestOpSerial($row->op_serial_number ?? null),
+                'rejected'  => $typed !== '' ? $typed : null,
+            ];
+        }
+
+        if ($needed) {
+            return response()->json([
+                'success'         => false,
+                'needs_op_serial' => true,
+                'message'         => count($needed) === 1
+                    ? 'This OP has no valid OP Serial Number. Enter it to continue.'
+                    : count($needed) . ' OPs have no valid OP Serial Number. Enter them to continue.',
+                'ops'             => $needed,
+            ], 422);
+        }
+
+        return $fixes;
+    }
+
+    /** Write the serials the officer supplied onto the OP records themselves. */
+    private function saveOpSerialFixes($db, array $fixes, $userId): void
+    {
+        foreach ($fixes as $praId => $serial) {
+            $before = $db->table('pra')->where('id', $praId)->value('op_serial_number');
+            $db->table('pra')->where('id', $praId)->update([
+                'op_serial_number' => $serial,
+                'updated_at'       => now(),
+            ]);
+            \Illuminate\Support\Facades\Log::info('OP serial supplied at Match OP', [
+                'pra_id'  => $praId,
+                'before'  => $before,
+                'after'   => $serial,
+                'user_id' => $userId,
+            ]);
+        }
+    }
+
+    /**
+     * A cleaned-up serial for a malformed one, when the fix is unambiguous:
+     * stray punctuation trimmed, the letter O read as zero in an otherwise numeric
+     * value, leading zeros dropped (0109 -> 109, 1O63 -> 1063, 530- -> 530).
+     * Returns null when nothing safe can be inferred (blank, R12658, 4104R).
+     */
+    public static function suggestOpSerial($value): ?string
+    {
+        $v = strtoupper(trim((string) $value));
+        $v = trim($v, " \t`'\".,-_/\\");
+
+        if ($v !== '' && preg_match('/^[0-9O]+$/', $v) && preg_match('/[0-9]/', $v)) {
+            $v = str_replace('O', '0', $v);
+        }
+        $v = ltrim($v, '0');
+
+        return \App\Support\OpSerial::valid($v) ? $v : null;
+    }
+
     private function matchOpMerger(Request $request, PraRecordService $praService): JsonResponse
     {
         $validated = $request->validate([
             'pra_ids' => 'required|array|min:2',
             'pra_ids.*' => 'required|integer|min:1',
+            // {pra_id: serial} typed on the OP serial card.
+            'op_serials' => 'nullable|array',
+            'op_serials.*' => 'nullable|string|max:100',
         ]);
 
         $praIds = array_unique(array_map('intval', $validated['pra_ids']));
@@ -5454,6 +5572,25 @@ class OpResettlementApplicationController extends Controller
             if (stripos($type, 'Occupancy Permit') === false) {
                 return response()->json(['success' => false, 'message' => 'PRA record ID ' . $row->id . ' is not an Occupancy Permit.'], 422);
             }
+        }
+
+        // Every OP in the merger needs a valid serial; the card collects any missing.
+        $serialFixes = $this->opSerialFixes($opRows, (array) $request->input('op_serials', []));
+        if ($serialFixes instanceof JsonResponse) {
+            return $serialFixes;
+        }
+        foreach ($opRows as $row) {
+            if (isset($serialFixes[(int) $row->id])) {
+                $row->op_serial_number = $serialFixes[(int) $row->id];
+            }
+        }
+
+        // A merger is several DIFFERENT OPs. Two rows with the same OP serial are one OP
+        // stored twice, and merging them would create a ToT for a merger that never was.
+        $serials = $opRows->map(fn ($r) => trim((string) ($r->op_serial_number ?? '')))
+            ->filter(fn ($s) => $s !== '' && $s !== '0');
+        if ($serials->count() !== $serials->unique()->count()) {
+            return response()->json(['success' => false, 'message' => 'These records share an OP serial, so they are the same OP stored twice, not a merger. Match it as a single OP instead.'], 422);
         }
 
         // Use first OP as the anchor record
@@ -5476,7 +5613,9 @@ class OpResettlementApplicationController extends Controller
         $mergerGroupId = (string) Str::uuid();
 
         try {
-            $result = $db->transaction(function () use ($db, $praService, $praIds, $opRows, $firstOp, $mlsFNo, $party1Names, $mergerGroupId, $userId) {
+            $result = $db->transaction(function () use ($db, $praService, $praIds, $opRows, $firstOp, $mlsFNo, $party1Names, $mergerGroupId, $userId, $serialFixes) {
+                $this->saveOpSerialFixes($db, $serialFixes, $userId);
+
                 // ── Step 1: Allocate TEMP file numbers ──
                 // All OPs in the merger share one OP-side temp; the ToT gets a
                 // SEPARATE temp so it never shares an identifier with the OPs.
