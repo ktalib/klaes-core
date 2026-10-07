@@ -255,42 +255,18 @@
                                 <div class="flex-1 flex flex-col overflow-hidden">
                                     @if($cardPreviewUrl)
                                         <!-- Actual cover page image -->
-                                        <div class="flex-1 p-2">
-                                            <img src="{{ $cardPreviewUrl }}" 
+                                        <div class="flex-1 p-2 relative">
+                                            <img src="{{ $cardPreviewUrl }}"
                                                  alt="Cover page for {{ $file->file_number }}"
                                                  class="w-full h-full object-contain bg-gray-50 rounded-sm"
                                                  loading="lazy"
-                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                            <!-- Fallback if image fails -->
-                                            <div class="hidden flex-1 flex-col p-3 overflow-hidden justify-center">
-                                                <div class="w-full h-2 bg-gray-200 rounded mb-1"></div>
-                                                <div class="w-3/4 h-2 bg-gray-200 rounded mb-2"></div>
-                                                <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                                <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                                <div class="w-5/6 h-1.5 bg-gray-100 rounded mb-2"></div>
-                                                <div class="w-full flex justify-center my-1">
-                                                    <div class="w-12 h-8 bg-gray-200 rounded"></div>
-                                                </div>
-                                                <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                                <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                                <div class="w-4/5 h-1.5 bg-gray-100 rounded"></div>
-                                            </div>
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                            {{-- Cover image missing on disk: show the blank file cover instead. --}}
+                                            @include('filearchive.partials.cover_template', ['file' => $file, 'hidden' => true])
                                         </div>
                                     @else
-                                        <!-- Document-style content preview when no cover image -->
-                                        <div class="flex-1 flex flex-col p-3 overflow-hidden">
-                                            <div class="w-full h-2 bg-gray-200 rounded mb-1"></div>
-                                            <div class="w-3/4 h-2 bg-gray-200 rounded mb-2"></div>
-                                            <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                            <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                            <div class="w-5/6 h-1.5 bg-gray-100 rounded mb-2"></div>
-                                            <div class="w-full flex justify-center my-1">
-                                                <div class="w-12 h-8 bg-gray-200 rounded"></div>
-                                            </div>
-                                            <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                            <div class="w-full h-1.5 bg-gray-100 rounded mb-1"></div>
-                                            <div class="w-4/5 h-1.5 bg-gray-100 rounded"></div>
-                                        </div>
+                                        {{-- No cover page at all: blank file cover with the file's details. --}}
+                                        @include('filearchive.partials.cover_template', ['file' => $file])
                                     @endif
                                 </div>
                             </div>

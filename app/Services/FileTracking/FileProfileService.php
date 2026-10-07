@@ -2,6 +2,7 @@
 
 namespace App\Services\FileTracking;
 
+use App\Http\Controllers\Api\FileTrackerApiController;
 use App\Models\FileTracker;
 use App\Models\PageTyping;
 use App\Services\Edms\EdmsDocumentPathResolver;
@@ -35,7 +36,7 @@ class FileProfileService
         } elseif ($fileNumber) {
             $tracker = FileTracker::where('file_number', $fileNumber)
                 ->whereRaw("UPPER(ISNULL(status,'')) NOT IN ('CANCELLED')")
-                ->orderByDesc('updated_at')->first();
+                ->orderByDesc('id')->first();
         }
 
         $indexing = $fileNumber
@@ -51,9 +52,12 @@ class FileProfileService
         $meta = is_array($meta) ? ($meta['secretariat'] ?? []) : [];
 
         $passport = null;
+        $passportPath = null;
         if ($fileNumber) {
             try {
-                $passport = $this->passports->resolve($fileNumber)['url'] ?? null;
+                $resolved = $this->passports->resolve($fileNumber);
+                $passport = $resolved['url'] ?? null;
+                $passportPath = $resolved['path'] ?? null;
             } catch (\Throwable $e) {
                 Log::warning('File profile passport lookup failed', ['file' => $fileNumber, 'error' => $e->getMessage()]);
             }
@@ -93,34 +97,86 @@ class FileProfileService
                 'created_at'     => optional($tracker->created_at)->toDateTimeString(),
                 'last_status'    => strtolower((string) (collect($tracker->movement_log ?: [])->last()['status'] ?? '')),
             ] : null,
-            'history' => $tracker ? $this->history($tracker) : [],
-            'edms'    => $indexing ? $this->edms($indexing) : ['total' => 0, 'pages' => []],
+            'history' => $this->history($tracker, $fileNumber),
+            'edms'    => $indexing ? $this->edms($indexing, $passportPath) : ['total' => 0, 'pages' => []],
         ];
     }
 
-    /** Movement log, newest first, trimmed to what the timeline shows. */
-    private function history(FileTracker $tracker): array
+    /**
+     * Every tracking cycle for the file, exactly as Quick Search's Movement Timeline
+     * gets it: FileTrackerApiController::track() — earlier trackers, the
+     * commissioning line, then the current tracker. Entries are returned raw; the
+     * page sorts and labels them with the same rules Quick Search uses, so both
+     * screens show the same timeline.
+     */
+    /**
+     * Tag each history entry with where it is stored — {tracker_id, index, key} —
+     * so an admin can delete that one log. Entries that are not stored on this
+     * file's trackers (the commissioning line, related parcel files) or that
+     * match more than one stored log get no tag.
+     */
+    private function withLogRefs(array $entries, ?FileTracker $tracker, ?string $fileNumber): array
     {
-        $entries = [];
-        foreach (array_reverse($tracker->movement_log ?: []) as $e) {
-            if (!is_array($e)) {
-                continue;
+        $number = trim((string) ($fileNumber ?: $tracker?->file_number));
+        $trackers = $number !== ''
+            ? FileTracker::where('file_number', $number)->orderBy('id')->get(['id', 'movement_log'])
+            : collect($tracker ? [$tracker] : []);
+
+        $refs = [];
+        foreach ($trackers as $row) {
+            foreach (array_values($row->movement_log ?: []) as $i => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $key = SecretariatFileLogService::logKey($entry);
+                $refs[$key] = isset($refs[$key]) ? false : ['tracker_id' => (int) $row->id, 'index' => $i, 'key' => $key];
             }
-            $entries[] = [
-                'office'      => $e['office_name'] ?? $e['office_code'] ?? '—',
-                'office_code' => $e['office_code'] ?? null,
-                'status'      => strtolower((string) ($e['status'] ?? '')),
-                'in'          => trim(($e['log_in_date'] ?? '') . ' ' . ($e['log_in_time'] ?? '')) ?: null,
-                'out'         => trim(($e['log_out_date'] ?? '') . ' ' . ($e['log_out_time'] ?? '')) ?: null,
-                'at'          => $e['timestamp'] ?? null,
-                'by'          => $e['user_name'] ?? null,
-                'accepted_by' => $e['accepted_by_name'] ?? null,
-                'purpose'     => $e['purpose'] ?? null,
-                'notes'       => $e['notes'] ?? ($e['completion_notes'] ?? null),
-            ];
         }
 
+        foreach ($entries as &$entry) {
+            $ref = $refs[SecretariatFileLogService::logKey($entry)] ?? false;
+            if ($ref) {
+                $entry['_ref'] = $ref;
+            }
+        }
+        unset($entry);
+
         return $entries;
+    }
+
+    private function history(?FileTracker $tracker, ?string $fileNumber): array
+    {
+        $empty = ['entries' => [], 'meta' => null];
+        $identifier = $fileNumber ?: $tracker?->tracking_id;
+        if (!$identifier) {
+            return $empty;
+        }
+
+        try {
+            $data = app(FileTrackerApiController::class)->track(request(), $identifier)->getData(true)['data'] ?? null;
+        } catch (\Throwable $e) {
+            Log::warning('File profile history lookup failed', ['identifier' => $identifier, 'error' => $e->getMessage()]);
+            $data = null;
+        }
+
+        if (!is_array($data)) {
+            return $tracker ? ['entries' => array_values($tracker->movement_log ?: []), 'meta' => null] : $empty;
+        }
+
+        return [
+            'entries' => $this->withLogRefs(array_values(array_filter(
+                array_merge($data['prior_movements'] ?? [], $data['movement_history'] ?? []),
+                'is_array'
+            )), $tracker, $fileNumber),
+            'meta' => [
+                'request_purpose_name' => $data['request_purpose_name'] ?? null,
+                'timeline_status'      => $data['timeline_status'] ?? null,
+                'days_until_deadline'  => $data['days_until_deadline'] ?? null,
+                'deadline'             => $data['deadline'] ?? null,
+                'is_commissioned'      => (bool) ($data['is_commissioned'] ?? false),
+                'officer_photos'       => $data['officer_photos'] ?? [],
+            ],
+        ];
     }
 
     /**
@@ -128,7 +184,7 @@ class FileProfileService
      * not been page-typed yet — e.g. a passport photo filed from the OSS. Without
      * the second group a file with uploads would show an empty EDMS tab.
      */
-    private function edms(object $indexing): array
+    private function edms(object $indexing, ?string $passportPath = null): array
     {
         $db = DB::connection('sqlsrv');
         $fileContext = (object) [
@@ -147,6 +203,19 @@ class FileProfileService
                     ->whereColumn('p.scanning_id', 's.id')
                     ->whereNull('p.deleted_at');
             });
+
+        // Replacing a passport files a new upload and keeps the old one (records are
+        // never deleted), so a file can hold several. Show only the current one: the
+        // upload the file's record points at, or failing that the newest.
+        $passportScans = (clone $untypedQuery)->where('s.document_type', 'like', '%passport%')
+            ->orderByDesc('s.created_at')->orderByDesc('s.id')
+            ->get(['s.id', 's.document_path']);
+        if ($passportScans->count() > 1) {
+            $current = $passportScans->first(fn ($scan) => $passportPath && $this->samePath($scan->document_path, $passportPath))
+                ?? $passportScans->first();
+            $untypedQuery->whereNotIn('s.id', $passportScans->pluck('id')->reject(fn ($id) => $id == $current->id)->all());
+        }
+
         $untypedTotal = (clone $untypedQuery)->count();
 
         $uploads = $untypedQuery
@@ -156,8 +225,11 @@ class FileProfileService
                    's.registry', 's.edms_file_type', 's.created_at'])
             ->map(function ($scan) use ($fileContext) {
                 $url = $this->paths->resolveUrl($scan->document_path, $this->paths->contextFromScanning($scan, $fileContext));
-                return $this->pageRow('scan-' . $scan->id, null, null, $scan->document_type ?: 'Uploaded document',
-                    'Not yet page-typed', $url, $scan->document_path, true, $scan->created_at);
+                $row = $this->pageRow('scan-' . $scan->id, null, null, $scan->document_type ?: 'Uploaded document',
+                    null, $url, $scan->document_path, true, $scan->created_at);
+                $row['passport'] = stripos((string) $scan->document_type, 'passport') !== false;
+
+                return $row;
             });
 
         $remaining = max(0, self::PAGE_LIMIT - $uploads->count());
@@ -191,6 +263,13 @@ class FileProfileService
             'untyped' => $untypedTotal,
             'pages'   => $uploads->concat($typed)->values()->all(),
         ];
+    }
+
+    private function samePath(?string $a, ?string $b): bool
+    {
+        $norm = fn ($p) => strtolower(ltrim(preg_replace('#^public/#i', '', str_replace('\\', '/', trim((string) $p))), '/'));
+
+        return $norm($a) !== '' && $norm($a) === $norm($b);
     }
 
     private function pageRow($id, $page, $code, $type, $subtype, ?string $url, ?string $storedPath, bool $untyped, $uploadedAt): array

@@ -347,8 +347,8 @@ class FileIndexing extends Model
 
     public function getStatusAttribute()
     {
-        $hasScanning = $this->scannings()->exists();
-        $hasPageTyping = $this->pagetypings()->exists();
+        $hasScanning = \App\Support\EdmsWorkflowReset::sinceReset($this->scannings(), 'scannings')->exists();
+        $hasPageTyping = \App\Support\EdmsWorkflowReset::sinceReset($this->pagetypings(), 'pagetypings')->exists();
 
         if ($hasPageTyping) {
             return 'Typed';

@@ -913,6 +913,29 @@ class FilearchiveController extends Controller
     }
 
     /**
+     * Stream a blank file-cover template (EDMS/COVERS/{land|st|sltr}.jpeg).
+     *
+     * Cards fall back to it when a file has no cover page or its image is gone.
+     * Served through Laravel for the same reason as coverImage(): the public
+     * /storage link does not reach the EDMS disk, so a static URL 404s.
+     */
+    public function coverTemplate(string $kind)
+    {
+        abort_unless(in_array($kind, ['land', 'st', 'sltr'], true), 404);
+
+        foreach ([file_storage_path('app/public/EDMS/COVERS'), storage_path('app/public/EDMS/COVERS')] as $folder) {
+            foreach (['jpeg', 'jpg', 'png'] as $extension) {
+                $path = $folder . DIRECTORY_SEPARATOR . $kind . '.' . $extension;
+                if (is_file($path)) {
+                    return response()->file($path, ['Cache-Control' => 'public, max-age=604800']);
+                }
+            }
+        }
+
+        abort(404);
+    }
+
+    /**
      * Resolve the exact public-disk relative path currently backing a page's
      * image, using the same prefix-stripping order as getDocumentPages(). The
      * returned path is what an in-place edit must overwrite (filename kept).

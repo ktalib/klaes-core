@@ -130,7 +130,16 @@ class BlindScanIngestionService
 
         $movedFiles = DB::connection('sqlsrv')->transaction(function () use ($targetFiles, $blindFolder, $scanUploadDirectory, $fileIndexingId, $fileNumber, $blindRelative, $registry, $fileType) {
             $createdScans = [];
+            // Continue after the pages already on the file. Starting at 0 every
+            // time gave a second batch the same positions as the first, and Page
+            // Typing then interleaved the two, undoing the operator's arrangement.
             $displayOrder = 0;
+            if ($fileIndexingId) {
+                $highest = DB::connection('sqlsrv')->table('scannings')
+                    ->where('file_indexing_id', $fileIndexingId)
+                    ->max('display_order');
+                $displayOrder = $highest === null ? 0 : ((int) $highest + 1);
+            }
 
             foreach ($targetFiles as $manifest) {
                 $source = $blindFolder . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $manifest['relative_path']);

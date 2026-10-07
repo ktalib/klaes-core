@@ -134,7 +134,15 @@ Every phase ends with a check in the real app, a run through the **rollback test
 ### Phase 3 — Correspondence and duplicate hold
 - When a receipt is registered, create its correspondence record **once**, using the existing `cadastral_shadow_file` / MLS-match mechanism. That pointer column is already on the receipt, so no second register is built.
 - Columns: Cadastral File No., Source File No., Owner, Created, Duplicate, Status.
-- If any duplicate or double-allocation check finds a match, the receipt goes **On Hold – Investigation**, and it can't be registered until an officer clears it with a remark. Placing and clearing a hold are both audited.
+- If any duplicate or double-allocation check finds a match, the receipt is **flagged** (duplicate flag and note, shown in the queue and in the intake message). It is **not** held automatically: the auto-hold was removed on 2026-10-07 by request. An officer can still put a receipt **On Hold – Investigation** by hand; a held receipt can't be registered until an officer clears it with a remark. Placing and clearing a hold are both audited.
+- The double-allocation check skips "PIECE OF LAND" and its misspellings, which are descriptions, not plot numbers (~45k files).
+- **TODO: rework holds (pending, logged 2026-10-07).** Turning off the auto-hold was a stopgap. Before turning it back on, the rework must cover:
+  - other placeholder plot numbers: "FARMLAND" / "FARM LAND" (~2.1k files);
+  - a blank or "UNKNOWN" district, which currently drops the district filter and matches across all of Kano;
+  - a warning popup for flagged intakes (the layout only has success/error);
+  - when a duplicate-register hit should hold, as opposed to only flag.
+
+  Code: `ReceiptHolds::intakeHold()` (returns `[]`), `ReceiptHolds::holdForRegistration()` (honours existing holds only), `CadastralRegistryLookup::possibleDoubleAllocations()` / `isPieceOfLand()`.
 - Boundary conflicts come from `ChartConflictScanner` once the file is charted. KLAES stores no parcel geometry before charting, so this check can't run earlier.
 - Schema: possibly a `hold_*` set of nullable columns on `cadastral_file_receipts` (who placed the hold, when, and the clearing remark).
 

@@ -13,6 +13,7 @@
     lgas: @json($lgas),
     csrfToken: "{{ csrf_token() }}",
     availableUrl: "{{ route('mls-file-no-matching.available') }}",
+    detailsUrl: "{{ route('mls-file-no-matching.get-file-details') }}",
     worldTimeUrl: "{{ route('world-time') }}",
     storeUrl: "{{ route('mls-file-no-matching.store') }}",
     currentDate: "{{ date('Y-m-d') }}",
@@ -243,7 +244,7 @@
                                              </div>
                                              <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">File Title <span class="text-red-500 ">*</span></label>
-                                                <input type="text" x-model="formData.file_title" :disabled="dataFetched" placeholder="Enter File Title" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50 disabled:text-slate-400">
+                                                <input type="text" x-model="formData.file_title" :disabled="titleLocked" placeholder="Enter File Title" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50 disabled:text-slate-400">
                                             </div>
 
 
@@ -631,7 +632,7 @@
 </div>
 
 @push('scripts')
-<script src="{{ asset('js/mls_file_no_matching.js') }}"></script>
+<script src="{{ asset('js/mls_file_no_matching.js') }}?v={{ filemtime(public_path('js/mls_file_no_matching.js')) }}"></script>
 
 <style>
     .select2-container--default .select2-selection--single {

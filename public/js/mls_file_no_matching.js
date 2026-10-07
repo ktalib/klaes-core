@@ -25,6 +25,7 @@ function mlsMatchingGenerator(config) {
             quantity: 1
         },
         dataFetched: false,
+        titleLocked: false,
         fileIndexed: null,
         locationEntries: [],
         currentEntryIndex: 0,
@@ -360,6 +361,7 @@ function mlsMatchingGenerator(config) {
                         if (detailsData && detailsData.success && detailsData.data) {
                             const details = detailsData.data;
                             this.formData.file_title    = details.title || '';
+                            this.titleLocked = !!(details.title && String(details.title).trim());
                             this.formData.plot_number   = details.plot_no || '';
                             this.formData.tp_no         = details.tp_no || '';
                             this.formData.lga_id        = details.lga_id || '';
@@ -373,6 +375,7 @@ function mlsMatchingGenerator(config) {
                             this.dataFetched = true;
                         } else {
                             this.formData.tracking_id = '';
+                            this.titleLocked = false;
                             Swal.fire({
                                 toast: true, position: 'top-end', icon: 'info',
                                 title: 'No Location Details Found',
@@ -497,6 +500,7 @@ function mlsMatchingGenerator(config) {
             this.currentEntryIndex = 0;
             this.applyLocationToAll = false;
             this.dataFetched = false;
+            this.titleLocked = false;
             this.fileIndexed = null;
         },
 

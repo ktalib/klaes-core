@@ -31,10 +31,22 @@ class SecretariatFileLogController extends Controller
         });
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
+
         return view('secretariat_file_log.index', [
-            'offices' => $this->log->offices(),
+            'offices'         => $this->log->offices(),
+            // Same lists the main Log a File page offers when sending a file on.
+            'requestPurposes' => \App\Models\RequestPurpose::active()->orderBy('name')->get(['id', 'name']),
+            'officers'        => $this->log->receivingOfficers(),
+            // Only a super admin may choose an office; everyone else is fixed to the
+            // office their Rank/Department maps to (config/file_movement.php).
+            'canChooseOffice' => $user->isSuperAdmin(),
+            'canDeleteLogs'   => $user->isSuperAdmin(),
+            'myOffice'        => $this->log->officeFor($user),
+            'PageTitle'       => 'File Movement (Department)',
+            'PageDescription' => 'Receive and send files between offices — scan any KLAES QR or log manually.',
         ]);
     }
 
@@ -52,7 +64,7 @@ class SecretariatFileLogController extends Controller
             }
             $tracker = \App\Models\FileTracker::whereRaw('UPPER(LTRIM(RTRIM(file_number))) = ?', [strtoupper($match['file_number'])])
                 ->whereRaw("UPPER(ISNULL(status,'')) NOT IN ('CANCELLED')")
-                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
                 ->first(['id', 'tracking_id', 'current_office_code', 'current_office_name', 'movement_log', 'file_title']);
             if ($tracker) {
                 $log = $tracker->movement_log ?: [];
@@ -86,15 +98,90 @@ class SecretariatFileLogController extends Controller
         return response()->json(['success' => true] + $profiles->build($request->input('file_number'), $request->integer('tracker_id') ?: null));
     }
 
-    public function lists(Request $request): JsonResponse
+    /** Admin only: delete one log entry from a tracker (audited). */
+    public function deleteLog(Request $request): JsonResponse
     {
-        $request->validate([
-            'office' => 'required|string|max:50',
-            'days'   => 'nullable|integer|min:1|max:365',
+        abort_unless($request->user()->isSuperAdmin(), 403, 'Only an administrator can delete logs.');
+
+        $data = $request->validate([
+            'tracker_id' => 'required|integer',
+            'index'      => 'required|integer|min:0',
+            'key'        => 'required|string|size:32',
+            'reason'     => 'required|string|max:500',
         ]);
 
         try {
-            return response()->json(['success' => true] + $this->log->lists($request->input('office'), (int) $request->input('days', 7)));
+            $tracker = $this->log->deleteLogEntry((int) $data['tracker_id'], (int) $data['index'], $data['key'], $data['reason'], $request->user());
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Log deleted. The file is now at ' . ($tracker->current_office_name ?: 'its previous office') . '.',
+        ]);
+    }
+
+    /** Admin only: delete a whole tracker and its logs (audited). */
+    public function deleteTracker(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->isSuperAdmin(), 403, 'Only an administrator can delete trackers.');
+
+        $data = $request->validate([
+            'tracker_id' => 'required|integer',
+            'reason'     => 'required|string|max:500',
+        ]);
+
+        try {
+            $deleted = $this->log->deleteTracker((int) $data['tracker_id'], $data['reason'], $request->user());
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tracker for ' . ($deleted['file_number'] ?: ($deleted['file_title'] ?: 'the document')) . ' deleted.',
+        ]);
+    }
+
+    /** Indexed files for the manual log's file-number dropdown. */
+    public function indexed(Request $request): JsonResponse
+    {
+        $request->validate(['q' => 'nullable|string|max:100']);
+
+        return response()->json(['success' => true, 'files' => $this->log->searchIndexed((string) $request->input('q', ''))]);
+    }
+
+    /**
+     * The office this request acts for. A super admin's choice is honoured; for
+     * anyone else the office sent by the browser is ignored and their own is used,
+     * so a user can never receive or send files on another office's behalf.
+     */
+    private function actingOffice(Request $request): string
+    {
+        $user = $request->user();
+
+        if ($user->isSuperAdmin() && $request->filled('office')) {
+            return (string) $request->input('office');
+        }
+
+        $office = $this->log->officeFor($user);
+        abort_unless($office, 403, 'No office is assigned to your account. Ask the administrator to set your Department and Rank.');
+
+        return $office['code'];
+    }
+
+    public function lists(Request $request): JsonResponse
+    {
+        $request->validate([
+            'office' => 'nullable|string|max:50',
+            'days'   => 'nullable|integer|min:1|max:365',
+        ]);
+
+        $office = $this->actingOffice($request);
+
+        try {
+            return response()->json(['success' => true] + $this->log->lists($office, (int) $request->input('days', 7)));
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -103,10 +190,19 @@ class SecretariatFileLogController extends Controller
     public function receive(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'office'       => 'required|string|max:50',
+            'office'       => 'nullable|string|max:50',
             'entry_type'   => 'required|in:file,unindexed,non_file',
             'tracker_id'   => 'nullable|integer',
             'file_number'  => 'nullable|string|max:255',
+            'related_file_number' => 'nullable|string|max:255',
+            // A manual log names who took the file and why, as a send does.
+            // A manual log names who took the file and why, as a send does; "Other"
+            // sends the typed text instead of an id (checked in the service).
+            'receiving_officer_id'    => 'nullable|integer',
+            'receiving_officer_other' => 'nullable|string|max:255',
+            'request_purpose_id'      => 'nullable|integer|exists:sqlsrv.request_purposes,id',
+            'request_purpose_other'   => 'nullable|string|max:255',
+            'from_office_other'       => 'nullable|string|max:255',
             'file_title'   => 'nullable|string|max:255',
             'from_office'  => 'nullable|string|max:50',
             'sender'       => 'nullable|string|max:255',
@@ -115,8 +211,10 @@ class SecretariatFileLogController extends Controller
             'received_via' => 'nullable|in:scan,manual',
         ]);
 
+        $office = $this->actingOffice($request);
+
         try {
-            $result = $this->log->receive($data['office'], $data, $request->user());
+            $result = $this->log->receive($office, $data, $request->user());
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
@@ -142,15 +240,24 @@ class SecretariatFileLogController extends Controller
     public function forward(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'office'     => 'required|string|max:50',
+            'office'     => 'nullable|string|max:50',
             'tracker_id' => 'required|integer',
-            'to_office'  => 'required|string|max:50',
-            'purpose'    => 'nullable|string|max:255',
-            'notes'      => 'nullable|string|max:1000',
+            'to_office'            => 'required|string|max:50',
+            'request_purpose_id'      => 'nullable|required_without:request_purpose_other|integer|exists:sqlsrv.request_purposes,id',
+            'request_purpose_other'   => 'nullable|string|max:255',
+            'receiving_officer_id'    => 'nullable|required_without:receiving_officer_other|integer',
+            'receiving_officer_other' => 'nullable|string|max:255',
+            'notes'                => 'nullable|string|max:1000',
         ]);
 
+        $office = $this->actingOffice($request);
+
         try {
-            $tracker = $this->log->forward($data['office'], (int) $data['tracker_id'], $data['to_office'], $data['purpose'] ?? null, $data['notes'] ?? null, $request->user());
+            $tracker = $this->log->forward($office, (int) $data['tracker_id'], $data['to_office'],
+                isset($data['request_purpose_id']) ? (int) $data['request_purpose_id'] : null,
+                isset($data['receiving_officer_id']) ? (int) $data['receiving_officer_id'] : null,
+                $data['notes'] ?? null, $request->user(),
+                $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null);
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
@@ -160,7 +267,8 @@ class SecretariatFileLogController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'File sent to ' . $tracker->receiving_office_name . '.',
+            'message' => 'File sent to ' . $tracker->receiving_office_name
+                . ($tracker->receiving_officer_name ? ' (' . $tracker->receiving_officer_name . ')' : '') . '.',
             'tracker' => $tracker->only(['id', 'tracking_id', 'file_number', 'file_title', 'receiving_office_name']),
         ]);
     }

@@ -70,50 +70,18 @@
                             </div>
                         </div>
                         @if($cardPreviewUrl)
-                            <div class="flex-1 p-2 overflow-hidden">
+                            <div class="flex-1 p-2 overflow-hidden relative">
                                 <img src="{{ $cardPreviewUrl }}"
                                      alt="Cover page for {{ $file->file_number }}"
                                      class="w-full h-full object-contain bg-gray-50 rounded-sm"
                                      loading="lazy"
-                                     onerror="this.style.display='none';" />
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                                {{-- Cover image missing on disk: show the blank file cover instead. --}}
+                                @include('filearchive.partials.cover_template', ['file' => $file, 'hidden' => true])
                             </div>
                         @else
-                            <div class="flex-1 relative overflow-hidden">
-                                <!-- Cover template (front cover = right half of spread) -->
-                                <img src="{{ $coverTemplateUrl }}" 
-                                     alt="Cover" 
-                                     class="absolute inset-0 w-full h-full"
-                                     style="object-fit: cover; object-position: right center;"
-                                     onerror="this.style.display='none';" />
-                                <!-- Data values overlay (positioned on right-half form area) -->
-                                <div class="absolute inset-0" style="pointer-events: none;">
-                                    <!-- FILE NO -->
-                                    <span class="absolute truncate font-bold"
-                                          style="top: 13.5%; left: 17%; right: 4%; font-size: clamp(5px, 1.8vw, 9px); line-height: 1; color: #1a1a1a;">
-                                        {{ $file->file_number }}
-                                    </span>
-                                    <!-- NAME OF HOLDER -->
-                                    <span class="absolute truncate font-semibold"
-                                          style="top: 18.5%; left: 30%; right: 4%; font-size: clamp(4px, 1.6vw, 8px); line-height: 1; color: #1a1a1a;">
-                                        {{ $file->file_title ?: '—' }}
-                                    </span>
-                                    <!-- PLOT NUMBER -->
-                                    <span class="absolute truncate font-semibold"
-                                          style="top: 23%; left: 28%; right: 52%; font-size: clamp(4px, 1.4vw, 7px); line-height: 1; color: #1a1a1a;">
-                                        {{ $file->plot_number ?: '—' }}
-                                    </span>
-                                    <!-- LOCATION -->
-                                    <span class="absolute truncate font-semibold"
-                                          style="top: 23%; left: 56%; right: 4%; font-size: clamp(4px, 1.4vw, 7px); line-height: 1; color: #1a1a1a;">
-                                        {{ $file->location ?: '—' }}
-                                    </span>
-                                    <!-- Bottom FILE NO -->
-                                    <span class="absolute truncate font-bold"
-                                          style="top: 92.5%; left: 17%; right: 35%; font-size: clamp(4px, 1.4vw, 7px); line-height: 1; color: #1a1a1a;">
-                                        {{ $file->file_number }}
-                                    </span>
-                                </div>
-                            </div>
+                            {{-- No cover page at all: blank file cover with the file's details. --}}
+                            @include('filearchive.partials.cover_template', ['file' => $file])
                         @endif
                     </div>
 

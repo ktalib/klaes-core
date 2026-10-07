@@ -3989,6 +3989,38 @@ class LandRecommendationController extends Controller
     }
 
     /**
+     * Use Subdivision Template records with no mother recommendation uploaded yet.
+     *
+     * Such a record joins no batch, so batchesMissingMotherRecommendation() never sees
+     * it: its letter hangs off LandRecommendationBatchDocument::subdivisionTemplateKey()
+     * instead. Any one slot on file counts as uploaded, the same test the list's badge
+     * and menu use.
+     *
+     * @return array<string,string> document key => mother file number (or the record's own)
+     */
+    private function subdivisionTemplatesMissingMotherRecommendation(array $ids): array
+    {
+        $records = LandRecommendation::whereIn('id', $ids)
+            ->where('use_subdivision_template', 1)
+            ->get(['id', 'file_number', 'old_file_number']);
+
+        $missing = [];
+        foreach ($records as $rec) {
+            $held = LandRecommendationBatchDocument::subdivisionTemplateWhere(
+                LandRecommendationBatchDocument::query(), 'rofo_batch_id', (int) $rec->id
+            )->exists();
+
+            if (!$held) {
+                $mother = trim((string) $rec->old_file_number);
+                $missing[LandRecommendationBatchDocument::subdivisionTemplateKey((int) $rec->id)]
+                    = $mother !== '' ? $mother : (string) $rec->file_number;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
      * Refuse a capture on a file whose Occupancy Permit names a holder that File
      * Indexing does not, while nothing on the file explains the change.
      *
@@ -4135,7 +4167,8 @@ class LandRecommendationController extends Controller
      */
     private function motherRecommendationGate(array $ids): ?string
     {
-        $missing = $this->batchesMissingMotherRecommendation($ids);
+        $missing = $this->batchesMissingMotherRecommendation($ids)
+            + $this->subdivisionTemplatesMissingMotherRecommendation($ids);
 
         if (!$missing) {
             return null;
@@ -4151,10 +4184,10 @@ class LandRecommendationController extends Controller
 
         return count($missing) === 1
             ? 'The mother recommendation for ' . $mothers . ' has not been uploaded yet. '
-                . 'Upload it from the batch menu first — these children inherit that letter, '
+                . 'Upload it from the batch or record menu first — these files inherit that letter, '
                 . 'so approving them now would leave records pointing at nothing.'
-            : 'These subdivision batches have no mother recommendation uploaded yet: ' . $mothers . '. '
-                . 'Upload each one from its batch menu before approving.';
+            : 'These have no mother recommendation uploaded yet: ' . $mothers . '. '
+                . 'Upload each one from its batch or record menu before approving.';
     }
 
     public function approve($id)

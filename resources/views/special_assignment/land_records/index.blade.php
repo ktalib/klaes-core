@@ -751,12 +751,11 @@ document.addEventListener('DOMContentLoaded', function () {
         lucide.createIcons();
     });
 
-    // Lookup from file indexing
-    document.getElementById('btn-tpl-lookup').addEventListener('click', async function () {
-        const fileNo = tplInput.value.trim();
-        if (!fileNo) return;
+    // File number comes from the global selector, then details from file indexing
+    async function lookupTplFile(fileNo) {
+        tplInput.value = fileNo;
         tplMsg.className = 'text-xs mt-1 text-gray-400'; tplMsg.textContent = 'Looking up…'; tplMsg.classList.remove('hidden');
-        tplPreview.classList.add('hidden'); tplPrint.disabled = true;
+        tplPreview.classList.add('hidden'); tplPrint.disabled = true; tplCurrentData = null;
         try {
             const ctrl = new AbortController();
             const t = setTimeout(() => ctrl.abort(), 8000);
@@ -784,10 +783,19 @@ document.addEventListener('DOMContentLoaded', function () {
             tplMsg.className = 'text-xs mt-1 text-red-500';
             tplMsg.textContent = err.name === 'AbortError' ? 'Lookup timed out.' : 'Lookup failed.';
         }
-    });
+    }
 
-    // Allow Enter key in input
-    tplInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btn-tpl-lookup').click(); });
+    document.getElementById('btn-tpl-pick-fileno').addEventListener('click', function () {
+        if (!window.GlobalFileNoModal) {
+            alert('File number selector not loaded. Please refresh the page.');
+            return;
+        }
+        window.GlobalFileNoModal.open({
+            callback: function (data) {
+                if (data && data.fileNumber) lookupTplFile(data.fileNumber);
+            }
+        });
+    });
 
     document.getElementById('btn-print-template').addEventListener('click', function () {
         if (!tplCurrentData) return;
@@ -818,11 +826,11 @@ $(document).on('click', '.btn-lr-template', function () {
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">File Number <span class="text-red-500">*</span></label>
                 <div class="flex gap-2">
-                    <input type="text" id="tpl-fileno-input" placeholder="Enter file number…"
-                        class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)] uppercase">
-                    <button type="button" id="btn-tpl-lookup"
+                    <input type="text" id="tpl-fileno-input" readonly disabled placeholder="No file number selected"
+                        class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700 cursor-default outline-none">
+                    <button type="button" id="btn-tpl-pick-fileno"
                         class="inline-flex items-center gap-1.5 px-4 py-2 bg-[rgb(186,191,12)] text-white text-sm font-medium rounded-lg hover:opacity-90">
-                        <i data-lucide="search" class="h-4 w-4"></i> Lookup
+                        <i data-lucide="search" class="h-4 w-4"></i> Select
                     </button>
                 </div>
                 <p id="tpl-lookup-msg" class="text-xs mt-1 hidden"></p>

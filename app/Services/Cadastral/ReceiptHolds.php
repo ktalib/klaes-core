@@ -10,21 +10,16 @@ use Illuminate\Support\Facades\Schema;
 /**
  * The investigation hold on a cadastral receipt (rebuild plan Phase 3).
  *
- * A receipt whose file number hits the duplicate register or shares its plot
- * with another file goes On Hold, and a held receipt cannot be registered until
- * an officer clears it with a remark. An officer can also place a hold by hand.
+ * An officer places a hold by hand, and a held receipt cannot be registered
+ * until an officer clears it with a remark. Duplicate-register and same-plot
+ * findings are recorded as duplicate_flag / duplicate_note but, since
+ * 2026-10-07, no longer hold the file automatically (by request).
  *
  * WORKS BEFORE ITS MIGRATION. The hold_* columns arrive with
  * 2026_10_01_110000_add_hold_columns_to_cadastral_file_receipts. Until then
  * available() is false: nothing here writes a hold column, the queue shows no
  * hold, and registration goes ahead on a flagged file exactly as in Phase 2 —
  * the duplicate flag and note are still kept, as they always were.
- *
- * WHEN A CLEARED HOLD STANDS. Registration re-runs the checks, and the same
- * findings would hold the file again for ever. So a clearing covers the
- * findings it was given: if the note computed at registration is the note the
- * officer cleared, the file proceeds; if anything new has turned up since, it
- * is held again.
  *
  * The hold_* columns carry the current hold only; audit_logs carries each
  * placement and clearing.
@@ -81,60 +76,28 @@ class ReceiptHolds
     }
 
     /**
-     * The hold_* values for a new receipt whose intake found something, merged
-     * into the attributes store() is about to create. Empty when there is
-     * nothing to hold or the columns do not exist yet.
+     * The hold_* values for a new receipt. Always empty: findings no longer
+     * hold a file automatically (2026-10-07, by request). They are kept as
+     * duplicate_flag / duplicate_note, and an officer can still hold by hand.
      */
     public function intakeHold(array $findings): array
     {
-        if (! $findings['flag'] || ! self::available()) {
-            return [];
-        }
-
-        return [
-            'hold_status'    => CadastralFileReceipt::HOLD_ON,
-            'hold_reason'    => 'Automatic on intake: ' . $findings['note'],
-            'hold_placed_by' => auth()->id(),
-            'hold_placed_at' => now(),
-        ];
+        return [];
     }
 
     /**
      * Apply registration-time findings to a LOCKED receipt, in memory.
      *
-     * Always refreshes duplicate_flag / duplicate_note. Returns true when the
-     * receipt is (now) on hold and must not be registered; the caller saves the
-     * receipt either way, so a hold placed here is kept.
+     * Always refreshes duplicate_flag / duplicate_note. Returns true only when
+     * the receipt is already on hold (placed by hand, or an automatic hold from
+     * before 2026-10-07 not yet cleared); findings alone never hold it.
      */
     public function holdForRegistration(CadastralFileReceipt $receipt, array $findings): bool
     {
-        $previousNote = $receipt->duplicate_note;
-
         $receipt->duplicate_flag = $findings['flag'];
         $receipt->duplicate_note = $findings['note'];
 
-        if (! self::available()) {
-            return false;
-        }
-
-        if ($receipt->isOnHold()) {
-            return true;
-        }
-
-        if (! $findings['flag']) {
-            return false;
-        }
-
-        $clearedTheseFindings = $receipt->hold_status === CadastralFileReceipt::HOLD_CLEARED
-            && $previousNote === $findings['note'];
-
-        if ($clearedTheseFindings) {
-            return false;
-        }
-
-        $this->fillHold($receipt, 'Automatic on registration: ' . $findings['note']);
-
-        return true;
+        return self::available() && $receipt->isOnHold();
     }
 
     /** Put the hold on a receipt, in memory. */

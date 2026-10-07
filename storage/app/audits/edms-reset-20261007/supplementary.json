@@ -1,0 +1,66 @@
+{
+    "distinct_file_indexing_ids": {
+        "scannings": {
+            "ST": 13,
+            "passport": 2291,
+            "oss_passport": 2262,
+            "parcel_upload": 26
+        },
+        "pagetypings": {
+            "ST": 2,
+            "parcel_upload": 26
+        }
+    },
+    "candidate_rows_sharing_protected_path": {
+        "scannings": 0,
+        "pagetypings": 0
+    },
+    "candidate_distinct_paths": {
+        "scannings": 268513,
+        "pagetypings": 216143
+    },
+    "additional_queries": {
+        "page_commissioning_membership": [
+            {
+                "origin": "UNSTAMPED_OR_UNMATCHED",
+                "n": "218281"
+            },
+            {
+                "origin": "MLS",
+                "n": "7"
+            }
+        ],
+        "orphan_scans": [
+            {
+                "n": "117"
+            }
+        ],
+        "orphan_pages": [
+            {
+                "n": "51"
+            }
+        ],
+        "fk_delete_behavior": [
+            {
+                "child": "scannings",
+                "parent": "scannings",
+                "on_delete": "NO_ACTION"
+            },
+            {
+                "child": "scan_reassignment_logs",
+                "parent": "scannings",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "page_types": [
+            {
+                "n": "19"
+            }
+        ],
+        "new_writes": [
+            {
+                "n": "1"
+            }
+        ]
+    }
+}

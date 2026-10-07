@@ -319,4 +319,20 @@ return [
         'create' => ['*store*', '*create*', '*.add', '*-add', '*new*', '*generate*', '*initialize*'],
         'edit' => ['*update*', '*edit*', '*save*', '*assign*', '*mark*'],
     ],
+
+    /*
+    | Who, besides Supper Admin, may use "Master Reset (Print)" on Deeds
+    | Applications for Consent — setting a consent's print count back to 0 so it
+    | can be edited and printed again.
+    |
+    | A named list rather than a module action on purpose: an unset action on a
+    | module the user can see is currently allowed (see strict_actions), so gating
+    | this on e.g. `approve` would open it to every Deeds - Consent user. Being on
+    | this list does NOT grant Delete Master, which stays Supper Admin only.
+    |
+    | Login e-mails, matched case-insensitively. Every reset is audit-logged.
+    */
+    'deeds_print_reset_users' => [
+        'nahmad644@gmail.com', // Ahmad Muhammad Nasir (#101249), added 2026-10-07
+    ],
 ];

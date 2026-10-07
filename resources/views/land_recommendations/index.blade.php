@@ -799,7 +799,20 @@
                                                     @endif
 
                                                     <!-- Approval Action -->
-                                                    @if($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $letterMissing)
+                                                    @if($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $subTpl && !$subTplDoc)
+                                                        {{-- Same hold for a Use Subdivision Template record: it inherits the
+                                                             mother's letter, so approving before that scan is up approves a
+                                                             recommendation with nothing behind it. motherRecommendationGate
+                                                             refuses it server-side as well. --}}
+                                                        <span title="Upload the mother recommendation this file inherits first."
+                                                              class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
+                                                            <i data-lucide="check-circle" class="h-4 w-4 text-slate-200"></i>
+                                                            <span class="flex-1 leading-tight">
+                                                                Approve
+                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the mother recommendation first</span>
+                                                            </span>
+                                                        </span>
+                                                    @elseif($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $letterMissing)
                                                         {{-- Held shut on purpose: approving now would approve a
                                                              recommendation with nothing behind it. The server
                                                              refuses this too — this only saves the round trip. --}}
@@ -2302,8 +2315,16 @@
                     },
                     body: JSON.stringify({ ids })
                 })
-                .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
-                .catch(err => Swal.showValidationMessage(`Request failed: ${err}`));
+                // Read the body on failure too, as approveRecord() does: a 422 names
+                // the files still waiting on their mother recommendation.
+                .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data })))
+                .then(res => {
+                    if (!res.ok || !res.data.success) {
+                        throw new Error(res.data.message || 'The approval failed.');
+                    }
+                    return res.data;
+                })
+                .catch(err => { Swal.showValidationMessage(err.message || 'Request failed.'); return false; });
             }
         }).then(result => {
             if (result.isConfirmed) {

@@ -275,6 +275,27 @@ class User extends Authenticatable implements MustVerifyEmail
             || in_array('supper admin', $roleNames, true);
     }
 
+    /**
+     * May this user use "Master Reset (Print)" on a consent application?
+     *
+     * Supper Admin always may; anyone else only when named in
+     * config('module_permissions.deeds_print_reset_users'). Deliberately narrower
+     * than Supper Admin: it does not carry Delete Master with it.
+     */
+    public function canResetConsentPrints(): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        $allowed = array_map(
+            fn ($email) => strtolower(trim((string) $email)),
+            (array) config('module_permissions.deeds_print_reset_users', [])
+        );
+
+        return in_array(strtolower(trim((string) $this->email)), $allowed, true);
+    }
+
     public function totalUser()
     {
         return User::where('parent_id', $this->id)->count();

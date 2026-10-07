@@ -477,13 +477,8 @@ class DeedsApplicationController extends Controller
 
     public function resetPrintMaster(Request $request, $id): \Illuminate\Http\JsonResponse
     {
-        // Enforce role permission Supper Admin
-        $assignRoles = collect(explode(',', (string) (auth()->user()->assign_role ?? '')))
-            ->map(fn($r) => trim($r))
-            ->filter();
-        $isSupperAdmin = $assignRoles->contains(fn($r) => strcasecmp($r, 'Supper Admin') === 0);
-
-        if (!$isSupperAdmin) {
+        // Supper Admin, or a user named in module_permissions.deeds_print_reset_users.
+        if (!auth()->user() || !auth()->user()->canResetConsentPrints()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized action.'

@@ -1,0 +1,264 @@
+{
+    "extant_land_tab_count": 25,
+    "extant_rows": [
+        {
+            "id": 41483,
+            "file_number": "RES-2024-2184",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 41489,
+            "file_number": "RES-2023-6854",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 42550,
+            "file_number": "RES-2022-7796",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 42552,
+            "file_number": "RES-2022-6153",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43546,
+            "file_number": "RES-2025-406",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43604,
+            "file_number": "RES-2015-7792",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43605,
+            "file_number": "RES-2023-5039",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43610,
+            "file_number": "RES-2021-1263",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43611,
+            "file_number": "RES-2024-2096",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43614,
+            "file_number": "RES-2024-728",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43615,
+            "file_number": "RES-2025-555",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43616,
+            "file_number": "RES-2025-572",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43617,
+            "file_number": "RES-2025-570",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43620,
+            "file_number": "RES-2022-7393",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43621,
+            "file_number": "RES-2023-6123",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43622,
+            "file_number": "RES-2023-6843",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43623,
+            "file_number": "RES-2023-6841",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43624,
+            "file_number": "RES-2023-6842",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43625,
+            "file_number": "RES-2023-6839",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43626,
+            "file_number": "RES-2023-6845",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43628,
+            "file_number": "CON-COM-2026-17",
+            "old_file_number": "CON-COM-2021-267",
+            "type": "Conversion",
+            "use_subdivision_template": true,
+            "is_existing_recommendation": false
+        },
+        {
+            "id": 43629,
+            "file_number": "CON-COM-2026-16",
+            "old_file_number": "CON-COM-2021-268",
+            "type": "Conversion",
+            "use_subdivision_template": true,
+            "is_existing_recommendation": false
+        },
+        {
+            "id": 43725,
+            "file_number": "COM-2026-321",
+            "old_file_number": "COM-1985-6",
+            "type": "Direct",
+            "use_subdivision_template": true,
+            "is_existing_recommendation": false
+        },
+        {
+            "id": 43844,
+            "file_number": "RES-2026-3494",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        },
+        {
+            "id": 43851,
+            "file_number": "RES-2023-6844",
+            "old_file_number": null,
+            "type": "Direct",
+            "use_subdivision_template": false,
+            "is_existing_recommendation": true
+        }
+    ],
+    "mother_documents": [
+        {
+            "id": 1,
+            "key": "RB-20260828105908-3C9E",
+            "mother_file_no": "CON-IND-2024-9",
+            "path": "land_recommendations/batch_documents/mother-recommendation-RB-20260828105908-3C9E-20260903124151-4cab4f.jpg",
+            "resolved_by_current_model": "F:\\\\storage\\app/public/land_recommendations/batch_documents/mother-recommendation-RB-20260828105908-3C9E-20260903124151-4cab4f.jpg",
+            "local_fallback_exists": false
+        },
+        {
+            "id": 2,
+            "key": "RB-20260903145820-22BF",
+            "mother_file_no": "RES-1991-3210",
+            "path": "land_recommendations/batch_documents/mother-recommendation-RB-20260903145820-22BF-20260904145632-55e476.jpg",
+            "resolved_by_current_model": "F:\\\\storage\\app/public/land_recommendations/batch_documents/mother-recommendation-RB-20260903145820-22BF-20260904145632-55e476.jpg",
+            "local_fallback_exists": false
+        },
+        {
+            "id": 3,
+            "key": "RB-20260909161614-0646",
+            "mother_file_no": "CON-COM-2014-226",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/CON-COM-2014-226/Recommendation/mother-recommendation-RB-20260909161614-0646-20260910133947-ddfc72.jpg",
+            "resolved_by_current_model": null,
+            "local_fallback_exists": true
+        },
+        {
+            "id": 5,
+            "key": "SUBTPL-43628",
+            "mother_file_no": "CON-COM-2021-267",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/CON-COM-2021-267/Recommendation/mother-recommendation-SUBTPL-43628-20260924174911-bd33f9.jpeg",
+            "resolved_by_current_model": null,
+            "local_fallback_exists": true
+        },
+        {
+            "id": 6,
+            "key": "SUBTPL-43629",
+            "mother_file_no": "CON-COM-2021-268",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/CON-COM-2021-268/Recommendation/mother-recommendation-SUBTPL-43629-20260924180132-577207.jpeg",
+            "resolved_by_current_model": "F:\\\\storage\\app/public/EDMS/SCAN_UPLOAD/Lands_Registry/CON-COM-2021-268/Recommendation/mother-recommendation-SUBTPL-43629-20260924180132-577207.jpeg",
+            "local_fallback_exists": false
+        },
+        {
+            "id": 11,
+            "key": "SUBTPL-43725",
+            "mother_file_no": "COM-1985-6",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/COM-1985-6/Recommendation/mother-recommendation-SUBTPL-43725-20261005172803-485758.jpeg",
+            "resolved_by_current_model": "F:\\\\storage\\app/public/EDMS/SCAN_UPLOAD/Lands_Registry/COM-1985-6/Recommendation/mother-recommendation-SUBTPL-43725-20261005172803-485758.jpeg",
+            "local_fallback_exists": false
+        },
+        {
+            "id": 12,
+            "key": "RB-20261007142241-A1E0",
+            "mother_file_no": "CON-RES-2012-42",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/CON-RES-2012-42/Recommendation/mother-recommendation-RB-20261007142241-A1E0-20261007143446-76abee.jpg",
+            "resolved_by_current_model": "F:\\\\storage\\app/public/EDMS/SCAN_UPLOAD/Lands_Registry/CON-RES-2012-42/Recommendation/mother-recommendation-RB-20261007142241-A1E0-20261007143446-76abee.jpg",
+            "local_fallback_exists": false
+        }
+    ],
+    "individual_document_count": 22
+}

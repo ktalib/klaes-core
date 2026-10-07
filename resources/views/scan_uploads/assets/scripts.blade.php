@@ -2211,6 +2211,10 @@
             elements.pdfConversionModal.classList.remove('hidden');
         }
 
+        // Converted pages go after the file's existing pages (they used to all
+        // land on position 0 and shuffle into the front of the file).
+        let nextDisplayOrder = await fetchNextDisplayOrder(indexedFile);
+
         for (let i = 0; i < pdfDocs.length; i++) {
             const doc = pdfDocs[i];
             const pdfName = doc.fileName || doc.originalName || `document_${i + 1}.pdf`;
@@ -2254,7 +2258,7 @@
                     };
 
                     try {
-                        await uploadFileToServer(uploadDoc, indexedFile);
+                        await uploadFileToServer(uploadDoc, indexedFile, nextDisplayOrder++);
                         uploads.push(page.file.name);
                     } catch (uploadError) {
                         console.error(`Failed to upload converted page ${page.file.name}:`, uploadError);
@@ -2285,6 +2289,38 @@
         if (elements.pdfConversionProgressPercent) elements.pdfConversionProgressPercent.textContent = `${Math.round(progress)}%`;
         if (elements.pdfConversionProgressBar) elements.pdfConversionProgressBar.style.width = `${progress}%`;
         if (elements.pdfConversionCurrentFile && text) elements.pdfConversionCurrentFile.textContent = text;
+    }
+
+    /**
+     * The first free page position on a file: one past the highest
+     * display_order it already has, or 0 for a file with no pages yet.
+     *
+     * Uploads used to number their pages from 0 every time, so a second batch
+     * landed on the same positions as the first and Page Typing interleaved the
+     * two — which looked like the arrangement made here had been lost.
+     */
+    async function fetchNextDisplayOrder(indexedFile) {
+        const numericId = Number(indexedFile?.id);
+        if (!Number.isInteger(numericId) || numericId <= 0) {
+            return 0;
+        }
+        try {
+            const response = await fetch(`/scan-uploads/file-scans?file_indexing_id=${encodeURIComponent(numericId)}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json();
+            const documents = payload?.data?.documents || [];
+            const orders = documents
+                .map(doc => Number(doc.displayOrder))
+                .filter(order => Number.isFinite(order));
+            if (orders.length) {
+                return Math.max(...orders) + 1;
+            }
+            return documents.length;
+        } catch (error) {
+            console.warn('Could not read the file\'s existing page order; numbering from 0.', error);
+            return 0;
+        }
     }
 
     // Server Upload Functions
@@ -2605,13 +2641,16 @@
 
         const CONCURRENCY_LIMIT = 5;
         const uploadQueue = [...state.uploadDocuments.entries()];
+        // Pages keep the order arranged in the panel, placed after any pages
+        // the file already has.
+        const displayOrderBase = await fetchNextDisplayOrder(indexedFile);
 
         async function uploadWorker() {
             while (uploadQueue.length > 0) {
                 const [index, doc] = uploadQueue.shift();
 
                 try {
-                    const serverDoc = await uploadFileToServer(doc, indexedFile, index);
+                    const serverDoc = await uploadFileToServer(doc, indexedFile, displayOrderBase + index);
                     successfulUploads++;
 
                     const normalized = normalizeServerDocument({
@@ -4334,62 +4373,84 @@
             return;
         }
 
-        const endpoint = getApplyEndpoint(activeItem.scanId);
-        if (!endpoint) {
-            alert('Apply endpoint is not configured.');
-            return;
+        // Every uploaded page edited since the last apply, not just the one on
+        // screen: editing page 3, moving to page 4 and applying used to drop
+        // page 3's edit without a word.
+        const targets = state.previewSettings.items.filter(item => item.scanId && item.dirty);
+        if (!targets.includes(activeItem)) {
+            targets.push(activeItem);
         }
 
+        const failures = [];
         try {
             setApplyChangesLoading(true);
-            const source = activeItem.src || elements.previewImage?.src;
-            if (!source) {
-                throw new Error('Unable to read the edited image.');
+            for (const item of targets) {
+                try {
+                    await applyPreviewItemToServer(item, item === activeItem ? elements.previewImage?.src : null);
+                    item.dirty = false;
+                } catch (error) {
+                    console.error('Apply changes failed', item.fileName, error);
+                    failures.push(`${item.fileName || 'page ' + item.scanId}: ${error.message || 'failed'}`);
+                }
             }
 
-            const blob = await (await fetch(source)).blob();
-            const safeName = (activeItem.fileName || `scan-${activeItem.scanId}.jpg`).replace(/[^\w.\-]/g, '_');
-            const formData = new FormData();
-            formData.append('file', blob, safeName);
-
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': state.csrfToken || ''
-                },
-                body: formData
-            });
-
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success) {
-                throw new Error(payload?.message || 'Unable to apply changes.');
+            const saved = targets.length - failures.length;
+            if (saved) {
+                showNotification(saved === 1 ? 'Changes applied to this document.' : `Changes applied to ${saved} pages.`);
             }
-
-            const updatedDocument = payload.data || null;
-            if (updatedDocument) {
-                updateDocumentInBatches(updatedDocument);
-                const refreshedSrc = withCacheBuster(
-                    updatedDocument.downloadUrl ||
-                    updatedDocument.webPath ||
-                    updatedDocument.serverPath ||
-                    source
-                );
-                activeItem.scanId = activeItem.scanId || updatedDocument.id || updatedDocument.scanId;
-                activeItem.src = refreshedSrc;
-                activeItem.fileName = updatedDocument.fileName || updatedDocument.originalName || activeItem.fileName;
-                activeItem.fileSize = updatedDocument.fileSize || activeItem.fileSize;
-                activeItem.paperSize = updatedDocument.paperSize || activeItem.paperSize;
-                activeItem.documentType = updatedDocument.documentType || activeItem.documentType;
-            }
-
-            showNotification('Changes applied to this document.');
             renderPreviewModal();
             updateUI();
-        } catch (error) {
-            console.error('Apply changes failed', error);
-            alert(error.message || 'Unable to apply changes.');
+            if (failures.length) {
+                alert('Some pages could not be saved:\n' + failures.join('\n'));
+            }
         } finally {
             setApplyChangesLoading(false);
+        }
+    }
+
+    /** Upload one preview page's current image over its scan on the server. */
+    async function applyPreviewItemToServer(item, fallbackSrc = null) {
+        const endpoint = getApplyEndpoint(item.scanId);
+        if (!endpoint) {
+            throw new Error('Apply endpoint is not configured.');
+        }
+        const source = item.src || fallbackSrc;
+        if (!source) {
+            throw new Error('Unable to read the edited image.');
+        }
+
+        const blob = await (await fetch(source)).blob();
+        const safeName = (item.fileName || `scan-${item.scanId}.jpg`).replace(/[^\w.\-]/g, '_');
+        const formData = new FormData();
+        formData.append('file', blob, safeName);
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': state.csrfToken || ''
+            },
+            body: formData
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success) {
+            throw new Error(payload?.message || 'Unable to apply changes.');
+        }
+
+        const updatedDocument = payload.data || null;
+        if (updatedDocument) {
+            updateDocumentInBatches(updatedDocument);
+            item.scanId = item.scanId || updatedDocument.id || updatedDocument.scanId;
+            item.src = withCacheBuster(
+                updatedDocument.downloadUrl ||
+                updatedDocument.webPath ||
+                updatedDocument.serverPath ||
+                source
+            );
+            item.fileName = updatedDocument.fileName || updatedDocument.originalName || item.fileName;
+            item.fileSize = updatedDocument.fileSize || item.fileSize;
+            item.paperSize = updatedDocument.paperSize || item.paperSize;
+            item.documentType = updatedDocument.documentType || item.documentType;
         }
     }
 
@@ -4460,6 +4521,12 @@
         activeItem.src = newSrc;
         if (elements.previewImage && elements.previewImage.src !== newSrc) {
             elements.previewImage.src = newSrc;
+        }
+
+        // An uploaded page only changes on the server when Apply Changes runs;
+        // remember it so Apply saves every edited page, not just the one showing.
+        if (activeItem.scanId) {
+            activeItem.dirty = true;
         }
 
         if (state.previewSettings.source === 'selected' && typeof activeItem.sourceIndex === 'number') {
@@ -6047,6 +6114,13 @@
     }
 
     function closePreview() {
+        // Crops and rotations on uploaded pages live only in this dialog until
+        // Apply Changes; closing used to discard them silently.
+        const unsaved = (state.previewSettings.items || []).filter(item => item.scanId && item.dirty).length;
+        if (unsaved && !confirm(`${unsaved} edited page(s) have not been saved. Close and discard the edits?\n\nChoose Cancel, then Apply Changes, to keep them.`)) {
+            return;
+        }
+
         state.previewOpen = false;
         state.currentFolderId = null;
         state.previewSettings.items = [];

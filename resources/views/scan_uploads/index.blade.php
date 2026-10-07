@@ -576,7 +576,9 @@
                 </div>
               </div>
 
-              @include('scan_uploads.partials.file-type-cascade')
+              {{-- File Type (master folder) picker removed from the upload card:
+                   uploads now keep the file's existing classification, which the
+                   server applies when no edms_file_type is posted. --}}
               </div>
               </div>
             </div>

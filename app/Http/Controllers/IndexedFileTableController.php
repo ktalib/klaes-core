@@ -388,6 +388,13 @@ class IndexedFileTableController extends Controller
                 ->groupBy('file_indexing_id')
                 ->pluck('total', 'file_indexing_id');
 
+        // Keep the actual document counts; only workflow progress starts again.
+        $resetBaseline = \App\Support\EdmsWorkflowReset::baseline();
+        $workflowScanningCounts = $resetBaseline
+            ? \App\Support\EdmsWorkflowReset::counts('scannings', $indexedIds, $resetBaseline) : $scanningCounts;
+        $workflowTypingCounts = $resetBaseline
+            ? \App\Support\EdmsWorkflowReset::counts('pagetypings', $indexedIds, $resetBaseline) : $pageTypingCounts;
+
         $relatedFileCounts = $indexedIds->isEmpty()
             ? collect()
             : DB::connection('sqlsrv')
@@ -474,7 +481,7 @@ class IndexedFileTableController extends Controller
                 })
                 ->filter();
 
-        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup) {
+        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup) {
             $scanned = (int) ($scanningCounts->get($item->id) ?? 0);
             $typed = (int) ($pageTypingCounts->get($item->id) ?? 0);
             $hasRelatedFilesFromLinks = (int) ($relatedFileCounts->get($item->id) ?? 0) > 0;
@@ -501,9 +508,9 @@ class IndexedFileTableController extends Controller
             }
 
             $status = 'Indexed';
-            if ($typed > 0) {
+            if ((int) $workflowTypingCounts->get($item->id, 0) > 0) {
                 $status = 'Typed';
-            } elseif ($scanned > 0) {
+            } elseif ((int) $workflowScanningCounts->get($item->id, 0) > 0) {
                 $status = 'Scanned';
             }
 

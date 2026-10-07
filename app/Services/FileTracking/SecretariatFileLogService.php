@@ -47,6 +47,49 @@ class SecretariatFileLogService
         return ['code' => $row->office_code, 'name' => trim($row->office_name), 'department' => $row->department];
     }
 
+    /**
+     * The office a user logs files for, from the Rank and Department on their
+     * account (config/file_movement.php). Null when nothing maps — such a user
+     * cannot log files until an override or a mapping is added.
+     *
+     * @return array{code:string,name:string,department:?string,source:string}|null
+     */
+    public function officeFor(User $user): ?array
+    {
+        $map = config('file_movement');
+        $rank = trim((string) $user->rank);
+
+        $code = $map['user_offices'][$user->id] ?? null;
+        $source = 'override';
+
+        if (!$code && $rank !== '') {
+            $code = collect($map['rank_offices'] ?? [])
+                ->first(fn ($office, $name) => strcasecmp($name, $rank) === 0);
+            $source = 'rank';
+        }
+
+        if (!$code && $user->department_id) {
+            $department = DB::connection('sqlsrv')->table('departments')->where('id', $user->department_id)->value('name');
+            $offices = collect($map['department_offices'] ?? [])
+                ->first(fn ($o, $name) => strcasecmp($name, trim((string) $department)) === 0);
+            if ($offices) {
+                $isDeputy = collect($map['deputy_ranks'] ?? [])->contains(fn ($r) => strcasecmp($r, $rank) === 0);
+                $code = $isDeputy ? ($offices['deputy'] ?? $offices['director']) : $offices['director'];
+                $source = 'department';
+            }
+        }
+
+        if (!$code) {
+            return null;
+        }
+
+        try {
+            return $this->office($code) + ['source' => $source];
+        } catch (RuntimeException $e) {
+            return null; // mapped to an office that is missing or inactive
+        }
+    }
+
     public function offices(): Collection
     {
         return DB::connection('sqlsrv')->table('offices')->where('is_active', 1)
@@ -72,6 +115,14 @@ class SecretariatFileLogService
         }
         if ($entryType === self::ENTRY_NON_FILE && !$this->clean($data['file_title'] ?? null)) {
             throw new RuntimeException('Give the document a title or subject.');
+        }
+        if (($data['received_via'] ?? null) === 'manual') {
+            if (!$this->purposeChoice($data['request_purpose_id'] ?? null, $data['request_purpose_other'] ?? null)) {
+                throw new RuntimeException('Choose a request purpose, or choose Other and specify it.');
+            }
+            if (!$this->officerChoice($data['receiving_officer_id'] ?? null, $data['receiving_officer_other'] ?? null)) {
+                throw new RuntimeException('Choose a receiving officer, or choose Other and specify the name.');
+            }
         }
 
         return DB::connection('sqlsrv')->transaction(function () use ($office, $data, $user, $entryType, $fileNumber) {
@@ -130,16 +181,11 @@ class SecretariatFileLogService
                 $this->composeNotes($data, $fromName),
                 $user->id,
                 $userName,
-                [
-                    'status'            => 'active',
-                    'accepted_by'       => $user->id,
-                    'accepted_by_name'  => $userName,
-                    'acceptance_source' => 'secretariat_receive',
-                    'purpose'           => 'received',
-                ]
+                $this->receiptOptions($data, $user, $userName)
             );
 
             $this->markHeld($tracker, $office, $userName);
+            $this->stampPurpose($tracker, $data);
             if (strtoupper((string) $tracker->status) === FileTracker::STATUS_COMPLETED) {
                 $tracker->status = FileTracker::STATUS_ACTIVE;
             }
@@ -149,17 +195,51 @@ class SecretariatFileLogService
         });
     }
 
+    /**
+     * Active MLPP staff, as offered by the main Log a File page, with their
+     * department name so the page can list the destination's people first.
+     */
+    public function receivingOfficers(): Collection
+    {
+        return DB::connection('sqlsrv')->table('users as u')
+            ->leftJoin('departments as d', 'd.id', '=', 'u.department_id')
+            ->where('u.is_active', 1)
+            ->where('u.staff_type_category', 'MLPP')
+            ->orderBy('u.first_name')->orderBy('u.last_name')
+            ->get(['u.id', 'u.first_name', 'u.last_name', 'u.rank', 'u.username', 'd.name as department'])
+            ->map(fn ($o) => [
+                'id'         => (int) $o->id,
+                'name'       => trim($o->first_name . ' ' . $o->last_name),
+                'rank'       => $o->rank,
+                // Several staff share a name; the username tells them apart.
+                'username'   => $o->username,
+                'department' => $o->department,
+            ]);
+    }
+
     /** @return FileTracker */
-    public function forward(string $officeCode, int $trackerId, string $toOfficeCode, ?string $purpose, ?string $notes, User $user): FileTracker
+    public function forward(string $officeCode, int $trackerId, string $toOfficeCode, ?int $purposeId, ?int $officerId, ?string $notes, User $user,
+                            ?string $purposeOther = null, ?string $officerOther = null): FileTracker
     {
         $office = $this->office($officeCode);
         $to = $this->office($toOfficeCode);
+
+        // {id, name}; id is null for an "Other" purpose / officer typed by hand.
+        $purpose = $this->purposeChoice($purposeId, $purposeOther);
+        if (!$purpose) {
+            throw new RuntimeException('Choose a request purpose, or choose Other and specify it.');
+        }
+        $officer = $this->officerChoice($officerId, $officerOther);
+        if (!$officer) {
+            throw new RuntimeException('Choose a receiving officer, or choose Other and specify the name.');
+        }
+        $officerName = $officer->name;
 
         if ($to['code'] === $office['code']) {
             throw new RuntimeException('Choose a different office to send the file to.');
         }
 
-        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $notes, $user) {
+        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user) {
             $tracker = FileTracker::lockForUpdate()->find($trackerId);
             if (!$tracker) {
                 throw new RuntimeException('File tracker not found.');
@@ -189,11 +269,13 @@ class SecretariatFileLogService
                 $user->id,
                 $userName,
                 [
-                    'status'                => 'pending_acceptance',
-                    'requires_acceptance'   => true,
-                    'purpose'               => $this->clean($purpose),
-                    'receiving_office_code' => $to['code'],
-                    'receiving_office_name' => $to['name'],
+                    'status'                 => 'pending_acceptance',
+                    'requires_acceptance'    => true,
+                    'purpose'                => $purpose->name,
+                    'receiving_office_code'  => $to['code'],
+                    'receiving_office_name'  => $to['name'],
+                    'receiving_officer_id'   => $officer->id,
+                    'receiving_officer_name' => $officerName,
                 ]
             );
 
@@ -205,8 +287,10 @@ class SecretariatFileLogService
 
             $tracker->receiving_office_code = $to['code'];
             $tracker->receiving_office_name = $to['name'];
-            $tracker->receiving_officer_id = null;
-            $tracker->receiving_officer_name = null;
+            $tracker->receiving_officer_id = $officer->id;
+            $tracker->receiving_officer_name = $officerName;
+            $tracker->request_purpose_id = $purpose->id;
+            $tracker->request_purpose_name = $purpose->name;
             $tracker->assignment_status = FileTracker::ASSIGNMENT_PENDING;
             $tracker->assignment_accepted_at = null;
             $tracker->save();
@@ -228,14 +312,24 @@ class SecretariatFileLogService
         $atMyOffice = FileTracker::where(function ($q) use ($code) {
             $q->where('current_office_code', $code)->orWhere('receiving_office_code', $code);
         })
-            ->whereRaw("UPPER(ISNULL(status,'')) NOT IN ('CANCELLED')")
+            ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(status,'')))) NOT IN ('CANCELLED', 'COMPLETED')")
             ->orderByDesc('updated_at')
             ->limit(500)
             ->get();
 
+        // A file can have several trackers (commissioning, each log-out, re-logs).
+        // Only the newest says where the file is now; an older cycle that still ends
+        // in a pending hand-over would otherwise list the same file as both
+        // "pending" and "held".
+        $newestIds = $this->newestTrackerIds($atMyOffice->pluck('file_number'));
+
         $pending = [];
         $held = [];
         foreach ($atMyOffice as $tracker) {
+            $key = strtoupper(trim((string) $tracker->file_number));
+            if ($key !== '' && isset($newestIds[$key]) && (int) $newestIds[$key] !== (int) $tracker->id) {
+                continue;
+            }
             $log = $tracker->movement_log ?: [];
             $last = $log ? end($log) : null;
             if (!$last) {
@@ -296,6 +390,28 @@ class SecretariatFileLogService
         return compact('pending', 'held', 'sent');
     }
 
+    /** @return array<string,int> upper-cased file number => newest live tracker id */
+    private function newestTrackerIds(Collection $fileNumbers): array
+    {
+        $numbers = $fileNumbers->filter(fn ($n) => trim((string) $n) !== '')->map(fn ($n) => trim($n))->unique()->values();
+        $out = [];
+
+        foreach ($numbers->chunk(500) as $chunk) {
+            $rows = DB::connection('sqlsrv')->table('file_tracker')
+                ->whereIn('file_number', $chunk->all())
+                ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(status,'')))) NOT IN ('CANCELLED')")
+                ->groupBy('file_number')
+                ->selectRaw('file_number, MAX(id) AS id')
+                ->get();
+            foreach ($rows as $row) {
+                $key = strtoupper(trim((string) $row->file_number));
+                $out[$key] = max((int) $row->id, $out[$key] ?? 0);
+            }
+        }
+
+        return $out;
+    }
+
     private function findTracker(?int $trackerId, ?string $fileNumber): ?FileTracker
     {
         if ($trackerId) {
@@ -308,15 +424,46 @@ class SecretariatFileLogService
         return FileTracker::lockForUpdate()
             ->whereRaw('UPPER(LTRIM(RTRIM(file_number))) = ?', [strtoupper($fileNumber)])
             ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(status,'')))) NOT IN ('CANCELLED')")
-            ->orderByDesc('updated_at')
+            // The newest tracker is the file's current cycle — the same choice
+            // Quick Search (FileTrackerApiController::track) and the profile make.
+            ->orderByDesc('id')
             ->first();
+    }
+
+    /**
+     * Indexed files matching a file number or title (read-only), newest first;
+     * the most recently indexed files when the search is empty.
+     */
+    public function searchIndexed(string $q, int $limit = 25): array
+    {
+        $q = trim($q);
+        $query = DB::connection('sqlsrv')->table('file_indexings')
+            ->select('id', 'file_number', 'file_title')
+            ->whereNotNull('file_number')->where('file_number', '<>', '')
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
+
+        if ($q !== '') {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
+            $query->where(fn ($w) => $w->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like));
+            // Exact file number first, then numbers starting with the search, then the rest.
+            $prefix = str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
+            $query->orderByRaw('CASE WHEN file_number = ? THEN 0 WHEN file_number LIKE ? THEN 1 ELSE 2 END', [$q, $prefix]);
+        }
+
+        return $query->orderByDesc('id')->limit($limit)->get()
+            ->map(fn ($r) => ['id' => (int) $r->id, 'file_number' => trim($r->file_number), 'file_title' => $r->file_title])
+            ->all();
     }
 
     private function createAtOffice(array $office, array $data, User $user, string $entryType, ?string $fileNumber): FileTracker
     {
         $now = now();
         $userName = $this->userName($user);
-        $title = $this->clean($data['file_title'] ?? null) ?: ($fileNumber ?: 'Untitled document');
+        // An indexed file keeps its indexed title; the form's field is locked for it.
+        $indexedTitle = ($entryType === self::ENTRY_FILE && $fileNumber)
+            ? $this->clean(DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $fileNumber)->orderByDesc('id')->value('file_title'))
+            : null;
+        $title = $indexedTitle ?: ($this->clean($data['file_title'] ?? null) ?: ($fileNumber ?: 'Untitled document'));
         $from = !empty($data['from_office']) ? $this->officeOrNull($data['from_office']) : null;
 
         $tracker = new FileTracker([
@@ -347,6 +494,9 @@ class SecretariatFileLogService
             'not_indexed'  => $entryType === self::ENTRY_UNINDEXED ? true : null,
             'sender'       => $this->clean($data['sender'] ?? null),
             'reference'    => $this->clean($data['reference'] ?? null),
+            // The file a letter/memo relates to. Kept here, not in file_number, so the
+            // document never stands in for that file's own tracker.
+            'related_file_number' => $entryType === self::ENTRY_NON_FILE ? $this->clean($data['related_file_number'] ?? null) : null,
             'received_via' => $this->clean($data['received_via'] ?? null),
             'logged_at'    => $office['code'],
         ], fn ($v) => $v !== null)]);
@@ -362,16 +512,11 @@ class SecretariatFileLogService
             $this->composeNotes($data, $from['name'] ?? null),
             $user->id,
             $userName,
-            [
-                'status'            => 'active',
-                'accepted_by'       => $user->id,
-                'accepted_by_name'  => $userName,
-                'acceptance_source' => 'secretariat_receive',
-                'purpose'           => 'received',
-            ]
+            $this->receiptOptions($data, $user, $userName)
         );
 
         $this->markHeld($tracker, $office, $userName);
+        $this->stampPurpose($tracker, $data);
         $tracker->save();
 
         return $tracker->refresh();
@@ -402,17 +547,289 @@ class SecretariatFileLogService
             'file_type'   => $tracker->file_type,
             'not_indexed' => !empty($meta['not_indexed']),
             'reference'   => $meta['reference'] ?? null,
-            'purpose'     => $entry['purpose'] ?? null,
+            'related_file_number' => $meta['related_file_number'] ?? null,
+            // 'received' is the internal tag on a receipt entry, not a purpose.
+            'purpose'     => (($entry['purpose'] ?? null) && strtolower($entry['purpose']) !== 'received')
+                ? $entry['purpose']
+                : $tracker->request_purpose_name,
             'notes'       => $entry['notes'] ?? null,
         ], $extra);
     }
 
+    /** Identity of one stored log entry, stable across reads. */
+    public static function logKey(array $entry): string
+    {
+        return md5(implode('|', [
+            $entry['log_id'] ?? '',
+            $entry['timestamp'] ?? '',
+            $entry['office_code'] ?? '',
+            $entry['log_in_date'] ?? '',
+            $entry['log_in_time'] ?? '',
+        ]));
+    }
+
+    /**
+     * Admin clean-up: remove one log entry from a tracker's movement log.
+     *
+     * The full before-image is written to the audit file first. Removing the
+     * newest entry makes the one before it the file's current location again
+     * (reopened as held there). A tracker's only entry is never removed, so no
+     * empty tracker is left behind.
+     */
+    public function deleteLogEntry(int $trackerId, int $index, string $key, string $reason, User $user): FileTracker
+    {
+        $reason = $this->clean($reason);
+        if (!$reason) {
+            throw new RuntimeException('Give a reason for deleting the log.');
+        }
+
+        return DB::connection('sqlsrv')->transaction(function () use ($trackerId, $index, $key, $reason, $user) {
+            $tracker = FileTracker::lockForUpdate()->find($trackerId);
+            if (!$tracker) {
+                throw new RuntimeException('File tracker not found.');
+            }
+
+            $log = array_values($tracker->movement_log ?: []);
+            if (!isset($log[$index]) || !is_array($log[$index]) || self::logKey($log[$index]) !== $key) {
+                throw new RuntimeException('This log has changed since the page loaded. Reload the file and try again.');
+            }
+            if (count($log) === 1) {
+                throw new RuntimeException("This is the tracker's only log, so it cannot be deleted here.");
+            }
+
+            $before = [
+                'movement_log'           => $log,
+                'status'                 => $tracker->status,
+                'current_office_code'    => $tracker->current_office_code,
+                'current_office_name'    => $tracker->current_office_name,
+                'receiving_office_code'  => $tracker->receiving_office_code,
+                'receiving_office_name'  => $tracker->receiving_office_name,
+                'receiving_officer_id'   => $tracker->receiving_officer_id,
+                'receiving_officer_name' => $tracker->receiving_officer_name,
+                'assignment_status'      => $tracker->assignment_status,
+                'current_holder'         => $tracker->current_holder,
+                'current_handler'        => $tracker->current_handler,
+            ];
+            $removed = $log[$index];
+            $wasNewest = $index === count($log) - 1;
+            array_splice($log, $index, 1);
+
+            if ($wasNewest) {
+                $lastIndex = count($log) - 1;
+                $last = $log[$lastIndex];
+                // The step it left by the deleted movement is where the file is again.
+                if (strtolower((string) ($last['status'] ?? '')) === 'completed') {
+                    unset($last['log_out_date'], $last['log_out_time'], $last['completion_notes']);
+                    $last['status'] = 'active';
+                    $log[$lastIndex] = $last;
+                }
+                $status = strtolower((string) ($last['status'] ?? ''));
+                $code = $last['receiving_office_code'] ?? $last['office_code'] ?? null;
+                $name = $last['receiving_office_name'] ?? $last['office_name'] ?? null;
+                $tracker->current_office_code = $code;
+                $tracker->current_office_name = $name;
+                $tracker->receiving_office_code = $code;
+                $tracker->receiving_office_name = $name;
+                $tracker->receiving_officer_id = $last['receiving_officer_id'] ?? null;
+                $tracker->receiving_officer_name = $last['receiving_officer_name'] ?? null;
+                if ($status === 'pending_acceptance') {
+                    $tracker->assignment_status = FileTracker::ASSIGNMENT_PENDING;
+                    $tracker->assignment_accepted_at = null;
+                } elseif ($status === 'active') {
+                    $tracker->assignment_status = FileTracker::ASSIGNMENT_ACCEPTED;
+                    if (strtoupper((string) $tracker->status) === FileTracker::STATUS_COMPLETED) {
+                        $tracker->status = FileTracker::STATUS_ACTIVE;
+                    }
+                }
+                $holder = $last['accepted_by_name'] ?? $last['user_name'] ?? null;
+                if ($holder) {
+                    $tracker->current_holder = $holder;
+                    $tracker->current_handler = $holder;
+                }
+            }
+
+            $tracker->movement_log = $log;
+            $tracker->total_offices = count($log);
+
+            // Audit first: if the copy cannot be written, nothing is deleted.
+            $this->auditDeletion([
+                'at'          => now()->toIso8601String(),
+                'by_user_id'  => $user->id,
+                'by_user'     => $this->userName($user),
+                'reason'      => $reason,
+                'tracker_id'  => $tracker->id,
+                'tracking_id' => $tracker->tracking_id,
+                'file_number' => $tracker->file_number,
+                'index'       => $index,
+                'removed'     => $removed,
+                'before'      => $before,
+                'after_movement_log' => $log,
+            ]);
+
+            $tracker->save();
+
+            return $tracker->refresh();
+        });
+    }
+
+    /**
+     * Admin clean-up: delete a whole tracker, as the main Log a File page does.
+     * The full row is written to the audit file first (so it can be restored).
+     * An index record pointing at it is cleared the same way the main page does
+     * when it removes a tracker (FileTrackerApiController::destroyLogEntry), so
+     * the file falls back to its resolved location; the old values are audited.
+     * A tracker that any other table points at is refused.
+     */
+    public function deleteTracker(int $trackerId, string $reason, User $user): array
+    {
+        $reason = $this->clean($reason);
+        if (!$reason) {
+            throw new RuntimeException('Give a reason for deleting the tracker.');
+        }
+
+        return DB::connection('sqlsrv')->transaction(function () use ($trackerId, $reason, $user) {
+            $db = DB::connection('sqlsrv');
+            $row = $db->table('file_tracker')->lockForUpdate()->where('id', $trackerId)->first();
+            if (!$row) {
+                throw new RuntimeException('File tracker not found.');
+            }
+
+            $linked = [];
+            foreach (['kangis_checkout_approvals', 'indexing_duplicates', 'file_tracker_department_backfill'] as $table) {
+                $n = $db->table($table)->where('file_tracker_id', $trackerId)->count();
+                if ($n) {
+                    $linked[] = "{$table} ({$n})";
+                }
+            }
+            if ($linked) {
+                throw new RuntimeException('This tracker is linked from ' . implode(', ', $linked)
+                    . ', so it cannot be deleted here. Delete its logs one by one instead.');
+            }
+
+            $indexingLinks = $db->table('file_indexings')->where('file_tracker_id', $trackerId)
+                ->get(['id', 'file_number', 'file_tracker_id', 'tracking_status', 'location_status_manual']);
+
+            $this->auditDeletion([
+                'type'        => 'tracker',
+                'at'          => now()->toIso8601String(),
+                'by_user_id'  => $user->id,
+                'by_user'     => $this->userName($user),
+                'reason'      => $reason,
+                'tracker_id'  => $row->id,
+                'tracking_id' => $row->tracking_id,
+                'file_number' => $row->file_number,
+                'row'         => (array) $row,
+                'indexing_links_cleared' => $indexingLinks->map(fn ($r) => (array) $r)->all(),
+            ]);
+
+            if ($indexingLinks->isNotEmpty()) {
+                $db->table('file_indexings')->where('file_tracker_id', $trackerId)->update([
+                    'file_tracker_id'        => null,
+                    'tracking_status'        => null,
+                    'location_status_manual' => null,
+                ]);
+            }
+            $db->table('file_tracker')->where('id', $trackerId)->delete();
+
+            return ['id' => (int) $row->id, 'file_number' => $row->file_number, 'file_title' => $row->file_title];
+        });
+    }
+
+    private function auditDeletion(array $record): void
+    {
+        $dir = storage_path('app/audits');
+        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new RuntimeException('Could not create the audit folder; nothing was deleted.');
+        }
+        $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        if (file_put_contents($dir . '/file-movement-log-deletions.jsonl', $line, FILE_APPEND | LOCK_EX) === false) {
+            throw new RuntimeException('Could not write the audit copy; nothing was deleted.');
+        }
+        \Illuminate\Support\Facades\Log::info(($record['type'] ?? '') === 'tracker' ? 'File movement tracker deleted' : 'File movement log deleted', [
+            'tracker_id' => $record['tracker_id'], 'index' => $record['index'] ?? null, 'by' => $record['by_user_id'], 'reason' => $record['reason'],
+        ]);
+    }
+
+    /**
+     * Movement options for a file received at my office. A manual log names the
+     * officer who took it and the request purpose; a scan receipt has neither.
+     */
+    private function receiptOptions(array $data, User $user, string $userName): array
+    {
+        $options = [
+            'status'              => 'active',
+            'requires_acceptance' => false,
+            'accepted_by'         => $user->id,
+            'accepted_by_name'    => $userName,
+            'acceptance_source'   => 'secretariat_receive',
+            'purpose'             => 'received',
+        ];
+
+        if ($purpose = $this->purposeChoice($data['request_purpose_id'] ?? null, $data['request_purpose_other'] ?? null)) {
+            $options['purpose'] = $purpose->name;
+        }
+        if ($officer = $this->officerChoice($data['receiving_officer_id'] ?? null, $data['receiving_officer_other'] ?? null)) {
+            $options['receiving_officer_id'] = $officer->id;
+            $options['receiving_officer_name'] = $officer->name;
+        }
+
+        return $options;
+    }
+
+    /**
+     * A request purpose from the list, or "Other" typed by hand (id null), as on
+     * Quick Search. Null when neither is given.
+     */
+    private function purposeChoice($id, ?string $other): ?object
+    {
+        if (!empty($id)) {
+            $purpose = \App\Models\RequestPurpose::find((int) $id);
+            if (!$purpose) {
+                throw new RuntimeException('That request purpose no longer exists.');
+            }
+            return (object) ['id' => $purpose->id, 'name' => $purpose->name];
+        }
+        $other = $this->clean($other);
+
+        return $other ? (object) ['id' => null, 'name' => mb_substr($other, 0, 255)] : null;
+    }
+
+    /** An active officer from the list, or "Other" typed by hand (id null). */
+    private function officerChoice($id, ?string $other): ?object
+    {
+        if (!empty($id)) {
+            $officer = User::find((int) $id);
+            if (!$officer || !$officer->is_active) {
+                throw new RuntimeException('Choose an active receiving officer.');
+            }
+            return (object) ['id' => $officer->id, 'name' => $this->userName($officer)];
+        }
+        $other = $this->clean($other);
+
+        return $other ? (object) ['id' => null, 'name' => mb_substr($other, 0, 255)] : null;
+    }
+
+    private function stampPurpose(FileTracker $tracker, array $data): void
+    {
+        if ($purpose = $this->purposeChoice($data['request_purpose_id'] ?? null, $data['request_purpose_other'] ?? null)) {
+            $tracker->request_purpose_id = $purpose->id;
+            $tracker->request_purpose_name = $purpose->name;
+        }
+        if ($officer = $this->officerChoice($data['receiving_officer_id'] ?? null, $data['receiving_officer_other'] ?? null)) {
+            $tracker->receiving_officer_id = $officer->id;
+            $tracker->receiving_officer_name = $officer->name;
+        }
+    }
+
     private function composeNotes(array $data, ?string $fromName): ?string
     {
+        $fromName = $this->clean($data['from_office_other'] ?? null) ?: $fromName;
         $parts = array_filter([
             $fromName ? "From: {$fromName}" : null,
             $this->clean($data['sender'] ?? null) ? 'Sender: ' . $this->clean($data['sender']) : null,
             $this->clean($data['reference'] ?? null) ? 'Ref: ' . $this->clean($data['reference']) : null,
+            ($data['entry_type'] ?? null) === self::ENTRY_NON_FILE && $this->clean($data['related_file_number'] ?? null)
+                ? 'File: ' . $this->clean($data['related_file_number']) : null,
             $this->clean($data['notes'] ?? null),
         ]);
 

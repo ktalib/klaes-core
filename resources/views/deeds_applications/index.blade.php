@@ -4,6 +4,9 @@
         ->map(fn($r) => trim($r))
         ->filter();
     $isSupperAdmin = $assignRoles->contains(fn($r) => strcasecmp($r, 'Supper Admin') === 0);
+    // Master Reset (Print) only — Delete Master stays Supper Admin. See
+    // config module_permissions.deeds_print_reset_users.
+    $canResetPrints = auth()->user()?->canResetConsentPrints() ?? false;
 @endphp
 @extends('layouts.app')
 
@@ -435,6 +438,7 @@
 <script src="{{ asset('js/deeds-pipeline.js') }}?v={{ @filemtime(public_path('js/deeds-pipeline.js')) }}"></script>
 <script>
   const isSupperAdmin = @json($isSupperAdmin);
+  const canResetPrints = @json($canResetPrints);
 
   document.addEventListener('DOMContentLoaded', function () {
     // ── Lucide icons ──
@@ -687,9 +691,12 @@
                       `;
           }
 
-          if (isSupperAdmin) {
+          if (isSupperAdmin || canResetPrints) {
             html += `<div class="h-px bg-slate-100 my-1"></div>`;
+          }
 
+          // Supper Admin, or a user on the print-reset list.
+          if (canResetPrints) {
             if (app.print_count > 0) {
               html += `
                             <button type="button" onclick="confirmResetPrintMaster('${app.id}', '${app.file_number}')" class="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-amber-600 hover:bg-amber-50 transition font-bold cursor-pointer">
@@ -698,7 +705,10 @@
                             </button>
                         `;
             }
+          }
 
+          // Delete Master stays Supper Admin only.
+          if (isSupperAdmin) {
             html += `
                           <button type="button" onclick="confirmSingleDeleteMaster('${app.id}', '${app.file_number}')" class="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-rose-600 hover:bg-rose-50 transition font-bold cursor-pointer">
                               <i data-lucide="trash-2" class="h-4 w-4"></i>

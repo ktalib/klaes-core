@@ -213,6 +213,9 @@ class LandRecommendationBatchDocument extends Model
         }
 
         $paths[] = Storage::disk('public')->path($relative);
+        // Historical uploads can remain in the app's local storage after the
+        // configured public disk has moved to the dedicated EDMS drive.
+        $paths[] = base_path('storage/app/public/' . $relative);
 
         return array_values(array_unique($paths));
     }

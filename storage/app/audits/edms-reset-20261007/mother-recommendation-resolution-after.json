@@ -1,0 +1,41 @@
+{
+    "mother_uploads": 7,
+    "resolved": 7,
+    "rows": [
+        {
+            "id": 1,
+            "mother_file_no": "CON-IND-2024-9",
+            "resolved": true
+        },
+        {
+            "id": 2,
+            "mother_file_no": "RES-1991-3210",
+            "resolved": true
+        },
+        {
+            "id": 3,
+            "mother_file_no": "CON-COM-2014-226",
+            "resolved": true
+        },
+        {
+            "id": 5,
+            "mother_file_no": "CON-COM-2021-267",
+            "resolved": true
+        },
+        {
+            "id": 6,
+            "mother_file_no": "CON-COM-2021-268",
+            "resolved": true
+        },
+        {
+            "id": 11,
+            "mother_file_no": "COM-1985-6",
+            "resolved": true
+        },
+        {
+            "id": 12,
+            "mother_file_no": "CON-RES-2012-42",
+            "resolved": true
+        }
+    ]
+}

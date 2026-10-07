@@ -19,8 +19,7 @@ use Illuminate\Support\Str;
  * and lands in TWO places, both of which matter:
  *
  *   1. the file's own EDMS scan folder (EDMS/SCAN_UPLOAD/Lands_Registry/{FILE NUMBER}),
- *      registered as a `scannings` row — without that row the image sits on disk but the
- *      file never appears in Scan Uploads or Page Typing;
+ *      registered as a `scannings` row and automatically typed as Image / Passport;
  *   2. `oss_applications.passport_photo`, which is what the OSS screens read.
  *
  * This service exists because the EDIT paths need the same two writes plus a read-back, and
@@ -368,7 +367,19 @@ class FilePassportService
 
             if ($scans->isNotEmpty()) {
                 $paths = $paths->merge($scans->pluck('document_path'));
-                DB::connection('sqlsrv')->table('scannings')->whereIn('id', $scans->pluck('id'))->delete();
+                $scanIds = $scans->pluck('id');
+                $typedPaths = DB::connection('sqlsrv')->table('pagetypings')
+                    ->whereIn('scanning_id', $scanIds)->pluck('file_path');
+                $paths = $paths->merge($typedPaths);
+                foreach ($typedPaths as $typedPath) {
+                    if (str_starts_with((string) $typedPath, 'EDMS/PAGETYPING/')) {
+                        $paths->push(str_replace('EDMS/PAGETYPING/', 'EDMS/ARCHIVE_Doc_WARE/', $typedPath));
+                    }
+                }
+                DB::connection('sqlsrv')->transaction(function () use ($scanIds) {
+                    DB::connection('sqlsrv')->table('pagetypings')->whereIn('scanning_id', $scanIds)->delete();
+                    DB::connection('sqlsrv')->table('scannings')->whereIn('id', $scanIds)->delete();
+                });
                 $changed = true;
             }
 
@@ -427,23 +438,14 @@ class FilePassportService
             return null;
         }
 
-        $displayOrder = (int) Scanning::on('sqlsrv')->where('file_indexing_id', $indexing->id)->count();
-        $definition   = $displayOrder + 1;
-
-        $scanning = Scanning::on('sqlsrv')->create([
+        $scanning = app(\App\Services\Edms\PassportPageTypingService::class)->register([
             'file_indexing_id'  => $indexing->id,
             'document_path'     => $storedPath,
             'uploaded_by'       => Auth::id(),
-            'status'            => 'pending',
-            'definition'        => $definition,
-            // scannings.definition_code is nvarchar(50); a long file number would
-            // otherwise blow the column and lose the whole scan row.
-            'definition_code'   => mb_substr($definition . '-' . $fileNumber, 0, 50),
             'original_filename' => $file->getClientOriginalName() ?: $filename,
             'paper_size'        => 'A4',
             'document_type'     => 'Passport Photograph',
             'notes'             => 'Applicant passport updated from ' . (self::SOURCE_LABELS[$source] ?? $source) . '.',
-            'display_order'     => $displayOrder,
             'file_size'         => $file->getSize(),
             'registry'          => 'Lands Registry',
             'is_pdf_converted'  => false,

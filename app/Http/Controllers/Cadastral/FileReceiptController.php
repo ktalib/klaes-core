@@ -256,10 +256,9 @@ class FileReceiptController extends Controller
 
         if ($receipt->duplicate_flag) {
             // Said out loud rather than buried in a column: this is exactly the
-            // moment the clerk can still do something about it.
-            return redirect()
-                ->route('cadastral-module.registry.receipts')
-                ->with('error', $message . ' ' . $receipt->duplicate_note);
+            // moment the clerk can still do something about it. A warning, not
+            // an error: the file was logged and is not held.
+            $message .= ' Note: ' . $receipt->duplicate_note;
         }
 
         return redirect()

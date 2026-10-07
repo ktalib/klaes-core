@@ -341,6 +341,10 @@ Route::middleware(['auth'])->group(function () {
         // Stream a card cover from the resolved EDMS source (rather than relying
         // on a public /storage path that may not map to the archive disk).
         Route::get('/cover-image/{pageTyping}', [FilearchiveController::class, 'coverImage'])->name('filearchive.cover-image');
+        // Blank Land / ST / SLTR cover used when a file's own cover is missing.
+        Route::get('/cover-template/{kind}', [FilearchiveController::class, 'coverTemplate'])
+            ->where('kind', 'land|st|sltr')
+            ->name('filearchive.cover-template');
         Route::get('/movement-history/print', [FilearchiveController::class, 'printMovementHistory'])->name('filearchive.movement-history.print');
         Route::post('/upload', [FilearchiveController::class, 'upload'])->name('filearchive.upload');
         Route::get('/view/{id}', [FilearchiveController::class, 'view'])->name('filearchive.view');

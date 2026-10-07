@@ -32,7 +32,8 @@
         allowedTabs: null,    // Array of registry tab names to show (e.g. ['mls']); null = show all
         tempOnly: false,      // MLPP tab only: restrict the smart selector to temporary "(T)" file numbers
         blockedYears: null,   // Array of 4-digit years this caller refuses (e.g. [2026]); null/[] = accept any year
-        blockedYearMessage: null  // Override for the refusal text; null = the generic wording below
+        blockedYearMessage: null, // Override for the refusal text; null = the generic wording below
+        manualOnly: false         // true = hide Smart Selector and open every tab on Manual Entry
     };
 
     // Main GlobalFileNoModal object
@@ -117,6 +118,7 @@
 
             // Activate the requested tab now that the modal is visible so Select2 can size correctly
             this.switchTab(initialTab);
+            this.applyManualOnly(Boolean(this.config.manualOnly));
 
             // Lazily initialise smart selectors now that the modal is mounted and visible
             this.initializeSmartSelectors(true);
@@ -131,6 +133,21 @@
 
             console.log('Modal opened successfully');
             return true;
+        },
+
+        // Manual-entry-only mode: hide each tab's Smart Selector / Manual Entry toggle
+        // and select Manual Entry. Turning it off restores the toggle and Smart Selector.
+        applyManualOnly: function (on) {
+            const wasOn = Boolean(this._manualOnly);
+            this._manualOnly = on;
+            if (!on && !wasOn) return;
+            $('input[name$="-input-method"][value="manual"]').each(function () {
+                $(this).closest('label').parent().toggleClass('hidden', on);
+            });
+            const pick = on ? 'manual' : 'smart';
+            $('input[name$="-input-method"][value="' + pick + '"]').each(function () {
+                if (!this.checked) $(this).prop('checked', true).trigger('change');
+            });
         },
 
         // Close modal

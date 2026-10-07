@@ -1256,6 +1256,9 @@ class ScanUploadsController extends Controller
                             'id' => $scan->id,
                             'fileName' => $scan->original_filename,
                             'fileNumber' => $file->file_number ?? null,
+                            // Lets the upload page continue numbering after the
+                            // pages already on the file instead of restarting at 0.
+                            'displayOrder' => $scan->display_order,
                             'paperSize' => $scan->paper_size,
                             'documentType' => $scan->document_type,
                             'registry' => $scan->registry ?? $file->registry ?? null,

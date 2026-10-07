@@ -1,0 +1,21 @@
+{
+    "committed": true,
+    "files": [
+        "RES-1991-10003",
+        "CON-COM-2001-35",
+        "RES-RC-1986-28"
+    ],
+    "deleted": {
+        "scan_reassignment_logs": 0,
+        "scan_image_versions": 0,
+        "page_typing_tool_logs": 0,
+        "thumbnails": 0,
+        "parcel_upload_edms_log": 3,
+        "pagetypings": 3,
+        "scannings": 3
+    },
+    "backup_directory": "C:\\xampp\\htdocs\\klas\\storage\\app/audits/test-edms-removal-20261007-191036",
+    "physical_files_changed": false,
+    "file_indexing_records_preserved": 3,
+    "completed_at": "2026-10-07T19:10:36+01:00"
+}

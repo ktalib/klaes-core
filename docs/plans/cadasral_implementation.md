@@ -173,6 +173,8 @@ Duplicate detection must identify:
 
 A duplicate record should be flagged and placed on hold for investigation rather than proceeding normally.
 
+> **Change (2026-10-07):** duplicates are flagged only; they are no longer placed on hold automatically. An officer places a hold by hand when investigation is needed. "PIECE OF LAND" is not treated as a plot number for double-allocation detection.
+
 ### Reports – All Reports
 
 A consolidated list of Verification, Customary and Statutory reports.

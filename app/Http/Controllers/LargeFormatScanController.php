@@ -47,7 +47,7 @@ class LargeFormatScanController extends Controller
                 'folder' => $source->displayRoot(), 'label' => $source->label(), 'library' => $source->key(),
                 'path' => '', 'locked_root' => '', 'file_number' => $fileNumber, 'matched' => false,
                 'can_locate' => $source->layout() === 'file_number', 'entries' => [],
-                'message' => $this->noFolderMessage($relative, $fileNumber),
+                'message' => $this->noFolderMessage($relative, $fileNumber, $source->key() === 'lfs' ? 'LF scans' : 'scan folder'),
             ]);
         }
 
@@ -76,14 +76,14 @@ class LargeFormatScanController extends Controller
         ]);
     }
 
-    private function noFolderMessage(string $relative, ?string $fileNumber): string
+    private function noFolderMessage(string $relative, ?string $fileNumber, string $what = 'scan folder'): string
     {
         if ($relative !== '') {
             return 'No folder named "' . $relative . '" on the scan server.';
         }
 
         return $fileNumber
-            ? 'No scan folder for ' . $fileNumber . ' on the scan server. Enter the folder name if you know it.'
+            ? 'No ' . $what . ' for ' . $fileNumber . ' on the scan server. Enter the folder name if you know it.'
             : 'This page is not linked to a file number, so its scan folder cannot be found. Enter the folder name to browse.';
     }
 

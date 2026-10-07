@@ -6601,10 +6601,8 @@ class MlsFileNoController extends Controller
      *      (EDMS/SCAN_UPLOAD/Lands_Registry/{FILE NUMBER}), the same folder the
      *      scanning module uploads into — so it sits with the file's documents rather
      *      than in a passport-only tree of its own;
-     *   2. a `scannings` row is created for it. Scan Uploads lists file_indexings that
-     *      HAVE scannings, and Page Typing lists files with scannings but no typings —
-     *      without the row the image is on disk but the file number never appears in
-     *      either module.
+     *   2. a scan and an Image / Passport page-typing row (serial 0a) are created
+     *      together, with typed and archive copies. The scan original stays put.
      *
      * Best-effort: the commissioning is already committed by the time this runs, so a
      * storage or DB failure is logged and reported, never allowed to fail the request.
@@ -6656,27 +6654,15 @@ class MlsFileNoController extends Controller
                 return ['stored' => true, 'path' => $storedPath, 'scanning_id' => null, 'reason' => 'no_indexing_record'];
             }
 
-            // Definition/display order continue the file's existing document sequence; on a
-            // fresh commissioning this is simply the first document.
-            $displayOrder = (int) \App\Models\Scanning::on('sqlsrv')
-                ->where('file_indexing_id', $indexing->id)
-                ->count();
-            $definition = $displayOrder + 1;
-
-            $scanning = \App\Models\Scanning::on('sqlsrv')->create([
+            // The typing service allocates the next page and writes the scan/typing pair.
+            $scanning = app(\App\Services\Edms\PassportPageTypingService::class)->register([
                 'file_indexing_id'  => $indexing->id,
                 'document_path'     => $storedPath,
                 'uploaded_by'       => Auth::id(),
-                'status'            => 'pending',
-                'definition'        => $definition,
-                // scannings.definition_code is nvarchar(50); a long file number would
-                // otherwise blow the column and lose the whole scan row.
-                'definition_code'   => mb_substr($definition . '-' . $fileNumber, 0, 50),
                 'original_filename' => $file->getClientOriginalName() ?: $filename,
                 'paper_size'        => 'A4',
                 'document_type'     => 'Passport Photograph',
                 'notes'             => 'Applicant passport captured at file commissioning.',
-                'display_order'     => $displayOrder,
                 'file_size'         => $file->getSize(),
                 'registry'          => 'Lands Registry',
                 'is_pdf_converted'  => false,
@@ -6697,7 +6683,8 @@ class MlsFileNoController extends Controller
                 'scanning_id' => $scanning->id,
             ]);
 
-            return ['stored' => true, 'path' => $storedPath, 'scanning_id' => $scanning->id, 'reason' => 'stored'];
+            return ['stored' => true, 'path' => $storedPath, 'scanning_id' => $scanning->id,
+                'page_typing_id' => $scanning->pagetypings->first()->id, 'reason' => 'stored'];
         } catch (\Throwable $e) {
             Log::warning('Could not file commissioning passport', [
                 'file_number' => $fileNumber,

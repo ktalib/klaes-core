@@ -1,0 +1,53 @@
+{
+    "unique_parcel_paths": 37,
+    "by_module": {
+        "change_of_purpose_applications": {
+            "refs": 6,
+            "without_scan": 2
+        },
+        "plot_subdivision_applications": {
+            "refs": 21
+        },
+        "plot_merger_applications": {
+            "refs": 2
+        },
+        "duplex_parcel_updates": {
+            "refs": 8,
+            "without_scan": 2
+        }
+    },
+    "without_scan": [
+        {
+            "table": "change_of_purpose_applications",
+            "id": "91",
+            "column": "site_plan",
+            "path": "site_plans/cop_91_1784816631.jpeg",
+            "keep": "parcel_upload",
+            "exists_on_public_disk": true
+        },
+        {
+            "table": "change_of_purpose_applications",
+            "id": "104",
+            "column": "site_plan",
+            "path": "site_plans/cop_104_1785342184.jpeg",
+            "keep": "parcel_upload",
+            "exists_on_public_disk": true
+        },
+        {
+            "table": "duplex_parcel_updates",
+            "id": "15",
+            "column": "site_plan",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/RES-2010-1453/A4/duplex_15_site_plan_1791373995.jpeg",
+            "keep": "parcel_upload",
+            "exists_on_public_disk": true
+        },
+        {
+            "table": "duplex_parcel_updates",
+            "id": "16",
+            "column": "site_plan",
+            "path": "EDMS/SCAN_UPLOAD/Lands_Registry/RES-2021-22/A4/duplex_16_site_plan_1791374616.jpeg",
+            "keep": "parcel_upload",
+            "exists_on_public_disk": true
+        }
+    ]
+}

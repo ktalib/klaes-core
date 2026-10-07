@@ -3265,7 +3265,8 @@ class PropertyRecordController extends Controller
                     $transactionType = trim((string) ($transaction['transaction_type'] ?? ''));
                     $opSerialNumber = trim((string) ($transaction['op_serial_number'] ?? ''));
 
-                    if (\App\Support\OpSerial::isOp(['transaction_type' => $transactionType]) && !\App\Support\OpSerial::valid($opSerialNumber)) {
+                    // Only the OP itself must carry a serial; a Transfer of Title (OP) need not.
+                    if (\App\Support\OpSerial::isMother(['transaction_type' => $transactionType]) && !\App\Support\OpSerial::valid($opSerialNumber)) {
                         $validator->errors()->add(
                             "transactions.{$index}.op_serial_number",
                             'OP serial number is required for Occupancy Permit (OP) transactions.'

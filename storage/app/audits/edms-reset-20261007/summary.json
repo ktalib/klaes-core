@@ -1,0 +1,195 @@
+{
+    "started_at": "2026-10-07T16:27:41+01:00",
+    "public_root": "F:\\\\storage\\app/public",
+    "scannings": {
+        "total": 270982,
+        "keep": 2369,
+        "candidate": 268613,
+        "overlapping_reasons": {
+            "ST": 39,
+            "passport": 2297,
+            "oss_passport": 2262,
+            "parcel_upload": 33
+        }
+    },
+    "pagetypings": {
+        "total": 218288,
+        "keep": 39,
+        "candidate": 218249,
+        "overlapping_reasons": {
+            "ST": 6,
+            "parcel_upload": 33
+        }
+    },
+    "commissioning_file_membership": {
+        "NO MLS MATCH": {
+            "scans": 268687,
+            "passports": 23
+        },
+        "MLS": {
+            "scans": 2105,
+            "passports": 2085
+        },
+        "OSS": {
+            "scans": 188,
+            "passports": 188
+        },
+        "UNSTAMPED": {
+            "scans": 2,
+            "passports": 1
+        }
+    },
+    "orphan_pagetypings_with_nonzero_scanning_id": 1,
+    "external_uploads": {
+        "change_of_purpose_applications": {
+            "site_plan": {
+                "references": 6
+            }
+        },
+        "plot_subdivision_applications": {
+            "site_plan": {
+                "references": 20
+            },
+            "application_letter": {
+                "references": 1
+            }
+        },
+        "plot_merger_applications": {
+            "site_plan": {
+                "references": 2
+            }
+        },
+        "duplex_parcel_updates": {
+            "site_plan": {
+                "references": 8
+            }
+        },
+        "land_recommendation_batch_documents": {
+            "path": {
+                "references": 7,
+                "missing": 2
+            }
+        },
+        "land_recommendation_documents": {
+            "path": {
+                "references": 22,
+                "missing": 1
+            }
+        },
+        "oss_applications": {
+            "passport_photo": {
+                "references": 2739
+            }
+        },
+        "mother_applications": {
+            "passport": {
+                "references": 16,
+                "missing": 1
+            },
+            "id_document": {
+                "references": 20,
+                "missing": 2
+            },
+            "rc_document": {
+                "references": 1
+            },
+            "documents": {
+                "references": 76,
+                "missing": 6
+            },
+            "survey_plan": {
+                "references": 18
+            }
+        },
+        "subapplications": {
+            "passport": {
+                "references": 72
+            },
+            "id_document": {
+                "references": 1
+            },
+            "documents": {
+                "references": 232
+            }
+        }
+    },
+    "protected_disk_paths": {
+        "unique": 3327,
+        "missing": 22,
+        "existing_bytes": 652984623
+    },
+    "blind_scannings": [
+        {
+            "registry_type": "lands",
+            "status": "pending",
+            "n": "1383277"
+        },
+        {
+            "registry_type": "lands",
+            "status": "converted",
+            "n": "7227"
+        }
+    ],
+    "references": {
+        "cadastral_documents": {
+            "total": 0,
+            "linked_to_candidate_scan": 0,
+            "linked_to_kept_scan": 0,
+            "missing_scan": 0
+        },
+        "page_typing_tool_logs": {
+            "total": 5,
+            "linked_to_candidate_scan": 5,
+            "linked_to_kept_scan": 0,
+            "missing_scan": 0
+        },
+        "parcel_upload_edms_log": {
+            "total": 28,
+            "linked_to_candidate_scan": 0,
+            "linked_to_kept_scan": 28,
+            "missing_scan": 0
+        },
+        "scan_image_versions": {
+            "total": 1,
+            "linked_to_candidate_scan": 1,
+            "linked_to_kept_scan": 0,
+            "missing_scan": 0
+        },
+        "scan_reassignment_logs": {
+            "total": 85,
+            "linked_to_candidate_scan": 85,
+            "linked_to_kept_scan": 0,
+            "missing_scan": 0
+        },
+        "thumbnails": {
+            "total": 0,
+            "linked_to_candidate_scan": 0,
+            "linked_to_kept_scan": 0,
+            "missing_scan": 0
+        }
+    },
+    "backup_history": [
+        {
+            "backup_finish_date": "2026-10-07 06:01:35.000",
+            "type": "D",
+            "backup_size": "12183112704",
+            "is_copy_only": "0",
+            "physical_device_name": "C:\\Program Files\\Microsoft SQL Server\\MSSQL16.SQLEXPRESS\\MSSQL\\Backup\\klas_2026_10_07_0600.bak"
+        },
+        {
+            "backup_finish_date": "2026-10-07 01:04:21.000",
+            "type": "D",
+            "backup_size": "12200938496",
+            "is_copy_only": "1",
+            "physical_device_name": "F:\\KlaesDevelopment\\klas_copy_20261007.bak"
+        },
+        {
+            "backup_finish_date": "2026-10-03 18:01:25.000",
+            "type": "D",
+            "backup_size": "12044700672",
+            "is_copy_only": "0",
+            "physical_device_name": "C:\\Program Files\\Microsoft SQL Server\\MSSQL16.SQLEXPRESS\\MSSQL\\Backup\\klas_2026_10_03_1800.bak"
+        }
+    ],
+    "completed_at": "2026-10-07T16:28:23+01:00"
+}

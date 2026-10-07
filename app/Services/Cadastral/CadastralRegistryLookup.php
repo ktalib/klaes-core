@@ -131,13 +131,17 @@ class CadastralRegistryLookup
      * Identity matching, not geometry: KLAES stores no parcel boundaries, so
      * two allocations can only be compared by what they are labelled.
      *
+     * "PIECE OF LAND" (and its misspellings) is a description, not a plot
+     * number: ~45k files carry it, so it is not compared.
+     *
      * @return Collection<int, object>
      */
     public function possibleDoubleAllocations(?string $fileNumber, int $limit = 25): Collection
     {
         $indexed = $this->indexedFile($fileNumber);
 
-        if (! $indexed || trim((string) $indexed->plot_number) === '') {
+        if (! $indexed || trim((string) $indexed->plot_number) === ''
+            || self::isPieceOfLand($indexed->plot_number)) {
             return collect();
         }
 
@@ -148,6 +152,17 @@ class CadastralRegistryLookup
             ->when($indexed->district, fn ($q) => $q->where('district', $indexed->district))
             ->limit($limit)
             ->get());
+    }
+
+    /**
+     * True for "PIECE OF LAND" as indexed: "A PIECE OF LAND", "PIECEOF LAND",
+     * "PICE OF LAND", "piece of and", "PIECE OF LAND 'B'", spacing variants.
+     */
+    public static function isPieceOfLand(?string $plotNumber): bool
+    {
+        $letters = preg_replace('/[^A-Z]/', '', strtoupper((string) $plotNumber));
+
+        return (bool) preg_match('/^A?PIE?CEOFL?AND[A-Z]?$/', $letters);
     }
 
     /**
