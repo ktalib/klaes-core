@@ -4123,6 +4123,25 @@
     // own rows read in the same continuous timeline as merged prior-cycle rows
     // (so re-tracked / multi-cycle files don't bury a "Completed" return row at the
     // bottom out of chronological order).
+    // The tracker's File Request Type — how the file came to be moving, printed on the
+    // Tracking Sheet and shown in Quick Search. Not a log status. Requested = SUBMITTED;
+    // everything else (MANUAL, the legacy literal, NULL) is In-Transit, the same split
+    // as the In-transit / Submitted Request tabs. Null for the range-home SYSTEM
+    // tracker: nothing was requested or moved. DIIT is not a request type here; the
+    // sheet already marks it with its watermark. FileLocationResolver::requestTypeFor()
+    // mirrors these rules.
+    function resolveFileRequestType(tracker) {
+        const requestType = String(tracker?.fileRequestType || '').trim().toUpperCase();
+        if (requestType === 'SYSTEM') {
+            return null;
+        }
+        if (requestType === 'SUBMITTED') {
+            return { key: 'REQUESTED', label: 'Requested', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' };
+        }
+        return { key: 'IN_TRANSIT', label: 'In-Transit', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
+    }
+    window.resolveFileRequestType = resolveFileRequestType;
+
     function movementChronoValue(entry) {
         if (!entry) return Number.POSITIVE_INFINITY;
         const parse = (d, t) => {
@@ -8321,6 +8340,7 @@
         const rackShelfValue = escapeHtml(tracker.rackShelfLocation || tracker.rackShelf || tracker.shelf_location || '-');
         const requestPurposeValue = escapeHtml(tracker.requestPurposeName || '-');
         const timelineBadgeForPrint = getTimelineBadge(tracker);
+        const requestTypeForPrint = resolveFileRequestType(tracker);
 
         // Timeline / Request Purpose / Expected Return Date cells for the Movement
         // History table — mirrors the on-screen File Log Table's per-row columns.
@@ -8385,7 +8405,10 @@
                         .header .logo { width: 120px; height: auto; margin: 0 auto 0.75rem auto; display: block; }
                         .header h1 { font-size: 1.25rem; margin-bottom: 0.5rem; color: #1f2937; }
                         .header .ministry-name { font-size: 0.85rem; font-weight: 700; color: #1f2937; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 0.25rem; }
-                        .header-meta { display: grid; grid-template-columns: 1fr auto; gap: 1.25rem; align-items: center; justify-items: start; margin-top: 1rem; font-size: 0.9rem; color: #666; }
+                        .header-meta { display: grid; grid-template-columns: 1fr auto auto; gap: 1.25rem; align-items: center; justify-items: start; margin-top: 1rem; font-size: 0.9rem; color: #666; }
+                        .request-type-tag { justify-self: end; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+                        .request-type-label { font-size: 0.6rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; }
+                        .request-type-pill { display: inline-block; padding: 3px 12px; border: 1.5px solid; border-radius: 999px; font-size: 0.8rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
                         .header-meta .file-meta { text-align: left; }
                         .header-meta .file-meta div { margin: 0.15rem 0; }
                         .qr-wrapper { text-align: center; justify-self: end; }
@@ -8510,6 +8533,12 @@
                                 <div class="file-meta">
                                     <div><strong>File No:</strong> ${fileNoValue}</div>
                                     <div><strong>Print Date:</strong> ${currentDateTime}</div>
+                                </div>
+                                <div class="request-type-tag">
+                                    ${requestTypeForPrint ? `
+                                    <span class="request-type-label">Request Type</span>
+                                    <span class="request-type-pill" style="color:${requestTypeForPrint.color};background:${requestTypeForPrint.bg};border-color:${requestTypeForPrint.border};">${escapeHtml(requestTypeForPrint.label)}</span>
+                                    ` : ''}
                                 </div>
                                 <div class="qr-wrapper">
                                     <img src="${trackingQrUrl}" alt="Tracking ID QR">
@@ -9046,6 +9075,14 @@
                                 <h3>File Tracking Sheet</h3>
                             </div>
                             <div class="header-right">
+                                ${(() => {
+                                    const rt = resolveFileRequestType(tracker);
+                                    if (!rt) return '';
+                                    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+                                        <span style="font-size:0.6rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">Request Type</span>
+                                        <span style="display:inline-block;padding:3px 12px;border:1.5px solid ${rt.border};border-radius:999px;background:${rt.bg};color:${rt.color};font-size:0.8rem;font-weight:800;text-transform:uppercase;">${escapeHtml(rt.label)}</span>
+                                    </div>`;
+                                })()}
                                 ${kangisHolderPhotoBlock}
                                 <div class="qr-wrap">
                                     <img src="${trackingQrUrl}" alt="Tracking QR">

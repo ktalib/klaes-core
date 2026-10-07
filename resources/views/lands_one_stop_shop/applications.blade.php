@@ -3760,85 +3760,94 @@
         });
     }
 
-    /**
-     * ops: [{pra_id, file_no, grantee, location, current, suggested}]
-     * Resolves to {pra_id: serial} or null when cancelled.
-     */
+    // The server supplies canonical OP values so populated fields are never requested again.
     async function opSerialCard(ops) {
+        var fields = [
+            ['op_serial_number', 'OP Serial Number', 'text'],
+            ['transaction_date', 'Transaction Date', 'date'],
+            ['regNo', 'Reg Particulars', 'text'],
+            ['deeds_time', 'Reg Time', 'time'],
+            ['deeds_date', 'Reg Date', 'date'],
+            ['tp_no', 'TPNo', 'text']
+        ];
         var rows = ops.map(function (o, i) {
-            var current = (o.current == null || String(o.current).trim() === '')
-                ? '<span class="text-red-600 font-semibold">blank</span>'
-                : '<code class="text-red-600">' + opSerialEsc(o.current) + '</code>';
-            var suggested = o.suggested || opSerialSuggest(o.current);
-            var hint = suggested && String(o.current || '').trim() !== suggested
-                ? '<p class="text-[11px] text-emerald-700 mt-1">Cleaned up from <code>' + opSerialEsc(o.current) + '</code> — check it against the paper OP.</p>'
-                : '<p class="text-[11px] text-slate-500 mt-1">Enter the serial printed on the Occupancy Permit.</p>';
+            var values = Object.assign({}, o.details || {}, { op_serial_number: o.current || '' });
+            var inputs = fields.map(function (field) {
+                var key = field[0], label = field[1], type = field[2];
+                var existing = String(values[key] || '').trim();
+                var needed = key === 'op_serial_number' ? !opSerialValid(existing) : !existing;
+                if (!needed) return '<p class="text-xs text-slate-600 mt-2"><b>' + label + ':</b> ' + opSerialEsc(existing) + '</p>';
+                var entered = (o.entered || {})[key] || '';
+                var value = key === 'op_serial_number' ? (o.suggested || opSerialSuggest(o.current)) : entered;
+                var hint = key === 'regNo' ? 'Serial/Page/Volume, for example 12/34/56.'
+                    : key === 'op_serial_number' ? 'Digits only, with no leading zero. Check the paper OP.' : '';
+                var id = 'opDetail' + i + '_' + key;
+                return '<label for="' + id + '" class="block text-xs font-semibold text-slate-700 mt-3">' + label + ' <span class="text-red-500">*</span></label>'
+                    + '<input required type="' + type + '" id="' + id + '" data-pra-id="' + opSerialEsc(o.pra_id) + '" data-field="' + key + '"'
+                    + (type === 'time' ? ' step="1"' : '')
+                    + (key === 'op_serial_number' ? ' inputmode="numeric" pattern="[1-9][0-9]*" maxlength="100"' : '')
+                    + (key === 'regNo' ? ' pattern="[1-9][0-9]*/[1-9][0-9]*/[1-9][0-9]*" maxlength="50" placeholder="12/34/56"' : '')
+                    + (key === 'tp_no' ? ' maxlength="100"' : '')
+                    + ' class="op-detail-input mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" value="' + opSerialEsc(value) + '">'
+                    + (hint ? '<p class="text-[11px] text-slate-500 mt-1">' + hint + '</p>' : '')
+                    + ((o.errors || {})[key] && entered ? '<p class="text-xs text-red-600">' + opSerialEsc(o.errors[key]) + '</p>' : '');
+            }).join('');
             return '<div class="rounded-lg border border-amber-200 bg-amber-50/50 p-3 mb-2 text-left">'
-                + '<div class="flex flex-wrap justify-between gap-1 text-xs text-slate-600">'
-                + '<span>OP file <b class="text-slate-800">' + opSerialEsc(o.file_no || '—') + '</b> · PRA #' + opSerialEsc(o.pra_id) + '</span>'
-                + '<span>Stored serial: ' + current + '</span></div>'
-                + (o.grantee ? '<p class="text-xs text-slate-600 mt-1">Allottee: <b class="text-slate-800">' + opSerialEsc(o.grantee) + '</b></p>' : '')
+                + '<p class="text-xs text-slate-600">OP file <b>' + opSerialEsc(o.file_no || '') + '</b> &middot; PRA #' + opSerialEsc(o.pra_id) + '</p>'
+                + (o.grantee ? '<p class="text-xs text-slate-600 mt-1">Allottee: <b>' + opSerialEsc(o.grantee) + '</b></p>' : '')
                 + (o.location ? '<p class="text-[11px] text-slate-500">' + opSerialEsc(o.location) + '</p>' : '')
-                + '<label class="block text-xs font-semibold text-slate-700 mt-2">OP Serial Number <span class="text-red-500">*</span></label>'
-                + '<input type="text" inputmode="numeric" autocomplete="off" data-pra-id="' + opSerialEsc(o.pra_id) + '" id="opSerialInput' + i + '"'
-                + ' class="op-serial-input mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500"'
-                + ' placeholder="e.g. 109" value="' + opSerialEsc(suggested) + '">'
-                + hint
-                + '</div>';
+                + inputs + '</div>';
         }).join('');
-
         var result = await Swal.fire({
             icon: 'warning',
-            title: ops.length === 1 ? 'OP Serial Number needed' : ops.length + ' OP Serial Numbers needed',
-            html: '<p class="text-sm text-slate-600 mb-3 text-left">'
-                + (ops.length === 1 ? 'This OP has' : 'These OPs have')
-                + ' no valid OP Serial Number. It must be digits only, with no leading zero (for example <b>109</b>). '
-                + 'What you enter is saved on the OP record and the match then continues.</p>'
-                + '<div style="max-height:340px;overflow-y:auto;">' + rows + '</div>',
-            width: 560,
+            title: ops.length === 1 ? 'OP details needed' : ops.length + ' OPs need details',
+            html: '<p class="text-sm text-slate-600 mb-3 text-left">Complete all missing required fields using the OP record. Existing values are shown for reference. Your entries are saved on the OP record when the match continues.</p>'
+                + '<div style="max-height:50vh;overflow-y:auto;">' + rows + '</div>',
+            width: 600,
             showCancelButton: true,
-            confirmButtonText: 'Save serial & continue',
+            confirmButtonText: 'Save details & continue',
             cancelButtonText: 'Cancel',
             confirmButtonColor: '#0d9488',
             cancelButtonColor: '#64748b',
             allowOutsideClick: false,
             focusConfirm: false,
             didOpen: function () {
-                var first = document.querySelector('.op-serial-input');
+                var first = Swal.getPopup().querySelector('.op-detail-input');
                 if (first) first.focus();
             },
             preConfirm: function () {
                 var out = {};
-                var inputs = document.querySelectorAll('.op-serial-input');
+                var inputs = Swal.getPopup().querySelectorAll('.op-detail-input');
                 for (var i = 0; i < inputs.length; i++) {
-                    var v = (inputs[i].value || '').trim();
-                    if (!opSerialValid(v)) {
-                        inputs[i].classList.add('border-red-500');
-                        inputs[i].focus();
-                        Swal.showValidationMessage('OP Serial Number must be digits only, with no leading zero (for example 109).');
+                    var input = inputs[i];
+                    input.value = input.value.trim();
+                    if (!input.checkValidity()) {
+                        input.focus();
+                        Swal.showValidationMessage('Enter a valid ' + fields.find(function (f) { return f[0] === input.dataset.field; })[1] + '.');
                         return false;
                     }
-                    out[inputs[i].getAttribute('data-pra-id')] = v;
+                    var id = input.dataset.praId;
+                    out[id] = out[id] || {};
+                    out[id][input.dataset.field] = input.value;
                 }
                 return out;
             }
         });
-
         return result.isConfirmed ? result.value : null;
     }
 
-    function opSerialCardItem(row) {
-        return {
-            pra_id: row.id,
-            file_no: row.mlsFNo || row.fileno || row.temp_fileno || '',
-            grantee: row.Grantee || row.party_2 || ((row.parties && (row.parties.party_2 || row.parties.grantee)) || ''),
-            location: row.location || '',
-            current: row.op_serial_number,
-            suggested: opSerialSuggest(row.op_serial_number)
-        };
+    function opDetailMerge(current, added) {
+        Object.keys(added).forEach(function (id) {
+            current[id] = Object.assign({}, current[id] || {}, added[id]);
+        });
+        return current;
     }
 
-    // ──────────────── Match OP ────────────────
+    function opDetailSerials(details) {
+        var serials = {};
+        Object.keys(details).forEach(function (id) { serials[id] = details[id].op_serial_number || null; });
+        return serials;
+    }
 
     function openMatchOpModal(prefilledFileNo) {
         window.__matchOpSerialFix = null;
@@ -4012,14 +4021,8 @@
             return;
         }
 
-        // An OP without a valid serial cannot be matched: ask for it first.
+        // Let the server identify missing fields from the authoritative OP record.
         var serialFix = window.__matchOpSerialFix || {};
-        var selectedRow = (window.__matchOpRows || []).find(function (r) { return String(r.id) === praId; });
-        if (selectedRow && !opSerialValid(selectedRow.op_serial_number) && !opSerialValid(serialFix[praId])) {
-            var typed = await opSerialCard([opSerialCardItem(selectedRow)]);
-            if (!typed) return;
-            serialFix = window.__matchOpSerialFix = typed;
-        }
 
         document.getElementById('matchOpConfirmBtn').disabled = true;
         document.getElementById('matchOpConfirmBtn').textContent = 'Matching…';
@@ -4033,18 +4036,18 @@
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': csrfToken ? csrfToken.getAttribute('content') : ''
             },
-            body: JSON.stringify({ pra_id: parseInt(praId), current_holder: currentHolder, allottee: allottee, override_holder: overrideHolder, op_serial_number: serialFix[praId] || null })
+            body: JSON.stringify({ pra_id: parseInt(praId), current_holder: currentHolder, allottee: allottee, override_holder: overrideHolder, op_serial_number: (serialFix[praId] || {}).op_serial_number || null, op_details: serialFix })
         })
         .then(function(r) { return r.json(); })
         .then(async function(data) {
             document.getElementById('matchOpConfirmBtn').disabled = false;
             document.getElementById('matchOpConfirmBtn').textContent = 'Yes';
 
-            // The server found the OP's serial missing or invalid: card, then retry.
+            // The server found missing OP details: collect them, then retry.
             if (!data.success && data.needs_op_serial) {
                 var typedSerials = await opSerialCard(data.ops || []);
                 if (typedSerials) {
-                    window.__matchOpSerialFix = Object.assign({}, window.__matchOpSerialFix || {}, typedSerials);
+                    window.__matchOpSerialFix = opDetailMerge(window.__matchOpSerialFix || {}, typedSerials);
                     matchOpConfirm();
                 }
                 return;
@@ -4227,14 +4230,8 @@
         var praIds = opRecords.map(function (r) { return r.id; }).filter(Boolean);
         var csrfToken = document.querySelector('meta[name="csrf-token"]');
 
-        // Every OP in the merger needs a valid serial; ask for the missing ones first.
+        // The server checks every selected OP before any match is written.
         var opSerials = {};
-        var missingSerials = opRecords.filter(function (r) { return r.id && !opSerialValid(r.op_serial_number); });
-        if (missingSerials.length) {
-            var typed = await opSerialCard(missingSerials.map(opSerialCardItem));
-            if (!typed) return;
-            opSerials = typed;
-        }
 
         try {
             var resp = await fetch('{{ route("lands-one-stop-shop.applications.match-op") }}', {
@@ -4245,15 +4242,15 @@
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': csrfToken ? csrfToken.getAttribute('content') : '',
                 },
-                body: JSON.stringify({ pra_ids: praIds, op_serials: opSerials }),
+                body: JSON.stringify({ pra_ids: praIds, op_serials: opDetailSerials(opSerials), op_details: opSerials }),
             });
             var data = await resp.json();
 
-            // The server still found an OP without a valid serial: card, then retry once.
-            if (!data.success && data.needs_op_serial) {
+            // Collect all missing details; validation errors keep the card available for correction.
+            while (!data.success && data.needs_op_serial) {
                 var more = await opSerialCard(data.ops || []);
                 if (!more) return;
-                opSerials = Object.assign(opSerials, more);
+                opSerials = opDetailMerge(opSerials, more);
                 resp = await fetch('{{ route("lands-one-stop-shop.applications.match-op") }}', {
                     method: 'POST',
                     headers: {
@@ -4262,7 +4259,7 @@
                         'X-Requested-With': 'XMLHttpRequest',
                         'X-CSRF-TOKEN': csrfToken ? csrfToken.getAttribute('content') : '',
                     },
-                    body: JSON.stringify({ pra_ids: praIds, op_serials: opSerials }),
+                    body: JSON.stringify({ pra_ids: praIds, op_serials: opDetailSerials(opSerials), op_details: opSerials }),
                 });
                 data = await resp.json();
             }

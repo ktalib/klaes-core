@@ -1530,6 +1530,16 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'api/file-tracker-das
         ->name('web.api.file-tracker-dashboard.notifications');
 });
 
+// File Movement (Department) — standalone in/out register for the HC, PS and Directors' offices
+Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'secretariat-file-log', 'as' => 'secretariat-file-log.'], function () {
+    Route::get('/', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'index'])->name('index');
+    Route::get('/resolve', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'resolve'])->name('resolve');
+    Route::get('/lists', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'lists'])->name('lists');
+    Route::get('/profile', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'profile'])->name('profile');
+    Route::post('/receive', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'receive'])->name('receive');
+    Route::post('/forward', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'forward'])->name('forward');
+});
+
 // Create File Tracker Page Routes
 Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'create-file-tracker'], function () {
     Route::get('/', [App\Http\Controllers\CreateFileTrackerController::class, 'index'])->name('create-file-tracker.index');

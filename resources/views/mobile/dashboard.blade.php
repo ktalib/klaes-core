@@ -1924,7 +1924,17 @@ async function searchFile() {
               </div>` : ''}
               <div style="font-size:12px;font-weight:600;color:var(--text);opacity:.82;margin-top:3px;">${esc(d.file_title||'—')}</div>
             </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
             <span style="white-space:nowrap;font-size:11px;font-weight:700;color:${badge.color};background:${badge.color}1a;border:1px solid ${badge.color}55;padding:5px 10px;border-radius:30px;"><i class="fas ${badge.icon}" style="margin-right:4px;"></i>${esc(badge.label)}</span>
+            ${(() => {
+              // File Request Type of the open movement cycle (In-Transit / Requested),
+              // from FileLocationResolver::requestTypeFor(). Not a log status.
+              const rt = d.request_type;
+              if (!rt || !rt.label) return '';
+              const c = { IN_TRANSIT: '#b45309', REQUESTED: '#7c3aed' }[rt.key] || '#6b7185';
+              return `<span style="white-space:nowrap;font-size:10px;font-weight:700;color:${c};background:${c}12;border:1px solid ${c}55;padding:3px 8px;border-radius:30px;"><span style="font-weight:500;opacity:.8;">Request Type:</span> ${esc(rt.label)}</span>`;
+            })()}
+            </div>
           </div>
           <div style="padding:12px 16px;">
             ${Number(d.dciv_status) === 1 ? `

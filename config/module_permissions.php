@@ -158,6 +158,7 @@ return [
         // ---- File tracking and requests -------------------------------------------------
         'filetracker.*' => 'File Tracker/Tracking',
         'create-file-tracker.*' => 'File Tracker/Tracking',
+        'secretariat-file-log.*' => 'File Movement (Department)',
         'digital-request.*' => 'Log a File',
         'file-search.*' => 'File Search',
 

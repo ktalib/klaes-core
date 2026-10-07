@@ -5168,6 +5168,8 @@ class OpResettlementApplicationController extends Controller
             'override_holder' => 'nullable|boolean',
             // Typed on the OP serial card when the OP record has none (or a bad one).
             'op_serial_number' => 'nullable|string|max:100',
+            'op_details' => 'nullable|array',
+            'op_details.*' => 'array',
         ]);
 
         $praId = (int) $validated['pra_id'];
@@ -5267,12 +5269,14 @@ class OpResettlementApplicationController extends Controller
         // further down. Ask for it up front instead: the page shows the serial card.
         $serialFixes = $this->opSerialFixes(collect([$opRow]), [
             (int) $opRow->id => $request->input('op_serial_number'),
-        ]);
+        ], (array) $request->input('op_details', []));
         if ($serialFixes instanceof JsonResponse) {
             return $serialFixes;
         }
         if (isset($serialFixes[(int) $opRow->id])) {
-            $opRow->op_serial_number = $serialFixes[(int) $opRow->id];
+            foreach ($serialFixes[(int) $opRow->id] as $field => $value) {
+                $opRow->{$field} = $value;
+            }
         }
 
         try {
@@ -5451,76 +5455,70 @@ class OpResettlementApplicationController extends Controller
     }
 
     /**
-     * Handle merger OP match: flag all OPs as a group, create one ToT row
-     * with concatenated Party 2 names, nulling out OP-specific identifiers.
-     */
-    /**
-     * OP serials to write before a match, keyed by PRA id, or the 422 that makes the
-     * page show the OP serial card.
-     *
-     * An OP whose serial is valid is left alone. One whose serial is blank or
-     * malformed (0109, 1O63, 530-) takes what the officer typed on the card; until
-     * they have, the response lists those OPs, with a cleaned-up suggestion where
-     * the stored value has an obvious one.
+     * Return validated source-OP updates keyed by PRA id, or a 422 listing missing
+     * details. Populated fields are preserved; invalid serials can be corrected.
+     * The caller saves these updates in the match transaction.
      *
      * @param \Illuminate\Support\Collection $opRows
      * @param array $supplied pra_id => serial typed on the card
+     * @param array $details pra_id => missing fields typed on the card
      * @return array|JsonResponse
      */
-    private function opSerialFixes($opRows, array $supplied)
+    private function opSerialFixes($opRows, array $supplied, array $details = [])
     {
         $fixes = [];
         $needed = [];
-
         foreach ($opRows as $row) {
-            if (\App\Support\OpSerial::valid($row->op_serial_number ?? null)) {
-                continue;
+            $id = (int) $row->id;
+            $result = \App\Support\OpMatchDetails::collect($row, (array) ($details[$id] ?? []));
+            $updates = $result['updates'];
+            $errors = $result['errors'];
+            $serial = trim((string) ($row->op_serial_number ?? ''));
+            if (!\App\Support\OpSerial::valid($serial)) {
+                $typed = trim((string) ($supplied[$id] ?? ''));
+                if (\App\Support\OpSerial::valid($typed)) {
+                    $updates['op_serial_number'] = $typed;
+                } else {
+                    $errors['op_serial_number'] = 'OP Serial Number must be digits only, with no leading zero.';
+                }
             }
-
-            $typed = trim((string) ($supplied[(int) $row->id] ?? ''));
-            if (\App\Support\OpSerial::valid($typed)) {
-                $fixes[(int) $row->id] = $typed;
-                continue;
+            if ($updates) $fixes[$id] = $updates;
+            if ($errors) {
+                $needed[] = [
+                    'pra_id' => $id,
+                    'file_no' => $row->mlsFNo ?: ($row->fileno ?: ($row->temp_fileno ?? null)),
+                    'grantee' => trim((string) ($row->Grantee ?? '')) ?: trim((string) ($row->party_2 ?? '')),
+                    'location' => $row->location ?? null,
+                    'current' => $row->op_serial_number ?? null,
+                    'suggested' => $updates['op_serial_number'] ?? self::suggestOpSerial($serial),
+                    'details' => $result['values'],
+                    'entered' => (array) ($details[$id] ?? []),
+                    'errors' => $errors,
+                ];
             }
-
-            $needed[] = [
-                'pra_id'    => (int) $row->id,
-                'file_no'   => $row->mlsFNo ?: ($row->fileno ?: ($row->temp_fileno ?? null)),
-                'grantee'   => trim((string) ($row->Grantee ?? '')) ?: trim((string) ($row->party_2 ?? '')),
-                'location'  => $row->location ?? null,
-                'current'   => $row->op_serial_number,
-                'suggested' => self::suggestOpSerial($row->op_serial_number ?? null),
-                'rejected'  => $typed !== '' ? $typed : null,
-            ];
         }
-
         if ($needed) {
             return response()->json([
-                'success'         => false,
+                'success' => false,
                 'needs_op_serial' => true,
-                'message'         => count($needed) === 1
-                    ? 'This OP has no valid OP Serial Number. Enter it to continue.'
-                    : count($needed) . ' OPs have no valid OP Serial Number. Enter them to continue.',
-                'ops'             => $needed,
+                'needs_op_details' => true,
+                'message' => 'Complete the required OP details to continue.',
+                'ops' => $needed,
             ], 422);
         }
-
         return $fixes;
     }
 
-    /** Write the serials the officer supplied onto the OP records themselves. */
+    /** Save supplied source-OP fields inside the same transaction as the match. */
     private function saveOpSerialFixes($db, array $fixes, $userId): void
     {
-        foreach ($fixes as $praId => $serial) {
-            $before = $db->table('pra')->where('id', $praId)->value('op_serial_number');
-            $db->table('pra')->where('id', $praId)->update([
-                'op_serial_number' => $serial,
-                'updated_at'       => now(),
-            ]);
-            \Illuminate\Support\Facades\Log::info('OP serial supplied at Match OP', [
-                'pra_id'  => $praId,
-                'before'  => $before,
-                'after'   => $serial,
+        foreach ($fixes as $praId => $updates) {
+            $before = $db->table('pra')->where('id', $praId)->first(array_keys($updates));
+            $db->table('pra')->where('id', $praId)->update($updates + ['updated_at' => now()]);
+            \Illuminate\Support\Facades\Log::info('OP details supplied at Match OP', [
+                'pra_id' => $praId,
+                'before' => (array) $before,
+                'after' => $updates,
                 'user_id' => $userId,
             ]);
         }
@@ -5553,6 +5551,8 @@ class OpResettlementApplicationController extends Controller
             // {pra_id: serial} typed on the OP serial card.
             'op_serials' => 'nullable|array',
             'op_serials.*' => 'nullable|string|max:100',
+            'op_details' => 'nullable|array',
+            'op_details.*' => 'array',
         ]);
 
         $praIds = array_unique(array_map('intval', $validated['pra_ids']));
@@ -5575,13 +5575,15 @@ class OpResettlementApplicationController extends Controller
         }
 
         // Every OP in the merger needs a valid serial; the card collects any missing.
-        $serialFixes = $this->opSerialFixes($opRows, (array) $request->input('op_serials', []));
+        $serialFixes = $this->opSerialFixes($opRows, (array) $request->input('op_serials', []), (array) $request->input('op_details', []));
         if ($serialFixes instanceof JsonResponse) {
             return $serialFixes;
         }
         foreach ($opRows as $row) {
             if (isset($serialFixes[(int) $row->id])) {
-                $row->op_serial_number = $serialFixes[(int) $row->id];
+                foreach ($serialFixes[(int) $row->id] as $field => $value) {
+                    $row->{$field} = $value;
+                }
             }
         }
 

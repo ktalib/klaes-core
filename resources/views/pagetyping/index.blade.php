@@ -580,18 +580,17 @@
           const serialNoInput = document.getElementById('serial-no');
           const processButton = document.querySelector('.process-all-pages');
 
-          // In BC+FC mode, keep cover/page type locked but allow subtype selection (Old/New cover)
+          // In BC+FC mode the cover stays locked to Back Cover, but the page type
+          // is free: the operator types each back page while the mode runs.
           const bcfcMode = state.typingState?.bcfcMode;
-          
+
           if (coverTypeSelect) {
-            // Disable all inputs in BC+FC mode
             const coverTypeEnabled = bcfcMode ? false : enabled;
             coverTypeSelect.disabled = !coverTypeEnabled;
             coverTypeSelect.classList.toggle('opacity-50', !coverTypeEnabled);
           }
           if (pageTypeSelect) {
-            // Disable all inputs in BC+FC mode
-            const pageTypeEnabled = bcfcMode ? false : enabled;
+            const pageTypeEnabled = enabled;
             pageTypeSelect.disabled = !pageTypeEnabled;
             pageTypeSelect.classList.toggle('opacity-50', !pageTypeEnabled);
           }
@@ -863,7 +862,6 @@
           const rows = [
             ...extraItems.map(item => fileActionsMenuItem({ ...item, fileId, fileNumber })),
             fileActionsMenuItem({ action: 'move-registry-file', icon: 'folder-symlink', label: 'Move to NR', fileId, fileNumber }),
-            fileActionsMenuItem({ action: 'file-master-folder', icon: 'folder-tree', label: 'File into Master Folder', fileId, fileNumber }),
             fileActionsMenuItem({ action: 'reassign-file-number', icon: 'unlink', label: 'Reassign File Number', fileId, fileNumber }),
           ];
 
@@ -985,7 +983,7 @@
               return;
             }
 
-            window.scanReassignmentManager.openModal(documents.map(doc => doc.id), documents);
+            window.scanReassignmentManager.openModal(documents.map(doc => doc.id), documents, { title: 'Reassign FileNo' });
           } catch (error) {
             Swal.fire({ icon: 'error', title: 'Could not load the documents', text: error.message });
           }
@@ -1027,14 +1025,11 @@
               return;
             }
 
-            const transferButton = event.target.closest('.move-registry-file, .file-master-folder');
+            const transferButton = event.target.closest('.move-registry-file');
             if (transferButton) {
               event.preventDefault();
-              const dialog = transferButton.classList.contains('move-registry-file')
-                ? window.EdmsRegistryTransfer
-                : window.EdmsFileType;
               transferButton.closest('details')?.removeAttribute('open');
-              dialog.open(
+              window.EdmsRegistryTransfer.open(
                 transferButton.dataset.id,
                 transferButton.dataset.fileNumber,
                 () => window.location.reload()
@@ -2130,10 +2125,12 @@
 
           containerEl.innerHTML = `
             <div class="w-full h-full flex flex-col">
-              <div class="flex justify-between mb-2">
+              <div class="flex justify-between items-start gap-2 mb-2">
                 <span class="text-sm font-medium">PDF Document</span>
-                <div class="flex items-center gap-1">
-                  <button class="btn btn-ghost btn-icon zoom-out" title="Zoom Out"><i data-lucide="zoom-out" class="h-4 w-4"></i></button>
+                <div class="flex items-center justify-end gap-1 flex-wrap">
+                  <button type="button" class="btn btn-outline btn-sm view-image-full" onclick="openFullscreenView()" title="Open this page in full"><i data-lucide="maximize" class="h-4 w-4" aria-hidden="true"></i><span>View Image</span></button>
+                    <span class="toolbar-separator"></span>
+                    <button class="btn btn-ghost btn-icon zoom-out" title="Zoom Out"><i data-lucide="zoom-out" class="h-4 w-4"></i></button>
                   <span class="text-xs zoom-level">${state.typingState.zoomLevel}%</span>
                   <button class="btn btn-ghost btn-icon zoom-in" title="Zoom In"><i data-lucide="zoom-in" class="h-4 w-4"></i></button>
                   <span class="toolbar-separator"></span>
@@ -2295,9 +2292,11 @@
           if (isImg) {
             containerEl.innerHTML = `
               <div class="w-full h-full flex flex-col">
-                <div class="flex justify-between mb-2">
+                <div class="flex justify-between items-start gap-2 mb-2">
                   <span class="text-sm font-medium truncate max-w-[120px]" title="${scanning.original_filename}">${scanning.original_filename}</span>
-                  <div class="flex items-center gap-1">
+                  <div class="flex items-center justify-end gap-1 flex-wrap">
+                    <button type="button" class="btn btn-outline btn-sm view-image-full" onclick="openFullscreenView()" title="Open this page in full"><i data-lucide="maximize" class="h-4 w-4" aria-hidden="true"></i><span>View Image</span></button>
+                    <span class="toolbar-separator"></span>
                     <button class="btn btn-ghost btn-icon zoom-out" title="Zoom Out"><i data-lucide="zoom-out" class="h-4 w-4"></i></button>
                     <span class="text-xs zoom-level">${state.typingState.zoomLevel}%</span>
                     <button class="btn btn-ghost btn-icon zoom-in" title="Zoom In"><i data-lucide="zoom-in" class="h-4 w-4"></i></button>
@@ -2414,6 +2413,8 @@
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-sm font-medium truncate max-w-[120px]" title="${scanning.original_filename}">${scanning.original_filename}</span>
                   <div class="flex items-center gap-1 flex-wrap">
+                    <button type="button" class="btn btn-outline btn-sm view-image-full" onclick="openFullscreenView()" title="Open this page in full"><i data-lucide="maximize" class="h-4 w-4" aria-hidden="true"></i><span>View Image</span></button>
+                    <span class="toolbar-separator"></span>
                     <button class="btn btn-ghost btn-icon zoom-out" title="Zoom Out"><i data-lucide="zoom-out" class="h-4 w-4"></i></button>
                     <span class="text-xs zoom-level">${state.typingState.zoomLevel}%</span>
                     <button class="btn btn-ghost btn-icon zoom-in" title="Zoom In"><i data-lucide="zoom-in" class="h-4 w-4"></i></button>
@@ -3103,9 +3104,8 @@
           // Clone the preview content
           const clonedContent = originalContainer.cloneNode(true);
 
-          // Remove the fullscreen button from clone
-          const fullscreenBtn = clonedContent.querySelector('.fullscreen-btn');
-          if (fullscreenBtn) fullscreenBtn.remove();
+          // Remove the fullscreen / View Image buttons from the clone
+          clonedContent.querySelectorAll('.fullscreen-btn, .view-image-full').forEach(btn => btn.remove());
 
           // Update clone styling for full screen
           clonedContent.className = 'w-full h-full flex flex-col p-6';
@@ -3224,8 +3224,7 @@
 
             // Remove fullscreen button from re-rendered content and initialize icons
             setTimeout(() => {
-              const fsBtn = previewContainer.querySelector('.fullscreen-btn');
-              if (fsBtn) fsBtn.remove();
+              previewContainer.querySelectorAll('.fullscreen-btn, .view-image-full').forEach(btn => btn.remove());
               lucide.createIcons();
             }, 150);
           }
@@ -4566,7 +4565,7 @@
 
                           <div>
                             <label for="page-type" class="block text-sm font-medium mb-1.5">Page Type</label>
-                            <select id="page-type" class="input ${state.typingState.bcfcMode ? 'opacity-50 cursor-not-allowed' : ''}" ${state.typingState.bcfcMode ? 'disabled' : ''}>
+                            <select id="page-type" class="input">
                               ${pageTypes.map(type =>
                                 `<option value="${type.id}" ${state.typingState.pageType == type.id ? 'selected' : ''}>
                                   ${type.name} (${type.code})
@@ -4578,7 +4577,7 @@
                             <div id="page-type-others-container" class="mt-2" style="display: ${isOtherSelection(state.typingState.pageType) ? 'block' : 'none'};">
                               <label for="page-type-others" class="block text-sm font-medium mb-1">Specify Other Page Type</label>
                               <input id="page-type-others" value="${state.typingState.pageTypeOthers || ''}" 
-                                     class="input ${state.typingState.bcfcMode ? 'opacity-50 cursor-not-allowed' : ''}" placeholder="Enter custom page type" maxlength="50" ${state.typingState.bcfcMode ? 'disabled' : ''}>
+                                     class="input" placeholder="Enter custom page type" maxlength="50">
                             </div>
                           </div>
 
@@ -4596,7 +4595,7 @@
                             <div id="page-subtype-others-container" class="mt-2" style="display: ${isOtherSelection(state.typingState.pageSubType) ? 'block' : 'none'};">
                               <label for="page-subtype-others" class="block text-sm font-medium mb-1">Specify Other Subtype</label>
                               <input id="page-subtype-others" value="${state.typingState.pageSubTypeOthers || ''}" 
-                                     class="input ${state.typingState.bcfcMode ? 'opacity-50 cursor-not-allowed' : ''}" placeholder="Enter custom subtype" maxlength="50" ${state.typingState.bcfcMode ? 'disabled' : ''}>
+                                     class="input" placeholder="Enter custom subtype" maxlength="50">
                             </div>
                           </div>
 
@@ -6339,7 +6338,7 @@
           Swal.fire({
             icon: 'success',
             title: 'BC+FC Mode Started!',
-            text: 'Back Cover + File Cover Management activated. All form inputs are disabled during BC+FC mode. Pages will be numbered 0a, 0b, 0c, etc.',
+            text: 'Back Cover + File Cover Management activated. Choose each page\'s type as you go; the mode stays on until you click End BC+FC Mode. Pages will be numbered 0a, 0b, 0c, etc.',
             confirmButtonColor: '#f97316',
             timer: 4000,
             timerProgressBar: true
@@ -6436,14 +6435,12 @@
                 startBcFc();
               }, 100);
             }
+          } else if (state.typingState.bcfcMode) {
+            // Once running, the mode survives page-type changes — the operator
+            // types each back page — and only the End BC+FC Mode button stops it.
+            state.typingState.bcfcCardEnabled = true;
           } else {
-            // Disable BC+FC card and auto-end BC+FC mode if selection changes away from BC+FC
             state.typingState.bcfcCardEnabled = false;
-            if (state.typingState.bcfcMode) {
-              setTimeout(() => {
-                endBcFc();
-              }, 100);
-            }
           }
         }
 

@@ -6,7 +6,23 @@
     <title>Fragmentation Acknowledgment Sheet</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    @php
+        // Property Location Map (second sheet) is switched off until the static demo
+        // (public/st-ack-map-demo.html) is signed off. Set to true to print it.
+        $showMapSheet = false;
+    @endphp
+    @if($showMapSheet && isset($mapLat, $mapLng))
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    @endif
     <style>
+        /* Second sheet: property location map, on its own landscape page. */
+        .map-sheet { page-break-before: always; break-before: page; }
+        #ackPropertyMap { height: 470px; width: 100%; }
+        @media print {
+            #ackPropertyMap { height: 12.6cm; }
+            .leaflet-control-zoom { display: none !important; }
+        }
         @media print {
             @page {
                 size: landscape;
@@ -227,7 +243,76 @@
                 <img src="{{ asset('assets/logo/las.jpeg') }}" alt="LAS Logo" class="w-full h-full object-contain">
             </div>
         </div>
-    </div> 
+    </div>
+
+    {{-- Second sheet (landscape): property location map. Off for now, see $showMapSheet. --}}
+    @if($showMapSheet)
+    <div class="map-sheet max-w-[1200px] mx-auto relative">
+        <div class="flex items-start justify-between mb-3 pb-3 border-b-2 border-black">
+            <div class="w-16 h-16 flex-shrink-0">
+                <img src="{{ asset('assets/logo/logo1.jpg') }}" alt="Ministry Logo 1" class="w-full h-full object-contain">
+            </div>
+            <div class="text-center flex-1 px-4">
+                <h1 class="text-xl font-bold text-black mb-1">MINISTRY OF LAND AND PHYSICAL PLANNING</h1>
+                <h2 class="text-base font-semibold text-black mb-1">SECTIONAL TITLING DEPARTMENT</h2>
+                <h3 class="text-base font-bold text-black uppercase">PROPERTY LOCATION MAP</h3>
+            </div>
+            <div class="flex items-start gap-2 flex-shrink-0">
+                <div class="w-16 h-16">
+                    <img src="{{ qr_data_uri($applicationId, 110) }}" alt="QR Code" class="w-full h-full object-contain">
+                </div>
+                <div class="w-16 h-16">
+                    <img src="{{ asset('assets/logo/logo3.jpeg') }}" alt="Ministry Logo 2" class="w-full h-full object-contain">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 mb-2 text-sm relative z-10">
+            <div><span class="font-semibold text-black">File Number(s):</span> <strong>{{ $npFileNumber }}</strong> | <strong>{{ $fileNumber }}</strong></div>
+            <div><span class="font-semibold text-black">Applicant:</span> {{ ucwords(strtolower($applicantName)) }}</div>
+        </div>
+        <div class="mb-3 text-sm relative z-10">
+            <span class="font-semibold text-black">Property Address:</span> {{ ucwords(strtolower($propertyFullAddress)) }}
+        </div>
+
+        @if(isset($mapLat, $mapLng))
+            <div class="border border-black relative z-10">
+                <div id="ackPropertyMap"></div>
+            </div>
+            <div class="mt-2 flex flex-wrap justify-between gap-x-6 text-xs text-black relative z-10">
+                <span><span class="font-semibold">Latitude:</span> {{ number_format($mapLat, 7) }} &nbsp; <span class="font-semibold">Longitude:</span> {{ number_format($mapLng, 7) }}</span>
+                <span class="text-gray-600">{{ $mapSource }} · Imagery: Esri World Imagery</span>
+            </div>
+        @else
+            <div class="flex flex-col items-center justify-center gap-2 border border-dashed border-gray-400 text-gray-500 relative z-10" style="height: 12.6cm;">
+                <i data-lucide="map-pin-off" class="h-10 w-10"></i>
+                <p class="text-base font-semibold">Property location not yet pinned</p>
+                <p class="text-xs">No coordinates are recorded on this application or its file indexing record.</p>
+            </div>
+        @endif
+    </div>
+    @endif
+
+    <script>
+        // Draw the location map, then resolve once its tiles have loaded (or after a
+        // timeout, so a slow or offline tile server never blocks printing).
+        window.ackMapReady = new Promise(function (resolve) {
+            @if($showMapSheet && isset($mapLat, $mapLng))
+            try {
+                var pos = [{{ $mapLat }}, {{ $mapLng }}];
+                var map = L.map('ackPropertyMap', { zoomControl: false, attributionControl: false }).setView(pos, 18);
+                var tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+                tiles.once('load', function () { setTimeout(resolve, 300); });
+                tiles.addTo(map);
+                L.marker(pos).addTo(map);
+                L.circle(pos, { radius: 25, color: '#dc2626', weight: 2, fillOpacity: 0.08 }).addTo(map);
+                setTimeout(resolve, 6000);
+            } catch (e) { resolve(); }
+            @else
+            resolve();
+            @endif
+        });
+    </script>
     <script>
         function markPrinted() {
             // Detect if this is a sub or primary by checking presence of a hint in the URL
@@ -249,7 +334,11 @@
         // Track print count to hide watermark on subsequent prints
         let printCount = 0;
         
-        window.addEventListener('load', function() { setTimeout(function(){ window.print(); }, 400); });
+        window.addEventListener('load', function() {
+            (window.ackMapReady || Promise.resolve()).then(function () {
+                setTimeout(function(){ window.print(); }, 400);
+            });
+        });
         window.addEventListener('afterprint', function() {
             printCount++;
             // Hide court of arms watermark after first print

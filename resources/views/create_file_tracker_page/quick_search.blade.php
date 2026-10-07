@@ -998,6 +998,20 @@
                 </div>`;
         }
 
+        // File Request Type of the open movement cycle (In-Transit / Requested),
+        // resolved server-side by FileLocationResolver::requestTypeFor(). A request
+        // type, not a log status, so it is labelled as such. Nothing when null.
+        const REQUEST_TYPE_CLS = {
+            IN_TRANSIT: 'bg-amber-50 text-amber-800 border-amber-300',
+            REQUESTED:  'bg-violet-50 text-violet-800 border-violet-300',
+        };
+        function requestTypeTagHtml(rt) {
+            if (!rt || !rt.label) return '';
+            const cls = REQUEST_TYPE_CLS[rt.key] || 'bg-gray-50 text-gray-700 border-gray-300';
+            return `<span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cls}" title="File Request Type">
+                <span class="font-medium opacity-75">Request Type:</span> ${esc(rt.label)}</span>`;
+        }
+
         function render(d) {
             const meta = STATUS_META[d.status] || { label:d.status, cls:'bg-gray-100 text-gray-800 border-gray-300', icon:'file' };
             const showsRegistry = (d.status === 'REFER_TO_ORIGINAL_REGISTRY' && d.registry);
@@ -1140,9 +1154,12 @@
                             <div class="text-sm text-gray-500">${esc(d.file_title || '—')}</div>
                             </div>
                         </div>
+                        <div class="flex flex-col items-end gap-1.5">
                         <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${metaCls}">
                             <i data-lucide="${meta.icon}" class="h-3.5 w-3.5"></i> ${esc(metaLabel)}
 </span>
+                        ${requestTypeTagHtml(d.request_type)}
+                        </div>
                     </div>
                     <div class="px-6 py-3">
                         ${duplicateFlagHtml(d)}

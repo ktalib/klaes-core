@@ -1,0 +1,38 @@
+// Requires playwright and sweetalert2 (NODE_PATH may point to a temporary install).
+const { chromium } = require('playwright');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+(async () => {
+    const source = fs.readFileSync(path.join(__dirname, '../../resources/views/lands_one_stop_shop/applications.blade.php'), 'utf8');
+    const functions = source.slice(source.indexOf('    function opSerialValid('), source.indexOf('    function openMatchOpModal('));
+    const browser = await chromium.launch({ channel: 'msedge', headless: true });
+    const page = await browser.newPage({ viewport: { width: 600, height: 760 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.setContent('<html><body></body></html>');
+    await page.addScriptTag({ path: require.resolve('sweetalert2') });
+    await page.addScriptTag({ content: functions });
+    const op = { pra_id: 10, file_no: 'RES-2025-1816', current: '', details: {} };
+    await page.evaluate(op => { window.answer = opSerialCard([op]); }, op);
+    assert.equal(await page.locator('.op-detail-input').count(), 6);
+    await page.getByRole('button', { name: 'Save details & continue' }).click();
+    assert.equal(await page.locator('.swal2-validation-message').isVisible(), true);
+    const data = { op_serial_number: '72', transaction_date: '2025-01-05', regNo: '12/34/56', deeds_time: '09:30:00', deeds_date: '2025-01-07', tp_no: 'TP/123' };
+    for (const [key, value] of Object.entries(data)) await page.locator('[data-field="' + key + '"]').fill(value);
+    await page.locator('[data-field="regNo"]').fill('0/0/0');
+    await page.getByRole('button', { name: 'Save details & continue' }).click();
+    assert.equal(await page.locator('.swal2-validation-message').isVisible(), true);
+    await page.locator('[data-field="regNo"]').fill(data.regNo);
+    await page.getByRole('button', { name: 'Save details & continue' }).click();
+    assert.deepEqual(await page.evaluate(() => window.answer), { 10: data });
+    await page.evaluate(op => { window.answer = opSerialCard([op]); }, { ...op, current: '72', details: { ...data, tp_no: '' } });
+    assert.equal(await page.locator('.op-detail-input').count(), 1);
+    assert.equal(await page.locator('[data-field="tp_no"]').count(), 1);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.equal(await page.evaluate(() => window.answer), null);
+    assert.deepEqual(await page.evaluate(() => opDetailMerge({ 10: { op_serial_number: '72' } }, { 10: { tp_no: 'TP/123' } })), { 10: { op_serial_number: '72', tp_no: 'TP/123' } });
+    assert.deepEqual(errors, []);
+    await browser.close();
+    console.log('PASS: six required inputs, blank/invalid validation, complete payload, existing fields preserved, cancellation, retry merging.');
+})().catch(error => { console.error(error); process.exit(1); });

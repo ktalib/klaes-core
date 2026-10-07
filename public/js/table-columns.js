@@ -152,7 +152,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'klaes-columns-button';
-        button.textContent = 'Columns';
+        button.textContent = 'Customize columns';
         button.setAttribute('aria-haspopup', 'dialog');
         const state = { table, api, columns, key, hidden: new Set(hidden), toolbar,
             head: table.tHead, settings: api ? api.settings()[0] : null };

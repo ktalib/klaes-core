@@ -1,6 +1,6 @@
     <!-- 2b. File Tracking (standalone, un-scoped / corporate) -->
     @if(
-      $hasRole('Log a File') || $hasRole('File Tracker/Tracking - RFID') || $hasRole('File Digital Library - Doc-WARE') || $hasRole('EDMS Update')
+      $hasRole('Log a File') || $hasRole('File Tracker/Tracking - RFID') || $hasRole('File Digital Library - Doc-WARE') || $hasRole('EDMS Update') || $hasRole('File Movement (Department)')
     )
     <div class="py-1 px-3 mb-0.5 border-t border-slate-100">
       <div class="sidebar-module-header flex items-center justify-between py-2 px-3 mb-0.5 cursor-pointer hover:bg-slate-50 rounded-md" data-module="fileTracking">
@@ -34,7 +34,14 @@
         @if($hasRole('Log a File'))
         <a href="{{ route('create-file-tracker.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.index') && !request('url') ? 'active' : '' }}">
           <i data-lucide="file-plus" class="h-4 w-4 text-teal-500"></i>
-          <span>Log a File</span>
+          <span>Log a File (Archive)</span>
+        </a>
+        @endif
+        <!-- e. File Movement (Department) — in/out register for HC / PS / Directors' offices -->
+        @if($hasRole('File Movement (Department)'))
+        <a href="{{ route('secretariat-file-log.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('secretariat-file-log.*') ? 'active' : '' }}">
+          <i data-lucide="arrow-left-right" class="h-4 w-4 text-teal-500"></i>
+          <span>File Movement (Department)</span>
         </a>
         @endif
       </div>

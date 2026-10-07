@@ -542,8 +542,8 @@
                 </div>
                 <div class="border-t border-gray-200 pt-3 space-y-2">
                   <button type="button" class="btn btn-outline btn-sm w-full gap-2" id="browse-large-format-scans" disabled><i data-lucide="image" class="h-4 w-4 shrink-0" aria-hidden="true"></i>Browse Large-Format Scans</button>
-                  <p class="text-xs text-gray-500" style="overflow-wrap:anywhere">Master LFS Folder: {{ config('large_format_scans.folder') }}</p>
-                  <p class="text-xs text-gray-500">Select an indexed file first. LF images are added to its upload pages.</p>
+                  <p class="text-xs text-gray-500" style="overflow-wrap:anywhere">Master LFS Folder: {{ config('large_format_scans.libraries.lfs.display', config('large_format_scans.folder')) }}</p>
+                  <p class="text-xs text-gray-500" id="lf-scan-status" aria-live="polite">Select an indexed file first. LF images are added to its upload pages.</p>
                 </div>
               </div>
 

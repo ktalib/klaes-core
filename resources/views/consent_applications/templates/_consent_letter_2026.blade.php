@@ -580,139 +580,88 @@
         <div class="clause first">
             By virtue of the powers conferred upon the Governor of Kano State by the provisions of sections 9, 21, and
             22 of the Land Use Act, Laws of the Federation of Nigeria, which powers were delegated to me by section 45
-            of the Act{{ $demo ? ',' : '' }} and further to your application dated
+            of the Act, and further to your application dated
             <span class="json-data">{!! $longDate($application->application_dated) ?: '_____________' !!}</span>
             on the above subject matter.
         </div>
 
-        <!-- Clause 2 — the approval itself. -->
-        {{-- The preview drops the "for consideration of …" tail: the consideration
-             is moving into clause 3's fee list. Real letters keep it until the
-             new wording is signed off; to drop it there too, remove "! $demo". --}}
+        <!-- Clause 2 — the approval itself. The consideration is not repeated
+             here: it is item i of clause 3's table. -->
         <div class="clause">
             2. I hereby convey my Approval for consent to {{ $verb }} the property with Certificate of Occupancy No.
             <span class="json-data">{{ $application->file_number }}</span> to
             <span class="json-data">{{ strtoupper((string) $application->party_name) }}</span> of
             <span
-                class="json-data">{{ rtrim(trim((string) $application->party_address), '.') }}</span>@if ($considerationFigure !== '' && ! $demo) for consideration of
-                <span
-                    class="json-data">{{ $application->consideration_words }} ({{ $currency }}{{ $considerationFigure }})</span>@endif.
+                class="json-data">{{ rtrim(trim((string) $application->party_address), '.') }}</span>.
         </div>
 
-        <!-- Clause 3 — the fees the Ministry has received, then the stamp duty
-             the applicant must pay elsewhere. Stamp duty is not part of the
-             total: it goes to KIRS or FIRS according to the transaction type. -->
-        {{-- The revised layout shows on the preview page only, for sign-off: an
-             unnumbered sentence and the fee table under clause 2, followed by
-             3 (penalty) and 4 (outstanding payment). Real letters
-             keep the earlier clause 3 / 4 until approved; to switch, drop the
-             $demo conditions here and in clauses 3 and 4 below. --}}
-        @if ($demo)
-            <div class="clause">
-                3. The Ministry hereby acknowledges the prior payments listed as items no ii &amp; iii below, and
-                also requests the applicant to pay Stamp Duty (as detailed under item iv below);
-                <table class="fee-sections">
-                    <tr class="fee-paid">
-                        <td class="fee-no">i.</td>
-                        <td class="fee-label">Consideration (Valuation of the Property)</td>
-                        <td class="fee-amount">{{ $considerationFigure !== '' ? $currency . $considerationFigure : '_____________' }}</td>
-                        <td class="fee-note">(Not to be paid)</td>
-                    </tr>
-                    <tr class="fee-paid">
-                        <td class="fee-no">ii.</td>
-                        <td class="fee-label">Registration fees ({{ $rate($fees['registration_rate']) }})</td>
-                        <td class="fee-amount">{{ $money($fees['registration_fee']) }}</td>
-                        <td class="fee-note">(Already paid to MOL&amp;PP)</td>
-                    </tr>
-                    <tr class="fee-paid">
-                        <td class="fee-no">iii.</td>
-                        <td class="fee-label">Processing fees</td>
-                        <td class="fee-amount">{{ $money($fees['processing_fee']) }}</td>
-                        <td class="fee-note">(Already paid to MOL&amp;PP)</td>
-                    </tr>
-                    <tr class="fee-total fee-paid">
-                        <td class="fee-no"></td>
-                        <td class="fee-label">Total</td>
-                        <td class="fee-amount"><span>{{ $money($fees['total']) }}</span></td>
-                        <td class="fee-note"></td>
-                    </tr>
-                    <tr class="is-outstanding">
-                        <td class="fee-no">iv.</td>
-                        <td class="fee-label">Stamp Duty ({{ $rate($fees['stamp_duty_rate']) }})</td>
-                        <td class="fee-amount">{{ $money($fees['stamp_duty_amount']) }}</td>
-                        <td class="fee-note">(Outstanding, to be paid to {{ $fees['payee'] }})</td>
-                    </tr>
-                </table>
-            </div>
-        @else
-            <div class="clause">
-                3. The Ministry has acknowledged the following payment
-                <table class="fee-table">
-                    <tr>
-                        <td>i.</td>
-                        <td>Registration fees ({{ $rate($fees['registration_rate']) }}):</td>
-                        <td>-</td>
-                        <td class="fee-amount">{{ $money($fees['registration_fee']) }}</td>
-                    </tr>
-                    <tr>
-                        <td>ii.</td>
-                        <td>Processing fees</td>
-                        <td>-</td>
-                        <td class="fee-amount">{{ $money($fees['processing_fee']) }}</td>
-                    </tr>
-                    <tr class="fee-total">
-                        <td></td>
-                        <td style="padding-left: 1.2rem;">Total</td>
-                        <td>-</td>
-                        <td class="fee-amount"><span>{{ $money($fees['total']) }}</span></td>
-                    </tr>
-                </table>
-                In view of the above you are requested to pay the sum of
-                <span class="json-data">{{ $money($fees['stamp_duty_amount']) }}</span> being
-                <span class="json-data">{{ $rate($fees['stamp_duty_rate']) }}</span> for Stamp duty
-                <strong>MUST</strong> be paid to the <strong>{{ $fees['payee_name'] }}</strong> before {{ $closing }}.
-            </div>
-        @endif
+        <!-- Clause 3 — what the Ministry has received (items ii, iii and their
+             total, shaded), the consideration they were assessed on (item i),
+             and the stamp duty still owed to KIRS / FIRS (item iv, in red).
+             Stamp duty is not part of the total. -->
+        <div class="clause">
+            3. The Ministry hereby acknowledges the prior payments listed as items no ii &amp; iii below, and
+            also requests the applicant to pay Stamp Duty (as detailed under item iv below);
+            <table class="fee-sections">
+                <tr class="fee-paid">
+                    <td class="fee-no">i.</td>
+                    <td class="fee-label">Consideration (Valuation of the Property)</td>
+                    <td class="fee-amount">{{ $considerationFigure !== '' ? $currency . $considerationFigure : '_____________' }}</td>
+                    <td class="fee-note">(Not to be paid)</td>
+                </tr>
+                <tr class="fee-paid">
+                    <td class="fee-no">ii.</td>
+                    <td class="fee-label">Registration fees ({{ $rate($fees['registration_rate']) }})</td>
+                    <td class="fee-amount">{{ $money($fees['registration_fee']) }}</td>
+                    <td class="fee-note">(Already paid to MOL&amp;PP)</td>
+                </tr>
+                <tr class="fee-paid">
+                    <td class="fee-no">iii.</td>
+                    <td class="fee-label">Processing fees</td>
+                    <td class="fee-amount">{{ $money($fees['processing_fee']) }}</td>
+                    <td class="fee-note">(Already paid to MOL&amp;PP)</td>
+                </tr>
+                <tr class="fee-total fee-paid">
+                    <td class="fee-no"></td>
+                    <td class="fee-label">Total</td>
+                    <td class="fee-amount"><span>{{ $money($fees['total']) }}</span></td>
+                    <td class="fee-note"></td>
+                </tr>
+                <tr class="is-outstanding">
+                    <td class="fee-no">iv.</td>
+                    <td class="fee-label">Stamp Duty ({{ $rate($fees['stamp_duty_rate']) }})</td>
+                    <td class="fee-amount">{{ $money($fees['stamp_duty_amount']) }}</td>
+                    <td class="fee-note">(Outstanding, to be paid to {{ $fees['payee'] }})</td>
+                </tr>
+            </table>
+        </div>
 
-        @if ($demo)
-            <!-- Clause 4 (preview) — the stamp duty (item iv) is still owed. The
-                 amount, rate and authority follow the transfer type. -->
-            <div class="clause">
-                {{-- The authority (KIRS / FIRS) follows the transfer type. --}}
-                4. Please be advised that the payment detailed below must be remitted to the
-                <strong>{{ $fees['payee_name'] }}</strong> before the Ministry can proceed with further processing;
-                <div class="clause-sub is-outstanding">
-                    <span class="clause-sub-no">i.</span>
-                    <span>The sum of <span class="json-data">{{ \App\Services\ConsentBillCalculator::amountInWords($fees['stamp_duty_amount'] ?? 0) }}
-                    ({{ $money($fees['stamp_duty_amount']) }})</span> being
-                    <span class="json-data">{{ $rate($fees['stamp_duty_rate']) }}</span> for Stamp duty.</span>
-                </div>
+        <!-- Clause 4 — the stamp duty (item iv) is still owed. The
+             amount, rate and authority follow the transfer type. -->
+        <div class="clause">
+            {{-- The authority (KIRS / FIRS) follows the transfer type. --}}
+            4. Please be advised that the payment detailed below must be remitted to the
+            <strong>{{ $fees['payee_name'] }}</strong> before the Ministry can proceed with further processing;
+            <div class="clause-sub is-outstanding">
+                <span class="clause-sub-no">i.</span>
+                <span>The sum of <span class="json-data">{{ \App\Services\ConsentBillCalculator::amountInWords($fees['stamp_duty_amount'] ?? 0) }}
+                ({{ $money($fees['stamp_duty_amount']) }})</span> being
+                <span class="json-data">{{ $rate($fees['stamp_duty_rate']) }}</span> for Stamp duty.</span>
             </div>
+        </div>
 
-            <!-- Clause 5 (preview) — the default penalty. The deadline and the
-                 daily rate come from config/consent_letter.php. -->
-            <div class="clause">
-                5. Furthermore, kindly also note that the {{ $deedName }}/Instrument Documents must be submitted within the
-                stipulated <span class="json-data">{{ $deadlineWords }} ({{ $deadlineDays }})</span> calendar days,
-                failure of which penalty of the sum of
-                <span class="json-data">{{ $currency }}{{ $penaltyFigure }} ({{ $penaltyWords }} only)</span> shall be
-                charged for each day of default until the last day of compliance.
-            </div>
-        @else
-            <!-- Clause 4 — the default penalty. The deadline and the daily rate
-                 come from config/consent_letter.php, never from this template. -->
-            <div class="clause">
-                4. Please note that if Deed of Assignment/Instrument Documents are not submitted within the stipulated
-                <span class="json-data">{{ $deadlineWords }} ({{ $deadlineDays }})</span> calendar days, a penalty sum of
-                <span class="json-data">{{ $currency }}{{ $penaltyFigure }} ({{ $penaltyWords }})</span> shall be charged
-                for each day of such default in payment until compliance is attained.
-            </div>
-        @endif
+        <!-- Clause 5 — the default penalty. The deadline and the
+             daily rate come from config/consent_letter.php. -->
+        <div class="clause">
+            5. Furthermore, kindly also note that the {{ $deedName }}/Instrument Documents must be submitted within the
+            stipulated <span class="json-data">{{ $deadlineWords }} ({{ $deadlineDays }})</span> calendar days,
+            failure of which penalty of the sum of
+            <span class="json-data">{{ $currency }}{{ $penaltyFigure }} ({{ $penaltyWords }} only)</span> shall be
+            charged for each day of default until the last day of compliance.
+        </div>
 
         <!-- Signature. The approved letter carries no "Yours faithfully,". -->
-        {{-- Centred on the preview page only, for sign-off before it goes onto
-             real letters. To apply it everywhere, drop the $demo condition. --}}
-        <div class="signature-block {{ $demo ? 'is-centred' : '' }}">
+        <div class="signature-block is-centred">
             <div class="signature-rule"></div>
             {{-- Name only when one is configured: an unsigned letter shows the
                  rule and the office alone, never a placeholder name. --}}

@@ -115,11 +115,15 @@ class ScanReassignmentManager {
     /**
      * Open the reassign modal with selected scans and their data
      */
-    openModal(scanIds, scanData) {
+    openModal(scanIds, scanData, options = {}) {
         if (!scanIds || scanIds.length === 0) {
             this.showAlert('Please select at least one document to reassign.', 'warning');
             return;
         }
+
+        // A caller reassigning a whole file names the dialog itself, so a
+        // one-page file is not announced as a single scanned page.
+        this.titleOverride = options.title || null;
 
         this.selectedScanIds = Array.isArray(scanIds) ? scanIds : [scanIds];
         this.scanData = Array.isArray(scanData) ? scanData : (scanData ? [scanData] : []);
@@ -271,7 +275,7 @@ class ScanReassignmentManager {
 
         const titleEl = document.querySelector('#reassign-modal-title');
         if (titleEl) {
-            titleEl.textContent = wholeFile ? 'Reassign Uploaded File' : 'Reassign Scanned Page';
+            titleEl.textContent = this.titleOverride || (wholeFile ? 'Reassign Uploaded File' : 'Reassign Scanned Page');
         }
     }
 

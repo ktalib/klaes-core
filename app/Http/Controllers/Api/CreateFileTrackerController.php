@@ -2242,6 +2242,8 @@ HTML;
             // UI renders "KANGIS FileNo (Land FileNo)". Null when there is no pair.
             'linked_file_number' => app(FileLocationResolver::class)->linkedFileNumber($result['file_number'], $indexing),
             'status'           => $result['status'],
+            // In-Transit / Requested / DIIT for the open movement cycle (null when none).
+            'request_type'     => app(FileLocationResolver::class)->requestTypeFor($tracker),
             'registry'         => $result['registry'],
             'zone'             => $result['zone'],
             'current_location' => $result['current_location'],

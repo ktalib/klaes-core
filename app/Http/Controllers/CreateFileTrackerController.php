@@ -3059,6 +3059,8 @@ HTML;
                 ? app(FileLocationResolver::class)->relatedFilesWithTitles($indexing, $result['file_number'])
                 : [],
             'status'           => $result['status'],
+            // In-Transit / Requested / DIIT for the open movement cycle (null when none).
+            'request_type'     => app(FileLocationResolver::class)->requestTypeFor($tracker),
             'registry'         => $result['registry'],
             'zone'             => $result['zone'],
             'current_location' => $result['current_location'],

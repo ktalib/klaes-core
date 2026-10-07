@@ -1138,6 +1138,33 @@ class SectionalTitlingController extends Controller
         $printedCount = $track ? ((int) ($track->printed_count ?? 0)) : 0;
         $watermarkText = $printedCount > 0 ? 'COPY OF ORIGINAL' : 'ORIGINAL';
 
+        // Property location for the map page (second sheet). The pin captured on the
+        // application form wins; otherwise the indexing record of the primary file,
+        // which is what the form backfills from. Joined on the file-number string.
+        $toCoord = function ($v, float $min, float $max) {
+            $v = trim((string) $v);
+            return (is_numeric($v) && (float) $v >= $min && (float) $v <= $max && (float) $v != 0.0) ? (float) $v : null;
+        };
+        $mapLat = $toCoord($app->latitude ?? null, -90, 90);
+        $mapLng = $toCoord($app->longitude ?? null, -180, 180);
+        $mapSource = ($mapLat !== null && $mapLng !== null) ? 'Pinned on the application' : null;
+        if ($mapSource === null && !empty($app->fileno)) {
+            $indexed = DB::connection('sqlsrv')->table('file_indexings')
+                ->where('file_number', trim((string) $app->fileno))
+                ->whereNotNull('latitude')->whereNotNull('longitude')
+                ->where('latitude', '<>', '')->where('longitude', '<>', '')
+                ->orderByDesc('id')
+                ->first(['latitude', 'longitude']);
+            if ($indexed) {
+                $mapLat = $toCoord($indexed->latitude, -90, 90);
+                $mapLng = $toCoord($indexed->longitude, -180, 180);
+                $mapSource = ($mapLat !== null && $mapLng !== null) ? 'From the file indexing record' : null;
+            }
+        }
+        if ($mapSource === null) {
+            $mapLat = $mapLng = null;
+        }
+
         return view('sectionaltitling.print.acknowledgement', [
             'applicationId' => $app->id,
             'landUse' => $app->land_use ?? '-',
@@ -1178,6 +1205,11 @@ class SectionalTitlingController extends Controller
             // Tracking for watermark and UI
             'printedCount' => $printedCount,
             'watermarkText' => $watermarkText,
+
+            // Map page (second sheet)
+            'mapLat' => $mapLat,
+            'mapLng' => $mapLng,
+            'mapSource' => $mapSource,
         ]);
     }
 

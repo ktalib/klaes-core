@@ -98,10 +98,6 @@
                                     <i data-lucide="folder-symlink" class="h-4 w-4"></i>
                                     <span class="hidden sm:inline">Move to NR</span>
                                 </button>
-                                <button class="btn btn-sm bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-1" id="viewer-file-type" title="File this file into a master folder">
-                                    <i data-lucide="folder-tree" class="h-4 w-4"></i>
-                                    <span class="hidden sm:inline">Master Folder</span>
-                                </button>
                                 <button class="btn btn-sm bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1" id="viewer-reassign" title="Unlink these documents and attach them to a different file number">
                                     <i data-lucide="unlink" class="h-4 w-4"></i>
                                     <span class="hidden sm:inline">Reassign</span>
@@ -367,7 +363,7 @@ window.clearDocumentViewerData = clearDocumentViewerData;
 
 /* ============================================================
  * Master Edit — one switch over every editing action in the viewer.
- * Move to NR, Master Folder, Reassign, Edit Type and Quality Control
+ * Move to NR, Reassign, Edit Type and Quality Control
  * are hidden until it is on, so a document that is only being read
  * cannot be modified by a mis-click. Switching it back off closes
  * whatever editor was open rather than leaving it stranded on screen.
@@ -450,9 +446,6 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('viewer-move-registry')
         ?.addEventListener('click', openFileAction(window.EdmsRegistryTransfer));
 
-    document.getElementById('viewer-file-type')
-        ?.addEventListener('click', openFileAction(window.EdmsFileType));
-
     // Reassignment is keyed on scan ids, not the file, so it cannot use openFileAction().
     document.getElementById('viewer-reassign')?.addEventListener('click', function () {
         if (!currentFileMeta || !currentFileMeta.id) {
@@ -498,7 +491,7 @@ async function openArchiveReassign(fileIndexingId, fileNumber) {
             return;
         }
 
-        window.scanReassignmentManager.openModal(documents.map(doc => doc.id), documents);
+        window.scanReassignmentManager.openModal(documents.map(doc => doc.id), documents, { title: 'Reassign FileNo' });
     } catch (error) {
         if (window.Swal) {
             Swal.fire({ icon: 'error', title: 'Could not load the documents', text: error.message });

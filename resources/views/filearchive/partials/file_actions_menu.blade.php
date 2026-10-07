@@ -12,12 +12,5 @@
             <i data-lucide="folder-symlink" class="h-4 w-4 text-blue-600"></i>
             Move to NR
         </button>
-        <button type="button"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                title="File {{ e($file->file_number) }} into a master folder"
-                onclick="event.stopPropagation(); this.closest('details').removeAttribute('open'); EdmsFileType.open({{ (int) $file->id }}, @js($file->file_number), () => window.location.reload());">
-            <i data-lucide="folder-tree" class="h-4 w-4 text-violet-600"></i>
-            File into Master Folder
-        </button>
     </div>
 </details>

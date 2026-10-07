@@ -1106,6 +1106,37 @@ class FileLocationResolver
             && strtoupper(trim((string) $tracker->file_request_type)) === 'SYSTEM';
     }
 
+    /**
+     * The File Request Type of the file's current movement cycle: how it came to be
+     * moving, as opposed to the per-row log status. Shown on Quick Search and the
+     * mobile File Search, and printed on the Tracking Sheet (resolveFileRequestType
+     * in the tracker page JS uses the same rules).
+     *
+     *   Requested   file_request_type SUBMITTED, i.e. an officer asked for the file
+     *   In-Transit  everything else (MANUAL, the legacy literal, NULL), the same
+     *               split as the In-transit / Submitted Request tabs
+     *
+     * Null when nothing is moving: no tracker, the range-home SYSTEM tracker, or a
+     * cycle that has already closed. DIIT is not a request type here; it is shown
+     * through its own existing markers.
+     *
+     * @return array{key: string, label: string}|null
+     */
+    public function requestTypeFor(?FileTracker $tracker): ?array
+    {
+        if ($tracker === null
+            || $this->isRangeHomeTracker($tracker)
+            || $this->isTerminalTrackerStatus($tracker->status)) {
+            return null;
+        }
+
+        if (strtoupper(trim((string) $tracker->file_request_type)) === 'SUBMITTED') {
+            return ['key' => 'REQUESTED', 'label' => 'Requested'];
+        }
+
+        return ['key' => 'IN_TRANSIT', 'label' => 'In-Transit'];
+    }
+
     public function isTerminalTrackerStatus(?string $status): bool
     {
         return in_array(strtoupper(trim((string) $status)), [

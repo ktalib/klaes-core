@@ -181,6 +181,8 @@ class MobileFileSearchController extends Controller
                 'related_files'      => $resolver->relatedFilesWithTitles($result['indexing'] ?? null, $result['file_number']),
                 'file_title'       => $fileTitle,
                 'status'           => $result['status'],
+                // In-Transit / Requested / DIIT for the open movement cycle (null when none).
+                'request_type'     => $resolver->requestTypeFor($tracker),
                 'registry'         => $result['registry'],
                 // Origin registry the file physically belongs to (KANGIS / SLTR / ST /
                 // Cadastral), so the Send-to-SCB form can pre-select the Registry (Origin)

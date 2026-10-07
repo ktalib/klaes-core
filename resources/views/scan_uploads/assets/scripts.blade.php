@@ -1247,11 +1247,56 @@
         });
     }
 
+    /**
+     * Look up the selected file's folder on the LF share as soon as a file
+     * number is chosen, so the operator sees straight away whether it has LF
+     * scans and the picker opens inside that folder.
+     */
+    let lfStatusFileId = null;
+    function refreshLfScanStatus() {
+        const status = document.getElementById('lf-scan-status');
+        const fileId = state.selectedIndexedFile || null;
+        if (!status || fileId === lfStatusFileId) return;
+        lfStatusFileId = fileId;
+
+        if (!fileId) {
+            status.textContent = 'Select an indexed file first. LF images are added to its upload pages.';
+            status.className = 'text-xs text-gray-500';
+            return;
+        }
+
+        status.textContent = 'Checking the LF folder for this file...';
+        status.className = 'text-xs text-gray-500';
+        const url = new URL(window.largeFormatConfig?.browse || '/large-format-scans', location.href);
+        url.searchParams.set('file_indexing_id', fileId);
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+            .then(result => {
+                if (lfStatusFileId !== fileId) return;
+                if (result.matched) {
+                    const folders = (result.entries || []).filter(entry => entry.directory).map(entry => entry.name);
+                    const images = (result.entries || []).filter(entry => !entry.directory).length;
+                    const parts = [folders.length ? folders.join(', ') : null, images ? `${images} image(s)` : null].filter(Boolean);
+                    status.textContent = `LF folder found for ${result.file_number || result.path}${parts.length ? ' (' + parts.join(' · ') + ')' : ''}. Browse to add its images.`;
+                    status.className = 'text-xs text-green-700';
+                } else {
+                    status.textContent = result.message || 'No LF folder for this file on the scan server.';
+                    status.className = 'text-xs text-yellow-700';
+                }
+            })
+            .catch(() => {
+                if (lfStatusFileId !== fileId) return;
+                status.textContent = 'The LF folder could not be checked. Browse to try again.';
+                status.className = 'text-xs text-red-600';
+            });
+    }
+
     function syncConfirmButtonState(forceDisable = false) {
         const lfBrowseButton = document.getElementById('browse-large-format-scans');
         if (lfBrowseButton) {
             lfBrowseButton.disabled = forceDisable || !state.selectedIndexedFile || state.uploadStatus === 'uploading';
         }
+        refreshLfScanStatus();
         if (!elements.confirmFileSelectBtn) {
             return;
         }
@@ -1334,11 +1379,6 @@
                       data-batch-id="${batchId}">
                 <i data-lucide="folder-symlink" class="h-4 w-4 text-blue-600"></i>
                 Move to NR
-              </button>
-              <button type="button" class="file-upload-into-master flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-100"
-                      data-batch-id="${batchId}">
-                <i data-lucide="folder-tree" class="h-4 w-4 text-blue-600"></i>
-                File into Master Folder
               </button>
               <div class="my-1 border-t border-gray-100"></div>
               <button type="button" class="reassign-upload-file-number flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
@@ -1424,7 +1464,7 @@
             paperSize: doc.paperSize,
             documentType: doc.documentType,
             registry: doc.registry || batch.registry || null,
-        })));
+        })), { title: 'Reassign FileNo' });
     }
 
     function openDocumentUploadEdmsAction(button) {
