@@ -232,6 +232,14 @@ class PageTypingController extends Controller
                     }
                 }
 
+                $latestScan = $file->relationLoaded('scannings')
+                    ? $file->scannings->sortByDesc('id')->sortByDesc('created_at')->first()
+                    : null;
+                $updatedBy = $latestScan && $latestScan->relationLoaded('uploader')
+                    ? $latestScan->uploader : null;
+                $updatedByName = $updatedBy
+                    ? trim($updatedBy->first_name . ' ' . $updatedBy->last_name) : '';
+
                 return [
                     'id' => $file->id,
                     'file_number' => $file->file_number,
@@ -246,6 +254,7 @@ class PageTypingController extends Controller
                     'status' => $file->status,
                     'typed_by_name' => $typedByName,
                     'typed_by_id' => $typedById,
+                    'updated_by_name' => $updatedByName ?: 'Unknown',
                     'main_application' => $file->mainApplication ? [
                         'id' => $file->mainApplication->id,
                         'applicant_name' => $file->mainApplication->applicant_name ?? 'Unknown'
@@ -334,7 +343,7 @@ class PageTypingController extends Controller
     {
         try {
             $query = FileIndexing::on('sqlsrv')
-                ->with(['mainApplication', 'scannings', 'pagetypings'])
+                ->with(['mainApplication', 'scannings.uploader', 'pagetypings'])
                 ->whereHas('scannings')
                 ->whereDoesntHave('pagetypings');
 

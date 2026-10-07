@@ -3617,9 +3617,10 @@
                           <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium text-gray-900 truncate">${file.file_number}</p>
                             <p class="text-sm text-gray-500 truncate">${file.file_title}</p>
-                            <div class="flex items-center gap-4 mt-1">
+                            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                               <span class="text-xs text-gray-400">${file.scannings_count} pages scanned</span>
                               <span class="text-xs text-gray-400">${file.created_at}</span>
+                              <span class="text-xs text-gray-400">Updated by: ${String(file.updated_by_name || 'Unknown').replace(/[&<>"']/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]))}</span>
                             </div>
                           </div>
                         </div>
