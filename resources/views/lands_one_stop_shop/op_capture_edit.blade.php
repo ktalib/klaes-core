@@ -882,9 +882,7 @@
 
                     var msg = result.data.message || 'Failed to upload the passport photograph.';
                     if (result.data.errors) {
-                        msg += '
-' + Object.values(result.data.errors).flat().join('
-');
+                        msg += '\n' + Object.values(result.data.errors).flat().join('\n');
                     }
                     Swal.fire('Error', msg, 'error');
                     _resetPassportBtn(btn);
