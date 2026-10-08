@@ -176,6 +176,70 @@ class LandRecommendationController extends Controller
             });
         };
 
+        // Printed / Not-Printed tab filter. This uses the SAME source as the
+        // "Date Printed" column — the existence of a print_logs row matched on
+        // file number — so a record can never appear in "Not Printed" while
+        // still showing a print date (print_logs has no recommendation id, only
+        // the file number, and print_count diverges for CTC/duplicate-file cases).
+        //
+        // Three document_type values land in print_logs for this document, and all
+        // three must count as printed:
+        //   'Land Recommendation'           — legacy logPrint() endpoint below
+        //   'Recommendation For Grant'      — SmartPrintManager, main view
+        //   'OSS Recommendation For Grant'  — SmartPrintManager, OSS view
+        // The last two are what index.blade.php passes to SmartPrintManager.open();
+        // matching only the first hid 105 already-printed OSS records (and 13 main-
+        // view ones) behind a permanently empty "Printed" tab.
+        // Built per scope rather than once: the header counters on the Land page
+        // must keep counting Land prints even while the OSS tab is the one on
+        // screen, and the two scopes log under different document types.
+        $printedExistsFor = function (bool $oss) {
+            $printedDocTypes = $oss
+                ? ['Land Recommendation', 'OSS Recommendation For Grant']
+                : ['Land Recommendation', 'Recommendation For Grant'];
+
+            $securityCodeDocTypes = $oss
+                ? ['OSS Recomm']
+                : ['Lands ROFO', 'Land Conversion'];
+
+            return function ($q) use ($printedDocTypes, $securityCodeDocTypes) {
+                $unionQuery = DB::connection('sqlsrv')->table('print_logs')
+                    ->selectRaw('reference_number as fn')
+                    ->whereIn('document_type', $printedDocTypes)
+                    ->unionAll(
+                        DB::connection('sqlsrv')->table('security_codes')
+                            ->selectRaw('file_number as fn')
+                            ->whereIn('document_type', $securityCodeDocTypes)
+                    );
+
+                $q->select(DB::raw('1'))
+                  ->fromSub($unionQuery, 'printed_records')
+                  ->whereRaw('UPPER(LTRIM(RTRIM(printed_records.fn))) = UPPER(LTRIM(RTRIM(land_recommendations.file_number)))');
+            };
+        };
+
+        // Only a newly submitted search chooses a tab; links and pagination stay explicit.
+        if ($request->boolean('auto_tab') && $request->filled('search')) {
+            $land = LandRecommendation::query()->whereRaw("UPPER(ISNULL(type, '')) <> 'OSS'");
+            $oss = LandRecommendation::query()->whereRaw("UPPER(ISNULL(type, '')) = 'OSS'");
+            $applyOssChangeOfNameOriginFilter($oss);
+            $base = $pageType === 'OSS' ? $oss : $land;
+            $printed = $printedExistsFor($pageType === 'OSS');
+            $candidates = [
+                'not_printed' => $this->extantRecommendation((clone $base)->whereNotExists($printed), false),
+                'printed' => $this->extantRecommendation((clone $base)->whereExists($printed), false),
+                'batches' => $this->activeBatchMembers((clone $base)->whereNotNull('rofo_batch_id')),
+            ];
+            if ($pageType !== 'OSS') {
+                $candidates['extant'] = $this->extantRecommendation(clone $land);
+                $candidates['oss'] = (clone $oss)->whereExists($printedExistsFor(true));
+            }
+            $target = \App\Support\RegisterSearchTab::resolve($candidates, $tab, (string) $request->search);
+            return redirect()->route('land-recommendations.index', array_merge(
+                $request->except(['auto_tab', 'page', 'tab']), ['tab' => $target]
+            ));
+        }
+
         // landUse/purpose back the "Landuse/Purpose Clause" column when the row itself
         // only stored the ids (see LandRecommendation::getLandusePurposeAttribute).
         $query = LandRecommendation::with(['creator', 'landUse', 'purpose.landUse']);
@@ -238,48 +302,6 @@ class LandRecommendationController extends Controller
                   ->orWhere('location', 'LIKE', "%{$search}%");
             });
         }
-
-        // Printed / Not-Printed tab filter. This uses the SAME source as the
-        // "Date Printed" column — the existence of a print_logs row matched on
-        // file number — so a record can never appear in "Not Printed" while
-        // still showing a print date (print_logs has no recommendation id, only
-        // the file number, and print_count diverges for CTC/duplicate-file cases).
-        //
-        // Three document_type values land in print_logs for this document, and all
-        // three must count as printed:
-        //   'Land Recommendation'           — legacy logPrint() endpoint below
-        //   'Recommendation For Grant'      — SmartPrintManager, main view
-        //   'OSS Recommendation For Grant'  — SmartPrintManager, OSS view
-        // The last two are what index.blade.php passes to SmartPrintManager.open();
-        // matching only the first hid 105 already-printed OSS records (and 13 main-
-        // view ones) behind a permanently empty "Printed" tab.
-        // Built per scope rather than once: the header counters on the Land page
-        // must keep counting Land prints even while the OSS tab is the one on
-        // screen, and the two scopes log under different document types.
-        $printedExistsFor = function (bool $oss) {
-            $printedDocTypes = $oss
-                ? ['Land Recommendation', 'OSS Recommendation For Grant']
-                : ['Land Recommendation', 'Recommendation For Grant'];
-
-            $securityCodeDocTypes = $oss
-                ? ['OSS Recomm']
-                : ['Lands ROFO', 'Land Conversion'];
-
-            return function ($q) use ($printedDocTypes, $securityCodeDocTypes) {
-                $unionQuery = DB::connection('sqlsrv')->table('print_logs')
-                    ->selectRaw('reference_number as fn')
-                    ->whereIn('document_type', $printedDocTypes)
-                    ->unionAll(
-                        DB::connection('sqlsrv')->table('security_codes')
-                            ->selectRaw('file_number as fn')
-                            ->whereIn('document_type', $securityCodeDocTypes)
-                    );
-
-                $q->select(DB::raw('1'))
-                  ->fromSub($unionQuery, 'printed_records')
-                  ->whereRaw('UPPER(LTRIM(RTRIM(printed_records.fn))) = UPPER(LTRIM(RTRIM(land_recommendations.file_number)))');
-            };
-        };
 
         $printedDocTypes = $isOssView
             ? ['Land Recommendation', 'OSS Recommendation For Grant']

@@ -31,6 +31,7 @@
                         @if($ossViewOnly)
                             <input type="hidden" name="view" value="only">
                         @endif
+                        <input type="hidden" name="auto_tab" value="1">
                         <input type="hidden" name="tab" value="{{ $tab }}">
                         <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
                         <input type="text"

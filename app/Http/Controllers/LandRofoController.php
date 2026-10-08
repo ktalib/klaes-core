@@ -187,6 +187,19 @@ class LandRofoController extends Controller
         if (!in_array($tab, ['printed', 'not_printed', 'batches', 'reissuance'], true)) {
             $tab = 'not_printed';
         }
+        if ($request->boolean('auto_tab') && $request->filled('search')) {
+            $candidates = [
+                'not_printed' => (clone $query)->whereRaw('NOT ' . $this->printedPredicateSql()),
+                'printed' => (clone $query)->whereRaw($this->printedPredicateSql()),
+                'batches' => (clone $query)->whereNotNull('rofo_batch_id'),
+                'reissuance' => (clone $query)->where('is_reissuance', 1),
+            ];
+            $target = \App\Support\RegisterSearchTab::resolve($candidates, $tab, (string) $request->search);
+            return redirect()->route('land-rofos.index', array_merge(
+                $request->except(['auto_tab', 'page', 'tab']), ['tab' => $target]
+            ));
+        }
+
         // The Batches tab pages over batches rather than over RofOs. On the main
         // list a batch is one collapsed row and its children are spread across the
         // pages behind it, so expanding it only ever reveals the handful that share

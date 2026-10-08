@@ -22,6 +22,7 @@
                         {{-- The page you are on, not the list you are looking at: on the
                              OSS tab of the Land page these two differ. --}}
                         <input type="hidden" name="type" value="{{ $pageType ?? (!empty($isOssView) ? 'OSS' : 'ROFO') }}">
+                        <input type="hidden" name="auto_tab" value="1">
                         <input type="hidden" name="tab" value="{{ $tab ?? 'not_printed' }}">
                         
                         {{-- The per-user filter is gone: the register is shown whole, so
