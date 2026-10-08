@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\LandsOneStopShop;
 
+use App\Support\OssOwnershipFilter;
+
 use App\Http\Controllers\Controller;
 use App\Models\StreetName;
 use App\Services\FilePassportService;
@@ -452,6 +454,12 @@ class OpResettlementApplicationController extends Controller
                         AND (dup_ic.is_deleted IS NULL OR dup_ic.is_deleted = '0')
                   )
         ";
+
+        // Apply file ownership before search and pagination, including historical OP rows.
+        if (!$isChangeOfName) {
+            $ownershipFilter = OssOwnershipFilter::noChangeSql("COALESCE(NULLIF(ownership_source.mlsFNo, ''), ownership_source.fileno)");
+            $sourceUnionSql = "SELECT ownership_source.* FROM ({$sourceUnionSql}) ownership_source WHERE {$ownershipFilter}";
+        }
 
         $query = DB::connection('sqlsrv')
             ->table(DB::raw("(" . $sourceUnionSql . ") as p"))
@@ -1057,6 +1065,10 @@ class OpResettlementApplicationController extends Controller
                        ON sib_lu.prop_id = CAST(raw_stats.prop_id AS nvarchar(100))
             ) as stats_source"));
 
+        if (!$isChangeOfName) {
+            $statsBaseQuery->whereRaw(OssOwnershipFilter::noChangeSql("COALESCE(NULLIF(stats_source.mlsFNo, ''), stats_source.fileno)"));
+        }
+
         if ($recordType === 'fc') {
             // INNER JOIN instead of correlated EXISTS — SQL Server can use indexes on both sides
             $statsBaseQuery->join('mls_file_no as mfn_stat', function ($join) {
@@ -1112,6 +1124,9 @@ class OpResettlementApplicationController extends Controller
             ->where('p.prop_id', '!=', '')
             ->where(function ($q) {
                 $q->whereNull('p.is_deleted')->orWhere('p.is_deleted', 0);
+            })
+            ->when(!$isChangeOfName, function ($q) {
+                $q->whereRaw(OssOwnershipFilter::noChangeSql("COALESCE(NULLIF(p.mlsFNo, ''), p.fileno)"));
             })
             ->whereRaw('CAST(COALESCE(mfn.con_commissioned_at, p.created_at) AS DATE) = CAST(GETDATE() AS DATE)')
             ->when($recordType === 'fc', function ($q) {

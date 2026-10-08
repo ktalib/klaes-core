@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\LandsOneStopShop;
 
+use App\Support\OssOwnershipFilter;
+
 use App\Rules\NigerianPhone;
 
 use App\Http\Controllers\Controller;
@@ -271,6 +273,7 @@ class ApplicationController extends Controller
                 $q->where('oa.system_source', 'OSSOPCHANGEOFNAME');
             })
             ->when($isNoChangeOfNamePage, function ($q) {
+                $q->whereRaw(OssOwnershipFilter::noChangeSql('oa.file_no'));
                 $q->where(function ($sub) {
                     $sub->whereNull('oa.system_source')
                         ->orWhere('oa.system_source', '!=', 'OSSOPCHANGEOFNAME');
@@ -309,6 +312,7 @@ class ApplicationController extends Controller
         if ($isChangeOfNamePage) {
             $cardCountsQuery->where('system_source', 'OSSOPCHANGEOFNAME');
         } elseif ($isNoChangeOfNamePage) {
+            $cardCountsQuery->whereRaw(OssOwnershipFilter::noChangeSql('oss_applications.file_no'));
             $cardCountsQuery->where(function ($sub) {
                 $sub->whereNull('system_source')
                     ->orWhere('system_source', '!=', 'OSSOPCHANGEOFNAME');
@@ -328,6 +332,7 @@ class ApplicationController extends Controller
         // still represented on the Total Records card even if it has no category card.
         $cardTotalQuery = LandsOneStopShopApplication::query();
         if ($isNoChangeOfNamePage) {
+            $cardTotalQuery->whereRaw(OssOwnershipFilter::noChangeSql('oss_applications.file_no'));
             $cardTotalQuery->where(function ($sub) {
                 $sub->whereNull('system_source')
                     ->orWhere('system_source', '!=', 'OSSOPCHANGEOFNAME');
@@ -344,6 +349,7 @@ class ApplicationController extends Controller
         if ($isChangeOfNamePage) {
             $dailyQuery->where('system_source', 'OSSOPCHANGEOFNAME');
         } elseif ($isNoChangeOfNamePage) {
+            $dailyQuery->whereRaw(OssOwnershipFilter::noChangeSql('oss_applications.file_no'));
             $dailyQuery->where(function ($sub) {
                 $sub->whereNull('system_source')
                     ->orWhere('system_source', '!=', 'OSSOPCHANGEOFNAME');
