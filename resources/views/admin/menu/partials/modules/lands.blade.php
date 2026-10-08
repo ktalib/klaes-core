@@ -385,80 +385,77 @@
             <a href="{{ route('duplex-parcel-update.index') }}?mode=land"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('duplex-parcel-update.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
               <i data-lucide="layers" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>APU - Advance Parcel Update (Duplex)</span>
+              <span>Advance Parcel Update (Duplex)</span>
             </a>
           @endif
 
-          <!-- i. Change of Purpose -->
-          <a href="{{ route('change-of-purpose.index') }}?mode=land"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('change-of-purpose.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
-            <i data-lucide="repeat" class="h-3.5 w-3.5 text-orange-400"></i>
-            <span>Change of Purpose</span>
-          </a>
-
-          <!-- ii. Loss of Document -->
-          <a href="{{ route('loss-of-document.index') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('loss-of-document.index') ? 'active' : '' }}">
-            <i data-lucide="file-warning" class="h-3.5 w-3.5 text-orange-400"></i>
-            <span>Loss of Document</span>
-          </a>
-
-          <!-- iii. Temporary File -->
-          <a href="{{ route('temporary-file.index') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('temporary-file.*') ? 'active' : '' }}">
-            <i data-lucide="file-clock" class="h-3.5 w-3.5 text-orange-400"></i>
-            <span>Temporary File</span>
-          </a>
-
-          <!-- iv. Parcel Update -->
-          @if($hasRole('Parcel Update-New'))
+          <!-- ii. Simple Parcel Update -->
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
-            data-section="parcelUpdate-lands">
+            data-section="simpleParcelUpdate-lands">
             <div class="flex items-center gap-2">
               <i data-lucide="map" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>Parcel Update-New</span>
+              <span>Simple Parcel Update</span>
             </div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="parcelUpdate-lands"></i>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="simpleParcelUpdate-lands"></i>
           </div>
 
-          <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="parcelUpdate-lands">
-            <!-- 1. Plot Subdivision -->
-            <a href="{{ route('plot-subdivision.index') }}?mode=land"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-subdivision.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
-              <i data-lucide="split-square-horizontal" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>Plot Subdivision</span>
+          <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="simpleParcelUpdate-lands">
+            <!-- 1. Change of Purpose -->
+            <a href="{{ route('change-of-purpose.index') }}?mode=land"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('change-of-purpose.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
+              <i data-lucide="repeat" class="h-3.5 w-3.5 text-orange-400"></i>
+              <span>Change of Purpose</span>
             </a>
 
-            <!-- 2. Plot Merger -->
-            <a href="{{ route('plot-merger.index') }}?mode=land"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-merger.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
-              <i data-lucide="combine" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>Plot Merger</span>
-            </a>
+            <!-- 2. Parcel Update - New -->
+            @if($hasRole('Parcel Update-New'))
+            <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
+              data-section="parcelUpdate-lands">
+              <div class="flex items-center gap-2">
+                <i data-lucide="map" class="h-3.5 w-3.5 text-orange-400"></i>
+                <span>Parcel Update - New</span>
+              </div>
+              <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="parcelUpdate-lands"></i>
+            </div>
 
-            <!-- 3. Plot Extension -->
-            <a href="{{ route('plot-extension.index') }}?mode=land"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-extension.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
-              <i data-lucide="expand" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>Plot Extension</span>
-            </a>
+            <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="parcelUpdate-lands">
+              <!-- 1. Plot Subdivision -->
+              <a href="{{ route('plot-subdivision.index') }}?mode=land"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-subdivision.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
+                <i data-lucide="split-square-horizontal" class="h-3.5 w-3.5 text-orange-400"></i>
+                <span>Plot Subdivision</span>
+              </a>
 
-            <!-- 4. Plot Separation -->
-            <a href="{{ route('plot-separation.index') }}?mode=land"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-separation.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
-              <i data-lucide="scissors" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>Plot Separation</span>
-            </a>
+              <!-- 2. Plot Merger -->
+              <a href="{{ route('plot-merger.index') }}?mode=land"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-merger.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
+                <i data-lucide="combine" class="h-3.5 w-3.5 text-orange-400"></i>
+                <span>Plot Merger</span>
+              </a>
 
-            <!-- 5. Parcel Update-Legacy (view only) -->
+              <!-- 3. Plot Extension -->
+              <a href="{{ route('plot-extension.index') }}?mode=land"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-extension.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
+                <i data-lucide="expand" class="h-3.5 w-3.5 text-orange-400"></i>
+                <span>Plot Extension</span>
+              </a>
+
+              <!-- 4. Plot Separation -->
+              <a href="{{ route('plot-separation.index') }}?mode=land"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-separation.*') && request()->query('mode') === 'land') ? 'active' : '' }}">
+                <i data-lucide="scissors" class="h-3.5 w-3.5 text-orange-400"></i>
+                <span>Plot Separation</span>
+              </a>
+            </div>
+
+            <!-- 3. Parcel Update - Legacy (view only) -->
             <a href="{{ route('admin.manual-linkage.index') }}?url=land_view"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('admin.manual-linkage.*') && request()->query('url') === 'land_view' ? 'active' : '' }}">
               <i data-lucide="link" class="h-3.5 w-3.5 text-orange-400"></i>
-              <span>Parcel Update-Legacy</span>
+              <span>Parcel Update - Legacy</span>
             </a>
-
+            @endif
           </div>
-          @endif
 
           <!-- iii. Title Status Update -->
           <a href="{{ route('title-status.index') }}?url=land"
@@ -467,7 +464,21 @@
             <span>Title Status Update</span>
           </a>
 
-          <!-- iv. Re-grant Management -->
+          <!-- iv. Loss of Document -->
+          <a href="{{ route('loss-of-document.index') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('loss-of-document.index') ? 'active' : '' }}">
+            <i data-lucide="file-warning" class="h-3.5 w-3.5 text-orange-400"></i>
+            <span>Loss of Document</span>
+          </a>
+
+          <!-- v. Temporary File -->
+          <a href="{{ route('temporary-file.index') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('temporary-file.*') ? 'active' : '' }}">
+            <i data-lucide="file-clock" class="h-3.5 w-3.5 text-orange-400"></i>
+            <span>Temporary File</span>
+          </a>
+
+          <!-- vi. Re-grant Management -->
           {{-- <a href="{{ route('regrant.index') }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') ? 'active' : '' }}">
             <i data-lucide="refresh-cw" class="h-3.5 w-3.5 text-indigo-400"></i>

@@ -212,65 +212,77 @@
             <a href="{{ route('duplex-parcel-update.index') }}?mode=deeds"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('duplex-parcel-update.*') && request()->query('mode') !== 'land') ? 'active' : '' }}">
               <i data-lucide="layers" class="h-3.5 w-3.5 text-teal-400"></i>
-              <span>APU - Advance Parcel Update (Duplex)</span>
+              <span>Advance Parcel Update (Duplex)</span>
             </a>
           @endif
 
-          <!-- i. Change of Purpose -->
-          <a href="{{ route('change-of-purpose.index') }}?mode=deeds"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('change-of-purpose.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
-            <i data-lucide="repeat" class="h-3.5 w-3.5 text-teal-400"></i>
-            <span>Change of Purpose</span>
-          </a>
-
-          <!-- ii. Parcel Update - New -->
+          <!-- ii. Simple Parcel Update -->
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
-            data-section="parcelUpdate-deeds">
+            data-section="simpleParcelUpdate-deeds">
             <div class="flex items-center gap-2">
               <i data-lucide="map" class="h-3.5 w-3.5 text-teal-400"></i>
-              <span>Parcel Update - New</span>
+              <span>Simple Parcel Update</span>
             </div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="parcelUpdate-deeds"></i>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="simpleParcelUpdate-deeds"></i>
           </div>
 
-          <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="parcelUpdate-deeds">
-            <!-- 1. Plot Subdivision -->
-            <a href="{{ route('plot-subdivision.index') }}?mode=deeds"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-subdivision.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
-              <i data-lucide="split-square-horizontal" class="h-3.5 w-3.5 text-teal-400"></i>
-              <span>Plot Subdivision</span>
+          <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="simpleParcelUpdate-deeds">
+            <!-- 1. Change of Purpose -->
+            <a href="{{ route('change-of-purpose.index') }}?mode=deeds"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('change-of-purpose.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
+              <i data-lucide="repeat" class="h-3.5 w-3.5 text-teal-400"></i>
+              <span>Change of Purpose</span>
             </a>
 
-            <!-- 2. Plot Merger -->
-            <a href="{{ route('plot-merger.index') }}?mode=deeds"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-merger.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
-              <i data-lucide="combine" class="h-3.5 w-3.5 text-teal-400"></i>
-              <span>Plot Merger</span>
-            </a>
+            <!-- 2. Parcel Update - New -->
+            <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
+              data-section="parcelUpdate-deeds">
+              <div class="flex items-center gap-2">
+                <i data-lucide="map" class="h-3.5 w-3.5 text-teal-400"></i>
+                <span>Parcel Update - New</span>
+              </div>
+              <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="parcelUpdate-deeds"></i>
+            </div>
 
-            <!-- 3. Plot Extension -->
-            <a href="{{ route('plot-extension.index') }}?mode=deeds"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-extension.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
-              <i data-lucide="expand" class="h-3.5 w-3.5 text-teal-400"></i>
-              <span>Plot Extension</span>
-            </a>
+            <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="parcelUpdate-deeds">
+              <!-- 1. Plot Subdivision -->
+              <a href="{{ route('plot-subdivision.index') }}?mode=deeds"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-subdivision.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
+                <i data-lucide="split-square-horizontal" class="h-3.5 w-3.5 text-teal-400"></i>
+                <span>Plot Subdivision</span>
+              </a>
 
-            <!-- 4. Plot Separation -->
-            <a href="{{ route('plot-separation.index') }}?mode=deeds"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
-              <i data-lucide="split-square-vertical" class="h-3.5 w-3.5 text-teal-400"></i>
-              <span>Plot Separation</span>
+              <!-- 2. Plot Merger -->
+              <a href="{{ route('plot-merger.index') }}?mode=deeds"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-merger.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
+                <i data-lucide="combine" class="h-3.5 w-3.5 text-teal-400"></i>
+                <span>Plot Merger</span>
+              </a>
+
+              <!-- 3. Plot Extension -->
+              <a href="{{ route('plot-extension.index') }}?mode=deeds"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('plot-extension.*') && request()->query('mode') === 'deeds') ? 'active' : '' }}">
+                <i data-lucide="expand" class="h-3.5 w-3.5 text-teal-400"></i>
+                <span>Plot Extension</span>
+              </a>
+
+              <!-- 4. Plot Separation -->
+              <a href="{{ route('plot-separation.index') }}?mode=deeds"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
+                <i data-lucide="split-square-vertical" class="h-3.5 w-3.5 text-teal-400"></i>
+                <span>Plot Separation</span>
+              </a>
+            </div>
+
+            <!-- 3. Parcel Update - Legacy -->
+            <a href="{{ route('admin.manual-linkage.index') }}"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('admin.manual-linkage.*') && request()->query('url') !== 'land_view' ? 'active' : '' }}">
+              <i data-lucide="link" class="h-3.5 w-3.5 text-teal-400"></i>
+              <span>Parcel Update - Legacy</span>
             </a>
           </div>
 
-          <!-- iii. Parcel Update - Legacy -->
-          <a href="{{ route('admin.manual-linkage.index') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('admin.manual-linkage.*') && request()->query('url') !== 'land_view' ? 'active' : '' }}">
-            <i data-lucide="link" class="h-3.5 w-3.5 text-teal-400"></i>
-            <span>Parcel Update - Legacy</span>
-          </a>
-
-          <!-- iv. Title Status Update -->
+          <!-- iii. Title Status Update -->
           <a href="{{ route('title-status.index') }}?url=deeds"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('title-status.index') && request('url') === 'deeds' ? 'active' : '' }}">
             <i data-lucide="file-check" class="h-3.5 w-3.5 text-teal-400"></i>
