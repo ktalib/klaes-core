@@ -12,8 +12,8 @@ document.addEventListener('click', function (event) {
             'File Number table',
             'DCIV table',
             'File Indexings',
-            'Related File Numbers'
-        ],
-        keeps: 'File Tracking (retained)'
+            'Related File Numbers',
+            'File Tracking'
+        ]
     });
 });

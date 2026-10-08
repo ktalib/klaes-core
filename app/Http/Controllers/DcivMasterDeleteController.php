@@ -7,6 +7,7 @@ use App\Services\IndexingDuplicateService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class DcivMasterDeleteController extends Controller
 {
@@ -54,6 +55,7 @@ class DcivMasterDeleteController extends Controller
                 $masterLinks = $db->table('master_dciv_links')->where('dciv_file_number', $number)->get();
                 $grouping = $db->table('dciv_grouping')->where('dciv_fileno', $number)->get();
                 $flagged = $db->table('file_indexings')->where('dciv_fileno', $number)->lockForUpdate()->get();
+                $tracking = $this->deleteTracking($number, (int) $files[0]->id);
                 $purge = $service->purge((int) $files[0]->id);
                 if ($purge['status'] !== 'purged') {
                     throw new \DomainException($purge['status'] === 'blocked'
@@ -82,8 +84,8 @@ class DcivMasterDeleteController extends Controller
                 $flatCounts += ($purge['counts']['child_rows'] ?? []) + ($purge['counts']['file_number_rows'] ?? []);
                 return [
                     'number' => $number,
-                    'counts' => $counts + $flatCounts,
-                    'snapshot' => ['indexing' => $purge['snapshot'], 'dciv_file_no' => $metadata->all(),
+                    'counts' => $counts + $flatCounts + $tracking['counts'],
+                    'snapshot' => ['tracking' => $tracking['snapshot'], 'indexing' => $purge['snapshot'], 'dciv_file_no' => $metadata->all(),
                         'dciv_link' => $links->all(), 'master_dciv_links' => $masterLinks->all(),
                         'dciv_grouping' => $grouping->all(), 'related_file_flags' => $flagged->all()],
                 ];
@@ -100,5 +102,51 @@ class DcivMasterDeleteController extends Controller
         }
         $this->logMasterDelete('DcivFileNo', $id, $result['snapshot'], $result['counts'], 'DCIV file ' . $result['number']);
         return response()->json(['success' => true, 'message' => $result['number'] . ' was permanently deleted.']);
+    }
+
+    // Called within the same SQL Server transaction as the file deletion.
+    private function deleteTracking(string $number, int $fileId): array
+    {
+        $db = DB::connection('sqlsrv');
+        $schema = Schema::connection('sqlsrv');
+        $snapshot = [];
+        $counts = [];
+        $trackers = $schema->hasTable('file_tracker')
+            ? $db->table('file_tracker')->where('file_number', $number)->lockForUpdate()->get()
+            : collect();
+        $ids = $trackers->pluck('id')->all();
+
+        if ($ids) {
+            foreach (['kangis_checkout_approvals', 'file_tracker_department_backfill'] as $table) {
+                if (!$schema->hasTable($table)) {
+                    continue;
+                }
+                $query = $db->table($table)->whereIn('file_tracker_id', $ids);
+                $snapshot[$table] = (clone $query)->lockForUpdate()->get()->all();
+                $counts[$table] = $query->delete();
+            }
+            if ($schema->hasTable('indexing_duplicates') && $schema->hasColumn('indexing_duplicates', 'file_tracker_id')) {
+                $query = $db->table('indexing_duplicates')->whereIn('file_tracker_id', $ids);
+                $snapshot['indexing_duplicates'] = (clone $query)->lockForUpdate()->get()->all();
+                $counts['indexing_duplicate_tracking_links_cleared'] = $query->update(['file_tracker_id' => null]);
+            }
+            $snapshot['file_tracker'] = $trackers->all();
+            $counts['file_tracker'] = $db->table('file_tracker')->whereIn('id', $ids)->delete();
+        }
+
+        foreach ([
+            'file_trackings' => ['file_indexing_id', $fileId],
+            'indexed_file_trackers' => ['file_indexing_id', $fileId],
+            'rds_tracking' => ['file_number', $number],
+            'digital_file_tracking_requests' => ['file_no', $number],
+        ] as $table => [$column, $value]) {
+            if (!$schema->hasTable($table)) {
+                continue;
+            }
+            $query = $db->table($table)->where($column, $value);
+            $snapshot[$table] = (clone $query)->lockForUpdate()->get()->all();
+            $counts[$table] = $query->delete();
+        }
+        return compact('snapshot', 'counts');
     }
 }

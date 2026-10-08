@@ -34,6 +34,14 @@ class DcivMasterDeleteTest extends TestCase
             'dciv_grouping' => 'id INTEGER PRIMARY KEY, dciv_fileno TEXT, mapping INTEGER',
             'scannings' => 'id INTEGER PRIMARY KEY, file_indexing_id INTEGER',
             'dciv_serial_control' => 'id INTEGER PRIMARY KEY, last_serial INTEGER',
+            'file_tracker' => 'id INTEGER PRIMARY KEY, file_number TEXT',
+            'file_trackings' => 'id INTEGER PRIMARY KEY, file_indexing_id INTEGER',
+            'indexed_file_trackers' => 'id INTEGER PRIMARY KEY, file_indexing_id INTEGER',
+            'rds_tracking' => 'id INTEGER PRIMARY KEY, file_number TEXT',
+            'digital_file_tracking_requests' => 'id INTEGER PRIMARY KEY, file_no TEXT',
+            'kangis_checkout_approvals' => 'id INTEGER PRIMARY KEY, file_tracker_id INTEGER',
+            'file_tracker_department_backfill' => 'id INTEGER PRIMARY KEY, file_tracker_id INTEGER',
+            'indexing_duplicates' => 'id INTEGER PRIMARY KEY, file_tracker_id INTEGER',
         ];
         foreach ($definitions as $name => $columns) {
             $this->db->statement("CREATE TABLE [$name] ($columns)");
@@ -59,6 +67,18 @@ class DcivMasterDeleteTest extends TestCase
         $this->db->table('dciv_link')->insert(['id' => 1, 'main_file_number' => 'DCIV-2026-1', 'related_file_number' => 'RES-2026-1']);
         $this->db->table('master_dciv_links')->insert(['id' => 1, 'dciv_file_no_id' => 1, 'dciv_file_number' => 'DCIV-2026-1', 'related_file_number' => 'RES-2026-1']);
         $this->db->table('dciv_serial_control')->insert(['id' => 1, 'last_serial' => 2]);
+        foreach ([1, 2] as $id) {
+            foreach (['file_tracker', 'rds_tracking'] as $table) {
+                $this->db->table($table)->insert(['id' => $id, 'file_number' => "DCIV-2026-$id"]);
+            }
+            $this->db->table('digital_file_tracking_requests')->insert(['id' => $id, 'file_no' => "DCIV-2026-$id"]);
+            foreach (['file_trackings', 'indexed_file_trackers'] as $table) {
+                $this->db->table($table)->insert(['id' => $id, 'file_indexing_id' => $id + 100]);
+            }
+            foreach (['kangis_checkout_approvals', 'file_tracker_department_backfill', 'indexing_duplicates'] as $table) {
+                $this->db->table($table)->insert(['id' => $id, 'file_tracker_id' => $id]);
+            }
+        }
     }
 
     private function runDelete(string $id = '1', string $confirm = 'DCIV-2026-1')
@@ -89,6 +109,13 @@ class DcivMasterDeleteTest extends TestCase
         $this->assertSame(1, $this->db->table('dciv_grouping')->where('id', 2)->value('mapping'));
         $this->assertSame(2, $this->db->table('dciv_serial_control')->value('last_serial'));
         $this->assertNotEmpty($this->controller->audit['snapshot']);
+        foreach (['file_tracker', 'rds_tracking', 'digital_file_tracking_requests', 'file_trackings', 'indexed_file_trackers', 'kangis_checkout_approvals', 'file_tracker_department_backfill'] as $table) {
+            $this->assertFalse($this->db->table($table)->where('id', 1)->exists(), $table);
+            $this->assertTrue($this->db->table($table)->where('id', 2)->exists(), $table);
+            $this->assertCount(1, $this->controller->audit['snapshot']['tracking'][$table]);
+        }
+        $this->assertNull($this->db->table('indexing_duplicates')->where('id', 1)->value('file_tracker_id'));
+        $this->assertSame(2, $this->db->table('indexing_duplicates')->where('id', 2)->value('file_tracker_id'));
     }
 
     public function test_indexed_source_uses_its_own_id_and_rejects_other_registries(): void
@@ -104,6 +131,7 @@ class DcivMasterDeleteTest extends TestCase
         $this->assertSame(409, $this->runDelete()->getStatusCode());
         $this->assertSame(2, $this->db->table('dciv_file_no')->count());
         $this->assertSame(1, $this->db->table('master_dciv_links')->count());
+        $this->assertSame(2, $this->db->table('file_tracker')->count());
     }
 
     public function test_failure_after_indexing_purge_rolls_everything_back(): void
@@ -114,6 +142,10 @@ class DcivMasterDeleteTest extends TestCase
         $this->assertTrue($this->db->table('fileNumber')->where('id', 1)->exists());
         $this->assertSame(1, $this->db->table('master_dciv_links')->count());
         $this->assertEmpty($this->controller->audit);
+        foreach (['file_tracker', 'rds_tracking', 'digital_file_tracking_requests', 'file_trackings', 'indexed_file_trackers', 'kangis_checkout_approvals', 'file_tracker_department_backfill'] as $table) {
+            $this->assertSame(2, $this->db->table($table)->count(), $table);
+        }
+        $this->assertSame(1, $this->db->table('indexing_duplicates')->where('id', 1)->value('file_tracker_id'));
     }
 
     public function test_another_investigation_of_related_land_file_is_preserved(): void
