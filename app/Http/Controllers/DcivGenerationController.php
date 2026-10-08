@@ -390,13 +390,19 @@ class DcivGenerationController extends Controller
             // Actions: full menu for dciv_file_no, view-only for file_indexings
             $eventId = $isFromFileIndexings ? "'fi-{$record->id}'" : $record->id;
 
+            $masterDeleteHtml = view('dciv_generation.partials.master-delete', [
+                'recordId' => $isFromFileIndexings ? 'fi-' . $record->id : $record->id,
+                'fileNumber' => $record->full_file_number,
+            ])->render();
+
             if ($isFromFileIndexings) {
                 $actionsHtml = '<div class="relative inline-block dciv-action-menu">'
                     . '<button onclick="toggleDcivMenu(this)" class="p-1 hover:bg-slate-100 rounded-md transition-colors">'
                     . '<i data-lucide="more-vertical" class="h-4 w-4 text-slate-400"></i></button>'
-                    . '<div class="dciv-menu hidden absolute right-0 bottom-full mb-1 w-32 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">'
+                    . '<div class="dciv-menu hidden absolute right-0 bottom-full mb-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">'
                     . '<button onclick="this.closest(\'.dciv-action-menu\').querySelector(\'.dciv-menu\').classList.add(\'hidden\'); this.dispatchEvent(new CustomEvent(\'view-record\', {bubbles:true, detail:' . $eventId . '}))" class="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2">'
                     . '<i data-lucide="eye" class="h-3.5 w-3.5"></i> View</button>'
+                    . $masterDeleteHtml
                     . '</div></div>';
             } else {
                 $recordObj = (object) [
@@ -412,13 +418,14 @@ class DcivGenerationController extends Controller
                 $actionsHtml = '<div class="relative inline-block dciv-action-menu">'
                     . '<button onclick="toggleDcivMenu(this)" class="p-1 hover:bg-slate-100 rounded-md transition-colors">'
                     . '<i data-lucide="more-vertical" class="h-4 w-4 text-slate-400"></i></button>'
-                    . '<div class="dciv-menu hidden absolute right-0 bottom-full mb-1 w-32 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">'
+                    . '<div class="dciv-menu hidden absolute right-0 bottom-full mb-1 w-44 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">'
                     . '<button onclick="this.closest(\'.dciv-action-menu\').querySelector(\'.dciv-menu\').classList.add(\'hidden\'); this.dispatchEvent(new CustomEvent(\'edit-record\', {bubbles:true, detail:' . $record->id . '}))" class="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2">'
                     . '<i data-lucide="edit-3" class="h-3.5 w-3.5"></i> Edit</button>'
                     . '<button onclick="this.closest(\'.dciv-action-menu\').querySelector(\'.dciv-menu\').classList.add(\'hidden\'); this.dispatchEvent(new CustomEvent(\'view-record\', {bubbles:true, detail:' . $record->id . '}))" class="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2">'
                     . '<i data-lucide="eye" class="h-3.5 w-3.5"></i> View</button>'
                     . '<button onclick="this.closest(\'.dciv-action-menu\').querySelector(\'.dciv-menu\').classList.add(\'hidden\'); this.dispatchEvent(new CustomEvent(\'open-printer-manager\', {bubbles:true, detail:' . $recordJson . '}))" class="w-full px-4 py-2 text-left text-[10px] font-black text-slate-700 hover:bg-green-50 hover:text-green-600 flex items-center gap-2 uppercase tracking-tighter">'
                     . '<i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-green-500"></i> Printer Manager</button>'
+                    . $masterDeleteHtml
                     . '</div></div>';
             }
 

@@ -246,6 +246,7 @@ Route::middleware(['auth'])->group(function () {
 
     // DCIV Generation Routes
     Route::prefix('dciv/generation')->name('dciv-generation.')->group(function () {
+        Route::delete('/{id}/master-delete', [\App\Http\Controllers\DcivMasterDeleteController::class, 'destroy'])->name('master-delete');
         Route::get('/', [DcivGenerationController::class, 'index'])->name('index');
         Route::get('/data', [DcivGenerationController::class, 'data'])->name('data');
         Route::get('/available', [DcivGenerationController::class, 'getAvailableDciv'])->name('available');

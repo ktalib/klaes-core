@@ -7,6 +7,8 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+    <script src="{{ asset('js/master-delete.js') }}"></script>
+    <script src="{{ asset('js/dciv-master-delete.js') }}"></script>
 @endpush
 <div class="flex-1 overflow-auto bg-slate-50/60"
     x-data='dcivGenerator({
