@@ -2890,6 +2890,7 @@ class LandRecommendationController extends Controller
 
         try {
             $validated = $request->validate($this->batchRules($kind));
+            $validated = \App\Support\BatchPlotSize::validate($validated);
         } catch (ValidationException $e) {
             RecLog::warning('Batch rejected by validation', [
                 'batch_kind'     => $kind,
@@ -3247,6 +3248,7 @@ class LandRecommendationController extends Controller
         $kind = $request->input('batch_kind') === 'regular' ? 'regular' : 'subdivision';
 
         $validated = $request->validate($this->batchRules($kind));
+        $validated = \App\Support\BatchPlotSize::validate($validated, $existing);
 
         // Same truncation guard as the capture path — see storeBatch().
         $expected = (int) ($validated['children_expected'] ?? 0);
