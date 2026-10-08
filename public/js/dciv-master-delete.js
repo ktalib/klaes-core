@@ -7,6 +7,13 @@ document.addEventListener('click', function (event) {
         url: button.dataset.deleteUrl,
         reference: button.dataset.fileNumber,
         title: 'Master Delete DCIV File',
-        lead: 'Permanently delete this file?'
+        lead: 'Permanently delete this file?',
+        targets: [
+            'File Number table',
+            'DCIV table',
+            'File Indexings',
+            'Related File Numbers'
+        ],
+        keeps: 'File Tracking (retained)'
     });
 });
