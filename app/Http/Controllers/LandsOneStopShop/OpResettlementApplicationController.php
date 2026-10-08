@@ -3557,9 +3557,17 @@ class OpResettlementApplicationController extends Controller
         $rowType = $validated['row_type'] ?? null;
         $isTransferOfTitle = ($rowType === 'transfer_of_title');
         $submittedPayload = $request->all();
+        // A blank optional field means keep the stored value, including across
+        // the linked PRA, capture, indexing and staging records.
         $wasSubmitted = static function (string $key) use ($submittedPayload): bool {
-            return array_key_exists($key, $submittedPayload);
+            return array_key_exists($key, $submittedPayload)
+                && $submittedPayload[$key] !== null
+                && (!is_string($submittedPayload[$key]) || trim($submittedPayload[$key]) !== '');
         };
+        $nonBlankUpdates = static fn (array $updates): array => array_filter(
+            $updates,
+            static fn ($value) => $value !== null && (!is_string($value) || trim($value) !== '')
+        );
 
         DB::connection('sqlsrv')->beginTransaction();
         try {
@@ -3583,7 +3591,7 @@ class OpResettlementApplicationController extends Controller
             // Ensure dedicated source is always stamped
             $fileUpdates['SOURCE'] = 'OSS_CHANGE_OF_NAME';
             if ($base->id) {
-                DB::connection('sqlsrv')->table($fileNumberTable)->where('id', $base->id)->update($fileUpdates);
+                DB::connection('sqlsrv')->table($fileNumberTable)->where('id', $base->id)->update($nonBlankUpdates($fileUpdates));
             }
 
             // 2) Intentionally skip mls_file_no updates in Update OP flow.
@@ -3719,7 +3727,7 @@ class OpResettlementApplicationController extends Controller
                         throw \Illuminate\Validation\ValidationException::withMessages(['op_serial_number' => 'The selected capture is not an active OP.']);
                     }
                     $captureUpdates = \App\Support\OpSerial::guard($captureUpdates, (array) $captureBefore);
-                    DB::connection('sqlsrv')->table($captureTable)->where('id', $captureId)->update($captureUpdates);
+                    DB::connection('sqlsrv')->table($captureTable)->where('id', $captureId)->update($nonBlankUpdates($captureUpdates));
                     app(\App\Services\OpSerialSynchronizer::class)->sync('instrument_capture', $captureId, $captureBefore->op_serial_number ?? null);
                 }
             }
@@ -3967,7 +3975,7 @@ class OpResettlementApplicationController extends Controller
                         DB::connection('sqlsrv')
                             ->table($praTable)
                             ->where('id', $targetPraId)
-                            ->update($praUpdates);
+                            ->update($nonBlankUpdates($praUpdates));
                         app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $targetPraId, $targetPraRow->op_serial_number ?? null);
                     } else {
                         $updatedRows = DB::connection('sqlsrv')
@@ -3987,7 +3995,7 @@ class OpResettlementApplicationController extends Controller
                             })
                             ->where('instrument_type', 'not like', '%Transfer of Title%')
                             ->where('transaction_type', 'not like', '%Transfer of Title%')
-                            ->update($praUpdates);
+                            ->update($nonBlankUpdates($praUpdates));
 
                         // Some historical Change-of-Name rows don't keep OP transaction labels.
                         // If strict OP matching updates nothing, retry — but still exclude Transfer of Title rows.
@@ -4007,7 +4015,7 @@ class OpResettlementApplicationController extends Controller
                                     $q->where('instrument_type', 'not like', '%Transfer of Title%')
                                         ->where('transaction_type', 'not like', '%Transfer of Title%');
                                 })
-                                ->update($praUpdates);
+                                ->update($nonBlankUpdates($praUpdates));
                         }
                     }
                 }
@@ -4041,7 +4049,7 @@ class OpResettlementApplicationController extends Controller
                         'reg_time'
                     ];
                     foreach ($syncCols as $col) {
-                        // Use array_key_exists so null values are cleared correctly
+                        // Only nonblank submitted values are propagated to sibling rows.
                         if (array_key_exists($col, $praUpdates) && Schema::connection('sqlsrv')->hasColumn($praTable, $col)) {
                             $siblingUpdates[$col] = $praUpdates[$col];
                         }
@@ -4071,7 +4079,7 @@ class OpResettlementApplicationController extends Controller
                                 $q->where('instrument_type', 'like', '%Transfer of Title%')
                                     ->orWhere('transaction_type', 'like', '%Transfer of Title%');
                             })
-                            ->update($siblingUpdates);
+                            ->update($nonBlankUpdates($siblingUpdates));
                     }
                 }
             }
@@ -4101,7 +4109,7 @@ class OpResettlementApplicationController extends Controller
                         DB::connection('sqlsrv')
                             ->table('customers_staging')
                             ->where('file_number', $fileNo)
-                            ->update($customersUpdates);
+                            ->update($nonBlankUpdates($customersUpdates));
                     }
                 }
 
@@ -4119,7 +4127,7 @@ class OpResettlementApplicationController extends Controller
                         DB::connection('sqlsrv')
                             ->table('entities_staging')
                             ->where('file_number', $fileNo)
-                            ->update($entitiesUpdates);
+                            ->update($nonBlankUpdates($entitiesUpdates));
                     }
                 }
 
@@ -4173,7 +4181,7 @@ class OpResettlementApplicationController extends Controller
                             if (Schema::connection('sqlsrv')->hasColumn('file_indexings', 'full_file_number')) {
                                 $q->orWhere('full_file_number', $fileNo);
                             }
-                        })->update($indexingUpdates);
+                        })->update($nonBlankUpdates($indexingUpdates));
                     }
                 }
 
@@ -4210,7 +4218,7 @@ class OpResettlementApplicationController extends Controller
                         DB::connection('sqlsrv')
                             ->table('oss_applications')
                             ->where('file_no', $fileNo)
-                            ->update($ossUpdates);
+                            ->update($nonBlankUpdates($ossUpdates));
                     }
                 }
             }
