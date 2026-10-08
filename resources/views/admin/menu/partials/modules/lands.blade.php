@@ -59,11 +59,11 @@
             <span>Generate New FileNo (MLSFileNo)</span>
           </a>
 
-          <!-- iii. Land Application -->
+          <!-- iii. Land Applications -->
           <a href="{{ route('lands-one-stop-shop.all-applications.index', ['type' => 'no-change-of-name']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('lands-one-stop-shop.all-applications.index') && request()->query('type') === 'no-change-of-name' ? 'active' : '' }}">
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-orange-400"></i>
-            <span>Land Application</span>
+            <span>Land Applications</span>
           </a>
 
           <!-- iv. Bill -->
