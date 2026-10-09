@@ -243,96 +243,33 @@
                                                             </button>
                                                         @endif
                                                     </div>
+                                                    @php
+                                                        $workflowBlockers = \App\Support\SubdivisionWorkflow::blockers($record, $jsiCleared[$record->id] ?? false);
+                                                        $workflowActions = [
+                                                            ['planning', 'KAMMA / Physical Planning', 'ruler', 'openKnupdaModal', null],
+                                                            ['generate-recommendation', 'Generate Recommendation', 'file-check', 'generateRecommendation', null],
+                                                            ['print-recommendation', 'Print Recommendation', 'file-text', null, 'plot-subdivision.print-recommendation'],
+                                                            ['decision', 'Approve / Reject', 'scale', 'openApprovalDecision', null],
+                                                            ['generate-application', 'Generate Application', 'file-plus', 'generateApplication', null],
+                                                            ['print-application', 'Print Application', 'printer', null, 'plot-subdivision.print-application'],
+                                                        ];
+                                                    @endphp
                                                     <div class="py-1 border-t border-slate-100">
-                                                        @if(strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0)
-                                                        <button disabled title="Already approved by KAMMA / Physical Planning" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50"><i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> KAMMA / Physical Planning</button>
-                                                        @else
-                                                        <button onclick="openKnupdaModal({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 gap-2">
-                                                            <i data-lucide="ruler" class="w-4 h-4 text-blue-500"></i> KAMMA / Physical Planning
-                                                        </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                        @if(($jsiCleared[$record->id] ?? false))
-                                                            @if(!$record->recommendation_generated_at)
-                                                                <button onclick="generateRecommendation({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-check" class="w-4 h-4 text-emerald-500"></i> Generate Recommendation
+                                                        @foreach($workflowActions as [$action, $label, $icon, $handler, $printRoute])
+                                                            @if($workflowBlockers[$action])
+                                                                <button disabled title="{{ $workflowBlockers[$action] }}" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50">
+                                                                    <i data-lucide="{{ $icon }}" class="w-4 h-4 text-slate-300"></i> {{ $label }}
                                                                 </button>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Recommendation already generated">
-                                                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
-                                                                </button>
-                                                            @endif
-
-                                                            @if($record->recommendation_generated_at)
-                                                                <a href="{{ route('plot-subdivision.print-recommendation', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-text" class="w-4 h-4 text-indigo-500"></i> Print Recommendation
+                                                            @elseif($printRoute)
+                                                                <a href="{{ route($printRoute, $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                    <i data-lucide="{{ $icon }}" class="w-4 h-4 text-indigo-500"></i> {{ $label }}
                                                                 </a>
                                                             @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate recommendation first">
-                                                                    <i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation
+                                                                <button onclick="{{ $handler }}({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                    <i data-lucide="{{ $icon }}" class="w-4 h-4 text-emerald-500"></i> {{ $label }}
                                                                 </button>
                                                             @endif
-                                                        @else
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-check" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
-                                                            </button>
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation
-                                                            </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                    {{-- Approve sits BELOW the recommendation and above the
-                                                         application: the approval is given on the strength of the
-                                                         recommendation memo, so it cannot be offered above it. Reject
-                                                         is the same question's other answer and sits beside it - its
-                                                         handler has always existed here, it had simply never been put
-                                                         on the menu. Same order of business the duplex register
-                                                         follows. --}}
-                                                        @if($record->commissionedCount() > 0 || $record->status === 'commissioned')
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Approved — {{ $record->commissionedCount() }} of {{ $record->num_plots }} plots already commissioned">
-                                                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i> Approved
-                                                            </button>
-                                                        @elseif(in_array($record->status, ['approved', 'rejected'], true))
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Already approved{{ ($jsiCleared[$record->id] ?? false) ? ' via the Master JSI' : '' }}">
-                                                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i> Approve / Reject
-                                                            </button>
-                                                        @else
-                                                            <button onclick="openApprovalDecision({{ $record->id }}, {{ ($jsiCleared[$record->id] ?? false) ? 'true' : 'false' }}, {{ ($jsiCleared[$record->id] ?? false) ? 'false' : 'true' }})" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 gap-2 font-bold">
-                                                                <i data-lucide="scale" class="w-4 h-4 text-emerald-500"></i> Approve / Reject
-                                                            </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                        @if(($jsiCleared[$record->id] ?? false))
-                                                            @if(!$record->application_generated_at)
-                                                                <button onclick="generateApplication({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-plus" class="w-4 h-4 text-orange-500"></i> Generate Application
-                                                                </button>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Application already generated">
-                                                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> Generate Application
-                                                                </button>
-                                                            @endif
-
-                                                            @if($record->application_generated_at)
-                                                                <a href="{{ route('plot-subdivision.print-application', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="printer" class="w-4 h-4 text-slate-500"></i> Print Application
-                                                                </a>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate application first">
-                                                                    <i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application
-                                                                </button>
-                                                            @endif
-                                                        @else
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-plus" class="w-4 h-4 text-slate-300"></i> Generate Application
-                                                            </button>
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application
-                                                            </button>
-                                                        @endif
+                                                        @endforeach
                                                     </div>
                                                     <div class="py-1">
                                                         @if($record->status === 'approved')
@@ -1942,7 +1879,7 @@
                 await Swal.fire({ icon: 'success', title: 'Updated', text: 'KAMMA status updated successfully.', timer: 1500, showConfirmButton: false });
                 location.reload();
             } else {
-                Swal.fire('Error', 'Failed to update KAMMA status', 'error');
+                Swal.fire('Error', result.message || 'Failed to update KAMMA status', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'An error occurred', 'error');
@@ -1970,6 +1907,8 @@
             if (res.success) {
                 await Swal.fire('Success', 'Application generated. You can now print it.', 'success');
                 location.reload();
+            } else {
+                Swal.fire('Error', res.message || 'Failed to generate application.', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'Failed to generate application', 'error');
@@ -1998,7 +1937,7 @@
                 await Swal.fire('Success', 'Recommendation generated. You can now print it.', 'success');
                 location.reload();
             } else {
-                Swal.fire('Error', 'Recommendation can only be generated for Approved applications.', 'error');
+                Swal.fire('Error', res.message || 'Failed to generate recommendation.', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'Failed to generate recommendation', 'error');
@@ -2006,29 +1945,24 @@
     }
 
 
-    // `jsiPending` — the planning clearance is an approved Master JSI now, where it
-    // used to be the KAMMA Handshake. The approval is still allowed without it;
-    // the officer is told, and decides.
-    async function openApprovalDecision(id, canApprove = true, jsiPending = false) {
+    async function openApprovalDecision(id) {
         const result = await Swal.fire({
             title: 'Approval decision',
-            text: canApprove ? 'Choose whether to approve or reject this application.' : 'The Master JSI is not approved, so only rejection is available.',
+            text: 'Choose whether to approve or reject this application.',
             input: 'radio',
-            inputOptions: canApprove ? { approve: 'Approve', reject: 'Reject' } : { reject: 'Reject' },
+            inputOptions: { approve: 'Approve', reject: 'Reject' },
             inputValidator: value => !value && 'Select an action to continue.',
             showCancelButton: true,
             confirmButtonText: 'Continue'
         });
         if (!result.isConfirmed) return;
-        return result.value === 'approve' ? approveRecord(id, jsiPending) : rejectRecord(id);
+        return result.value === 'approve' ? approveRecord(id) : rejectRecord(id);
     }
 
-    async function approveRecord(id, jsiPending = false) {
+    async function approveRecord(id) {
         const result = await Swal.fire({
             title: 'Approve Application?',
-            html: jsiPending
-                ? "Are you sure you want to approve this subdivision application?<br><span class='text-amber-600 font-bold'>Note: the Master JSI has not been approved yet.</span>"
-                : "Are you sure you want to approve this subdivision application?",
+            text: 'Are you sure you want to approve this subdivision application?',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#10b981',
@@ -2080,6 +2014,8 @@
                 if (res.success) {
                     Swal.fire('Rejected!', res.message, 'success');
                     location.reload();
+                } else {
+                    Swal.fire('Error', res.message || 'Failed to reject application.', 'error');
                 }
             } catch (error) {
                 Swal.fire('Error!', 'Failed to reject record.', 'error');
