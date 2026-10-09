@@ -152,7 +152,7 @@ class ChangeOfPurposeController extends Controller
 
         // Which sidebar raised this. Both open the same register, and until this
         // column existed only the page title knew the difference.
-        $data['source_module'] = \App\Support\ParcelUpdateSource::fromRequest($request);
+        $data['source_module'] = $request->query('mode') === 'land' ? 'land' : 'deeds';
 
         // A file already carrying a live application must not take a second one:
         // both would try to retire it.

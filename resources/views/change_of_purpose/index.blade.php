@@ -926,7 +926,7 @@
 @section('footer-scripts')
 @include('components.searchable-select2')
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
-<script src="{{ asset('js/change-of-purpose.js') }}"></script>
+<script src="{{ asset('js/change-of-purpose.js') . '?v=' . filemtime(public_path('js/change-of-purpose.js')) }}"></script>
 <script>
     function calculateCopFee() {
         const size = parseFloat(document.getElementById('cop-land-size').value) || 0;
@@ -958,7 +958,7 @@
                 </div>`,
                 didOpen: () => { document.getElementById('cop-knupda-status').value = data.knupda_status || 'Pending'; },
                 showCancelButton: true,
-                confirmButtonText: 'Save Physical Planning Decision',
+                confirmButtonText: 'Save KAMMA / Physical Planning',
                 preConfirm: async () => {
                     const body = {
                         land_value: document.getElementById('cop-knupda-value').value,

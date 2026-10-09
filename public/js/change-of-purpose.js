@@ -515,7 +515,7 @@
         formData.set('lga', copResolveLocField('cop-lga', 'cop-lga-other'));
 
         try {
-            var response = await fetch('/change-of-purpose', {
+            var response = await fetch('/change-of-purpose' + (new URLSearchParams(window.location.search).get('mode') === 'land' ? '?mode=land' : ''), {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
                 body: formData
@@ -1348,16 +1348,16 @@
         };
 
         // Columns: 0 #, 1 Applicant, 2 File No, 3 Land Use, 4 New Purpose,
-        //          5 Location, 6 Status, 7 Date, 8 Actions.
-        var dtColumnDefs = [{ orderable: false, targets: [0, 8] }];
+        //          5 Location, 6 Status, 7 Source, 8 Date, 9 Actions.
+        var dtColumnDefs = [{ orderable: false, targets: [0, 9] }];
 
         var pendingTable  = $('#cop-pending-table').DataTable(Object.assign({}, dtOptions, {
-            order: [[7, 'desc']],
+            order: [[8, 'desc']],
             columnDefs: dtColumnDefs
         }));
 
         var approvedTable = $('#cop-approved-table').DataTable(Object.assign({}, dtOptions, {
-            order: [[7, 'desc']],
+            order: [[8, 'desc']],
             columnDefs: dtColumnDefs
         }));
 
