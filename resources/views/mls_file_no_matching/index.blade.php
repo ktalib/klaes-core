@@ -26,7 +26,7 @@
         <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Match Existing FileNo (MLSFileNo)</h1>
+                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Create Correspondence File</h1>
                     <p class="text-slate-500 text-sm mt-1">Manage and match existing MLPP file numbers.</p>
                 </div>
                 <div class="flex items-center gap-3 w-full md:w-auto">
@@ -44,7 +44,7 @@
                         class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 whitespace-nowrap"
                     >
                         <i data-lucide="plus-circle" class="h-5 w-5"></i>
-                        <span>Match Existing FileNo (MLSFileNo) </span>
+                        <span>Create Correspondence File</span>
                     </button>
                 </div>
             </div>

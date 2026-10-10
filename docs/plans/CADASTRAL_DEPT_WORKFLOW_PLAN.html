@@ -1,0 +1,449 @@
+<title>Cadastral Workflow Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a survey-office plan sheet. Header strip, then the three workflows as phase columns
+   (read left to right like a traverse), then reuse map, build order, decisions, open questions. */
+:root {
+  --bg: #f3f5f4;
+  --sheet: #ffffff;
+  --ink: #18242b;
+  --muted: #5c6b72;
+  --line: #d6dddd;
+  --accent: #1f5f7a;
+  --accent-soft: #e2eef3;
+  --ext-bg: #f7f8f8;
+  --done: #2f7d4f; --done-bg: #e3f2e8;
+  --next: #9a6a00; --next-bg: #fbf0d3;
+  --later: #5c6b72; --later-bg: #eceff0;
+  --stop: #a23b3b; --stop-bg: #f7e4e4;
+  --wf-conv: #b58900; --wf-dir: #2a62a8; --wf-ver: #2f7d4f;
+  --d-reg: #6b4fa0; --d-dc: #1f5f7a; --d-ddc: #2f8a8a; --d-info: #b06a1a; --d-rep: #a23b6a; --d-pnd: #3d7a2f; --d-adc: #7a5c3d; --d-rec: #4f6070; --d-ext: #8a949a;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11181c; --sheet: #172127; --ink: #e3eaec; --muted: #9aa9b0; --line: #2c3a41;
+  --accent: #6fb3d1; --accent-soft: #1c3440; --ext-bg: #1b252b;
+  --done: #7fcf9c; --done-bg: #1a3324; --next: #e8bf5a; --next-bg: #3a2f12; --later: #9aa9b0; --later-bg: #222e34; --stop: #ec8f8f; --stop-bg: #3d1f1f;
+  --wf-conv: #e0b83a; --wf-dir: #78a8e8; --wf-ver: #7fcf9c;
+  --d-reg: #ab92dd; --d-dc: #6fb3d1; --d-ddc: #6fcfcf; --d-info: #e3a35a; --d-rep: #e07fae; --d-pnd: #8fcf7a; --d-adc: #c9a882; --d-rec: #a3b4c4; --d-ext: #8a949a;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11181c; --sheet: #172127; --ink: #e3eaec; --muted: #9aa9b0; --line: #2c3a41;
+  --accent: #6fb3d1; --accent-soft: #1c3440; --ext-bg: #1b252b;
+  --done: #7fcf9c; --done-bg: #1a3324; --next: #e8bf5a; --next-bg: #3a2f12; --later: #9aa9b0; --later-bg: #222e34; --stop: #ec8f8f; --stop-bg: #3d1f1f;
+  --wf-conv: #e0b83a; --wf-dir: #78a8e8; --wf-ver: #7fcf9c;
+  --d-reg: #ab92dd; --d-dc: #6fb3d1; --d-ddc: #6fcfcf; --d-info: #e3a35a; --d-rep: #e07fae; --d-pnd: #8fcf7a; --d-adc: #c9a882; --d-rec: #a3b4c4; --d-ext: #8a949a;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 2.6rem; line-height: 1.05; font-weight: 700; }
+h2 { font-size: 1.7rem; font-weight: 600; }
+h3 { font-size: 1.25rem; font-weight: 600; }
+p { margin: 0; max-width: 70ch; }
+.eyebrow { font: 600 .74rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+code, .mono { font-family: var(--f-mono); font-size: .85em; }
+section { display: grid; gap: 16px; }
+.sec-head { display: grid; gap: 6px; border-top: 2px solid var(--ink); padding-top: 12px; }
+
+/* header */
+header { display: grid; gap: 14px; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 .78rem/1 var(--f-body); padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.p-done { color: var(--done); background: var(--done-bg); }
+.p-next { color: var(--next); background: var(--next-bg); }
+.p-later { color: var(--later); background: var(--later-bg); }
+.p-stop { color: var(--stop); background: var(--stop-bg); }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .85rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+/* workflow tabs */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab { font: 600 1rem/1 var(--f-display); letter-spacing: .03em; padding: 10px 16px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 6px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.tab .dot { width: 10px; height: 10px; border-radius: 50%; }
+.tab[aria-selected="true"] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--wfc, var(--accent)); }
+.tab:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wf-intro { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; color: var(--muted); font-size: .92rem; }
+.wf-intro strong { color: var(--ink); }
+
+.flow-scroll { overflow-x: auto; padding-bottom: 6px; }
+.flow { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 14px; min-width: min-content; }
+.phase { background: var(--sheet); border: 1px solid var(--line); border-top: 4px solid var(--wfc); border-radius: 4px; padding: 12px; display: grid; align-content: start; gap: 10px; }
+.phase-h { display: grid; gap: 2px; }
+.phase-n { font: 600 .7rem/1 var(--f-mono); color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+.phase-t { font: 600 1.05rem/1.2 var(--f-display); }
+.step { border-left: 4px solid var(--dc); background: var(--sheet); border-radius: 3px; padding: 8px 10px; display: grid; gap: 4px; position: relative; box-shadow: 0 0 0 1px var(--line); }
+.step + .step::before { content: "↓"; position: absolute; top: -12px; left: 12px; font-size: .75rem; color: var(--muted); line-height: 1; }
+.step.ext { background: var(--ext-bg); box-shadow: 0 0 0 1px var(--line); border-left-style: dashed; }
+.step.end { box-shadow: 0 0 0 2px var(--ink); }
+.desk { font: 600 .72rem/1 var(--f-mono); color: var(--dc); letter-spacing: .04em; text-transform: uppercase; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tag { font: 600 .66rem/1 var(--f-body); padding: 3px 6px; border-radius: 3px; text-transform: none; letter-spacing: 0; }
+.t-ext { background: var(--later-bg); color: var(--later); }
+.t-new { background: var(--next-bg); color: var(--next); }
+.t-auto { background: var(--accent-soft); color: var(--accent); }
+.t-open { background: var(--stop-bg); color: var(--stop); }
+.step-txt { font-size: .9rem; line-height: 1.4; }
+.q { font-weight: 700; font-size: .88rem; }
+.branches { display: grid; gap: 3px; margin: 2px 0 0; padding: 0; list-style: none; font-size: .84rem; }
+.branches li { display: grid; grid-template-columns: auto 1fr; gap: 6px; }
+.branches b { font-family: var(--f-mono); font-size: .76rem; padding: 1px 5px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); align-self: start; }
+.branches .neg b { background: var(--stop-bg); color: var(--stop); }
+
+/* sidebar mock */
+.two { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.side { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; gap: 2px; font-size: .92rem; }
+.side .grp { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 4px; font-weight: 600; }
+.side .grp .sw { width: 10px; height: 10px; }
+.side .sub { padding: 3px 8px 3px 30px; color: var(--muted); font-size: .86rem; }
+.side .moved { color: var(--next); }
+.menus { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.menu { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 8px; align-content: start; }
+.menu h3 { font-size: 1.05rem; display: flex; gap: 8px; align-items: center; }
+.menu ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: .88rem; }
+.menu li { display: grid; grid-template-columns: 14px 1fr; gap: 6px; }
+.menu li::before { content: "▸"; color: var(--muted); }
+.menu .when { color: var(--muted); font-size: .8rem; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 .74rem/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td .arrow { color: var(--muted); padding: 0 4px; }
+
+/* build order */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; gap: 12px; align-items: start; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.steps li::before { content: counter(s); font: 700 1.3rem/1 var(--f-display); color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 2px; }
+.steps .t { font-weight: 600; }
+.steps .d { color: var(--muted); font-size: .88rem; }
+@media (max-width: 560px) { .steps li { grid-template-columns: 2rem minmax(0, 1fr); } .steps li .pill { grid-column: 2; justify-self: start; } }
+
+.qs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.qcard { background: var(--sheet); border: 1px solid var(--line); border-left: 4px solid var(--stop); border-radius: 4px; padding: 12px; display: grid; gap: 6px; font-size: .9rem; }
+.qcard .mono { color: var(--muted); }
+footer { color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (prefers-reduced-motion: no-preference) { .phase { transition: border-color .2s; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">KLAES · Cadastral Department · plan as of 10 Oct 2026</div>
+  <h1>Cadastral Department Workflow</h1>
+  <p>How a file moves through Cadastral, desk by desk, after the client walk-through on 10 October. It covers the three application types, the action menus each desk gets, which old screens are reused, and the order we build in.</p>
+  <div class="status">
+    <span class="pill p-done">Old Cadastral Module restored and loading</span>
+    <span class="pill p-done">Workflow scaffold built (draft)</span>
+    <span class="pill p-done">Client brief captured</span>
+    <span class="pill p-done">Workflow updated to the brief</span>
+    <span class="pill p-done">Registry intake built</span>
+    <span class="pill p-stop">Sidebar not linked</span>
+    <span class="pill p-done">Workflow tables created</span>
+  </div>
+</header>
+
+<section id="flows">
+  <div class="sec-head">
+    <div class="eyebrow">1 · Routes</div>
+    <h2>The three workflows</h2>
+    <p>Each column is a phase. Each card is one stop of the main file, with the desk on top. Dashed cards are other departments. Decision cards show the question the officer answers; the answer picks the next desk.</p>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="wf-intro" id="wf-intro"></div>
+  <div class="flow-scroll"><div class="flow" id="flow"></div></div>
+</section>
+
+<section id="desks">
+  <div class="sec-head">
+    <div class="eyebrow">2 · Screens</div>
+    <h2>Sidebar and action menus</h2>
+    <p>The client wants one sidebar entry per desk. Every “Send to …” is an action-menu item on the row, and it only switches on when the file is at that step. Nothing here is linked yet.</p>
+  </div>
+  <div class="two">
+    <div class="side" aria-label="Proposed sidebar">
+      <div class="grp"><span class="sw" style="background:var(--d-reg)"></span>Cadastral Registry</div>
+      <div class="sub">Intake Queue</div>
+      <div class="sub moved">Digital Registry (moved back here)</div>
+      <div class="grp"><span class="sw" style="background:var(--d-dc)"></span>D Cad</div>
+      <div class="grp"><span class="sw" style="background:var(--d-ddc)"></span>DD Cad</div>
+      <div class="grp"><span class="sw" style="background:var(--d-info)"></span>Cadastral Information</div>
+      <div class="sub">Commission FMC</div>
+      <div class="sub">1st charting (Direct)</div>
+      <div class="grp"><span class="sw" style="background:var(--d-rep)"></span>Cadastral Reports</div>
+      <div class="sub">Charting (1st for Conversion, 2nd for Direct)</div>
+      <div class="sub">Create Correspondence File</div>
+      <div class="sub moved">Index Cards (moved here)</div>
+      <div class="grp"><span class="sw" style="background:var(--d-pnd)"></span>AD P&amp;D</div>
+      <div class="sub">Jobs · Surveyors</div>
+      <div class="sub">Commission Field Jacket / I to S</div>
+      <div class="sub">Fees P&amp;D bill</div>
+    </div>
+    <div class="menus">
+      <div class="menu"><h3><span class="sw" style="background:var(--d-reg)"></span>Registry</h3><ul>
+        <li><span>Register (existing Intake Queue form) <span class="when">· sends to D Cad automatically, row locks</span></span></li>
+        <li><span>Send back to source <span class="when">· only after “Not recommended”</span></span></li>
+        <li><span>Detach correspondence file → Send to Director Land</span></li>
+        <li><span>Receive back · Attach correspondence file</span></li>
+        <li><span>Send to Deeds <span class="when">· last action; checks FMC, charting, correspondence file, bill</span></span></li>
+        <li><span>Return to requester <span class="when">· Verification</span></span></li>
+      </ul></div>
+      <div class="menu"><h3><span class="sw" style="background:var(--d-dc)"></span>D Cad</h3><ul>
+        <li><span>Recommend / Not recommend <span class="when">· same line; Recommend pops up “Send to DD Cad”</span></span></li>
+        <li><span>Within the 10 km buffer? → KAMMA / Physical Planning</span></li>
+        <li><span>Send to Cadastral Information</span></li>
+        <li><span>Send to DD Cad (survey stage)</span></li>
+      </ul></div>
+      <div class="menu"><h3><span class="sw" style="background:var(--d-ddc)"></span>DD Cad</h3><ul>
+        <li><span>Recommend → Send to AD Cad Info</span></li>
+        <li><span>Not recommend → back to D Cad, with reason</span></li>
+        <li><span>Send to AD P&amp;D (survey stage)</span></li>
+      </ul></div>
+      <div class="menu"><h3><span class="sw" style="background:var(--d-info)"></span>Cadastral Information</h3><ul>
+        <li><span>Commission FMC (prints with QR)</span></li>
+        <li><span>Check layout plan · 1st charting <span class="when">· Direct only</span></span></li>
+        <li><span>Send to Cadastral Report / D Cad / DD Cad</span></li>
+        <li><span>FMC updates are automatic, so there is no “update” action</span></li>
+      </ul></div>
+      <div class="menu"><h3><span class="sw" style="background:var(--d-rep)"></span>Cadastral Report</h3><ul>
+        <li><span>Charting card + charting number</span></li>
+        <li><span>Land 12 · Yes/No form <span class="when">· link to existing, to confirm</span></span></li>
+        <li><span>Create Correspondence File</span></li>
+        <li><span>Send to Compensation / Director Land <span class="when">· by type</span></span></li>
+      </ul></div>
+      <div class="menu"><h3><span class="sw" style="background:var(--d-pnd)"></span>AD P&amp;D</h3><ul>
+        <li><span>Commission Field Jacket (creates job, locks surveyor)</span></li>
+        <li><span>Reassign surveyor</span></li>
+        <li><span>Issue I to S</span></li>
+        <li><span>Generate Fees P&amp;D bill (no payment)</span></li>
+        <li><span>Send to AD Cadastral</span></li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="reuse">
+  <div class="sec-head">
+    <div class="eyebrow">3 · Reuse</div>
+    <h2>Old module screens and where they go</h2>
+    <p>The client wants the old screens changed, not replaced. Each change below waits for your OK by name; nothing is moved, renamed or removed before that.</p>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Old screen</th><th>Becomes</th><th>Change</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Intake Queue</td><td>Registry registration</td><td>Copied, not changed: application type, file type (OP → Resettlement / Direct Allocation), file source, auto-send to D Cad, lock while upstream</td><td><span class="pill p-done">Built</span></td></tr>
+      <tr><td>Commission Correspondence File (Match MLSFileNo)</td><td>Create Correspondence File</td><td>Renamed; same matching. Correspondence + shadow columns added to fileNumber and OSS</td><td><span class="pill p-done">Done</span></td></tr>
+      <tr><td>Index Cards</td><td>Under Cadastral Reports</td><td>Move in the sidebar</td><td><span class="pill p-later">Needs OK</span></td></tr>
+      <tr><td>Digital Registry</td><td>Under Registry</td><td>Move back; access-controlled</td><td><span class="pill p-later">Needs OK</span></td></tr>
+      <tr><td>Charting</td><td>Charting card + table</td><td>Small card (charted, falls on existing plot, description, coordinates) with a charting number; 1st / 2nd charting</td><td><span class="pill p-done">Built</span></td></tr>
+      <tr><td>Survey Jobs (I to S) · Surveyors</td><td>Field Jacket / I to S</td><td>Field jacket ID ↔ job ID ↔ surveyor ID; surveyor locked, reassignable</td><td><span class="pill p-next">Built</span></td></tr>
+      <tr><td>Area &amp; Pillars · Descriptions · Fee Calculator</td><td>One Fees P&amp;D bill</td><td>Merge the three; no payment; total feeds Deeds Bill Balance “survey processing fee”</td><td><span class="pill p-later">Later</span></td></tr>
+      <tr><td>Cadastral to Land (Land 12)</td><td>Linked from Cadastral Report</td><td>Land 12 starts in Land; client to confirm</td><td><span class="pill p-stop">Open</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="order">
+  <div class="sec-head">
+    <div class="eyebrow">4 · Sequence</div>
+    <h2>Build order</h2>
+  </div>
+  <ol class="steps">
+    <li><div><div class="t">Restore the old Cadastral Module</div><div class="d">Code, sidebar, 17 tables and saved data back; Records link re-added; 38 of 39 pages load.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Workflow scaffold</div><div class="d">Config, engine, case pages and 10 unit tests under <code>cadastral-dept.*</code>; no sidebar link.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Capture the client brief</div><div class="d">Decisions recorded in <code>docs/plans/CADASTRAL_DEPT_WORKFLOW.md</code>.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Update the workflow config to the brief</div><div class="d">Short forms, DD Cad refusal back to D Cad, OP sub-types, the yes/no questions, automatic FMC steps.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Registry intake on the Intake Queue</div><div class="d">Application type, file type, file source, duplicate check, auto-send, row lock, send back to source. Built as a copy under the new workflow; the old Intake Queue is unchanged.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">D Cad and DD Cad desks</div><div class="d">Grouped by step, action menus with a confirm pop-up (reason required to refuse), the sent-back reason on the row, and the outside-department returns D Cad records.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">File Movement Card with QR</div><div class="d">Commissioned at AD Cad Info from the file records; printable with QR; the QR page logs the file in and out of any unit (one Other, matched against listed units); the log merges workflow movements and QR scans. Tables created 10 Oct.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Charting card draft</div><div class="d">Draft ready for the client: card per stage, fields to mark, charting table, 8 questions (CADASTRAL_CHARTING_CARD_DRAFT.html). Built as drafted with defaults (user: go with what we have): card per stage, versions, beacons and area, existing-plot suggestion, charting tables, print.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Create Correspondence File</div><div class="d">Old screen renamed; correspondence + shadow columns on fileNumber and OSS; AD Cad Report button reuses the old matching/creating code.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Field Jacket, Jobs, Surveyors, I to S</div><div class="d">Rework of the old Survey Jobs screen. Built and migrated.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Fees P&amp;D bill → Deeds Bill Balance</div><div class="d">One merged bill; total fills the survey processing fee. Built: one page (area and beacons from the charting card, description, fees), no new tables; Deeds Bill Balance fills Survey Fees from the issued bill.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Send to Deeds with checks</div><div class="d">Only after detaching; FMC, charting, correspondence file and bill must exist. Built: Registry Attach / Detach with history; Send to Deeds refused until every check passes. Migrated.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Sidebar per desk</div><div class="d">Plus moving Index Cards and Digital Registry. Each entry named and approved first. Done: Cadastral Department group with the 7 desks (Cad - Records), both Index Cards entries under Cadastral Report, File Digital Library under Registry.</div></div><span class="pill p-done">Done</span></li>
+    <li><div><div class="t">Create the workflow tables</div><div class="d"><code>2026_10_10_100000_create_cadastral_dept_workflow_tables</code> run on 10 Oct.</div></div><span class="pill p-done">Done</span></li>
+  </ol>
+</section>
+
+<section id="decisions">
+  <div class="sec-head">
+    <div class="eyebrow">5 · Brief</div>
+    <h2>What the client decided</h2>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Topic</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td>Intake types</td><td>Conversion: conversion file, Quarry, SIT, DCIV. Direct: GKN, Misc KN, DCIV, OP (OP → Resettlement or Direct Allocation). Verification: any file type.</td></tr>
+      <tr><td>Registration</td><td>Reuse the Intake Queue. File must already be indexed or commissioned. Duplicate = same file number already taken in.</td></tr>
+      <tr><td>File source</td><td>Land, DCIV, Survey, SLTR, Sectional Titling, … “Not recommended” returns it there.</td></tr>
+      <tr><td>Hand-off</td><td>Registering sends to D Cad. Registry row is view-only until it comes back.</td></tr>
+      <tr><td>DD Cad refusal</td><td>Back to D Cad with a reason (the document said Registry).</td></tr>
+      <tr><td>Short forms</td><td>D Cad, DD Cad, AD Cad Info, AD Cad Report, AD P&amp;D, FMC.</td></tr>
+      <tr><td>FMC</td><td>QR issued at commissioning. Header: name, file title, file number, location, district, block no., date/time. Log: unit, reason, date/time, officer. Automatic.</td></tr>
+      <tr><td>Charting</td><td>Sheet charting stays outside KLAES. Card + charting number in KLAES. Direct: 1st under Information, 2nd under Report.</td></tr>
+      <tr><td>Compensation</td><td>“Falls on Government acquisition?” Yes → rejected, back. No → DSG → D Cad.</td></tr>
+      <tr><td>Buffer</td><td>D Cad checks on GIS. “Within 10 km of the town centre?” Yes → KAMMA, No → Physical Planning.</td></tr>
+      <tr><td>Bill</td><td>One Fees P&amp;D bill, no payment. Surveyor mobile app backfills field data later.</td></tr>
+      <tr><td>Recommendations</td><td>Plain yes/no, not the brief-recommendation letters.</td></tr>
+      <tr><td>Verification</td><td>Intake switches to “search correspondence file” and shows the match.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="open">
+  <div class="sec-head">
+    <div class="eyebrow">6 · Open</div>
+    <h2>Answered and still open</h2>
+  </div>
+  <div class="qs">
+    <div class="qcard" style="border-left-color:var(--done)"><span class="mono">Answered · Direct routing</span>GKN, Misc KN and DCIV files that are not OP take the Direct Allocation path: straight to Director Land, skipping Compensation. OP files still choose Resettlement or Direct Allocation.</div>
+    <div class="qcard" style="border-left-color:var(--done)"><span class="mono">Answered · DD Cad return</span>The file goes back to D Cad with DD Cad's reason, and D Cad decides again: recommend once more, or not recommend (Registry, then back to source).</div>
+    <div class="qcard" style="border-left-color:var(--done)"><span class="mono">Answered · people</span>Normal users. Whoever is given a desk's sidebar entry in user roles can act at that desk.</div>
+    <div class="qcard"><span class="mono">To confirm · outside departments</span>Your view: they get their own screens. The recording only clearly says this for the Compensation Unit (“to be harmonised”). The others log the file in and out with the FMC QR code.</div>
+    <div class="qcard"><span class="mono">Asst. Director Cadastral</span>At the end, the bill passes from AD P&amp;D to “Asst. Director Cadastral”, then Registry. Is that another officer with their own screen, or one of the three ADs already listed?</div>
+    <div class="qcard"><span class="mono">Record Section</span>For Direct files, AD P&amp;D sends the file to the Record Section to attach the survey plan. Do they need a screen in KLAES, or does AD P&amp;D just tick “survey plan attached”?</div>
+    <div class="qcard"><span class="mono">Details</span>Charting card fields (client edits the draft), Land 12 link, field-jacket and job number formats.</div>
+  </div>
+</section>
+
+<footer>Source: workflow document (9 Oct) and the recorded client walk-through (10 Oct). Text version: <code>docs/plans/CADASTRAL_DEPT_WORKFLOW.md</code>.</footer>
+</div>
+
+<script>
+const DESKS = {
+  reg: ['Registry', 'var(--d-reg)'], dc: ['D Cad', 'var(--d-dc)'], ddc: ['DD Cad', 'var(--d-ddc)'],
+  info: ['AD Cad Info', 'var(--d-info)'], rep: ['AD Cad Report', 'var(--d-rep)'], pnd: ['AD P&D', 'var(--d-pnd)'],
+  adc: ['AD Cadastral', 'var(--d-adc)'], rec: ['Record Section', 'var(--d-rec)'],
+  comp: ['Compensation Unit', 'var(--d-ext)', 1], dsg: ['DSG', 'var(--d-ext)', 1], kamma: ['KAMMA / Physical Planning', 'var(--d-ext)', 1],
+  ps: ['Perm Sec', 'var(--d-ext)', 1], land: ['Director Land', 'var(--d-ext)', 1], field: ['Field survey', 'var(--d-ext)', 1],
+  deeds: ['Deeds', 'var(--d-ext)', 1], src: ['Source dept', 'var(--d-ext)', 1]
+};
+const P1 = (verb) => ({ n: 1, t: 'Initial Reception & Recommendation', s: [
+  { d: 'reg', x: verb, tags: [['Intake Queue', 'new']] },
+  { d: 'reg', x: 'Sends to D Cad automatically. Registry row locks (view only).', tags: [['auto', 'auto']] },
+  { d: 'dc', q: 'Recommend?', b: [['Yes', 'Send to DD Cad'], ['No', 'Registry unlocks → Send back to source', 1]] },
+  { d: 'ddc', q: 'Recommend?', b: [['Yes', 'Send to AD Cad Info'], ['No', 'Back to D Cad with a reason; D Cad decides again', 1]], tags: [['changed', 'new']] }
+]});
+const LAND_TRIP = [
+  { d: 'reg', x: 'Detach correspondence file, archive it. Send main file to Director Land.' },
+  { d: 'land', x: 'Recommendation and R of O.' },
+  { d: 'reg', x: 'Receive main file back. Attach correspondence file.' },
+  { d: 'dc', x: 'Send to DD Cad.' },
+  { d: 'ddc', x: 'Send to AD P&D.' }
+];
+const TAIL = [
+  { d: 'pnd', x: 'Generate the Fees P&D bill. No payment.', tags: [['merged', 'new']] },
+  { d: 'adc', x: 'Send to Registry.' },
+  { d: 'reg', x: 'Detach correspondence file. Send to Deeds: checks FMC, charting, correspondence file and bill.' },
+  { d: 'deeds', x: 'Bill Balance: survey processing fee filled from the bill.', end: 1 }
+];
+const WF = {
+  conversion: { label: 'Conversion', colour: 'var(--wf-conv)', applies: 'Conversion file, Quarry, SIT, DCIV (conversion)', kind: 'Customary', phases: [
+    P1('Register the main file: application type, file type, file source, duplicate check.'),
+    { n: 2, t: 'File Commissioning & Charting', s: [
+      { d: 'info', x: 'Commission the FMC. Prints with a QR code.', tags: [['QR', 'new']] },
+      { d: 'rep', x: 'Charting card with charting number (sheet charting stays outside KLAES).' },
+      { d: 'rep', x: 'Land 12 and Yes/No form.', tags: [['to confirm', 'open']] },
+      { d: 'rep', x: 'Create Correspondence File. Send to Compensation Unit.' }
+    ]},
+    { n: 3, t: 'Acquisition Check & Planning Advice', s: [
+      { d: 'comp', q: 'Falls on Government acquisition?', b: [['No', 'Send to DSG'], ['Yes', 'Rejected, goes back', 1]] },
+      { d: 'dsg', x: 'Send to D Cad (not through Registry).' },
+      { d: 'dc', q: 'Within the 10 km buffer?', b: [['Yes', 'KAMMA'], ['No', 'Physical Planning']] },
+      { d: 'kamma', x: 'Planning Advice.' },
+      { d: 'ps', x: 'Reviews Planning Advice. Back to D Cad.' },
+      { d: 'dc', x: 'Send to Cadastral Information.' },
+      { d: 'info', x: 'Planning Advice details recorded. FMC updates itself. Send to Registry.', tags: [['auto', 'auto']] }
+    ]},
+    { n: 4, t: 'Land Department & Return', s: LAND_TRIP.slice(0, 3).concat([{ d: 'reg', x: 'Send to D Cad.' }]) },
+    { n: 5, t: 'Survey Instruction & Billing', s: [
+      { d: 'dc', x: 'Send to DD Cad.' }, { d: 'ddc', x: 'Send to AD P&D.' },
+      { d: 'pnd', x: 'Commission Field Jacket: creates a job, locks a surveyor (reassignable). Issue I to S.' },
+      { d: 'field', x: 'Survey in the field. Mobile app later.' }
+    ].concat(TAIL) }
+  ]},
+  direct: { label: 'Direct', colour: 'var(--wf-dir)', applies: 'GKN, Misc KN, DCIV (direct): Direct Allocation. OP: Resettlement or Direct Allocation', kind: 'Statutory', phases: [
+    P1('Register the main file: application type, file type (OP asks Resettlement or Direct Allocation), file source, duplicate check.'),
+    { n: 2, t: 'File Commissioning & Charting', s: [
+      { d: 'info', x: 'Commission the FMC (QR). Check layout plan against the allocation paper.' },
+      { d: 'info', x: '1st charting (table under Information).' },
+      { d: 'rep', x: '2nd charting (table under Report). Land 12 and Yes/No form.' },
+      { d: 'rep', x: 'Create Correspondence File.' },
+      { d: 'rep', q: 'Resettlement or Direct Allocation?', b: [['Resettlement', 'Compensation Unit'], ['Direct Allocation', 'Director Land'], ['Not OP', 'Direct Allocation: Director Land']] }
+    ]},
+    { n: 3, t: 'A · Resettlement   B · Direct Allocation', s: [
+      { d: 'comp', x: 'A: Government acquisition check. Then DSG → D Cad.' },
+      { d: 'land', x: 'B: Checks the application is genuine. Then D Cad.' },
+      { d: 'dc', x: 'Send to Cadastral Information.' },
+      { d: 'info', x: 'FMC updates itself. Send to Registry.', tags: [['auto', 'auto']] }
+    ]},
+    { n: 4, t: 'Land Department & Return', s: LAND_TRIP },
+    { n: 5, t: 'Survey Plan & Billing', s: [
+      { d: 'pnd', x: 'Send to Record Section.' },
+      { d: 'rec', x: 'Attach the survey plan.' }
+    ].concat(TAIL) }
+  ]},
+  verification: { label: 'Verification', colour: 'var(--wf-ver)', applies: 'Any file type', kind: 'Check', phases: [
+    { n: 1, t: 'Initial Reception & Recommendation', s: [
+      { d: 'reg', x: 'Search the correspondence file instead of the intake form. Shows the match. Attach it.', tags: [['new screen', 'new']] },
+      { d: 'dc', q: 'Recommend for verification?', b: [['Yes', 'Send to DD Cad'], ['No', 'Back to source', 1]] },
+      { d: 'ddc', q: 'Recommend for verification?', b: [['Yes', 'Send to AD Cad Info'], ['No', 'Back to D Cad, with reason', 1]] }
+    ]},
+    { n: 2, t: 'Charting Verification', s: [
+      { d: 'info', x: 'Commission the FMC (QR). Check charting information.' },
+      { d: 'rep', x: 'Check charting information. Send to DD Cad.' },
+      { d: 'ddc', x: 'Send to D Cad.' },
+      { d: 'dc', x: 'Send to Cadastral Information.' },
+      { d: 'info', x: 'FMC updates itself. Send to Registry.', tags: [['auto', 'auto']] }
+    ]},
+    { n: 3, t: 'File Return', s: [
+      { d: 'reg', x: 'Detach correspondence file.' },
+      { d: 'src', x: 'Main file returned to the requester.', end: 1 }
+    ]}
+  ]}
+};
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function stepHtml(s) {
+  const [name, col, ext] = DESKS[s.d];
+  const tags = (ext ? '<span class="tag t-ext">outside Cadastral</span>' : '') +
+    (s.tags || []).map(([t, k]) => `<span class="tag t-${k}">${esc(t)}</span>`).join('');
+  let body = s.q
+    ? `<div class="q">${esc(s.q)}</div><ul class="branches">${s.b.map(([a, to, neg]) => `<li class="${neg ? 'neg' : ''}"><b>${esc(a)}</b><span>${esc(to)}</span></li>`).join('')}</ul>`
+    : `<div class="step-txt">${esc(s.x)}</div>`;
+  return `<div class="step${ext ? ' ext' : ''}${s.end ? ' end' : ''}" style="--dc:${col}"><div class="desk">${esc(name)}${tags}</div>${body}</div>`;
+}
+function render(key) {
+  const wf = WF[key];
+  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.k === key ? 'true' : 'false'));
+  document.getElementById('wf-intro').innerHTML =
+    `<span><strong>${esc(wf.label)}</strong> (${esc(wf.kind)})</span><span>Applies to: ${esc(wf.applies)}</span><span>${wf.phases.length} phases · ${wf.phases.reduce((n, p) => n + p.s.length, 0)} stops</span>`;
+  const flow = document.getElementById('flow');
+  flow.style.setProperty('--wfc', wf.colour);
+  flow.innerHTML = wf.phases.map((p) =>
+    `<div class="phase"><div class="phase-h"><span class="phase-n">Phase ${p.n}</span><span class="phase-t">${esc(p.t)}</span></div>${p.s.map(stepHtml).join('')}</div>`).join('');
+  try { localStorage.setItem('cadwf-tab', key); } catch (e) {}
+}
+document.getElementById('tabs').innerHTML = Object.entries(WF).map(([k, w]) =>
+  `<button class="tab" role="tab" id="tab-${k}" data-k="${k}" style="--wfc:${w.colour}"><span class="dot" style="background:${w.colour}"></span>${esc(w.label)}</button>`).join('');
+document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) render(b.dataset.k); });
+document.getElementById('legend').innerHTML = [['reg'], ['dc'], ['ddc'], ['info'], ['rep'], ['pnd'], ['adc'], ['rec'], ['comp', 'Other departments']]
+  .map(([k, l]) => `<span><i class="sw" style="background:${DESKS[k][1]}"></i>${esc(l || DESKS[k][0])}</span>`).join('');
+let start = 'conversion';
+try { const h = location.hash.slice(1); const s = localStorage.getItem('cadwf-tab'); start = WF[h] ? h : (WF[s] ? s : start); } catch (e) {}
+render(start);
+</script>

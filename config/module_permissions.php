@@ -187,6 +187,8 @@ return [
          | guard against a future 'cadastral*' being written here.
         */
         'cadastral-module.*' => 'Cad - Records',
+        // Cadastral Department workflow. Str::is('cadastral.*', 'cadastral-dept.x') is false.
+        'cadastral-dept.*' => 'Cad - Records',
         'cadastral.*' => 'Cad - Records',
         'gisedms.*' => 'GIS - Records',
 

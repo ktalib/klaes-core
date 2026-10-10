@@ -508,6 +508,35 @@ class BillBalanceController extends Controller
     }
 
     /**
+     * The Cadastral Department's Fees P&D bill for a file: the newest issued
+     * (not cancelled) cadastral_bills row. Its total is the survey fee here.
+     */
+    public function cadastralFee(Request $request)
+    {
+        $fileNumber = trim((string) $request->get('file_number', ''));
+        if ($fileNumber === '') {
+            return response()->json(['success' => false, 'message' => 'File number is required'], 422);
+        }
+
+        try {
+            $bill = \App\Services\CadastralDept\PndBills::liveBill($fileNumber);
+
+            return response()->json([
+                'success' => true,
+                'data' => $bill ? [
+                    'bill_ref' => $bill->bill_ref,
+                    'total' => round((float) $bill->grand_total, 2),
+                    'issued_at' => optional($bill->issued_at)->format('d M Y'),
+                ] : null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('cadastralFee lookup failed', ['file_number' => $fileNumber, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Could not check the cadastral bill.'], 500);
+        }
+    }
+
+    /**
      * Get residence address for a file number from file_indexings table
      */
     /**

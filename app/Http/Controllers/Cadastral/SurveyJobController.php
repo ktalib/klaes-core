@@ -162,6 +162,12 @@ class SurveyJobController extends Controller
 
         $data = $this->validated($r, $surveyJob);
 
+        // A job commissioned with a Cadastral Department field jacket keeps its
+        // surveyor; changing it is a reassignment on the jacket, with a reason.
+        if ($surveyJob->field_jacket_no && (int) ($data['cadastral_surveyor_id'] ?? 0) !== (int) $surveyJob->cadastral_surveyor_id) {
+            return back()->withInput()->with('error', "{$surveyJob->job_number} belongs to field jacket {$surveyJob->field_jacket_no}; reassign the surveyor on the jacket.");
+        }
+
         $this->snapshotSurveyor($data);
 
         $synced = DB::connection('sqlsrv')->transaction(function () use ($surveyJob, $data) {
@@ -193,6 +199,11 @@ class SurveyJobController extends Controller
         if ($surveyJob->hasInstruction()) {
             return back()->with('error',
                 "{$surveyJob->job_number} already carries instruction {$surveyJob->its_number}.");
+        }
+
+        // Issued from the file's workflow page, where it ticks the I to S task.
+        if ($surveyJob->field_jacket_no) {
+            return back()->with('error', "{$surveyJob->job_number} belongs to field jacket {$surveyJob->field_jacket_no}; issue its I to S from the file's Cadastral Department page.");
         }
 
         $surveyor = $surveyJob->surveyor;

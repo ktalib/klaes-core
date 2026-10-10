@@ -5,6 +5,12 @@
     <div>
         <strong>{{ $job->job_number }}</strong> · {{ $job->file_number }}
         <span class="status-badge {{ $job->status_badge }}"><span class="dot"></span>{{ $job->status }}</span>
+        @if ($job->field_jacket_no)
+            · Field jacket <strong>{{ $job->field_jacket_no }}</strong>
+            @if ($job->cadastral_case_id)
+                (<a href="{{ route('cadastral-dept.cases.show', $job->cadastral_case_id) }}">open the file</a>)
+            @endif
+        @endif
     </div>
     <div style="display:flex;gap:8px;">
         @if ($job->hasInstruction())
@@ -70,7 +76,10 @@
             <div class="form-grid">
                 <div class="form-group">
                     <label>Surveyor</label>
-                    <select name="cadastral_surveyor_id">
+                    @if ($job->field_jacket_no)
+                        <input type="hidden" name="cadastral_surveyor_id" value="{{ $job->cadastral_surveyor_id }}" />
+                    @endif
+                    <select name="cadastral_surveyor_id" @disabled($job->field_jacket_no)>
                         <option value="">— unassigned —</option>
                         @foreach ($surveyors as $surveyor)
                             <option value="{{ $surveyor->id }}" @selected(old('cadastral_surveyor_id', $job->cadastral_surveyor_id)==$surveyor->id)>
@@ -79,7 +88,13 @@
                             </option>
                         @endforeach
                     </select>
-                    <div class="helper-text">The name and firm are copied onto the job when you save, so the instruction keeps reading as issued.</div>
+                    <div class="helper-text">
+                        @if ($job->field_jacket_no)
+                            Locked to field jacket {{ $job->field_jacket_no }}. Reassign the surveyor on the jacket, with the reason.
+                        @else
+                            The name and firm are copied onto the job when you save, so the instruction keeps reading as issued.
+                        @endif
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Index Card ID</label>
@@ -154,6 +169,14 @@
             <div style="padding:12px 0;white-space:pre-wrap;">{{ $job->its_instructions }}</div>
             <div class="helper-text">
                 An issued instruction is not edited. If it is wrong, cancel the job and register a new one.
+            </div>
+        </div>
+    @elseif ($job->field_jacket_no)
+        <div class="form-body">
+            <div class="caveat">
+                <i class="fas fa-circle-info"></i>
+                <div>This job belongs to field jacket {{ $job->field_jacket_no }}. Its I to S is issued from
+                    @if ($job->cadastral_case_id)<a href="{{ route('cadastral-dept.cases.show', $job->cadastral_case_id) }}">the file's Cadastral Department page</a>@else the file's Cadastral Department page @endif.</div>
             </div>
         </div>
     @else

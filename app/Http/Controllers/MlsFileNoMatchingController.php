@@ -20,7 +20,7 @@ class MlsFileNoMatchingController extends Controller
      */
     public function index(Request $request)
     {
-        $PageTitle = 'Match Existing FileNo (MLSFileNo)';
+        $PageTitle = 'Create Correspondence File';
         $PageDescription = 'Manage Cadastral Shadow Files (CSF)';
 
         $districts = District::where('is_active', 1)->orderBy('name')->get();
@@ -130,7 +130,7 @@ class MlsFileNoMatchingController extends Controller
             // Reuse the already-loaded model — eliminates a second SELECT round-trip
             $existingFile->update(['csf' => '1']);
 
-            CadastralShadowFile::create([
+            $shadow = CadastralShadowFile::create([
                 'ref_number'   => 'CSF-' . $now->format('Ymd') . '-' . $now->format('His'),
                 'full_number'  => $fullFileNumber,
                 'file_name'    => $entityName,
@@ -152,6 +152,13 @@ class MlsFileNoMatchingController extends Controller
                     'is_corresponding_file' => 1,
                     'corresponding_fileno'  => $fullFileNumber,
                 ]);
+
+            // The correspondence and shadow numbers on the fileNumber and OSS rows too.
+            \App\Services\CadastralDept\CorrespondenceColumns::stamp(
+                [$fullFileNumber, $existingFile->kangisFileNo, $existingFile->NewKANGISFileNo, $existingFile->st_file_no],
+                $fullFileNumber,
+                $shadow->ref_number
+            );
 
             DB::connection('sqlsrv')->commit();
 

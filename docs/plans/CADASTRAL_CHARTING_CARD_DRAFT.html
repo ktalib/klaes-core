@@ -1,0 +1,371 @@
+<title>Charting Card Draft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a draft sheet for the client to correct. Stage tabs, then the card as the officer
+   sees it (left) beside the field list with keep/change marks (right), then the charting
+   table and the open questions. Same family as the workflow plan page. */
+:root {
+  --bg: #f3f5f4; --sheet: #ffffff; --ink: #18242b; --muted: #5c6b72; --line: #d6dddd;
+  --accent: #1f5f7a; --accent-soft: #e2eef3; --field: #f7f9f9; --locked: #eceff0;
+  --yes: #2f7d4f; --yes-bg: #e3f2e8; --no: #a23b3b; --no-bg: #f7e4e4; --warn: #9a6a00; --warn-bg: #fbf0d3;
+  --wf-conv: #b58900; --wf-dir: #2a62a8; --wf-ver: #2f7d4f;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11181c; --sheet: #172127; --ink: #e3eaec; --muted: #9aa9b0; --line: #2c3a41;
+  --accent: #6fb3d1; --accent-soft: #1c3440; --field: #1b252b; --locked: #222e34;
+  --yes: #7fcf9c; --yes-bg: #1a3324; --no: #ec8f8f; --no-bg: #3d1f1f; --warn: #e8bf5a; --warn-bg: #3a2f12;
+  --wf-conv: #e0b83a; --wf-dir: #78a8e8; --wf-ver: #7fcf9c; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11181c; --sheet: #172127; --ink: #e3eaec; --muted: #9aa9b0; --line: #2c3a41;
+  --accent: #6fb3d1; --accent-soft: #1c3440; --field: #1b252b; --locked: #222e34;
+  --yes: #7fcf9c; --yes-bg: #1a3324; --no: #ec8f8f; --no-bg: #3d1f1f; --warn: #e8bf5a; --warn-bg: #3a2f12;
+  --wf-conv: #e0b83a; --wf-dir: #78a8e8; --wf-ver: #7fcf9c; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 36px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2.5rem; line-height: 1.05; }
+h2 { font-size: 1.6rem; font-weight: 600; }
+h3 { font-size: 1.15rem; font-weight: 600; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { font: 600 .74rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+code, .mono { font-family: var(--f-mono); font-size: .86em; }
+section { display: grid; gap: 14px; }
+.sec-head { display: grid; gap: 6px; border-top: 2px solid var(--ink); padding-top: 12px; }
+.draft { display: inline-block; font: 700 .75rem/1 var(--f-mono); letter-spacing: .1em; color: var(--warn); background: var(--warn-bg); padding: 6px 10px; border-radius: 4px; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab { font: 600 1rem/1.1 var(--f-display); padding: 10px 14px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 6px; cursor: pointer; text-align: left; }
+.tab small { display: block; font: 400 .78rem/1.2 var(--f-body); color: var(--muted); }
+.tab[aria-selected="true"] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--tc); }
+.tab:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.two { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } }
+
+/* the card, as the officer sees it in KLAES */
+.card { background: var(--sheet); border: 1px solid var(--line); border-top: 4px solid var(--tc, var(--accent)); border-radius: 8px; padding: 18px; display: grid; gap: 16px; }
+.card-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.chno { font: 700 1.3rem/1 var(--f-mono); }
+.stage { font: 600 .8rem/1 var(--f-body); padding: 5px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.grp { display: grid; gap: 10px; }
+.grp-t { font: 700 .72rem/1 var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 560px) { .grid2, .grid4 { grid-template-columns: minmax(0, 1fr); } }
+.f { display: grid; gap: 4px; min-width: 0; }
+.f label { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.f .req { color: var(--no); }
+.f input, .f select, .f textarea { font: inherit; font-size: .9rem; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); width: 100%; min-width: 0; }
+.f input[disabled] { background: var(--locked); color: var(--muted); }
+.f .hint { font-size: .74rem; color: var(--muted); }
+.yn { display: flex; gap: 6px; }
+.yn button { font: 600 .88rem/1 var(--f-body); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--field); color: var(--ink); cursor: pointer; }
+.yn button[aria-pressed="true"].y { background: var(--yes-bg); color: var(--yes); border-color: var(--yes); }
+.yn button[aria-pressed="true"].n { background: var(--no-bg); color: var(--no); border-color: var(--no); }
+.reveal { border-left: 3px solid var(--line); padding-left: 12px; display: grid; gap: 10px; }
+.suggest { font-size: .84rem; background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 8px 10px; }
+.prev { font-size: .84rem; background: var(--accent-soft); border-radius: 6px; padding: 10px; display: grid; gap: 4px; }
+.prev b { font-family: var(--f-mono); font-size: .8rem; }
+.beacons { overflow-x: auto; }
+.beacons table { min-width: 460px; }
+.foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.btn { font: 600 .88rem/1 var(--f-body); padding: 9px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--sheet); border-color: var(--accent); }
+
+/* field list for the client to mark */
+.tbl-wrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font: 600 .7rem/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.src { font-size: .74rem; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+.s-auto { background: var(--locked); color: var(--muted); }
+.s-brief { background: var(--yes-bg); color: var(--yes); }
+.s-old { background: var(--accent-soft); color: var(--accent); }
+.s-new { background: var(--warn-bg); color: var(--warn); }
+.mark { display: flex; gap: 4px; }
+.mark span { width: 18px; height: 18px; border: 1px solid var(--muted); border-radius: 3px; display: inline-block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--muted); align-items: center; }
+.qs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.q { background: var(--sheet); border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 4px; padding: 12px; font-size: .9rem; display: grid; gap: 6px; }
+.q .mono { color: var(--muted); }
+.pill { font: 600 .74rem/1 var(--f-body); padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
+.p-y { background: var(--yes-bg); color: var(--yes); } .p-n { background: var(--no-bg); color: var(--no); }
+footer { color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 12px; }
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <span class="draft">DRAFT FOR CLIENT REVIEW · 10 OCT 2026</span>
+  <div class="eyebrow">KLAES · Cadastral Department · step 8</div>
+  <h1>Charting Card</h1>
+  <p>The small card AD Cad Report (and, for Direct files, AD Cad Info) fills in after charting a file on the sheet. Charting on the sheet stays outside KLAES; this card records the result. Each card gets a charting number, and the charting table lists every card by that number. Please mark each field below as keep, change or remove, and answer the questions at the end. Nothing is built until this is agreed.</p>
+</header>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">1 · The card</div>
+    <h2>One card, four situations</h2>
+    <p>The same card is used at every charting step; the stage decides what extra it shows. Try the Yes / No buttons: the fields they open appear underneath. The sample file is made up.</p>
+  </div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+
+  <div class="two">
+    <form class="card" id="card" onsubmit="event.preventDefault()">
+      <div class="card-top">
+        <div><div class="eyebrow">Charting No.</div><div class="chno" id="chno">CH-2026-00001</div></div>
+        <span class="stage" id="stage"></span>
+      </div>
+
+      <div class="grp">
+        <div class="grp-t"><span>File (filled from the records, locked)</span><span>auto</span></div>
+        <div class="grid2">
+          <div class="f"><label for="c-file">File No.</label><input id="c-file" value="SAMPLE-0000-0001" disabled></div>
+          <div class="f"><label for="c-fmc">FMC No.</label><input id="c-fmc" value="FMC-2026-00001" disabled></div>
+        </div>
+        <div class="f"><label for="c-title">File Title</label><input id="c-title" value="A. B. SAMPLE (example only)" disabled></div>
+        <div class="grid4">
+          <div class="f"><label for="c-plot">Plot No.</label><input id="c-plot" value="185" disabled></div>
+          <div class="f"><label for="c-district">District</label><input id="c-district" value="Sample District" disabled></div>
+          <div class="f"><label for="c-lga">LGA</label><input id="c-lga" value="Kumbotso" disabled></div>
+          <div class="f"><label for="c-loc">Location</label><input id="c-loc" value="Sample District, Kumbotso, Kano" disabled></div>
+        </div>
+      </div>
+
+      <div class="prev" id="prev" hidden>
+        <div class="eyebrow">1st charting (AD Cad Info), read only</div>
+        <div><b>CH-2026-00001</b> · Charted: Yes · Falls on existing plot: No · Sheet: Metric 12/NE · by AD Cad Info, 10 Oct 2026</div>
+      </div>
+
+      <div class="grp" id="g-result">
+        <div class="grp-t"><span id="res-title">Charting result</span><span>from the brief</span></div>
+
+        <div class="f" id="f-agree" hidden>
+          <label>Agrees with the 1st charting? <span class="req">*</span></label>
+          <div class="yn" data-yn="agree"><button type="button" class="y">Yes</button><button type="button" class="n">No</button></div>
+          <div class="reveal" data-show="agree:n" hidden>
+            <div class="f"><label for="c-agree-note">What is different? <span class="req">*</span></label><textarea id="c-agree-note" rows="2"></textarea></div>
+          </div>
+        </div>
+
+        <div class="f" id="f-matches" hidden>
+          <label>Charting information matches the record? <span class="req">*</span></label>
+          <div class="yn" data-yn="matches"><button type="button" class="y">Yes</button><button type="button" class="n">No</button></div>
+          <div class="reveal" data-show="matches:n" hidden>
+            <div class="f"><label for="c-match-note">What does not match? <span class="req">*</span></label><textarea id="c-match-note" rows="2"></textarea></div>
+          </div>
+        </div>
+
+        <div class="f" id="f-charted">
+          <label>Record charted? <span class="req">*</span></label>
+          <div class="yn" data-yn="charted"><button type="button" class="y">Yes</button><button type="button" class="n">No</button></div>
+          <div class="reveal" data-show="charted:n" hidden>
+            <div class="f">
+              <label for="c-why">Why not? <span class="req">*</span></label>
+              <select id="c-why" data-other="c-why-other">
+                <option value="">Choose…</option>
+                <option>Survey plan missing or unreadable</option>
+                <option>Coordinates incomplete</option>
+                <option>Sheet not available</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="f" id="c-why-other" hidden><label for="c-why-other-in">Specify <span class="req">*</span></label><input id="c-why-other-in"></div>
+          </div>
+        </div>
+
+        <div class="f" id="f-falls">
+          <label>Falls on an existing plot? <span class="req">*</span></label>
+          <div class="suggest">KLAES check: 1 other charted file has the same plot / block / layout (SAMPLE-0000-0002). Please confirm on the sheet.</div>
+          <div class="yn" data-yn="falls"><button type="button" class="y">Yes</button><button type="button" class="n">No</button></div>
+          <div class="reveal" data-show="falls:y" hidden>
+            <div class="f"><label for="c-over">Which file(s)? <span class="req">*</span></label><input id="c-over" value="SAMPLE-0000-0002" disabled><span class="hint">Picked with the file number selector, never typed.</span></div>
+            <div class="f">
+              <label for="c-extent">How much?</label>
+              <select id="c-extent"><option value="">Choose…</option><option>Fully</option><option>Partly</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="f"><label for="c-desc">Description</label><textarea id="c-desc" rows="2" placeholder="What the charting shows: boundaries, neighbours, road access…"></textarea></div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-t"><span>Sheet and plan references</span><span>from the old charting screen</span></div>
+        <div class="grid2">
+          <div class="f">
+            <label for="c-sheet">Sheet</label>
+            <select id="c-sheet"><option>Metric</option><option>Imperial</option></select>
+          </div>
+          <div class="f"><label for="c-sheetno">Sheet No. / Index</label><input id="c-sheetno" placeholder="e.g. 12/NE"></div>
+          <div class="f"><label for="c-layout">Layout name / No.</label><input id="c-layout"></div>
+          <div class="f"><label for="c-plan">Approved plan / TP No.</label><input id="c-plan"></div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-t"><span>Coordinates (beacons)</span><span>from the brief</span></div>
+        <div class="beacons">
+          <table>
+            <thead><tr><th>S/N</th><th>Beacon</th><th>Easting</th><th>Northing</th><th>Remarks</th></tr></thead>
+            <tbody>
+              <tr><td class="num">1</td><td>PB 1</td><td>485 120.40</td><td>1 325 610.15</td><td></td></tr>
+              <tr><td class="num">2</td><td>PB 2</td><td>485 150.10</td><td>1 325 612.80</td><td></td></tr>
+              <tr><td class="num">3</td><td>PB 3</td><td>485 148.90</td><td>1 325 582.30</td><td></td></tr>
+              <tr><td class="num">4</td><td>PB 4</td><td>485 119.70</td><td>1 325 580.05</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid2">
+          <div class="f"><label for="c-area">Area (m²)</label><input id="c-area" value="890.0" disabled><span class="hint">Worked out from the beacons when there are 3 or more.</span></div>
+          <div class="f"><label for="c-zone">Coordinate system</label><input id="c-zone" value="UTM Zone 32N (Minna datum)" disabled></div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-t"><span>Officer</span><span>auto</span></div>
+        <div class="grid2">
+          <div class="f"><label for="c-by">Charted by</label><input id="c-by" value="(signed-in officer)" disabled></div>
+          <div class="f"><label for="c-on">Date and time</label><input id="c-on" value="(recorded on save)" disabled></div>
+        </div>
+        <div class="f"><label for="c-rem">Remarks</label><textarea id="c-rem" rows="2"></textarea></div>
+      </div>
+
+      <div class="foot">
+        <button type="button" class="btn">Save draft</button>
+        <button type="button" class="btn primary">Save and tick "charting done"</button>
+      </div>
+    </form>
+
+    <div style="display:grid;gap:12px">
+      <h3>Fields: please mark each one</h3>
+      <div class="legend">
+        <span class="src s-brief">from the brief</span><span class="src s-old">old charting screen</span>
+        <span class="src s-new">suggested</span><span class="src s-auto">automatic</span>
+        <span>Mark: ✓ keep · ✎ change · ✗ remove</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>S/N</th><th>Field</th><th>Source</th><th>Rule</th><th>✓ ✎ ✗</th></tr></thead>
+          <tbody id="fields"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">2 · The charting table</div>
+    <h2>Every card, by charting number</h2>
+    <p>"When you see charting number five, it has a corresponding record in the table." Direct files have two tables: 1st charting under Cadastral Information, 2nd charting under Cadastral Reports. Conversion files appear once, under Reports. Row actions sit in one Actions menu.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>S/N</th><th>Charting No.</th><th>File No.</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Stage</th><th>Charted</th><th>On existing plot</th><th>By</th><th>Date</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="mono">CH-2026-00003</td><td class="mono">SAMPLE-0000-0003</td><td>12</td><td>Sample District</td><td>Ungogo</td><td>Sample District, Ungogo, Kano</td><td>Conversion</td><td><span class="pill p-y">Yes</span></td><td><span class="pill p-y">No</span></td><td>AD Cad Report</td><td>10 Oct 2026</td><td><span class="btn" style="padding:4px 8px;font-size:.78rem">Actions ▾</span></td></tr>
+        <tr><td class="num">2</td><td class="mono">CH-2026-00002</td><td class="mono">SAMPLE-0000-0001</td><td>185</td><td>Sample District</td><td>Kumbotso</td><td>Sample District, Kumbotso, Kano</td><td>Direct · 2nd</td><td><span class="pill p-y">Yes</span></td><td><span class="pill p-n">Yes: partly</span></td><td>AD Cad Report</td><td>10 Oct 2026</td><td><span class="btn" style="padding:4px 8px;font-size:.78rem">Actions ▾</span></td></tr>
+        <tr><td class="num">3</td><td class="mono">CH-2026-00001</td><td class="mono">SAMPLE-0000-0001</td><td>185</td><td>Sample District</td><td>Kumbotso</td><td>Sample District, Kumbotso, Kano</td><td>Direct · 1st</td><td><span class="pill p-y">Yes</span></td><td><span class="pill p-y">No</span></td><td>AD Cad Info</td><td>10 Oct 2026</td><td><span class="btn" style="padding:4px 8px;font-size:.78rem">Actions ▾</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)">Actions menu: Open card · Print card · Open file · Go to desk. A saved card can be corrected only by a new version that keeps the old one (as the old charting screen does).</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">3 · Please answer</div>
+    <h2>Questions for the client</h2>
+  </div>
+  <div class="qs">
+    <div class="q"><span class="mono">Q1 · fields</span>Which of the fields above are needed? Is anything missing from the paper card you use today?</div>
+    <div class="q"><span class="mono">Q2 · existing plot</span>When the file falls on an existing plot, what happens next: does it stop, go back to D Cad, or carry on with a note?</div>
+    <div class="q"><span class="mono">Q3 · not charted</span>If a record cannot be charted, can the file still move on, or must it go back?</div>
+    <div class="q"><span class="mono">Q4 · coordinates</span>Are beacon coordinates written on the card today? Which coordinate system: UTM Zone 32N on the Minna datum?</div>
+    <div class="q"><span class="mono">Q5 · sheets</span>Which sheet references do you record: metric index, imperial sheet, or both?</div>
+    <div class="q"><span class="mono">Q6 · 2nd charting</span>For Direct files, does the 2nd charting just confirm the 1st, or re-record everything?</div>
+    <div class="q"><span class="mono">Q7 · charting number</span>Is "CH-2026-00001" fine, or do you already number charts a certain way?</div>
+    <div class="q"><span class="mono">Q8 · print</span>Should the card print (for the file jacket), like the File Movement Card?</div>
+  </div>
+</section>
+
+<footer>Draft prepared from the client walk-through of 10 Oct 2026 ("record charted yes, falls on existing plots no/yes, description, coordinates") and the fields the old Cadastral Module's charting screen already records. The sample file and names are made up. Text version: <code>docs/plans/CADASTRAL_CHARTING_CARD_DRAFT.md</code>.</footer>
+</div>
+
+<script>
+const STAGES = {
+  conversion: { label: 'Conversion', sub: 'Charting at AD Cad Report', tc: 'var(--wf-conv)', stage: 'Conversion · charting (AD Cad Report)', no: 'CH-2026-00003', show: [] },
+  direct1: { label: 'Direct · 1st charting', sub: 'At AD Cad Info, after the layout check', tc: 'var(--wf-dir)', stage: 'Direct · 1st charting (AD Cad Info)', no: 'CH-2026-00001', show: [] },
+  direct2: { label: 'Direct · 2nd charting', sub: 'At AD Cad Report, beside the 1st', tc: 'var(--wf-dir)', stage: 'Direct · 2nd charting (AD Cad Report)', no: 'CH-2026-00002', show: ['prev', 'f-agree'] },
+  verification: { label: 'Verification', sub: 'Info and Report check the charting', tc: 'var(--wf-ver)', stage: 'Verification · charting check', no: 'CH-2026-00004', show: ['prev', 'f-matches'], hide: ['f-charted'] },
+};
+const FIELDS = [
+  ['Charting No.', 'auto', 'Given on save, e.g. CH-2026-00001'],
+  ['File No., FMC No., File Title', 'auto', 'From the case; locked'],
+  ['Plot No., District, LGA, Location', 'auto', 'From the file records, in this order; locked'],
+  ['Record charted? (Yes / No)', 'brief', 'Required. No asks why (list with one Other + specify)'],
+  ['Falls on an existing plot? (Yes / No)', 'brief', 'Required. KLAES suggests matches by plot / block / layout; Yes asks which file(s) and how much'],
+  ['Description', 'brief', 'Free text'],
+  ['Coordinates (beacons)', 'brief', 'Optional rows: beacon, easting, northing, remarks'],
+  ['Area (m²)', 'old', 'Worked out from 3+ beacons'],
+  ['Sheet (Metric / Imperial) and Sheet No.', 'old', 'As on the old charting screen'],
+  ['Layout name / No.; Approved plan / TP No.', 'old', 'As on the old charting screen'],
+  ['Agrees with the 1st charting? (Direct, 2nd)', 'new', 'Shows the 1st card read only; No asks what differs'],
+  ['Charting matches the record? (Verification)', 'new', 'No asks what does not match'],
+  ['Charted by, date and time', 'auto', 'Signed-in officer; recorded on save'],
+  ['Remarks', 'new', 'Free text'],
+];
+const SRC = { auto: ['automatic', 's-auto'], brief: ['from the brief', 's-brief'], old: ['old charting screen', 's-old'], new: ['suggested', 's-new'] };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+document.getElementById('fields').innerHTML = FIELDS.map(([f, s, r], i) =>
+  `<tr><td class="num">${i + 1}</td><td>${esc(f)}</td><td><span class="src ${SRC[s][1]}">${SRC[s][0]}</span></td><td>${esc(r)}</td><td><div class="mark"><span></span><span></span><span></span></div></td></tr>`).join('');
+
+const answers = {};
+document.querySelectorAll('[data-yn]').forEach((g) => {
+  g.querySelectorAll('button').forEach((b) => {
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => {
+      g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true');
+      answers[g.dataset.yn] = b.classList.contains('y') ? 'y' : 'n';
+      document.querySelectorAll('[data-show]').forEach((r) => {
+        const [k, v] = r.dataset.show.split(':');
+        r.hidden = answers[k] !== v;
+      });
+    });
+  });
+});
+document.querySelectorAll('select[data-other]').forEach((s) => s.addEventListener('change', () => {
+  document.getElementById(s.dataset.other).hidden = s.value !== 'other';
+}));
+
+function render(key) {
+  const st = STAGES[key];
+  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.k === key ? 'true' : 'false'));
+  const card = document.getElementById('card');
+  card.style.setProperty('--tc', st.tc);
+  document.getElementById('stage').textContent = st.stage;
+  document.getElementById('chno').textContent = st.no;
+  ['prev', 'f-agree', 'f-matches'].forEach((id) => { document.getElementById(id).hidden = !st.show.includes(id); });
+  document.getElementById('f-charted').hidden = (st.hide || []).includes('f-charted');
+  document.getElementById('f-falls').hidden = key === 'verification';
+  document.getElementById('res-title').textContent = key === 'verification' ? 'Charting check' : 'Charting result';
+  try { localStorage.setItem('cad-chart-tab', key); } catch (e) {}
+}
+document.getElementById('tabs').innerHTML = Object.entries(STAGES).map(([k, s]) =>
+  `<button class="tab" role="tab" data-k="${k}" style="--tc:${s.tc}">${esc(s.label)}<small>${esc(s.sub)}</small></button>`).join('');
+document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) render(b.dataset.k); });
+let start = 'conversion';
+try { const h = location.hash.slice(1); const s = localStorage.getItem('cad-chart-tab'); start = STAGES[h] ? h : (STAGES[s] ? s : start); } catch (e) {}
+render(start);
+</script>

@@ -35,6 +35,7 @@
     $cadBadge  = fn ($n, $title) => '';
     $cadReportType = null;
     $cadPnd = $cadPndDesc = $cadPndFees = false;
+    $cadDeptDesks = $cadDeptCounts = [];
 
     if ($cadModule) {
         // Pending counts, cached for a minute in DashboardMetrics because this
@@ -56,6 +57,18 @@
                 . ($n > 999 ? '999+' : $n) . '</span>';
         };
 
+        // Cadastral Department desks (workflow 2026-10-10): open files waiting at
+        // each desk, cached for a minute; a failure hides the counts, never the menu.
+        try {
+            $cadDeptDef = new \App\Services\CadastralDept\WorkflowDefinition();
+            $cadDeptDesks = $cadDeptDef->internalDesks();
+            $cadDeptCounts = \App\Services\CadastralDept\CaseWorkflow::installed()
+                ? \Illuminate\Support\Facades\Cache::remember('cadastral_dept.sidebar_desk_counts', 60, fn () => \App\Models\CadastralDept\CadastralCase::query()->open()
+                    ->selectRaw('current_desk, count(*) as n')->groupBy('current_desk')->pluck('n', 'current_desk')->all())
+                : [];
+        } catch (\Throwable $cadDeptError) {
+            $cadDeptCounts = [];
+        }
         // Which report-type entry is lit: its own page, a report of that type
         // (detail, edit, prints), Start Report for it, or an old ?report_type= link.
         if (request()->routeIs('cadastral-module.reports.verification', 'cadastral-module.reports.customary', 'cadastral-module.reports.statutory')) {
@@ -109,6 +122,30 @@
         </a>
       @endif
 
+      {{-- Cadastral Department workflow (2026-10-10): one entry per desk, each opening
+           that desk's inbox. Approved by the user: desks only, Cad - Records gate. --}}
+      @if($cadModule && $cadDeptDesks)
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
+             data-section="cadastralDept-desks">
+          <div class="flex items-center gap-2">
+            <i data-lucide="git-branch" class="h-4 w-4 text-rose-500"></i>
+            <span>Cadastral Department</span>
+            {!! str_replace('ml-auto', 'ml-1', $cadBadge(array_sum($cadDeptCounts), 'Open files at the desks')) !!}
+          </div>
+          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="cadastralDept-desks"></i>
+        </div>
+
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-desks">
+          @foreach ($cadDeptDesks as $cadDeskKey => $cadDesk)
+            <a href="{{ route('cadastral-dept.desks.show', $cadDeskKey) }}" title="{{ $cadDesk['label'] }}"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-dept.desks.show') && request()->route('desk') === $cadDeskKey ? 'active' : '' }}">
+              <i data-lucide="inbox" class="h-3.5 w-3.5 text-rose-400"></i>
+              <span>{{ $cadDesk['short'] ?? $cadDesk['label'] }}</span>{!! $cadBadge($cadDeptCounts[$cadDeskKey] ?? 0, 'Files waiting at ' . ($cadDesk['short'] ?? $cadDesk['label'])) !!}
+            </a>
+          @endforeach
+        </div>
+      @endif
+
       {{-- a. Registry --}}
       <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
            data-section="cadastralModule-registry">
@@ -131,12 +168,12 @@
           </a>
         @endif
 
-        {{-- ii. Commission Correspondence File (Match MLSFileNo) --}}
+        {{-- ii. Create Correspondence File (was "Commission Correspondence File (Match MLSFileNo)", renamed 2026-10-10) --}}
         @if($cadMatch)
           <a href="{{ route('mls-file-no-matching.index') }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('mls-file-no-matching.index') ? 'active' : '' }}">
             <i data-lucide="check" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>Commission Correspondence File (Match MLSFileNo)</span>
+            <span>Create Correspondence File</span>
           </a>
         @endif
 
@@ -155,10 +192,19 @@
           <i data-lucide="printer" class="h-3.5 w-3.5 text-rose-400"></i>
           <span>Cadastral Print File Label</span>
         </a>
+
+          {{-- v. File Digital Library – Doc-WARE (the client's "Digital Registry"), moved here 2026-10-10. --}}
+          @if($cadArchive)
+            <a href="{{ route('filearchive.index', ['url' => 'cadastral']) }}"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'cadastral' ? 'active' : '' }}">
+              <i data-lucide="library" class="h-3.5 w-3.5 text-rose-400"></i>
+              <span>File Digital Library – Doc-WARE</span>
+            </a>
+          @endif
       </div>
 
       {{-- b. Cadastral Report --}}
-      @if($cadModule)
+      @if($cadModule || $cadLegacyIc)
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
              data-section="cadastralModule-reports">
           <div class="flex items-center gap-2">
@@ -171,6 +217,7 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralModule-reports">
+          @if($cadModule)
           {{-- i. All Reports --}}
           <a href="{{ route('cadastral-module.reports.index') }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-module.reports.*') && ! $cadReportType ? 'active' : '' }}">
@@ -198,22 +245,8 @@
               <span>Statutory</span>
             </a>
           </div>
-        </div>
-      @endif
-
-      {{-- c. Cadastral Information --}}
-      @if($cadModule || $cadLegacyIc)
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
-             data-section="cadastralModule-info">
-          <div class="flex items-center gap-2">
-            <i data-lucide="pen-tool" class="h-4 w-4 text-rose-500"></i>
-            <span>Cadastral Information</span>
-            {!! str_replace('ml-auto', 'ml-1', $cadNew) !!}
-          </div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="cadastralModule-info"></i>
-        </div>
-
-        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralModule-info">
+          @endif
+          {{-- Index Cards, moved here from Cadastral Information (client brief 2026-10-10). --}}
           {{-- i. Index Cards for File Movement --}}
           @if($cadModule)
             <a href="{{ route('cadastral-module.index-cards.index') }}"
@@ -246,7 +279,22 @@
               </a>
             </div>
           @endif
+        </div>
+      @endif
 
+      {{-- c. Cadastral Information --}}
+      @if($cadModule)
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
+             data-section="cadastralModule-info">
+          <div class="flex items-center gap-2">
+            <i data-lucide="pen-tool" class="h-4 w-4 text-rose-500"></i>
+            <span>Cadastral Information</span>
+            {!! str_replace('ml-auto', 'ml-1', $cadNew) !!}
+          </div>
+          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="cadastralModule-info"></i>
+        </div>
+
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralModule-info">
           @if($cadModule)
             {{-- iii. Charting --}}
             <a href="{{ route('cadastral-module.charting.index') }}"
@@ -322,6 +370,15 @@
         </a>
       </div>
 
+      {{-- Records: the legacy Survey Cadastral Attributions list, restored 2026-10-10. --}}
+      @if($hasRole('Cad - Records'))
+        <a href="{{ route('survey_cadastral.index') }}"
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey_cadastral.index') ? 'active' : '' }}">
+          <i data-lucide="clipboard" class="h-4 w-4 text-rose-500"></i>
+          <span>Records</span>
+        </a>
+      @endif
+
       {{-- f. GIS --}}
       @if($cadExtract)
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="cadastral-gis">
@@ -339,15 +396,6 @@
             <span>Survey Plan Extraction</span>
           </a>
         </div>
-      @endif
-
-      {{-- g. File Digital Library – Doc-WARE --}}
-      @if($cadArchive)
-        <a href="{{ route('filearchive.index', ['url' => 'cadastral']) }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'cadastral' ? 'active' : '' }}">
-          <i data-lucide="library" class="h-4 w-4 text-rose-500"></i>
-          <span>File Digital Library – Doc-WARE</span>
-        </a>
       @endif
 
       {{-- h. Digital Archive --}}

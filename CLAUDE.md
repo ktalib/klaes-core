@@ -54,3 +54,15 @@ KLAES (Kano Land Administration & Electronic System): a Laravel 9 / PHP 8.2 mono
 ## Housekeeping
 
 The repo root and `app/` contain a lot of debris: `*.bak*` files, `*.phpold*` files, `sync.ffs_db`, `* - Copy` dirs, one-off `fix_*.php` / `debug_*.php` scripts, and `klaes_prod_backup_*` dumps. Leave it alone unless asked, and don't model new code on it. Put temporary scripts in a scratch location, not the project root.
+
+## Development standards (user rules, 2026-10-10)
+
+These apply app-wide, to new features and to any existing module you modify. Inspect first, reuse established patterns, make the smallest safe change, and don't redesign working screens.
+
+1. **S/N column.** Every records table starts with an S/N column numbered by displayed row order (never the DB id), correct across pagination, search, filter and sort (e.g. `$rows->firstItem() + $loop->index`; for DataTables, a render based on `meta.row + meta.settings._iDisplayStart + 1`).
+2. **Property order.** Wherever property details appear (tables, form summaries, documents): **Plot No., District, LGA, Location**, in that order.
+3. **Capitalisation / normalisation.** Normalise text before saving, with a rule per field (names, places, free text), never blanket upper/title case. File numbers, acronyms, phone numbers, emails and other identifiers keep their exact format. Search and filters are case-insensitive. Normalising existing records is a data change: preview the affected rows and get approval first (no backups here).
+4. **Record actions are a dropdown.** Row-level actions go in one dropdown action menu (icons + labels), not loose buttons/links. The trigger is a three-dots icon (lucide `more-vertical`, with `aria-label="Actions"`), never a text "Actions" button. It must open, position and dismiss correctly; watch table `overflow`, `z-index`, event propagation and DataTables redraws. Keep existing permission checks so users only see actions they may perform. Fix broken menus you come across in modules you touch.
+5. **Backfill on selection.** When a file/property/applicant is picked, fill every common detail the records already hold (file no./title, owner, address, phone, gender, plot, district, LGA, location, ...) from the authoritative tables, reusing existing lookups. Handle gaps gracefully; allow manual entry only where the workflow permits; clear the previous record's values when the selection changes; save the backfilled values.
+6. **Dropdowns and "Other".** Where users may need an unlisted value, offer exactly one "Other" option that reveals a required "specify" field (hidden/disabled otherwise), validated on save. Prevent duplicate options from case/whitespace variants; reuse existing lookup tables/config rather than new option sources, and check existing rows before inserting options.
+7. **Inspect before implementing, report after.** Check code, schema, migrations, routes, views, JS and APIs; look for an existing (possibly broken) implementation; test validation, saving, editing, filters, pagination, permissions and errors; report files changed, DB changes, tests run and remaining issues.

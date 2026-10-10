@@ -211,6 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
               // Flag Sectional Titling files and map across their recorded fees
               applyStFileProfile(data.fileNumber);
 
+              // Survey fee = the Cadastral Department's issued Fees P&D bill
+              applyCadastralFee(data.fileNumber);
+
               // Auto-calculate expiry date based on land use
               calculateExpiryDate();
             }
@@ -270,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(d.fees || {}).forEach((deedsField) => {
           const input = document.querySelector(`[name="${deedsField}"]`);
           if (!input) return;
+          if (input.dataset.source === 'cadastral') return; // the cadastral bill wins for the survey fee
 
           input.value = Number(d.fees[deedsField]).toFixed(2);
           input.classList.add('auto-filled');
@@ -280,6 +284,46 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateTotal();
       })
       .catch(error => console.error('ST fee lookup failed:', error));
+  }
+
+  /**
+   * The survey fee comes from the Cadastral Department's Fees P&D bill when
+   * the file has an issued one: filled in, locked, and its bill named under
+   * the field. Without one the field stays as it was, editable.
+   */
+  function applyCadastralFee(fileNumber) {
+    const input = document.querySelector('[name="survey_fee"]');
+    const note = document.getElementById('survey-fee-source');
+    if (!input || !fileNumber) return;
+
+    const release = () => {
+      if (input.dataset.source !== 'cadastral') return;
+      delete input.dataset.source;
+      input.readOnly = false;
+      input.style.backgroundColor = '';
+      input.style.color = '';
+      if (note) { note.textContent = ''; note.classList.add('hidden'); }
+    };
+
+    fetch(`/bill-balance/cadastral-fee?file_number=${encodeURIComponent(fileNumber)}`, { headers: { 'Accept': 'application/json' } })
+      .then(response => response.json())
+      .then(payload => {
+        const d = payload && payload.data;
+        if (!payload.success || !d) { release(); return; }
+
+        input.value = Number(d.total).toFixed(2);
+        input.dataset.source = 'cadastral';
+        input.readOnly = true;
+        input.classList.add('auto-filled');
+        input.style.backgroundColor = '#eef2ff';
+        input.style.color = '#4338ca';
+        if (note) {
+          note.textContent = `From Cadastral Fees P&D bill ${d.bill_ref}` + (d.issued_at ? ` (${d.issued_at})` : '');
+          note.classList.remove('hidden');
+        }
+        calculateTotal();
+      })
+      .catch(error => console.error('Cadastral fee lookup failed:', error));
   }
 
   // Function to fetch residence address and auto-populate fields

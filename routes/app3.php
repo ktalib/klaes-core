@@ -997,6 +997,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{billBalance}/print', [BillBalanceController::class, 'print'])->name('print');
         Route::get('/residence-address', [BillBalanceController::class, 'getResidenceAddress'])->name('residence-address');
         Route::get('/st-fees', [BillBalanceController::class, 'stFees'])->name('st-fees');
+        // The Cadastral Department's issued Fees P&D bill, filled in as the survey fee.
+        Route::get('/cadastral-fee', [BillBalanceController::class, 'cadastralFee'])->name('cadastral-fee');
         Route::get('/{billBalance}', [BillBalanceController::class, 'show'])->name('show');
         Route::get('/{billBalance}/edit', [BillBalanceController::class, 'edit'])->name('edit');
         Route::put('/{billBalance}', [BillBalanceController::class, 'update'])->name('update');

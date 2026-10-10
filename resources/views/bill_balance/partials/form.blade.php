@@ -309,6 +309,7 @@
           <input type="number" step="0.01" name="survey_fee" class="form-input pl-10 bg-white fee-input" value="{{ old('survey_fee', $billingValues['survey_fee']) }}" placeholder="0.00">
           <i data-lucide="compass" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
         </div>
+        <p id="survey-fee-source" class="hidden text-xs text-indigo-700 mt-1"></p>
       </div>
       <div>
         <label class="form-label">Preparation Fees (₦)</label>

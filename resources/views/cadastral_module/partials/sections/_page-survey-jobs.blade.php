@@ -149,8 +149,11 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Job Number</th>
+                    <th>Field Jacket</th>
                     <th>File Number</th>
+                    <th>Plot No.</th>
                     <th>Location</th>
                     <th>Surveyor</th>
                     <th>Firm</th>
@@ -163,7 +166,18 @@
             <tbody>
                 @forelse ($jobs as $job)
                     <tr>
+                        <td>{{ $jobs->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $job->job_number }}</strong></td>
+                        <td>
+                            @if ($job->field_jacket_no)
+                                {{ $job->field_jacket_no }}
+                                @if ($job->cadastral_case_id)
+                                    <div class="helper-text" style="margin:0;font-size:11px;"><a href="{{ route('cadastral-dept.cases.show', $job->cadastral_case_id) }}">Cadastral Dept file</a></div>
+                                @endif
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td>
                             {{ $job->file_number }}
                             @if ($job->indexCard)
@@ -175,6 +189,7 @@
                                 </div>
                             @endif
                         </td>
+                        <td>{{ $job->prop_plot ?: '—' }}</td>
                         <td>{{ $job->property_location ?: '—' }}</td>
                         <td>{{ $job->surveyor_name ?: '—' }}</td>
                         <td>{{ $job->firm_name ?: '—' }}</td>
@@ -186,36 +201,53 @@
                             </span>
                         </td>
                         <td>
-                            <div class="action-icons">
-                                <a href="{{ route('cadastral-module.survey-jobs.edit', $job) }}" title="Open">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-
-                                @if ($job->hasInstruction())
-                                    @canDo('Cad - Records', 'print')
-                                        <a href="{{ route('cadastral-module.survey-jobs.its.print', $job) }}" target="_blank" title="Print the instruction">
-                                            <i class="fas fa-print"></i>
+                            @php
+                              $sjItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
+                            @endphp
+                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                     :style="'top:' + top + 'px; left:' + left + 'px'"
+                                     class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    <a href="{{ route('cadastral-module.survey-jobs.edit', $job) }}" class="{{ $sjItem }}">
+                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Open
+                                    </a>
+                                    @if ($job->hasInstruction())
+                                        @canDo('Cad - Records', 'print')
+                                            <a href="{{ route('cadastral-module.survey-jobs.its.print', $job) }}" target="_blank" class="{{ $sjItem }}">
+                                                <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print the instruction
+                                            </a>
+                                        @endcanDo
+                                    @endif
+                                    @if ($job->cadastral_case_id)
+                                        <a href="{{ route('cadastral-dept.cases.show', $job->cadastral_case_id) }}" class="{{ $sjItem }}">
+                                            <i data-lucide="folder-open" class="w-4 h-4 text-gray-500"></i> Open Cadastral Dept file
                                         </a>
+                                    @endif
+                                    @canDo('Cad - Records', 'edit')
+                                        @if ($job->status === 'Issued' || $job->status === 'In Field')
+                                            <form method="POST" action="{{ route('cadastral-module.survey-jobs.mark-submitted', $job) }}">
+                                                @csrf
+                                                <button type="submit" class="{{ $sjItem }}"><i data-lucide="inbox" class="w-4 h-4 text-gray-500"></i> Mark submitted</button>
+                                            </form>
+                                        @elseif ($job->status === 'Submitted')
+                                            <form method="POST" action="{{ route('cadastral-module.survey-jobs.mark-accepted', $job) }}">
+                                                @csrf
+                                                <button type="submit" class="{{ $sjItem }}"><i data-lucide="check" class="w-4 h-4 text-gray-500"></i> Accept</button>
+                                            </form>
+                                        @endif
                                     @endcanDo
-                                @endif
-
-                                @if ($job->status === 'Issued' || $job->status === 'In Field')
-                                    <form method="POST" action="{{ route('cadastral-module.survey-jobs.mark-submitted', $job) }}" style="display:inline">
-                                        @csrf
-                                        <button type="submit" title="Mark submitted"><i class="fas fa-inbox"></i></button>
-                                    </form>
-                                @elseif ($job->status === 'Submitted')
-                                    <form method="POST" action="{{ route('cadastral-module.survey-jobs.mark-accepted', $job) }}" style="display:inline">
-                                        @csrf
-                                        <button type="submit" title="Accept"><i class="fas fa-check"></i></button>
-                                    </form>
-                                @endif
+                                </div>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-helmet-safety" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No survey jobs yet. Register one using the form above.
                         </td>

@@ -5,6 +5,7 @@ namespace App\Services\Cadastral;
 use App\Models\Cadastral\CadastralFileReceipt;
 use App\Models\CadastralShadowFile;
 use App\Services\AuditService;
+use App\Services\CadastralDept\CorrespondenceColumns;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -84,6 +85,7 @@ class CorrespondenceFiles
         if ($shadow = $this->existingShadow($numbers)) {
             $receipt->cadastral_shadow_file_id = $shadow->id;
             $receipt->correspondence_status    = 'matched';
+            CorrespondenceColumns::stamp($numbers, $shadow->full_number, $shadow->ref_number);
 
             return ['action' => 'matched', 'shadow' => $shadow, 'fileno' => $shadow->full_number];
         }
@@ -91,6 +93,7 @@ class CorrespondenceFiles
         // 2. The index already says it has one (flag-only, no shadow row).
         if ($fileno = $this->flaggedCorrespondence($source, $numbers)) {
             $receipt->correspondence_status = 'matched';
+            CorrespondenceColumns::stamp($numbers, $fileno, null);
 
             return ['action' => 'matched', 'shadow' => null, 'fileno' => $fileno];
         }
@@ -132,6 +135,8 @@ class CorrespondenceFiles
                 'is_corresponding_file' => 1,
                 'corresponding_fileno'  => $number,
             ]);
+
+        CorrespondenceColumns::stamp($numbers, $number, $shadow->ref_number);
 
         $receipt->cadastral_shadow_file_id = $shadow->id;
         $receipt->correspondence_status    = 'created';

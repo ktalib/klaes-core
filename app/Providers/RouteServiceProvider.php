@@ -61,6 +61,10 @@ class RouteServiceProvider extends ServiceProvider
             Route::middleware('web')
                 ->group(base_path('routes/cadastral_module.php'));
 
+            // Cadastral Department workflow (config/cadastral_dept.php); desks linked in the Cadastral sidebar.
+            Route::middleware('web')
+                ->group(base_path('routes/cadastral_dept.php'));
+
             Route::middleware('web')
                 ->group(base_path('routes/phs.php'));
 

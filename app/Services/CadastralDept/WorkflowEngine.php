@@ -1,0 +1,129 @@
+<?php
+
+namespace App\Services\CadastralDept;
+
+use App\Services\InstrumentWorkflow\WorkflowGuardException;
+
+/**
+ * Decides what a case may do next. Pure: it takes the case's workflow, step,
+ * sub-type and completed tasks and returns actions or the next step. Writing the
+ * move is CaseWorkflow's job.
+ */
+class WorkflowEngine
+{
+    public function __construct(private WorkflowDefinition $definition)
+    {
+    }
+
+    public function definition(): WorkflowDefinition
+    {
+        return $this->definition;
+    }
+
+    /**
+     * Buttons for the current step: [outcome, label, next, ends, reason].
+     * reason is true when the choice needs a written reason.
+     * A plain step has one 'forward' action; a decision has one per outcome; a
+     * sub-type route has one 'forward' whose next depends on the case.
+     */
+    public function actions(string $workflow, string $step, ?string $subType = null): array
+    {
+        $s = $this->definition->step($workflow, $step);
+
+        if (isset($s['end'])) {
+            return [[
+                'outcome' => 'close',
+                'label' => $s['action_label'] ?? $s['label'],
+                'next' => null,
+                'ends' => $s['end'],
+                'reason' => false,
+            ]];
+        }
+
+        if (isset($s['outcomes'])) {
+            $out = [];
+            foreach ($s['outcomes'] as $key => $o) {
+                $out[] = ['outcome' => $key, 'label' => $o['label'], 'next' => $o['next'], 'ends' => null, 'reason' => !empty($o['reason'])];
+            }
+
+            return $out;
+        }
+
+        $next = $this->nextStep($workflow, $step, 'forward', $subType);
+        $nextDesk = $this->definition->step($workflow, $next)['desk'];
+
+        // A file out with another department: the receiving desk records that
+        // it came back, and where it goes from there.
+        $label = !empty($s['external'])
+            ? $this->definition->deskShort($s['desk']) . ' done: ' . ($nextDesk === $this->definition->actingDesk($workflow, $step)
+                ? 'received back'
+                : 'now with ' . $this->definition->deskShort($nextDesk))
+            : 'Send to ' . $this->definition->deskShort($nextDesk);
+
+        return [[
+            'outcome' => 'forward',
+            'label' => $label,
+            'next' => $next,
+            'ends' => null,
+            'reason' => false,
+        ]];
+    }
+
+    /**
+     * The step an outcome leads to. Null when the step closes the case.
+     *
+     * @throws WorkflowGuardException for an outcome the step does not offer, or a
+     *         sub-type route with no sub-type on the case.
+     */
+    public function nextStep(string $workflow, string $step, string $outcome, ?string $subType = null): ?string
+    {
+        $s = $this->definition->step($workflow, $step);
+
+        if (isset($s['end'])) {
+            if ($outcome !== 'close') {
+                throw WorkflowGuardException::because('This step closes the case.');
+            }
+
+            return null;
+        }
+
+        if (isset($s['outcomes'])) {
+            return $s['outcomes'][$outcome]['next']
+                ?? throw WorkflowGuardException::because("\"$outcome\" is not a decision this step offers.");
+        }
+
+        if ($outcome !== 'forward') {
+            throw WorkflowGuardException::because('This step only forwards.');
+        }
+
+        if (isset($s['route_by'])) {
+            if (!$subType || !isset($s['routes'][$subType])) {
+                throw WorkflowGuardException::because('Set the case sub-type before forwarding: it decides where the file goes next.');
+            }
+
+            return $s['routes'][$subType];
+        }
+
+        return $s['next'];
+    }
+
+    /** Task keys of the step not yet done. */
+    public function missingTasks(string $workflow, string $step, array $doneTaskKeys): array
+    {
+        $tasks = array_keys((array) ($this->definition->step($workflow, $step)['tasks'] ?? []));
+
+        return array_values(array_diff($tasks, $doneTaskKeys));
+    }
+
+    /** Phase progress for a stage tracker: [phase => done|current|waiting]. */
+    public function phaseProgress(string $workflow, string $currentStep, bool $closed = false): array
+    {
+        $current = $this->definition->step($workflow, $currentStep)['phase'] ?? 0;
+        $out = [];
+        foreach (array_keys($this->definition->workflow($workflow)['phases']) as $phase) {
+            $out[$phase] = $closed || $phase < $current ? 'done' : ($phase === $current ? 'current' : 'waiting');
+        }
+
+        return $out;
+    }
+}
