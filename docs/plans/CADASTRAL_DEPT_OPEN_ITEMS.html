@@ -1,0 +1,303 @@
+<title>Cadastral Workflow Open Items</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of decision cards, grouped by who has to answer; a summary strip on top. */
+:root {
+  --bg: #f5f7f6;
+  --paper: #ffffff;
+  --ink: #17221f;
+  --muted: #5b6b66;
+  --rule: #d9e1de;
+  --accent: #b4321f;          /* beacon red: cadastral beacons are painted red */
+  --accent-soft: #fbe9e5;
+  --you: #1f5f8b;  --you-soft: #e5f0f8;
+  --client: #7a5a00; --client-soft: #fbf3dc;
+  --setup: #2f6b3a; --setup-soft: #e4f2e6;
+  --code-bg: #eef2f0;
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111816; --paper: #18211e; --ink: #e4ece9; --muted: #9aaba5; --rule: #2b3834;
+    --accent: #f07a62; --accent-soft: #3a1f19;
+    --you: #8cc4ec; --you-soft: #16293a; --client: #e6c46a; --client-soft: #352b10; --setup: #8fd29b; --setup-soft: #173021;
+    --code-bg: #1f2a27; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111816; --paper: #18211e; --ink: #e4ece9; --muted: #9aaba5; --rule: #2b3834;
+  --accent: #f07a62; --accent-soft: #3a1f19;
+  --you: #8cc4ec; --you-soft: #16293a; --client: #e6c46a; --client-soft: #352b10; --setup: #8fd29b; --setup-soft: #173021;
+  --code-bg: #1f2a27; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; padding-inline: 16px; padding-block: 32px 64px; }
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 32px; }
+header { display: grid; gap: 12px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-size: 30px; line-height: 1.2; margin: 0; text-wrap: balance; }
+h2 { font-size: 19px; margin: 0; text-wrap: balance; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+h3 { font-size: 16px; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); }
+code, .mono { font-family: var(--f-mono); font-size: .9em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+.strip { display: flex; flex-wrap: wrap; gap: 10px; }
+.tally { display: flex; align-items: baseline; gap: 8px; padding: 8px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+.tally b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.t-you { background: var(--you-soft); color: var(--you); }
+.t-client { background: var(--client-soft); color: var(--client); }
+.t-setup { background: var(--setup-soft); color: var(--setup); }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--muted); }
+.facts span b { color: var(--ink); font-weight: 600; }
+section { display: grid; gap: 14px; }
+.section-note { color: var(--muted); font-size: 14px; }
+.item { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 20px; display: grid; gap: 12px; min-width: 0; }
+.item-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.ref { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+dl { margin: 0; display: grid; grid-template-columns: 9.5em 1fr; gap: 8px 16px; }
+dt { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding-top: 2px; }
+dd { margin: 0; min-width: 0; }
+dd ul, dd ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.rec { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 8px 12px; border-radius: 0 6px 6px 0; }
+.ask { font-weight: 600; }
+.tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; white-space: nowrap; }
+.chip { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; }
+@media (max-width: 560px) {
+  dl { grid-template-columns: 1fr; gap: 2px; }
+  dd { margin-bottom: 8px; }
+  h1 { font-size: 25px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">KLAES · Cadastral Department workflow</div>
+    <h1>What is still open after the 13 steps</h1>
+    <p class="lede">All 13 steps are built, migrated and committed. These are the items that still need a decision, an answer from the client, or setup before staff can use the workflow. Each one has my recommendation; tell me yours by its number.</p>
+    <div class="strip">
+      <span class="tally t-you"><b>5</b> need your decision</span>
+      <span class="tally t-client"><b>5</b> need the client</span>
+      <span class="tally t-setup"><b>3</b> setup before go-live</span>
+    </div>
+    <div class="facts">
+      <span>Commit <b class="mono">824ab88e</b> on <b class="mono">feature/cadastral-dept-workflow</b>, not pushed</span>
+      <span>Files in the workflow: <b>0</b></span>
+      <span>Surveyors in the directory: <b>0</b></span>
+      <span>Counts read 10 Oct 2026</span>
+    </div>
+  </header>
+
+  <!-- ===================== Your decisions ===================== -->
+  <section>
+    <h2><span class="chip t-you">Your decision</span> Things I can do once you choose</h2>
+
+    <article class="item">
+      <div class="item-head"><h3>1. Letter case in stored districts and LGAs</h3><span class="ref">standard 3 · data change</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>New saves are normalised, but older records mix capitals and title case for the same place. Search ignores case, so nothing breaks; lists and printouts just look uneven.</dd>
+        <dt>What's stored</dt>
+        <dd>
+          <div class="tbl"><table>
+            <thead><tr><th>Table · column</th><th class="num">Rows with a value</th><th class="num">Places spelt more than one way</th><th>Biggest examples</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">file_indexings.lga</td><td class="num">172,029</td><td class="num">48</td><td>Kumbotso 34,599 · KUMBOTSO 2,782<br>Nasarawa 13,862 · NASARAWA 1,435<br>Gwale 11,841 · GWALE 1,660</td></tr>
+              <tr><td class="mono">file_indexings.district</td><td class="num">157,578</td><td class="num">205</td><td>Mostly capitals (143,378 rows). UNKNOWN 20,335 · unknown 81 · Unknown 3<br>DANGWAURO 3,798 · dangwauro 1</td></tr>
+              <tr><td class="mono">fileNumber.lga</td><td class="num">106,706</td><td class="num">9</td><td>Kumbotso 26,739 · KUMBOTSO 106</td></tr>
+              <tr><td class="mono">fileNumber.district</td><td class="num">7,574</td><td class="num">45</td><td>KUMBOTSO 117 · Kumbotso 94 (an LGA name in the district column)</td></tr>
+            </tbody>
+          </table></div>
+        </dd>
+        <dt>Options</dt>
+        <dd><ol>
+          <li><b>Leave the data, tidy the display.</b> Show LGAs in title case and districts as stored on the new screens. Nothing in the database changes.</li>
+          <li><b>One-off clean-up, LGAs first.</b> Export every affected row to CSV, show you the before and after per place, and apply only what you approve. LGAs are a short list (48 places), and title case is already the majority.</li>
+          <li><b>Clean districts too.</b> Same process, but you choose the style first: keep capitals (today's majority) or move to title case. "UNKNOWN" and LGA names sitting in the district column need a separate rule.</li>
+        </ol></dd>
+        <dt>Recommend</dt>
+        <dd class="rec">Option 1 now, then option 2 for LGAs with the CSV preview. Leave districts until you pick a style.</dd>
+        <dt>I need</dt>
+        <dd class="ask">Which option, and for districts: capitals or title case?</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>2. Who sees which desk</h3><span class="ref">access</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>Everyone with <code>Cad - Records</code> sees all seven desks in the sidebar and can act at any of them.</dd>
+        <dt>Options</dt>
+        <dd><ol>
+          <li><b>Keep it</b> while the department pilots the workflow.</li>
+          <li><b>One role per desk</b>, for example "Cad Desk - D Cad". Each user sees and acts only at their desk. This adds seven rows to the user roles, and someone has to assign them before the desks show up for anyone.</li>
+        </ol></dd>
+        <dt>Recommend</dt>
+        <dd class="rec">Keep it for the pilot. Add per-desk roles once you know who sits where.</dd>
+        <dt>I need</dt>
+        <dd class="ask">Keep for now, or create the seven roles?</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>3. Old screens the workflow replaces</h3><span class="ref">sidebar · per-entry approval</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>These are still in the sidebar next to the new desks: Intake Queue, Survey Jobs (I to S), Area &amp; Pillars, Descriptions and Fee Calculator. They work and share the same records, so staff can use either.</dd>
+        <dt>Options</dt>
+        <dd><ol>
+          <li><b>Keep them</b> until staff have moved to the desks.</li>
+          <li><b>Retire them one by one</b> later, each named and approved by you first. Nothing is deleted; the entry is only taken out of the sidebar.</li>
+        </ol></dd>
+        <dt>Recommend</dt>
+        <dd class="rec">Keep them through the pilot, then review them one at a time.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>4. Getting the commit into main</h3><span class="ref">git</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>The workflow is one commit, <code>824ab88e</code>, on <code>feature/cadastral-dept-workflow</code>. It isn't pushed. Production is checked out on that branch, which changes nothing in what is served.</dd>
+        <dt>Options</dt>
+        <dd><ol>
+          <li><b>Push the branch and open a pull request</b> into <code>main</code> on GitHub, then merge it.</li>
+          <li><b>Merge into <code>main</code> locally</b> in production and push <code>main</code>.</li>
+          <li><b>Leave it local</b> for now.</li>
+        </ol></dd>
+        <dt>Recommend</dt>
+        <dd class="rec">Option 1. It leaves a record that can be reviewed, and the dev clone can pull it afterwards.</dd>
+        <dt>I need</dt>
+        <dd class="ask">Your go-ahead to push. Pushing sends the code to GitHub.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>5. Other uncommitted work in production</h3><span class="ref">not part of this workflow</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>About 130 changed files from other work are still uncommitted: SPAS, Change of Purpose, land recommendations, parcel updates, secretariat log, OSS screens and more. Part of <code>CLAUDE.md</code> and <code>routes/app3.php</code> is in this group too. I left all of it out of my commit.</dd>
+        <dt>Recommend</dt>
+        <dd class="rec">Whoever owns that work commits it in its own commits. I can help group it by module if you want.</dd>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ===================== Client ===================== -->
+  <section>
+    <h2><span class="chip t-client">Needs the client</span> Running on my defaults until they answer</h2>
+    <p class="section-note">Each default is built in and can be changed in settings or the workflow file without touching the screens.</p>
+
+    <article class="item">
+      <div class="item-head"><h3>6. Screens for the outside departments</h3><span class="ref">brief Q3</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>Compensation Unit, DSG, KAMMA, Physical Planning, the Permanent Secretary, Director Land and the field survey have no screens. The Cadastral desk that sends the file out records when it comes back, with the outcome.</dd>
+        <dt>Ask them</dt>
+        <dd>Will those departments use KLAES themselves, or is Cadastral recording their return enough?</dd>
+        <dt>Recommend</dt>
+        <dd class="rec">Keep recording at Cadastral. If a department will use KLAES, it gets a simple inbox built the same way as the desks.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>7. Fee sheet rules that aren't confirmed</h3><span class="ref">fee sheet Q1–Q3</span></div>
+      <dl>
+        <dt>Defaults</dt>
+        <dd><ul>
+          <li><b>An area between two rows</b> (for example 0.45 ha) is charged at the next row up. The bill flags it.</li>
+          <li><b>Above 9 ha</b> is refused, because the sheet's "per additional hectare" line can't be read.</li>
+          <li><b>Transport bands</b> are read as 1–10 km ₦200, 11–50 km ₦300 and over 50 km ₦500, from a garbled line. The bill flags it.</li>
+        </ul></dd>
+        <dt>Ask them</dt>
+        <dd>The three rules above, from the Director's signed sheet.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>8. Number formats</h3><span class="ref">brief Q9</span></div>
+      <dl>
+        <dt>Defaults</dt>
+        <dd><ul>
+          <li>Survey job <code>KN/CAD/2026/0001</code>, a placeholder until the SURCON pattern is known. The success message warns about it.</li>
+          <li>I to S <code>ITS/2026/0001</code> · field jacket <code>FJ-2026-00001</code> · charting card <code>CH-2026-00001</code> · movement card <code>FMC-2026-00001</code>.</li>
+        </ul></dd>
+        <dt>Ask them</dt>
+        <dd>The SURCON job-number pattern, and whether they want their own style for the others.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>9. Charting card details</h3><span class="ref">charting draft, 8 questions</span></div>
+      <dl>
+        <dt>Defaults</dt>
+        <dd><ul>
+          <li>A file on an existing plot, or one that couldn't be charted, still moves on, and the flag shows on its page.</li>
+          <li>Coordinates are UTM Zone 32N on the Minna datum, and metric and imperial sheet numbers are both kept.</li>
+          <li>The 2nd charting can correct the 1st, with a required note when they disagree.</li>
+          <li>The card prints on A4.</li>
+        </ul></dd>
+        <dt>Ask them</dt>
+        <dd>Go through the draft card (CADASTRAL_CHARTING_CARD_DRAFT) and mark anything they want changed.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>10. Surveyor mobile app</h3><span class="ref">future</span></div>
+      <dl>
+        <dt>Now</dt>
+        <dd>The bill's beacons and area are prefilled from the charting card. The brief says a surveyor app will send field data later; nothing is built for it yet.</dd>
+        <dt>Ask them</dt>
+        <dd>When it is planned, and what it will send (beacons, coordinates, photos).</dd>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ===================== Setup ===================== -->
+  <section>
+    <h2><span class="chip t-setup">Setup before go-live</span> No code needed, just doing</h2>
+
+    <article class="item">
+      <div class="item-head"><h3>11. Add the surveyors</h3><span class="ref">cadastral_surveyors · 0 rows</span></div>
+      <dl>
+        <dt>Why</dt>
+        <dd>AD P&amp;D can't commission a field jacket without a surveyor to attach. The directory is empty.</dd>
+        <dt>Who</dt>
+        <dd>Someone with the list of licensed surveyors adds them on Cadastral › Cadastral Information › Survey Jobs › Surveyors: SURCON number, firm, licence status and expiry.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>12. Try the Survey Fees fill on Deeds Bill Balance</h3><span class="ref">browser check</span></div>
+      <dl>
+        <dt>Why</dt>
+        <dd>The server side is tested. The form filling Survey Fees when a file is picked hasn't been run in a browser yet, because no real bill exists.</dd>
+        <dt>How</dt>
+        <dd>After the first real Fees P&amp;D bill, open Deeds › Bill Balance › Create and pick that file. Survey Fees should fill in, lock, and name the bill under the field.</dd>
+      </dl>
+    </article>
+
+    <article class="item">
+      <div class="item-head"><h3>13. A pilot with real files</h3><span class="ref">0 files in the workflow</span></div>
+      <dl>
+        <dt>Why</dt>
+        <dd>Every path is tested in rolled-back runs, but no real file has gone through yet.</dd>
+        <dt>How</dt>
+        <dd>Pick a few Conversion and Direct files, give the desk officers <code>Cad - Records</code>, register the files at the Cadastral Registry and walk them through to Send to Deeds. Note anything that reads wrong, and I'll adjust it.</dd>
+      </dl>
+    </article>
+  </section>
+
+  <footer>
+    Plan and step history: CADASTRAL_DEPT_WORKFLOW_PLAN and docs/plans/CADASTRAL_DEPT_WORKFLOW.md. Case counts come from read-only queries on 10 Oct 2026; nothing was changed to produce them.
+  </footer>
+</div>

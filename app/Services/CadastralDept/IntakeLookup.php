@@ -6,6 +6,7 @@ use App\Models\CadastralDept\CadastralCase;
 use App\Services\Cadastral\CadastralRegistryLookup;
 use App\Services\Cadastral\CorrespondenceFiles;
 use App\Services\Cadastral\ReceiptHolds;
+use App\Support\LgaNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -25,6 +26,9 @@ class IntakeLookup
 {
     /** fileNumber columns that can carry the number (cross-column, never positional). */
     private const COMMISSIONED_COLUMNS = ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo', 'st_file_no', 'gkn_fileno', 'dciv_fileno'];
+
+    /** @var string[]|null canonical LGA names, read once per request */
+    private ?array $lgaNames = null;
 
     public function __construct(
         private CadastralRegistryLookup $lookup,
@@ -65,8 +69,8 @@ class IntakeLookup
                 'title' => ($f['owner'] ?? '') ?: ($v['file_title'] ?? null),
                 'plot' => ($v['prop_plot'] ?? null) ?: ($v['plot_no'] ?? null),
                 'district' => $this->district($v),
-                'lga' => ($v['prop_lga'] ?? null) ?: null,
-                'location' => ($v['location'] ?? null) ?: $this->location($this->district($v), $v['prop_lga'] ?? null),
+                'lga' => $this->lga($v['prop_lga'] ?? null),
+                'location' => ($v['location'] ?? null) ?: $this->location($this->district($v), $this->lga($v['prop_lga'] ?? null)),
                 'registry_label' => $f['registry_label'],
                 'type' => $f['type'],
                 'other_numbers' => $f['other_numbers'],
@@ -141,8 +145,8 @@ class IntakeLookup
             'title' => $row->FileName ?: null,
             'plot' => $row->plot_no ?? null,
             'district' => $row->district ?: null,
-            'lga' => $row->lga ?: null,
-            'location' => $this->location($row->district ?? null, $row->lga ?? null),
+            'lga' => $this->lga($row->lga ?? null),
+            'location' => $this->location($row->district ?? null, $this->lga($row->lga ?? null)),
             'registry_label' => 'Commissioned (' . ($row->type ?: 'fileNumber') . ')',
             'type' => $row->type ?? null,
             'other_numbers' => array_values(array_unique(array_filter(array_map(
@@ -230,6 +234,22 @@ class IntakeLookup
         $d = $v['prop_district'] ?? null;
 
         return ($d === 'Other' || $d === 'other') ? ($v['prop_district_other'] ?? null) : $d;
+    }
+
+    /**
+     * The stored LGA in the lgas table's spelling ("KUMBOTSO" -> "Kumbotso"), so a
+     * case and everything copied from it reads the same. A value the shared
+     * LgaNormalizer can't place is kept as stored rather than guessed.
+     */
+    private function lga(?string $raw): ?string
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+        $this->lgaNames ??= DB::connection('sqlsrv')->table('lgas')->where('is_active', 1)->pluck('name')->all();
+
+        return LgaNormalizer::normalize($raw, $this->lgaNames) ?? $raw;
     }
 
     /** District + LGA only; the plot never goes into a location. */
