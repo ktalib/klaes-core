@@ -90,7 +90,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
       <span class="tally t-setup"><b>3</b> setup before go-live</span>
     </div>
     <div class="facts">
-      <span>Commit <b class="mono">824ab88e</b> on <b class="mono">feature/cadastral-dept-workflow</b>, not pushed</span>
+      <span>Branch <b class="mono">feature/cadastral-dept-workflow</b> pushed 10 Oct; pull request still to open</span>
+      <span>Decided 10 Oct: items 1–5 go with the recommendation</span>
       <span>Files in the workflow: <b>0</b></span>
       <span>Surveyors in the directory: <b>0</b></span>
       <span>Counts read 10 Oct 2026</span>
@@ -128,6 +129,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
         <dd class="rec">Option 1 now, then option 2 for LGAs with the CSV preview. Leave districts until you pick a style.</dd>
         <dt>I need</dt>
         <dd class="ask">Which option, and for districts: capitals or title case?</dd>
+        <dt>Decided</dt>
+        <dd><b>Option 1 done</b> (<code>c99815bf</code>): intake now stores the LGA in the <code>lgas</code> table's spelling, and anything it can't place stays as stored. <b>Option 2 next:</b> the existing <code>php artisan lga:normalize</code> command does a dry run by default; with <code>--apply</code> it keeps a journal and can be reversed with <code>--revert</code>. Run the dry run, approve the list, then apply. Districts wait for a style choice.</dd>
       </dl>
     </article>
 
@@ -145,6 +148,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
         <dd class="rec">Keep it for the pilot. Add per-desk roles once you know who sits where.</dd>
         <dt>I need</dt>
         <dd class="ask">Keep for now, or create the seven roles?</dd>
+        <dt>Decided</dt>
+        <dd>Keep <code>Cad - Records</code> for the pilot.</dd>
       </dl>
     </article>
 
@@ -160,6 +165,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
         </ol></dd>
         <dt>Recommend</dt>
         <dd class="rec">Keep them through the pilot, then review them one at a time.</dd>
+        <dt>Decided</dt>
+        <dd>Kept. Each will be reviewed on its own after the pilot.</dd>
       </dl>
     </article>
 
@@ -178,6 +185,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
         <dd class="rec">Option 1. It leaves a record that can be reviewed, and the dev clone can pull it afterwards.</dd>
         <dt>I need</dt>
         <dd class="ask">Your go-ahead to push. Pushing sends the code to GitHub.</dd>
+        <dt>Decided</dt>
+        <dd>Pushed to GitHub. The pull request still has to be opened at <code>github.com/ktalib/klaes-core/pull/new/feature/cadastral-dept-workflow</code>, because the GitHub CLI isn't installed on this server. The branch also carries <code>a0dce0d8</code>, an earlier local commit on <code>main</code> that isn't part of this workflow.</dd>
       </dl>
     </article>
 
@@ -188,6 +197,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule)
         <dd>About 130 changed files from other work are still uncommitted: SPAS, Change of Purpose, land recommendations, parcel updates, secretariat log, OSS screens and more. Part of <code>CLAUDE.md</code> and <code>routes/app3.php</code> is in this group too. I left all of it out of my commit.</dd>
         <dt>Recommend</dt>
         <dd class="rec">Whoever owns that work commits it in its own commits. I can help group it by module if you want.</dd>
+        <dt>Decided</dt>
+        <dd>Left to its owners. None of it was touched.</dd>
       </dl>
     </article>
   </section>
