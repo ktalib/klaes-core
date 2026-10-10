@@ -74,7 +74,7 @@ class MasterJsiController extends Controller
             });
         }
 
-        $records = $query->orderByDesc('id')->paginate(25)->withQueryString();
+        $records = $query->with('creator:id,first_name,last_name')->orderByDesc('id')->paginate(25)->withQueryString();
 
         // Counted off the whole register, not the filtered page: the tiles say what
         // the office is holding, and a tile that moved because someone typed in the
@@ -96,6 +96,62 @@ class MasterJsiController extends Controller
             'filters'         => $request->only(['category', 'type', 'status', 'search']),
             'PageTitle'       => 'Master JSI',
             'PageDescription' => 'Physical Planning site observations for SPU and APU parcel updates.',
+        ]);
+    }
+
+    /**
+     * Master JSI Approval — the PP Director's (and the PS's) desk.
+     *
+     * Every Master JSI created, with cards for where each stands and the decision
+     * on the row menu. ?stage=director (default) or ?stage=ps picks whose queue the
+     * table opens on; ?show=all lists every record whatever its stage.
+     */
+    public function approvals(Request $request): View
+    {
+        $stage = $request->query('stage') === 'ps' ? 'ps' : 'director';
+        abort_unless(self::canActAtStage($stage), 403, 'Master JSI approval needs the ' . self::STAGE_ROLES[$stage] . ' role.');
+
+        $twoStage = MasterJsiReport::supportsApprovalStages();
+        $show     = $request->query('show', 'queue');
+
+        $query = MasterJsiReport::visible()->with('creator:id,first_name,last_name');
+
+        if ($show === 'queue') {
+            $query->where('status', $stage === 'ps' && $twoStage
+                ? MasterJsiReport::STATUS_DIRECTOR_APPROVED
+                : MasterJsiReport::STATUS_SUBMITTED);
+        } elseif (in_array($show, [MasterJsiReport::STATUS_APPROVED, MasterJsiReport::STATUS_REJECTED, MasterJsiReport::STATUS_DIRECTOR_APPROVED], true)) {
+            $query->where('status', $show);
+        }
+
+        if ($search = trim((string) $request->query('search'))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('jsi_ref', 'LIKE', "%{$search}%")
+                    ->orWhere('file_number', 'LIKE', "%{$search}%")
+                    ->orWhere('applicant_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $counts = MasterJsiReport::visible()
+            ->select('status', DB::raw('COUNT(*) AS total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return view('physical_planning.master_jsi.approvals', [
+            'records'  => $query->orderByDesc('submitted_at')->orderByDesc('id')->paginate(25)->withQueryString(),
+            'stage'    => $stage,
+            'show'     => $show,
+            'twoStage' => $twoStage,
+            'search'   => $request->query('search'),
+            'stats'    => [
+                'total'             => (int) $counts->sum(),
+                'awaiting_director' => (int) $counts->get(MasterJsiReport::STATUS_SUBMITTED, 0),
+                'awaiting_ps'       => (int) $counts->get(MasterJsiReport::STATUS_DIRECTOR_APPROVED, 0),
+                'approved'          => (int) $counts->get(MasterJsiReport::STATUS_APPROVED, 0),
+                'rejected'          => (int) $counts->get(MasterJsiReport::STATUS_REJECTED, 0),
+            ],
+            'PageTitle'       => $stage === 'ps' ? 'Master JSI — PS Approval' : 'Master JSI — PP Director Approval',
+            'PageDescription' => 'Master JSI sheets awaiting a decision.',
         ]);
     }
 
@@ -227,6 +283,12 @@ class MasterJsiController extends Controller
     {
         $data = $this->validated($request);
 
+        // The designation is the capturing officer's own rank, shown read-only on
+        // the form; set here too so it cannot be posted as something else.
+        if ($rank = trim((string) (Auth::user()->rank ?? ''))) {
+            $data['officer_designation'] = $rank;
+        }
+
         $report = DB::connection('sqlsrv')->transaction(function () use ($data, $request) {
             $report = MasterJsiReport::create(array_merge($this->reportAttributes($data), [
                 'jsi_ref'    => MasterJsiReport::allocateRef(),
@@ -264,7 +326,7 @@ class MasterJsiController extends Controller
 
         // An approved report is the clearance the recommendation was drawn on, so
         // it is not edited underneath that — it is rejected and captured again.
-        if ($report->isApproved()) {
+        if ($report->isLocked()) {
             return response()->json([
                 'success' => false,
                 'message' => 'An approved Master JSI cannot be edited. Reject it first if the observation was wrong.',
@@ -272,6 +334,11 @@ class MasterJsiController extends Controller
         }
 
         $data = $this->validated($request);
+
+        // The designation is read-only: keep the one stored, or take the logged-in
+        // officer's rank when the sheet has none yet. Never what was posted.
+        $data['officer_designation'] = trim((string) $report->officer_designation)
+            ?: (trim((string) (Auth::user()->rank ?? '')) ?: null);
 
         DB::connection('sqlsrv')->transaction(function () use ($report, $data, $request) {
             $report->update(array_merge($this->reportAttributes($data), [
@@ -424,30 +491,69 @@ class MasterJsiController extends Controller
      * This is the answer MasterJsiGate reads, so it is the moment Generate
      * Recommendation and Approve unlock on the parcel-update listing.
      */
+    /**
+     * Approval runs in two stages: the PP Director, then the PS.
+     *
+     *   submitted          --PP Director-->  director_approved
+     *   director_approved  --PS----------->  approved   (what MasterJsiGate reads)
+     *
+     * Until the approval-stage columns exist (migration 2026_10_08_100000) the PP
+     * Director's approval is final, exactly as the single approval was before.
+     */
     public function approve(Request $request, int $id): JsonResponse
     {
         $report = MasterJsiReport::visible()->findOrFail($id);
+        $stage  = $report->awaitingStage();
 
-        if (!$report->submitted_at) {
+        if (!$report->submitted_at || $stage === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Submit the Master JSI before approving it.',
+                'message' => $report->status === MasterJsiReport::STATUS_APPROVED
+                    ? 'This Master JSI is already approved.'
+                    : 'Submit the Master JSI before approving it.',
             ], 422);
         }
 
-        $report->update([
-            'status'             => MasterJsiReport::STATUS_APPROVED,
-            'approved_at'        => now(),
-            'approved_by'        => Auth::id(),
-            'rejected_reason'    => null,
+        if ($refused = $this->stageRefusal($stage)) {
+            return $refused;
+        }
+
+        $remarks = $request->input('supervisor_remarks') ? trim((string) $request->input('supervisor_remarks')) : null;
+        $twoStage = MasterJsiReport::supportsApprovalStages();
+
+        if ($stage === 'director' && $twoStage) {
+            $report->update([
+                'status'               => MasterJsiReport::STATUS_DIRECTOR_APPROVED,
+                'director_approved_at' => now(),
+                'director_approved_by' => Auth::id(),
+                'director_remarks'     => $remarks,
+                'rejected_reason'      => null,
+                'updated_by'           => Auth::id(),
+            ]);
+
+            Log::info('Master JSI approved by PP Director', ['jsi_ref' => $report->jsi_ref, 'user_id' => Auth::id()]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Approved by the PP Director. It now goes to the PS for approval.',
+            ]);
+        }
+
+        $report->update(MasterJsiReport::onlyStorable(array_merge([
+            'status'              => MasterJsiReport::STATUS_APPROVED,
+            'approved_at'         => now(),
+            'approved_by'         => Auth::id(),
+            'rejected_reason'     => null,
             'supervisor_decision' => 'approved',
-            'supervisor_remarks' => $request->input('supervisor_remarks')
-                ? trim((string) $request->input('supervisor_remarks')) : null,
-            'updated_by'         => Auth::id(),
-        ]);
+            'supervisor_remarks'  => $remarks,
+            'updated_by'          => Auth::id(),
+        ], $stage === 'ps'
+            ? ['ps_approved_at' => now(), 'ps_approved_by' => Auth::id(), 'ps_remarks' => $remarks]
+            : [])));
 
         Log::info('Master JSI approved', [
             'jsi_ref'      => $report->jsi_ref,
+            'stage'        => $stage,
             'subject_type' => $report->subject_type,
             'subject_id'   => $report->subject_id,
             'user_id'      => Auth::id(),
@@ -459,10 +565,54 @@ class MasterJsiController extends Controller
         ]);
     }
 
+    /** The role each approval stage needs. Super Admin may act at either. */
+    public const STAGE_ROLES = [
+        'director' => 'PP Director',
+        'ps'       => 'HC/PS View',
+    ];
+
+    public static function canActAtStage(?string $stage): bool
+    {
+        $user = Auth::user();
+
+        if (!$user || !isset(self::STAGE_ROLES[$stage])) {
+            return false;
+        }
+
+        return $user->isSuperAdmin() || $user->canDo(self::STAGE_ROLES[$stage], 'view');
+    }
+
+    /** A 403 answer when the current user may not decide at this stage, else null. */
+    private function stageRefusal(?string $stage): ?JsonResponse
+    {
+        if (self::canActAtStage($stage)) {
+            return null;
+        }
+
+        $who = $stage === 'ps' ? 'the PS (HC/PS View role)' : 'the PP Director';
+
+        return response()->json([
+            'success' => false,
+            'message' => "Only {$who} can decide this Master JSI at its current stage.",
+        ], 403);
+    }
+
     public function reject(Request $request, int $id): JsonResponse
     {
         $report = MasterJsiReport::visible()->findOrFail($id);
         $reason = trim((string) $request->input('reason', ''));
+        $stage  = $report->awaitingStage();
+
+        if ($stage === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only a Master JSI awaiting approval can be rejected.',
+            ], 422);
+        }
+
+        if ($refused = $this->stageRefusal($stage)) {
+            return $refused;
+        }
 
         $report->update([
             'status'             => MasterJsiReport::STATUS_REJECTED,
@@ -488,14 +638,26 @@ class MasterJsiController extends Controller
     {
         $report = MasterJsiReport::visible()->findOrFail($id);
 
-        if (!$report->submitted_at) {
+        $stage = $report->awaitingStage();
+
+        if (!$report->submitted_at || $stage === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only a submitted Master JSI can be returned.',
+                'message' => 'Only a Master JSI awaiting approval can be returned.',
             ], 422);
         }
 
-        $report->update([
+        if ($refused = $this->stageRefusal($stage)) {
+            return $refused;
+        }
+
+        // A return restarts the approvals: a corrected sheet goes past the PP
+        // Director again rather than straight to the PS.
+        $report->update(MasterJsiReport::onlyStorable([
+            'director_approved_at' => null,
+            'director_approved_by' => null,
+            'director_remarks'     => null,
+        ]) + [
             'status'              => MasterJsiReport::STATUS_GENERATED,
             'submitted_at'        => null,
             'submitted_by'        => null,
@@ -521,7 +683,7 @@ class MasterJsiController extends Controller
     {
         $report = MasterJsiReport::visible()->findOrFail($id);
 
-        if ($report->isApproved()) {
+        if ($report->isLocked()) {
             return response()->json([
                 'success' => false,
                 'message' => 'An approved Master JSI is closed — it cannot take more attachments.',
@@ -577,7 +739,7 @@ class MasterJsiController extends Controller
         $evidence = MasterJsiEvidence::findOrFail($evidenceId);
         $report   = $evidence->report()->first();
 
-        if ($report === null || $report->isApproved()) {
+        if ($report === null || $report->isLocked()) {
             return response()->json([
                 'success' => false,
                 'message' => 'The inspection it belongs to is closed.',
@@ -674,7 +836,7 @@ class MasterJsiController extends Controller
     {
         $report = MasterJsiReport::visible()->findOrFail($id);
 
-        if ($report->isApproved()) {
+        if ($report->isLocked()) {
             return response()->json([
                 'success' => false,
                 'message' => 'An approved Master JSI cannot be deleted.',
@@ -826,7 +988,10 @@ class MasterJsiController extends Controller
             'available_on_ground'  => 'nullable|string|max:50',
             'boundary_segments'    => 'nullable|array',
             'boundary_description' => 'nullable|string',
-            'road_reservation'     => 'nullable|string|max:700',
+            'road_reservation'     => 'nullable|string|max:700',   // Existing Road Reservation
+            // Section 9 — Reservation & Size.
+            'recommended_reservation' => 'nullable|string|max:700',
+            'size_adequate'        => 'nullable|boolean',
             'conformity'           => 'nullable|boolean',
             'prevailing_land_use'  => 'nullable|string|max:255',
             'existing_land_use'    => 'nullable|string|max:255',
@@ -893,6 +1058,9 @@ class MasterJsiController extends Controller
             'site_unit'                 => 'nullable|in:sqm,ha',
             'site_existing_area_sqm'    => 'nullable|numeric|min:0',
             'site_existing_dimensions'  => 'nullable|string|max:255',
+            // The side boxes; compiled into site_existing_dimensions ("10 x 20").
+            'site_existing_sides'       => 'nullable|array|max:24',
+            'site_existing_sides.*'     => 'nullable|numeric|min:0',
             'site_recommended_area_sqm' => 'nullable|numeric|min:0',
             'recommended_total_override_sqm' => 'nullable|numeric|min:0',
             'override_reason'           => 'required_with:recommended_total_override_sqm|nullable|string|max:500',
@@ -977,7 +1145,14 @@ class MasterJsiController extends Controller
             'extension_portions',
             'subdivision_plots',
             'purpose_changes',
+            'site_existing_sides',
         ])->all();
+
+        // Site & Land Measurement: the side boxes are the source of the stored
+        // dimensions text, the same "a x b" form the portion rows use.
+        if (array_key_exists('site_existing_sides', $data)) {
+            $attributes['site_existing_dimensions'] = ParcelSizeSummary::dimensionsText($data['site_existing_sides']) ?: null;
+        }
 
         // The four direction boxes are the source; boundary_description is compiled
         // from them by the shared trait so it reads the same as the OSS JSI sheet.
@@ -999,7 +1174,7 @@ class MasterJsiController extends Controller
             }
         }
 
-        return $attributes;
+        return MasterJsiReport::onlyStorable($attributes);
     }
 
     /**

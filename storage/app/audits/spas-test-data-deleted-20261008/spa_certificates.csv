@@ -1,0 +1,2 @@
+id,spa_application_id,cert_number,file_number,holder_name,from_use,to_use,issue_date,expiry_date,issued_by,status,created_by,created_at,updated_at,new_file_number
+1,10,SPAS-COP/2026/0001,CON-RES-2002-10,"STANDARD TRUST BANK.",RESIDENTIAL,RESIDENTIAL,2026-08-19,2026-08-27,2,issued,"System Admin","2026-08-18 18:12:05","2026-08-18 18:12:05",CON-RES-2025-615

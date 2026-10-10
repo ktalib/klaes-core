@@ -165,18 +165,23 @@
                     <h2 class="text-sm font-semibold text-gray-700">Field Records</h2>
                 </div>
                 <div class="p-4">
-                    <table id="field-records-table" class="w-full text-sm" style="width:100%">
+                    @include('special_assignment.partials.table_case')
+                    <table id="field-records-table" class="spas-table w-full text-sm" style="width:100%">
                         <thead>
                             <tr class="text-left text-xs text-gray-500 uppercase">
                                 <th class="px-3 py-2">#</th>
                                 <th class="px-3 py-2">File No</th>
+                                <th class="px-3 py-2">Source</th>
                                 <th class="px-3 py-2">Owner</th>
                                 <th class="px-3 py-2">Location</th>
                                 <th class="px-3 py-2">Approved Use</th>
                                 <th class="px-3 py-2">Prevailing Use</th>
                                 <th class="px-3 py-2">Contravention</th>
                                 <th class="px-3 py-2">Inspection</th>
+                                <th class="px-3 py-2">Inspection Date</th>
                                 <th class="px-3 py-2">Findings</th>
+                                <th class="px-3 py-2">Inspected By</th>
+                                <th class="px-3 py-2">Date Created</th>
                                 <th class="px-3 py-2 w-10"></th>
                             </tr>
                         </thead>
@@ -214,14 +219,144 @@
                     <p id="vf-findings" class="text-gray-700 leading-relaxed whitespace-pre-wrap">—</p>
                 </div>
             </div>
+            {{-- Every visit to the site, newest first, when there has been more than one. --}}
+            <div id="vf-visits-wrap" class="hidden">
+                <p class="text-xs text-gray-500 mb-2">Inspection History</p>
+                <ol id="vf-visits" class="space-y-2 text-sm"></ol>
+            </div>
+            {{-- Taken with the land record (Add Land Record card, web or app). --}}
+            <div id="vf-property-photos-wrap" class="hidden">
+                <p class="text-xs text-gray-500 mb-2">Property Photos</p>
+                <div id="vf-property-photos" class="flex flex-wrap gap-2"></div>
+            </div>
             <div id="vf-photos-wrap" class="hidden">
-                <p class="text-xs text-gray-500 mb-2">Photos</p>
+                <p class="text-xs text-gray-500 mb-2">Inspection Photos</p>
                 <div id="vf-photos" class="flex flex-wrap gap-2"></div>
             </div>
+            <p id="vf-no-photos" class="hidden text-xs text-gray-400">No photos were uploaded for this record.</p>
         </div>
         <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
             <button id="btn-close-view2" class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Close</button>
         </div>
+    </div>
+</div>
+
+{{-- Log Inspection Modal — for a record saved without its inspection (the Add card's
+     inspection fields are optional). Posts to the same field-data.store route. --}}
+<div id="modal-log-inspection" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div>
+                <h3 id="li-title" class="text-base font-semibold text-gray-800">Log Field Inspection</h3>
+                <p id="li-file-label" class="text-xs text-gray-500 mt-0.5">—</p>
+            </div>
+            <button type="button" class="li-close text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+        </div>
+        <form id="form-log-inspection" class="p-6 space-y-4">
+            <input type="hidden" name="spa_application_id" id="li-app-id">
+            <input type="hidden" name="file_number" id="li-file">
+            {{-- Set when editing an existing visit; empty when logging a new one. --}}
+            <input type="hidden" id="li-edit-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Inspection Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="inspection_date" id="li-date" required
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Coordinates (lat, lng)</label>
+                    <input type="text" id="li-coords" placeholder="e.g. 12.0022, 8.5919"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Findings <span class="text-red-500">*</span></label>
+                <textarea name="findings" id="li-findings" rows="3" required
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none resize-none focus:border-[rgb(186,191,12)]"
+                    placeholder="Describe on-site observations…"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Photos</label>
+                <input type="file" name="photos[]" multiple accept="image/*"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" class="li-close px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" id="btn-save-inspection" class="px-5 py-2 text-sm text-white bg-[rgb(186,191,12)] rounded-lg hover:opacity-90">Save Inspection</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Edit Record — the captured details of a land record. Offered only to the
+     officer who captured it or a Super Admin (SpaMobileService::canEditRecord),
+     and the server checks the same rule. Anyone else adds a revisit inspection. --}}
+<div id="modal-edit-record" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div>
+                <h3 class="text-base font-semibold text-gray-800">Edit Land Record</h3>
+                <p id="er-file-label" class="text-xs text-gray-500 mt-0.5">—</p>
+            </div>
+            <button type="button" class="er-close text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+        </div>
+        <form id="form-edit-record" class="p-6 space-y-4 overflow-y-auto">
+            <input type="hidden" id="er-id">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Owner / File Title <span class="text-red-500">*</span></label>
+                    <input type="text" name="owner_name" id="er-owner" required maxlength="255"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                    <input type="text" name="phone" id="er-phone" maxlength="20" placeholder="e.g. 08030000000"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">District</label>
+                    <input type="text" name="district" id="er-district" maxlength="255"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">LGA</label>
+                    <select name="lga" id="er-lga" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                        <option value="">Select LGA…</option>
+                        @foreach($lgaOptions as $lga)
+                            <option value="{{ $lga }}">{{ $lga }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Location</label>
+                    <input type="text" name="location" id="er-location" maxlength="255"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Approved Land Use <span class="text-red-500">*</span></label>
+                    <select name="land_use_type" id="er-land-use" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                        <option value="">Select…</option>
+                        @foreach($landUseTypes as $lut)
+                            <option value="{{ $lut }}">{{ $lut }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Prevailing Land Use <span class="text-red-500">*</span></label>
+                    <select name="existing_use" id="er-existing" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                        <option value="">Select…</option>
+                        @foreach($landUseTypes as $lut)
+                            <option value="{{ $lut }}">{{ $lut }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400">Changing the uses so they differ puts the property in contravention: its bill is raised and its First Serve sent, once.</p>
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" class="er-close px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" id="btn-save-edit-record" class="px-5 py-2 text-sm text-white bg-[rgb(186,191,12)] rounded-lg hover:opacity-90">Save Changes</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -230,7 +365,14 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl mx-auto overflow-hidden max-h-[92vh] flex flex-col">
         <div class="flex items-center justify-between px-6 py-3 border-b border-gray-100 flex-shrink-0">
             <h3 class="text-base font-semibold text-gray-800">Add Land Record</h3>
-            <button id="btn-close-modal" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+            <div class="flex items-center gap-3">
+                {{-- Start the card again: empties every field, the photos, the pin and the traced boundary. --}}
+                <button type="button" id="btn-clear-record" title="Clear everything entered and start again"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i> Clear form
+                </button>
+                <button id="btn-close-modal" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
         </div>
         <form id="form-add-record" enctype="multipart/form-data" class="p-6 flex-1 overflow-y-auto min-h-0">
             @csrf
@@ -286,11 +428,15 @@
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">District</label>
                             {{-- Populated on demand from /api/reference/districts: there are
-                                 1,818 of them, far too many to render inline. --}}
+                                 1,818 of them, far too many to render inline. One dropdown with
+                                 its search inside (public/js/searchable-select.js); "Other" stays
+                                 at the top and opens a box to type a district not on the list. --}}
                             <select name="district" id="f-district" disabled
                                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
                                 <option value="">Loading districts…</option>
                             </select>
+                            <input type="text" id="f-district-other" maxlength="255" placeholder="Specify the district"
+                                class="hidden w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1.5 outline-none focus:border-[rgb(186,191,12)]">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">LGA <span class="text-red-500">*</span></label>
@@ -464,6 +610,10 @@
 @include('components.global-fileno-modal')
 
 <style>
+    /* The page's modals sit at z-index 1100, above SweetAlert's default 1060, so
+       a warning raised from inside the Add Land Record card opened BEHIND it. */
+    .swal2-container { z-index: 20000 !important; }
+
     @keyframes contraventionPulse {
         0%, 100% { background-color:#fee2e2; border-color:#fca5a5; transform:scale(1);   box-shadow:none; }
         50%       { background-color:#fecaca; border-color:#ef4444; transform:scale(1.04); box-shadow:0 0 10px rgba(239,68,68,.35); }
@@ -479,6 +629,7 @@
      so pull in the google.maps shim only (same stack as File Indexing). --}}
 @include('partials.maps_scripts', ['skipLeaflet' => true])
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+<script src="{{ asset('js/searchable-select.js') }}?v=20261008"></script>
 
 <style>
     .tab-btn.active { background:white; color:#1f2937; box-shadow:0 1px 3px rgba(0,0,0,.1); }
@@ -493,6 +644,8 @@ const CSRF          = '{{ csrf_token() }}';
 const STORE         = '{{ route("special-assignment.field-data.store") }}';
 const APP_URL       = '{{ route("special-assignment.land-records") }}';
 const DELETE_FIELD  = '{{ url("special-assignment/field-data") }}';
+const FIELD_BASE    = DELETE_FIELD;                                        // /{id}/update edits a visit
+const RECORD_BASE   = '{{ url("special-assignment/land-records") }}';      // /{id}/update edits a record
 
 // Extracts a {lat, lng} pair from free-typed text ("12.0022, 8.5919", pasted
 // "12.0022° N, 8.5919° E", etc.) rather than requiring an exact "a, b" split —
@@ -897,6 +1050,11 @@ $(document).ready(function () {
         columns: [
             { data: 'DT_RowIndex', orderable:false, searchable:false },
             { data: 'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
+            // Mobile = pushed by the SPAS app; Web = the desktop form or the mobile web page.
+            { data: 'source', render: d => d === 'mobile'
+                ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700" style="white-space:nowrap">📱 Mobile App</span>`
+                : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700" style="white-space:nowrap">🖥 Web</span>`
+            },
             { data: 'owner_name' },
             { data: 'location', render: d => d ? `<span title="${d}">${d.length>35?d.slice(0,35)+'…':d}</span>` : '—' },
             { data: 'land_use_type', render: d => luBadge(d) },
@@ -909,7 +1067,11 @@ $(document).ready(function () {
                 ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Inspected</span>`
                 : `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Pending</span>`
             },
+            { data: 'inspection_date', render: (d, t, row) => `<span style="white-space:nowrap">${d || '—'}</span>`
+                + (row.visits > 1 ? `<span class="block text-[11px] text-indigo-600" style="white-space:nowrap">${row.visits} visits</span>` : '') },
             { data: 'findings', render: d => d||'—' },
+            { data: 'inspected_by', render: d => `<span style="white-space:nowrap">${String(d || '—').replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';')}</span>` },
+            { data: 'date_created', render: d => `<span style="white-space:nowrap">${d || '—'}</span>` },
             { data: 'action', orderable:false, searchable:false },
         ],
     });
@@ -928,18 +1090,29 @@ $(document).ready(function () {
         document.getElementById('vf-inspector').textContent = info.inspector || '—';
         document.getElementById('vf-findings').textContent  = info.findings  || '—';
 
-        const photos = info.photos || [];
-        const photosDiv  = document.getElementById('vf-photos');
-        const photosWrap = document.getElementById('vf-photos-wrap');
-        photosDiv.innerHTML = '';
-        if (photos.length) {
-            photos.forEach(url => {
-                photosDiv.innerHTML += `<a href="${url}" target="_blank"><img src="${url}" class="h-20 w-20 object-cover rounded border border-gray-200"></a>`;
-            });
-            photosWrap.classList.remove('hidden');
-        } else {
-            photosWrap.classList.add('hidden');
-        }
+        // Two groups: photos taken with the land record, and with the inspection.
+        // Each opens full size in a new tab.
+        const showPhotos = (urls, gridId, wrapId) => {
+            const grid = document.getElementById(gridId);
+            grid.innerHTML = (urls || []).map(url =>
+                `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Photo" loading="lazy"
+                    class="h-20 w-20 object-cover rounded border border-gray-200"
+                    onerror="this.closest('a').outerHTML='<span class=\\'text-[11px] text-gray-400\\'>Photo missing on disk</span>'"></a>`).join('');
+            document.getElementById(wrapId).classList.toggle('hidden', !(urls || []).length);
+            return (urls || []).length;
+        };
+        const visits = info.visits || [];
+        const escV = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        document.getElementById('vf-visits').innerHTML = visits.map((v, i) =>
+            `<li class="border border-gray-100 rounded-lg px-3 py-2 ${i === 0 ? 'bg-[rgba(186,191,12,0.06)]' : ''}">
+                <div class="flex justify-between text-xs text-gray-500"><span>${escV(v.date || '—')}${i === 0 ? ' · latest' : ''}</span><span>${escV(v.by || '—')}</span></div>
+                <div class="text-gray-700 whitespace-pre-wrap mt-0.5">${escV(v.findings || '—')}</div>
+            </li>`).join('');
+        document.getElementById('vf-visits-wrap').classList.toggle('hidden', visits.length < 2);
+
+        const nProperty   = showPhotos(info.property_photos, 'vf-property-photos', 'vf-property-photos-wrap');
+        const nInspection = showPhotos(info.photos, 'vf-photos', 'vf-photos-wrap');
+        document.getElementById('vf-no-photos').classList.toggle('hidden', nProperty + nInspection > 0);
 
         viewModal.classList.remove('hidden');
         viewModal.classList.add('flex');
@@ -954,6 +1127,134 @@ $(document).ready(function () {
         $dd.toggleClass('hidden');
     });
     $(document).on('click', function() { $('.action-dropdown').addClass('hidden'); });
+
+    // ── Log inspection (records saved without one) ─────────────────────────
+    const logModal = document.getElementById('modal-log-inspection');
+    const logForm  = document.getElementById('form-log-inspection');
+    function closeLogModal() { logModal.classList.add('hidden'); logModal.classList.remove('flex'); }
+    document.querySelectorAll('.li-close').forEach(b => b.addEventListener('click', closeLogModal));
+
+    // Global so the Add Land Record flow can reopen an inspection that failed to
+    // save, pre-filled with what the surveyor typed.
+    // mode: 'log' (first inspection), 'revisit' (another visit to an inspected
+    // record — it continues the same record) or 'edit' (change one's own visit).
+    window.openLogInspection = function ({ id, file, date, findings, coords, mode = 'log', editId = '' } = {}) {
+        logForm.reset();
+        document.getElementById('li-edit-id').value = editId || '';
+        document.getElementById('li-title').textContent = mode === 'edit' ? 'Edit Field Inspection'
+            : (mode === 'revisit' ? 'Revisit Inspection — continues this record' : 'Log Field Inspection');
+        document.getElementById('btn-save-inspection').dataset.label = mode === 'edit' ? 'Save Changes' : 'Save Inspection';
+        document.getElementById('btn-save-inspection').textContent = document.getElementById('btn-save-inspection').dataset.label;
+        document.getElementById('li-app-id').value = id || '';
+        document.getElementById('li-file').value   = file || '';
+        document.getElementById('li-file-label').textContent = file || '—';
+        document.getElementById('li-date').value     = date || new Date().toISOString().slice(0, 10);
+        document.getElementById('li-findings').value = findings || '';
+        document.getElementById('li-coords').value   = coords || '';
+        logModal.classList.remove('hidden');
+        logModal.classList.add('flex');
+        lucide.createIcons();
+    };
+
+    $(document).on('click', '.btn-log-inspection', function () {
+        $('.action-dropdown').addClass('hidden');
+        window.openLogInspection({ id: $(this).data('id'), file: $(this).attr('data-file'), mode: $(this).data('revisit') ? 'revisit' : 'log' });
+    });
+
+    // ── Edit Record ─────────────────────────────────────────────────────────
+    const erModal = document.getElementById('modal-edit-record');
+    const erForm  = document.getElementById('form-edit-record');
+    const closeEr = () => { erModal.classList.add('hidden'); erModal.classList.remove('flex'); };
+    document.querySelectorAll('.er-close').forEach(b => b.addEventListener('click', closeEr));
+    // Pick an option case-insensitively, adding it when the list lacks it, so a
+    // stored value never silently becomes blank on save.
+    const setSelect = (sel, value) => {
+        if (!value) { sel.value = ''; return; }
+        const hit = [...sel.options].find(o => o.value.toUpperCase() === String(value).toUpperCase());
+        if (!hit) sel.add(new Option(value, value));
+        sel.value = hit ? hit.value : value;
+    };
+    $(document).on('click', '.btn-edit-record', function () {
+        $('.action-dropdown').addClass('hidden');
+        const r = JSON.parse($(this).attr('data-record') || '{}');
+        erForm.reset();
+        document.getElementById('er-id').value = r.id;
+        document.getElementById('er-file-label').textContent = r.file || '—';
+        document.getElementById('er-owner').value    = r.owner_name || '';
+        document.getElementById('er-phone').value    = r.phone || '';
+        document.getElementById('er-district').value = r.district || '';
+        document.getElementById('er-location').value = r.location || '';
+        setSelect(document.getElementById('er-lga'), r.lga);
+        setSelect(document.getElementById('er-land-use'), r.land_use_type);
+        setSelect(document.getElementById('er-existing'), r.existing_use);
+        erModal.classList.remove('hidden'); erModal.classList.add('flex');
+        lucide.createIcons();
+    });
+    erForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fd.set('proposed_use', fd.get('land_use_type'));   // one answer feeds both, as on the Add card
+        const btn = document.getElementById('btn-save-edit-record');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+            const res  = await fetch(`${RECORD_BASE}/${document.getElementById('er-id').value}/update`, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (data.success) {
+                closeEr();
+                fieldTable.ajax.reload(null, false);
+                Swal.fire({ icon:'success', title:'Record updated', text: data.message, timer:2000, showConfirmButton:false });
+            } else {
+                const first = Object.values(data.errors || {})[0];
+                Swal.fire({ icon:'error', title:'Not saved', text: (first && first[0]) || data.message || 'Save failed.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon:'error', title:'Error', text:'A network error stopped the save. Try again.' });
+        }
+        btn.disabled = false; btn.textContent = 'Save Changes';
+    });
+
+    // Edit one's own visit (the server checks the same rule).
+    $(document).on('click', '.btn-edit-inspection', function () {
+        $('.action-dropdown').addClass('hidden');
+        const v = JSON.parse($(this).attr('data-visit') || '{}');
+        window.openLogInspection({ file: v.file, date: v.date, findings: v.findings, coords: v.coords, mode: 'edit', editId: v.id });
+    });
+
+    logForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+
+        const coords = document.getElementById('li-coords').value.trim();
+        if (coords) {
+            const parsed = parseLatLngInput(coords);
+            if (!parsed) {
+                Swal.fire({ icon:'warning', title:'Check the coordinates', text:'Enter them as latitude, longitude, e.g. 12.0022, 8.5919 — or leave the field empty.' });
+                return;
+            }
+            fd.append('coordinates', JSON.stringify(parsed));
+        }
+
+        const btn = document.getElementById('btn-save-inspection');
+        const editId = document.getElementById('li-edit-id').value;
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+            const url  = editId ? `${FIELD_BASE}/${editId}/update` : STORE;
+            const res  = await fetch(url, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (data.success) {
+                closeLogModal();
+                if (data.mapPoint) window.plotFieldMapPoint(data.mapPoint);
+                fieldTable.ajax.reload(null, false);
+                Swal.fire({ icon:'success', title: editId ? 'Inspection updated' : 'Inspection logged', text: data.message || 'Field inspection saved.', timer:2000, showConfirmButton:false });
+            } else {
+                const first = Object.values(data.errors || {})[0];
+                Swal.fire({ icon:'error', title:'Could not save', text: (first && first[0]) || data.message || 'Save failed.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon:'error', title:'Error', text:'A network error stopped the save. Try again.' });
+        }
+        btn.disabled = false; btn.textContent = btn.dataset.label || 'Save Inspection';
+    });
 
     // ── Delete field record ────────────────────────────────────────────────
     $(document).on('click', '.btn-delete-field', function() {
@@ -1028,15 +1329,33 @@ $(document).ready(function () {
     // than rendered inline: there are 1,818 of them and inlining that list is
     // what made the OSS applications page unusable.
     let districtsPromise = null;
+    let allDistricts = [];
+    const isOtherDistrict = v => String(v || '').trim().toLowerCase() === 'other';
+    const escHtml = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    // The full list, "Other (specify)" first. Searching happens inside the
+    // dropdown itself (SearchableSelect), which keeps "Other" pinned on top.
+    function renderDistricts() {
+        const sel   = document.getElementById('f-district');
+        const keep  = sel.value;
+        const other = allDistricts.find(isOtherDistrict) || 'Other';
+        sel.innerHTML = '<option value="">Select District…</option>'
+            + `<option value="${escHtml(other)}">Other (specify)</option>`
+            + allDistricts.filter(n => !isOtherDistrict(n)).map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+        sel.value = keep;
+    }
+    SearchableSelect(document.getElementById('f-district'), {
+        placeholder: 'Select District…', searchPlaceholder: 'Type to search districts…', pinned: ['Other'],
+    });
+
     function loadDistricts() {
         if (districtsPromise) return districtsPromise;
         const sel = document.getElementById('f-district');
         districtsPromise = fetch('{{ route("api.reference.districts") }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(r => r.json())
             .then(d => {
-                const list = (d && d.data) || [];
-                sel.innerHTML = '<option value="">Select District…</option>'
-                    + list.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
+                allDistricts = ((d && d.data) || []).map(x => (x && typeof x === 'object') ? x.name : x).filter(Boolean);
+                renderDistricts();
             })
             .catch(() => {
                 sel.innerHTML = '<option value="">Districts unavailable — pick the pin on the map</option>';
@@ -1045,10 +1364,27 @@ $(document).ready(function () {
         return districtsPromise;
     }
 
+
+    // "Other": the district typed in the box beside it is the one recorded.
+    function districtValue() {
+        const sel = document.getElementById('f-district');
+        return isOtherDistrict(sel.value)
+            ? document.getElementById('f-district-other').value.trim()
+            : sel.value.trim();
+    }
+    document.getElementById('f-district').addEventListener('change', function () {
+        const other = document.getElementById('f-district-other');
+        const show  = isOtherDistrict(this.value);
+        other.classList.toggle('hidden', !show);
+        if (show) other.focus(); else other.value = '';
+    });
+    // On change (leaving the box), not per keystroke: each update re-geocodes the pin.
+    document.getElementById('f-district-other').addEventListener('change', () => applyCustomaryLocation());
+
     // LGA / District drive both the stored location and the map pin.
     function applyCustomaryLocation() {
         const lga      = document.getElementById('f-lga').value.trim();
-        const district = document.getElementById('f-district').value.trim();
+        const district = districtValue();
         const loc      = [district, lga].filter(Boolean).join(', ');
 
         document.getElementById('h-location').value = loc;
@@ -1164,11 +1500,39 @@ $(document).ready(function () {
         document.getElementById('location-badge-wrap').classList.add('hidden');
         document.getElementById('dciv-banner-wrap').classList.add('hidden');
         document.getElementById('ltt-statutory').checked = true;
+        // District search and "Other" box back to blank, the full list back.
+        document.getElementById('f-district-other').classList.add('hidden');
+        if (allDistricts.length) renderDistricts();
         setLandTitleType('statutory');
         // Note: the Field Inspection inputs (ar-*) live inside this <form>, so the
         // native reset() call above already clears them; the map pin/boundary are
         // reset separately by arMapCtrl.init() when the modal (re)opens.
     }
+
+    // "Clear form": the whole card back to blank without closing it — fields,
+    // photos, the selected file, the map pin and the traced boundary.
+    document.getElementById('btn-clear-record').addEventListener('click', async function () {
+        const ask = await Swal.fire({
+            icon: 'question',
+            title: 'Clear the form?',
+            text: 'Everything entered on this card will be removed, including photos and the map pin.',
+            showCancelButton: true,
+            confirmButtonText: 'Clear',
+            cancelButtonText: 'Keep it',
+            confirmButtonColor: 'rgb(186,191,12)',
+        });
+        if (!ask.isConfirmed) return;
+
+        resetSpaForm();
+        document.getElementById('f-photos').value = '';
+        arMapCtrl.reset();
+        const badge = document.getElementById('contravention-badge');
+        if (badge) { badge.classList.add('hidden'); badge.style.display = 'none'; }
+        const btn = document.getElementById('btn-save-record');
+        btn.disabled = false; btn.textContent = 'Save Record';
+        document.getElementById('form-add-record').scrollTop = 0;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
 
     // Pull details from file indexing and pre-fill the modal
     async function prefillFromFile(fileNo) {
@@ -1311,15 +1675,27 @@ $(document).ready(function () {
 
     // If the surveyor logged an inspection alongside the record, save it too —
     // as a second call, since it needs the spa_application_id the first call returns.
+    //
+    // Returns { status, note, entered }: status is 'none' (no inspection typed),
+    // 'ok', or 'failed'. On 'failed' the caller keeps the record and offers to
+    // log the inspection straight away with `entered`, rather than flashing a
+    // message in a popup that closes itself before anyone reads it.
     async function saveInspectionFor(app) {
         const inspDate     = document.getElementById('ar-inspection-date').value;
         const inspFindings = document.getElementById('ar-findings').value.trim();
         const inspCoords   = document.getElementById('ar-coords').value.trim();
         const inspGeometry = document.getElementById('ar-geometry').value;
+        const entered      = { id: app.id, file: app.file_number, date: inspDate, findings: inspFindings, coords: inspCoords };
+        const failed       = reason => ({ status: 'failed', note: reason, entered });
 
-        if (!inspDate && !inspFindings && !inspCoords) return ''; // nothing entered — skip silently
+        // Coordinates are auto-filled from the file's location, so they alone do
+        // not mean an inspection was entered. Date + findings do; the submit
+        // handler has already refused a half-filled pair.
+        if (!inspDate && !inspFindings) {
+            return { status: 'none', note: ' No field inspection was logged — use "Log Inspection" in the row menu when it is done.', entered };
+        }
         if (!inspDate || !inspFindings) {
-            return ' Field inspection was not logged — an inspection date and findings are both required; you can add them later from Field Data.';
+            return failed('An inspection date and findings are both required.');
         }
 
         const fd = new FormData();
@@ -1336,15 +1712,18 @@ $(document).ready(function () {
         if (inspGeometry) fd.append('parcel_geometry', inspGeometry);
 
         try {
-            const res  = await fetch(STORE, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF }, body: fd });
-            const data = await res.json();
+            // Accept: JSON, or a validation failure answers with a redirect to
+            // this page's HTML and the real reason is lost as a "network error".
+            const res  = await fetch(STORE, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: fd });
+            const data = await res.json().catch(() => ({}));
             if (data.success) {
                 if (data.mapPoint) window.plotFieldMapPoint(data.mapPoint);
-                return ' Field inspection logged.' + coordsWarning;
+                return { status: 'ok', note: ' Field inspection logged.' + coordsWarning, entered };
             }
-            return ' Field inspection could not be saved (' + (data.message || 'save failed') + ') — you can log it later from Field Data.';
+            const first = Object.values(data.errors || {})[0];
+            return failed((first && first[0]) || data.message || `The server refused it (HTTP ${res.status}).`);
         } catch (err) {
-            return ' Field inspection could not be saved due to a network error — you can log it later from Field Data.';
+            return failed('A network error stopped the save.');
         }
     }
 
@@ -1369,6 +1748,23 @@ $(document).ready(function () {
             return;
         }
 
+        // A half-filled inspection is refused here, before anything is saved,
+        // rather than saving the record and quietly dropping the inspection.
+        // (A date typed only partly reads as empty to the browser.)
+        const hasInspDate     = !!document.getElementById('ar-inspection-date').value;
+        const hasInspFindings = !!document.getElementById('ar-findings').value.trim();
+        if (hasInspDate !== hasInspFindings) {
+            const missing = hasInspDate ? 'ar-findings' : 'ar-inspection-date';
+            Swal.fire({
+                icon: 'warning',
+                title: 'Field inspection incomplete',
+                text: hasInspDate
+                    ? 'Enter the findings, or clear the inspection date to save the record without an inspection.'
+                    : 'Enter a complete inspection date, or clear the findings to save the record without an inspection.',
+            }).then(() => document.getElementById(missing).focus());
+            return;
+        }
+
         const btn = document.getElementById('btn-save-record');
         btn.disabled = true; btn.textContent = 'Saving…';
 
@@ -1381,6 +1777,17 @@ $(document).ready(function () {
 
         try {
             const fd  = new FormData(this);
+            // "Other": record the district the officer typed, not the word "Other".
+            if (isCustomary && isOtherDistrict(fd.get('district'))) {
+                const typed = document.getElementById('f-district-other').value.trim();
+                if (!typed) {
+                    Swal.fire({ icon:'warning', title:'Required', text:'You chose Other — type the district in the box below it.' })
+                        .then(() => document.getElementById('f-district-other').focus());
+                    btn.disabled = false; btn.textContent = 'Save Record';
+                    return;
+                }
+                fd.set('district', typed);
+            }
             const res = await fetch(LR_STORE, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: fd });
             const data = await res.json();
 
@@ -1393,11 +1800,25 @@ $(document).ready(function () {
             }
 
             if (data.success) {
-                const inspectionNote = await saveInspectionFor({ id: data.id, file_number: data.file_number });
+                const insp = await saveInspectionFor({ id: data.id, file_number: data.file_number });
                 closeSpaModal();
                 resetSpaForm();
                 $('#field-records-table').DataTable().ajax.reload(null, false);
-                Swal.fire({ icon:'success', title:'Added to SPAS', text: data.message + inspectionNote, timer: inspectionNote ? 3500 : 2000, showConfirmButton:false });
+                if (insp.status === 'failed') {
+                    // Stays on screen until answered: the record is saved, but
+                    // the inspection is not, and the surveyor must know that.
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Record saved — inspection NOT saved',
+                        text: insp.note + ' Log it now with what you entered?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Log it now',
+                        cancelButtonText: 'Later',
+                        confirmButtonColor: 'rgb(186,191,12)',
+                    }).then(r => { if (r.isConfirmed) window.openLogInspection(insp.entered); });
+                } else {
+                    Swal.fire({ icon:'success', title:'Added to SPAS', text: data.message + insp.note, timer: insp.status === 'none' ? 4500 : 2000, showConfirmButton:false });
+                }
             } else {
                 Swal.fire({ icon:'error', title:'Error', text:data.message || 'Save failed.' });
             }

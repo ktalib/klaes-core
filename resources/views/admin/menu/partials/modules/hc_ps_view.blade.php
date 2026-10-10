@@ -45,6 +45,13 @@
             <i data-lucide="library" class="h-4 w-4 text-indigo-500"></i>
             <span>Report &amp; Manual</span>
           </a>
+          {{-- The PS stage of Master JSI approval; appears once the stage columns exist. --}}
+          @if(\App\Models\MasterJsiReport::supportsApprovalStages())
+          <a href="{{ route('master-jsi.approvals', ['stage' => 'ps']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('master-jsi.approvals') && request('stage') === 'ps' ? 'active' : '' }}">
+            <i data-lucide="stamp" class="h-4 w-4 text-indigo-500"></i>
+            <span>Master JSI – PS Approval</span>
+          </a>
+          @endif
         </div>
       </div>
     </div>

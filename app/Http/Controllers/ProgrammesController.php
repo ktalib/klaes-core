@@ -3313,15 +3313,38 @@ class ProgrammesController extends Controller
      */
     private function spaBillItemColumns(): array
     {
-        $used = \App\Models\SpaBillLine::select('name')->distinct()->pluck('name');
+        // One column per tariff ITEM, labelled with the item's CURRENT name, so a
+        // rename in Configurable Entries shows here even on bills raised before
+        // it. Lines are matched by item id; only a line with no item falls back
+        // to the name it was raised with. An item removed from the tariff loses
+        // its column; its amount on any bill already raised is still in that
+        // bill's total and on its receipt.
+        $removed = \App\Models\SpaBillItem::removedIds();
+        $items   = \App\Models\SpaBillItem::get(['id', 'name', 'sort_order'])->keyBy('id');
 
-        if ($used->isEmpty()) {
-            return [];
+        $used = \App\Models\SpaBillLine::select('spa_bill_item_id', 'name')
+            ->when($removed, fn ($q) => $q->where(fn ($w) => $w->whereNotIn('spa_bill_item_id', $removed)->orWhereNull('spa_bill_item_id')))
+            ->distinct()
+            ->get();
+
+        $columns = [];
+        foreach ($used as $line) {
+            $item = $line->spa_bill_item_id ? $items->get($line->spa_bill_item_id) : null;
+            $key  = $item ? 'item:' . $item->id : 'name:' . $line->name;
+            $columns[$key] ??= [
+                'key'   => $key,
+                'label' => $item ? $item->name : $line->name,
+                'order' => $item ? (int) $item->sort_order : PHP_INT_MAX,
+            ];
         }
 
-        $order = \App\Models\SpaBillItem::orderBy('sort_order')->pluck('sort_order', 'name');
+        return collect($columns)->sortBy([['order', 'asc'], ['label', 'asc']])->values()->all();
+    }
 
-        return $used->sortBy(fn ($name) => $order[$name] ?? PHP_INT_MAX)->values()->all();
+    /** The key a bill line falls under in spaBillItemColumns(). */
+    private static function spaBillLineKey($line): string
+    {
+        return $line->spa_bill_item_id ? 'item:' . $line->spa_bill_item_id : 'name:' . $line->name;
     }
 
     private function spaBills(Request $request)
@@ -3330,7 +3353,8 @@ class ProgrammesController extends Controller
 
         // One column per bill item, so the composition of a bill is readable at a
         // glance instead of being buried in the description sentence.
-        $itemColumns = $this->spaBillItemColumns();
+        $columnDefs  = $this->spaBillItemColumns();
+        $itemColumns = array_column($columnDefs, 'label');   // the headers, in order
 
         if ($request->ajax()) {
             // Payments and lines come along so a row can offer a receipt reprint
@@ -3340,9 +3364,9 @@ class ProgrammesController extends Controller
             $data  = $query->skip($request->input('start', 0))
                            ->take($request->input('length', 10))
                            ->get()
-                           ->map(function ($b, $i) use ($request, $itemColumns) {
+                           ->map(function ($b, $i) use ($request, $columnDefs) {
                                $paid    = (float) $b->payments->sum('amount_paid');
-                               $byName  = $b->lines->keyBy('name');
+                               $byKey   = $b->lines->keyBy(fn ($line) => self::spaBillLineKey($line));
 
                                $row = [
                                    'DT_RowIndex'  => $request->input('start', 0) + $i + 1,
@@ -3363,10 +3387,9 @@ class ProgrammesController extends Controller
                                // contain spaces and are edited by officers, and the
                                // column list is built from the same source, so the
                                // two cannot drift apart.
-                               foreach ($itemColumns as $index => $name) {
-                                   $row['item_'.$index] = isset($byName[$name])
-                                       ? number_format($byName[$name]->amount, 2)
-                                       : '—';
+                               foreach ($columnDefs as $index => $column) {
+                                   $line = $byKey[$column['key']] ?? null;
+                                   $row['item_'.$index] = $line ? number_format($line->amount, 2) : '—';
                                }
 
                                return $row;

@@ -246,6 +246,7 @@ Route::middleware(['auth'])->group(function () {
 
     // DCIV Generation Routes
     Route::prefix('dciv/generation')->name('dciv-generation.')->group(function () {
+        Route::delete('/{id}/master-delete', [\App\Http\Controllers\DcivMasterDeleteController::class, 'destroy'])->name('master-delete');
         Route::get('/', [DcivGenerationController::class, 'index'])->name('index');
         Route::get('/data', [DcivGenerationController::class, 'data'])->name('data');
         Route::get('/available', [DcivGenerationController::class, 'getAvailableDciv'])->name('available');
@@ -456,6 +457,8 @@ Route::middleware(['auth'])->group(function () {
      */
     Route::prefix('master-jsi')->name('master-jsi.')->group(function () {
         Route::get('/', [MasterJsiController::class, 'index'])->name('index');
+        // PP Director / PS desk: every Master JSI created, decided from the row menu.
+        Route::get('/approvals', [MasterJsiController::class, 'approvals'])->name('approvals');
         Route::get('/create', [MasterJsiController::class, 'create'])->name('create');
         Route::get('/resolve-subject', [MasterJsiController::class, 'resolveSubject'])->name('resolve-subject');
         Route::get('/coordinates', [MasterJsiController::class, 'coordinates'])->name('coordinates');

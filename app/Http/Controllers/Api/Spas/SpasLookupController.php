@@ -170,13 +170,10 @@ class SpasLookupController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $all,
-            // Customary land is only ever held for these three uses, so the
-            // customary General Landuse dropdown omits Industrial. Sent as a
+            // The uses a customary title may take (SpaMobileService). Sent as a
             // separate list so the device does not re-derive (and re-diverge
             // from) that rule.
-            'customary' => $all->filter(
-                fn ($u) => in_array(strtoupper(trim($u)), ['RESIDENTIAL', 'COMMERCIAL', 'AGRICULTURAL'], true)
-            )->values(),
+            'customary' => \App\Services\SpaMobileService::customaryLandUses($all),
             'server_time' => now()->toIso8601String(),
         ]);
     }

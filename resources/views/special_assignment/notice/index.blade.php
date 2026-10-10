@@ -51,7 +51,8 @@
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">First Serve Notices</h2></div>
                 <div class="p-4">
-                    <table id="first-serve-table" class="w-full text-sm" style="width:100%">
+                    @include('special_assignment.partials.table_case')
+                    <table id="first-serve-table" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Recipient</th><th class="px-3 py-2">Phone</th>
@@ -73,7 +74,7 @@
                     <p class="text-xs text-gray-500 mt-0.5">First serves that have reached 14 days. Second serves are issued automatically — use <span class="font-medium">Issue Now</span> only to send one ahead of the daily run.</p>
                 </div>
                 <div class="p-4">
-                    <table id="second-serve-table" class="w-full text-sm" style="width:100%">
+                    <table id="second-serve-table" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Recipient</th><th class="px-3 py-2">Phone</th>
@@ -186,7 +187,9 @@ $(document).ready(function () {
         { data:'DT_RowIndex', orderable:false, searchable:false }, { data:'file_number' },
         { data:'recipient' }, { data:'phone' }, { data:'served_date' }, { data:'sms_sent' },
         { data:'days_ago', render: d => d != null ? `<span class="px-2 py-0.5 rounded-full text-xs ${d>=14?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">${d}d ago</span>` : '—' },
-        { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${d||'—'}</span>` },
+        // served = green; pending (owed but not yet out) = amber; a record with no
+        // contravention owes no notice = grey.
+        { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':(d==='no_contravention'?'bg-gray-100 text-gray-500':'bg-amber-100 text-amber-700')}" style="white-space:nowrap">${d||'—'}</span>` },
         { data:'action', orderable:false, searchable:false },
     ];
     const secondCols = [
@@ -222,8 +225,56 @@ $(document).ready(function () {
         return `${what}. SMS not sent — ${reason}${code}`;
     }
 
+    // ── Row ⋮ menu ──────────────────────────────────────────────────────────
+    // Opened FIXED and lifted to <body>: inside the table it would be clipped by
+    // the table's scroll box. The item handlers below are bound to the document
+    // for the same reason — once lifted, a menu is no longer inside the table.
+    function closeNoticeMenus() {
+        document.querySelectorAll('.notice-menu.is-open').forEach(m => {
+            m.classList.add('hidden'); m.classList.remove('is-open');
+            if (m._home) m._home.appendChild(m);   // back into its row
+        });
+    }
+    $(document).on('click', '.btn-notice-menu', function (e) {
+        e.stopPropagation();
+        const menu = this.parentElement.querySelector('.notice-menu') || this._menu;
+        const wasOpen = menu && menu.classList.contains('is-open');
+        closeNoticeMenus();
+        if (!menu || wasOpen) return;
+
+        this._menu = menu;
+        menu._home = this.parentElement;
+        document.body.appendChild(menu);
+        menu.classList.remove('hidden'); menu.classList.add('is-open');
+        Object.assign(menu.style, { position: 'fixed', zIndex: 2000 });
+
+        const r = this.getBoundingClientRect(), h = menu.offsetHeight, w = menu.offsetWidth;
+        const top = (window.innerHeight - r.bottom < h + 8 && r.top > h + 8) ? r.top - h - 4 : r.bottom + 4;
+        menu.style.top  = Math.max(8, top) + 'px';
+        menu.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+    });
+    $(document).on('click', e => { if (!e.target.closest('.notice-menu')) closeNoticeMenus(); });
+    window.addEventListener('scroll', closeNoticeMenus, true);
+    window.addEventListener('resize', closeNoticeMenus);
+    $(document).on('click', '.notice-menu a', () => closeNoticeMenus());
+    // A redraw replaces the rows a lifted menu belongs to.
+    $('#first-serve-table, #second-serve-table').on('preDraw.dt', closeNoticeMenus);
+
+    // ── Resend a notice whose SMS did not go ────────────────────────────────
+    $(document).on('click', '.btn-resend-sms', async function () {
+        closeNoticeMenus();
+        const id = $(this).data('id');
+        const ok = await Swal.fire({ icon:'question', title:'Resend the SMS?', text:'The notice SMS will be sent again to the number on the record.', showCancelButton:true, confirmButtonText:'Resend' });
+        if (!ok.isConfirmed) return;
+        const res  = await fetch(`${SECOND_BASE}/${id}/resend`, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({}) });
+        const data = await res.json().catch(() => ({}));
+        Swal.fire({ icon: data.success ? 'success' : 'error', title: data.success ? 'Sent' : 'Not sent', text: data.message || (data.success ? 'SMS sent.' : 'The SMS could not be sent.') });
+        firstTable.ajax.reload(null, false); secondTable.ajax.reload(null, false);
+    });
+
     // ── Trigger 2nd serve ───────────────────────────────────────────────────
-    $('#first-serve-table, #second-serve-table').on('click', '.btn-trigger-second', async function() {
+    $(document).on('click', '.btn-trigger-second', async function() {
+        closeNoticeMenus();
         const id  = $(this).data('id');
         const app = $(this).data('app');
         const ok  = await Swal.fire({ icon:'question', title:'Trigger Second Serve?', text:'An SMS will be sent and a second serve record created.', showCancelButton:true, confirmButtonText:'Yes, trigger' });
@@ -251,7 +302,8 @@ $(document).ready(function () {
     const phoneInput     = document.getElementById('notice-phone');
 
     // ── Issue first serve straight from a Field Data row (prefilled) ─────────
-    $('#first-serve-table').on('click', '.btn-issue-first', function () {
+    $(document).on('click', '.btn-issue-first', function () {
+        closeNoticeMenus();
         fileInput.value      = $(this).data('file')  || '';
         recipientInput.value = $(this).data('owner') || '';
         phoneInput.value     = $(this).data('phone') || '';

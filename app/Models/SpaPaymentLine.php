@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
  * for the same reason SpaBillLine copies from the tariff: a receipt printed
  * today must still reconcile after somebody edits a tariff amount or a bill
  * line is removed. The reference is kept for reporting; the copy is the record.
+ * As on SpaBillLine, a tariff RENAME is carried here too; amounts never are.
  */
 class SpaPaymentLine extends Model
 {

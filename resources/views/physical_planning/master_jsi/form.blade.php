@@ -369,12 +369,30 @@
                             <option value="ha" @selected($value('site_unit', 'sqm') === 'ha')>Hectares (ha)</option>
                         </select>
                     </div>
+                    @php
+                        // The stored text ("10 x 20", or older free text like "10 m x 20 m")
+                        // split back into one box per side.
+                        preg_match_all('/\d+(?:\.\d+)?/', (string) $value('site_existing_dimensions'), $siteSideMatches);
+                        $siteSides = $siteSideMatches[0] ?: ['', ''];
+                        if (count($siteSides) === 1) $siteSides[] = '';
+                    @endphp
                     <div>
-                        <label for="site_existing_dimensions" class="block text-xs font-bold text-slate-600 mb-1.5">Existing Site Dimensions (m)</label>
-                        <input type="text" name="site_existing_dimensions" id="site_existing_dimensions"
-                            maxlength="255" value="{{ $value('site_existing_dimensions') }}" placeholder="e.g. 10 m x 20 m x 30 m"
-                            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
-                        <p class="mt-1 text-[10px] text-slate-500">Enter the measured sides of the existing site. Record its area separately.</p>
+                        <span class="block text-xs font-bold text-slate-600 mb-1.5">Existing Site Dimensions (m)</span>
+                        <div id="siteSides" class="flex flex-wrap items-center gap-1.5">
+                            @foreach ($siteSides as $i => $side)
+                                <div class="relative site-side-wrap">
+                                    <input type="number" step="any" min="0" name="site_existing_sides[]" value="{{ $side }}"
+                                        placeholder="{{ $i + 1 }}" aria-label="Side {{ $i + 1 }} in metres" oninput="siteSidesSync()"
+                                        class="site-side w-16 px-1.5 py-2 rounded-lg border border-slate-200 bg-white text-sm text-center">
+                                    <button type="button" onclick="siteSideRemove(this)" tabindex="-1" title="Remove this side"
+                                        class="site-side-x absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] leading-none hover:bg-red-100 hover:text-red-600">&times;</button>
+                                </div>
+                            @endforeach
+                            <button type="button" onclick="siteSideAdd()" title="One more side"
+                                class="w-8 h-8 rounded-lg border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600 transition">+</button>
+                        </div>
+                        <p id="siteSidesTotal" class="mt-1 text-[11px] text-slate-600"></p>
+                        <p class="mt-0.5 text-[10px] text-slate-500">One box per measured side. With two sides (length × breadth) the area is worked out for you.</p>
                     </div>
                     <div>
                         <label for="site_existing_area_sqm" class="block text-xs font-bold text-slate-600 mb-1.5">Existing Site Area</label>
@@ -538,9 +556,31 @@
                             class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">{{ $value('officer_recommendation') }}</textarea>
                     </div>
                     <div>
+                        {{-- The officer's rank (users.rank, "Officer Rank" on the user form),
+                             read-only. A sheet saved without one takes the logged-in user's. --}}
+                        @php $loginRank = trim((string) (auth()->user()->rank ?? '')); @endphp
                         <label class="block text-xs font-bold text-slate-600 mb-1.5">Officer designation</label>
-                        <input type="text" name="officer_designation" maxlength="255"
-                            value="{{ $value('officer_designation') }}" placeholder="e.g. Senior Surveyor"
+                        <input type="text" name="officer_designation" maxlength="255" readonly tabindex="-1"
+                            value="{{ trim((string) $value('officer_designation')) ?: $loginRank }}"
+                            placeholder="No rank on your user profile"
+                            title="Taken from your user profile (Officer Rank)"
+                            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-500 cursor-not-allowed">
+                        <p class="mt-1 text-[10px] text-slate-400">From the logged-in officer's profile.</p>
+                    </div>
+
+                    {{-- Road reservation: what was found on site, and what is recommended.
+                         "Existing" is the original road_reservation column, so earlier
+                         sheets keep what was typed. --}}
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Existing Road Reservation</label>
+                        <input type="text" name="road_reservation" maxlength="700" value="{{ $value('road_reservation') }}"
+                            placeholder="e.g. 15 m"
+                            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">Recommended Reservation</label>
+                        <input type="text" name="recommended_reservation" maxlength="700" value="{{ $value('recommended_reservation') }}"
+                            placeholder="e.g. 20 m"
                             class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
                     </div>
 
@@ -605,12 +645,8 @@
                         </div>
                     </div>
 
+                    {{-- Road Reservation moved to Section 9 as "Existing Road Reservation". --}}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">Road Reservation</label>
-                            <input type="text" name="road_reservation" value="{{ $value('road_reservation') }}"
-                                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                        </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1.5">Location Coordinates</label>
                             <input type="text" name="location_coordinates" id="location_coordinates" maxlength="500"
@@ -647,6 +683,28 @@
                         <label class="block text-xs font-bold text-slate-600 mb-1.5">Additional Observations</label>
                         <textarea name="additional_observations" rows="3"
                             class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">{{ $value('additional_observations') }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ===== 9. Size adequacy ===== --}}
+            @php
+                $sizeAdequate = $value('size_adequate');
+                $sizeAdequate = $sizeAdequate === null || $sizeAdequate === '' ? null : (string) (int) (bool) $sizeAdequate;
+            @endphp
+            <div data-wstep="4" class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100">
+                    <h2 class="text-sm font-black uppercase tracking-wider text-slate-600">9 · Size Adequacy</h2>
+                </div>
+                <div class="p-6">
+                    <span class="block text-xs font-bold text-slate-600 mb-1.5">Is the size adequate?</span>
+                    <div class="flex items-center gap-6 py-1">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input type="radio" name="size_adequate" value="1" @checked($sizeAdequate === '1') class="text-red-600 focus:ring-red-500"> Yes
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input type="radio" name="size_adequate" value="0" @checked($sizeAdequate === '0') class="text-red-600 focus:ring-red-500"> No
+                        </label>
                     </div>
                 </div>
             </div>
@@ -1159,6 +1217,63 @@ window.onSiteUnitChange = function () {
     currentSiteUnit = next;
     recomputeTotals();
 };
+
+/* ------------------------------------------------ site & land measurement: side boxes */
+// Same rule as the portion rows: two sides give the area (length x breadth);
+// any other count is an irregular plot, whose area cannot honestly be derived
+// from its sides, so the officer enters it. The perimeter is totalled either way.
+function siteSideValues() {
+    return [...document.querySelectorAll('#siteSides .site-side')]
+        .map(el => parseFloat(el.value))
+        .filter(v => isFinite(v) && v > 0);
+}
+window.siteSidesSync = function () {
+    const sides = siteSideValues();
+    const area  = document.getElementById('site_existing_area_sqm');
+    const out   = document.getElementById('siteSidesTotal');
+    const boxes = document.querySelectorAll('#siteSides .site-side').length;
+    const fmt   = n => Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 });
+
+    document.querySelectorAll('#siteSides .site-side-x').forEach(b => b.classList.toggle('hidden', boxes <= 1));
+
+    if (boxes === 2 && sides.length === 2) {
+        const sqm = sides[0] * sides[1];
+        // The area box is in the unit picked on this sheet.
+        const unit = (document.getElementById('site_unit') || {}).value;
+        area.value = unit === 'ha' ? +(sqm / 10000).toFixed(4) : +sqm.toFixed(2);
+        area.readOnly = true;
+        area.classList.add('bg-slate-50');
+        out.innerHTML = fmt(sides[0]) + ' m × ' + fmt(sides[1]) + ' m = <strong>' + fmt(sqm) + ' m²</strong>'
+            + ' (' + (sqm / 10000).toLocaleString('en-NG', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + ' Ha)';
+    } else {
+        area.readOnly = false;
+        area.classList.remove('bg-slate-50');
+        out.innerHTML = sides.length
+            ? 'Total of sides (perimeter): <strong>' + fmt(sides.reduce((a, b) => a + b, 0)) + ' m</strong>'
+              + (boxes > 2 ? ' — enter the area of this irregular plot.' : '')
+            : '';
+    }
+    if (typeof recomputeTotals === 'function') recomputeTotals();
+};
+window.siteSideAdd = function () {
+    const wrap = document.getElementById('siteSides');
+    const first = wrap.querySelector('.site-side-wrap');
+    const clone = first.cloneNode(true);
+    const input = clone.querySelector('.site-side');
+    input.value = '';
+    wrap.insertBefore(clone, wrap.lastElementChild);
+    wrap.querySelectorAll('.site-side').forEach((el, i) => { el.placeholder = i + 1; el.setAttribute('aria-label', 'Side ' + (i + 1) + ' in metres'); });
+    input.focus();
+    siteSidesSync();
+};
+window.siteSideRemove = function (btn) {
+    const wrap = document.getElementById('siteSides');
+    if (wrap.querySelectorAll('.site-side-wrap').length <= 1) return;
+    btn.closest('.site-side-wrap').remove();
+    wrap.querySelectorAll('.site-side').forEach((el, i) => { el.placeholder = i + 1; el.setAttribute('aria-label', 'Side ' + (i + 1) + ' in metres'); });
+    siteSidesSync();
+};
+document.addEventListener('DOMContentLoaded', () => { if (document.getElementById('siteSides')) siteSidesSync(); });
 
 function recomputeTotals() {
     const e = document.getElementById('extensionTotal');

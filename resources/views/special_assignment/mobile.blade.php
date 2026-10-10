@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="{{ asset('js/searchable-select.js') }}?v=20261008"></script>
     {{-- google.maps geocoder shim (Leaflet + Nominatim under the hood). Leaflet
          is already loaded above, so skip its copy — a second one detaches
          Leaflet.draw from the first. --}}
@@ -457,10 +458,12 @@
                 </div>
                 <div class="field">
                     <label>District</label>
-                    {{-- Fetched on demand: 1,818 districts is far too many to inline --}}
+                    {{-- Fetched on demand: 1,818 districts is far too many to inline.
+                         One dropdown with its search inside; "Other" opens a box to type one. --}}
                     <select name="district" id="m-district" class="inp" disabled>
                         <option value="">Loading districts…</option>
                     </select>
+                    <input type="text" id="m-district-other" class="inp" maxlength="255" placeholder="Specify the district" style="display:none;margin-top:6px">
                 </div>
             </div>
 
@@ -1212,15 +1215,33 @@ document.addEventListener('click', e => {
 // rendered inline: there are 1,818 of them, which is a lot of DOM to ship to a
 // phone on a field connection.
 let mobileDistrictsPromise = null;
+let mobileAllDistricts = [];
+const mIsOther = v => String(v || '').trim().toLowerCase() === 'other';
+const mEsc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// The full list, "Other (specify)" first. Searching happens inside the
+// dropdown itself (SearchableSelect), which keeps "Other" pinned on top.
+function renderMobileDistricts() {
+    const sel   = document.getElementById('m-district');
+    const keep  = sel.value;
+    const other = mobileAllDistricts.find(mIsOther) || 'Other';
+    sel.innerHTML = '<option value="">Select District…</option>'
+        + `<option value="${mEsc(other)}">Other (specify)</option>`
+        + mobileAllDistricts.filter(n => !mIsOther(n)).map(n => `<option value="${mEsc(n)}">${mEsc(n)}</option>`).join('');
+    sel.value = keep;
+}
+SearchableSelect(document.getElementById('m-district'), {
+    placeholder: 'Select District…', searchPlaceholder: 'Type to search districts…', pinned: ['Other'],
+});
+
 function loadMobileDistricts() {
     if (mobileDistrictsPromise) return mobileDistrictsPromise;
     const sel = document.getElementById('m-district');
     mobileDistrictsPromise = fetch('{{ route("api.reference.districts") }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
-            const list = (d && d.data) || [];
-            sel.innerHTML = '<option value="">Select District…</option>'
-                + list.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
+            mobileAllDistricts = ((d && d.data) || []).map(x => (x && typeof x === 'object') ? x.name : x).filter(Boolean);
+            renderMobileDistricts();
         })
         .catch(() => {
             sel.innerHTML = '<option value="">Districts unavailable — pin on the map</option>';
@@ -1229,10 +1250,25 @@ function loadMobileDistricts() {
     return mobileDistrictsPromise;
 }
 
+
+// "Other": the district typed in the box is the one recorded.
+function mobileDistrictValue() {
+    const sel = document.getElementById('m-district');
+    return mIsOther(sel.value) ? document.getElementById('m-district-other').value.trim() : sel.value.trim();
+}
+document.getElementById('m-district').addEventListener('change', function () {
+    const other = document.getElementById('m-district-other');
+    const show  = mIsOther(this.value);
+    other.style.display = show ? '' : 'none';
+    if (show) other.focus(); else other.value = '';
+});
+// On change, not per keystroke: each update re-geocodes the pin.
+document.getElementById('m-district-other').addEventListener('change', () => applyMobileCustomaryLocation());
+
 // LGA / District drive both the stored location and the map pin.
 function applyMobileCustomaryLocation() {
     const lga      = document.getElementById('m-lga').value.trim();
-    const district = document.getElementById('m-district').value.trim();
+    const district = mobileDistrictValue();
     const loc      = [district, lga].filter(Boolean).join(', ');
 
     document.getElementById('h-location').value = loc;
@@ -1502,11 +1538,22 @@ function initForms() {
             toast('Select the LGA — a customary title has no file to take its location from.', 'error');
             return;
         }
+        const recordFd = new FormData(this);
+        // "Other": record the district the officer typed, not the word "Other".
+        if (isCustomary && mIsOther(recordFd.get('district'))) {
+            const typed = document.getElementById('m-district-other').value.trim();
+            if (!typed) {
+                toast('You chose Other — type the district in the box below it.', 'error');
+                document.getElementById('m-district-other').focus();
+                return;
+            }
+            recordFd.set('district', typed);
+        }
         const btn = document.getElementById('btn-save-record');
         const originalBtnHtml = btn.innerHTML;
         btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" style="width:15px;animation:spin 1s linear infinite;"></i> Saving…'; lucide.createIcons();
         try {
-            const res  = await fetch(URLS.storeRec, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Accept':'application/json'}, body: new FormData(this) });
+            const res  = await fetch(URLS.storeRec, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Accept':'application/json'}, body: recordFd });
             const data = await res.json();
             if (res.status === 422) {
                 // Show the actual field error rather than a bare "Save failed"
@@ -1522,6 +1569,8 @@ function initForms() {
                 // Read the inspection fields (if any) before this.reset() clears them.
                 await saveMobileInspectionFor({ id: data.id, file_number: data.file_number });
                 this.reset();
+                document.getElementById('m-district-other').style.display = 'none';
+                if (mobileAllDistricts.length) renderMobileDistricts();
                 document.getElementById('m-location-badge').style.display = 'none';
                 document.getElementById('lookup-msg').style.display = 'none';
                 document.getElementById('m-contravening-badge').style.display = 'none';

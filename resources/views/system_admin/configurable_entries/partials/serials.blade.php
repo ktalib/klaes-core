@@ -11,14 +11,15 @@
 --}}
 @php
     $allCounters = $registers->flatMap(fn ($r) => $r->counters);
+    $readOnlyCount = $registers->reject(fn ($r) => $r->key === 'deeds')->sum(fn ($r) => $r->counters->where('locked', true)->count());
 @endphp
 
 <div x-data="{ activeSerialRegister: @js($registers->keys()->first() ?? '') }">
 <div class="ce-tiles">
     @foreach([
         ['Registers', $registers->count(), 'library', 'blue'],
-        ['Counters locked', $allCounters->where('locked', true)->count(), 'lock', 'green'],
-        ['Not yet locked', $allCounters->where('locked', false)->count(), 'circle-dashed', 'orange'],
+        ['Read-only counters', $readOnlyCount, 'lock', 'green'],
+        ['Editable counters', $allCounters->count() - $readOnlyCount, 'pencil', 'orange'],
     ] as [$label, $value, $icon, $tone])
         <div class="iw-card"><div class="iw-card-body flex items-center gap-3" style="padding:16px 18px">
             <span class="iw-icon-tile {{ $tone }}"><i data-lucide="{{ $icon }}" class="h-5 w-5"></i></span>
@@ -32,7 +33,7 @@
         <i data-lucide="info" class="h-4 w-4 mt-0.5"></i>
         <div>
             Enter the <strong>last serial already used on paper</strong> for the counter — not the next one. The first file number
-            the generator mints continues after it. Land and Deeds keep a counter per year, so each new year starts its own;
+            the generator mints continues after it. Land and DCIV keep a counter per year, so each new year starts its own;
             Survey keeps one counter for good. A counter that is not <em>Locked</em> can still be set, but its last serial is
             already live — the generator has been counting up on it — so it is a number that has been issued, not a blank.
         </div>
@@ -41,9 +42,9 @@
     <div class="iw-alert danger">
         <i data-lucide="alert-octagon" class="h-4 w-4 mt-0.5"></i>
         <div>
-            <strong>Initializing is one-time and cannot be undone here.</strong> The counter locks the moment it is saved, because
+            <strong>Land and Survey initialization is one-time.</strong> DCIV serials can be edited and saved here. Land and Survey counters lock the moment they are saved, because
             a counter set below what the registry has already issued would hand out file numbers that exist on other files.
-            Check the paper register before you save; once locked, only the database can change it.
+            Check the paper register before you save; locked Land and Survey counters remain read-only.
         </div>
     </div>
 
@@ -74,7 +75,11 @@
                         </div>
                         <div class="iw-card-sub">
                             Used by {{ $register->where }} ·
-                            {{ $register->locked_count }} of {{ $register->counters->count() }} {{ \Illuminate\Support\Str::plural('counter', $register->counters->count()) }} locked
+                            @if($register->key === 'deeds')
+                                Serials can be edited and saved
+                            @else
+                                {{ $register->locked_count }} of {{ $register->counters->count() }} {{ \Illuminate\Support\Str::plural('counter', $register->counters->count()) }} locked
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -89,9 +94,9 @@
                             <th class="text-right">Last serial</th>
                             <th>Next file number gets</th>
                             <th>Status</th>
-                            <th>Initialized by</th>
-                            <th>Initialized at</th>
-                            <th class="text-right">Set the starting serial</th>
+                            <th>{{ $register->key === 'deeds' ? 'Last saved by' : 'Initialized by' }}</th>
+                            <th>{{ $register->key === 'deeds' ? 'Last saved at' : 'Initialized at' }}</th>
+                            <th class="text-right">{{ $register->key === 'deeds' ? 'Edit last serial' : 'Set the starting serial' }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -114,7 +119,9 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if($counter->locked)
+                                    @if($register->key === 'deeds')
+                                        <span class="ce-pill blue">Editable</span>
+                                    @elseif($counter->locked)
                                         <span class="ce-pill green">Locked</span>
                                     @elseif($counter->initialized)
                                         <span class="ce-pill yellow">Initialized, not locked</span>
@@ -129,7 +136,7 @@
                                     {{ $counter->initialized_at ? \Illuminate\Support\Carbon::parse($counter->initialized_at)->format('d M Y, H:i') : '—' }}
                                 </td>
                                 <td class="text-right">
-                                    @if($counter->locked)
+                                    @if($counter->locked && $register->key !== 'deeds')
                                         <span class="ce-muted inline-flex items-center gap-1"><i data-lucide="lock" class="h-3.5 w-3.5"></i> Set once, locked</span>
                                     @else
                                         @php
@@ -139,6 +146,10 @@
                                                 . ' at the serial entered, and lock it?'
                                                 . ($counter->exists ? '\n\nThis counter already stands at ' . $counter->last_serial . '. A lower value re-issues serials that have already been given out.' : '')
                                                 . '\n\nThe next file number under it continues from there. This cannot be undone from this screen.';
+                                            if ($register->key === 'deeds') {
+                                                $confirm = 'Save ' . addslashes($counter->label) . ' for ' . $register->year . ' at the serial entered? The next file number continues after it.'
+                                                    . ($counter->exists ? '\n\nCurrent last serial: ' . $counter->last_serial . '. A lower value may reuse serials already issued.' : '');
+                                            }
                                         @endphp
                                         <form method="POST" action="{{ route('configurable-entries.serials.initialize', $register->key) }}"
                                               class="inline-flex items-center gap-2 justify-end"
@@ -150,7 +161,7 @@
                                                    placeholder="e.g. 0"
                                                    class="iw-input iw-mono text-right" style="width:104px">
                                             <button class="iw-btn iw-btn-primary iw-btn-sm whitespace-nowrap">
-                                                <i data-lucide="lock" class="h-3.5 w-3.5"></i> Initialize &amp; lock
+                                                <i data-lucide="{{ $register->key === 'deeds' ? 'save' : 'lock' }}" class="h-3.5 w-3.5"></i> {{ $register->key === 'deeds' ? 'Save serial' : 'Initialize & lock' }}
                                             </button>
                                         </form>
                                     @endif

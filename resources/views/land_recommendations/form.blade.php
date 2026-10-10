@@ -4155,20 +4155,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // An issued RoFO file only has its blanks filled: a value it was saved
-            // with is correct data and is not overwritten by a bulk copy. Changing
-            // one of those is done on that file, through the stepper.
+            // Other cards retain the existing blank-only rule for issued files.
+            // Grant Conditions applies every displayed value after confirmation.
             var kept = 0;
             grantStore.forEach(function (g, i) {
                 if (i === grantIndex || !g) return;
                 var tr = rowsBody.querySelector('.batch-row[data-index="' + g.__rowIndex + '"]');
-                var saved = (tr && tr.dataset.rofoLocked === '1') ? (savedGrant[g.__file] || {}) : null;
+                // Grant Conditions explicitly replaces the selected batch's values,
+                // including issued files. syncGrantInputs posts those corrections per file.
+                var saved = (buttonId !== 'grant-card-apply-all' && tr && tr.dataset.rofoLocked === '1')
+                    ? (savedGrant[g.__file] || {}) : null;
                 fields.forEach(function (f) {
                     if (saved && String(saved[f] == null ? '' : saved[f]).trim() !== '') { kept++; return; }
                     g[f] = source[f];
                 });
             });
 
+            if (BATCH_EDIT) editDirty = true;
             renderGrantStep();
             setStatus(cardLabel + ' copied onto ' + (grantStore.length - 1) + ' other file(s).'
                 + (kept ? ' ' + kept + ' value(s) already saved on issued files were kept.' : ''), 'warn');

@@ -74,15 +74,17 @@ class LossOfDocumentController extends Controller
         $data['status'] = LandsOneStopShopApplication::STATUS_PENDING;
 
         if ($request->hasFile('passport_photo')) {
-            $path = $request->file('passport_photo')->store('public/loss_of_document_passports');
-            $data['passport_photo'] = $path;
+            // The public disk (F:, served at /storage). The stored value keeps its
+            // 'public/' prefix because the page turns 'public/' into '/storage/'.
+            $path = $request->file('passport_photo')->store('loss_of_document_passports', 'public');
+            $data['passport_photo'] = 'public/' . $path;
         }
 
         if (isset($data['passport_photo']) && $data['passport_photo'] instanceof \Illuminate\Http\UploadedFile) {
             unset($data['passport_photo']);
         }
 
-        $record = LandsOneStopShopApplication::create($data);
+        $record =LandsOneStopShopApplication::create($data);
 
         return response()->json([
             'success' => true,
@@ -112,8 +114,8 @@ class LossOfDocumentController extends Controller
         $data['updated_by'] = Auth::id();
 
         if ($request->hasFile('passport_photo')) {
-            $path = $request->file('passport_photo')->store('public/loss_of_document_passports');
-            $data['passport_photo'] = $path;
+            $path = $request->file('passport_photo')->store('loss_of_document_passports', 'public');
+            $data['passport_photo'] = 'public/' . $path;
         }
 
         if (isset($data['passport_photo']) && $data['passport_photo'] instanceof \Illuminate\Http\UploadedFile) {

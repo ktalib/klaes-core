@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SpaApplication;
 use App\Models\SpaFieldData;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -34,6 +35,22 @@ use Illuminate\Validation\ValidationException;
  */
 class SpaMobileService
 {
+    /**
+     * The uses the "General Landuse (Observed around) - Special" dropdown offers
+     * for a customary title. One list for the desktop form, the mobile page and
+     * the app's lookup API, so the three cannot disagree. Industrial was added on
+     * request (2026-10-08); it was previously left out.
+     */
+    public const CUSTOMARY_LAND_USES = ['RESIDENTIAL', 'COMMERCIAL', 'AGRICULTURAL', 'INDUSTRIAL'];
+
+    /** The register's land uses that a customary title may take, in register order. */
+    public static function customaryLandUses($landUses)
+    {
+        return collect($landUses)
+            ->filter(fn ($u) => in_array(strtoupper(trim((string) $u)), self::CUSTOMARY_LAND_USES, true))
+            ->values();
+    }
+
     private SpaBillingService $billing;
 
     /**
@@ -203,6 +220,10 @@ class SpaMobileService
         // cost a surveyor their field data.
         $this->billing->billForContravention($app, $createdBy);
 
+        // ...and the First Serve goes out at the same moment: recorded as served,
+        // with the SMS when the record has a usable phone number. Never throws.
+        (new SpaNoticeService($this->billing))->serveFirstForContravention($app, $createdBy, auth()->id());
+
         return $app->refresh();
     }
 
@@ -268,6 +289,8 @@ class SpaMobileService
         // check runs again here. Idempotent, so an edit that merely fixes a
         // phone number cannot raise a second bill.
         $this->billing->billForContravention($app);
+        // An edit that creates a contravention serves its First Serve too; once only.
+        (new SpaNoticeService($this->billing))->serveFirstForContravention($app, auth()->user()->name ?? null, auth()->id());
 
         return $app;
     }
@@ -303,6 +326,63 @@ class SpaMobileService
     }
 
     // -----------------------------------------------------------------------
+    // Who may edit what (web, mobile page and app API alike)
+    // -----------------------------------------------------------------------
+
+    /**
+     * A captured land record may be edited only by a Super Admin or by the
+     * officer who captured it. Anyone else who visits the site adds a new
+     * inspection to the record instead (a revisit) — see revisitsAllowed().
+     *
+     * created_by holds the capturing officer's display name (every path writes
+     * the user's name there), so that is what is compared.
+     */
+    public static function canEditRecord($record, $user): bool
+    {
+        if (! $user || ! $record) {
+            return false;
+        }
+
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return true;
+        }
+
+        return self::sameName($record->created_by ?? null, $user->name ?? null);
+    }
+
+    /** An inspection: a Super Admin, or the officer who made that visit. */
+    public static function canEditInspection($inspection, $user): bool
+    {
+        if (! $user || ! $inspection) {
+            return false;
+        }
+
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return true;
+        }
+
+        return ($inspection->surveyor_id && (int) $inspection->surveyor_id === (int) $user->id)
+            || self::sameName($inspection->created_by ?? null, $user->name ?? null);
+    }
+
+    private static function sameName(?string $a, ?string $b): bool
+    {
+        $norm = fn ($v) => mb_strtoupper(preg_replace('/\s+/', ' ', trim((string) $v)), 'UTF-8');
+
+        return $norm($a) !== '' && $norm($a) === $norm($b);
+    }
+
+    private static ?bool $revisitsAllowed = null;
+
+    /** Whether a file may carry more than one inspection (the unique index is gone). */
+    public static function revisitsAllowed(): bool
+    {
+        return self::$revisitsAllowed ??= ! DB::connection('sqlsrv')->selectOne(
+            "SELECT 1 AS x FROM sys.indexes WHERE object_id = OBJECT_ID('spa_field_data') AND name = 'UQ_spa_field_data_file_number'"
+        );
+    }
+
+    // -----------------------------------------------------------------------
     // Field data
     // -----------------------------------------------------------------------
 
@@ -317,7 +397,10 @@ class SpaMobileService
      */
     public function duplicateInspectionError(?string $fileNumber): ?string
     {
-        if (! $fileNumber) {
+        // Revisits: once UQ_spa_field_data_file_number is gone (migration
+        // 2026_10_08_140000) a file may carry several inspections, so a second
+        // one is a new visit to the same record, not a duplicate.
+        if (! $fileNumber || self::revisitsAllowed()) {
             return null;
         }
 

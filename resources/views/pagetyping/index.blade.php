@@ -531,6 +531,9 @@
         const STORAGE_BASE_URL = "{{ asset('storage') }}";
         const PAGE_TYPING_FOLDER_ORDER_URL_TEMPLATE = "{{ route('pagetyping.folder.order', ['file_indexing' => '__FILE_INDEXING__']) }}";
         const CURRENT_USER_ID = {{ auth()->id() ?? 'null' }};
+        // A Supper Admin (users.assign_role, the app's spelling) may continue a
+        // file someone else started typing.
+        const CURRENT_USER_IS_SUPER_ADMIN = {{ (auth()->check() && collect(explode(',', (string) auth()->user()->assign_role))->map(fn ($r) => strtolower(trim($r)))->contains('supper admin')) ? 'true' : 'false' }};
 
         // Check if PDF.js is available
         console.log('PDF.js availability:', typeof pdfjsLib);
@@ -3724,7 +3727,7 @@
                       </div>
                       <div class="flex items-center gap-2">
                         <span class="badge bg-orange-500 text-white">In Progress</span>
-                        <button class="btn btn-primary btn-sm continue-typing" data-id="${file.id}" ${file.typed_by_id && CURRENT_USER_ID && parseInt(file.typed_by_id) !== parseInt(CURRENT_USER_ID) ? 'disabled title="Only the user who started typing can continue"' : ''}>
+                        <button class="btn btn-primary btn-sm continue-typing" data-id="${file.id}" ${!CURRENT_USER_IS_SUPER_ADMIN && file.typed_by_id && CURRENT_USER_ID && parseInt(file.typed_by_id) !== parseInt(CURRENT_USER_ID) ? 'disabled title="Only the user who started typing can continue"' : ''}>
                           <i data-lucide="edit" class="h-4 w-4 mr-1"></i>
                           Continue
                         </button>

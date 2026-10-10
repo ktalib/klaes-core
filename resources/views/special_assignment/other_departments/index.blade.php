@@ -54,7 +54,8 @@
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">Cadastral Referrals</h2></div>
                 <div class="p-4">
-                    <table id="table-cadastral" class="w-full text-sm" style="width:100%">
+                    @include('special_assignment.partials.table_case')
+                    <table id="table-cadastral" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Referred By</th><th class="px-3 py-2">Referral Date</th>
@@ -72,7 +73,7 @@
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">Physical Planning / KAMMA Referrals</h2></div>
                 <div class="p-4">
-                    <table id="table-physical_planning" class="w-full text-sm" style="width:100%">
+                    <table id="table-physical_planning" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Referred By</th><th class="px-3 py-2">Referral Date</th>
@@ -90,7 +91,7 @@
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">Survey Referrals</h2></div>
                 <div class="p-4">
-                    <table id="table-survey" class="w-full text-sm" style="width:100%">
+                    <table id="table-survey" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Referred By</th><th class="px-3 py-2">Referral Date</th>

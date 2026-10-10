@@ -41,6 +41,14 @@ class SpaNotice extends Model
         'scheduled_date' => 'date',
     ];
 
+    /** The recipient is stored in CAPITALS, like the owner it is copied from. */
+    public function setRecipientNameAttribute($value): void
+    {
+        $this->attributes['recipient_name'] = is_string($value) && trim($value) !== ''
+            ? mb_strtoupper(trim($value), 'UTF-8')
+            : $value;
+    }
+
     public function application()
     {
         return $this->belongsTo(SpaApplication::class, 'spa_application_id');

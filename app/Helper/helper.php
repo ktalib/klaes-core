@@ -37,10 +37,35 @@ if (!function_exists('file_storage_path')) {
     function file_storage_path(?string $path = ''): string
     {
         $normalizedPath = trim((string) ($path ?? ''));
-        $storagePath = env('STORAGE_PATH');
 
-        // If STORAGE_PATH is set in .env, use it as the base; otherwise use Laravel's storage_path()
-        $base = $storagePath ? rtrim((string) $storagePath, '\\/') : storage_path();
+        // Resolved once per request. Under Apache on Windows env() can come back
+        // empty part-way through a request (getenv/putenv are not thread-safe),
+        // and re-reading it on every call let one request mix F:\storage and
+        // C:\...\storage paths — which is how scans were saved with an absolute
+        // "F://storage/app/public/..." document_path on 2026-10-07. When every
+        // runtime source is empty, STORAGE_PATH is read from .env itself rather
+        // than silently falling back to the C: drive.
+        static $base = null;
+        if ($base === null) {
+            $storagePath = env('STORAGE_PATH')
+                ?: ($_ENV['STORAGE_PATH'] ?? null)
+                ?: ($_SERVER['STORAGE_PATH'] ?? null)
+                ?: getenv('STORAGE_PATH');
+
+            if (!$storagePath) {
+                $envFile = base_path('.env');
+                if (is_file($envFile)) {
+                    try {
+                        $parsed = \Dotenv\Dotenv::parse((string) file_get_contents($envFile));
+                        $storagePath = $parsed['STORAGE_PATH'] ?? null;
+                    } catch (\Throwable $e) {
+                        $storagePath = null;
+                    }
+                }
+            }
+
+            $base = $storagePath ? rtrim((string) $storagePath, '\\/') : storage_path();
+        }
 
         if ($normalizedPath === '') {
             return $base;

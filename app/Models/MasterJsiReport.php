@@ -32,6 +32,9 @@ class MasterJsiReport extends Model
     public const STATUS_DRAFT     = 'draft';
     public const STATUS_GENERATED = 'generated';
     public const STATUS_SUBMITTED = 'submitted';
+    // PP Director has approved; waiting for the PS. Only reachable once the
+    // approval-stage columns exist -- see supportsApprovalStages().
+    public const STATUS_DIRECTOR_APPROVED = 'director_approved';
     public const STATUS_APPROVED  = 'approved';
     public const STATUS_REJECTED  = 'rejected';
 
@@ -81,7 +84,9 @@ class MasterJsiReport extends Model
         'available_on_ground',
         'boundary_description',
         'boundary_segments',
-        'road_reservation',
+        'road_reservation',          // shown as "Existing Road Reservation"
+        'recommended_reservation',   // Section 9
+        'size_adequate',             // Section 9: Yes / No
         'conformity',
         'prevailing_land_use',
         'existing_land_use',
@@ -123,6 +128,12 @@ class MasterJsiReport extends Model
         'submitted_by',
         'approved_at',
         'approved_by',
+        'director_approved_at',
+        'director_approved_by',
+        'director_remarks',
+        'ps_approved_at',
+        'ps_approved_by',
+        'ps_remarks',
         'rejected_reason',
         'sent_to_deeds_at',
         'sent_to_deeds_by',
@@ -150,7 +161,79 @@ class MasterJsiReport extends Model
         'finding_site_suitable'   => 'boolean',
         'finding_site_accessible' => 'boolean',
         'returned_at'             => 'datetime',
+        'size_adequate'           => 'boolean',
+        'director_approved_at'    => 'datetime',
+        'ps_approved_at'          => 'datetime',
     ];
+
+    /** Columns added by 2026_10_08_100000; absent until that migration runs. */
+    private const SECTION_9_COLUMNS = ['recommended_reservation', 'size_adequate'];
+    private const STAGE_COLUMNS     = [
+        'director_approved_at', 'director_approved_by', 'director_remarks',
+        'ps_approved_at', 'ps_approved_by', 'ps_remarks',
+    ];
+
+    private static array $columnCache = [];
+
+    private static function hasColumns(array $columns): bool
+    {
+        $key = implode(',', $columns);
+
+        return self::$columnCache[$key] ??= (function () use ($columns) {
+            $present = \Illuminate\Support\Facades\Schema::connection('sqlsrv')->getColumnListing('master_jsi_reports');
+
+            return ! array_diff($columns, $present);
+        })();
+    }
+
+    /** Section 9 (Recommended Reservation, Is the size adequate?) can be stored. */
+    public static function supportsSection9(): bool
+    {
+        return self::hasColumns(self::SECTION_9_COLUMNS);
+    }
+
+    /**
+     * The two-stage approval (PP Director, then PS) can be recorded.
+     *
+     * Until the migration runs, the PP Director's approval is the final one, as
+     * before; the PS stage switches on by itself once the columns exist.
+     */
+    public static function supportsApprovalStages(): bool
+    {
+        return self::hasColumns(self::STAGE_COLUMNS);
+    }
+
+    /** Drop attributes for columns this database does not have yet. */
+    public static function onlyStorable(array $attributes): array
+    {
+        if (! self::supportsSection9()) {
+            $attributes = array_diff_key($attributes, array_flip(self::SECTION_9_COLUMNS));
+        }
+
+        if (! self::supportsApprovalStages()) {
+            $attributes = array_diff_key($attributes, array_flip(self::STAGE_COLUMNS));
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Which approval this report is waiting for: 'director', 'ps', or null.
+     */
+    public function awaitingStage(): ?string
+    {
+        return match ($this->status) {
+            self::STATUS_SUBMITTED         => 'director',
+            self::STATUS_DIRECTOR_APPROVED => 'ps',
+            default                        => null,
+        };
+    }
+
+    /** The officer who captured the observation. */
+    public function creator(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     /** The four-direction view of boundary_description the form binds to. */
     protected $appends = ['boundary_segments'];
@@ -355,6 +438,16 @@ class MasterJsiReport extends Model
     public function isApproved(): bool
     {
         return $this->status === self::STATUS_APPROVED;
+    }
+
+    /**
+     * Closed to edits, attachments and deletion: fully approved, or approved by
+     * the PP Director and waiting for the PS — the PS must decide on the sheet
+     * the Director approved, not on one edited since.
+     */
+    public function isLocked(): bool
+    {
+        return in_array($this->status, [self::STATUS_APPROVED, self::STATUS_DIRECTOR_APPROVED], true);
     }
 
     public function sentToDeeds(): bool

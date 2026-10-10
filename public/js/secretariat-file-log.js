@@ -101,6 +101,7 @@ window.secretariatFileLog = function (config) {
         _indexTimer: null,
         _indexSeq: 0,
         profile: { open: false, loading: false, tab: 'history', data: null, match: null },
+        sheetBusy: false,
         lightbox: { open: false, items: [], index: 0 },
         keyTimes: [],
         autoTimer: null,
@@ -470,6 +471,7 @@ window.secretariatFileLog = function (config) {
             const b = [];
             if (d.file.non_file) b.push({ label: 'Not a regular file', cls: 'bg-blue-100 text-blue-700' });
             else b.push(d.file.indexed ? { label: 'Indexed', cls: 'bg-green-100 text-green-700' } : { label: 'Not indexed', cls: 'bg-orange-100 text-orange-700' });
+            if (d.tracker && d.tracker.request_type === 'SUBMITTED') b.push({ label: 'Submitted Request', cls: 'bg-purple-100 text-purple-700' });
             if (d.file.decommissioned) b.push({ label: 'Decommissioned' + (d.file.successor ? ' → ' + d.file.successor : ''), cls: 'bg-red-100 text-red-700' });
             if (this.heldHere()) b.push({ label: 'Held at your office', cls: 'bg-emerald-100 text-emerald-700' });
             else if (d.tracker && d.tracker.last_status === 'pending_acceptance') b.push({ label: 'In transit', cls: 'bg-yellow-100 text-yellow-800' });
@@ -1059,6 +1061,90 @@ window.secretariatFileLog = function (config) {
                 this.notify('error', e.message);
             } finally {
                 this.busy = false;
+            }
+        },
+
+        // ── Tracking sheet ────────────────────────────────────────────────
+        // The sheet is the main Log a File page's own (printFileTrackerDetails in
+        // create_file_tracker_page/partials/js.blade.php), so both pages print the
+        // same document. As on the MLS commissioning screen, that page is loaded in
+        // a hidden same-origin frame where its script can initialise, and the
+        // tracker comes from its search endpoint, decorated the way its sheet expects.
+        sheetFrame() {
+            if (!this._sheetFrame) {
+                this._sheetFrame = new Promise((resolve) => {
+                    const frame = document.createElement('iframe');
+                    frame.setAttribute('aria-hidden', 'true');
+                    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1160px;height:900px;border:0;visibility:hidden;';
+                    frame.src = this.urls.trackingPage;
+                    document.body.appendChild(frame);
+                    const started = Date.now();
+                    const poll = setInterval(() => {
+                        let win = null;
+                        try { win = frame.contentWindow; } catch (e) { win = null; }
+                        if (win && typeof win.printFileTrackerDetails === 'function' && typeof win.transformApiTracker === 'function') {
+                            clearInterval(poll);
+                            resolve(win);
+                        } else if (Date.now() - started > 30000) {
+                            clearInterval(poll);
+                            frame.remove();
+                            resolve(null);
+                        }
+                    }, 150);
+                });
+                // A failed load is not cached, so the next click tries again.
+                this._sheetFrame.then((win) => { if (!win) this._sheetFrame = null; });
+            }
+            return this._sheetFrame;
+        },
+
+        async printTrackingSheet() {
+            const t = this.profile.data && this.profile.data.tracker;
+            if (!t || !t.tracking_id || this.sheetBusy) return;
+            // Open the window now, inside the click, or the browser blocks it.
+            const out = window.open('', '_blank');
+            if (!out) {
+                this.notify('error', 'Allow pop-ups for this site to print the tracking sheet.');
+                return;
+            }
+            out.document.write('<p style="font:14px Arial,sans-serif;padding:24px;color:#555">Preparing tracking sheet…</p>');
+            this.sheetBusy = true;
+            try {
+                const [win, res] = await Promise.all([
+                    this.sheetFrame(),
+                    fetch(this.urls.trackerSearch + '?' + new URLSearchParams({ query: t.tracking_id }), {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin',
+                    }).then((r) => r.json()),
+                ]);
+                if (!win) throw new Error('The tracking sheet could not be prepared. Try again.');
+                const raw = res && res.success && res.data && res.data.tracker;
+                if (!raw || Number(raw.id) !== Number(t.id)) throw new Error('Tracker not found for printing.');
+                const tracker = win.transformApiTracker(raw);
+                const html = tracker && win.printFileTrackerDetails(tracker, { returnHtml: true });
+                if (!html) throw new Error('The tracking sheet could not be built.');
+
+                out.document.open();
+                out.document.write(html);
+                out.document.close();
+                try {
+                    out.document.querySelectorAll('.print-container').forEach((root) => {
+                        if (typeof win.paginateTrackingSheet === 'function') win.paginateTrackingSheet(out.document, root);
+                    });
+                } catch (e) { console.error('Tracking sheet pagination failed:', e); }
+                const go = () => setTimeout(() => { try { out.focus(); out.print(); } catch (e) { /* closed */ } }, 150);
+                const qr = out.document.querySelector('.qr-wrapper img');
+                if (qr && !qr.complete) {
+                    qr.addEventListener('load', go, { once: true });
+                    qr.addEventListener('error', go, { once: true });
+                } else {
+                    go();
+                }
+            } catch (e) {
+                try { out.close(); } catch (x) { /* already closed */ }
+                this.notify('error', e.message || 'Could not print the tracking sheet.');
+            } finally {
+                this.sheetBusy = false;
             }
         },
 

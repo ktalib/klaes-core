@@ -535,8 +535,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post  ('/land-records/{id}/update',   [\App\Http\Controllers\SpecialAssignmentController::class, 'updateLandRecord'])->name('land-records.update');
         Route::post  ('/land-records/{id}/delete',   [\App\Http\Controllers\SpecialAssignmentController::class, 'deleteLandRecord'])->name('land-records.delete');
         Route::post  ('/field-data/store',        [\App\Http\Controllers\SpecialAssignmentController::class, 'storeFieldData'])->name('field-data.store');
+        // Edit one inspection (visit): its own officer or a Super Admin only.
+        Route::post  ('/field-data/{id}/update',  [\App\Http\Controllers\SpecialAssignmentController::class, 'updateFieldData'])->name('field-data.update');
         Route::delete('/field-data/{id}',         [\App\Http\Controllers\SpecialAssignmentController::class, 'deleteFieldData'])->name('field-data.delete');
         Route::post('/notice/store',             [\App\Http\Controllers\SpecialAssignmentController::class, 'storeNotice'])->name('notice.store');
+        // The printable notice (First Serve / Second Serve reminder letter).
+        Route::get('/notice/{id}/print', [\App\Http\Controllers\SpecialAssignmentController::class, 'printNotice'])->name('notice.print');
         Route::post('/notice/{id}/second',       [\App\Http\Controllers\SpecialAssignmentController::class, 'triggerSecondNotice'])->name('notice.second');
         // Re-attempt a failed send. A first serve whose SMS never went is never
         // escalated, so without this it is a dead end.
@@ -558,11 +562,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get ('/bills/{id}/sheet',            [\App\Http\Controllers\SpecialAssignmentController::class, 'billPaymentSheet'])->name('bills.sheet');
         Route::get ('/bills/receipt/{id}',          [\App\Http\Controllers\SpecialAssignmentController::class, 'printBillReceipt'])->name('bills.receipt');
 
-        // The contravention tariff. Bills themselves are raised automatically
-        // when a record is found in contravention, so there is no longer a
-        // "create bill" route — only the settings behind it.
-        Route::get('/bill-items',       [\App\Http\Controllers\SpecialAssignmentController::class, 'billItems'])->name('bill-items.index');
-        Route::post('/bill-items/save', [\App\Http\Controllers\SpecialAssignmentController::class, 'saveBillItems'])->name('bill-items.save');
+        // The contravention tariff is edited on System Admin -> Configurable
+        // Entries -> SPAS Bill Items (routes/configurable_entries.php).
     });
 
 });

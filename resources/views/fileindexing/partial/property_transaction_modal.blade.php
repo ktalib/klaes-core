@@ -3008,6 +3008,59 @@
     }
 
     // Global function to submit property transactions
+    /**
+     * One prompt per existing row the officer changed to Occupancy Permit (OP):
+     *   Convert   -> that row becomes the OP (op_retype 'convert')
+     *   Keep      -> the row stays as it is; the OP is saved as a new record ('new')
+     *   Cancel    -> nothing is saved
+     * Resolves true once every row has an answer.
+     */
+    async function confirmOpRetypes(retypes, transactions) {
+        const esc = (value) => String(value == null ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        for (const retype of retypes) {
+            const row = transactions[retype.index];
+            if (!row) return false;
+
+            const parties = [retype.first_party, retype.second_party].filter(Boolean).map(esc).join(' &rarr; ');
+            const html = '<div style="text-align:left">'
+                + '<p>This row is already on the file as <b>' + esc(retype.from_type || 'another transaction') + '</b>'
+                + (parties ? ' (' + parties + ')' : '')
+                + ', and you changed its type to <b>' + esc(retype.to_type) + '</b>.</p>'
+                + '<p style="margin-top:8px"><b>Convert</b> &mdash; this row becomes the OP (use this when the type was captured wrongly).</p>'
+                + '<p style="margin-top:4px"><b>Keep &amp; add new</b> &mdash; this row stays as it is, and the OP is saved as a new record.</p>'
+                + '</div>';
+
+            let choice = null;
+            if (typeof Swal !== 'undefined') {
+                const result = await Swal.fire({
+                    icon: 'question',
+                    title: 'Change this row to OP?',
+                    html: html,
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'Convert',
+                    denyButtonText: 'Keep & add new',
+                    cancelButtonText: 'Cancel',
+                    allowOutsideClick: false,
+                });
+                if (result.isConfirmed) choice = 'convert';
+                else if (result.isDenied) choice = 'new';
+            } else if (window.confirm('This row is already on the file as ' + (retype.from_type || 'another transaction')
+                + '. OK = convert it to OP. Cancel = keep it and add the OP as a new record.')) {
+                choice = 'convert';
+            } else {
+                choice = 'new';
+            }
+
+            if (!choice) return false;
+            row.opRetype = choice;
+        }
+
+        return true;
+    }
+
     function submitPropertyTransactions(transactions, fileIndexingData) {
         console.log('=== SUBMITTING PROPERTY TRANSACTIONS ===');
         console.log('1. File Indexing Data received:', fileIndexingData);
@@ -3056,6 +3109,9 @@
             // Set by the user on a row the server held back as a possible duplicate:
             // "I have checked — this is a separate instrument, save it."
             force_save: t.forceSave ? 1 : 0,
+            // An existing row changed to OP: 'convert' it, or keep it and save the OP as
+            // 'new'. Asked by confirmOpRetypes() when the server reports such a row.
+            op_retype: t.opRetype || null,
             // 'Other' is replaced by the instrument the officer named, so every
             // destination table stores a real instrument name. The typed name rides
             // along under its own key for the record.
@@ -3292,6 +3348,17 @@
                 if (submitBtn) {
                     submitBtn.disabled = false;
                     submitBtn.innerText = originalBtnText;
+                }
+
+                // Nothing was saved: a row already on the file was changed to OP. Ask
+                // about each one, then save again with the answers.
+                if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.needs_op_retype_confirmation) {
+                    confirmOpRetypes(xhr.responseJSON.retypes || [], transactions).then((answered) => {
+                        if (answered) {
+                            submitPropertyTransactions(transactions, fileIndexingData);
+                        }
+                    });
+                    return;
                 }
 
                 let errorMessage = 'An error occurred while saving transaction details.';

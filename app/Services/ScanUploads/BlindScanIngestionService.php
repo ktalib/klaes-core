@@ -430,8 +430,22 @@ class BlindScanIngestionService
 
     private function convertToPublicPath(string $absolutePath): string
     {
-        $base = file_storage_path('app/public/');
-        return str_replace('\\', '/', trim(Str::after($absolutePath, $base), '/'));
+        // Compare with forward slashes and without case: the base and the
+        // destination can differ in slash style (F:\\storage vs F:\storage).
+        $path = str_replace('\\', '/', $absolutePath);
+        $base = rtrim(str_replace('\\', '/', file_storage_path('app/public')), '/') . '/';
+
+        if (stripos($path, $base) === 0) {
+            $relative = substr($path, strlen($base));
+        } elseif (($at = stripos($path, '/app/public/')) !== false) {
+            // Different base than expected: everything after app/public/ is
+            // still the disk-relative path. Never store an absolute path.
+            $relative = substr($path, $at + strlen('/app/public/'));
+        } else {
+            $relative = $path;
+        }
+
+        return trim(preg_replace('#/{2,}#', '/', $relative), '/');
     }
 
     private function markBlindScanRecord(array $manifest, string $fileNumber, string $blindRelative, ?int $fileIndexingId, int $scanId): void

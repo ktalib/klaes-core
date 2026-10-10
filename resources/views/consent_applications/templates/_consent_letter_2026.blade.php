@@ -55,11 +55,10 @@
                  writable rule      89 - 140mm ("Date:" begins at 141.4mm)
                  box bottom border  61.7mm
                The field therefore starts after the label and centres in the
-               rule's writable half. The 5mm line is topped at 56mm — trimmed by
-               eye from the measured 57.5mm so the number's baseline sits level
-               with the label's rather than a shade under it. */
+               rule's writable half. The 5mm line is topped at 54.15mm — trimmed
+               from the measured 57.5mm by test-printing onto the stationery. */
             --ref-left: 89mm;
-            --ref-top: 56mm;
+            --ref-top: 54.15mm;
             --ref-size: 11.5pt;
             --ref-width: 50mm;
         }
@@ -102,9 +101,9 @@
 
         body {
             font-family: 'Times New Roman', Times, serif;
-            /* 13.5pt rather than the 14.5pt of assignment_2026: the fee schedule
+            /* 15pt rather than the 16pt of assignment_2026: the fee schedule
                adds four lines, and print is clipped to a single A4 sheet. */
-            font-size: 13.5pt;
+            font-size: 15pt;
             line-height: 1.4;
             color: #000;
             margin: 0;
@@ -234,7 +233,7 @@
 
         .letter-date {
             white-space: nowrap;
-            padding-top: 1.6rem;
+            margin-top: -1rem;
         }
 
         /* Ordinal suffix rides high: "24th September, 2026". */
@@ -566,8 +565,6 @@
             </div>
             <div class="letter-date json-data">{!! $longDate($application->created_at) !!}</div>
         </div>
-
-        <div style="margin-top: 1.1rem;">Sir,</div>
 
         <!-- Subject -->
         <div class="subject">

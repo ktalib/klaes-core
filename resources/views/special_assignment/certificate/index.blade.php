@@ -40,7 +40,8 @@
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">Change of Purpose Sheet Registry</h2></div>
             <div class="p-4">
-                <table id="certificate-table" class="w-full text-sm" style="width:100%">
+                @include('special_assignment.partials.table_case')
+                <table id="certificate-table" class="spas-table w-full text-sm" style="width:100%">
                     <thead>
                         <tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th>

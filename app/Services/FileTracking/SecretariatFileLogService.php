@@ -162,6 +162,7 @@ class SecretariatFileLogService
                 }
                 $tracker->movement_log = $log;
                 $this->markHeld($tracker, $office, $userName);
+                $this->markIfRequested($tracker);
                 $tracker->save();
 
                 return ['tracker' => $tracker->refresh(), 'action' => 'accepted'];
@@ -186,6 +187,7 @@ class SecretariatFileLogService
 
             $this->markHeld($tracker, $office, $userName);
             $this->stampPurpose($tracker, $data);
+            $this->markIfRequested($tracker);
             if (strtoupper((string) $tracker->status) === FileTracker::STATUS_COMPLETED) {
                 $tracker->status = FileTracker::STATUS_ACTIVE;
             }
@@ -293,6 +295,7 @@ class SecretariatFileLogService
             $tracker->request_purpose_name = $purpose->name;
             $tracker->assignment_status = FileTracker::ASSIGNMENT_PENDING;
             $tracker->assignment_accepted_at = null;
+            $this->markIfRequested($tracker);
             $tracker->save();
 
             return $tracker->refresh();
@@ -517,9 +520,44 @@ class SecretariatFileLogService
 
         $this->markHeld($tracker, $office, $userName);
         $this->stampPurpose($tracker, $data);
+        $this->markIfRequested($tracker);
         $tracker->save();
 
         return $tracker->refresh();
+    }
+
+    /**
+     * A file that came through Quick Search is a Submitted Request, not a file
+     * simply in transit. Same test as the main Log a File page
+     * (CreateFileTrackerController::answersQuickSearchRequest): the file has a
+     * request the SCB marked FOUND, and no other tracker has been created for it
+     * since that response, so this tracker is the one carrying the file to the
+     * requester. Once set it stays, as it does there. SYSTEM (file-range
+     * bookkeeping) trackers are never a request.
+     */
+    private function markIfRequested(FileTracker $tracker): void
+    {
+        $fileNumber = strtoupper(trim((string) $tracker->file_number));
+        $type = strtoupper(trim((string) $tracker->file_request_type));
+        if ($fileNumber === '' || $type === 'SYSTEM' || $type === 'SUBMITTED') {
+            return;
+        }
+
+        $requested = \App\Models\FileSearchRequest::where('status', \App\Models\FileSearchRequest::STATUS_FOUND)
+            ->whereNotNull('responded_at')
+            ->whereRaw('UPPER(LTRIM(RTRIM(file_number))) = ?', [$fileNumber])
+            ->whereNotExists(function ($q) use ($tracker) {
+                $q->selectRaw('1')
+                    ->from('file_tracker')
+                    ->whereRaw('UPPER(LTRIM(RTRIM(file_tracker.file_number))) = UPPER(LTRIM(RTRIM(file_search_requests.file_number)))')
+                    ->whereColumn('file_tracker.created_at', '>=', 'file_search_requests.responded_at')
+                    ->when($tracker->id, fn ($w) => $w->where('file_tracker.id', '<>', $tracker->id));
+            })
+            ->exists();
+
+        if ($requested) {
+            $tracker->file_request_type = 'SUBMITTED';
+        }
     }
 
     private function markHeld(FileTracker $tracker, array $office, string $userName): void
@@ -545,6 +583,7 @@ class SecretariatFileLogService
             'file_number' => $tracker->file_number,
             'file_title'  => $tracker->file_title,
             'file_type'   => $tracker->file_type,
+            'request_type' => strtoupper(trim((string) $tracker->file_request_type)) ?: null,
             'not_indexed' => !empty($meta['not_indexed']),
             'reference'   => $meta['reference'] ?? null,
             'related_file_number' => $meta['related_file_number'] ?? null,

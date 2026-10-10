@@ -38,6 +38,17 @@ class PropertyRecordController extends Controller
     public const OCCUPANCY_PERMIT_MARKER = 'Occupancy Permit (OP)';
     private const PRA_TABLE = 'pra';
     private const DEED_TABLE = 'deed_registrations';
+
+    /**
+     * Each `_source` the card can send, with its table and the columns that hold the file
+     * number -- the same columns checkExistingRecords() matches a file's rows on.
+     */
+    private const SOURCE_TABLES = [
+        'fh' => [self::PROPERTY_TABLE, ['mlsFNo', 'kangisFileNo', 'NewKANGISFileno', 'fileno']],
+        'cofo' => [self::COFO_TABLE, ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno']],
+        'pra' => [self::PRA_TABLE, ['mlsFNo', 'fileno']],
+        'deeds' => [self::DEED_TABLE, ['fileno', 'parent_fileno']],
+    ];
     private PropertyIdAllocationService $propertyIdAllocationService;
     private TimelineWeightingService $timelineService;
     private \App\Services\FileSnapshotService $fileSnapshotService;
@@ -50,6 +61,140 @@ class PropertyRecordController extends Controller
     public static function isOccupancyPermit(string $transactionType): bool
     {
         return stripos($transactionType, self::OCCUPANCY_PERMIT_MARKER) !== false;
+    }
+
+    /** The row `$recordId` in `$source`'s table, only when it is on this file and not deleted. */
+    private function findRowOnFile(string $source, $recordId, array $variants): ?object
+    {
+        if (!isset(self::SOURCE_TABLES[$source])) {
+            return null;
+        }
+        [$table, $columns] = self::SOURCE_TABLES[$source];
+
+        return DB::connection('sqlsrv')->table($table)
+            ->where('id', $recordId)
+            ->where(function ($query) use ($columns, $variants) {
+                foreach ($columns as $column) {
+                    $query->orWhereIn($column, $variants);
+                }
+            })
+            ->where(function ($query) {
+                $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->first();
+    }
+
+    /**
+     * Existing rows whose type the officer changed to Occupancy Permit (OP).
+     *
+     * The card can send an existing row without its `_source`; the id was then read against
+     * pra and hit an unrelated row, which failed the OP ownership guard. The table is first
+     * recovered from the id AND this file's number.
+     *
+     * A row already stored as an OP is an ordinary edit and is left alone. Any other row
+     * needs the officer's answer in `op_retype`:
+     *   'convert' -- the row becomes the OP. A pra row is updated in place; any other row's
+     *                table cannot hold an OP (no op_serial_number), so the OP is created in pra
+     *                and the old row is flagged is_deleted in the same DB transaction.
+     *   'new'     -- the old row is kept untouched and the OP is saved as a new record.
+     * Rows still unanswered come back in the second element for the card to ask about.
+     */
+    private function resolveOpRetypes(string $fileNumber, array $transactions): array
+    {
+        $variants = $this->buildFileNumberVariants($fileNumber);
+        $unanswered = [];
+
+        foreach ($transactions as $index => $transaction) {
+            $recordId = $transaction['record_id'] ?? null;
+            if ($recordId === null || $recordId === '') {
+                continue;
+            }
+
+            $source = $transaction['_source'] ?? null;
+            if (!$source) {
+                foreach (array_keys(self::SOURCE_TABLES) as $candidate) {
+                    if ($this->findRowOnFile($candidate, $recordId, $variants)) {
+                        $source = $candidate;
+                        $transactions[$index]['_source'] = $source;
+                        break;
+                    }
+                }
+            }
+
+            if (!$source || !self::isOccupancyPermit((string) ($transaction['transaction_type'] ?? ''))) {
+                continue;
+            }
+
+            // Not on this file: left for the OP ownership guard to refuse, as before.
+            $row = $this->findRowOnFile($source, $recordId, $variants);
+            if (!$row) {
+                continue;
+            }
+
+            $stored = (array) $row;
+            $storedType = trim((string) (($stored['transaction_type'] ?? '') ?: ($stored['instrument_type'] ?? '')));
+            if (self::isOccupancyPermit($storedType) || self::isOccupancyPermit((string) ($stored['instrument_type'] ?? ''))) {
+                continue;
+            }
+
+            $choice = $transaction['op_retype'] ?? null;
+            if ($choice === 'convert' && $source === 'pra') {
+                $transactions[$index]['_op_retype_convert'] = true;
+            } elseif ($choice === 'convert') {
+                $transactions[$index]['record_id'] = null;
+                $transactions[$index]['_source'] = null;
+                // The only match would be the row this OP replaces.
+                $transactions[$index]['force_save'] = 1;
+                $transactions[$index]['_op_retype_retire'] = [$source, (int) $recordId];
+            } elseif ($choice === 'new') {
+                $transactions[$index]['record_id'] = null;
+                $transactions[$index]['_source'] = null;
+            } else {
+                $unanswered[] = [
+                    'index' => $index,
+                    'record_id' => (int) $recordId,
+                    'source' => $source,
+                    'from_type' => $storedType,
+                    'to_type' => (string) ($transaction['transaction_type'] ?? ''),
+                    'first_party' => (string) ($transaction['first_party'] ?? ''),
+                    'second_party' => (string) ($transaction['second_party'] ?? ''),
+                ];
+            }
+        }
+
+        return [$transactions, $unanswered];
+    }
+
+    /** Flags (never deletes) the row an OP conversion replaced, logging it in full first. */
+    private function retireRetypedRow(string $source, int $recordId): void
+    {
+        [$table] = self::SOURCE_TABLES[$source];
+        $db = DB::connection('sqlsrv');
+        $old = $db->table($table)->where('id', $recordId)->lockForUpdate()->first();
+        if (!$old) {
+            return;
+        }
+
+        \Log::warning('Row converted to Occupancy Permit (OP) - original flagged is_deleted', [
+            'table' => $table,
+            'id' => $recordId,
+            'user_id' => Auth::id(),
+            'original' => (array) $old,
+        ]);
+
+        $columns = Schema::connection('sqlsrv')->getColumnListing($table);
+        $update = ['is_deleted' => 1];
+        if (in_array('deleted_at', $columns, true)) {
+            $update['deleted_at'] = now();
+        }
+        if (in_array('updated_at', $columns, true)) {
+            $update['updated_at'] = now();
+        }
+        if (in_array('updated_by', $columns, true)) {
+            $update['updated_by'] = Auth::id();
+        }
+
+        $db->table($table)->where('id', $recordId)->update($update);
     }
 
     /**
@@ -3066,6 +3211,9 @@ class PropertyRecordController extends Controller
                         ->orWhereIn('NewKANGISFileno', $variants)
                         ->orWhereIn('fileno', $variants);
                 })
+                ->where(function ($query) {
+                    $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                })
                 ->orderByRaw("COALESCE(TRY_CONVERT(DATETIME, NULLIF(transaction_date, '')), TRY_CONVERT(DATETIME, NULLIF(reg_date, '')), created_at) ASC")
                 ->orderBy('id')
                 ->get()
@@ -3097,6 +3245,9 @@ class PropertyRecordController extends Controller
                         ->orWhereIn('kangisFileNo', $variants)
                         ->orWhereIn('NewKANGISFileno', $variants);
                 })
+                ->where(function ($query) {
+                    $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                })
                 ->orderByRaw("COALESCE(TRY_CONVERT(DATETIME, NULLIF(transaction_date, '')), created_at) ASC")
                 ->orderBy('id')
                 ->get()
@@ -3122,6 +3273,9 @@ class PropertyRecordController extends Controller
                 ->where(function ($query) use ($variants) {
                     $query->whereIn('mlsFNo', $variants)
                         ->orWhereIn('fileno', $variants);
+                })
+                ->where(function ($query) {
+                    $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
                 })
                 ->orderByRaw("COALESCE(TRY_CONVERT(DATETIME, NULLIF(transaction_date, '')), created_at) ASC")
                 ->orderBy('id')
@@ -3346,6 +3500,18 @@ class PropertyRecordController extends Controller
 
             $tempFileno = trim((string) ($request->input('temp_fileno') ?? '')) ?: null;
 
+            // An existing row changed to OP is converted or kept only on the officer's say-so.
+            // Asked before anything is written; the card re-submits with the answers.
+            [$transactions, $unansweredRetypes] = $this->resolveOpRetypes($fileNumber, $transactions);
+            if (!empty($unansweredRetypes)) {
+                return response()->json([
+                    'success' => false,
+                    'needs_op_retype_confirmation' => true,
+                    'retypes' => $unansweredRetypes,
+                    'message' => 'A row already on this file was changed to Occupancy Permit (OP). Choose whether to convert it, or keep it and add the OP as a new record.',
+                ], 409);
+            }
+
             // Hold back — rather than block — transactions that look like duplicates.
             // Everything else is saved in this request; the held-back rows come back to
             // the form for the user to confirm, and are re-submitted with force_save=1
@@ -3508,6 +3674,11 @@ class PropertyRecordController extends Controller
                     $recordId = isset($transaction['record_id']) && $transaction['record_id'] !== ''
                         ? (int) $transaction['record_id']
                         : null;
+
+                    // Converted to an OP from another table: the OP is created in pra below.
+                    if (!empty($transaction['_op_retype_retire'])) {
+                        $this->retireRetypedRow(...$transaction['_op_retype_retire']);
+                    }
 
                     $propertyData = [
                         'prop_id' => $propId,
@@ -3882,7 +4053,10 @@ class PropertyRecordController extends Controller
                         }, ARRAY_FILTER_USE_KEY);
 
                         $opBefore = DB::connection('sqlsrv')->table(self::PRA_TABLE)->where('id', $recordId)->lockForUpdate()->first();
-                        if (!$opBefore || !\App\Support\OpSerial::isMother((array) $opBefore)
+                        // A row the officer confirmed converting to an OP is not one yet;
+                        // it must still be on this file.
+                        $convertingToOp = !empty($transaction['_op_retype_convert']);
+                        if (!$opBefore || (!$convertingToOp && !\App\Support\OpSerial::isMother((array) $opBefore))
                             || (!in_array(strtoupper(trim((string) $fileNumber)), \App\Services\OpSerialRepairPlanner::files((array) $opBefore), true)
                                 && !DB::connection('sqlsrv')->table('mls_file_no')->where('full_file_number', $fileNumber)->where('source_pra_id', $recordId)->exists())) {
                             throw ValidationException::withMessages(['transactions' => 'The selected OP does not belong to this file.']);

@@ -12,8 +12,13 @@
         MasterJsiReport::STATUS_DRAFT     => 'bg-slate-100 text-slate-600',
         MasterJsiReport::STATUS_GENERATED => 'bg-blue-100 text-blue-700',
         MasterJsiReport::STATUS_SUBMITTED => 'bg-amber-100 text-amber-700',
+        MasterJsiReport::STATUS_DIRECTOR_APPROVED => 'bg-purple-100 text-purple-700',
         MasterJsiReport::STATUS_APPROVED  => 'bg-emerald-100 text-emerald-700',
         MasterJsiReport::STATUS_REJECTED  => 'bg-red-100 text-red-700',
+    ];
+    $statusLabels = [
+        MasterJsiReport::STATUS_SUBMITTED         => 'AWAITING PP DIRECTOR',
+        MasterJsiReport::STATUS_DIRECTOR_APPROVED => 'AWAITING PS',
     ];
 
     $isLegacy = $report->isLegacyLayout();
@@ -48,7 +53,7 @@
                         <div class="flex items-center gap-2.5 flex-wrap">
                             <h1 class="text-xl font-black text-slate-800 leading-tight">{{ $report->jsi_ref }}</h1>
                             <span class="text-[10px] font-black px-2 py-1 rounded-md {{ $statusTones[$report->status] ?? 'bg-slate-100 text-slate-600' }}">
-                                {{ strtoupper($report->status) }}
+                                {{ $statusLabels[$report->status] ?? strtoupper($report->status) }}
                             </span>
                             <span class="text-[10px] font-black px-2 py-1 rounded-md {{ $report->category === 'APU' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
                                 {{ $report->category }}
@@ -437,7 +442,9 @@
                         ['Available on Ground', $report->available_on_ground],
                         ['Conforms with surrounding land use', $report->conformity === null ? null : ($report->conformity ? 'Yes' : 'No')],
                         ['Prevailing Land Use', $report->prevailing_land_use],
-                        ['Road Reservation', $report->road_reservation],
+                        ['Existing Road Reservation', $report->road_reservation],
+                        ['Recommended Reservation', $report->recommended_reservation],
+                        ['Is the size adequate?', $report->size_adequate === null ? null : ($report->size_adequate ? 'Yes' : 'No')],
                         ['Number of Units', $report->number_of_units],
                     ] as [$label, $val])
                         @if ($val !== null && $val !== '')
@@ -512,6 +519,28 @@
             @if ($report->supervisor_remarks)
             <p class="text-sm text-slate-600 mt-1 leading-relaxed">{{ $report->supervisor_remarks }}</p>
             @endif
+        </div>
+        @endif
+
+        {{-- Approval stages: PP Director, then PS. --}}
+        @if ($report->director_approved_at || $report->ps_approved_at)
+        <div class="rounded-3xl border border-slate-200 bg-slate-50/70 px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            @foreach ([
+                ['PP Director', $report->director_approved_at, $report->director_approved_by, $report->director_remarks],
+                ['Permanent Secretary', $report->ps_approved_at, $report->ps_approved_by, $report->ps_remarks],
+            ] as [$who, $at, $by, $remarks])
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider font-black text-slate-400">{{ $who }}</p>
+                    @if ($at)
+                        <p class="text-sm font-black text-emerald-600 mt-1">
+                            APPROVED <span class="text-slate-500 font-bold">{{ $at->format('d M Y') }}{{ $by ? ' · ' . (\App\Models\User::find($by)?->name ?? '') : '' }}</span>
+                        </p>
+                        @if ($remarks)<p class="text-sm text-slate-600 mt-1 leading-relaxed">{{ $remarks }}</p>@endif
+                    @else
+                        <p class="text-sm font-bold text-slate-400 mt-1">Awaiting</p>
+                    @endif
+                </div>
+            @endforeach
         </div>
         @endif
 

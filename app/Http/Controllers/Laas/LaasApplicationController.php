@@ -269,9 +269,9 @@ class LaasApplicationController extends Controller
             ->where('laas_application_id', $application->id)
             ->firstOrFail();
 
-        abort_unless(Storage::disk('local')->exists($document->path), 404);
+        abort_unless(Storage::disk('private_files')->exists($document->path), 404);
 
-        return Storage::disk('local')->download(
+        return Storage::disk('private_files')->download(
             $document->path,
             $document->original_name ?: basename($document->path)
         );
@@ -280,9 +280,10 @@ class LaasApplicationController extends Controller
     // ------------------------------------------------------------------ bits
 
     /**
-     * The `local` disk, not `public`: identification documents and passport
-     * photographs must not be reachable by guessing a URL under /storage. They
-     * come back out only through downloadDocument(), which checks ownership.
+     * The `private_files` disk, not `public`: identification documents and
+     * passport photographs must not be reachable by guessing a URL under
+     * /storage. They come back out only through downloadDocument(), which checks
+     * ownership. It sits on the STORAGE_PATH drive (F:), not C:.
      */
     private function storeDocument(LaasApplication $application, $file, string $docType): void
     {
@@ -291,7 +292,7 @@ class LaasApplicationController extends Controller
             'source'              => LaasDocument::SOURCE_APPLICANT,
             'doc_type'            => $docType,
             'original_name'       => $file->getClientOriginalName(),
-            'path'                => $file->store("laas/{$application->id}", 'local'),
+            'path'                => $file->store("laas/{$application->id}", 'private_files'),
             'mime'                => $file->getClientMimeType(),
             'size'                => $file->getSize(),
             'uploaded_by'         => $application->laas_applicant_id,

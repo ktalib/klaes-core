@@ -32,61 +32,69 @@
     <meta charset="utf-8">
     <title>{{ $report->jsi_ref }} — Joint Site Inspection</title>
     <style>
-        @page { size: A4; margin: 0; }
+        /* One A4 page. Compact type and spacing, and the page margin is the
+           printer's own (@page), so nothing spills onto a second sheet; a script
+           below scales the sheet down if a long inspection still overflows. */
+        @page { size: A4; margin: 9mm 11mm; }
 
         * { box-sizing: border-box; }
 
         body {
             margin: 0;
             font-family: "Times New Roman", Times, serif;
-            font-size: 12pt;
+            font-size: 10pt;
+            line-height: 1.3;
             color: #000;
             background: #f1f5f9;
         }
 
         .sheet {
             width: 210mm;
-            min-height: 297mm;
             margin: 0 auto;
-            padding: 18mm 16mm;
+            padding: 9mm 11mm;
             background: #fff;
         }
 
-        .head { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
-        .head h1 { font-size: 15pt; margin: 0; text-transform: uppercase; letter-spacing: .5px; }
-        .head h2 { font-size: 12pt; margin: 4px 0 0; font-weight: normal; text-transform: uppercase; }
-        .head .ref { font-size: 10pt; margin-top: 6px; }
+        .head { text-align: center; border-bottom: 1.5px solid #000; padding-bottom: 4px; margin-bottom: 6px; }
+        .head h1 { font-size: 13pt; margin: 0; text-transform: uppercase; letter-spacing: .4px; }
+        .head h2 { font-size: 10.5pt; margin: 2px 0 0; font-weight: normal; text-transform: uppercase; }
+        .head .ref { font-size: 9pt; margin-top: 2px; }
 
-        .meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11pt; }
-        .meta td { padding: 3px 0; vertical-align: top; }
-        .meta .k { width: 38mm; font-weight: bold; }
+        /* Two label/value pairs per row: half the height of one per row. */
+        .meta { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9.5pt; }
+        .meta td { padding: 1px 0; vertical-align: top; }
+        .meta .k { width: 30mm; font-weight: bold; padding-right: 4px; }
+        .meta .v { padding-right: 6mm; }
 
-        .sub { font-size: 11pt; text-transform: uppercase; letter-spacing: .4px; margin: 16px 0 4px; border-bottom: 1px solid #999; padding-bottom: 2px; }
+        .sub { font-size: 9.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .3px; margin: 6px 0 2px; border-bottom: 1px solid #999; padding-bottom: 1px; }
 
-        .narrative { line-height: 1.7; text-align: justify; margin-bottom: 6px; }
-        .points { line-height: 1.9; margin: 0 0 12px; padding-left: 18px; }
-        .points li { margin-bottom: 2px; }
+        .narrative { line-height: 1.4; text-align: justify; margin: 0 0 3px; }
+        .points { line-height: 1.35; margin: 0 0 4px; padding-left: 16px; }
+        .points li { margin-bottom: 0; }
 
-        table.grid { width: 100%; border-collapse: collapse; margin-top: 6px; }
-        table.grid th, table.grid td { border: 1px solid #000; padding: 6px 8px; font-size: 11pt; }
-        table.grid th { background: #f3f4f6; text-align: left; text-transform: uppercase; font-size: 9.5pt; letter-spacing: .4px; }
-        table.grid td.sn { width: 12mm; text-align: center; }
+        table.grid { width: 100%; border-collapse: collapse; margin-top: 2px; }
+        table.grid th, table.grid td { border: 1px solid #000; padding: 2px 5px; font-size: 9.5pt; }
+        table.grid th { background: #f3f4f6; text-align: left; text-transform: uppercase; font-size: 8pt; letter-spacing: .3px; }
+        table.grid td.sn { width: 10mm; text-align: center; }
         table.grid td.num { white-space: nowrap; }
+        table.grid td.empty { text-align: center; padding: 4px; }
 
         tr.derived td { font-weight: bold; background: #fafafa; }
 
-        .totals { display: flex; justify-content: space-between; gap: 10mm; margin-top: 8px; font-size: 10.5pt; }
+        .totals { display: flex; justify-content: space-between; gap: 6mm; margin-top: 2px; font-size: 9pt; }
         .totals .t { flex: 1; }
+        .remark { font-size: 9.5pt; margin: 2px 0 0; }
 
-        .sign { margin-top: 22mm; display: flex; justify-content: space-between; gap: 14mm; }
+        .sign { margin-top: 10mm; display: flex; justify-content: space-between; gap: 8mm; page-break-inside: avoid; }
         .sign div { flex: 1; text-align: center; }
-        .sign .line { border-top: 1px solid #000; padding-top: 5px; font-size: 10pt; }
+        .sign .line { border-top: 1px solid #000; padding-top: 3px; font-size: 9pt; }
 
-        .foot { margin-top: 10mm; font-size: 8.5pt; color: #555; text-align: center; }
+        .foot { margin-top: 4mm; font-size: 7.5pt; color: #555; text-align: center; }
 
         @media print {
             body { background: #fff; }
-            .sheet { margin: 0; padding: 16mm 14mm; }
+            /* The page margin comes from @page; the sheet itself adds none. */
+            .sheet { width: auto; margin: 0; padding: 0; }
             .no-print { display: none !important; }
         }
 
@@ -114,31 +122,34 @@
         </div>
     </div>
 
-    <table class="meta">
-        @foreach ([
+    @php
+        $metaPairs = collect([
             ['File Number', $report->file_number],
+            ['Plot Number', $report->plot_number],
             ['File Title', $report->file_title],
             ['Applicant', \App\Support\PersonName::display($report->applicant_name)],
-            ['Plot Number', $report->plot_number],
             ['Location', $report->location],
             ['District / LGA', trim(collect([$report->district, $report->lga])->filter()->implode(' / '))],
             ['Inspection Officer', $report->inspection_officer],
-        ] as [$k, $v])
-            @if ($v !== null && $v !== '')
-            <tr><td class="k">{{ $k }}:</td><td>{{ $v }}</td></tr>
-            @endif
+        ]);
+        if (!$legacy) {
+            $metaPairs = $metaPairs->merge([
+                ['Site Dimensions (m)', $report->site_existing_dimensions],
+                ['Existing Site Area', $sqm($report->site_existing_area_sqm)],
+                ['Recommended Total', $sqm($report->recommendedTotalSiteAreaSqm())],
+            ]);
+        }
+        $metaRows = $metaPairs->filter(fn ($p) => $p[1] !== null && $p[1] !== '')->values()->chunk(2);
+    @endphp
+    <table class="meta">
+        @foreach ($metaRows as $row)
+            <tr>
+                @foreach ($row as [$k, $v])
+                    <td class="k">{{ $k }}:</td><td class="v">{{ $v }}</td>
+                @endforeach
+                @if ($row->count() === 1)<td></td><td></td>@endif
+            </tr>
         @endforeach
-        @if (!$legacy)
-            @if ($report->site_existing_dimensions)
-            <tr><td class="k">Existing Site Dimensions (m):</td><td>{{ $report->site_existing_dimensions }}</td></tr>
-            @endif
-            @if ($report->site_existing_area_sqm)
-            <tr><td class="k">Existing Site Area:</td><td>{{ $sqm($report->site_existing_area_sqm) }}</td></tr>
-            @endif
-            @if ($report->recommendedTotalSiteAreaSqm())
-            <tr><td class="k">Recommended Total:</td><td>{{ $sqm($report->recommendedTotalSiteAreaSqm()) }}<tr>
-            @endif
-        @endif
     </table>
 
     @if ($legacy)
@@ -175,7 +186,13 @@
             </li>
         @endif
         @if ($report->road_reservation)
-            <li>Road reservation: {{ $report->road_reservation }}</li>
+            <li>Existing road reservation: <strong>{{ $report->road_reservation }}</strong>.</li>
+        @endif
+        @if ($report->recommended_reservation)
+            <li>Recommended reservation: <strong>{{ $report->recommended_reservation }}</strong>.</li>
+        @endif
+        @if ($report->size_adequate !== null)
+            <li>The size was found <strong>{{ $report->size_adequate ? 'adequate' : 'not adequate' }}</strong>.</li>
         @endif
         @if ($report->additional_observations)
             <li>{{ $report->additional_observations }}</li>
@@ -209,7 +226,7 @@
                 <td class="num">{{ $portion->measurementText() }}</td>
             </tr>
             @empty
-            <tr><td colspan="4" style="text-align:center;padding:18px;">No measurements recorded.</td></tr>
+            <tr><td colspan="4" class="empty">No measurements recorded.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -233,9 +250,6 @@
                 with the surrounding land use.
             </li>
         @endif
-        @if ($report->road_reservation)
-            <li>Road reservation: {{ $report->road_reservation }}</li>
-        @endif
         @if ($report->location_coordinates)
             <li>Location coordinates: {{ $report->location_coordinates }}</li>
         @endif
@@ -258,7 +272,7 @@
                 <td>{{ $person->relationship ?: '—' }}</td>
             </tr>
             @empty
-            <tr><td colspan="5" style="text-align:center;padding:14px;">None recorded.</td></tr>
+            <tr><td colspan="5" class="empty">None recorded.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -277,7 +291,7 @@
                 <td class="num">{{ $property->areaText() ?: '—' }}</td>
             </tr>
             @empty
-            <tr><td colspan="4" style="text-align:center;padding:14px;">No properties recorded.</td></tr>
+            <tr><td colspan="4" class="empty">No properties recorded.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -291,7 +305,7 @@
         @endif
     </div>
     @if ($report->merger_remarks)
-    <p style="font-size:11pt;">{{ $report->merger_remarks }}</p>
+    <p class="remark">{{ $report->merger_remarks }}</p>
     @endif
     @endif
 
@@ -308,7 +322,7 @@
                 <td class="num">{{ $extension->areaText() ?: '—' }}</td>
             </tr>
             @empty
-            <tr><td colspan="3" style="text-align:center;padding:14px;">No extension portions recorded.</td></tr>
+            <tr><td colspan="3" class="empty">No extension portions recorded.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -317,7 +331,7 @@
         <div class="t"><strong>Recommended total:</strong> {{ $sqm($report->recommendedTotalSiteAreaSqm()) ?: '—' }}</div>
     </div>
     @if ($report->extension_remarks)
-    <p style="font-size:11pt;">{{ $report->extension_remarks }}</p>
+    <p class="remark">{{ $report->extension_remarks }}</p>
     @endif
     @endif
 
@@ -335,7 +349,7 @@
                 <td>{{ $plot->remarks ?: '—' }}</td>
             </tr>
             @empty
-            <tr><td colspan="4" style="text-align:center;padding:14px;">No plots recorded.</td></tr>
+            <tr><td colspan="4" class="empty">No plots recorded.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -361,16 +375,27 @@
                 <td>{{ $change->remarks ?: '—' }}</td>
             </tr>
             @empty
-            <tr><td colspan="5" style="text-align:center;padding:14px;">No changes recorded.</td></tr>
+            <tr><td colspan="5" class="empty">No changes recorded.</td></tr>
             @endforelse
         </tbody>
     </table>
     @endif
 
     {{-- Findings --}}
-    @if ($report->finding_site_suitable !== null || $report->finding_site_accessible !== null || $report->development_status || $report->officer_recommendation || $report->further_directions)
-    <div class="sub">Findings</div>
+    @if ($report->finding_site_suitable !== null || $report->finding_site_accessible !== null || $report->development_status || $report->officer_recommendation || $report->further_directions
+        || $report->road_reservation || $report->recommended_reservation || $report->size_adequate !== null)
+    <div class="sub">Findings &amp; Recommendation</div>
     <ul class="points">
+        {{-- Section 7: road reservation found and recommended; Section 9: size. --}}
+        @if ($report->road_reservation)
+            <li>Existing road reservation: <strong>{{ $report->road_reservation }}</strong>.</li>
+        @endif
+        @if ($report->recommended_reservation)
+            <li>Recommended reservation: <strong>{{ $report->recommended_reservation }}</strong>.</li>
+        @endif
+        @if ($report->size_adequate !== null)
+            <li>The size was found <strong>{{ $report->size_adequate ? 'adequate' : 'not adequate' }}</strong>.</li>
+        @endif
         @if ($report->finding_site_suitable !== null)
             <li>The site was found <strong>{{ $report->finding_site_suitable ? 'suitable' : 'not suitable' }}</strong> for the proposed use.</li>
         @endif
@@ -410,10 +435,22 @@
         </div>
         <div>
             <div class="line">
+                @if ($report->director_approved_at)
+                    APPROVED {{ $report->director_approved_at->format('d M Y') }}<br>
+                @endif
                 <span style="font-size:9pt;">Director, Physical Planning</span>
             </div>
         </div>
-        @if (!$legacy)
+        @if (\App\Models\MasterJsiReport::supportsApprovalStages())
+        <div>
+            <div class="line">
+                @if ($report->ps_approved_at)
+                    APPROVED {{ $report->ps_approved_at->format('d M Y') }}<br>
+                @endif
+                <span style="font-size:9pt;">Permanent Secretary</span>
+            </div>
+        </div>
+        @elseif (!$legacy)
         <div>
             <div class="line">
                 {{ $report->supervisor_decision ? strtoupper($report->supervisor_decision) : 'Supervisor' }}<br>
@@ -428,6 +465,42 @@
         @if ($report->sent_to_deeds_at) · sent to Deeds {{ $report->sent_to_deeds_at->format('d M Y') }} @endif
     </div>
 </div>
+
+<script>
+// Keep the sheet to ONE A4 page. The compact styles fit an ordinary inspection;
+// one with many plots or properties is scaled down just enough to fit, rather
+// than spilling onto a second sheet. Printable height = 297mm less the 9mm
+// top and bottom @page margins.
+(function () {
+    const sheet = document.querySelector('.sheet');
+    if (!sheet) return;
+    const mm = px => px * 25.4 / 96;
+    const PRINTABLE_MM = 297 - 18;
+    const PRINTABLE_W_MM = 210 - 22;
+
+    // Worked out once the page has laid out, and applied through a print-only
+    // rule: not every print path fires `beforeprint` (headless/PDF printing
+    // does not), but every one applies @media print.
+    const rule = document.createElement('style');
+    document.head.appendChild(rule);
+
+    function fit() {
+        // Measure at the printed width, without the screen padding.
+        const prev = sheet.style.cssText;
+        sheet.style.width = PRINTABLE_W_MM + 'mm';
+        sheet.style.padding = '0';
+        const h = mm(sheet.scrollHeight);
+        sheet.style.cssText = prev;
+        rule.textContent = h > PRINTABLE_MM
+            ? '@media print { .sheet { zoom: ' + (PRINTABLE_MM / h * 0.97).toFixed(3) + '; } }'
+            : '';
+    }
+
+    fit();
+    window.addEventListener('load', fit);
+    window.addEventListener('beforeprint', fit);
+})();
+</script>
 
 </body>
 </html>

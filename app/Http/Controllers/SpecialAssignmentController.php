@@ -224,14 +224,34 @@ class SpecialAssignmentController extends Controller
     public function fieldData(Request $request)
     {
         if ($request->ajax()) {
-            $query = SpaApplication::with('fieldData')->orderByDesc('created_at');
+            $query = SpaApplication::with('fieldData.surveyor')->orderByDesc('created_at');
             $total = $query->count();
             $data  = $query->skip($request->input('start', 0))
                            ->take($request->input('length', 10))
                            ->get()
                            ->map(function ($a, $i) use ($request) {
-                               $inspection = $a->fieldData->first();
+                               // A record can carry several inspections (revisits by other
+                               // officers). The row shows the latest; View lists them all.
+                               $visits = $a->fieldData
+                                   ->sortByDesc(fn ($f) => ($f->inspection_date?->format('Ymd') ?? '00000000') . str_pad((string) $f->id, 12, '0', STR_PAD_LEFT))
+                                   ->values();
+                               $inspection = $visits->first();
                                $hasInspection = $inspection !== null;
+                               $user = auth()->user();
+                               $canEditRecord = SpaMobileService::canEditRecord($a, $user);
+                               $canEditVisit  = $hasInspection && SpaMobileService::canEditInspection($inspection, $user);
+                               $item = 'w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2';
+
+                               // Edit Record: the captured details, for the officer who captured
+                               // them or a Super Admin only.
+                               $editRecordBtn = $canEditRecord
+                                   ? '<button class="btn-edit-record '.$item.' text-gray-700" data-record=\''.e(json_encode([
+                                         'id' => $a->id, 'file' => $a->file_number, 'owner_name' => $a->owner_name, 'phone' => $a->phone,
+                                         'district' => $a->district, 'lga' => $a->lga, 'location' => $a->location,
+                                         'land_use_type' => $a->land_use_type, 'existing_use' => $a->existing_use,
+                                         'customary' => $a->land_title_type === 'customary',
+                                     ])).'\'><svg class="w-3.5 h-3.5 text-[rgb(140,144,8)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit Record</button>'
+                                   : '';
 
                                // Contravening flag
                                $applied    = strtoupper(trim($a->land_use_type ?? ''));
@@ -239,35 +259,70 @@ class SpecialAssignmentController extends Controller
                                $contravening = $applied && $prevailing && $applied !== $prevailing;
 
                                // Build action dropdown.
-                               // The inspection is captured inside the "Add Land Record" card, so the
-                               // row menu no longer offers "Log Inspection" — a record without an
-                               // inspection row simply has no actions to offer.
-                               $action = '';
+                               // The inspection is normally captured inside the "Add Land Record" card,
+                               // but its date and findings are optional there, so a record can arrive
+                               // without one. Those rows offer "Log Inspection" — without it they had
+                               // no menu at all and no way to complete the record.
+                               $action = '<div class="relative inline-block">'
+                                   . '<button class="btn-action-toggle p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-transparent hover:border-gray-200 transition-colors">'
+                                   . '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>'
+                                   . '</button>'
+                                   . '<div class="action-dropdown hidden absolute right-0 top-full z-50 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">';
 
-                               if ($hasInspection) {
-                                   $action = '<div class="relative inline-block">'
-                                       . '<button class="btn-action-toggle p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-transparent hover:border-gray-200 transition-colors">'
-                                       . '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>'
-                                       . '</button>'
-                                       . '<div class="action-dropdown hidden absolute right-0 top-full z-50 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">';
-
+                               if (! $hasInspection) {
+                                   $action .= '<button class="btn-log-inspection w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"'
+                                       . ' data-id="'.$a->id.'" data-file="'.e($a->file_number).'">'
+                                       . '<svg class="w-3.5 h-3.5 text-[rgb(140,144,8)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Log Inspection</button>'
+                                       . $editRecordBtn;
+                               } else {
                                    $inspector = optional($inspection->surveyor)->name ?? '—';
-                                   $inspPhotos = $inspection->photos ? array_map(fn($p) => asset('storage/'.$p), $inspection->photos) : [];
+                                   $toUrls = fn ($paths) => array_values(array_map(fn ($p) => asset('storage/'.$p), array_filter((array) $paths)));
+                                   $inspPhotos = $toUrls($inspection->photos);
+                                   // Photos taken with the land record (the Add Land Record card,
+                                   // web or app) live on the application, not the inspection —
+                                   // shown too, so every picture of the site is in one place.
+                                   $propertyPhotos = array_values(array_diff($toUrls($a->photos), $inspPhotos));
+                                   // Earlier visits too, newest first — the record's history.
+                                   $history = $visits->map(fn ($v) => [
+                                       'date'     => $v->inspection_date?->format('d/m/Y'),
+                                       'by'       => trim((string) optional($v->surveyor)->name) ?: ($v->created_by ?: '—'),
+                                       'findings' => $v->findings,
+                                       'photos'   => $toUrls($v->photos),
+                                   ])->all();
                                    $viewData = e(json_encode([
                                        'file'      => $a->file_number,
                                        'date'      => $inspection->inspection_date?->format('d/m/Y'),
                                        'inspector' => $inspector,
                                        'findings'  => $inspection->findings,
                                        'photos'    => $inspPhotos,
+                                       'property_photos' => $propertyPhotos,
+                                       'visits'    => $history,
                                    ]));
-                                   $action .= '<button class="btn-view-field w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"'
+                                   $coords = is_array($inspection->coordinates) ? $inspection->coordinates : json_decode((string) $inspection->coordinates, true);
+                                   $action .= '<button class="btn-view-field '.$item.' text-gray-700"'
                                        . ' data-info=\''.$viewData.'\''
-                                       . '><svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>'
-                                       . '<button class="btn-delete-field w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2" data-id="'.$inspection->id.'">'
-                                       . '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>Delete</button>';
-
-                                   $action .= '</div></div>';
+                                       . '><svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View'.($visits->count() > 1 ? ' ('.$visits->count().' visits)' : '').'</button>'
+                                       . $editRecordBtn
+                                       // Edit Inspection: only the officer who made this visit, or a Super Admin.
+                                       . ($canEditVisit
+                                           ? '<button class="btn-edit-inspection '.$item.' text-gray-700" data-visit=\''.e(json_encode([
+                                                 'id' => $inspection->id, 'file' => $a->file_number,
+                                                 'date' => $inspection->inspection_date?->format('Y-m-d'), 'findings' => $inspection->findings,
+                                                 'coords' => ($coords && isset($coords['lat'], $coords['lng'])) ? $coords['lat'].', '.$coords['lng'] : '',
+                                             ])).'\'><svg class="w-3.5 h-3.5 text-[rgb(140,144,8)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit Inspection</button>'
+                                           : '')
+                                       // Revisit: anyone inspecting the same site again continues this record.
+                                       . (SpaMobileService::revisitsAllowed()
+                                           ? '<button class="btn-log-inspection '.$item.' text-gray-700" data-id="'.$a->id.'" data-file="'.e($a->file_number).'" data-revisit="1">'
+                                             . '<svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg>Add Revisit Inspection</button>'
+                                           : '')
+                                       . ($canEditVisit
+                                           ? '<button class="btn-delete-field '.$item.' text-red-600 hover:bg-red-50" data-id="'.$inspection->id.'">'
+                                             . '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>Delete Inspection</button>'
+                                           : '');
                                }
+
+                               $action .= '</div></div>';
 
                                return [
                                    'DT_RowIndex'         => $request->input('start', 0) + $i + 1,
@@ -278,11 +333,18 @@ class SpecialAssignmentController extends Controller
                                    'land_use_type'       => $a->land_use_type ?? '',
                                    'existing_use'        => $a->existing_use ?? '',
                                    'contravening'        => $contravening,
-                                   // A land record is only added from the field, with the inspection
-                                   // captured in the same card — so an added record counts as inspected.
-                                   'inspection_status'   => 'inspected',
+                                   // Pending until an inspection row exists: the Add card's inspection
+                                   // fields are optional, so an added record is not always inspected.
+                                   'inspection_status'   => $hasInspection ? 'inspected' : 'pending',
                                    'inspection_date'     => $hasInspection ? ($inspection->inspection_date?->format('d/m/Y') ?? '—') : '—',
+                                   'visits'              => $visits->count(),
                                    'findings'            => $hasInspection ? \Str::limit($inspection->findings ?? '', 50) : '—',
+                                   // Who did the inspection: the surveyor, else whoever captured it.
+                                   'inspected_by'        => $hasInspection ? (trim((string) optional($inspection->surveyor)->name) ?: ($inspection->created_by ?: '—')) : '—',
+                                   // Where the record came from: the SPAS app stamps a device id (client_uuid)
+                                   // on everything it pushes; the web forms (desktop and mobile page) do not.
+                                   'source'              => $a->client_uuid ? 'mobile' : 'web',
+                                   'date_created'        => $a->created_at?->format('d/m/Y H:i') ?? '—',
                                    'action'       => $action,
                                ];
                            });
@@ -300,11 +362,9 @@ class SpecialAssignmentController extends Controller
 
         $landUseTypes = DB::connection('sqlsrv')->table('klas.dbo.land_uses')->orderBy('landuse')->pluck('landuse');
 
-        // Customary land is only ever held for these three uses, so the General
-        // Landuse dropdown shown for a customary title omits Industrial.
-        $customaryLandUses = $landUseTypes
-            ->filter(fn ($u) => in_array(strtoupper(trim($u)), ['RESIDENTIAL', 'COMMERCIAL', 'AGRICULTURAL'], true))
-            ->values();
+        // The uses a customary title's General Landuse dropdown offers — one list,
+        // shared with the mobile page and the app API (SpaMobileService).
+        $customaryLandUses = SpaMobileService::customaryLandUses($landUseTypes);
 
         // Kano's 44 LGAs, for the customary-title address picker. Small enough to
         // render inline; districts (1,818 of them) are fetched on demand instead.
@@ -381,6 +441,10 @@ class SpecialAssignmentController extends Controller
                 // applications carrying a spa_field_data row: the inspection section
                 // of "Add Land Record" is optional, and that restriction silently
                 // hid notices that had already been issued and sent.
+                // A First Serve is only owed where the property is in contravention;
+                // it is served automatically then (SpaNoticeService). The rest are
+                // listed as "no contravention" rather than as pending.
+                $billing = app(\App\Services\SpaBillingService::class);
                 $rows = SpaApplication::orderByDesc('created_at')->get()
                     ->map(fn ($a) => (object) [
                         'id'          => $a->id,
@@ -388,6 +452,7 @@ class SpecialAssignmentController extends Controller
                         'owner_name'  => $a->owner_name,
                         'phone'       => $a->phone,
                         'created_at'  => $a->created_at,
+                        'contravenes' => $billing->contravenes($a),
                     ]);
 
                 // storeNotice accepts any file number, indexed or not, so a notice can
@@ -406,6 +471,7 @@ class SpecialAssignmentController extends Controller
                         'owner_name'  => $n->recipient_name,
                         'phone'       => $n->phone,
                         'created_at'  => $n->created_at,
+                        'contravenes' => true,
                     ]);
 
                 $all   = $rows->concat($orphans)->sortByDesc('created_at')->values();
@@ -424,21 +490,34 @@ class SpecialAssignmentController extends Controller
                                    $phone     = $notice->phone ?? $a->phone ?? '—';
                                    $daysAgo   = ($served && $notice->served_date) ? now()->diffInDays($notice->served_date) : null;
 
-                                   $hasSecond = $served
+                                   $second = $served
                                        ? SpaNotice::where('notice_type', 'second')
                                               ->when($notice->spa_application_id,
                                                   fn($q) => $q->where('spa_application_id', $notice->spa_application_id),
                                                   fn($q) => $q->whereNull('spa_application_id')->where('file_number', $notice->file_number))
-                                              ->exists()
-                                       : false;
+                                              ->orderByDesc('created_at')->first()
+                                       : null;
 
-                                   if (!$served) {
-                                       $action = '<button data-file="'.e($a->file_number).'" data-owner="'.e($a->owner_name).'" data-phone="'.e($a->phone).'" class="btn-issue-first inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[rgb(186,191,12)] text-white hover:opacity-90"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Issue 1st Serve</button>';
-                                   } elseif ($hasSecond) {
-                                       $action = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Served</span>';
+                                   // One ⋮ menu per row, holding whatever this row can do.
+                                   $items = [];
+                                   if (!$served && !$a->contravenes) {
+                                       $items[] = ['label' => 'No notice required (no contravention)', 'disabled' => true];
+                                   } elseif (!$served) {
+                                       $items[] = ['label' => 'Issue 1st Serve', 'class' => 'btn-issue-first', 'tone' => 'text-[rgb(140,144,8)] font-semibold',
+                                                   'data' => ['file' => $a->file_number, 'owner' => $a->owner_name, 'phone' => $a->phone]];
                                    } else {
-                                       $action = '<button data-id="'.$notice->id.'" data-app="'.$notice->spa_application_id.'" class="btn-trigger-second inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Not Served</button>';
+                                       $items[] = ['label' => 'Print 1st Serve notice', 'href' => route('special-assignment.notice.print', $notice->id)];
+                                       if (!$notice->sms_sent) {
+                                           $items[] = ['label' => 'Resend 1st Serve SMS', 'class' => 'btn-resend-sms', 'data' => ['id' => $notice->id]];
+                                       }
+                                       if ($second) {
+                                           $items[] = ['label' => 'Print 2nd Serve notice', 'href' => route('special-assignment.notice.print', $second->id)];
+                                       } else {
+                                           $items[] = ['label' => 'Issue 2nd Serve now', 'class' => 'btn-trigger-second', 'tone' => 'text-amber-700',
+                                                       'data' => ['id' => $notice->id, 'app' => $notice->spa_application_id]];
+                                       }
                                    }
+                                   $action = $this->noticeActionMenu($items);
 
                                    return [
                                        'DT_RowIndex' => $request->input('start', 0) + $i + 1,
@@ -447,7 +526,7 @@ class SpecialAssignmentController extends Controller
                                        'phone'       => $phone,
                                        'served_date' => $served ? ($notice->served_date?->format('d/m/Y') ?? '—') : '—',
                                        'sms_sent'    => ($served && $notice->sms_sent) ? '<span class="text-green-600 text-xs">✓ Sent</span>' : '<span class="text-gray-400 text-xs">—</span>',
-                                       'status'      => $served ? $notice->status : 'pending',
+                                       'status'      => $served ? $notice->status : ($a->contravenes ? 'pending' : 'no_contravention'),
                                        'days_ago'    => $daysAgo,
                                        'action'      => $action,
                                    ];
@@ -497,9 +576,17 @@ class SpecialAssignmentController extends Controller
                                        ? '<span class="text-green-600 text-xs">✓ Sent</span>'
                                        : '<span class="text-gray-400 text-xs">—</span>',
                                    'status'        => $second ? ($second->status ?: 'served') : 'due',
-                                   'action'        => $second
-                                       ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Issued</span>'
-                                       : '<button data-id="'.$n->id.'" data-app="'.$n->spa_application_id.'" class="btn-trigger-second inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Issue Now</button>',
+                                   'action'        => $this->noticeActionMenu($second
+                                       ? array_values(array_filter([
+                                           ['label' => 'Print 2nd Serve notice', 'href' => route('special-assignment.notice.print', $second->id)],
+                                           $second->sms_sent ? null : ['label' => 'Resend 2nd Serve SMS', 'class' => 'btn-resend-sms', 'data' => ['id' => $second->id]],
+                                           ['label' => 'Print 1st Serve notice', 'href' => route('special-assignment.notice.print', $n->id)],
+                                         ]))
+                                       : [
+                                           ['label' => 'Issue 2nd Serve now', 'class' => 'btn-trigger-second', 'tone' => 'text-amber-700 font-semibold',
+                                            'data' => ['id' => $n->id, 'app' => $n->spa_application_id]],
+                                           ['label' => 'Print 1st Serve notice', 'href' => route('special-assignment.notice.print', $n->id)],
+                                         ]),
                                ];
                            });
 
@@ -759,9 +846,7 @@ class SpecialAssignmentController extends Controller
 
         // Same two lists the desktop Field Data page builds, so both Add Land
         // Record forms offer identical choices (see fieldData()).
-        $customaryLandUses = $landUseTypes
-            ->filter(fn ($u) => in_array(strtoupper(trim($u)), ['RESIDENTIAL', 'COMMERCIAL', 'AGRICULTURAL'], true))
-            ->values();
+        $customaryLandUses = SpaMobileService::customaryLandUses($landUseTypes);
 
         $lgaOptions = DB::connection('sqlsrv')->table('lgas')
             ->where('is_active', 1)
@@ -895,6 +980,47 @@ class SpecialAssignmentController extends Controller
         return response()->json(['success' => true, 'id' => $app->id, 'file_number' => $app->file_number, 'message' => 'Land record saved.']);
     }
 
+    /**
+     * Edit one inspection. Only the officer who made that visit, or a Super
+     * Admin, may change it; anyone else revisiting the site adds a new one.
+     * New photos are added to the visit's own; none are removed here.
+     */
+    public function updateFieldData(Request $request, int $id, SpaMobileService $spa)
+    {
+        $record = SpaFieldData::findOrFail($id);
+
+        if (! SpaMobileService::canEditInspection($record, auth()->user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the officer who made this inspection or a Super Admin can edit it. Add your own visit to the record instead.',
+            ], 403);
+        }
+
+        $request->validate([
+            'inspection_date' => 'required|date',
+            'findings'        => 'required|string',
+            'photos.*'        => 'nullable|image|max:5120',
+        ]);
+
+        try {
+            $coordinates = $spa->normalizeCoordinates($request->input('coordinates'));
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first('coordinates')], 422);
+        }
+
+        $photos = $spa->storePhotos($request->file('photos'), 'spa/field-data');
+
+        $record->update([
+            'inspection_date' => $request->inspection_date,
+            'findings'        => $request->findings,
+            // An emptied coordinates box keeps the pin already on the visit.
+            'coordinates'     => $coordinates ?? $record->coordinates,
+            'photos'          => $photos ? array_values(array_unique(array_merge((array) $record->photos, $photos))) : $record->photos,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Inspection updated.']);
+    }
+
     public function updateLandRecord(Request $request, int $id, SpaMobileService $spa)
     {
         $app = SpaApplication::findOrFail($id);
@@ -903,9 +1029,24 @@ class SpecialAssignmentController extends Controller
         // cannot drift away from what the forms and the offline app enforce.
         // withStatus: only the office may move a record through its workflow —
         // the API omits it, so a field device cannot approve its own record.
-        $request->validate($spa->landRecordUpdateRules(withStatus: true));
+        // Status is optional so the Field Data edit card can save details alone.
+        $rules = $spa->landRecordUpdateRules(withStatus: true);
+        $rules['status'] = 'sometimes|' . $rules['status'];
+        $request->validate($rules);
 
-        $spa->applyLandRecordUpdate($app, $request->all(), withStatus: true);
+        // The captured details belong to the officer who captured them: only
+        // they or a Super Admin may change them. Moving a record through the
+        // office workflow (status alone) stays open to the office as before.
+        $changesDetails = ! $spa->isNoOpUpdate($app, $request->except('status'));
+        if ($changesDetails && ! SpaMobileService::canEditRecord($app, auth()->user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the officer who captured this record (' . ($app->created_by ?: 'unknown') . ') or a Super Admin can edit it. '
+                    . 'If you visited the site, add your inspection to the record instead.',
+            ], 403);
+        }
+
+        $spa->applyLandRecordUpdate($app, $request->all(), withStatus: $request->has('status'));
 
         return response()->json(['success' => true, 'message' => 'Record updated.']);
     }
@@ -977,6 +1118,14 @@ class SpecialAssignmentController extends Controller
     public function deleteFieldData(int $id)
     {
         $record = SpaFieldData::findOrFail($id);
+
+        // Same rule as editing: the officer who made the visit, or a Super Admin.
+        if (! SpaMobileService::canEditInspection($record, auth()->user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the officer who made this inspection or a Super Admin can delete it.',
+            ], 403);
+        }
         if ($record->photos) {
             foreach ($record->photos as $path) {
                 Storage::disk('public')->delete($path);
@@ -1441,78 +1590,8 @@ class SpecialAssignmentController extends Controller
         return response()->json(['success' => true, 'id' => $bill->id, 'reference_id' => $refId, 'message' => "Bill {$refId} saved."]);
     }
 
-    // ─── BILL ITEMS (the contravention tariff) ────────────────────────────────
-
-    /** The tariff, for the Bill Items Setting editor. */
-    public function billItems()
-    {
-        return response()->json([
-            'success' => true,
-            'data'    => \App\Models\SpaBillItem::orderBy('sort_order')->orderBy('name')->get(),
-        ]);
-    }
-
-    /**
-     * Replace the tariff with what the editor submitted.
-     *
-     * Rows the officer removed are DEACTIVATED, never deleted: bills already
-     * raised reference them, and deleting would leave historical lines pointing
-     * at nothing. Deactivated items simply stop being charged.
-     */
-    public function saveBillItems(Request $request)
-    {
-        $request->validate([
-            'items'             => 'required|array',
-            'items.*.name'      => 'required|string|max:150',
-            'items.*.amount'    => 'required|numeric|min:0',
-            'items.*.is_active' => 'required|boolean',
-        ]);
-
-        $actor = auth()->user()->name ?? auth()->id();
-        $keptIds = [];
-
-        DB::connection('sqlsrv')->transaction(function () use ($request, $actor, &$keptIds) {
-            foreach ($request->input('items') as $i => $row) {
-                $values = [
-                    'name'       => trim($row['name']),
-                    'amount'     => $row['amount'],
-                    'is_active'  => (bool) $row['is_active'],
-                    'sort_order' => $row['sort_order'] ?? ($i + 1),
-                    'updated_by' => $actor,
-                ];
-
-                $item = ! empty($row['id'])
-                    ? \App\Models\SpaBillItem::find($row['id'])
-                    : null;
-
-                if ($item) {
-                    $item->update($values);
-                } else {
-                    // updateOrCreate on the name, because the unique index makes
-                    // a re-added item collide with the row that was deactivated
-                    // earlier rather than creating a duplicate.
-                    $item = \App\Models\SpaBillItem::updateOrCreate(
-                        ['name' => $values['name']],
-                        $values + ['created_by' => $actor]
-                    );
-                }
-
-                $keptIds[] = $item->id;
-            }
-
-            \App\Models\SpaBillItem::whereNotIn('id', $keptIds)->update([
-                'is_active'  => 0,
-                'updated_by' => $actor,
-            ]);
-        });
-
-        $total = \App\Models\SpaBillItem::billable()->sum(fn ($i) => (float) $i->amount);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Tariff saved. Each contravention will be billed ₦'.number_format($total, 2).'.',
-        ]);
-    }
+    // The contravention tariff (spa_bill_items) is edited on System Admin ->
+    // Configurable Entries -> SPAS Bill Items; see App\Services\SpaBillItemTariff.
 
     /**
      * The items on a bill, with what is still owed on each.
@@ -1535,7 +1614,7 @@ class SpecialAssignmentController extends Controller
 
             return [
                 'id'          => $line->id,
-                'name'        => $line->name,
+                'name'        => $line->display_name,   // current tariff name
                 'amount'      => (float) $line->amount,
                 'paid'        => $paid,
                 'outstanding' => max(0, (float) $line->amount - $paid),
@@ -1775,41 +1854,55 @@ class SpecialAssignmentController extends Controller
      *         could not be sent" — which is unactionable on a production box
      *         where the log is not to hand.
      */
+    /**
+     * The ⋮ action menu on a Notice-page row.
+     *
+     * Each item is ['label' => .., 'class' => js-hook class, 'data' => [..]] for a
+     * button, ['label' => .., 'href' => ..] for a link (opens in a new tab), or
+     * ['label' => .., 'disabled' => true] for an explanatory greyed item. The page
+     * script opens the menu and handles the hook classes.
+     */
+    private function noticeActionMenu(array $items): string
+    {
+        $base = 'block w-full text-left px-3 py-2 text-xs ';
+        $html = '';
+
+        foreach ($items as $item) {
+            $label = e($item['label']);
+
+            if (! empty($item['disabled'])) {
+                $html .= '<span class="'.$base.'text-gray-400 cursor-default">'.$label.'</span>';
+            } elseif (! empty($item['href'])) {
+                $html .= '<a href="'.e($item['href']).'" target="_blank" rel="noopener" class="'.$base.'text-gray-700 hover:bg-gray-50">'.$label.'</a>';
+            } else {
+                $attrs = '';
+                foreach ($item['data'] ?? [] as $key => $value) {
+                    $attrs .= ' data-'.$key.'="'.e((string) $value).'"';
+                }
+                $html .= '<button type="button" class="'.$base.e($item['class']).' '.($item['tone'] ?? 'text-gray-700').' hover:bg-gray-50"'.$attrs.'>'.$label.'</button>';
+            }
+        }
+
+        return '<div class="relative inline-block">'
+            . '<button type="button" class="btn-notice-menu p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="Actions">'
+            . '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>'
+            . '</button>'
+            . '<div class="notice-menu hidden w-52 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden py-1">'.$html.'</div>'
+            . '</div>';
+    }
+
+    /** The printable notice letter for one First or Second Serve. */
+    public function printNotice(int $id)
+    {
+        $notice = SpaNotice::with('application')->findOrFail($id);
+
+        return view('special_assignment.notice.print', compact('notice'));
+    }
+
     private function sendNoticeSms(string $phone, string $name, string $type, ?string $fileNo): array
     {
-        // Resolve per call: lastStatusCode()/lastFailureReason() describe the most
-        // recent send on that instance, so a shared singleton would report stale state.
-        $sms = new BulkSmsNgService();
-
-        try {
-            $sent = $sms->send($phone, SpaNotice::smsBody($type));
-
-            if (!$sent) {
-                Log::warning('SPAS: notice SMS not sent', [
-                    'phone'     => $phone,
-                    'file_no'   => $fileNo,
-                    'recipient' => $name,
-                    'type'      => $type,
-                    'code'      => $sms->lastStatusCode(),
-                    'reason'    => $sms->lastFailureReason(),
-                ]);
-            }
-
-            return [
-                'sent'   => $sent,
-                'code'   => $sms->lastStatusCode(),
-                'reason' => $sent ? null : ($sms->lastFailureReason() ?? 'unknown gateway failure'),
-            ];
-        } catch (\Throwable $e) {
-            Log::warning('SPAS: SMS send failed', [
-                'phone'     => $phone,
-                'file_no'   => $fileNo,
-                'recipient' => $name,
-                'type'      => $type,
-                'error'     => $e->getMessage(),
-            ]);
-
-            return ['sent' => false, 'code' => null, 'reason' => 'exception: '.$e->getMessage()];
-        }
+        // One implementation for the screen, the automatic first serve and the
+        // backfill command — see App\Services\SpaNoticeService.
+        return app(\App\Services\SpaNoticeService::class)->sendSms($phone, $name, $type, $fileNo);
     }
 }

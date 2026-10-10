@@ -14,7 +14,8 @@
     $hasRole('PP - SLTR Applications') ||
     $hasRole('PP Director') ||
     $hasRole('PP Reports') ||
-    $hasRole('Master JSI')
+    $hasRole('Master JSI') ||
+    $hasRole('Parcel/Title Management-PP')
   )
   <div class="py-1 px-3 mb-0.5 border-t border-slate-100">
     <div
@@ -265,9 +266,30 @@
         </div>
       @endif
 
-    
+      @if($hasRole('Parcel/Title Management-PP') || $hasRole('Master JSI'))
+        {{-- d. Parcel/Title Management (sits above PP Director) --}}
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
+          data-section="ppParcelTitleManagement">
+          <div class="flex items-center gap-2">
+            <i data-lucide="layout-grid" class="h-4 w-4 text-red-500"></i>
+            <span>Parcel/Title Management</span>
+          </div>
+          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200"
+            data-chevron="ppParcelTitleManagement"></i>
+        </div>
+
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="ppParcelTitleManagement">
+          {{-- i. Master JSI -- also reached from every parcel-update action menu. --}}
+          <a href="{{ route('master-jsi.index') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('master-jsi.*') && !request()->routeIs('master-jsi.approvals') ? 'active' : '' }}">
+            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
+            <span>Master JSI</span>
+          </a>
+        </div>
+      @endif
+
       @if($hasRole('PP Director'))
-        <!-- d. PP Director -->
+        <!-- e. PP Director -->
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
           data-section="ppDirector">
           <div class="flex items-center gap-2">
@@ -279,7 +301,14 @@
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="ppDirector">
 
-          
+          {{-- i. Master JSI Approval: every Master JSI created, approved from here. --}}
+          <a href="{{ route('master-jsi.approvals') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('master-jsi.approvals') && request('stage') !== 'ps' ? 'active' : '' }}">
+            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
+            <span>Master JSI Approval</span>
+          </a>
+
+
           <!-- ii. Conversion -->
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
             data-section="ppDirectorConversion">
@@ -362,28 +391,6 @@
               <span>Physical Planning Memo</span>
             </a>
           </div>
-        </div>
-      @endif
-
-      @if($hasRole('Master JSI'))
-        {{-- e. Parcel/Title Management --}}
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
-          data-section="ppParcelTitleManagement">
-          <div class="flex items-center gap-2">
-            <i data-lucide="layout-grid" class="h-4 w-4 text-red-500"></i>
-            <span>Parcel/Title Management</span>
-          </div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200"
-            data-chevron="ppParcelTitleManagement"></i>
-        </div>
-
-        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="ppParcelTitleManagement">
-          {{-- i. Master JSI -- also reached from every parcel-update action menu. --}}
-          <a href="{{ route('master-jsi.index') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('master-jsi.*') ? 'active' : '' }}">
-            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
-            <span>Master JSI</span>
-          </a>
         </div>
       @endif
 

@@ -55,9 +55,24 @@ return [
          | on this disk is an authorized controller that streams it.
          | Used by Online Legal Search identification uploads.
          */
+        // On the STORAGE_PATH drive (F:) with everything else users upload;
+        // C: is kept for the framework only. Not under app/public, so still
+        // not reachable through /storage.
         'ols_private' => [
             'driver' => 'local',
-            'root' => storage_path('app/private'),
+            'root' => file_storage_path('app/private'),
+            'visibility' => 'private',
+            'throw' => false,
+        ],
+
+        /*
+         | Private module uploads (LAAS application documents) on the STORAGE_PATH
+         | drive. Same relative layout the 'local' disk used (laas/{id}/...), so
+         | stored paths did not change when these moved off C:. Not web-served.
+         */
+        'private_files' => [
+            'driver' => 'local',
+            'root' => file_storage_path(),
             'visibility' => 'private',
             'throw' => false,
         ],

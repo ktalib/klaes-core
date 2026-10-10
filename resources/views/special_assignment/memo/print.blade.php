@@ -202,8 +202,8 @@
     <table class="details">
         <tr><th>File Number</th><td>{{ $app->file_number ?? '—' }}</td></tr>
         <tr><th>Owner</th><td>{{ $app->owner_name ?? '—' }}</td></tr>
-        <tr><th>Location</th><td>{{ $app->location ?? '—' }}</td></tr>
         <tr><th>District / LGA</th><td>{{ $app->district ?? '—' }}{{ $app->lga ? ' / '.$app->lga : '' }}</td></tr>
+        <tr><th>Location</th><td>{{ $app->location ?? '—' }}</td></tr>
         <tr><th>Approved Land Use</th><td>{{ $app->land_use_type ?? '—' }}</td></tr>
         <tr><th>Prevailing Use</th><td>{{ $app->existing_use ?? '—' }}</td></tr>
         <tr><th>Proposed Use</th><td>{{ $app->proposed_use ?? '—' }}</td></tr>

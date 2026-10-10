@@ -200,7 +200,8 @@
                 @php $billed = $bill?->lines->firstWhere('id', $line->spa_bill_line_id); @endphp
                 <tr>
                     <td>{{ $i + 1 }}</td>
-                    <td>{{ $line->name }}</td>
+                    {{-- The item's current tariff name; the amounts are as paid. --}}
+                    <td>{{ $billed ? $billed->display_name : $line->name }}</td>
                     <td class="num">{{ $billed ? number_format($billed->amount, 2) : '—' }}</td>
                     <td class="num">{{ number_format($line->amount_paid, 2) }}</td>
                 </tr>

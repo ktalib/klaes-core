@@ -53,6 +53,8 @@ use Illuminate\Validation\Rule;
  *                          registries (cadastral_settings & co., read through
  *                          App\Services\Cadastral\CadastralSettings) and who holds each job post
  *                          (cadastral_officers)
+ *   SPAS Bill Items        spa_bill_items, the Special Assignment contravention tariff
+ *                          (App\Services\SpaBillItemTariff); moved here from the SPAS Bills page
  *
  * Forms submit by AJAX (instrument_workflow partials/ajax) and answer through
  * RunsWorkflowActions. Access: the 'System Settings' role, or Super Admin.
@@ -91,6 +93,8 @@ class ConfigurableEntriesController extends Controller
         'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8'],
         // Green like the fee sheet it configures (green-700 on green-50).
         'cadastral' => ['label' => 'Cadastral', 'icon' => 'compass', 'accent' => '#15803d', 'tint' => '#f0fdf4'],
+        // The Special Assignment (SPAS) contravention tariff. Lime, the SPAS colour.
+        'spa-bill-items' => ['label' => 'SPAS Bill Items', 'icon' => 'receipt', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
         'map-types' => ['label' => 'Map Types', 'icon' => 'map-pin', 'accent' => '#0e7490', 'tint' => '#ecfeff', 'route' => 'sdi.admin.map-types.index'],
     ];
 
@@ -174,7 +178,7 @@ class ConfigurableEntriesController extends Controller
             'icon' => 'map',
         ],
         'deeds' => [
-            'label' => 'Deeds — DCIV file numbers',
+            'label' => 'DCIV file numbers',
             'where' => 'DCIV Management → Generate New FileNo (DCIVFileNo)',
             'model' => \App\Models\DcivSerialControl::class,
             'table' => 'dciv_serial_control',
@@ -257,6 +261,7 @@ class ConfigurableEntriesController extends Controller
             // runs, CadastralSettings serves config/cadastral_module.php and there is
             // nowhere to save an edit, so a tab would only offer forms that fail.
             'cadastral' => fn () => $schema->hasTable('cadastral_settings'),
+            'spa-bill-items' => fn () => $schema->hasTable('spa_bill_items'),
         ];
 
         return array_filter(
@@ -295,7 +300,47 @@ class ConfigurableEntriesController extends Controller
             'logos' => $this->logosData($request),
             'signatories' => $this->signatoriesData(),
             'cadastral' => $this->cadastralData(),
+            'spa-bill-items' => $this->spaBillItemsData(),
         });
+    }
+
+    // ---- SPAS Bill Items ----------------------------------------------------
+
+    /**
+     * The Special Assignment contravention tariff. Moved here from the SPAS Bills
+     * page; bills are still raised from it automatically by SpaBillingService.
+     */
+    private function spaBillItemsData(): array
+    {
+        $tariff = app(\App\Services\SpaBillItemTariff::class);
+
+        return [
+            'spaBillItems' => $tariff->all(),
+            'spaBillTotal' => $tariff->total(),
+        ];
+    }
+
+    public function saveSpaBillItems(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $request->validate([
+            'items'             => 'required|array',
+            'items.*.id'        => 'nullable|integer',
+            'items.*.name'      => 'required|string|max:150',
+            'items.*.amount'    => 'required|numeric|min:0',
+            'items.*.is_active' => 'required|boolean',
+        ], [
+            'items.required' => 'Keep at least one item. Switch an item off rather than removing them all.',
+        ]);
+
+        $tariff = app(\App\Services\SpaBillItemTariff::class);
+
+        return $this->attempt(function () use ($request, $tariff) {
+            $tariff->save($request->input('items'), (string) (Auth::user()->name ?? Auth::id()));
+
+            return 'Tariff saved. Each contravention will be billed ₦' . number_format($tariff->total(), 2) . '.';
+        }, 'Tariff saved.');
     }
 
     // ---- Signatories --------------------------------------------------------
@@ -1247,7 +1292,7 @@ class ConfigurableEntriesController extends Controller
             // starting serial could still be set. That is the gate the old screen
             // used and the one the generator itself checks.
             $existing = $model::query()->where($keys)->first();
-            if ($existing && $existing->is_locked) {
+            if ($register !== 'deeds' && $existing && $existing->is_locked) {
                 throw WorkflowGuardException::because(sprintf(
                     '%s %s is already initialized at %d%s and locked. Only the database can change it now.',
                     $meta['key_label'],
@@ -1273,17 +1318,19 @@ class ConfigurableEntriesController extends Controller
             $backwards = $was !== null && $lastSerial < $was;
 
             app(\App\Services\AuditService::class)->logAction(
-                'Serial Initialized',
+                $register === 'deeds' ? 'Serial Updated' : 'Serial Initialized',
                 class_basename($meta['model']),
                 $row->getKey(),
                 $existing ? ['last_serial' => $was] : null,
                 ['register' => $register, $meta['key'] => $name, 'year' => $meta['yearly'] ? $year : null, 'last_serial' => $lastSerial],
-                "{$meta['label']}: {$label} initialized at {$lastSerial} and locked."
+                ("{$meta['label']}: {$label} " . ($register === 'deeds' ? 'updated' : 'initialized and locked') . " at {$lastSerial}.")
                     . ($backwards ? " The counter was moved BACK from {$was}." : '')
             );
 
             return sprintf(
-                '%s %s is initialized at %d%s and locked. The next file number under it will be serial %d.',
+                $register === 'deeds'
+                    ? '%s %s is saved at %d%s. The next file number under it will be serial %d.'
+                    : '%s %s is initialized at %d%s and locked. The next file number under it will be serial %d.',
                 $meta['key_label'],
                 $label,
                 $lastSerial,
@@ -1292,7 +1339,7 @@ class ConfigurableEntriesController extends Controller
             ) . ($backwards
                 ? " The counter was moved BACK from {$was}: serials " . ($lastSerial + 1) . "–{$was} will be issued a second time."
                 : '');
-        }, 'Serial initialized.');
+        }, $register === 'deeds' ? 'Serial saved.' : 'Serial initialized.');
     }
 
     // ---- Deeds Instrument Volume --------------------------------------------

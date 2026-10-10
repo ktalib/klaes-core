@@ -90,6 +90,7 @@ class FileProfileService
                 'tracking_id'    => $tracker->tracking_id,
                 'status'         => $tracker->status,
                 'module'         => $tracker->module,
+                'request_type'   => strtoupper(trim((string) $tracker->file_request_type)) ?: null,
                 'current_office' => $tracker->current_office_name ?: $tracker->current_office_code,
                 'current_code'   => $tracker->current_office_code,
                 'holder'         => $tracker->current_holder,

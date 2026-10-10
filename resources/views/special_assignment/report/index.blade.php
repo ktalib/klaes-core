@@ -81,7 +81,8 @@
                 </div>
             </div>
             <div class="p-4">
-                <table id="report-table" class="w-full text-sm" style="width:100%">
+                @include('special_assignment.partials.table_case')
+                <table id="report-table" class="spas-table w-full text-sm" style="width:100%">
                     <thead>
                         <tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th>

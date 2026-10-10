@@ -49,7 +49,7 @@
                     <label for="registry-filter" class="text-xs font-medium text-gray-500">Registry</label>
                     <select id="registry-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[rgb(186,191,12)]">
                         <option value="">All registries</option>
-                        <option value="MLS">MLS / Lands</option>
+                        <option value="MLS">MLPP / Lands</option>
                         <option value="KANGIS">KANGIS</option>
                         <option value="SLTR">SLTR</option>
                         <option value="ST">ST (Sectional Titling)</option>
@@ -57,7 +57,8 @@
                 </div>
             </div>
             <div class="p-4">
-                <table id="land-records-table" class="w-full text-sm" style="width:100%">
+                @include('special_assignment.partials.table_case')
+                <table id="land-records-table" class="spas-table w-full text-sm" style="width:100%">
                     <thead>
                         <tr class="text-left text-xs text-gray-500 uppercase tracking-wide">
                             <th class="px-3 py-2">#</th>
@@ -216,12 +217,16 @@ function luBadge(d) {
 
 $(document).ready(function () {
     // ── DataTable ──────────────────────────────────────────────────────────
+    // Keyed by the value the server sends (MLS, KANGIS, SLTR, ST); the MLS
+    // registry is shown as "MLPP". The value itself stays MLS — it is what the
+    // registry filter posts back.
     const REGISTRY_CLS = {
-        MLPP:    'bg-slate-100 text-slate-700',
+        MLS:    'bg-slate-100 text-slate-700',
         KANGIS: 'bg-indigo-100 text-indigo-700',
         SLTR:   'bg-teal-100 text-teal-700',
         ST:     'bg-fuchsia-100 text-fuchsia-700',
     };
+    const REGISTRY_LABEL = { MLS: 'MLPP' };
 
     const table = $('#land-records-table').DataTable({
         processing : true,
@@ -238,7 +243,7 @@ $(document).ready(function () {
             { data: 'DT_RowIndex', orderable: false, searchable: false },
             { data: 'registry', orderable: false, searchable: false, render: d => {
                 const key = (d || 'MLS').toUpperCase();
-                return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${REGISTRY_CLS[key] || 'bg-gray-100 text-gray-600'}">${key}</span>`;
+                return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${REGISTRY_CLS[key] || 'bg-gray-100 text-gray-600'}">${REGISTRY_LABEL[key] || key}</span>`;
             }},
             { data: 'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
             { data: 'owner_name'   },

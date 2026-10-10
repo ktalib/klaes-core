@@ -1,0 +1,5 @@
+id,spa_application_id,file_number,surveyor_id,inspection_date,coordinates,findings,photos,status,created_by,created_at,updated_at,parcel_geometry,spa_application_client_uuid,client_uuid
+1,1,CON-AG-1990-36,2,2026-06-17,,Done,,active,"System Admin","2026-06-18 12:19:40","2026-06-18 12:19:40",,,
+2,4,SPAS-2026-0001,2,2026-08-05,"{""lat"":11,""lng"":8.9}","NOTHING MUCH",,active,"System Admin","2026-08-12 20:59:02","2026-08-12 20:59:02",,,
+7,10,CON-RES-2002-10,2,2026-08-17,"{""lat"":11.985972,""lng"":8.543692}","Inspected on site.",,active,"System Admin","2026-08-17 18:48:00","2026-08-17 18:48:00",,0e31456d-28ca-492c-8e4a-5efe6df12da9,49ae3753-e5b6-41ff-b64d-740a8e89c5ec
+8,11,"CON -RES-2001-31",2,2026-08-17,"{""lat"":11.986144,""lng"":8.54376}","Inspected on site.",,active,"System Admin","2026-08-17 19:32:35","2026-08-17 19:32:35",,6c9546f0-d09f-46f7-8c38-9e16aa1b856d,ecb15668-862b-4f7c-9e47-b2802006f693

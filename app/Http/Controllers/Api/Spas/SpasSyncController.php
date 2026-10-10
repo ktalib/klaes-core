@@ -56,6 +56,10 @@ class SpasSyncController extends Controller
             'created_by'       => $a->created_by,
             'created_at'       => optional($a->created_at)->toIso8601String(),
             'updated_at'       => optional($a->updated_at)->toIso8601String(),
+            // Whether THIS device user may edit it (capturing officer or Super
+            // Admin). Anyone else adds a new inspection instead. The server
+            // checks again on every edit; this only decides what the app offers.
+            'can_edit'         => SpaMobileService::canEditRecord($a, $request->user()),
         ]));
     }
 
@@ -65,7 +69,7 @@ class SpasSyncController extends Controller
 
         $this->applySinceCursor($query, $request->input('since'));
 
-        $rows = $query->limit(self::PAGE_SIZE)->get();
+        $rows = $query->with('surveyor:id,first_name,last_name')->limit(self::PAGE_SIZE)->get();
 
         return $this->pullResponse($rows->map(fn (SpaFieldData $f) => [
             'id'                          => $f->id,
@@ -80,8 +84,12 @@ class SpasSyncController extends Controller
             'findings'                    => $f->findings,
             'photos'                      => $this->photoUrls($f->photos),
             'status'                      => $f->status,
+            'created_by'                  => $f->created_by,
+            // Who made the visit, for the app's record list.
+            'inspected_by'                => trim((string) optional($f->surveyor)->name) ?: $f->created_by,
             'created_at'                  => optional($f->created_at)->toIso8601String(),
             'updated_at'                  => optional($f->updated_at)->toIso8601String(),
+            'can_edit'                    => SpaMobileService::canEditInspection($f, $request->user()),
         ]));
     }
 
@@ -229,6 +237,15 @@ class SpasSyncController extends Controller
             return $conflict;
         }
 
+        // Only the capturing officer or a Super Admin may change a record.
+        if (! SpaMobileService::canEditRecord($app, $request->user())) {
+            return response()->json([
+                'success'   => false,
+                'forbidden' => true,
+                'message'   => 'Only the officer who captured this record or a Super Admin can edit it. Add your own inspection to it instead.',
+            ], 403);
+        }
+
         $app = $spa->applyLandRecordUpdate($app, $request->all());
 
         return response()->json([
@@ -262,6 +279,15 @@ class SpasSyncController extends Controller
 
         if ($conflict = $this->staleWrite($request, $record)) {
             return $conflict;
+        }
+
+        // Only the officer who made this visit or a Super Admin may change it.
+        if (! SpaMobileService::canEditInspection($record, $request->user())) {
+            return response()->json([
+                'success'   => false,
+                'forbidden' => true,
+                'message'   => 'Only the officer who made this inspection or a Super Admin can edit it.',
+            ], 403);
         }
 
         $record->update([

@@ -25,6 +25,25 @@ class SpaApplication extends Model
         'photos'     => 'array',
     ];
 
+    /**
+     * Text stored in CAPITALS, the way the register is written, whichever form or
+     * device saves it — they used to arrive mixed ("BADAWA PHAS II, Nasarawa").
+     * File number, phone and the status/type codes are left exactly as given.
+     */
+    private const UPPERCASE_FIELDS = [
+        'owner_name', 'location', 'district', 'lga',
+        'land_use_type', 'existing_use', 'proposed_use',
+    ];
+
+    public function setAttribute($key, $value)
+    {
+        if (in_array($key, self::UPPERCASE_FIELDS, true) && is_string($value)) {
+            $value = trim($value) === '' ? $value : mb_strtoupper(trim($value), 'UTF-8');
+        }
+
+        return parent::setAttribute($key, $value);
+    }
+
     public function fieldData()
     {
         return $this->hasMany(SpaFieldData::class, 'spa_application_id');

@@ -25,6 +25,9 @@
             profile: @js(route('secretariat-file-log.profile')),
             deleteLog: @js(route('secretariat-file-log.delete-log')),
             deleteTracker: @js(route('secretariat-file-log.delete-tracker')),
+            {{-- Relative on purpose: the sheet builder runs in a same-origin frame. --}}
+            trackingPage: @js(route('create-file-tracker.index', [], false)),
+            trackerSearch: @js(route('create-file-tracker.search', [], false)),
             indexed: @js(route('secretariat-file-log.indexed')),
             receive: @js(route('secretariat-file-log.receive')),
             forward: @js(route('secretariat-file-log.forward')),
@@ -280,6 +283,11 @@
                                     <i data-lucide="send" class="w-4 h-4"></i> Send to next office
                                 </button>
                                 <div x-show="!canReceive() && !canSend() && heldHere()" class="px-3 py-2 text-xs rounded-lg bg-green-50 text-green-700 border border-green-200">Held at your office</div>
+                                <button type="button" x-show="profile.data && profile.data.tracker" :disabled="sheetBusy" @click="printTrackingSheet()"
+                                        class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-blue-700 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50">
+                                    <i data-lucide="printer" class="w-4 h-4"></i>
+                                    <span x-text="sheetBusy ? 'Preparing…' : 'Tracking sheet'"></span>
+                                </button>
                                 <button type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50" @click="closeProfile()">
                                     <i data-lucide="x" class="w-4 h-4"></i> Close
                                 </button>
@@ -736,6 +744,7 @@
                                             <div class="text-xs mt-0.5 space-x-1">
                                                 <span x-show="row.file_type === 'NON_FILE'" class="px-1.5 rounded bg-blue-100 text-blue-700">Not a regular file</span>
                                                 <span x-show="row.not_indexed" class="px-1.5 rounded bg-orange-100 text-orange-700">Not indexed</span>
+                                                <span x-show="row.request_type === 'SUBMITTED'" class="px-1.5 rounded bg-purple-100 text-purple-700">Submitted Request</span>
                                             </div>
                                         </td>
                                         <td class="px-5 py-3 text-gray-700" x-text="nice(row.file_title) || '—'"></td>

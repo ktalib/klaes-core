@@ -392,8 +392,8 @@ class LaasAdminController extends Controller
             $filesGone = 0;
 
             foreach ($documents as $document) {
-                if ($document->path && Storage::disk('local')->exists($document->path)) {
-                    Storage::disk('local')->delete($document->path);
+                if ($document->path && Storage::disk('private_files')->exists($document->path)) {
+                    Storage::disk('private_files')->delete($document->path);
                     $filesGone++;
                 }
             }

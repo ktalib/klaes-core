@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Reminder - Contravention of Landuse</title>
+
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f2f2f2;
+            font-family: "Times New Roman", Times, serif;
+            color: #000;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: #fff;
+            padding: 25mm 25mm 25mm 25mm;
+            position: relative;
+        }
+
+        /* Top section */
+        .header {
+            position: relative;
+            height: 68mm;
+        }
+
+        .address {
+            position: absolute;
+            top: 35mm;
+            left: 0;
+            width: 78mm;
+        }
+
+        .address-line {
+            height: 7mm;
+            border-bottom: 1px dotted #555;
+            margin-bottom: 0;
+        }
+
+        .date {
+            position: absolute;
+            top: 8mm;
+            right: 5mm;
+            font-size: 12pt;
+            white-space: nowrap;
+        }
+
+        .date-line {
+            display: inline-block;
+            width: 43mm;
+            border-bottom: 1px dotted #555;
+            margin-left: 3mm;
+            vertical-align: middle;
+        }
+
+        /* Salutation */
+        .salutation {
+            font-size: 12pt;
+            margin-top: 1mm;
+            margin-bottom: 8mm;
+        }
+
+        /* Main heading */
+        .main-heading {
+            text-align: center;
+            margin-bottom: 7mm;
+        }
+
+        .main-heading .reminder {
+            display: block;
+            font-weight: bold;
+            text-decoration: underline;
+            font-size: 14pt;
+            margin-bottom: 7mm;
+        }
+
+        .main-heading .subject {
+            display: block;
+            font-weight: bold;
+            text-decoration: underline;
+            font-size: 13pt;
+            text-transform: uppercase;
+        }
+
+        /* Body */
+        .content {
+            font-size: 12pt;
+            line-height: 1.55;
+            text-align: left;
+        }
+
+        .content p {
+            margin: 0 0 8mm 0;
+        }
+
+        /* Closing */
+        .closing {
+            margin-top: 25mm;
+            font-size: 12pt;
+            line-height: 1.45;
+        }
+
+        .signature {
+            margin-top: 13mm;
+            font-size: 12pt;
+            line-height: 1.3;
+        }
+
+        .signature .name {
+            font-weight: bold;
+        }
+
+        .signature .title {
+            font-weight: normal;
+        }
+
+        .signature .for {
+            font-weight: bold;
+        }
+
+        /* Print */
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .page {
+                margin: 0;
+                width: 210mm;
+                min-height: 297mm;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <!-- HEADER -->
+    <div class="header">
+
+        <!-- Date -->
+        <div class="date">
+            Date:
+            <span class="date-line"></span>
+        </div>
+
+        <!-- Recipient Address -->
+        <div class="address">
+            <div class="address-line"></div>
+            <div class="address-line"></div>
+            <div class="address-line"></div>
+        </div>
+
+    </div>
+
+
+    <!-- SALUTATION -->
+    <div class="salutation">
+        Sir/Ma,
+    </div>
+
+
+    <!-- TITLE -->
+    <div class="main-heading">
+
+        <span class="reminder">
+            REMINDER
+        </span>
+
+        <span class="subject">
+            RE: CONTRAVENTION OF LANDUSE
+        </span>
+
+    </div>
+
+
+    <!-- BODY -->
+    <div class="content">
+
+        <p>
+            Refer above and note that the Ministry has served you with a notice to come
+            forward and formalize your title but there was no response. This served as a
+            reminder to you that your failure will leave the ministry with no option other
+            than to invoke its power under either section 9 (4) or 28 (5) of the Land use Act.
+        </p>
+
+        <p>
+            Your earlier response is awaited.
+        </p>
+
+    </div>
+
+
+    <!-- CLOSING -->
+    <div class="closing">
+        Best Regards,
+    </div>
+
+
+    <!-- SIGNATURE -->
+    <div class="signature">
+
+        <div class="name">
+            GAMBO SULEIMAN GARKO,
+        </div>
+
+        <div class="title">
+            Director Special Assignment,
+        </div>
+
+        <div class="for">
+            For: Honorable Commissioner
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

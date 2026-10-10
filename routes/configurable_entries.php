@@ -76,7 +76,11 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     Route::post('/cadastral/officers', [Entries::class, 'saveCadastralOfficer'])->name('cadastral.officers.store');
     Route::post('/cadastral/officers/{officer}', [Entries::class, 'saveCadastralOfficer'])->whereNumber('officer')->name('cadastral.officers.update');
 
-    Route::post('/land-uses', [Entries::class, 'saveLandUse'])->name('land-uses.store');
+    // SPAS Bill Items: the Special Assignment contravention tariff (spa_bill_items).
+    // Removed rows are switched off, never deleted -- see App\Services\SpaBillItemTariff.
+    Route::post('/spa-bill-items', [Entries::class, 'saveSpaBillItems'])->name('spa-bill-items.save');
+
+    Route::post('/land-uses',[Entries::class, 'saveLandUse'])->name('land-uses.store');
     Route::post('/land-uses/{landUse}', [Entries::class, 'saveLandUse'])->whereNumber('landUse')->name('land-uses.update');
     Route::post('/districts/{district}/rates', [Entries::class, 'saveDistrictRates'])->whereNumber('district')->name('districts.rates');
     Route::post('/luc-parameters', [Entries::class, 'saveLucParameter'])->name('luc-parameters.store');

@@ -1465,7 +1465,7 @@ class CommissionNewSTController extends Controller
     private function removeEdmsScanFolder(string $fileNo): bool
     {
         try {
-            $dir = storage_path('app/public/EDMS/SCAN_UPLOAD/ST_Registry/' . str_replace(['/', '\\'], '_', $fileNo));
+            $dir = file_storage_path('app/public/EDMS/SCAN_UPLOAD/ST_Registry/' . str_replace(['/', '\\'], '_', $fileNo));
             if (!is_dir($dir)) {
                 return false;
             }

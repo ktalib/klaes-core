@@ -15,9 +15,18 @@
         MasterJsiReport::STATUS_DRAFT     => 'bg-slate-100 text-slate-600',
         MasterJsiReport::STATUS_GENERATED => 'bg-blue-100 text-blue-700',
         MasterJsiReport::STATUS_SUBMITTED => 'bg-amber-100 text-amber-700',
+        MasterJsiReport::STATUS_DIRECTOR_APPROVED => 'bg-purple-100 text-purple-700',
         MasterJsiReport::STATUS_APPROVED  => 'bg-emerald-100 text-emerald-700',
         MasterJsiReport::STATUS_REJECTED  => 'bg-red-100 text-red-700',
     ];
+    // Words for the two waiting states, so the register says who has it.
+    $statusLabels = [
+        MasterJsiReport::STATUS_SUBMITTED         => 'AWAITING PP DIRECTOR',
+        MasterJsiReport::STATUS_DIRECTOR_APPROVED => 'AWAITING PS',
+    ];
+    if (! MasterJsiReport::supportsApprovalStages()) {
+        unset($statusTones[MasterJsiReport::STATUS_DIRECTOR_APPROVED]);
+    }
 @endphp
 
 @section('styles')
@@ -70,7 +79,9 @@
 
             {{-- The pipeline, spelled out. Skipping a step is the usual support call. --}}
             <div class="px-7 py-3.5 border-t border-slate-100 bg-slate-50/70 flex flex-wrap items-center gap-x-2 gap-y-2 text-[11px] font-bold text-slate-400">
-                @foreach (['Capture observation', 'Generate sheet', 'Submit', 'Approve', 'Send to Deeds'] as $i => $step)
+                @foreach (MasterJsiReport::supportsApprovalStages()
+                    ? ['Capture observation', 'Generate sheet', 'Submit', 'PP Director approval', 'PS approval', 'Send to Deeds']
+                    : ['Capture observation', 'Generate sheet', 'Submit', 'PP Director approval', 'Send to Deeds'] as $i => $step)
                     @if ($i)<i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-300"></i>@endif
                     <span class="{{ $loop->last ? 'text-red-600' : '' }}">{{ $step }}</span>
                 @endforeach
@@ -124,7 +135,7 @@
                     <select name="status" class="px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition">
                         <option value="">Any status</option>
                         @foreach (array_keys($statusTones) as $status)
-                            <option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ ucfirst($status) }}</option>
+                            <option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ ucfirst(strtolower($statusLabels[$status] ?? $status)) }}</option>
                         @endforeach
                     </select>
 
@@ -151,6 +162,7 @@
                             <th class="px-4 py-3 text-left">File No</th>
                             <th class="px-4 py-3 text-left">Applicant</th>
                             <th class="px-4 py-3 text-left">Inspected</th>
+                            <th class="px-4 py-3 text-left">Created By</th>
                             <th class="px-4 py-3 text-left">Status</th>
                             <th class="px-4 py-3 text-center">Actions</th>
                         </tr>
@@ -187,10 +199,11 @@
                             <td class="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
                                 {{ $record->inspection_date ? $record->inspection_date->format('d M Y') : '—' }}
                             </td>
+                            <td class="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">{{ $record->creator?->name ?? '—' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="text-[10px] font-black px-2 py-1 rounded-md {{ $statusTones[$record->status] ?? 'bg-slate-100 text-slate-600' }}">
-                                        {{ strtoupper($record->status) }}
+                                    <span class="text-[10px] font-black px-2 py-1 rounded-md whitespace-nowrap {{ $statusTones[$record->status] ?? 'bg-slate-100 text-slate-600' }}">
+                                        {{ $statusLabels[$record->status] ?? strtoupper($record->status) }}
                                     </span>
                                     @if ($record->isReturned())
                                         <span class="text-[10px] font-black px-2 py-1 rounded-md bg-rose-100 text-rose-700"
@@ -216,16 +229,20 @@
                                          */
                                         $isApproved = $record->status === MasterJsiReport::STATUS_APPROVED;
                                         $isRejected = $record->status === MasterJsiReport::STATUS_REJECTED;
+                                        $isLocked   = $record->isLocked();
                                         $sentToDeeds = (bool) $record->sent_to_deeds_at;
+                                        $waiting    = $record->awaitingStage();
+                                        $mayDecide  = \App\Http\Controllers\PhysicalPlanning\MasterJsiController::canActAtStage($waiting);
+                                        $decideLabel = $waiting === 'ps' ? 'PS: Approve / Reject' : 'PP Director: Approve / Reject';
 
-                                        $canEdit     = !$isApproved;
-                                        $canGenerate = !$isApproved && !$isRejected && !$record->generated_at;
+                                        $canEdit     = !$isLocked;
+                                        $canGenerate = !$isLocked && !$isRejected && !$record->generated_at;
                                         $canPrint    = (bool) $record->generated_at;
                                         $canSubmit   = (bool) $record->generated_at && !$record->submitted_at && !$isRejected;
-                                        $canDecide   = (bool) $record->submitted_at && !$isApproved && !$isRejected;
+                                        $canDecide   = (bool) $record->submitted_at && $waiting !== null && $mayDecide;
                                         $canReturn   = $canDecide;
                                         $canSend     = $isApproved && !$sentToDeeds;
-                                        $canDelete   = !$isApproved;
+                                        $canDelete   = !$isLocked;
 
                                         // Why an action is unavailable, so a greyed row is not a mystery.
                                         $why = function ($enabled, $reason) use ($isRejected) {
@@ -259,8 +276,8 @@
                                                 title="{{ $why($canSubmit, $record->submitted_at ? 'Already submitted' : 'Generate the sheet first') }}"
                                                 class="menu-item">Submit for approval</button>
                                             <button onclick="jsiDecision({{ $record->id }}, @js($record->jsi_ref))" @disabled(!$canDecide)
-                                                title="{{ $why($canDecide, $isApproved ? 'Already approved' : 'Submit the sheet first') }}"
-                                                class="menu-item {{ $canDecide ? 'text-emerald-700 font-bold' : '' }}">Approve / Reject</button>
+                                                title="{{ $why($canDecide, $isApproved ? 'Already approved' : ($waiting && !$mayDecide ? 'Waiting for the ' . ($waiting === 'ps' ? 'PS' : 'PP Director') : 'Submit the sheet first')) }}"
+                                                class="menu-item {{ $canDecide ? 'text-emerald-700 font-bold' : '' }}">{{ $decideLabel }}</button>
                                             <button onclick="jsiReturn({{ $record->id }}, @js($record->jsi_ref))" @disabled(!$canReturn)
                                                 title="{{ $why($canReturn, 'Submit the sheet first') }}"
                                                 class="menu-item">Return for correction</button>
@@ -286,7 +303,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-16 text-center">
+                            <td colspan="9" class="px-4 py-16 text-center">
                                 <i data-lucide="clipboard-list" class="w-8 h-8 text-slate-300 mx-auto"></i>
                                 <p class="text-sm font-bold text-slate-500 mt-3">No Master JSI records yet</p>
                                 <p class="text-xs text-slate-400 mt-1">Capture a site observation to clear a parcel update for recommendation.</p>
