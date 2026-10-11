@@ -1,0 +1,233 @@
+[
+    {
+        "id": "1",
+        "name": "ALL",
+        "code": "ALL",
+        "description": "Applies across all departments",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "2",
+        "name": "CSU",
+        "code": "CSU",
+        "description": "Customer Service Unit",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "3",
+        "name": "Land",
+        "code": "LANDS",
+        "description": "Land related operations and management",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "4",
+        "name": "Survey",
+        "code": "SURVEY",
+        "description": "Survey operations and management",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "5",
+        "name": "GIS",
+        "code": "GIS",
+        "description": "Geospatial Information Systems",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "6",
+        "name": "KANGIS",
+        "code": "KANGIS",
+        "description": "Kano Geographic Information System",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "7",
+        "name": "Account\/Finance",
+        "code": "ACCOUNT\/FINANCE",
+        "description": "Billing, receipts, and financial records",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "8",
+        "name": "Deeds",
+        "code": "DEEDS",
+        "description": "Deeds records and registration",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "9",
+        "name": "Physical Planning",
+        "code": "PHYSICAL PLANNING",
+        "description": "Physical Planning operations and management",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "10",
+        "name": "Cadastral",
+        "code": "CADASTRAL",
+        "description": "Cadastral operations and management",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "11",
+        "name": "Sectional Titling",
+        "code": "SECTIONAL TITLING",
+        "description": "Sectional Titling processes",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "12",
+        "name": "SLTR",
+        "code": "SLTR",
+        "description": "Systematic Land Titling & Registration",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "13",
+        "name": "ICT",
+        "code": "ICT",
+        "description": "Information & Communication Technology",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "14",
+        "name": "GIS\/Survey",
+        "code": "GIS\/SURVEY",
+        "description": "Joint GIS\/Survey functions",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2025-08-25 02:49:14.0900000",
+        "updated_at": "2025-08-25 02:49:14.0900000",
+        "color": null
+    },
+    {
+        "id": "10001",
+        "name": "DCIV",
+        "code": "DCIV",
+        "description": null,
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-02-23 12:40:19.0430000",
+        "updated_at": "2026-02-23 12:40:19.0430000",
+        "color": null
+    },
+    {
+        "id": "10002",
+        "name": "PRS",
+        "code": "PRS",
+        "description": null,
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-08-03 16:19:04.8500000",
+        "updated_at": "2026-08-03 16:19:04.8500000",
+        "color": null
+    },
+    {
+        "id": "10003",
+        "name": "AGS",
+        "code": "AGS",
+        "description": null,
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-08-03 16:20:42.9866667",
+        "updated_at": "2026-08-03 16:20:42.9866667",
+        "color": null
+    },
+    {
+        "id": "10004",
+        "name": "Special Assignment",
+        "code": "SPAS",
+        "description": null,
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-08-20 17:01:15.2300000",
+        "updated_at": "2026-08-20 17:01:15.2300000",
+        "color": null
+    },
+    {
+        "id": "10005",
+        "name": "Legal",
+        "code": "LEGAL",
+        "description": "Legal services and advisory",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-09-15 11:32:03.1150000",
+        "updated_at": "2026-09-15 11:32:03.1150000",
+        "color": null
+    },
+    {
+        "id": "10006",
+        "name": "Public Enlightenment",
+        "code": "PUBLIC ENLIGHTENMENT",
+        "description": "Public enlightenment and awareness",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-09-15 11:32:03.1290000",
+        "updated_at": "2026-09-15 11:32:03.1290000",
+        "color": null
+    },
+    {
+        "id": "10007",
+        "name": "Revenue",
+        "code": "REVENUE",
+        "description": "Revenue collection and management",
+        "parent_id": null,
+        "is_active": "1",
+        "created_at": "2026-09-15 11:32:03.1350000",
+        "updated_at": "2026-09-15 11:32:03.1350000",
+        "color": null
+    }
+]

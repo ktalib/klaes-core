@@ -369,6 +369,7 @@
                                     <select class="opDistrict w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
                                         <option value="">Select District</option>
                                         @foreach($districts as $districtItem)
+                                            @continue(in_array(strtolower(trim((string) $districtItem->name)), ['other', 'others'], true))
                                             <option value="{{ $districtItem->name }}" {{ !$opDistrictCustom && $opDistrict === $districtItem->name ? 'selected' : '' }}>{{ $districtItem->name }}</option>
                                         @endforeach
                                         <option value="__other__" {{ $opDistrictCustom ? 'selected' : '' }}>Other</option>

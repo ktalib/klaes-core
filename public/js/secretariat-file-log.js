@@ -72,12 +72,22 @@ window.secretariatFileLog = function (config) {
     const listed = (value) => (value && value !== 'other') ? value : null;
     const typed = (value, other) => value === 'other' ? (String(other || '').trim() || null) : null;
     const blankScan = () => ({ q: '', loading: false, message: '', matches: [] });
+    // Batch mode: files collected by scan (or picked from the register), then
+    // received or sent together. Each file goes through the same single-file
+    // endpoint, so it is checked and logged exactly as one scan would be.
+    const blankBatchAll = () => ({ to_office: '', receiving_officer_id: '', officer_other: '', request_purpose_id: '', purpose_other: '' });
+    const blankBatch = (on = false) => ({ on, items: [], running: false, notes: '', pick: '', all: blankBatchAll() });
+    const blankEdit = () => ({ open: false, ref: null, office: '', status: '', statusLabel: '', initial: {},
+        log_in_date: '', log_in_time: '', log_out_date: '', log_out_time: '',
+        receiving_officer_id: '', officer_other: '', request_purpose_id: '', purpose_other: '',
+        notes: '', completion_notes: '', reason: '', office_code: '', isNewest: false });
 
     return {
         offices: config.offices || [],
         urls: config.urls,
         canChooseOffice: !!config.canChooseOffice,
         canDeleteLogs: !!config.canDeleteLogs,
+        canEditLogs: !!config.canEditLogs,
         requestPurposes: config.requestPurposes || [],
         officers: config.officers || [],
         myOffice: config.myOffice || null,
@@ -96,6 +106,8 @@ window.secretariatFileLog = function (config) {
         scan: blankScan(),
         scanFocused: false,
         send: blankSend(),
+        edit: blankEdit(),
+        batch: blankBatch(),
         manual: blankManual(),
         indexed: { items: [], loading: false, loaded: false },
         _indexTimer: null,
@@ -182,7 +194,10 @@ window.secretariatFileLog = function (config) {
         },
 
         setMode(mode) {
+            if (this.batch.running) return;
             this.mode = mode;
+            // A receive batch and a send batch hold different files.
+            if (this.batch.on) this.batch = blankBatch(true);
             this.scan = blankScan();
             this.send = blankSend();
             this.focusScan();
@@ -208,7 +223,9 @@ window.secretariatFileLog = function (config) {
             try { data = await res.json(); } catch (e) { data = {}; }
             if (!res.ok || data.success === false) {
                 const errors = data.errors ? Object.values(data.errors).flat().join(' ') : '';
-                throw new Error(data.message || errors || ('Request failed (' + res.status + ')'));
+                const err = new Error(data.message || errors || ('Request failed (' + res.status + ')'));
+                err.data = data;
+                throw err;
             }
             return data;
         },
@@ -361,6 +378,13 @@ window.secretariatFileLog = function (config) {
                 const data = await this.request(this.urls.resolve + '?' + new URLSearchParams({ q }));
                 this.scan.matches = data.matches || [];
                 this.scan.message = data.message || '';
+                if (this.batch.on) {
+                    if (this.scan.matches.length === 1) {
+                        this.addToBatch(this.scan.matches[0], 'scan');
+                        this.scan = blankScan();
+                    }
+                    return;
+                }
                 if (this.scan.matches.length === 1) {
                     await this.selectMatch(this.scan.matches[0], true);
                 } else if (!this.scan.matches.length) {
@@ -374,6 +398,12 @@ window.secretariatFileLog = function (config) {
         },
 
         async selectMatch(m, fromScan = false) {
+            if (this.batch.on) {
+                this.addToBatch(m, 'scan');
+                this.scan = blankScan();
+                this.focusScan();
+                return;
+            }
             this.profile.match = m;
             await this.loadProfile({ file_number: m.file_number, tracker_id: m.tracker ? m.tracker.id : '' });
             if (!fromScan || !this.profile.data) return;
@@ -660,6 +690,7 @@ window.secretariatFileLog = function (config) {
                 const outTs = parse(e.log_out_date || e.logOutDate, e.log_out_time || e.logOutTime);
                 const common = {
                     ref: e._ref || null,
+                    entry: e,
                     office,
                     officer: this.qsOfficer(e) !== '-' ? this.qsOfficer(e) : '',
                     purpose: purposeOf(e),
@@ -776,7 +807,7 @@ window.secretariatFileLog = function (config) {
                 file_number: d.file.file_number,
                 file_title: d.file.file_title,
                 received_via: this.scan.matches.length ? 'scan' : 'manual',
-            });
+            }, null, { purpose: this.historyMeta().request_purpose_name, label: d.file.file_number || d.file.file_title });
         },
 
         async receivePending(row) {
@@ -786,16 +817,106 @@ window.secretariatFileLog = function (config) {
                 file_number: row.file_number,
                 file_title: row.file_title,
                 received_via: 'manual',
-            });
+            }, null, { purpose: row.purpose, officer: row.to_officer, label: row.file_number || row.file_title });
         },
 
-        async receive(payload, onDone) {
+        // Files logged before the request purpose / receiving officer existed have
+        // neither, and the server asks for them (`needs`). A small card collects
+        // them and the receipt is sent again. Resolves to the extra fields, or null
+        // when cancelled. With `forBatch`, offers to reuse the answer for the rest.
+        async askReceiptDetails(needs, hint = {}, forBatch = false) {
+            if (!window.Swal) return null;
+            const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const lower = (v) => String(v || '').trim().toLowerCase();
+            const wantPurpose = needs.includes('purpose');
+            const wantOfficer = needs.includes('officer');
+            const hintPurpose = lower(hint.purpose) === 'received' ? '' : String(hint.purpose || '').trim();
+            const hintOfficer = String(hint.officer || '').trim();
+            const pickedPurpose = this.requestPurposes.find(p => hintPurpose && lower(p.name) === lower(hintPurpose));
+            const pickedOfficer = this.officers.find(o => hintOfficer && lower(o.name) === lower(hintOfficer));
+            const field = 'width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:14px;margin-top:4px;';
+            const label = 'display:block;font-size:12px;font-weight:600;color:#4b5563;margin-top:12px;';
+            let html = '<div style="text-align:left">';
+            if (hint.label) html += '<p style="font-size:13px;color:#6b7280">' + esc(hint.label) + '</p>';
+            if (wantPurpose) {
+                html += '<label style="' + label + '">Request purpose *</label><select id="rd-purpose" style="' + field + '"><option value="">— Select purpose —</option>'
+                    + this.requestPurposes.map(p => '<option value="' + esc(p.id) + '"' + (pickedPurpose && pickedPurpose.id === p.id ? ' selected' : '') + '>' + esc(nice(p.name)) + '</option>').join('')
+                    + '<option value="other"' + (hintPurpose && !pickedPurpose ? ' selected' : '') + '>Other</option></select>'
+                    + '<input id="rd-purpose-other" placeholder="Specify the purpose" style="' + field + 'display:none" value="' + esc(pickedPurpose ? '' : hintPurpose) + '">';
+            }
+            if (wantOfficer) {
+                html += '<label style="' + label + '">Receiving officer *</label><select id="rd-officer" style="' + field + '"><option value="">— Select officer —</option>'
+                    + this.officers.map(o => '<option value="' + esc(o.id) + '"' + (pickedOfficer && pickedOfficer.id === o.id ? ' selected' : '') + '>' + esc(nice(o.name) + (o.username ? ' (' + o.username + ')' : '')) + '</option>').join('')
+                    + '<option value="other"' + (hintOfficer && !pickedOfficer ? ' selected' : '') + '>Other (not listed)…</option></select>'
+                    + '<input id="rd-officer-other" placeholder="Officer\'s name" style="' + field + 'display:none" value="' + esc(pickedOfficer ? '' : hintOfficer) + '">';
+            }
+            if (forBatch) {
+                html += '<label style="display:flex;gap:8px;align-items:center;font-size:13px;color:#374151;margin-top:14px"><input type="checkbox" id="rd-rest" checked> Use for the other files in this batch that need it</label>';
+            }
+            html += '</div>';
+
+            const ask = await Swal.fire({
+                title: 'Details needed to receive',
+                html,
+                showCancelButton: true,
+                confirmButtonText: 'Continue',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#16a34a',
+                cancelButtonColor: '#6b7280',
+                reverseButtons: true,
+                focusConfirm: false,
+                didOpen: (el) => {
+                    [['rd-purpose', 'rd-purpose-other'], ['rd-officer', 'rd-officer-other']].forEach(([sel, other]) => {
+                        const s = el.querySelector('#' + sel);
+                        const o = el.querySelector('#' + other);
+                        if (!s || !o) return;
+                        const sync = () => { o.style.display = s.value === 'other' ? '' : 'none'; };
+                        s.addEventListener('change', sync);
+                        sync();
+                    });
+                },
+                preConfirm: () => {
+                    const el = Swal.getPopup();
+                    const val = (id) => { const n = el.querySelector('#' + id); return n ? String(n.value || '').trim() : ''; };
+                    const out = {};
+                    if (wantPurpose) {
+                        const v = val('rd-purpose');
+                        if (!v || (v === 'other' && !val('rd-purpose-other'))) { Swal.showValidationMessage('Choose a request purpose, or choose Other and specify it.'); return false; }
+                        if (v === 'other') out.request_purpose_other = val('rd-purpose-other'); else out.request_purpose_id = Number(v);
+                    }
+                    if (wantOfficer) {
+                        const v = val('rd-officer');
+                        if (!v || (v === 'other' && !val('rd-officer-other'))) { Swal.showValidationMessage('Choose a receiving officer, or choose Other and specify the name.'); return false; }
+                        if (v === 'other') out.receiving_officer_other = val('rd-officer-other'); else out.receiving_officer_id = Number(v);
+                    }
+                    const rest = el.querySelector('#rd-rest');
+                    return { fields: out, forRest: !!(rest && rest.checked) };
+                },
+            });
+            return ask.isConfirmed ? ask.value : null;
+        },
+
+        async receive(payload, onDone, hint = {}) {
             this.busy = true;
             try {
-                const data = await this.request(this.urls.receive, {
-                    method: 'POST',
-                    body: JSON.stringify({ office: this.office, ...payload }),
-                });
+                let data;
+                try {
+                    data = await this.request(this.urls.receive, {
+                        method: 'POST',
+                        body: JSON.stringify({ office: this.office, ...payload }),
+                    });
+                } catch (e) {
+                    const needs = e.data && e.data.needs;
+                    if (!needs || !needs.length) throw e;
+                    this.busy = false;
+                    const extra = await this.askReceiptDetails(needs, hint);
+                    if (!extra) return;
+                    this.busy = true;
+                    data = await this.request(this.urls.receive, {
+                        method: 'POST',
+                        body: JSON.stringify({ office: this.office, ...payload, ...extra.fields }),
+                    });
+                }
                 this.notify(data.action === 'already_here' ? 'info' : 'success', data.message);
                 if (onDone) onDone(data);
                 await this.loadLists();
@@ -906,9 +1027,14 @@ window.secretariatFileLog = function (config) {
                 notes: m.notes,
                 received_via: 'manual',
             }, (data) => {
+                // In Send mode the file is logged at this office first, then the
+                // send form opens so it can go straight on to the next office.
+                const sending = this.mode === 'out';
                 this.manual = blankManual();
                 this.profile.match = { file_number: data.tracker.file_number, file_title: data.tracker.file_title, tracker: { id: data.tracker.id } };
-                this.loadProfile({ tracker_id: data.tracker.id, file_number: data.tracker.file_number || '' });
+                this.loadProfile({ tracker_id: data.tracker.id, file_number: data.tracker.file_number || '' }).then(() => {
+                    if (sending && this.heldHere()) this.startSendFromProfile();
+                });
             });
         },
 
@@ -983,6 +1109,318 @@ window.secretariatFileLog = function (config) {
                 await this.loadLists();
                 await this.reloadProfile();
                 this.focusScan();
+            } catch (e) {
+                this.notify('error', e.message);
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        // ── Batch mode ───────────────────────────────────────────────────
+        async toggleBatch() {
+            if (this.batch.running) return;
+            const live = this.batch.items.filter(i => i.state !== 'done').length;
+            if (this.batch.on && live) {
+                const ask = await Swal.fire({
+                    icon: 'warning',
+                    title: 'Leave batch mode?',
+                    text: live + ' file(s) not yet ' + (this.mode === 'in' ? 'received' : 'sent') + ' will be removed from the batch. Nothing is logged for them.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, leave',
+                    cancelButtonText: 'Stay in batch',
+                    confirmButtonColor: '#4f46e5',
+                    cancelButtonColor: '#6b7280',
+                    reverseButtons: true,
+                });
+                if (!ask.isConfirmed) return;
+            }
+            this.batch = blankBatch(!this.batch.on);
+            if (this.batch.on) {
+                this.closeProfile();
+                this.manual.open = false;
+            }
+            this.scan = blankScan();
+            this.$nextTick(() => this.focusScan());
+        },
+        batchHas(trackerId, fileNumber) {
+            const number = String(fileNumber || '').trim().toUpperCase();
+            return this.batch.items.some(i => (trackerId && Number(i.tracker_id) === Number(trackerId))
+                || (number && String(i.file_number || '').trim().toUpperCase() === number));
+        },
+        // A scanned match ({file_number, file_title, indexed, tracker:{id, office_code, office_name, status}})
+        // or a register row ({id, file_number, file_title, file_type, from}).
+        addToBatch(m, via) {
+            if (!m || this.batch.running) return;
+            const t = m.tracker || null;
+            const trackerId = t ? t.id : (m.id || null);
+            const label = m.file_number || nice(m.file_title) || 'This document';
+            if (!trackerId && !m.file_number) {
+                this.notify('error', 'This code does not name a file.');
+                return;
+            }
+            if (this.batchHas(trackerId, m.file_number)) {
+                this.notify('info', label + ' is already in the batch.');
+                return;
+            }
+            const heldHere = via === 'held' || !!(t && t.office_code === this.office && String(t.status || '').toLowerCase() === 'active');
+            if (this.mode === 'in' && heldHere) {
+                this.notify('info', label + ' is already held at your office.');
+                return;
+            }
+            if (this.mode === 'out' && !heldHere) {
+                this.notify('error', label + ' is not held at your office — receive it first.');
+                return;
+            }
+            this.batch.items.push({
+                tracker_id: trackerId,
+                file_number: m.file_number || null,
+                file_title: m.file_title || null,
+                non_file: m.file_type === 'NON_FILE',
+                indexed: m.indexed !== false,
+                where: (t && (t.office_name || t.office_code)) || m.from || '',
+                purpose: m.purpose || '',
+                to_officer: m.to_officer || '',
+                via,
+                state: 'ready',
+                message: '',
+                ...blankBatchAll(),
+            });
+        },
+        // Register rows that can be added: pending ones to receive, held ones to send.
+        batchPickable() {
+            const rows = this.mode === 'in' ? this.lists.pending : this.lists.held;
+            return (rows || []).filter(r => !this.batchHas(r.id, r.file_number));
+        },
+        addPicked() {
+            const row = this.batchPickable().find(r => String(r.id) === String(this.batch.pick));
+            if (row) this.addToBatch(row, this.mode === 'in' ? 'pending' : 'held');
+            this.batch.pick = '';
+        },
+        addAllPickable() {
+            this.batchPickable().forEach(r => this.addToBatch(r, this.mode === 'in' ? 'pending' : 'held'));
+        },
+        removeFromBatch(item) {
+            if (this.batch.running) return;
+            this.batch.items = this.batch.items.filter(i => i !== item);
+        },
+        clearBatchDone() {
+            this.batch.items = this.batch.items.filter(i => i.state !== 'done');
+        },
+        batchPending() {
+            return this.batch.items.filter(i => i.state !== 'done');
+        },
+        batchCount(state) {
+            return this.batch.items.filter(i => i.state === state).length;
+        },
+        applyToAll() {
+            const a = this.batch.all;
+            this.batchPending().forEach((i) => {
+                i.to_office = a.to_office;
+                i.receiving_officer_id = a.receiving_officer_id;
+                i.officer_other = a.officer_other;
+                i.request_purpose_id = a.request_purpose_id;
+                i.purpose_other = a.purpose_other;
+                if (i.state === 'error') { i.state = 'ready'; i.message = ''; }
+            });
+        },
+        batchItemValid(i) {
+            if (this.mode === 'in') return true;
+            return !!(i.to_office && i.to_office !== this.office
+                && chosen(i.receiving_officer_id, i.officer_other) && chosen(i.request_purpose_id, i.purpose_other));
+        },
+        batchReady() {
+            const todo = this.batchPending();
+            return todo.length > 0 && !this.batch.running && todo.every(i => this.batchItemValid(i));
+        },
+        // One file at a time, through the same endpoint a single scan uses; a
+        // failure is shown on that file and the rest carry on.
+        async runBatch() {
+            if (!this.batchReady()) return;
+            const sending = this.mode === 'out';
+            this.batch.running = true;
+            this.busy = true;
+            let reuse = null; // purpose / officer chosen once "for the rest of this batch"
+            for (const i of this.batchPending()) {
+                i.state = 'working';
+                i.message = '';
+                try {
+                    const body = sending
+                        ? {
+                            office: this.office,
+                            tracker_id: i.tracker_id,
+                            to_office: i.to_office,
+                            request_purpose_id: listed(i.request_purpose_id),
+                            request_purpose_other: typed(i.request_purpose_id, i.purpose_other),
+                            receiving_officer_id: listed(i.receiving_officer_id),
+                            receiving_officer_other: typed(i.receiving_officer_id, i.officer_other),
+                            notes: this.batch.notes,
+                        }
+                        : {
+                            office: this.office,
+                            entry_type: i.non_file ? 'non_file' : (i.indexed ? 'file' : 'unindexed'),
+                            tracker_id: i.tracker_id,
+                            file_number: i.file_number,
+                            file_title: i.file_title,
+                            notes: this.batch.notes,
+                            received_via: i.via === 'scan' ? 'scan' : 'manual',
+                        };
+                    let data;
+                    try {
+                        data = await this.request(sending ? this.urls.forward : this.urls.receive, { method: 'POST', body: JSON.stringify(body) });
+                    } catch (e) {
+                        const needs = !sending && e.data && e.data.needs;
+                        if (!needs || !needs.length) throw e;
+                        let extra = reuse && needs.every(n => reuse.has.includes(n)) ? reuse : null;
+                        if (!extra) {
+                            const answer = await this.askReceiptDetails(needs, { purpose: i.purpose, officer: i.to_officer, label: i.file_number || i.file_title }, true);
+                            if (!answer) throw new Error('Skipped — no request purpose / receiving officer given.');
+                            extra = { fields: answer.fields, has: needs };
+                            if (answer.forRest) reuse = extra;
+                        }
+                        data = await this.request(this.urls.receive, { method: 'POST', body: JSON.stringify({ ...body, ...extra.fields }) });
+                    }
+                    i.state = 'done';
+                    i.message = data.message || '';
+                } catch (e) {
+                    i.state = 'error';
+                    i.message = e.message;
+                }
+            }
+            this.batch.running = false;
+            this.busy = false;
+            const done = this.batchCount('done');
+            const failed = this.batchCount('error');
+            this.notify(failed ? 'warning' : 'success',
+                done + ' file(s) ' + (sending ? 'sent' : 'received') + (failed ? ', ' + failed + ' failed — see the batch list.' : '.'));
+            await this.loadLists();
+            this.focusScan();
+        },
+
+        // ── Edit one stored log ──────────────────────────────────────────
+        // Admins edit any log; anyone else with the module's edit action only
+        // logs at their own office (the server checks both again). The old
+        // entry is kept in a hidden history on the server.
+        canEditEvent(ev) {
+            if (!this.canEditLogs || !ev || !ev.ref || !ev.entry) return false;
+            if (this.canChooseOffice) return true;
+            const code = ev.entry.receiving_office_code || ev.entry.office_code || '';
+            return !!(this.myOffice && code === this.myOffice.code);
+        },
+        today() {
+            const d = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        },
+        openEdit(ev) {
+            if (!this.canEditEvent(ev)) return;
+            const e = ev.entry;
+            const date = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '').trim()) ? String(v).trim() : '';
+            const time = (v) => {
+                const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})/);
+                return m ? m[1].padStart(2, '0') + ':' + m[2] : '';
+            };
+            const status = String(e.status || '').toLowerCase();
+            // Pre-select the stored officer and purpose: a listed one by id (or by
+            // name), otherwise "Other" with the stored text.
+            const officerName = String(e.receiving_officer_name || '').trim();
+            const listedOfficer = this.officers.find(o => e.receiving_officer_id && Number(o.id) === Number(e.receiving_officer_id))
+                || (!e.receiving_officer_id && officerName ? this.officers.find(o => String(o.name || '').trim().toLowerCase() === officerName.toLowerCase()) : null);
+            // The entry's own purpose; for a tracker's newest step it is often kept
+            // only on the tracker row, as the register shows it.
+            const ref = ev.ref || {};
+            const ownPurpose = (e.purpose && String(e.purpose).toLowerCase() !== 'received') ? String(e.purpose).trim() : '';
+            const purposeName = ownPurpose || String(ref.tracker_purpose || '').trim();
+            const listedPurpose = (!ownPurpose && ref.tracker_purpose_id && this.requestPurposes.find(p => Number(p.id) === Number(ref.tracker_purpose_id)))
+                || (purposeName ? this.requestPurposes.find(p => String(p.name || '').trim().toLowerCase() === purposeName.toLowerCase()) : null);
+            const officeCode = e.receiving_office_code || e.office_code || '';
+            const values = {
+                office_code: this.offices.some(o => o.office_code === officeCode) ? officeCode : '',
+                log_in_date: date(e.log_in_date || e.logInDate),
+                log_in_time: time(e.log_in_time || e.logInTime),
+                log_out_date: date(e.log_out_date || e.logOutDate),
+                log_out_time: time(e.log_out_time || e.logOutTime),
+                notes: e.notes || '',
+                completion_notes: e.completion_notes || '',
+                receiving_officer_id: listedOfficer ? String(listedOfficer.id) : (officerName ? 'other' : ''),
+                officer_other: listedOfficer ? '' : officerName,
+                request_purpose_id: listedPurpose ? String(listedPurpose.id) : (purposeName ? 'other' : ''),
+                purpose_other: listedPurpose ? '' : purposeName,
+            };
+            this.edit = {
+                ...blankEdit(),
+                ...values,
+                open: true,
+                ref: ev.ref,
+                office: ev.office,
+                status,
+                statusLabel: status === 'pending_acceptance' ? 'In transit' : (status === 'completed' ? 'Logged out' : 'Logged in'),
+                initial: { ...values },
+                isNewest: this.historyEntries().filter(x => x && x._ref && Number(x._ref.tracker_id) === Number(ref.tracker_id))
+                    .every(x => x._ref.index <= ref.index),
+            };
+        },
+        closeEdit() {
+            if (this.busy) return;
+            this.edit = blankEdit();
+        },
+        editChanges() {
+            const ed = this.edit;
+            const out = {};
+            // Log-in date and time are shown but locked; they are never sent.
+            ['office_code', 'log_out_date', 'log_out_time', 'notes', 'completion_notes'].forEach((k) => {
+                if (String(ed[k] || '').trim() !== String(ed.initial[k] || '').trim()) out[k] = String(ed[k] || '').trim();
+            });
+            // The officer and purpose start as stored; only a changed one is sent.
+            const same = (a, b) => String(ed[a] || '').trim() === String(ed.initial[a] || '').trim()
+                && String(ed[b] || '').trim().toLowerCase() === String(ed.initial[b] || '').trim().toLowerCase();
+            if (!same('receiving_officer_id', 'officer_other')) {
+                if (ed.receiving_officer_id === 'other') {
+                    if (String(ed.officer_other || '').trim()) out.receiving_officer_other = ed.officer_other.trim();
+                } else if (ed.receiving_officer_id) {
+                    out.receiving_officer_id = Number(ed.receiving_officer_id);
+                }
+            }
+            if (!same('request_purpose_id', 'purpose_other')) {
+                if (ed.request_purpose_id === 'other') {
+                    if (String(ed.purpose_other || '').trim()) out.request_purpose_other = ed.purpose_other.trim();
+                } else if (ed.request_purpose_id) {
+                    out.request_purpose_id = Number(ed.request_purpose_id);
+                }
+            }
+            return out;
+        },
+        editValid() {
+            const ed = this.edit;
+            if (!ed.open || !String(ed.reason || '').trim()) return false;
+            if (!ed.office_code) return false;
+            if (ed.receiving_officer_id === 'other' && !String(ed.officer_other || '').trim()) return false;
+            if (ed.request_purpose_id === 'other' && !String(ed.purpose_other || '').trim()) return false;
+            return Object.keys(this.editChanges()).length > 0;
+        },
+        async saveEdit() {
+            if (!this.editValid()) return;
+            const changes = this.editChanges();
+            // A cleared date or time means "leave as stored"; only notes can be emptied.
+            ['log_out_date', 'log_out_time'].forEach((k) => {
+                if (k in changes && !changes[k]) delete changes[k];
+            });
+            this.busy = true;
+            try {
+                const data = await this.request(this.urls.editLog, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        tracker_id: this.edit.ref.tracker_id,
+                        index: this.edit.ref.index,
+                        key: this.edit.ref.key,
+                        reason: this.edit.reason.trim(),
+                        ...changes,
+                    }),
+                });
+                this.notify('success', data.message);
+                this.busy = false;
+                this.closeEdit();
+                await this.loadLists();
+                await this.reloadProfile();
             } catch (e) {
                 this.notify('error', e.message);
             } finally {

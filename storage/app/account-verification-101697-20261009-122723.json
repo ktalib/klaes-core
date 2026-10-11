@@ -1,0 +1,12 @@
+{
+    "before": {
+        "id": 101697,
+        "username": "test1",
+        "first_name": "test1test1",
+        "is_otp_verified": false,
+        "otp_channel": null,
+        "email_verified_at": "2026-10-09T11:22:26.887000Z",
+        "updated_at": "2026-10-09T11:24:54.749000Z"
+    },
+    "action": "User-authorized account verification override"
+}

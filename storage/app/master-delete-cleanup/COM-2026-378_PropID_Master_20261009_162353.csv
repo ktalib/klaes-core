@@ -1,0 +1,2 @@
+id,prop_id,primary_file_number,mlsFNo,kangisFileNo,NewKANGISFileno,temp_fileno,source_table,source_record_id,status,notes,created_at,updated_at,primary_file_number_norm,mlsFNo_norm,kangisFileNo_norm,NewKANGISFileno_norm,temp_fileno_norm
+285932,281046,RES-2009-1265,COM-2026-378,,,RES-2009-1265,,,active,,"2026-09-30 02:33:31","2026-10-09 15:12:56",RES-2009-1265,COM-2026-378,,,RES-2009-1265

@@ -22,6 +22,9 @@
             </div>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => []])
+
         {{-- Year picker --}}
         <div class="flex items-center gap-3 mb-6">
             <label class="text-sm text-gray-600 font-medium">Year:</label>
@@ -87,7 +90,7 @@
                         <tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th>
                             <th class="px-3 py-2">Section</th>
-                            <th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Description</th>
                             <th class="px-3 py-2">Officer</th>
                             <th class="px-3 py-2">Date</th>
@@ -166,7 +169,7 @@ $(document).ready(function () {
         columns: [
             { data:'DT_RowIndex', orderable:false, searchable:false },
             { data:'section' },
-            { data:'file_number' },
+            { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number' },
             { data:'description', render: d => d ? `<span title="${d}">${d.length>50?d.slice(0,50)+'…':d}</span>` : '—' },
             { data:'officer' },
             { data:'date' },

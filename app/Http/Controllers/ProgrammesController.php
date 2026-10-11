@@ -3277,7 +3277,7 @@ class ProgrammesController extends Controller
     /**
      * Row buttons for a SPAS bill.
      *
-     * "Pay" disappears once nothing is owed — a paid bill with a live Pay button
+     * "Generate Bill" disappears once nothing is owed — a paid bill with a live button
      * invites a second collection against it. The receipt of the most recent
      * payment stays reachable for reprinting, which is the copy an owner asks
      * for after losing theirs.
@@ -3287,7 +3287,7 @@ class ProgrammesController extends Controller
         $buttons = [];
 
         if ($bill->status !== 'paid') {
-            $buttons[] = '<button data-id="'.$bill->id.'" class="btn-pay text-xs px-3 py-1 rounded bg-[rgb(186,191,12)] text-white">Pay</button>';
+            $buttons[] = '<button data-id="'.$bill->id.'" data-app="'.(int) $bill->spa_application_id.'" class="btn-pay text-xs px-3 py-1 rounded bg-[rgb(186,191,12)] text-white" style="white-space:nowrap">Generate Bill</button>';
         }
 
         $latest = $bill->payments->sortByDesc('id')->first();
@@ -3338,6 +3338,21 @@ class ProgrammesController extends Controller
             ];
         }
 
+        // An "add when needed" item (a Penalty Fee) has a column even before any
+        // bill carries it; a bill without it reads 0.00 there rather than a dash.
+        $onDemand = \App\Models\SpaBillItem::onDemand();
+        foreach ($onDemand as $item) {
+            $columns['item:' . $item->id] ??= [
+                'key'   => 'item:' . $item->id,
+                'label' => $item->name,
+                'order' => (int) $item->sort_order,
+            ];
+        }
+        $onDemandKeys = $onDemand->map(fn ($item) => 'item:' . $item->id)->all();
+        foreach ($columns as $key => $column) {
+            $columns[$key]['on_demand'] = in_array($key, $onDemandKeys, true);
+        }
+
         return collect($columns)->sortBy([['order', 'asc'], ['label', 'asc']])->values()->all();
     }
 
@@ -3371,6 +3386,7 @@ class ProgrammesController extends Controller
                                $row = [
                                    'DT_RowIndex'  => $request->input('start', 0) + $i + 1,
                                    'reference_id' => $b->reference_id ?? '—',
+                                   'spa_id'       => optional($b->application)->spa_id ?? '—',
                                    'file_number'  => optional($b->application)->file_number ?? '—',
                                    'owner_name'   => optional($b->application)->owner_name  ?? '—',
                                    'bill_type'    => $b->bill_type ?? '—',
@@ -3389,7 +3405,9 @@ class ProgrammesController extends Controller
                                // two cannot drift apart.
                                foreach ($columnDefs as $index => $column) {
                                    $line = $byKey[$column['key']] ?? null;
-                                   $row['item_'.$index] = $line ? number_format($line->amount, 2) : '—';
+                                   $row['item_'.$index] = $line
+                                       ? number_format($line->amount, 2)
+                                       : ($column['on_demand'] ? '0.00' : '—');
                                }
 
                                return $row;
@@ -3454,6 +3472,7 @@ class ProgrammesController extends Controller
 
                                return [
                                    'DT_RowIndex' => $request->input('start', 0) + $i + 1,
+                                   'spa_id'      => optional($b->application)->spa_id ?? '—',
                                    'file_number' => optional($b->application)->file_number ?? '—',
                                    'owner_name'  => optional($b->application)->owner_name  ?? '—',
                                    'bill_type'   => $b->bill_type ?? '—',

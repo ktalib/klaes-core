@@ -157,7 +157,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">S/N</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant Name</th>
                                 <th class="px-4 py-3 text-left">Temp File No</th>
                                 <th class="px-4 py-3 text-left">Source Plots</th>
@@ -165,13 +165,20 @@
                                 <th class="px-4 py-3 text-left">Plots</th>
                                 <th class="px-4 py-3 text-left">Location</th>
                                 <th class="px-4 py-3 text-left">Source</th>
+                                <th class="px-4 py-3 text-left">Created By</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse($records as $record)
+                                @php
+                                    // Same conditions as this row's menu: KAMMA until approved;
+                                    // reject while open; approve also needs the Master JSI.
+                                    $batchOpen = !in_array($record->status, ['approved', 'rejected', 'commissioned'], true);
+                                    $batchKammaDone = strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0;
+                                @endphp
                                 <tr>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['file' => $record->temp_file_no ?: $record->file_no, 'canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3">
                                         <div class="font-bold text-slate-900">{{ $record->applicant_name ?: '—' }}</div>
                                        
@@ -220,6 +227,7 @@
                                             {{ \App\Support\ParcelUpdateSource::label($record->source_module) }}
                                         </span>
                                     </td>
+                                    <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by])</td>
                                     <td class="px-4 py-3 text-center">
                                         @php
                                             /**
@@ -358,7 +366,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-10 text-center text-slate-400">No records found.</td>
+                                    <td colspan="10" class="px-4 py-10 text-center text-slate-400">No records found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -1761,4 +1769,13 @@
         document.getElementById('doc-preview-modal').classList.add('hidden');
     }
 </script>
+
+@include('deeds.parcel_update.partials.batch_decisions', [
+    'batchLabel' => 'Plot Merger',
+    'batchRoutes' => [
+        'knupda' => route('plot-merger.knupda', '__ID__'),
+        'approve' => route('plot-merger.approve', '__ID__'),
+        'reject' => route('plot-merger.reject', '__ID__'),
+    ],
+])
 @endsection

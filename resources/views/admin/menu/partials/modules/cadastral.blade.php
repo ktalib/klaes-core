@@ -1,7 +1,8 @@
 <!-- 16. Cadastral -->
 {{-- Layout follows the Cadastral sidebar brief (2026-10-03):
      a. Registry  b. Cadastral Report  c. Cadastral Information  d. Plans & Descriptions
-     e. Other Departments  f. GIS  g. File Digital Library  h. Digital Archive  i. Reports.
+     e. Other Departments  f. GIS  h. Digital Archive  i. Reports. (g. File Digital
+     Library is now the first entry under Digital Archive, 2026-10-11.)
      Each entry keeps the role check it had before the reorganisation; a group header
      shows when at least one of its entries does.
 
@@ -192,15 +193,6 @@
           <i data-lucide="printer" class="h-3.5 w-3.5 text-rose-400"></i>
           <span>Cadastral Print File Label</span>
         </a>
-
-          {{-- v. File Digital Library – Doc-WARE (the client's "Digital Registry"), moved here 2026-10-10. --}}
-          @if($cadArchive)
-            <a href="{{ route('filearchive.index', ['url' => 'cadastral']) }}"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'cadastral' ? 'active' : '' }}">
-              <i data-lucide="library" class="h-3.5 w-3.5 text-rose-400"></i>
-              <span>File Digital Library – Doc-WARE</span>
-            </a>
-          @endif
       </div>
 
       {{-- b. Cadastral Report --}}
@@ -409,6 +401,12 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="digitalArchive-cadastral">
+          {{-- File Digital Library – Doc-WARE (the client's "Digital Registry"), under Digital Archive per the user 2026-10-11. --}}
+          <a href="{{ route('filearchive.index', ['url' => 'cadastral']) }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'cadastral' ? 'active' : '' }}">
+            <i data-lucide="library" class="h-3.5 w-3.5 text-rose-400"></i>
+            <span>File Digital Library – Doc-WARE</span>
+          </a>
           <a href="{{ route('file-tracker.dashboard', ['url' => 'cadastral']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-tracker.dashboard') && request('url') === 'cadastral' ? 'active' : '' }}">
             <i data-lucide="bar-chart-2" class="h-3.5 w-3.5 text-rose-400"></i>

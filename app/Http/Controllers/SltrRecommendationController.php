@@ -66,7 +66,11 @@ class SltrRecommendationController extends Controller
                          ->orderBy('LGAName')->get();
         $districts   = DB::connection('sqlsrv')->table('districts')->where('is_active', 1)->orderBy('name')->get();
         $streetNames = StreetName::orderBy('name')->get(['id', 'name'])->toBase();
-        $streetOptions = $streetNames->merge([(object)['name' => 'Other']]);
+        // street_names carries its own "other" row; drop it so only the appended Other shows.
+        $streetOptions = $streetNames
+            ->reject(fn ($s) => in_array(strtolower(trim((string) $s->name)), ['other', 'others'], true))
+            ->values()
+            ->merge([(object)['name' => 'Other']]);
         $landUseOptions = LandUse::orderBy('landuse')->get();
         $purposeOptions = Purpose::orderBy('name')->get();
 

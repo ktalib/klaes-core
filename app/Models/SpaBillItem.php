@@ -23,18 +23,48 @@ class SpaBillItem extends Model
 
     protected $fillable = [
         'name', 'description', 'amount', 'is_active', 'sort_order',
-        'is_removed', 'removed_at', 'removed_by',
+        'is_removed', 'removed_at', 'removed_by', 'is_on_demand',
         'created_by', 'updated_by',
     ];
 
     protected $casts = [
-        'amount'     => 'decimal:2',
-        'is_active'  => 'boolean',
-        'is_removed' => 'boolean',
-        'removed_at' => 'datetime',
+        'amount'       => 'decimal:2',
+        'is_active'    => 'boolean',
+        'is_removed'   => 'boolean',
+        'is_on_demand' => 'boolean',
+        'removed_at'   => 'datetime',
     ];
 
     private static ?bool $supportsRemoval = null;
+    private static ?bool $supportsOnDemand = null;
+
+    /**
+     * Whether "add when needed" can be recorded (migration 2026_10_09_150000).
+     * Before it runs every item is charged automatically, as it always was.
+     */
+    public static function supportsOnDemand(): bool
+    {
+        return self::$supportsOnDemand ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')
+            ->hasColumn('spa_bill_items', 'is_on_demand');
+    }
+
+    /**
+     * Items an officer adds to a particular bill when needed (a Penalty Fee),
+     * at the tariff amount. Never composed into a bill automatically.
+     */
+    public static function onDemand()
+    {
+        if (! self::supportsOnDemand()) {
+            return collect();
+        }
+
+        return static::notRemoved()
+            ->where('is_active', 1)
+            ->where('is_on_demand', 1)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
 
     /**
      * Whether "removed" can be recorded (migration 2026_10_08_120000). Before it
@@ -72,6 +102,8 @@ class SpaBillItem extends Model
         return static::notRemoved()
             ->where('is_active', 1)
             ->where('amount', '>', 0)
+            // Items added only when needed (a Penalty Fee) are left for the officer.
+            ->when(self::supportsOnDemand(), fn ($q) => $q->where('is_on_demand', 0))
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();

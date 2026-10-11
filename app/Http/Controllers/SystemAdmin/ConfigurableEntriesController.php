@@ -160,7 +160,7 @@ class ConfigurableEntriesController extends Controller
      * per year; Deeds and Survey keep one per fixed prefix, Deeds per year and
      * Survey once for good. `keys` null means "read them from the prefix table".
      * One table and one action serve all three because the rule is identical:
-     * initialize once, lock immediately, never edit through a screen again.
+     * set the last serial, and correct it here later if it was entered wrong.
      *
      * @var array<string, array>
      */
@@ -317,6 +317,7 @@ class ConfigurableEntriesController extends Controller
         return [
             'spaBillItems' => $tariff->all(),
             'spaBillTotal' => $tariff->total(),
+            'spaBillSupportsOnDemand' => \App\Models\SpaBillItem::supportsOnDemand(),
         ];
     }
 
@@ -330,6 +331,7 @@ class ConfigurableEntriesController extends Controller
             'items.*.name'      => 'required|string|max:150',
             'items.*.amount'    => 'required|numeric|min:0',
             'items.*.is_active' => 'required|boolean',
+            'items.*.is_on_demand' => 'nullable|boolean',
         ], [
             'items.required' => 'Keep at least one item. Switch an item off rather than removing them all.',
         ]);
@@ -1180,8 +1182,7 @@ class ConfigurableEntriesController extends Controller
     /**
      * One group per register that exists on this deployment, each listing every
      * counter it can hold with the row behind it (if any). A counter with no row
-     * is Pending and can be initialized; one that is locked is shown read-only,
-     * because that is the whole point of locking it.
+     * is Pending and can be initialized; one already set can still be edited.
      */
     private function serialsData(): array
     {
@@ -1257,9 +1258,9 @@ class ConfigurableEntriesController extends Controller
     }
 
     /**
-     * Set a counter's last serial and lock it. One-time by design: a locked
-     * counter is refused here, so the only way past it is the database — which
-     * is what keeps the generator from minting a file number twice.
+     * Set or correct a counter's last serial. The first save marks it initialized
+     * (is_locked, as the generators read it); later saves edit it. Moving a counter
+     * backwards re-issues serials, so that is flagged in the message and the audit.
      */
     public function initializeSerial(Request $request, string $register)
     {
@@ -1287,20 +1288,13 @@ class ConfigurableEntriesController extends Controller
             $model = $meta['model'];
             $keys = [$meta['key'] => $name] + ($meta['yearly'] ? ['year' => $year] : []);
 
-            // The lock is the gate, not the initialized flag: the Land register was
-            // seeded with rows marked initialized but left unlocked so the real
-            // starting serial could still be set. That is the gate the old screen
-            // used and the one the generator itself checks.
+            // Every counter stays editable here, Land and Survey as well as Deeds: a
+            // wrongly entered starting serial has to be correctable without the
+            // database. is_locked is still set, because the generators read it as
+            // "initialized"; it no longer blocks a later save. Lowering a counter is
+            // warned about in the confirm and recorded in the audit trail below.
             $existing = $model::query()->where($keys)->first();
-            if ($register !== 'deeds' && $existing && $existing->is_locked) {
-                throw WorkflowGuardException::because(sprintf(
-                    '%s %s is already initialized at %d%s and locked. Only the database can change it now.',
-                    $meta['key_label'],
-                    self::SERIAL_KEY_LABELS[$name] ?? $name,
-                    (int) $existing->last_serial,
-                    $meta['yearly'] ? " for {$year}" : ''
-                ));
-            }
+            $isUpdate = $existing && $existing->is_locked;
 
             $row = $model::query()->updateOrCreate($keys, [
                 'last_serial' => $lastSerial,
@@ -1317,20 +1311,22 @@ class ConfigurableEntriesController extends Controller
             $was = $existing ? (int) $existing->last_serial : null;
             $backwards = $was !== null && $lastSerial < $was;
 
+            $updated = $register === 'deeds' || $isUpdate;
+
             app(\App\Services\AuditService::class)->logAction(
-                $register === 'deeds' ? 'Serial Updated' : 'Serial Initialized',
+                $updated ? 'Serial Updated' : 'Serial Initialized',
                 class_basename($meta['model']),
                 $row->getKey(),
                 $existing ? ['last_serial' => $was] : null,
                 ['register' => $register, $meta['key'] => $name, 'year' => $meta['yearly'] ? $year : null, 'last_serial' => $lastSerial],
-                ("{$meta['label']}: {$label} " . ($register === 'deeds' ? 'updated' : 'initialized and locked') . " at {$lastSerial}.")
+                ("{$meta['label']}: {$label} " . ($updated ? 'updated' : 'initialized') . " at {$lastSerial}.")
                     . ($backwards ? " The counter was moved BACK from {$was}." : '')
             );
 
             return sprintf(
-                $register === 'deeds'
+                $updated
                     ? '%s %s is saved at %d%s. The next file number under it will be serial %d.'
-                    : '%s %s is initialized at %d%s and locked. The next file number under it will be serial %d.',
+                    : '%s %s is initialized at %d%s. The next file number under it will be serial %d.',
                 $meta['key_label'],
                 $label,
                 $lastSerial,
@@ -1339,7 +1335,7 @@ class ConfigurableEntriesController extends Controller
             ) . ($backwards
                 ? " The counter was moved BACK from {$was}: serials " . ($lastSerial + 1) . "–{$was} will be issued a second time."
                 : '');
-        }, $register === 'deeds' ? 'Serial saved.' : 'Serial initialized.');
+        }, 'Serial saved.');
     }
 
     // ---- Deeds Instrument Volume --------------------------------------------

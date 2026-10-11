@@ -297,6 +297,7 @@
                                         <select id="lod_res_addr_street" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500">
                                             <option value="">SELECT STREET</option>
                                             @foreach($streetNames as $street)
+                                                @continue(in_array(strtolower(trim((string) $street->name)), ['other', 'others'], true))
                                                 <option value="{{ $street->name }}">{{ \Illuminate\Support\Str::upper((string) $street->name) }}</option>
                                             @endforeach
                                             <option value="Other">OTHER</option>
@@ -311,6 +312,7 @@
                                         <select id="lod_res_addr_district" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500">
                                             <option value="">SELECT DISTRICT</option>
                                             @foreach($districts as $district)
+                                                @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                                 <option value="{{ $district->name }}">{{ \Illuminate\Support\Str::upper((string) $district->name) }}</option>
                                             @endforeach
                                             <option value="Other">OTHER</option>
@@ -361,6 +363,7 @@
                                         <select id="lod_corr_addr_street" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
                                             <option value="">SELECT STREET</option>
                                             @foreach($streetNames as $street)
+                                                @continue(in_array(strtolower(trim((string) $street->name)), ['other', 'others'], true))
                                                 <option value="{{ $street->name }}">{{ \Illuminate\Support\Str::upper((string) $street->name) }}</option>
                                             @endforeach
                                             <option value="Other">OTHER</option>
@@ -375,6 +378,7 @@
                                         <select id="lod_corr_addr_district" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
                                             <option value="">SELECT DISTRICT</option>
                                             @foreach($districts as $district)
+                                                @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                                 <option value="{{ $district->name }}">{{ \Illuminate\Support\Str::upper((string) $district->name) }}</option>
                                             @endforeach
                                             <option value="Other">OTHER</option>

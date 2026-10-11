@@ -142,6 +142,10 @@
         districtSelect.innerHTML = '<option value="">Select District</option>';
 
         districts.forEach((district) => {
+            // The lookup has its own "Other" row; skip it, the explicit one is appended below.
+            if (/^others?$/i.test(String(district.name || '').trim())) {
+                return;
+            }
             const option = document.createElement('option');
             option.value = String(district.id);
             option.textContent = district.name;

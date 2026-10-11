@@ -39,7 +39,7 @@ class SpaBillItemTariff
      * is never charged again; re-adding the same name brings it back. Before the
      * removal migration has run, removing only switches the item off.
      *
-     * @param  array<int, array{id?: int|string|null, name: string, amount: mixed, is_active: mixed, sort_order?: int|null}>  $items
+     * @param  array<int, array{id?: int|string|null, name: string, amount: mixed, is_active: mixed, is_on_demand?: mixed, sort_order?: int|null}>  $items
      */
     public function save(array $items, string $actor): void
     {
@@ -59,6 +59,12 @@ class SpaBillItemTariff
                 // was removed earlier and has just been added back.
                 if (SpaBillItem::supportsRemoval()) {
                     $values += ['is_removed' => 0, 'removed_at' => null, 'removed_by' => null];
+                }
+
+                // "Add when needed": never charged automatically; an officer adds
+                // it to a particular bill from the Generate Bill form.
+                if (SpaBillItem::supportsOnDemand()) {
+                    $values['is_on_demand'] = ! empty($row['is_on_demand']);
                 }
 
                 $item = ! empty($row['id']) ? SpaBillItem::find($row['id']) : null;

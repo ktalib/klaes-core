@@ -55,6 +55,34 @@ class LandRecommendationController extends Controller
      * @param  array $data  A request payload, or one child / row of a batch.
      */
     /**
+     * Saved Recommendation & Reasons, most used first, for the form to suggest.
+     * Officers re-type the same handful of reasons ("RECOMMENDED" alone is on 1,225
+     * records), so each word typed narrows the list to reasons containing all of them.
+     */
+    public function reasonSuggestions(Request $request)
+    {
+        $words = array_slice(array_filter(preg_split('/\s+/', trim((string) $request->query('q', '')))), 0, 6);
+        $text = "CAST(LTRIM(RTRIM(recommendation)) AS nvarchar(1000))";
+
+        $query = DB::connection('sqlsrv')->table('land_recommendations')
+            ->selectRaw("$text AS reason, COUNT(*) AS uses")
+            ->whereRaw("NULLIF(LTRIM(RTRIM(recommendation)), '') IS NOT NULL");
+        foreach ($words as $word) {
+            $query->whereRaw("$text LIKE ?", ['%' . addcslashes($word, '%_[') . '%']);
+        }
+
+        $rows = $query->groupByRaw($text)
+            ->orderByDesc('uses')
+            ->limit(8)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows->map(fn ($r) => ['reason' => $r->reason, 'uses' => (int) $r->uses])->values(),
+        ]);
+    }
+
+    /**
      * The indexed plot size (m²) for a file number, for the form to prefill and
      * lock. plot_size is null when the file has no usable indexed size.
      */
@@ -125,6 +153,39 @@ class LandRecommendationController extends Controller
         'old_file_number.required_if' =>
             'Enter the Mother File Number, or set Use Subdivision Template back to No.',
     ];
+
+    /**
+     * Application types a mother-file batch can be captured under, and where each
+     * one's parent -> child links are recorded: mls_file_no.source (with the child's
+     * file_indexings.related_fileno naming the mother) and, for files linked by hand
+     * before the workflows existed, manual_file_linkages.workflow_type.
+     *
+     * A type with no source yet (Private Layout, Ministry of Works, Reinstatement,
+     * Revocation) is still listed: its mother dropdown is simply empty until files
+     * are commissioned under it, rather than the type being missing from batch mode.
+     */
+    private const MOTHER_CATEGORIES = [
+        'Private Layout'    => ['mls' => [],                    'linkage' => []],
+        'Plot Subdivision'  => ['mls' => ['Subdivision'],       'linkage' => ['Subdivision']],
+        'Plot Merger'       => ['mls' => ['Merger'],            'linkage' => ['Merger']],
+        'Plot Extension'    => ['mls' => ['Extension File'],    'linkage' => []],
+        'Temporary File No' => ['mls' => ['Temporary File'],    'linkage' => []],
+        'Ministry of Works' => ['mls' => [],                    'linkage' => []],
+        'Change of Purpose' => ['mls' => ['Change of Purpose'], 'linkage' => ['Change of Purpose']],
+        'Regrant'           => ['mls' => ['Re-grant'],          'linkage' => []],
+        'Reinstatement'     => ['mls' => [],                    'linkage' => []],
+        'Revocation'        => ['mls' => [],                    'linkage' => []],
+    ];
+
+    private const DEFAULT_MOTHER_CATEGORY = 'Plot Subdivision';
+
+    /** The batch category a request asks for, or Plot Subdivision when it names none we know. */
+    private function motherCategory(?string $category): string
+    {
+        $category = trim((string) $category);
+
+        return isset(self::MOTHER_CATEGORIES[$category]) ? $category : self::DEFAULT_MOTHER_CATEGORY;
+    }
 
     public function index(Request $request)
     {
@@ -291,6 +352,36 @@ class LandRecommendationController extends Controller
 
         $printedExists = $printedExistsFor($isOssView);
 
+        // A search typed into the box goes to the tab that holds the file. Searching
+        // from Not Printed for a file that sits under Mother Recommendations used to
+        // show an empty list, which read as "no such recommendation". Only the search
+        // form sends `searched`, so a tab clicked by hand while a search is active
+        // stays put even when it has nothing to show.
+        if ($request->filled('search') && $request->boolean('searched')) {
+            $foundTab = $this->searchTabFor(
+                trim((string) $request->search),
+                $tab,
+                $allowedTabs,
+                $pageType === 'OSS',
+                $applyOssChangeOfNameOriginFilter,
+                $printedExistsFor
+            );
+
+            if ($foundTab !== $tab) {
+                $tabNames = [
+                    'not_printed' => 'Not Printed',
+                    'printed'     => 'Printed',
+                    'extant'      => 'Mother Recommendations',
+                    'oss'         => 'OSS Recommendations',
+                    'batches'     => 'Batch Recommendations',
+                ];
+
+                return redirect()
+                    ->route('land-recommendations.index', ['type' => $pageType, 'tab' => $foundTab, 'search' => $request->search])
+                    ->with('search_tab_moved', '"' . $request->search . '" is under ' . $tabNames[$foundTab] . '.');
+            }
+        }
+
         // Counters: cards and tab badges alike describe the PAGE, never the list.
         // The OSS tab swaps the table for the OSS register and stops there — when
         // the cards followed the table instead, ?type=ROFO&tab=oss showed the OSS
@@ -339,6 +430,9 @@ class LandRecommendationController extends Controller
                     . ', MAX(batch_mother_file_no) AS mother_file_no'
                     . ', MAX(old_file_number) AS old_file_number'
                     . ', MAX(application_type) AS application_type'
+                    // Whether the mother's Brief Recommendation has been downloaded:
+                    // the batch menu opens its upload step only after that.
+                    . ', MAX(brief_rec_downloaded_at) AS brief_downloaded_at'
                     . ', COUNT(*) AS total'
                     . ", SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_count"
                     . ", SUM(CASE WHEN rofo_status = 'generated' THEN 1 ELSE 0 END) AS generated_count"
@@ -360,7 +454,11 @@ class LandRecommendationController extends Controller
             $batchChildTotals = collect($batches->items())->mapWithKeys(function ($batch) {
                 $mother = trim((string) ($batch->mother_file_no ?? ''));
 
-                return [$batch->rofo_batch_id => $mother !== ''
+                // The lineage total is a subdivision's notion; a mother batch of any
+                // other type (Merger, Regrant, ...) counts what it holds.
+                $isSubdivisionBatch = in_array(trim((string) ($batch->application_type ?? '')), ['', self::DEFAULT_MOTHER_CATEGORY], true);
+
+                return [$batch->rofo_batch_id => $mother !== '' && $isSubdivisionBatch
                     ? $this->subdivisionLineageChildCount($mother)
                     : (int) $batch->total];
             });
@@ -532,8 +630,10 @@ class LandRecommendationController extends Controller
         // LandRecommendationBatchDocument::subdivisionTemplateKey(). Loaded for the
         // whole page in one query, exactly like the batch documents above: the row
         // menu offers Upload or View on the answer.
+        // Single derived records (Regrant, Merger, ...) file their mother's signed
+        // Brief Recommendation under the same key, so they are loaded here too.
         $subdivisionTemplateIds = $recommendations->getCollection()
-            ->filter(fn ($rec) => (bool) $rec->use_subdivision_template)
+            ->filter(fn ($rec) => (bool) $rec->use_subdivision_template || $rec->isDerivedSingleRecord())
             ->pluck('id');
 
         // A merged file inherits a recommendation from each of its parents, so one
@@ -621,6 +721,71 @@ class LandRecommendationController extends Controller
                   ->orWhereNotExists($ownLetter);
             });
         });
+    }
+
+    /**
+     * The tab a search should land on: the current one when it has a match,
+     * otherwise the first tab (in strip order) that does. Each tab is tested with
+     * the same scope, search columns and print / extant / batch rules index()
+     * lists it with, so the tab chosen is never one that then shows nothing.
+     */
+    private function searchTabFor(string $search, string $currentTab, array $allowedTabs, bool $ossPage, callable $applyOssFilter, callable $printedExistsFor): string
+    {
+        $scoped = function (bool $oss) use ($applyOssFilter) {
+            $query = LandRecommendation::query();
+            if ($oss) {
+                $query->whereRaw("UPPER(ISNULL(type, '')) = ?", ['OSS']);
+                $applyOssFilter($query);
+            } else {
+                $query->where(function ($q) {
+                    $q->whereNull('type')->orWhereRaw("UPPER(ISNULL(type, '')) <> ?", ['OSS']);
+                });
+            }
+
+            return $query;
+        };
+
+        $listSearch = function ($query) use ($search) {
+            return $query->where(function ($q) use ($search) {
+                $q->where('file_number', 'LIKE', "%{$search}%")
+                  ->orWhere('applicant_name', 'LIKE', "%{$search}%")
+                  ->orWhere('location', 'LIKE', "%{$search}%");
+            });
+        };
+
+        $hasMatch = function (string $tab) use ($scoped, $listSearch, $ossPage, $printedExistsFor, $search) {
+            switch ($tab) {
+                case 'batches':
+                    return $this->activeBatchMembers($scoped($ossPage)->whereNotNull('rofo_batch_id'))
+                        ->where(function ($q) use ($search) {
+                            $q->where('batch_mother_file_no', 'LIKE', "%{$search}%")
+                              ->orWhere('rofo_batch_id', 'LIKE', "%{$search}%")
+                              ->orWhere('file_number', 'LIKE', "%{$search}%")
+                              ->orWhere('applicant_name', 'LIKE', "%{$search}%");
+                        })
+                        ->exists();
+                case 'oss':
+                    return $listSearch($scoped(true))->whereExists($printedExistsFor(true))->exists();
+                case 'extant':
+                    return $this->extantRecommendation($listSearch($scoped($ossPage)))->exists();
+                case 'printed':
+                    return $this->extantRecommendation($listSearch($scoped($ossPage))->whereExists($printedExistsFor($ossPage)), false)->exists();
+                default: // not_printed
+                    return $this->extantRecommendation($listSearch($scoped($ossPage))->whereNotExists($printedExistsFor($ossPage)), false)->exists();
+            }
+        };
+
+        if ($hasMatch($currentTab)) {
+            return $currentTab;
+        }
+
+        foreach (['not_printed', 'printed', 'extant', 'oss', 'batches'] as $tab) {
+            if ($tab !== $currentTab && in_array($tab, $allowedTabs, true) && $hasMatch($tab)) {
+                return $tab;
+            }
+        }
+
+        return $currentTab;
     }
 
     /**
@@ -1494,6 +1659,15 @@ class LandRecommendationController extends Controller
             $mother . '(T)',
         ])));
 
+        // Same lookup as subdivisionChildren(): a grandmother's children were
+        // commissioned under the number its Change of Purpose produced, so the
+        // register would otherwise count only what the batch itself holds.
+        $base = preg_replace('/\s*\(T\)\s*$/i', '', $mother);
+        $variants = array_values(array_unique(array_merge(
+            $variants,
+            array_slice($this->changeOfPurposeSuccessors($base), 1)
+        )));
+
         $linkedFileNumbers = DB::connection('sqlsrv')->table('file_indexings')
             ->where(function ($query) use ($variants) {
                 foreach ($variants as $variant) {
@@ -1502,15 +1676,17 @@ class LandRecommendationController extends Controller
             })
             ->pluck('file_number');
 
-        $workflowChildren = $linkedFileNumbers->isEmpty()
-            ? collect()
-            : DB::connection('sqlsrv')->table('mls_file_no')
-                ->whereIn('full_file_number', $linkedFileNumbers)
+        // Chunked for SQL Server's 2100-parameter limit, as in subdivisionChildren().
+        $workflowChildren = collect();
+        foreach ($linkedFileNumbers->chunk(1000) as $slice) {
+            $workflowChildren = $workflowChildren->merge(DB::connection('sqlsrv')->table('mls_file_no')
+                ->whereIn('full_file_number', $slice->values()->all())
                 ->where('source', 'Subdivision')
                 ->where(function ($query) {
                     $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
                 })
-                ->pluck('full_file_number');
+                ->pluck('full_file_number'));
+        }
 
         $legacyChildren = DB::connection('sqlsrv')->table('manual_file_linkages')
             ->where('workflow_type', 'Subdivision')
@@ -1521,10 +1697,18 @@ class LandRecommendationController extends Controller
             })
             ->pluck('new_file_number');
 
-        return $workflowChildren
+        $children = $workflowChildren
             ->merge($legacyChildren)
-            ->map(fn ($fileNumber) => mb_strtoupper(trim((string) $fileNumber)))
+            ->map(fn ($fileNumber) => trim((string) $fileNumber))
             ->filter()
+            ->unique()
+            ->values();
+
+        // A child renumbered by a Change of Purpose is counted once, under its new number.
+        $renumbered = $children->isEmpty() ? [] : $this->renumberedSubdivisionChildren($children);
+
+        return $children
+            ->map(fn ($fileNumber) => mb_strtoupper($renumbered[mb_strtoupper($fileNumber)] ?? $fileNumber))
             ->unique()
             ->count();
     }
@@ -1784,6 +1968,11 @@ class LandRecommendationController extends Controller
             return response()->json(['success' => false, 'message' => 'No mother file number supplied.'], 422);
         }
 
+        // The application type the batch is for; see MOTHER_CATEGORIES.
+        $category    = $this->motherCategory($request->query('category'));
+        $sources     = self::MOTHER_CATEGORIES[$category];
+        $subdivision = $category === self::DEFAULT_MOTHER_CATEGORY;
+
         // A file captured under a temporary number lives as "X(T)" in one place and
         // "X" in another, so look for the child link under both spellings.
         $variants = array_values(array_unique(array_filter([
@@ -1795,11 +1984,13 @@ class LandRecommendationController extends Controller
         // The picker lists a grandmother (CON-COM-2003-118) where the subdivision was
         // commissioned on the number its Change of Purpose produced (CON-RES-2026-2924),
         // so the children are looked up under that number too.
-        $base = preg_replace('/\s*\(T\)\s*$/i', '', $mother);
-        $variants = array_values(array_unique(array_merge(
-            $variants,
-            array_slice($this->changeOfPurposeSuccessors($base), 1)
-        )));
+        if ($subdivision) {
+            $base = preg_replace('/\s*\(T\)\s*$/i', '', $mother);
+            $variants = array_values(array_unique(array_merge(
+                $variants,
+                array_slice($this->changeOfPurposeSuccessors($base), 1)
+            )));
+        }
 
         // Source 1 — commissioned through the Subdivision workflow: the child's
         // file_indexings row back-links to the mother via related_fileno, and its
@@ -1818,10 +2009,10 @@ class LandRecommendationController extends Controller
         // children of every file it was subdivided as -- past SQL Server's 2100
         // parameters in one whereIn.
         $workflowChildren = collect();
-        foreach ($linkedFileNumbers->chunk(1000) as $slice) {
+        foreach ($sources['mls'] ? $linkedFileNumbers->chunk(1000) : [] as $slice) {
             $workflowChildren = $workflowChildren->merge(DB::connection('sqlsrv')->table('mls_file_no')
                 ->whereIn('full_file_number', $slice->values()->all())
-                ->where('source', 'Subdivision')
+                ->whereIn('source', $sources['mls'])
                 ->where(function ($q) {
                     $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
                 })
@@ -1832,8 +2023,8 @@ class LandRecommendationController extends Controller
         // through Legacy Parcel Update. Those children pre-date the workflow, so they
         // carry no 'Subdivision' source and no related_fileno link; the manual linkage
         // row is the only record of the split.
-        $legacyRows = DB::connection('sqlsrv')->table('manual_file_linkages')
-            ->where('workflow_type', 'Subdivision')
+        $legacyRows = !$sources['linkage'] ? collect() : DB::connection('sqlsrv')->table('manual_file_linkages')
+            ->whereIn('workflow_type', $sources['linkage'])
             ->where(function ($q) use ($variants) {
                 foreach ($variants as $v) {
                     $q->orWhere('old_file_numbers', 'LIKE', '%"' . $v . '"%');
@@ -1856,7 +2047,7 @@ class LandRecommendationController extends Controller
         // is captured under the number it became, not the one it no longer answers
         // to. Without this the batch offers a decommissioned file and the plots that
         // moved have to be done singly, outside the batch they belong to.
-        $renumbered = $this->renumberedSubdivisionChildren($childFileNumbers);
+        $renumbered = $subdivision ? $this->renumberedSubdivisionChildren($childFileNumbers) : [];
 
         if ($renumbered) {
             $childFileNumbers = $childFileNumbers
@@ -1883,14 +2074,16 @@ class LandRecommendationController extends Controller
             // than the form — so the lookup that came back empty is recorded.
             RecLog::warning('Subdivision mother has no children', [
                 'mother_file_no' => $mother,
+                'category'       => $category,
                 'variants'       => implode(', ', $variants),
             ]);
 
             return response()->json([
                 'success'  => true,
                 'mother'   => $mother,
+                'category' => $category,
                 'children' => [],
-                'message'  => 'No subdivision children are linked to this file number — neither commissioned through the workflow nor backfilled as a legacy linkage.',
+                'message'  => 'No ' . $category . ' children are linked to this file number — neither commissioned through the workflow nor backfilled as a legacy linkage.',
             ]);
         }
 
@@ -2447,10 +2640,17 @@ class LandRecommendationController extends Controller
      */
     public function subdivisionMothers(Request $request)
     {
-        // Source 1 — commissioned through the Subdivision workflow.
-        $children = DB::connection('sqlsrv')->table('mls_file_no as m')
+        // Which application type's mothers to list. Subdivision is the default and
+        // the only one that also follows Change of Purpose renames (see below).
+        $category    = $this->motherCategory($request->query('category'));
+        $sources     = self::MOTHER_CATEGORIES[$category];
+        $subdivision = $category === self::DEFAULT_MOTHER_CATEGORY;
+        $empty       = ['success' => true, 'category' => $category, 'mothers' => [], 'count' => 0, 'total' => 0];
+
+        // Source 1 — commissioned through the category's workflow.
+        $children = !$sources['mls'] ? collect() : DB::connection('sqlsrv')->table('mls_file_no as m')
             ->join('file_indexings as fi', 'fi.file_number', '=', 'm.full_file_number')
-            ->where('m.source', 'Subdivision')
+            ->whereIn('m.source', $sources['mls'])
             ->where(function ($q) {
                 $q->whereNull('m.is_deleted')->orWhere('m.is_deleted', 0);
             })
@@ -2478,8 +2678,8 @@ class LandRecommendationController extends Controller
         // Source 2 — subdivided manually before the workflow existed, backfilled
         // through Legacy Parcel Update. old_file_numbers is a JSON array of the
         // decommissioned mother file(s).
-        $legacy = DB::connection('sqlsrv')->table('manual_file_linkages')
-            ->where('workflow_type', 'Subdivision')
+        $legacy = !$sources['linkage'] ? collect() : DB::connection('sqlsrv')->table('manual_file_linkages')
+            ->whereIn('workflow_type', $sources['linkage'])
             ->whereNotNull('old_file_numbers')
             ->get(['new_file_number', 'old_file_numbers']);
 
@@ -2498,14 +2698,16 @@ class LandRecommendationController extends Controller
         }
 
         if (!$childrenByMother) {
-            return response()->json(['success' => true, 'mothers' => [], 'count' => 0, 'total' => 0]);
+            return response()->json($empty);
         }
 
         // A mother that a Change of Purpose produced is listed as the file it was
         // before: CON-RES-2026-2924 holds the 82 children, but it is CON-COM-2003-118
         // under a new land use, and that original is the file the recommendation is
         // raised against. subdivisionChildren() follows the rename forward again.
-        $origins      = $this->changeOfPurposeOrigins(array_keys($childrenByMother));
+        // Subdivision only: for the other categories the Change of Purpose IS the
+        // lineage being listed, or has nothing to do with it.
+        $origins      = $subdivision ? $this->changeOfPurposeOrigins(array_keys($childrenByMother)) : [];
         $subdividedAs = [];
 
         if ($origins) {
@@ -2531,7 +2733,7 @@ class LandRecommendationController extends Controller
             }
         }
 
-        $renumbered = $this->renumberedSubdivisionChildren(array_keys($everyChild));
+        $renumbered = $subdivision ? $this->renumberedSubdivisionChildren(array_keys($everyChild)) : [];
 
         if ($renumbered) {
             foreach ($childrenByMother as $motherFileNo => $kids) {
@@ -2593,7 +2795,7 @@ class LandRecommendationController extends Controller
         }
 
         if (!$mothers) {
-            return response()->json(['success' => true, 'mothers' => [], 'count' => 0, 'total' => 0]);
+            return response()->json($empty);
         }
 
         usort($mothers, fn ($a, $b) => strcmp($a['file_number'], $b['file_number']));
@@ -2620,6 +2822,7 @@ class LandRecommendationController extends Controller
 
         return response()->json([
             'success'   => true,
+            'category'  => $category,
             'mothers'   => $mothers,
             'count'     => count($mothers),
             'matched'   => $matched,
@@ -2942,9 +3145,11 @@ class LandRecommendationController extends Controller
         if ($kind === 'subdivision') {
             // The mother is both the lineage link and what groups the batch, and
             // num_plots is the size of the split — none of which a regular batch has.
+            // The application type is the mother category the batch was loaded under
+            // (Plot Subdivision unless another one from MOTHER_CATEGORIES was picked).
             $common['old_file_number']      = $mother;
             $common['batch_mother_file_no'] = $mother;
-            $common['application_type']     = 'Plot Subdivision';
+            $common['application_type']     = $this->motherCategory($validated['application_type'] ?? null);
             $common['num_plots']            = (string) count($validated['children']);
         }
 
@@ -3308,7 +3513,9 @@ class LandRecommendationController extends Controller
         if ($kind === 'subdivision') {
             $common['old_file_number']      = $mother;
             $common['batch_mother_file_no'] = $mother;
-            $common['application_type']     = 'Plot Subdivision';
+            // An edit posts '__edit_batch__' rather than a type, so the batch keeps the
+            // category it was captured under.
+            $common['application_type']     = $this->motherCategory($existing->first()->application_type);
             // The lower table is the whole saved batch on this pass: additions
             // join it and rows moved back to Remaining Records leave it.
             $common['num_plots']            = (string) $incomingKeys->count();
@@ -4002,8 +4209,15 @@ class LandRecommendationController extends Controller
      */
     private function subdivisionTemplatesMissingMotherRecommendation(array $ids): array
     {
+        // Also any single record captured under an Application Type with a mother /
+        // old file number (Regrant, Merger, Reinstatement, ...): it inherits the
+        // mother file's signed Brief Recommendation the same way, and files it under
+        // the same per-record key. See LandRecommendationBatchDocumentController.
         $records = LandRecommendation::whereIn('id', $ids)
-            ->where('use_subdivision_template', 1)
+            ->where(function ($q) {
+                $q->where('use_subdivision_template', 1)
+                  ->orWhere(fn ($d) => $this->derivedSingleRecord($d));
+            })
             ->get(['id', 'file_number', 'old_file_number']);
 
         $missing = [];
@@ -4167,6 +4381,88 @@ class LandRecommendationController extends Controller
      * both approval endpoints so a child approved one at a time from the main list
      * is held to the same rule as "Approve all".
      */
+    /**
+     * A record outside any batch that was captured under an Application Type and
+     * names its mother / old file. Public-static twin in the batch document
+     * controller: LandRecommendation::derivedSingleRecordScope().
+     */
+    private function derivedSingleRecord($query)
+    {
+        return LandRecommendation::derivedSingleRecordScope($query);
+    }
+
+    /**
+     * Run the mother-recommendation gate, honouring a Supper Admin override.
+     *
+     * Returns a 422 response when the approval must stop, or null to go on. A
+     * Supper Admin who sends override_reason (at least 10 characters) approves past
+     * the gate; the override is written onto every record it let through, so the
+     * register can say which approvals had no signed brief behind them. Everyone
+     * else is refused as before, and a Supper Admin is told the override exists.
+     */
+    private function motherGateOrOverride(Request $request, array $ids)
+    {
+        $blocked = $this->motherRecommendationGate($ids);
+
+        if (!$blocked) {
+            return null;
+        }
+
+        $canOverride = Auth::user()?->assign_role === 'Supper Admin';
+        $reason = trim((string) $request->input('override_reason', ''));
+
+        if (!$canOverride || $reason === '') {
+            return response()->json([
+                'success'      => false,
+                'message'      => $blocked,
+                'can_override' => $canOverride,
+            ], 422);
+        }
+
+        if (mb_strlen($reason) < 10) {
+            return response()->json([
+                'success'      => false,
+                'message'      => 'Give a reason of at least 10 characters for approving without the signed Brief Recommendation.',
+                'can_override' => true,
+            ], 422);
+        }
+
+        // Stamped by stampBriefOverride() once the approval has actually happened,
+        // so a record refused by a later gate is not marked as overridden.
+        $this->briefOverrideReason = mb_substr($reason, 0, 500);
+
+        RecLog::warning('Approval gate overridden — no signed brief recommendation', [
+            'ids'     => implode(', ', array_slice($ids, 0, 40)),
+            'count'   => count($ids),
+            'user_id' => Auth::id(),
+            'reason'  => $reason,
+            'blocked' => $blocked,
+        ]);
+
+        return null;
+    }
+
+    /** Set by motherGateOrOverride() when a Supper Admin overrides; read once the approval is written. */
+    private ?string $briefOverrideReason = null;
+
+    /** Record the override on the records this request just approved. */
+    private function stampBriefOverride(array $ids): void
+    {
+        if ($this->briefOverrideReason === null) {
+            return;
+        }
+
+        DB::connection('sqlsrv')->table('land_recommendations')
+            ->whereIn('id', $ids)
+            ->where('status', LandRecommendation::STATUS_APPROVED)
+            ->whereNull('brief_rec_override_at')
+            ->update([
+                'brief_rec_override_by'     => Auth::id(),
+                'brief_rec_override_at'     => now(),
+                'brief_rec_override_reason' => $this->briefOverrideReason,
+            ]);
+    }
+
     private function motherRecommendationGate(array $ids): ?string
     {
         $missing = $this->batchesMissingMotherRecommendation($ids)
@@ -4185,22 +4481,23 @@ class LandRecommendationController extends Controller
         ]);
 
         return count($missing) === 1
-            ? 'The mother recommendation for ' . $mothers . ' has not been uploaded yet. '
+            ? 'The signed Brief Recommendation for the mother file ' . $mothers . ' has not been uploaded yet. '
                 . 'Upload it from the batch or record menu first — these files inherit that letter, '
                 . 'so approving them now would leave records pointing at nothing.'
-            : 'These have no mother recommendation uploaded yet: ' . $mothers . '. '
+            : 'These have no signed Brief Recommendation uploaded for their mother file yet: ' . $mothers . '. '
                 . 'Upload each one from its batch or record menu before approving.';
     }
 
-    public function approve($id)
+    public function approve(Request $request, $id)
     {
         $recommendation = LandRecommendation::findOrFail($id);
 
-        // Held to the same rule as "Approve all": a child of a subdivision batch
-        // cannot be approved before the mother's letter is on file, however it is
-        // approached.
-        if ($blocked = $this->motherRecommendationGate([$recommendation->id])) {
-            return response()->json(['success' => false, 'message' => $blocked], 422);
+        // Held to the same rule as "Approve all": a child of a mother-file batch (or
+        // a single derived record) cannot be approved before the mother's signed
+        // Brief Recommendation is on file, however it is approached — short of a
+        // Supper Admin override.
+        if ($response = $this->motherGateOrOverride($request, [$recommendation->id])) {
+            return $response;
         }
 
         // Same for a record that stands for a letter already approved on paper: the
@@ -4213,6 +4510,7 @@ class LandRecommendationController extends Controller
             'status' => LandRecommendation::STATUS_APPROVED,
             'approved_at' => now()
         ]);
+        $this->stampBriefOverride([$recommendation->id]);
 
         $generated = $this->generateRofosForBatchMembers([$recommendation->id]);
 
@@ -4237,8 +4535,8 @@ class LandRecommendationController extends Controller
     {
         $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'integer'])['ids'];
 
-        if ($blocked = $this->motherRecommendationGate($ids)) {
-            return response()->json(['success' => false, 'message' => $blocked], 422);
+        if ($response = $this->motherGateOrOverride($request, $ids)) {
+            return $response;
         }
 
         if ($blocked = $this->approvedLetterGate($ids)) {
@@ -4248,6 +4546,7 @@ class LandRecommendationController extends Controller
         $count = LandRecommendation::whereIn('id', $ids)
             ->where('status', LandRecommendation::STATUS_PENDING)
             ->update(['status' => LandRecommendation::STATUS_APPROVED, 'approved_at' => now()]);
+        $this->stampBriefOverride($ids);
 
         $generated = $this->generateRofosForBatchMembers($ids);
 
@@ -4400,27 +4699,10 @@ class LandRecommendationController extends Controller
     {
         $recommendation = LandRecommendation::findOrFail($id);
 
-        // A file whose Occupancy Permit was matched keeps the recommendation it was
-        // already granted on paper — the scan uploaded against the record IS its
-        // letter, and the record exists to carry it, not to replace it. Printing
-        // here would mint a fresh security serial and put a second, KLAES-issued
-        // recommendation on a file that already has one.
-        //
-        // The white copy comes through this same method, so the proof is refused
-        // with the official print rather than separately. The RofO is untouched:
-        // it prints from LandRofoController on its own route, which is the document
-        // these records are captured to produce.
-        if ($recommendation->is_existing_recommendation) {
-            RecLog::warning('Recommendation print refused — file keeps its extant letter', [
-                'id'          => $recommendation->id,
-                'file_number' => $recommendation->file_number,
-                'white_copy'  => (bool) view()->shared('isWhiteCopy', false),
-            ]);
-
-            abort(403, 'No recommendation is printed for ' . $recommendation->file_number
-                . '. Its Occupancy Permit was matched, so this record stands for the recommendation '
-                . 'already approved on paper — open "View approved recommendation" on the record to read it.');
-        }
+        // A file whose Occupancy Permit was matched (is_existing_recommendation) used
+        // to be refused here, on the view that its paper letter stood in for a
+        // printed one. Lands asked for the saved record to print like any other
+        // (2026-10-08), so it does; the uploaded scan stays on the record alongside.
 
         $isOssRecommendation = strtoupper((string) ($recommendation->type ?? '')) === 'OSS';
 

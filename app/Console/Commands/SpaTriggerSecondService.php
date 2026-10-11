@@ -78,6 +78,13 @@ class SpaTriggerSecondService extends Command
                         });
                     });
             })
+            // The First Serve promises a second "if there is no response" — so a
+            // notice whose allottee has responded is never escalated.
+            ->when(\App\Models\SpaNoticeResponse::supported(), fn ($q) => $q->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('spa_notice_responses as snr')
+                    ->whereColumn('snr.spa_notice_id', 'spa_notices.id');
+            }))
             ->with('application')
             ->get();
 

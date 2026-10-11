@@ -18,6 +18,10 @@ class SpaApplication extends Model
         // Offline sync (database/sql/2026_08_15_spas_offline_sync_schema.sql):
         // device-generated id that makes a create idempotent on retry.
         'client_uuid',
+        // SPAS-YYYY-####, on every record (migration 2026_10_09_120000).
+        'spa_id',
+        // The property's QR sticker, typed or scanned (migration 2026_10_09_150000).
+        'sticker_number',
     ];
 
     protected $casts = [
@@ -89,17 +93,52 @@ class SpaApplication extends Model
         return $this->hasOne(SpaCertificate::class, 'spa_application_id');
     }
 
-    public static function generateCustomaryFileNumber(): string
+    private static ?bool $hasSticker = null;
+
+    /** Whether the sticker_number column exists yet. */
+    public static function supportsSticker(): bool
+    {
+        return self::$hasSticker ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('spa_applications', 'sticker_number');
+    }
+
+    private static ?bool $hasSpaId = null;
+
+    /** Whether the spa_id column exists yet (code works before the migration). */
+    public static function supportsSpaId(): bool
+    {
+        return self::$hasSpaId ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('spa_applications', 'spa_id');
+    }
+
+    /**
+     * The next SPAS ID, SPAS-YYYY-####. One sequence for every record: a
+     * customary title uses it as its file number too, so both columns are
+     * read to find the highest number taken this year.
+     */
+    public static function generateSpasId(): string
     {
         $year = now()->format('Y');
-        $last = DB::connection('sqlsrv')
-            ->table('spa_applications')
-            ->where('file_number', 'like', "SPAS-{$year}-%")
-            ->orderByDesc('id')
-            ->value('file_number');
+        $max  = 0;
 
-        $seq = $last ? ((int) substr($last, strrpos($last, '-') + 1)) + 1 : 1;
+        foreach (self::supportsSpaId() ? ['spa_id', 'file_number'] : ['file_number'] as $col) {
+            $values = DB::connection('sqlsrv')->table('spa_applications')
+                ->where($col, 'like', "SPAS-{$year}-%")->pluck($col);
+            foreach ($values as $v) {
+                $max = max($max, (int) substr($v, strrpos($v, '-') + 1));
+            }
+        }
 
-        return "SPAS-{$year}-" . str_pad($seq, 4, '0', STR_PAD_LEFT);
+        return "SPAS-{$year}-" . str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    /** Kept for existing callers: a customary file number is the SPAS ID. */
+    public static function generateCustomaryFileNumber(): string
+    {
+        return self::generateSpasId();
+    }
+
+    /** What to show or match on when the owner gave no file number. */
+    public function getReferenceAttribute(): ?string
+    {
+        return $this->file_number ?: ($this->spa_id ?? null);
     }
 }

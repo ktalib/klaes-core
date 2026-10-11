@@ -1332,9 +1332,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('land-recommendations/check-duplicate', [\App\Http\Controllers\LandRecommendationController::class, 'checkDuplicate'])->name('land-recommendations.check-duplicate');
     // Indexed plot size (m²) for the form to prefill and lock — must stay above the resource route
     Route::get('land-recommendations/plot-size', [\App\Http\Controllers\LandRecommendationController::class, 'plotSize'])->name('land-recommendations.plot-size');
+    // Saved Recommendation & Reasons, most used first, for the form's suggestions — above the resource route
+    Route::get('land-recommendations/reason-suggestions', [\App\Http\Controllers\LandRecommendationController::class, 'reasonSuggestions'])->name('land-recommendations.reason-suggestions');
     // Plot Subdivision batch capture — both must stay above the resource route
     Route::get('land-recommendations/subdivision-mothers', [\App\Http\Controllers\LandRecommendationController::class, 'subdivisionMothers'])->name('land-recommendations.subdivision-mothers');
     Route::get('land-recommendations/subdivision-children', [\App\Http\Controllers\LandRecommendationController::class, 'subdivisionChildren'])->name('land-recommendations.subdivision-children');
+    // Brief Recommendation (the Permanent Secretary memo for the mother file):
+    // the mother's details for the Word template, and the download log. The signed
+    // copy is uploaded through batch-document.store below. Above the resource route.
+    Route::get('land-recommendations/brief/details', [\App\Http\Controllers\LandRecommendationBriefController::class, 'details'])->name('land-recommendations.brief.details');
+    Route::post('land-recommendations/brief/downloaded', [\App\Http\Controllers\LandRecommendationBriefController::class, 'downloaded'])->name('land-recommendations.brief.downloaded');
     // Regular-files batch capture — the same table, filled from a hand-picked set
     // of file numbers instead of from one mother file's children.
     Route::get('land-recommendations/batch-files', [\App\Http\Controllers\LandRecommendationController::class, 'batchFiles'])->name('land-recommendations.batch-files');

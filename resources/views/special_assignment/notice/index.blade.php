@@ -16,6 +16,9 @@
             </button>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['contravention', 'response', 'second']])
+
         {{-- Stats --}}
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
@@ -54,11 +57,11 @@
                     @include('special_assignment.partials.table_case')
                     <table id="first-serve-table" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
-                            <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2">#</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Recipient</th><th class="px-3 py-2">Phone</th>
                             <th class="px-3 py-2">Date Served</th><th class="px-3 py-2">SMS</th>
                             <th class="px-3 py-2">Days Ago</th><th class="px-3 py-2">Status</th>
-                            <th class="px-3 py-2">2nd Serve</th>
+                            <th class="px-3 py-2">2nd Serve</th><th class="px-3 py-2">Actions</th>
                         </tr></thead>
                         <tbody></tbody>
                     </table>
@@ -76,11 +79,11 @@
                 <div class="p-4">
                     <table id="second-serve-table" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
-                            <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2">#</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Recipient</th><th class="px-3 py-2">Phone</th>
                             <th class="px-3 py-2">1st Serve</th><th class="px-3 py-2">Days Since</th>
                             <th class="px-3 py-2">2nd Serve</th><th class="px-3 py-2">SMS</th>
-                            <th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th>
+                            <th class="px-3 py-2">Status</th><th class="px-3 py-2">Actions</th>
                         </tr></thead>
                         <tbody></tbody>
                     </table>
@@ -144,6 +147,7 @@
     .dataTables_wrapper .dataTables_length select { border:1px solid #e5e7eb; border-radius:.5rem; padding:.25rem .5rem; }
 </style>
 
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
 <script>
 const CSRF         = '{{ csrf_token() }}';
@@ -184,20 +188,21 @@ $(document).ready(function () {
 
     // ── DataTables ──────────────────────────────────────────────────────────
     const firstCols = [
-        { data:'DT_RowIndex', orderable:false, searchable:false }, { data:'file_number' },
+        { data:'DT_RowIndex', orderable:false, searchable:false }, { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
         { data:'recipient' }, { data:'phone' }, { data:'served_date' }, { data:'sms_sent' },
-        { data:'days_ago', render: d => d != null ? `<span class="px-2 py-0.5 rounded-full text-xs ${d>=14?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">${d}d ago</span>` : '—' },
+        { data:'days_ago', render: d => d != null ? `<span class="px-2 py-0.5 rounded-full text-xs ${d>=14?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}" style="white-space:nowrap">${d}d ago</span>` : '—' },
         // served = green; pending (owed but not yet out) = amber; a record with no
         // contravention owes no notice = grey.
-        { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':(d==='no_contravention'?'bg-gray-100 text-gray-500':'bg-amber-100 text-amber-700')}" style="white-space:nowrap">${d||'—'}</span>` },
+        { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':d==='responded'?'bg-blue-100 text-blue-700':(d==='no_contravention'?'bg-gray-100 text-gray-500':'bg-amber-100 text-amber-700')}" style="white-space:nowrap">${d||'—'}</span>` },
+        { data:'second_serve', orderable:false, searchable:false, defaultContent:'—' },
         { data:'action', orderable:false, searchable:false },
     ];
     const secondCols = [
-        { data:'DT_RowIndex', orderable:false, searchable:false }, { data:'file_number' },
+        { data:'DT_RowIndex', orderable:false, searchable:false }, { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
         { data:'recipient' }, { data:'phone' }, { data:'first_date' },
-        { data:'days_ago', render: d => d != null ? `<span class="px-2 py-0.5 rounded-full text-xs ${d>=14?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">${d}d ago</span>` : '—' },
+        { data:'days_ago', render: d => d != null ? `<span class="px-2 py-0.5 rounded-full text-xs ${d>=14?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}" style="white-space:nowrap">${d}d ago</span>` : '—' },
         { data:'served_date' }, { data:'sms_sent' },
-        { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${d||'—'}</span>` },
+        { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':(d==='responded'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700')}">${d||'—'}</span>` },
         { data:'action', orderable:false, searchable:false },
     ];
 

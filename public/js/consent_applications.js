@@ -428,6 +428,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (sourceEl) sourceEl.textContent = '';
                 showWarning(isGift ? null : message);
                 setRows(null);
+                // No valuation is exactly when the assessed amount is
+                // overridden by hand; the rows must show what it bills.
+                refreshBillPreview();
                 return;
             }
 
@@ -438,11 +441,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // The server computed at the type's default rates. An overridden
             // assessed amount or an edited percentage keeps governing the
             // percentage lines, so recompute on screen with them.
-            const basisFlag = document.getElementById('bill_basis_overridden');
-            const ratesEdited = !!document.querySelector('[data-rate-input][name]');
-            if ((basisFlag && basisFlag.value === '1') || ratesEdited) {
-                rebasePercentageFees(currentBillBase());
-            }
+            refreshBillPreview();
             statusEl.innerHTML = 'Valuation linked';
             statusEl.className = 'text-xs font-medium text-emerald-600';
             showWarning(null);
@@ -743,6 +742,96 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     initBillOverrides();
+
+    /**
+     * Repaint the bill from whatever governs it on screen: an overridden
+     * assessed amount or edited rate rebases the percentage lines, and open
+     * line overrides feed the total. Run after every valuation lookup, which
+     * paints the rows from the server's figures and would otherwise hide both.
+     */
+    function refreshBillPreview() {
+        const basisFlag = document.getElementById('bill_basis_overridden');
+        const ratesEdited = !!document.querySelector('[data-rate-input][name]');
+        if ((basisFlag && basisFlag.value === '1') || ratesEdited) {
+            rebasePercentageFees(currentBillBase());
+        } else {
+            updateBillTotalPreview();
+        }
+    }
+
+    // Close every line override and drop the basis flag, so one record's
+    // overrides never post with the next.
+    function clearBillOverrides() {
+        document.querySelectorAll('#consent-bill-section .bill-row').forEach((row) => {
+            const panel = row.querySelector('.bill-override');
+            const amount = row.querySelector('[data-override-amount]');
+            const reason = row.querySelector('[data-override-reason]');
+            if (panel) panel.classList.add('hidden');
+            [amount, reason].forEach((el) => {
+                if (!el) return;
+                el.value = '';
+                el.removeAttribute('name');
+            });
+            const note = row.querySelector('.bill-row-note');
+            if (note) note.classList.remove('text-amber-600');
+        });
+        const flag = document.getElementById('bill_basis_overridden');
+        const note = document.getElementById('consideration-override-note');
+        if (flag) flag.value = '';
+        if (note) note.classList.add('hidden');
+    }
+
+    /**
+     * Put a saved record's overrides back on the form.
+     *
+     * update() recomputes the bill from what is posted, so an edit that did not
+     * re-post the saved assessed amount and line overrides showed ₦0.00 and
+     * saved the bill away. bill_overrides holds each one as {effective, reason}.
+     */
+    function restoreSavedBill(appData) {
+        clearBillOverrides();
+
+        let overrides = appData ? appData.bill_overrides : null;
+        if (typeof overrides === 'string') {
+            try { overrides = JSON.parse(overrides); } catch (e) { overrides = null; }
+        }
+        if (!overrides || typeof overrides !== 'object') {
+            refreshBillPreview();
+            return;
+        }
+
+        const basis = overrides.valuation_amount;
+        if (basis && Number(basis.effective) > 0) {
+            const flag = document.getElementById('bill_basis_overridden');
+            const note = document.getElementById('consideration-override-note');
+            if (flag) flag.value = '1';
+            if (note) note.classList.remove('hidden');
+            if (financialInput) {
+                financialInput.value = Number(basis.effective).toLocaleString('en-NG', { maximumFractionDigits: 2 });
+                delete financialInput.dataset.autofilled;
+            }
+        }
+
+        document.querySelectorAll('#consent-bill-section .bill-row').forEach((row) => {
+            const saved = overrides[row.dataset.fee];
+            if (!saved || saved.effective === undefined || saved.effective === null) return;
+            const panel = row.querySelector('.bill-override');
+            const amount = row.querySelector('[data-override-amount]');
+            const reason = row.querySelector('[data-override-reason]');
+            if (!panel || !amount) return;
+            panel.classList.remove('hidden');
+            amount.name = `bill_override[${row.dataset.fee}]`;
+            amount.value = String(saved.effective);
+            if (reason) {
+                reason.name = `bill_override_reason[${row.dataset.fee}]`;
+                reason.value = saved.reason || '';
+            }
+            const note = row.querySelector('.bill-row-note');
+            if (note) note.classList.add('text-amber-600');
+        });
+
+        refreshBillPreview();
+    }
 
     /**
      * Make sure a prefix's LGA dropdown holds its state's LGAs, then select one.
@@ -1383,6 +1472,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     setRateValues(appData.registration_rate, appData.stamp_duty_rate);
                 }
             }
+            restoreSavedBill(appData);
 
             parseAndPopulateAddress(appData.applicant_address, 'applicant');
             parseAndPopulateAddress(appData.party_address, 'party');
@@ -1510,6 +1600,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const considerationEl = document.querySelector('input[name="consideration"]');
             if (considerationEl) delete considerationEl.dataset.autofilled;
             lastBilledFileNumber = null;
+            clearBillOverrides();
 
             // form.reset() unticks the box but leaves the fields it disabled,
             // so unlock them explicitly or the next application opens with an
@@ -1743,6 +1834,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     setRateValues(appData.registration_rate, appData.stamp_duty_rate);
                 }
             }
+            restoreSavedBill(appData);
 
             // Explicitly set application_type from record (preserve original)
             if (applicationTypeInput && appData.application_type) {

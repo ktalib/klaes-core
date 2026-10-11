@@ -197,21 +197,15 @@
                                                         <!-- Edit Action -->
                                                         <div class="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">Actions</div>
                                                         
-                                                        @if($app->print_count == 0)
-                                                            <button type="button" 
-                                                                class="edit-consent-btn flex items-center gap-3 w-full px-4 py-2.5 text-xs text-amber-600 hover:bg-amber-50 transition font-bold" 
-                                                                @click="open = false"
-                                                                data-id="{{ $app->id }}"
-                                                                data-app="{{ json_encode($app) }}">
-                                                                <i data-lucide="edit-3" class="h-4 w-4"></i>
-                                                                <span>Edit Application</span>
-                                                            </button>
-                                                        @else
-                                                            <div class="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-slate-300 cursor-not-allowed font-bold" title="Cannot edit after printing">
-                                                                <i data-lucide="lock" class="h-4 w-4"></i>
-                                                                <span>Edit</span>
-                                                            </div>
-                                                        @endif
+                                                        {{-- Editable after printing too: the next print carries the edit. --}}
+                                                        <button type="button"
+                                                            class="edit-consent-btn flex items-center gap-3 w-full px-4 py-2.5 text-xs text-amber-600 hover:bg-amber-50 transition font-bold"
+                                                            @click="open = false"
+                                                            data-id="{{ $app->id }}"
+                                                            data-app="{{ json_encode($app) }}">
+                                                            <i data-lucide="edit-3" class="h-4 w-4"></i>
+                                                            <span>Edit Application</span>
+                                                        </button>
                                                         {{-- A consent captured before transaction types has none,
                                                              so Print first asks for one (with the consent type and
                                                              percentages), saves it, then opens the letter. See

@@ -47,6 +47,9 @@ class MlsFileNo extends Model
         // column stayed 100% empty. The commissioning SMS needs them.
         'phone_no',
         'rep_phone_no',
+        // Same story as the phone: the columns exist and the form posts them.
+        'address',
+        'rep_address',
         // Optional applicant email from the commissioning form; becomes the
         // LAAS Portal account's email. See LaasCommissioningAccountService.
         'email',

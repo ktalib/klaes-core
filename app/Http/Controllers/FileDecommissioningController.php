@@ -536,13 +536,18 @@ class FileDecommissioningController extends Controller
                 if ($counterpart === null) {
                     continue;
                 }
-                $counterpart = trim((string) $counterpart);
-                $cN = $norm($counterpart);
-                // Skip blanks, the row's own number, and obvious junk (too short / purely numeric).
-                if ($cN === '' || isset($own[$cN]) || strlen($cN) < 3 || ctype_digit($cN)) {
-                    continue;
+                // A merger has written its sources as ONE comma-joined value next to a row
+                // per source (RES-2026-3955: "RES-2009-1266, RES-2009-1265" plus each on its
+                // own), which listed both files twice. Split before de-duplicating.
+                foreach (explode(',', (string) $counterpart) as $part) {
+                    $part = trim($part);
+                    $cN = $norm($part);
+                    // Skip blanks, the row's own number, and obvious junk (too short / purely numeric).
+                    if ($cN === '' || isset($own[$cN]) || strlen($cN) < 3 || ctype_digit($cN)) {
+                        continue;
+                    }
+                    $related[$cN] = $part;
                 }
-                $related[$cN] = $counterpart;
             }
 
             // Fallback / supplement: the archive row's own successor_file_no (set directly

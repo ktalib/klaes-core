@@ -1,0 +1,3 @@
+id,laas_application_id,stage,title,body,actor_type,actor_id,actor_name,visible_to_applicant,sms_to,sms_body,sms_sent_at,sms_status,created_at,updated_at
+16067,11173,fileno_assigned,"File commissioned","File Number COM-2026-378 was commissioned in Land File Commissioning and added to your portal account.",system,2,"System Admin",1,,,,,"2026-10-09 15:12:56.780","2026-10-09 15:12:56.780"
+16068,11173,fileno_assigned,"Portal sign-in details sent","Your username and a temporary password were sent by SMS.",system,,,1,08033156333,"[sign-in details]","2026-10-09 15:12:59.157",sent,"2026-10-09 15:12:59.160","2026-10-09 15:12:59.160"

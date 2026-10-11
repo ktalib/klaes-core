@@ -113,6 +113,7 @@
                             <select id="ale-district" class="ale-loc-part w-full">
                                 <option value="">Select District</option>
                                 @foreach ($districts as $district)
+                                    @continue(in_array(strtolower(trim((string) $district)), ['other', 'others'], true))
                                     @continue(strtoupper(trim($district)) === 'OTHER')
                                     <option value="{{ strtoupper($district) }}">{{ strtoupper($district) }}</option>
                                 @endforeach

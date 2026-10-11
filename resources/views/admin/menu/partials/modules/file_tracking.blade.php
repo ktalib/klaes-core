@@ -1,6 +1,6 @@
     <!-- 2b. File Tracking (standalone, un-scoped / corporate) -->
     @if(
-      $hasRole('Log a File') || $hasRole('File Tracker/Tracking - RFID') || $hasRole('File Digital Library - Doc-WARE') || $hasRole('EDMS Update') || $hasRole('File Movement (Department)')
+      $hasRole('Log a File') || $hasRole('File Tracker/Tracking') || $hasRole('File Tracker/Tracking - RFID') || $hasRole('File Digital Library - Doc-WARE') || $hasRole('EDMS Update') || $hasRole('File Movement (Department)')
     )
     <div class="py-1 px-3 mb-0.5 border-t border-slate-100">
       <div class="sidebar-module-header flex items-center justify-between py-2 px-3 mb-0.5 cursor-pointer hover:bg-slate-50 rounded-md" data-module="fileTracking">
@@ -13,22 +13,28 @@
 
       <div class="pl-4 mt-1 space-y-0.5 hidden" data-content="fileTracking">
         <!-- a. File Tracker Dashboard -->
+        @if($hasRole('File Tracker/Tracking'))
         <a href="{{ route('file-tracker.dashboard') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-tracker.dashboard') && !request('url') ? 'active' : '' }}">
           <i data-lucide="bar-chart-2" class="h-4 w-4 text-teal-500"></i>
           <span>File Tracker Dashboard</span>
         </a>
+        @endif
 
         <!-- b. File Tracker (Archive) -->
+        @if($hasRole('File Tracker/Tracking'))
         <a href="{{ route('track-file-archive.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('track-file-archive.index') && !request('url') ? 'active' : '' }}">
           <i data-lucide="archive" class="h-4 w-4 text-teal-500"></i>
           <span>File Tracker (Archive)</span>
         </a>
+        @endif
 
         <!-- c. Quick Search -->
+        @if($hasRole('File Tracker/Tracking'))
         <a href="{{ route('create-file-tracker.quick-search') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.quick-search') && !request('url') ? 'active' : '' }}">
           <i data-lucide="search" class="h-4 w-4 text-teal-500"></i>
           <span>Quick Search</span>
         </a>
+        @endif
 
         <!-- d. Log a File -->
         @if($hasRole('Log a File'))

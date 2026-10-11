@@ -17,6 +17,9 @@
             </button>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['field']])
+
         {{-- Tabs --}}
         <div class="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
             <button data-tab="field-map" class="tab-btn active px-5 py-2 text-sm font-medium rounded-md transition-all duration-200">
@@ -170,7 +173,9 @@
                         <thead>
                             <tr class="text-left text-xs text-gray-500 uppercase">
                                 <th class="px-3 py-2">#</th>
+                                <th class="px-3 py-2">SPAS ID</th>
                                 <th class="px-3 py-2">File No</th>
+                                <th class="px-3 py-2">Sticker No</th>
                                 <th class="px-3 py-2">Source</th>
                                 <th class="px-3 py-2">Owner</th>
                                 <th class="px-3 py-2">Location</th>
@@ -181,7 +186,9 @@
                                 <th class="px-3 py-2">Inspection Date</th>
                                 <th class="px-3 py-2">Findings</th>
                                 <th class="px-3 py-2">Inspected By</th>
+                                <th class="px-3 py-2">Created By</th>
                                 <th class="px-3 py-2">Date Created</th>
+                                <th class="px-3 py-2">Photos</th>
                                 <th class="px-3 py-2 w-10"></th>
                             </tr>
                         </thead>
@@ -195,15 +202,17 @@
 
 {{-- View Field Inspection Modal --}}
 <div id="modal-view-field" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/40">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl mx-4 overflow-hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4 overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <h3 class="text-base font-semibold text-gray-800">Field Inspection Details</h3>
             <button id="btn-close-view" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
         </div>
         <div class="p-6 space-y-4">
+            {{-- Where this record stands: Record → … → Certificate. --}}
+            <div id="vf-pipeline" class="hidden rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3"></div>
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                    <p class="text-xs text-gray-500 mb-0.5">File Number</p>
+                    <p class="text-xs text-gray-500 mb-0.5">SPAS ID · File Number</p>
                     <p id="vf-file" class="font-medium text-gray-800">—</p>
                 </div>
                 <div>
@@ -288,83 +297,14 @@
     </div>
 </div>
 
-{{-- Edit Record — the captured details of a land record. Offered only to the
-     officer who captured it or a Super Admin (SpaMobileService::canEditRecord),
-     and the server checks the same rule. Anyone else adds a revisit inspection. --}}
-<div id="modal-edit-record" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/40 p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <div>
-                <h3 class="text-base font-semibold text-gray-800">Edit Land Record</h3>
-                <p id="er-file-label" class="text-xs text-gray-500 mt-0.5">—</p>
-            </div>
-            <button type="button" class="er-close text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
-        </div>
-        <form id="form-edit-record" class="p-6 space-y-4 overflow-y-auto">
-            <input type="hidden" id="er-id">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Owner / File Title <span class="text-red-500">*</span></label>
-                    <input type="text" name="owner_name" id="er-owner" required maxlength="255"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                    <input type="text" name="phone" id="er-phone" maxlength="20" placeholder="e.g. 08030000000"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">District</label>
-                    <input type="text" name="district" id="er-district" maxlength="255"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">LGA</label>
-                    <select name="lga" id="er-lga" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="">Select LGA…</option>
-                        @foreach($lgaOptions as $lga)
-                            <option value="{{ $lga }}">{{ $lga }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Location</label>
-                    <input type="text" name="location" id="er-location" maxlength="255"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Approved Land Use <span class="text-red-500">*</span></label>
-                    <select name="land_use_type" id="er-land-use" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="">Select…</option>
-                        @foreach($landUseTypes as $lut)
-                            <option value="{{ $lut }}">{{ $lut }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Prevailing Land Use <span class="text-red-500">*</span></label>
-                    <select name="existing_use" id="er-existing" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="">Select…</option>
-                        @foreach($landUseTypes as $lut)
-                            <option value="{{ $lut }}">{{ $lut }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400">Changing the uses so they differ puts the property in contravention: its bill is raised and its First Serve sent, once.</p>
-            <div class="flex justify-end gap-3 pt-2">
-                <button type="button" class="er-close px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" id="btn-save-edit-record" class="px-5 py-2 text-sm text-white bg-[rgb(186,191,12)] rounded-lg hover:opacity-90">Save Changes</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 {{-- Add Record (Add to SPAS) Modal — land record details + optional field inspection in one pass --}}
 <div id="modal-add-record" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/40 p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl mx-auto overflow-hidden max-h-[92vh] flex flex-col">
         <div class="flex items-center justify-between px-6 py-3 border-b border-gray-100 flex-shrink-0">
-            <h3 class="text-base font-semibold text-gray-800">Add Land Record</h3>
+            <div>
+                <h3 id="ar-card-title" class="text-base font-semibold text-gray-800">Add Land Record</h3>
+                <p id="ar-edit-sub" class="hidden text-xs text-gray-500 mt-0.5"></p>
+            </div>
             <div class="flex items-center gap-3">
                 {{-- Start the card again: empties every field, the photos, the pin and the traced boundary. --}}
                 <button type="button" id="btn-clear-record" title="Clear everything entered and start again"
@@ -374,12 +314,21 @@
                 <button id="btn-close-modal" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
             </div>
         </div>
+        {{-- Add mode: the steps this card covers. Edit mode: where this record stands. --}}
+        <div id="ar-wf-static" class="px-6 pt-3 flex-shrink-0">
+            @include('special_assignment.partials.workflow', ['current' => ['field'], 'compact' => true, 'counts' => false])
+        </div>
+        <div id="ar-pipeline" class="hidden px-6 py-3 border-b border-gray-100 bg-gray-50/60 flex-shrink-0">
+        </div>
         <form id="form-add-record" enctype="multipart/form-data" class="p-6 flex-1 overflow-y-auto min-h-0">
             @csrf
 
             <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {{-- Left: land record details --}}
                 <div class="lg:col-span-2 space-y-4">
+
+                    {{-- Edit mode: says what this officer may change. --}}
+                    <div id="ar-edit-note" class="hidden px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800"></div>
 
                     {{-- Land Title Type --}}
                     <div>
@@ -398,11 +347,21 @@
                         </div>
                     </div>
 
-                    {{-- File Number picker --}}
+                    {{-- SPAS ID: every record gets one, from the same sequence that numbers
+                         customary titles. Most owners do not know their file number, so
+                         this — not the file number — is what identifies the record. --}}
                     <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">File Number <span class="text-red-500">*</span></label>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">SPAS ID</label>
+                        <input type="text" id="display-spa-id" readonly placeholder="Assigned when the record is saved"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700 font-semibold cursor-default outline-none">
+                        <p id="spa-id-hint" class="text-[11px] text-gray-400 mt-1">Assigned when the record is saved.</p>
+                    </div>
+
+                    {{-- File Number picker — optional --}}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">File Number</label>
                         <div class="flex gap-2">
-                            <input type="text" id="display-file-number" readonly placeholder="No file number selected"
+                            <input type="text" id="display-file-number" readonly placeholder="Not known — select it if the owner has one"
                                 class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700 cursor-default outline-none">
                             <button type="button" id="btn-pick-fileno"
                                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-[rgb(186,191,12)] hover:opacity-90 text-white text-sm font-medium rounded-lg transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
@@ -410,6 +369,19 @@
                             </button>
                         </div>
                         <p id="lookup-msg" class="text-xs mt-1 hidden"></p>
+                    </div>
+
+                    {{-- Sticker number: the QR sticker on the property. Typed, or scanned. --}}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Sticker Number</label>
+                        <div class="flex gap-2">
+                            <input type="text" name="sticker_number" id="f-sticker" maxlength="100" placeholder="Type it, or scan the sticker's QR code"
+                                class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm uppercase outline-none focus:border-[rgb(186,191,12)]">
+                            <button type="button" id="btn-scan-sticker"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 border border-[rgb(186,191,12)] text-[rgb(140,144,8)] text-sm font-medium rounded-lg hover:bg-[rgba(186,191,12,0.08)]">
+                                <i data-lucide="scan-line" class="h-4 w-4"></i> Scan QR
+                            </button>
+                        </div>
                     </div>
 
                     {{-- Owner / File Title – readonly, filled from file_title (editable for customary) --}}
@@ -548,6 +520,11 @@
                             <input type="file" id="f-photos" name="photos[]" multiple accept="image/*" class="hidden">
                         </label>
                         <div id="photo-preview" class="flex flex-wrap gap-2 mt-2"></div>
+                        {{-- Edit mode: photos already on the record (new ones are added to them). --}}
+                        <div id="photo-existing-wrap" class="hidden mt-2">
+                            <p class="text-[11px] text-gray-400 mb-1">Already uploaded</p>
+                            <div id="photo-existing" class="flex flex-wrap gap-2"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -585,6 +562,15 @@
                     </div>
                     <input type="hidden" id="ar-geometry">
 
+                    {{-- Edit mode: photos already on the visit, and a picker to add more to it
+                         (used when this officer may edit the visit but not the record). --}}
+                    <div id="ar-insp-photos-wrap" class="hidden">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Inspection Photos</label>
+                        <div id="ar-insp-photos" class="flex flex-wrap gap-2 mb-2"></div>
+                        <input type="file" id="ar-insp-photo-input" multiple accept="image/*"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                    </div>
+
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <label class="block text-xs font-medium text-gray-600">Pin Location &amp; Trace Boundary</label>
@@ -609,6 +595,9 @@
 {{-- Global File Number Modal --}}
 @include('components.global-fileno-modal')
 
+{{-- Sticker QR scanner --}}
+@include('special_assignment.partials.qr_scan')
+
 <style>
     /* The page's modals sit at z-index 1100, above SweetAlert's default 1060, so
        a warning raised from inside the Add Land Record card opened BEHIND it. */
@@ -621,6 +610,7 @@
 </style>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 {{-- Leaflet.draw — lets the surveyor trace the plot boundary on the inspection map --}}
 <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
@@ -838,7 +828,42 @@ function createInspectionMapController({ mapId, coordsId, geometryId, statusId, 
         }, 150);
     }
 
-    return { init, geocode, reset: () => init('') };
+    // Edit mode: show a visit's saved pin and traced boundary rather than
+    // geocoding afresh. Falls back to the address when there is no pin.
+    function load({ coords = '', geometry = null, location = '' } = {}) {
+        ensureMap();
+        setTimeout(() => {
+            map.invalidateSize();
+            if (marker) { map.removeLayer(marker); marker = null; }
+            drawnItems.clearLayers();
+            const geomEl = document.getElementById(geometryId);
+            if (geomEl) geomEl.value = '';
+
+            let bounds = null;
+            if (geometry) {
+                try {
+                    L.geoJSON(geometry, { style: { color: '#dc2626', weight: 3 } })
+                        .eachLayer(l => drawnItems.addLayer(l));
+                    if (drawnItems.getLayers().length) {
+                        bounds = drawnItems.getBounds();
+                        if (geomEl) geomEl.value = JSON.stringify(geometry);
+                    }
+                } catch (e) { /* an unreadable boundary is left off the map, not fatal */ }
+            }
+
+            const pin = parseLatLngInput(coords);
+            if (pin) {
+                placeMarker(pin.lat, pin.lng, !bounds);
+                setStatus('ok', '📍 The saved pin for this visit — drag it or click the map to move it.');
+            } else {
+                map.setView(center, zoom);
+                geocode(location);
+            }
+            if (bounds) map.fitBounds(bounds, { maxZoom: 18, padding: [20, 20] });
+        }, 150);
+    }
+
+    return { init, geocode, load, reset: () => init('') };
 }
 
 $(document).ready(function () {
@@ -1049,7 +1074,9 @@ $(document).ready(function () {
         ajax: { url: window.location.href, headers:{'X-Requested-With':'XMLHttpRequest'}, data: d => ({ ...d, ajax: 1 }) },
         columns: [
             { data: 'DT_RowIndex', orderable:false, searchable:false },
+            { data: 'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` },
             { data: 'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
+            { data: 'sticker_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
             // Mobile = pushed by the SPAS app; Web = the desktop form or the mobile web page.
             { data: 'source', render: d => d === 'mobile'
                 ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700" style="white-space:nowrap">📱 Mobile App</span>`
@@ -1071,7 +1098,15 @@ $(document).ready(function () {
                 + (row.visits > 1 ? `<span class="block text-[11px] text-indigo-600" style="white-space:nowrap">${row.visits} visits</span>` : '') },
             { data: 'findings', render: d => d||'—' },
             { data: 'inspected_by', render: d => `<span style="white-space:nowrap">${String(d || '—').replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';')}</span>` },
+            { data: 'created_by', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
             { data: 'date_created', render: d => `<span style="white-space:nowrap">${d || '—'}</span>` },
+            // Thumbnails of every picture of the site; each opens full size.
+            { data: 'photos', orderable: false, searchable: false, render: d => {
+                const urls = d || [];
+                if (!urls.length) return '<span class="text-gray-400 text-xs">None</span>';
+                const shown = urls.slice(0, 3).map(u => `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" loading="lazy" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid #e5e7eb" onerror="this.style.display='none'"></a>`).join('');
+                return `<div style="display:flex;gap:3px;align-items:center">${shown}${urls.length > 3 ? `<span class="text-xs text-gray-500">+${urls.length - 3}</span>` : ''}</div>`;
+            } },
             { data: 'action', orderable:false, searchable:false },
         ],
     });
@@ -1083,9 +1118,11 @@ $(document).ready(function () {
     document.getElementById('btn-close-view2').addEventListener('click', closeViewModal);
 
     $(document).on('click', '.btn-view-field', function () {
-        $('.action-dropdown').addClass('hidden');
+        closeActionMenus();
         const info = JSON.parse($(this).attr('data-info') || '{}');
-        document.getElementById('vf-file').textContent      = info.file      || '—';
+        window.SpasPipeline && SpasPipeline.mount(document.getElementById('vf-pipeline'), info.id, { current: 'field', force: true });
+        // SPAS ID first; the file number only when the owner gave one.
+        document.getElementById('vf-file').textContent      = [info.spa_id, info.file && info.file !== info.spa_id ? 'File ' + info.file : null].filter(Boolean).join(' · ') || '—';
         document.getElementById('vf-date').textContent      = info.date      || '—';
         document.getElementById('vf-inspector').textContent = info.inspector || '—';
         document.getElementById('vf-findings').textContent  = info.findings  || '—';
@@ -1120,13 +1157,40 @@ $(document).ready(function () {
     });
 
     // ── Dropdown action menu ───────────────────────────────────────────────
+    // Opened FIXED and lifted to <body>: inside the table it is clipped by the
+    // table's scroll box (worst on the last rows). Item handlers are bound to
+    // the document, so they still fire once the menu has moved.
+    function closeActionMenus() {
+        document.querySelectorAll('.action-dropdown').forEach(m => {
+            m.classList.add('hidden');
+            if (m._home) { m._home.appendChild(m); m._home = null; }   // back into its row
+        });
+    }
     $(document).on('click', '.btn-action-toggle', function(e) {
         e.stopPropagation();
-        const $dd = $(this).siblings('.action-dropdown');
-        $('.action-dropdown').not($dd).addClass('hidden');
-        $dd.toggleClass('hidden');
+        const menu = this.parentElement.querySelector('.action-dropdown') || this._menu;
+        const wasOpen = menu && !menu.classList.contains('hidden');
+        closeActionMenus();
+        if (!menu || wasOpen) return;
+
+        this._menu = menu;
+        menu._home = this.parentElement;
+        document.body.appendChild(menu);
+        menu.classList.remove('hidden');
+        Object.assign(menu.style, { position: 'fixed', zIndex: 2000, marginTop: 0, right: 'auto' });
+
+        const r = this.getBoundingClientRect(), h = menu.offsetHeight, w = menu.offsetWidth;
+        const top = (window.innerHeight - r.bottom < h + 8 && r.top > h + 8) ? r.top - h - 4 : r.bottom + 4;
+        menu.style.top  = Math.max(8, top) + 'px';
+        menu.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
     });
-    $(document).on('click', function() { $('.action-dropdown').addClass('hidden'); });
+    // Other script blocks on this page (the Edit card) close the menu too.
+    window.closeActionMenus = closeActionMenus;
+    $(document).on('click', function() { closeActionMenus(); });
+    window.addEventListener('scroll', e => { if (!e.target.closest || !e.target.closest('.action-dropdown')) closeActionMenus(); }, true);
+    window.addEventListener('resize', closeActionMenus);
+    // A redraw replaces the rows a lifted menu belongs to.
+    $('#field-records-table').on('preDraw.dt', closeActionMenus);
 
     // ── Log inspection (records saved without one) ─────────────────────────
     const logModal = document.getElementById('modal-log-inspection');
@@ -1138,7 +1202,7 @@ $(document).ready(function () {
     // save, pre-filled with what the surveyor typed.
     // mode: 'log' (first inspection), 'revisit' (another visit to an inspected
     // record — it continues the same record) or 'edit' (change one's own visit).
-    window.openLogInspection = function ({ id, file, date, findings, coords, mode = 'log', editId = '' } = {}) {
+    window.openLogInspection = function ({ id, file, spa = '', date, findings, coords, mode = 'log', editId = '' } = {}) {
         logForm.reset();
         document.getElementById('li-edit-id').value = editId || '';
         document.getElementById('li-title').textContent = mode === 'edit' ? 'Edit Field Inspection'
@@ -1147,7 +1211,7 @@ $(document).ready(function () {
         document.getElementById('btn-save-inspection').textContent = document.getElementById('btn-save-inspection').dataset.label;
         document.getElementById('li-app-id').value = id || '';
         document.getElementById('li-file').value   = file || '';
-        document.getElementById('li-file-label').textContent = file || '—';
+        document.getElementById('li-file-label').textContent = [spa, file && file !== spa ? 'File ' + file : null].filter(Boolean).join(' · ') || '—';
         document.getElementById('li-date').value     = date || new Date().toISOString().slice(0, 10);
         document.getElementById('li-findings').value = findings || '';
         document.getElementById('li-coords').value   = coords || '';
@@ -1157,67 +1221,8 @@ $(document).ready(function () {
     };
 
     $(document).on('click', '.btn-log-inspection', function () {
-        $('.action-dropdown').addClass('hidden');
-        window.openLogInspection({ id: $(this).data('id'), file: $(this).attr('data-file'), mode: $(this).data('revisit') ? 'revisit' : 'log' });
-    });
-
-    // ── Edit Record ─────────────────────────────────────────────────────────
-    const erModal = document.getElementById('modal-edit-record');
-    const erForm  = document.getElementById('form-edit-record');
-    const closeEr = () => { erModal.classList.add('hidden'); erModal.classList.remove('flex'); };
-    document.querySelectorAll('.er-close').forEach(b => b.addEventListener('click', closeEr));
-    // Pick an option case-insensitively, adding it when the list lacks it, so a
-    // stored value never silently becomes blank on save.
-    const setSelect = (sel, value) => {
-        if (!value) { sel.value = ''; return; }
-        const hit = [...sel.options].find(o => o.value.toUpperCase() === String(value).toUpperCase());
-        if (!hit) sel.add(new Option(value, value));
-        sel.value = hit ? hit.value : value;
-    };
-    $(document).on('click', '.btn-edit-record', function () {
-        $('.action-dropdown').addClass('hidden');
-        const r = JSON.parse($(this).attr('data-record') || '{}');
-        erForm.reset();
-        document.getElementById('er-id').value = r.id;
-        document.getElementById('er-file-label').textContent = r.file || '—';
-        document.getElementById('er-owner').value    = r.owner_name || '';
-        document.getElementById('er-phone').value    = r.phone || '';
-        document.getElementById('er-district').value = r.district || '';
-        document.getElementById('er-location').value = r.location || '';
-        setSelect(document.getElementById('er-lga'), r.lga);
-        setSelect(document.getElementById('er-land-use'), r.land_use_type);
-        setSelect(document.getElementById('er-existing'), r.existing_use);
-        erModal.classList.remove('hidden'); erModal.classList.add('flex');
-        lucide.createIcons();
-    });
-    erForm.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        const fd = new FormData(this);
-        fd.set('proposed_use', fd.get('land_use_type'));   // one answer feeds both, as on the Add card
-        const btn = document.getElementById('btn-save-edit-record');
-        btn.disabled = true; btn.textContent = 'Saving…';
-        try {
-            const res  = await fetch(`${RECORD_BASE}/${document.getElementById('er-id').value}/update`, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: fd });
-            const data = await res.json().catch(() => ({}));
-            if (data.success) {
-                closeEr();
-                fieldTable.ajax.reload(null, false);
-                Swal.fire({ icon:'success', title:'Record updated', text: data.message, timer:2000, showConfirmButton:false });
-            } else {
-                const first = Object.values(data.errors || {})[0];
-                Swal.fire({ icon:'error', title:'Not saved', text: (first && first[0]) || data.message || 'Save failed.' });
-            }
-        } catch (err) {
-            Swal.fire({ icon:'error', title:'Error', text:'A network error stopped the save. Try again.' });
-        }
-        btn.disabled = false; btn.textContent = 'Save Changes';
-    });
-
-    // Edit one's own visit (the server checks the same rule).
-    $(document).on('click', '.btn-edit-inspection', function () {
-        $('.action-dropdown').addClass('hidden');
-        const v = JSON.parse($(this).attr('data-visit') || '{}');
-        window.openLogInspection({ file: v.file, date: v.date, findings: v.findings, coords: v.coords, mode: 'edit', editId: v.id });
+        closeActionMenus();
+        window.openLogInspection({ id: $(this).data('id'), file: $(this).attr('data-file'), spa: $(this).attr('data-spa') || '', mode: $(this).data('revisit') ? 'revisit' : 'log' });
     });
 
     logForm.addEventListener('submit', async function (e) {
@@ -1258,7 +1263,7 @@ $(document).ready(function () {
 
     // ── Delete field record ────────────────────────────────────────────────
     $(document).on('click', '.btn-delete-field', function() {
-        $('.action-dropdown').addClass('hidden');
+        closeActionMenus();
         const id = $(this).data('id');
         Swal.fire({
             title: 'Delete Record?',
@@ -1286,6 +1291,67 @@ $(document).ready(function () {
         });
     });
 
+    // ── Master delete: the record and everything linked to it ──────────────
+    // Super Admin only. Shows what will go, then asks for the record's
+    // reference to be typed. The server exports every row and photo first.
+    const MASTER_DELETE = '{{ url("special-assignment/land-records") }}';
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    $(document).on('click', '.btn-master-delete', async function () {
+        closeActionMenus();
+        const id = $(this).data('id');
+        let info;
+        try {
+            const r = await fetch(`${MASTER_DELETE}/${id}/master-delete`, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+            info = await r.json();
+            if (!r.ok || !info.success) throw new Error(info.message || 'Could not load the record.');
+        } catch (e) {
+            return Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+        }
+
+        const list = info.counts.map(c => `<li><b>${c.count}</b> ${esc(c.label)}</li>`).join('')
+            + (info.photos ? `<li><b>${info.photos}</b> photo file(s)</li>` : '');
+        const res = await Swal.fire({
+            title: 'Master delete ' + esc(info.reference) + '?',
+            icon: 'warning',
+            html: `<div class="text-left text-sm">
+                     <p class="mb-2">This permanently removes the land record${info.owner ? ' of <b>' + esc(info.owner) + '</b>' : ''} and everything linked to it in SPAS:</p>
+                     <ul class="list-disc pl-6 mb-3">${list || '<li>No inspections, notices, bills or other linked items</li>'}</ul>
+                     <p class="mb-2 text-gray-600">A copy is saved to the server's audit folder first. Phones that already synced this record will still show their own copy.</p>
+                     <p>Type <b>${esc(info.reference)}</b> to confirm:</p>
+                   </div>`,
+            input: 'text',
+            inputPlaceholder: info.reference,
+            showCancelButton: true,
+            confirmButtonColor: '#b91c1c',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Delete everything',
+            preConfirm: v => {
+                if ((v || '').trim().toUpperCase() !== String(info.reference).trim().toUpperCase()) {
+                    Swal.showValidationMessage('Type ' + info.reference + ' exactly');
+                    return false;
+                }
+                return v.trim();
+            },
+        });
+        if (!res.isConfirmed) return;
+
+        Swal.fire({ title: 'Deleting…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            const r = await fetch(`${MASTER_DELETE}/${id}/master-delete`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ confirm: res.value }),
+            });
+            const d = await r.json();
+            if (!r.ok || !d.success) throw new Error(d.message || 'Delete failed.');
+            // Reload: the map's points come with the page, and the record must leave it too.
+            await Swal.fire({ icon: 'success', title: 'Deleted', text: d.message });
+            location.reload();
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Not deleted', text: e.message });
+        }
+    });
+
 });
 </script>
 
@@ -1306,15 +1372,17 @@ $(document).ready(function () {
         statusId: 'ar-map-status', locateBtnId: 'ar-locate',
     });
 
-    function openSpaModal() {
+    function openSpaModal(mapState = null) {
         spaModal.classList.remove('hidden');
         spaModal.classList.add('flex');
-        arMapCtrl.init(document.getElementById('h-location').value || '');
+        if (mapState) arMapCtrl.load(mapState);
+        else arMapCtrl.init(document.getElementById('h-location').value || '');
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
     function closeSpaModal() {
         spaModal.classList.add('hidden');
         spaModal.classList.remove('flex');
+        setEditMode(null);
         const badge = document.getElementById('contravention-badge');
         badge.classList.add('hidden');
         badge.style.display = 'none';
@@ -1408,7 +1476,52 @@ $(document).ready(function () {
     // Statutory: file number is picked from an existing indexed file.
     // Customary: no existing file — a temporary "SPAS-YYYY-####" number is
     // generated server-side and the owner/applicant name is typed manually.
-    function setLandTitleType(type) {
+    // The next SPAS ID, shown as a preview; the server assigns the real one on
+    // save (the same sequence numbers customary titles).
+    function previewSpasId() {
+        const box  = document.getElementById('display-spa-id');
+        const hint = document.getElementById('spa-id-hint');
+        box.value = '';
+        box.placeholder = 'Generating…';
+        return fetch(NEXT_CUSTOMARY_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(d => {
+                const next = d.spa_id || d.file_number || '';
+                box.value = next;
+                hint.textContent = 'Next free number — confirmed when the record is saved.';
+                return next;
+            })
+            .catch(() => { box.placeholder = 'Assigned when the record is saved'; return ''; });
+    }
+
+    // Sticker number: scanned from its QR code (partials/qr_scan), or typed.
+    document.getElementById('btn-scan-sticker').addEventListener('click', function () {
+        if (!window.SpaQrScan) { Swal.fire({ icon:'error', title:'Scanner unavailable', text:'Type the sticker number instead.' }); return; }
+        window.SpaQrScan.open(sticker => {
+            if (!sticker) return;
+            const box = document.getElementById('f-sticker');
+            box.value = sticker.toUpperCase();
+            box.focus();
+        });
+    });
+
+    // Statutory: owner and land use come from the file when one is picked, and
+    // are locked then. With no file — most owners do not know theirs — the
+    // officer types the owner and picks the land use, like a customary title.
+    function statutoryFromFile(hasFile) {
+        const owner    = document.getElementById('f-owner_name');
+        const luInput  = document.getElementById('f-land_use_type');
+        const luSelect = document.getElementById('f-land_use_type_select');
+        owner.readOnly = hasFile;
+        ['bg-gray-50', 'text-gray-700', 'cursor-default'].forEach(c => owner.classList.toggle(c, hasFile));
+        owner.placeholder = hasFile ? 'Auto-filled from file number' : "Enter the owner's name";
+        luInput.classList.toggle('hidden', !hasFile);
+        luInput.disabled = !hasFile;
+        luSelect.classList.toggle('hidden', hasFile);
+        luSelect.disabled = hasFile;
+    }
+
+    function setLandTitleType(type, { keepNumber = false } = {}) {
         const selectBtn  = document.getElementById('btn-pick-fileno');
         const fileInput  = document.getElementById('display-file-number');
         const ownerInput = document.getElementById('f-owner_name');
@@ -1459,21 +1572,19 @@ $(document).ready(function () {
             ownerInput.placeholder = "Enter applicant's name";
             document.getElementById('h-is_indexed').value = '0';
 
-            fetch(NEXT_CUSTOMARY_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(r => r.json())
-                .then(d => {
-                    fileInput.value = d.file_number;
-                    document.getElementById('h-file_number').value = d.file_number;
-                })
-                .catch(() => {
-                    fileInput.placeholder = 'Could not generate — try again';
-                });
+            // Editing: the record already has its number — never draw a new one.
+            if (keepNumber) return;
+
+            // A customary title's file number IS its SPAS ID.
+            previewSpasId().then(next => {
+                if (next) { fileInput.value = next; document.getElementById('h-file_number').value = next; }
+                else fileInput.placeholder = 'Assigned on save';
+            });
         } else {
             selectBtn.disabled = false;
-            fileInput.placeholder = 'No file number selected';
-            ownerInput.readOnly = true;
-            ownerInput.classList.add('bg-gray-50', 'text-gray-700', 'cursor-default');
-            ownerInput.placeholder = 'Auto-filled from file number';
+            fileInput.placeholder = 'Not known — select it if the owner has one';
+            if (!keepNumber) previewSpasId();
+            statutoryFromFile(false);
         }
     }
     document.querySelectorAll('input[name="land_title_type"]').forEach(r => {
@@ -1552,6 +1663,7 @@ $(document).ready(function () {
             const d = await res.json();
 
             if (d.found) {
+                statutoryFromFile(true);
                 const owner = (d.file_title || d.owner_name || '').trim();
                 document.getElementById('f-owner_name').value       = owner;
                 document.getElementById('f-phone').value            = d.phone || '';
@@ -1595,6 +1707,7 @@ $(document).ready(function () {
                 msg.className   = 'text-xs mt-1 text-green-600';
                 msg.textContent = '✓ File found — details pre-filled.';
             } else {
+                statutoryFromFile(false);
                 document.getElementById('h-is_indexed').value = '0';
                 document.getElementById('location-badge-wrap').classList.add('hidden');
                 document.getElementById('dciv-banner-wrap').classList.add('hidden');
@@ -1611,6 +1724,7 @@ $(document).ready(function () {
 
     // Open the Add Land Record card; the user picks the file via the in-modal "Select" button
     function startAddToSpa() {
+        setEditMode(null);
         resetSpaForm();
         openSpaModal();
     }
@@ -1727,21 +1841,286 @@ $(document).ready(function () {
         }
     }
 
+    // ── Edit mode ───────────────────────────────────────────────────────────
+    // "Edit" in a row's menu opens THIS card with the record and its latest
+    // visit filled in — one form with every field, instead of separate Edit
+    // Land Record / Edit Field Inspection modals. The record's part is open to
+    // the officer who captured it or a Super Admin; the visit's part to the
+    // officer who made it or a Super Admin (the server checks both again).
+    let editCtx = null;
+
+    // Pick an option case-insensitively, adding it when the list lacks it, so a
+    // stored value never silently becomes blank on save.
+    const setSelect = (sel, value) => {
+        if (!value) { sel.value = ''; return; }
+        const hit = [...sel.options].find(o => o.value.toUpperCase() === String(value).toUpperCase());
+        if (!hit) sel.add(new Option(value, value));
+        sel.value = hit ? hit.value : value;
+        if (sel._ss) sel._ss.refresh();
+    };
+
+    const RECORD_FIELDS = ['f-sticker', 'btn-scan-sticker', 'f-owner_name', 'f-phone', 'f-existing_use', 'f-land_use_type_select', 'f-lga', 'f-district', 'f-district-other', 'f-photos'];
+    const VISIT_FIELDS  = ['ar-inspection-date', 'ar-coords', 'ar-findings', 'ar-insp-photo-input'];
+
+    function lockFields(ids, locked) {
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (locked) el.disabled = true;
+            el.classList.toggle('opacity-60', locked);
+            if (el._ss) el._ss.refresh();
+        });
+    }
+
+    function thumbs(urls) {
+        return (urls || []).map(u => `<a href="${escHtml(u)}" target="_blank" rel="noopener"><img src="${escHtml(u)}" loading="lazy"
+            class="w-20 h-20 object-cover rounded-lg border border-gray-200"
+            onerror="this.closest('a').outerHTML='<span class=\\'text-[11px] text-gray-400\\'>Photo missing on disk</span>'"></a>`).join('');
+    }
+
+    function setEditMode(ctx) {
+        editCtx = ctx;
+        const editing = !!ctx;
+        const strip = document.getElementById('ar-pipeline');
+        document.getElementById('ar-wf-static').classList.toggle('hidden', editing);
+        if (window.SpasPipeline && editing && ctx.id) SpasPipeline.mount(strip, ctx.id, { current: 'field', force: true });
+        else { strip.classList.add('hidden'); strip.innerHTML = ''; }
+        document.getElementById('ar-card-title').textContent = editing ? 'Edit Land Record' : 'Add Land Record';
+        const sub = document.getElementById('ar-edit-sub');
+        sub.textContent = editing ? (ctx.file || '') : '';
+        sub.classList.toggle('hidden', !editing);
+        document.getElementById('btn-clear-record').classList.toggle('hidden', editing);
+        document.getElementById('btn-save-record').textContent = editing ? 'Save Changes' : 'Save Record';
+        document.querySelectorAll('input[name="land_title_type"]').forEach(r => { r.disabled = editing; });
+
+        if (!editing) {
+            ['f-sticker', 'btn-scan-sticker', 'f-phone', 'f-existing_use', 'f-photos', ...VISIT_FIELDS].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.disabled = false; el.classList.remove('opacity-60'); }
+            });
+            ['f-owner_name', 'f-land_use_type_select', 'f-lga', 'f-district', 'f-district-other']
+                .forEach(id => document.getElementById(id)?.classList.remove('opacity-60'));
+            document.getElementById('ar-edit-note').classList.add('hidden');
+            document.getElementById('ar-edit-note').textContent = '';
+            document.getElementById('photo-existing-wrap').classList.add('hidden');
+            document.getElementById('photo-existing').innerHTML = '';
+            document.getElementById('ar-insp-photos-wrap').classList.add('hidden');
+            document.getElementById('ar-insp-photos').innerHTML = '';
+            document.getElementById('ar-insp-photo-input').value = '';
+        }
+    }
+
+    async function openEditCard(d) {
+        setEditMode(null);   // undo any locks left by a previous edit
+        resetSpaForm();
+        const customary = d.land_title_type === 'customary';
+        document.getElementById(customary ? 'ltt-customary' : 'ltt-statutory').checked = true;
+        setLandTitleType(customary ? 'customary' : 'statutory', { keepNumber: true });
+        setEditMode(d);
+
+        // The SPAS ID and file number never change on an edit.
+        document.getElementById('display-spa-id').value      = d.spa_id || '';
+        document.getElementById('display-spa-id').placeholder = d.spa_id ? '' : 'None';
+        document.getElementById('spa-id-hint').textContent   = 'This record\'s SPAS ID.';
+        document.getElementById('display-file-number').value = d.file || '';
+        document.getElementById('h-file_number').value       = d.file || '';
+        document.getElementById('btn-pick-fileno').disabled  = true;
+        document.getElementById('h-file_indexing_id').value  = d.file_indexing_id || '';
+        document.getElementById('h-tracking_id').value       = d.tracking_id || '';
+        document.getElementById('h-is_indexed').value        = d.is_indexed ? '1' : '0';
+
+        // The owner is editable on an edit (it was on the old Edit Record card),
+        // for whoever may edit the record.
+        // A statutory record saved without a file number edits like one with no file.
+        if (!customary) statutoryFromFile(!!d.file);
+        const owner = document.getElementById('f-owner_name');
+        owner.value = d.owner_name || '';
+        owner.readOnly = !d.can_edit_record;
+        owner.classList.toggle('bg-gray-50', !d.can_edit_record);
+        owner.classList.toggle('cursor-default', !d.can_edit_record);
+
+        document.getElementById('f-phone').value = d.phone || '';
+        document.getElementById('f-sticker').value = d.sticker_number || '';
+        setSelect(document.getElementById('f-existing_use'), d.existing_use);
+        if (customary || !d.file) setSelect(document.getElementById('f-land_use_type_select'), d.land_use_type);
+        else document.getElementById('f-land_use_type').value = d.land_use_type || '';
+        document.getElementById('h-proposed_use').value = d.proposed_use || d.land_use_type || '';
+
+        document.getElementById('h-location').value = d.location || '';
+        document.getElementById('h-lga').value      = d.lga || '';
+        document.getElementById('h-district').value = d.district || '';
+
+        if (customary) {
+            setSelect(document.getElementById('f-lga'), d.lga);
+            await loadDistricts();
+            const sel   = document.getElementById('f-district');
+            const other = document.getElementById('f-district-other');
+            const hit   = d.district && allDistricts.find(n => n.toUpperCase() === String(d.district).toUpperCase());
+            if (hit) {
+                sel.value = hit;
+            } else if (d.district) {
+                // Not on the list: it was typed under "Other" when captured.
+                sel.value = [...sel.options].find(o => isOtherDistrict(o.value))?.value || '';
+                other.value = d.district;
+                other.classList.remove('hidden');
+            }
+            if (sel._ss) sel._ss.refresh();
+        }
+
+        const parts = customary ? [d.location] : [d.location, d.district, d.lga];
+        const loc = [...new Set(parts.filter(Boolean))].join(', ');
+        document.getElementById('location-badge-text').textContent = loc ? loc + (customary ? ', Kano' : '') : '';
+        document.getElementById('location-badge-wrap').classList.toggle('hidden', !loc);
+
+        checkContravention();
+
+        // Photos already on the record; new ones picked here are added to them.
+        document.getElementById('photo-existing').innerHTML = thumbs(d.photos);
+        document.getElementById('photo-existing-wrap').classList.toggle('hidden', !(d.photos || []).length);
+
+        // The latest visit. With none, the inspection section logs a first one.
+        const insp = d.inspection;
+        if (insp) {
+            document.getElementById('ar-inspection-date').value = insp.date || '';
+            document.getElementById('ar-findings').value        = insp.findings || '';
+            document.getElementById('ar-coords').value          = insp.coords || '';
+            document.getElementById('ar-insp-photos').innerHTML = thumbs(insp.photos) || '<span class="text-[11px] text-gray-400">None yet.</span>';
+            document.getElementById('ar-insp-photos-wrap').classList.remove('hidden');
+        }
+
+        const notes = [];
+        if (!d.can_edit_record) {
+            lockFields(RECORD_FIELDS, true);
+            notes.push('The record details can be changed only by the officer who captured it or a Super Admin.');
+        }
+        if (insp && !d.can_edit_visit) {
+            lockFields(VISIT_FIELDS, true);
+            notes.push(`The inspection (by ${insp.by || 'another officer'}) can be changed only by that officer or a Super Admin — use "Add Revisit Inspection" to add your own.`);
+        }
+        if (insp && d.can_edit_visit) notes.push('Editing the latest inspection' + (insp.by ? ` (by ${insp.by})` : '') + '.');
+        const note = document.getElementById('ar-edit-note');
+        note.textContent = notes.join(' ');
+        note.classList.toggle('hidden', !notes.length);
+
+        openSpaModal({ coords: insp?.coords || '', geometry: insp?.geometry || null, location: [loc, [d.district, d.lga].filter(Boolean).join(', '), d.lga || ''] });
+    }
+
+    $(document).on('click', '.btn-edit-full', function () {
+        if (window.closeActionMenus) window.closeActionMenus();
+        let d = {};
+        try { d = JSON.parse($(this).attr('data-edit') || '{}'); } catch (e) { /* fall through to the error */ }
+        if (!d.id) { Swal.fire({ icon:'error', title:'Cannot open', text:'This row is missing its record details. Reload the page and try again.' }); return; }
+        openEditCard(d).catch(() => Swal.fire({ icon:'error', title:'Cannot open', text:'The record could not be loaded into the form.' }));
+    });
+
+    async function postForm(url, fd) {
+        const res  = await fetch(url, { method:'POST', headers:{ 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }, body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!data.success) {
+            const first = Object.values(data.errors || {})[0];
+            throw new Error((first && first[0]) || data.message || `The server refused it (HTTP ${res.status}).`);
+        }
+        return data;
+    }
+
+    // Save an edit: the record (if this officer may), then the visit (if they
+    // may) — or log a first visit when the record had none.
+    async function saveEditFromCard() {
+        const d = editCtx, insp = d.inspection;
+        const customary = d.land_title_type === 'customary';
+
+        const date     = document.getElementById('ar-inspection-date').value;
+        const findings = document.getElementById('ar-findings').value.trim();
+        const coords   = document.getElementById('ar-coords').value.trim();
+        const geometry = document.getElementById('ar-geometry').value;
+        const visitEditable = insp ? d.can_edit_visit : true;
+
+        if (visitEditable && (!!date !== !!findings)) {
+            Swal.fire({ icon:'warning', title:'Field inspection incomplete', text:'An inspection needs both a date and findings.' });
+            return;
+        }
+        if (d.can_edit_record) {
+            if (!document.getElementById('f-owner_name').value.trim() || !document.getElementById('f-existing_use').value) {
+                Swal.fire({ icon:'warning', title:'Required', text:'Owner and Prevailing Land Use are required.' });
+                return;
+            }
+            if (customary && !document.getElementById('f-lga').value.trim()) {
+                Swal.fire({ icon:'warning', title:'Required', text:'Please select the LGA.' });
+                return;
+            }
+            if (customary && isOtherDistrict(document.getElementById('f-district').value) && !document.getElementById('f-district-other').value.trim()) {
+                Swal.fire({ icon:'warning', title:'Required', text:'You chose Other — type the district in the box below it.' });
+                return;
+            }
+        }
+        let pin = null;
+        if (visitEditable && coords) {
+            pin = parseLatLngInput(coords);
+            if (!pin) { Swal.fire({ icon:'warning', title:'Check the coordinates', text:'Enter them as latitude, longitude, e.g. 12.0022, 8.5919.' }); return; }
+        }
+
+        const btn = document.getElementById('btn-save-record');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        const done = [];
+
+        try {
+            if (d.can_edit_record) {
+                const landUse = currentLandUse();
+                const fd = new FormData();
+                fd.append('owner_name', document.getElementById('f-owner_name').value.trim());
+                fd.append('phone', document.getElementById('f-phone').value.trim());
+                fd.append('sticker_number', document.getElementById('f-sticker').value.trim());
+                fd.append('existing_use', document.getElementById('f-existing_use').value);
+                fd.append('land_use_type', landUse);
+                fd.append('proposed_use', (document.getElementById('h-proposed_use').value || landUse || document.getElementById('f-existing_use').value).trim());
+                if (customary) {
+                    fd.append('lga', document.getElementById('f-lga').value.trim());
+                    fd.append('district', districtValue());
+                    fd.append('location', document.getElementById('h-location').value.trim());
+                } else {
+                    fd.append('lga', d.lga || '');
+                    fd.append('district', d.district || '');
+                    fd.append('location', d.location || '');
+                }
+                Array.from(document.getElementById('f-photos').files || []).forEach(f => fd.append('photos[]', f));
+                await postForm(`${RECORD_BASE}/${d.id}/update`, fd);
+                done.push('Record updated');
+            }
+
+            if (insp && d.can_edit_visit) {
+                const fd = new FormData();
+                fd.append('inspection_date', date);
+                fd.append('findings', findings);
+                if (pin) fd.append('coordinates', JSON.stringify(pin));
+                if (geometry) fd.append('parcel_geometry', geometry);
+                Array.from(document.getElementById('ar-insp-photo-input').files || []).forEach(f => fd.append('photos[]', f));
+                await postForm(`${FIELD_BASE}/${insp.id}/update`, fd);
+                done.push('Inspection updated');
+            } else if (!insp && date && findings) {
+                const r = await saveInspectionFor({ id: d.id, file_number: d.file });
+                if (r.status === 'failed') throw new Error('The inspection was not saved: ' + r.note);
+                done.push('Inspection logged');
+            }
+
+            closeSpaModal();
+            resetSpaForm();
+            $('#field-records-table').DataTable().ajax.reload(null, false);
+            Swal.fire({ icon:'success', title: done.length ? 'Saved' : 'Nothing to save', text: done.join(' · ') || 'Nothing on this card could be changed by you.', timer:2200, showConfirmButton:false });
+        } catch (err) {
+            if (done.length) $('#field-records-table').DataTable().ajax.reload(null, false);
+            Swal.fire({ icon:'error', title:'Not saved', text: (done.length ? done.join(' · ') + '. But: ' : '') + err.message });
+        }
+        btn.disabled = false; btn.textContent = editCtx ? 'Save Changes' : 'Save Record';
+    }
+
     // Form submit → create SPAS application (and, if filled in, its field inspection)
     document.getElementById('form-add-record').addEventListener('submit', async function (e) {
         e.preventDefault();
+        if (editCtx) { await saveEditFromCard(); return; }
 
         const isCustomary = document.getElementById('ltt-customary').checked;
-        if (!document.getElementById('h-file_number').value.trim()) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Required',
-                text: isCustomary
-                    ? 'The temporary file number is still generating — please wait a moment and try again.'
-                    : 'Please select a file number first.',
-            });
-            return;
-        }
+        // No file-number check: it is optional (most owners do not know it), and
+        // the record is identified by the SPAS ID the server assigns.
 
         if (isCustomary && !document.getElementById('f-lga').value.trim()) {
             Swal.fire({ icon:'warning', title:'Required', text:'Please select the LGA — a customary title has no file to take its location from.' });
@@ -1817,7 +2196,7 @@ $(document).ready(function () {
                         confirmButtonColor: 'rgb(186,191,12)',
                     }).then(r => { if (r.isConfirmed) window.openLogInspection(insp.entered); });
                 } else {
-                    Swal.fire({ icon:'success', title:'Added to SPAS', text: data.message + insp.note, timer: insp.status === 'none' ? 4500 : 2000, showConfirmButton:false });
+                    Swal.fire({ icon:'success', title:'Added to SPAS', text: (data.spa_id ? `SPAS ID ${data.spa_id}. ` : '') + data.message + insp.note, timer: insp.status === 'none' ? 4500 : 2000, showConfirmButton:false });
                 }
             } else {
                 Swal.fire({ icon:'error', title:'Error', text:data.message || 'Save failed.' });

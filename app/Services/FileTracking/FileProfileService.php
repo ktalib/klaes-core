@@ -120,17 +120,25 @@ class FileProfileService
     {
         $number = trim((string) ($fileNumber ?: $tracker?->file_number));
         $trackers = $number !== ''
-            ? FileTracker::where('file_number', $number)->orderBy('id')->get(['id', 'movement_log'])
+            ? FileTracker::where('file_number', $number)->orderBy('id')->get(['id', 'movement_log', 'request_purpose_id', 'request_purpose_name'])
             : collect($tracker ? [$tracker] : []);
 
         $refs = [];
         foreach ($trackers as $row) {
-            foreach (array_values($row->movement_log ?: []) as $i => $entry) {
+            $entriesOnRow = array_values($row->movement_log ?: []);
+            foreach ($entriesOnRow as $i => $entry) {
                 if (!is_array($entry)) {
                     continue;
                 }
                 $key = SecretariatFileLogService::logKey($entry);
-                $refs[$key] = isset($refs[$key]) ? false : ['tracker_id' => (int) $row->id, 'index' => $i, 'key' => $key];
+                $ref = ['tracker_id' => (int) $row->id, 'index' => $i, 'key' => $key];
+                // The newest step's purpose often lives only on the tracker row
+                // (as the register shows it); the edit form starts from it.
+                if ($i === count($entriesOnRow) - 1 && trim((string) $row->request_purpose_name) !== '') {
+                    $ref['tracker_purpose_id'] = $row->request_purpose_id ? (int) $row->request_purpose_id : null;
+                    $ref['tracker_purpose'] = $row->request_purpose_name;
+                }
+                $refs[$key] = isset($refs[$key]) ? false : $ref;
             }
         }
 

@@ -1,0 +1,2 @@
+id,file_number_id,file_no,mls_file_no,kangis_file_no,new_kangis_file_no,file_name,commissioning_date,decommissioning_date,decommissioning_reason,decommissioned_by,created_at,updated_at,false_decommissioning,successor_file_no,event_type
+5425,178801,RES-2009-1265,RES-2009-1265,,,"HUSSEIN ALI RODA",,"2026-10-09 15:12:55.693","Change of Purpose to COM","System Admin","2026-10-09 15:12:55.693","2026-10-09 15:12:55.693",0,COM-2026-378,

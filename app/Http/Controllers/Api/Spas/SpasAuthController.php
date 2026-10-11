@@ -59,17 +59,62 @@ class SpasAuthController extends Controller
             'status'     => 'success',
             'token_type' => 'Bearer',
             'token'      => $user->createToken($deviceName, ['spas-mobile'])->plainTextToken,
-            'user'       => [
-                'id'         => $user->id,
-                'name'       => $user->name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
-                'username'   => $user->username,
-                'email'      => $user->email,
-            ],
+            'user'       => $this->profile($user),
             // The device stamps rows with its own user, but the server remains
             // the authority on surveyor_id/created_by. Returned so the app can
             // show "created by me" locally before a push confirms it.
             'server_time' => now()->toIso8601String(),
         ]);
+    }
+
+    /** The signed-in user, for the app's sidebar. Refreshed on every sync. */
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json(['success' => true, 'user' => $this->profile($request->user())]);
+    }
+
+    private function profile(User $user): array
+    {
+        $roles = method_exists($user, 'getRoleNames') ? $user->getRoleNames()->values()->all() : [];
+
+        return [
+            'id'       => $user->id,
+            'name'     => $user->name ?? trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+            'username' => $user->username,
+            'email'    => $user->email,
+            'role'     => (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) ? 'Super Admin' : ($roles[0] ?? null),
+            // Sent as data, not a link, so the phone keeps it offline.
+            'photo'    => $this->photoThumb($user),
+        ];
+    }
+
+    /** The profile photo as a small square JPEG data URL, or null. Never throws. */
+    private function photoThumb(User $user): ?string
+    {
+        try {
+            $path = \App\Support\UserPhoto::existingPath($user->profile, $user->passport_photo_path);
+            if (! $path) {
+                return null;
+            }
+            $img = @imagecreatefromstring(\Illuminate\Support\Facades\Storage::disk('public')->get($path));
+            if (! $img) {
+                return null;
+            }
+            $w = imagesx($img);
+            $h = imagesy($img);
+            $side = min($w, $h);                       // square crop from the centre
+            $out = imagecreatetruecolor(256, 256);
+            imagecopyresampled($out, $img, 0, 0, (int) (($w - $side) / 2), (int) (($h - $side) / 2), 256, 256, $side, $side);
+            ob_start();
+            imagejpeg($out, null, 82);
+            $jpeg = ob_get_clean();
+            imagedestroy($img);
+            imagedestroy($out);
+
+            return 'data:image/jpeg;base64,'.base64_encode($jpeg);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function logout(Request $request): JsonResponse

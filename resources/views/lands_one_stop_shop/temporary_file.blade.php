@@ -173,6 +173,7 @@
                                     class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition text-sm font-medium">
                                     <option value="">Select District</option>
                                     @foreach($districts as $district)
+                                        @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                         @if(strtoupper($district->name) !== 'OTHER')
                                             <option value="{{ $district->name }}">{{ Str::upper($district->name) }}</option>
                                         @endif

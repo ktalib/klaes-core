@@ -44,6 +44,7 @@ class SecretariatFileLogController extends Controller
             // office their Rank/Department maps to (config/file_movement.php).
             'canChooseOffice' => $user->isSuperAdmin(),
             'canDeleteLogs'   => $user->isSuperAdmin(),
+            'canEditLogs'     => $this->canEditLogs($user),
             'myOffice'        => $this->log->officeFor($user),
             'PageTitle'       => 'File Movement (Department)',
             'PageDescription' => 'Receive and send files between offices — scan any KLAES QR or log manually.',
@@ -120,6 +121,70 @@ class SecretariatFileLogController extends Controller
             'success' => true,
             'message' => 'Log deleted. The file is now at ' . ($tracker->current_office_name ?: 'its previous office') . '.',
         ]);
+    }
+
+    /**
+     * Edit one log entry. An admin may edit any log; a user with the module's
+     * edit action only logs at their own office. The original is kept in the
+     * hidden file_movement_log_edits history.
+     */
+    public function editLog(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($this->canEditLogs($user), 403, 'You do not have permission to edit logs.');
+
+        $data = $request->validate([
+            'tracker_id'              => 'required|integer',
+            'index'                   => 'required|integer|min:0',
+            'key'                     => 'required|string|size:32',
+            'reason'                  => 'required|string|max:500',
+            'office_code'             => 'nullable|string|max:50',
+            'log_in_date'             => 'prohibited',
+            'log_in_time'             => 'prohibited',
+            'log_out_date'            => 'nullable|date_format:Y-m-d',
+            'log_out_time'            => 'nullable|date_format:H:i',
+            'receiving_officer_id'    => 'nullable|integer',
+            'receiving_officer_other' => 'nullable|string|max:255',
+            'request_purpose_id'      => 'nullable|integer|exists:sqlsrv.request_purposes,id',
+            'request_purpose_other'   => 'nullable|string|max:255',
+            'notes'                   => 'nullable|string|max:1000',
+            'completion_notes'        => 'nullable|string|max:1000',
+        ]);
+
+        $onlyOffice = null;
+        if (!$user->isSuperAdmin()) {
+            $office = $this->log->officeFor($user);
+            abort_unless($office, 403, 'No office is assigned to your account. Ask the administrator to set your Department and Rank.');
+            $onlyOffice = $office['code'];
+        }
+
+        // Notes are always sent by the form, so an emptied box clears them.
+        $changes = array_intersect_key($data, array_flip([
+            'office_code', 'log_out_date', 'log_out_time',
+            'receiving_officer_id', 'receiving_officer_other', 'request_purpose_id', 'request_purpose_other',
+        ]));
+        foreach (['notes', 'completion_notes'] as $field) {
+            if ($request->exists($field)) {
+                $changes[$field] = $data[$field] ?? null;
+            }
+        }
+
+        try {
+            $this->log->editLogEntry((int) $data['tracker_id'], (int) $data['index'], $data['key'], $changes, $data['reason'], $user,
+                $onlyOffice, ['ip' => $request->ip(), 'user_agent' => $request->userAgent()]);
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('File movement log edit failed', ['error' => $e->getMessage(), 'tracker_id' => $data['tracker_id']]);
+            return response()->json(['success' => false, 'message' => 'Could not save the change: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Log updated.']);
+    }
+
+    private function canEditLogs($user): bool
+    {
+        return $user->isSuperAdmin() || $user->canDo(self::MODULE, 'edit');
     }
 
     /** Admin only: delete a whole tracker and its logs (audited). */
@@ -215,6 +280,9 @@ class SecretariatFileLogController extends Controller
 
         try {
             $result = $this->log->receive($office, $data, $request->user());
+        } catch (\App\Services\FileTracking\MissingReceiptDetailsException $e) {
+            // The page asks for what is missing and sends the receipt again.
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'needs' => $e->needs], 422);
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {

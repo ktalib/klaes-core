@@ -1,0 +1,220 @@
+{
+    "deleted_at": "2026-10-09T13:34:32+01:00",
+    "reason": "User asked to delete the last two records made today (Klaes Admin).",
+    "spa_applications": [
+        {
+            "id": "106",
+            "file_number": "AG-1995-7",
+            "tracking_id": "TRK-7S6PIF2Y-6TALL",
+            "file_indexing_id": "36467",
+            "is_indexed": "1",
+            "owner_name": "HVJHCB",
+            "phone": "08023232756",
+            "location": "MITCHELL, NASARAWA",
+            "district": "MITCHELL",
+            "lga": "NASARAWA",
+            "land_use_type": "RESIDENTIAL",
+            "existing_use": "AGRICULTURAL",
+            "proposed_use": "RESIDENTIAL",
+            "photos": null,
+            "scenario": null,
+            "status": "in_progress",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:25",
+            "updated_at": "2026-10-09 11:03:27",
+            "land_title_type": "statutory",
+            "client_uuid": "b7cd04cd-6ef6-4e0b-91f5-a073581a253c",
+            "spa_id": "SPAS-2026-0014",
+            "sticker_number": "123450"
+        },
+        {
+            "id": "108",
+            "file_number": null,
+            "tracking_id": null,
+            "file_indexing_id": null,
+            "is_indexed": "1",
+            "owner_name": "TEST 123",
+            "phone": null,
+            "location": "ABASAWA, DAWAKIN KUDU",
+            "district": "ABASAWA",
+            "lga": "DAWAKIN KUDU",
+            "land_use_type": "RESIDENTIAL",
+            "existing_use": "COMMERCIAL",
+            "proposed_use": "RESIDENTIAL",
+            "photos": null,
+            "scenario": null,
+            "status": "in_progress",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:28",
+            "updated_at": "2026-10-09 11:03:30",
+            "land_title_type": "statutory",
+            "client_uuid": "aa638cdd-1a5a-4274-901b-42fdb8059031",
+            "spa_id": "SPAS-2026-0015",
+            "sticker_number": null
+        }
+    ],
+    "spa_field_data": [
+        {
+            "id": "40",
+            "spa_application_id": "106",
+            "file_number": "AG-1995-7",
+            "surveyor_id": "1",
+            "inspection_date": "2026-10-09",
+            "coordinates": "{\"lat\":11.994455,\"lng\":8.579154}",
+            "findings": "Inspected on site.",
+            "photos": null,
+            "status": "active",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:27",
+            "updated_at": "2026-10-09 11:03:27",
+            "parcel_geometry": null,
+            "spa_application_client_uuid": "b7cd04cd-6ef6-4e0b-91f5-a073581a253c",
+            "client_uuid": "022f683f-b513-4120-bb70-0621498458e6"
+        },
+        {
+            "id": "41",
+            "spa_application_id": "108",
+            "file_number": null,
+            "surveyor_id": "1",
+            "inspection_date": "2026-10-09",
+            "coordinates": "{\"lat\":11.994461,\"lng\":8.57915}",
+            "findings": "Inspected on site.",
+            "photos": "[\"spa\\\/field-data\\\/0z24SpKv4TPBKGbcoSMSx6G2zdBWzcxzpiUQQh5Z.jpg\",\"spa\\\/field-data\\\/1ALfXPJtJUeJR3N8hNFUL7clShket8iHj4OBuGpZ.jpg\",\"spa\\\/field-data\\\/GVsLsf2EMQmkDl5eOvChODLHjCjVbUu8krgA4x9f.jpg\",\"spa\\\/field-data\\\/BcIN3UJ0pQL9BFNupIVJWNbBxYafqGt5pmFZeMOK.jpg\"]",
+            "status": "active",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:30",
+            "updated_at": "2026-10-09 11:03:56",
+            "parcel_geometry": null,
+            "spa_application_client_uuid": "aa638cdd-1a5a-4274-901b-42fdb8059031",
+            "client_uuid": "50142bbe-4a5e-4242-ac1c-fdb0df6ad2ea"
+        }
+    ],
+    "spa_notices": [
+        {
+            "id": "70",
+            "spa_application_id": "106",
+            "file_number": "AG-1995-7",
+            "notice_type": "first",
+            "recipient_name": "HVJHCB",
+            "phone": "08023232756",
+            "served_by": "1",
+            "served_date": "2026-10-09",
+            "scheduled_date": "2026-10-23",
+            "sms_sent": "1",
+            "sms_sent_at": "2026-10-09 11:03:27",
+            "status": "served",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:25",
+            "updated_at": "2026-10-09 11:03:27"
+        },
+        {
+            "id": "71",
+            "spa_application_id": "108",
+            "file_number": "SPAS-2026-0015",
+            "notice_type": "first",
+            "recipient_name": "TEST 123",
+            "phone": null,
+            "served_by": "1",
+            "served_date": "2026-10-09",
+            "scheduled_date": null,
+            "sms_sent": "0",
+            "sms_sent_at": null,
+            "status": "served",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:28",
+            "updated_at": "2026-10-09 11:03:28"
+        }
+    ],
+    "spa_bills": [
+        {
+            "id": "31",
+            "spa_application_id": "106",
+            "bill_type": "Contravention",
+            "description": "Contravention: approved use \"RESIDENTIAL\" differs from prevailing use \"AGRICULTURAL\". Composed of: Application Form Fee (10,000.00), Processing Fee (20,000.00), Contravention Fee (80,000.00).",
+            "amount": "110000.00",
+            "reference_id": "SPAS-BILL-2026-006",
+            "due_date": "2026-11-08",
+            "status": "unpaid",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:25",
+            "updated_at": "2026-10-09 11:03:25",
+            "source": "contravention"
+        },
+        {
+            "id": "32",
+            "spa_application_id": "108",
+            "bill_type": "Contravention",
+            "description": "Contravention: approved use \"RESIDENTIAL\" differs from prevailing use \"COMMERCIAL\". Composed of: Application Form Fee (10,000.00), Processing Fee (20,000.00), Contravention Fee (80,000.00).",
+            "amount": "110000.00",
+            "reference_id": "SPAS-BILL-2026-007",
+            "due_date": "2026-11-08",
+            "status": "unpaid",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-09 11:03:28",
+            "updated_at": "2026-10-09 11:03:28",
+            "source": "contravention"
+        }
+    ],
+    "spa_bill_lines": [
+        {
+            "id": "67",
+            "spa_bill_id": "31",
+            "spa_bill_item_id": "1",
+            "name": "Application Form Fee",
+            "amount": "10000.00",
+            "created_at": "2026-10-09 11:03:25",
+            "updated_at": "2026-10-09 11:03:25"
+        },
+        {
+            "id": "68",
+            "spa_bill_id": "31",
+            "spa_bill_item_id": "2",
+            "name": "Processing Fee",
+            "amount": "20000.00",
+            "created_at": "2026-10-09 11:03:25",
+            "updated_at": "2026-10-09 11:03:25"
+        },
+        {
+            "id": "69",
+            "spa_bill_id": "31",
+            "spa_bill_item_id": "3",
+            "name": "Contravention Fee",
+            "amount": "80000.00",
+            "created_at": "2026-10-09 11:03:25",
+            "updated_at": "2026-10-09 11:03:25"
+        },
+        {
+            "id": "70",
+            "spa_bill_id": "32",
+            "spa_bill_item_id": "1",
+            "name": "Application Form Fee",
+            "amount": "10000.00",
+            "created_at": "2026-10-09 11:03:28",
+            "updated_at": "2026-10-09 11:03:28"
+        },
+        {
+            "id": "71",
+            "spa_bill_id": "32",
+            "spa_bill_item_id": "2",
+            "name": "Processing Fee",
+            "amount": "20000.00",
+            "created_at": "2026-10-09 11:03:28",
+            "updated_at": "2026-10-09 11:03:28"
+        },
+        {
+            "id": "72",
+            "spa_bill_id": "32",
+            "spa_bill_item_id": "3",
+            "name": "Contravention Fee",
+            "amount": "80000.00",
+            "created_at": "2026-10-09 11:03:28",
+            "updated_at": "2026-10-09 11:03:28"
+        }
+    ],
+    "photo_paths": [
+        "spa\/field-data\/0z24SpKv4TPBKGbcoSMSx6G2zdBWzcxzpiUQQh5Z.jpg",
+        "spa\/field-data\/1ALfXPJtJUeJR3N8hNFUL7clShket8iHj4OBuGpZ.jpg",
+        "spa\/field-data\/GVsLsf2EMQmkDl5eOvChODLHjCjVbUu8krgA4x9f.jpg",
+        "spa\/field-data\/BcIN3UJ0pQL9BFNupIVJWNbBxYafqGt5pmFZeMOK.jpg"
+    ]
+}

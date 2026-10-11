@@ -530,12 +530,8 @@ class ConsentApplicationController extends Controller
 
         $application = ConsentApplication::findOrFail($id);
 
-        if ($application->print_count > 0) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot edit an application that has already been printed.'
-            ], 403);
-        }
+        // A printed consent stays editable (Deeds, 2026-10-08); the next print
+        // carries the edit.
 
         $this->applyTransactionType($request, false);
 

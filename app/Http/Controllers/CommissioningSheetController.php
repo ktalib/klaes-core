@@ -232,6 +232,10 @@ class CommissioningSheetController extends Controller
                     $data['related_file_number'] = $fnRow->related_fileno;
                 }
             }
+            // The full line above the parent, oldest first, on the one row.
+            if (!empty($data['related_file_number'])) {
+                $data['related_file_number'] = $this->relatedFileChain((string) $data['related_file_number'], (string) $fileNo);
+            }
 
             // 3. Fill the property fields the caller left blank from the indexed record.
             $data = $this->fillPropertyFieldsFromIndexing($data);
@@ -547,6 +551,10 @@ class CommissioningSheetController extends Controller
                     $data['related_file_number'] = $related;
                 }
             }
+            // The full line above the parent, oldest first, on the one row.
+            if (!empty($data['related_file_number'])) {
+                $data['related_file_number'] = $this->relatedFileChain((string) $data['related_file_number'], (string) $fileNo);
+            }
 
             // 3. SIT files carry a reason that prints after the Location
             if (empty($data['sit_reason']) && stripos($fileNo, 'SIT-') === 0) {
@@ -692,7 +700,8 @@ class CommissioningSheetController extends Controller
                 }
             }
 
-            $relatedRaw = $this->resolveRelatedFileNumber($fileNumber);
+            // The full line of parents, oldest first ("RES-1993-2677, COM-2026-374").
+            $relatedRaw = $this->relatedFileChain($this->resolveRelatedFileNumber($fileNumber), $fileNumber);
             if ($relatedRaw !== '') {
                 // Excluded for the same reason as on the printed sheet: the file's own
                 // number already leads the sheet and must not reappear beside its alias.
@@ -778,6 +787,49 @@ class CommissioningSheetController extends Controller
      * creation for a file raised from another (a subdivision child, a conversion).
      * Without the second, a whole batch of subdivided files prints with no related file.
      */
+    /**
+     * The whole line of files a record descends from, oldest first, as one comma list:
+     * a subdivision of a Change of Purpose prints "RES-1993-2677, COM-2026-374" rather
+     * than its immediate parent alone. $start is the parent(s) already known (stored, or
+     * typed on the form); each one is followed up through its own related file. The walk
+     * stops at a file with no parent, at a merger (several parents, all listed), on a
+     * loop, or after ten steps.
+     */
+    private function relatedFileChain(string $start, string $fileNumber): string
+    {
+        $parse = function (string $raw): array {
+            $raw = trim($raw);
+            if ($raw === '') {
+                return [];
+            }
+            $decoded = json_decode($raw, true);
+            $list = is_array($decoded) ? $decoded : preg_split('/\s*,\s*/', $raw);
+
+            return array_values(array_filter(array_map(fn ($n) => trim((string) $n), $list), fn ($n) => $n !== ''));
+        };
+
+        $seen = [strtoupper(trim($fileNumber)) => true];
+        $chain = [];
+        $parents = $parse($start);
+
+        for ($depth = 0; $depth < 10 && $parents; $depth++) {
+            $fresh = array_values(array_filter($parents, fn ($n) => !isset($seen[strtoupper($n)])));
+            foreach ($fresh as $n) {
+                $seen[strtoupper($n)] = true;
+                $chain[] = $n;
+            }
+            // Only a single parent has an unambiguous line above it.
+            if (count($fresh) !== 1) {
+                break;
+            }
+            $parents = $parse($this->resolveRelatedFileNumber($fresh[0]));
+        }
+
+        // Printed oldest first: the original file leads and the newest parent closes
+        // the row, the order the files came into being.
+        return implode(', ', array_reverse($chain));
+    }
+
     private function resolveRelatedFileNumber(string $fileNumber): string
     {
         $fileNumber = trim($fileNumber);

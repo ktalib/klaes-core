@@ -1120,6 +1120,7 @@
                   <option value="">Select District</option>
                   @isset($districtOptions)
                     @foreach ($districtOptions as $d)
+                        @continue(in_array(strtolower(trim((string) $d)), ['other', 'others'], true))
                       <option value="{{ $d }}">{{ $d }}</option>
                     @endforeach
                   @endisset

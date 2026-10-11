@@ -34,6 +34,15 @@ use Illuminate\Support\Facades\Log;
  */
 class ChangeOfPurposeBatchCommitService
 {
+    /** The summary-card destination; the batch engine opens tracking from these. */
+    public const DESTINATION_FIELDS = [
+        'destination_department',
+        'destination_office_code',
+        'destination_office_name',
+        'destination_receiving_officer_id',
+        'destination_receiving_officer_name',
+    ];
+
     /**
      * Commission an approved multi-plot Change of Purpose.
      *
@@ -90,15 +99,18 @@ class ChangeOfPurposeBatchCommitService
 
         // Every plot inherits the file's own details: the application captured them
         // once because one file describes the whole holding.
+        $details = app(ChangeOfPurposeDetails::class)->application($record);
         $entry = [
-            'plotNo'      => $record->plot_no,
-            'tpNo'        => $record->plan_no,
-            'location'    => $record->location,
-            'lga'         => $record->lga,
-            'district'    => $record->district,
+            'streetName' => $details['street_name'] ?? null,
+            'houseNo' => $details['house_no'] ?? null,
+            'plotNo'      => $details['plot_no'] ?? null,
+            'tpNo'        => $details['tp_no'] ?? null,
+            'location'    => $details['location'] ?? null,
+            'lga'         => $details['lga'] ?? null,
+            'district'    => $details['district'] ?? null,
             'file_name'   => $record->applicant_name,
             'phone_no'    => $phone,
-            'address'     => $record->residential_address,
+            'address'     => $details['residential_address'] ?? null,
             // Left empty on purpose: the batch path mints a fresh unique tracking id
             // per entry, and reuses the grouping record's where one exists.
             'tracking_id' => null,
@@ -130,7 +142,7 @@ class ChangeOfPurposeBatchCommitService
             'commission_time'         => $meta['commission_time'] ?? now()->format('H:i'),
             'allocated_by_filter'     => '',
             'default_allocation_type' => null,
-        ]);
+        ] + array_intersect_key($meta, array_flip(self::DESTINATION_FIELDS)));
 
         if (empty($files)) {
             throw new \RuntimeException('Commissioning returned no file numbers.');

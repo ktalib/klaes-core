@@ -7,7 +7,9 @@
         'name' => $it->name,
         'amount' => number_format((float) $it->amount, 2, '.', ''),
         'is_active' => (bool) $it->is_active,
+        'is_on_demand' => (bool) ($it->is_on_demand ?? false),
     ])->values();
+    $onDemand = $spaBillSupportsOnDemand ?? false;
 @endphp
 
 <div class="iw-alert info">
@@ -16,6 +18,10 @@
         A Special Assignment bill is raised once per application, the moment its approved land use
         differs from the use prevailing on the ground. Items set to <strong>0</strong> or switched off are not charged.
         Removing an item switches it off; bills already raised keep it.
+        @if($onDemand)
+            An item marked <strong>When needed</strong> (a Penalty Fee) is never charged automatically:
+            the officer adds it to a particular bill from the Generate Bill form, at the amount set here.
+        @endif
         Renaming an item renames it on existing bills, payments and receipts too;
         a new amount applies only to bills raised from now on.
     </div>
@@ -39,6 +45,7 @@
                         <th>Item</th>
                         <th class="text-right" style="width:180px">Amount (&#8358;)</th>
                         <th class="text-center" style="width:90px">Active</th>
+                        @if($onDemand)<th class="text-center" style="width:110px" title="Not charged automatically; added to a bill by the officer">When needed</th>@endif
                         <th style="width:50px"></th>
                     </tr>
                 </thead>
@@ -59,6 +66,12 @@
                                 <input type="hidden" :name="`items[${i}][is_active]`" :value="row.is_active ? 1 : 0">
                                 <label class="ce-switch"><input type="checkbox" x-model="row.is_active"><span></span></label>
                             </td>
+                            @if($onDemand)
+                                <td class="text-center">
+                                    <input type="hidden" :name="`items[${i}][is_on_demand]`" :value="row.is_on_demand ? 1 : 0">
+                                    <label class="ce-switch"><input type="checkbox" x-model="row.is_on_demand"><span></span></label>
+                                </td>
+                            @endif
                             <td class="text-center">
                                 <button type="button" class="ce-pill red" title="Remove (switches the item off)"
                                         @click="rows.splice(i, 1)">&times;</button>
@@ -66,7 +79,7 @@
                         </tr>
                     </template>
                     <tr x-show="!rows.length">
-                        <td colspan="4" class="ce-muted text-center">No items yet. Add one below.</td>
+                        <td colspan="{{ $onDemand ? 5 : 4 }}" class="ce-muted text-center">No items yet. Add one below.</td>
                     </tr>
                 </tbody>
             </table>
@@ -98,7 +111,8 @@
             rows: initial.map(r => ({ ...r, key: ++seq })),
             newName: '', newAmount: '',
             get total() {
-                return this.rows.reduce((t, r) => t + (r.is_active ? (parseFloat(r.amount) || 0) : 0), 0);
+                // "When needed" items are not part of every bill, so not of this figure.
+                return this.rows.reduce((t, r) => t + (r.is_active && !r.is_on_demand ? (parseFloat(r.amount) || 0) : 0), 0);
             },
             money(n) {
                 return '₦' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -106,7 +120,7 @@
             add() {
                 const name = this.newName.trim();
                 if (!name) return;
-                this.rows.push({ id: null, name, amount: this.newAmount || '0', is_active: true, key: ++seq });
+                this.rows.push({ id: null, name, amount: this.newAmount || '0', is_active: true, is_on_demand: false, key: ++seq });
                 this.newName = ''; this.newAmount = '';
             },
         };

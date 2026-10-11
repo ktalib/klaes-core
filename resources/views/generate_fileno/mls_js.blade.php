@@ -3533,7 +3533,9 @@
             if (alpineData.applicationType === 'change_of_purpose'
                 && alpineData.copAppId
                 && Number(alpineData.copPlotCount) > 1) {
-                window.commissionCopPlotsFromModal(alpineData);
+                // Through the summary card first, like a duplex: without a destination
+                // the batch engine opens no tracking and the plots stay untracked.
+                showCopPlotsSummaryModal(alpineData);
                 return;
             }
 
@@ -4871,9 +4873,44 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
+    // A multi-plot Change of Purpose, held while the summary card collects the destination.
+    let pendingCopPlotsAlpine = null;
+
+    function showCopPlotsSummaryModal(alpineData) {
+        summaryModalMode = 'cop_plots';
+        pendingSingleSubmitEvent = null;
+        pendingCopPlotsAlpine = alpineData;
+        setSummaryModalHeader('Change of Purpose Commissioning Summary', 'Choose where the files go, then confirm');
+
+        const plots = Number(alpineData.copPlotCount) || 0;
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+        set('summaryBatchSize', `${plots} files`);
+        set('summaryTotalFiles', plots);
+        set('summarySerialRange', '-');
+        set('summaryFileNumbers', `${plots} new numbers, one per plot of ${alpineData.originalFileNo || ''}`);
+        set('summaryLandUse', alpineData.landUse || alpineData.newPurpose || '-');
+        set('summaryFileName', alpineData.fileName || alpineData.copApplicantName || '-');
+
+        const now = new Date();
+        const timeInput = document.getElementById('commissionTime');
+        if (timeInput) timeInput.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        const list = document.getElementById('summaryLocationList');
+        if (list) {
+            list.innerHTML = `<p class="text-xs text-gray-700"><b>${alpineData.originalFileNo || ''}</b> will be retired; `
+                + `each of its ${plots} plots gets its own file number.</p>`;
+        }
+
+        document.getElementById('batchSummaryModal').classList.remove('hidden');
+        loadSummaryDestinationOffices();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
     function closeBatchSummaryModal() {
         document.getElementById('batchSummaryModal').classList.add('hidden');
         pendingSingleSubmitEvent = null;
+        pendingCopPlotsAlpine = null;
         summaryModalMode = 'batch';
     }
 
@@ -4894,6 +4931,18 @@
             const alpineData = pendingDuplexAlpine;
             pendingDuplexAlpine = null;
             if (alpineData) window.commissionDuplexFromModal(alpineData, pendingSummaryDestination);
+            return;
+        }
+
+        // Multi-plot Change of Purpose: same hand-off as a duplex.
+        if (summaryModalMode === 'cop_plots') {
+            document.getElementById('batchSummaryModal').classList.add('hidden');
+            summaryModalMode = 'batch';
+            const alpineData = pendingCopPlotsAlpine;
+            const destination = pendingSummaryDestination;
+            pendingCopPlotsAlpine = null;
+            pendingSummaryDestination = null;
+            if (alpineData) window.commissionCopPlotsFromModal(alpineData, destination);
             return;
         }
 
@@ -5531,17 +5580,16 @@
                 document.getElementById('editFileName').value = data.FileName || '';
                 document.getElementById('editPlotNo').value = data.plot_no || '';
                 setEditTpField(data.tp_no || '');
-                // A stored location is hand-authored data by definition — protect it from
-                // the auto-composer until the user clears the field themselves.
-                const editLocationEl = document.getElementById('editLocation');
-                editLocationEl.value = data.location || '';
-                editLocationEl.dataset.userEdited = (data.location || '').trim() === '' ? '0' : '1';
+                // Location is read-only and follows District + LGA. The stored value is
+                // shown first and only kept when the record has neither to build from.
+                document.getElementById('editLocation').value = data.location || '';
                 document.getElementById('editLga').value = data.lga || '';
-                
+
                 // Populate District if element exists
                 if (document.getElementById('editDistrict')) {
                     setDistrictField('editDistrict', 'editDistrictOther', 'editDistrictValue', data.district || '');
                 }
+                updateEditLocation();
 
                 const customerTypeSelect = document.getElementById('editCustomerType');
                 if (customerTypeSelect) {
@@ -6141,24 +6189,17 @@
         const locationInput = document.getElementById('editLocation');
         if (!locationInput) return;
 
-        // A location the user typed themselves is real data — "NO 5 AHMADU BELLO WAY,
-        // NASSARAWA" is not something this function can reconstruct. Auto-composition is
-        // a convenience for a blank field, so once the field has been edited by hand it
-        // is left alone. The save propagates Location to three tables, so clobbering it
-        // here was not a cosmetic bug.
-        if (locationInput.dataset.userEdited === '1') return;
-
+        // Location is no longer typed: it is always "DISTRICT, LGA", the form the
+        // generator writes, so the two screens cannot disagree. The plot number is a
+        // separate field and is never part of it.
         const district = document.getElementById('editDistrictValue')?.value.trim() || '';
         const lga = document.getElementById('editLga')?.value.trim() || '';
 
-        // Location is composed from district/LGA only — the plot number is a
-        // separate field and must not be echoed into the location string.
-        let locationDetails = [];
-        if (district) locationDetails.push(district);
-        if (lga) locationDetails.push(lga);
-        locationDetails.push('KANO');
+        // With neither to build from, keep whatever the record already holds rather
+        // than blank it — the save propagates Location to three tables.
+        if (!district && !lga) return;
 
-        locationInput.value = locationDetails.join(', ').toUpperCase();
+        locationInput.value = [district, lga].filter(Boolean).join(', ').toUpperCase();
     }
 
     // Attach listeners for Edit Modal fields
@@ -6168,11 +6209,6 @@
         // Location held — so correcting a plot number silently destroyed the address.
         $(document).on('input change', '#editLga, #editDistrict', function() {
             updateEditLocation();
-        });
-
-        // Typing in Location marks it as hand-authored; clearing it hands control back.
-        $(document).on('input', '#editLocation', function () {
-            this.dataset.userEdited = this.value.trim() === '' ? '0' : '1';
         });
         // Make the Edit / Direct Allocation District dropdowns searchable
         initEditDistrictSelect2();
@@ -9451,6 +9487,16 @@
                         }
                     }
 
+                    // Applicant address belongs to the CoP application; property details
+                    // are enriched from the exact File Indexing record by the endpoint.
+                    this.address = data.residential_address || data.address || '';
+                    this.phone_no = data.phone || data.phone_no || '';
+                    this.tpNo = data.tp_no || data.plan_no || '';
+                    this.tpSearchQuery = this.tpNo;
+                    this.tpIsOther = false;
+                    this.tpOtherValue = '';
+                    const copTpHidden = document.getElementById('generator_tp_no_val');
+                    if (copTpHidden) copTpHidden.value = this.tpNo;
                     // Backfill details
                     this.fileName = data.applicant_name || '';
                     this.houseNo = data.house_no || '';
@@ -9771,6 +9817,16 @@
             },
 
             updatePreview() {
+                // Ticking "Use a missing serial number" before a prefix was chosen left the
+                // list on "Pick a land use / prefix first" for good: nothing reloaded it once
+                // the prefix arrived (a Change of Purpose sets it from the application).
+                if (this.useReclaimedSerial && !this.reclaimedLoading) {
+                    const reclaimFor = (this.prefix || this.landUse || '').toString().trim();
+                    if (reclaimFor && `${reclaimFor}-${this.year}` !== this.reclaimedLoadedFor) {
+                        this.loadReclaimedSerials();
+                    }
+                }
+
                 // A reclaimed serial is an explicit choice, so the auto-fill below must not
                 // overwrite it. Without this guard the field and the preview both snapped
                 // straight back to the counter's next number the instant one was picked —
@@ -14421,7 +14477,7 @@
      * ChangeOfPurposeBatchCommitService runs exactly that against the same engine
      * every other commissioning uses.
      */
-    window.commissionCopPlotsFromModal = async function (alpineData) {
+    window.commissionCopPlotsFromModal = async function (alpineData, destination = null) {
         const id = alpineData.copAppId;
         if (!id) {
             Swal.fire({ icon: 'warning', title: 'No application selected', text: 'Pick the Change of Purpose to commission first.' });
@@ -14459,6 +14515,9 @@
                 gender: alpineData.gender || 'Male',
                 phone_no: document.getElementById('generatePhoneNo')?.value || '',
                 purpose_id: alpineData.purpose || null,
+                // Where the new files are dispatched (summary card); the batch engine
+                // opens their tracking, as it does for any batch.
+                ...(destination || {}),
             }),
         }).then(r => r.json()).catch(e => ({ success: false, message: e.message }));
 
@@ -14470,6 +14529,9 @@
         }
 
         const files = ((res.result || {}).files) || [];
+        const dispatched = destination && destination.destination_office_name
+            ? `<p class="text-sm text-gray-600 mt-3">Dispatched to <b>${destination.destination_office_name}</b>.</p>`
+            : '';
         if (typeof window.autoCommissioningChecklist === 'function') {
             window.autoCommissioningChecklist(files);
         }
@@ -14478,7 +14540,8 @@
             title: `${files.length} file numbers issued`,
             html: '<p class="text-sm text-gray-600 mb-2">'
                 + `<b>${(res.result || {}).file_no || ''}</b> retired. New numbers:</p>`
-                + '<p class="font-mono text-sm font-bold text-emerald-700">' + files.join('<br>') + '</p>',
+                + '<p class="font-mono text-sm font-bold text-emerald-700">' + files.join('<br>') + '</p>'
+                + dispatched,
             confirmButtonColor: '#059669',
             allowOutsideClick: false,
         });

@@ -1,0 +1,14 @@
+[
+    {
+        "id": "10112",
+        "name": "File Movement (Department)",
+        "guard_name": "web",
+        "description": "File Tracking: in\/out file register for the HC, PS and Directors' offices \u2014 scan any KLAES QR or log manually, receive, and track to the next office",
+        "department_id": "13",
+        "level": "High",
+        "user_type": "Management",
+        "is_active": "1",
+        "created_at": "2026-10-07 05:50:56.6966667",
+        "updated_at": "2026-10-07 10:37:34.0433333"
+    }
+]

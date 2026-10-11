@@ -1,0 +1,90 @@
+{
+    "deleted_at": "2026-10-09 20:26:54",
+    "reason": "User test of SPAS memo + Change of Purpose Sheet on SPAS-2026-0008",
+    "rows": {
+        "spa_certificates": [
+            {
+                "id": "3",
+                "spa_application_id": "96",
+                "cert_number": "SPAS-COP\/2026\/0001",
+                "file_number": "SPAS-2026-0008",
+                "holder_name": "FAS'AL MART",
+                "from_use": "RESIDENTIAL",
+                "to_use": "AGRICULTURAL",
+                "issue_date": "2026-10-09",
+                "expiry_date": null,
+                "issued_by": "1",
+                "status": "issued",
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-09 20:22:41",
+                "updated_at": "2026-10-09 20:22:41",
+                "new_file_number": "IND-1992-9"
+            }
+        ],
+        "spa_memos": [
+            {
+                "id": "4",
+                "spa_application_id": "96",
+                "memo_no": "SPAS\/2026\/0001",
+                "prepared_by": "1",
+                "forwarded_to": "Honourable Commissioner",
+                "forwarded_at": "2026-10-09 20:21:36",
+                "commissioner_decision": "approved",
+                "commissioner_notes": null,
+                "decided_at": "2026-10-09 20:21:46",
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-09 20:21:36",
+                "updated_at": "2026-10-09 20:21:46"
+            }
+        ],
+        "notifications": [
+            {
+                "id": "112399",
+                "parent_id": "0",
+                "user_id": "1",
+                "module": "special_assignment",
+                "name": null,
+                "type": "info",
+                "title": "Memo SPAS\/2026\/0001 \u2014 Commissioner Decision",
+                "subject": "Memo SPAS\/2026\/0001 \u2014 Commissioner Decision",
+                "message": "The Commissioner has approved memo SPAS\/2026\/0001.",
+                "body": "The Commissioner has approved memo SPAS\/2026\/0001.",
+                "short_code": null,
+                "data": null,
+                "enabled_email": "0",
+                "enabled_sms": "0",
+                "is_read": "1",
+                "read_at": "2026-10-09 20:22:07.020",
+                "created_at": "2026-10-09 20:21:45.967",
+                "updated_at": "2026-10-09 20:22:07.020"
+            }
+        ],
+        "spa_applications": [
+            {
+                "id": "96",
+                "file_number": "SPAS-2026-0008",
+                "tracking_id": null,
+                "file_indexing_id": null,
+                "is_indexed": "0",
+                "owner_name": "FAS'AL MART",
+                "phone": "08035751176",
+                "location": "TARAUNI",
+                "district": null,
+                "lga": "TARAUNI",
+                "land_use_type": "RESIDENTIAL",
+                "existing_use": "COMMERCIAL",
+                "proposed_use": "RESIDENTIAL",
+                "photos": null,
+                "scenario": null,
+                "status": "certificate_issued",
+                "created_by": "LUKMAN IDRIS HAMZA",
+                "created_at": "2026-10-08 12:55:01",
+                "updated_at": "2026-10-09 20:22:41",
+                "land_title_type": "customary",
+                "client_uuid": "ba4493ea-c3e5-4276-bb50-911c6b58dae1",
+                "spa_id": "SPAS-2026-0008",
+                "sticker_number": null
+            }
+        ]
+    }
+}

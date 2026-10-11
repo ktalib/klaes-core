@@ -15,6 +15,9 @@
                  Configurable Entries -> SPAS Bill Items. --}}
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['payment']])
+
         {{-- Stats --}}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
@@ -47,7 +50,7 @@
                         <tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th>
                             <th class="px-3 py-2">Ref ID</th>
-                            <th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Bill Type</th>
                             <th class="px-3 py-2">Description</th>
@@ -83,14 +86,23 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div>
-                <h3 class="text-base font-semibold text-gray-800">Record Payment</h3>
+                <h3 class="text-base font-semibold text-gray-800">GENERATE BILL</h3>
                 <p id="pay-bill-meta" class="text-xs text-gray-500 mt-0.5">—</p>
             </div>
             <button class="pay-close text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
         </div>
         <form id="form-pay" class="p-6 space-y-4">
             @csrf
+            <div id="pay-pipeline" class="hidden rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3"></div>
             <input type="hidden" name="spa_bill_id" id="pay-bill-id">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Payment Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="payment_date" required
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
+                </div>
+            </div>
 
             {{-- Bill items --}}
             <div class="border border-gray-200 rounded-xl overflow-hidden">
@@ -115,28 +127,17 @@
                     </tfoot>
                 </table>
             </div>
+            {{-- "Add when needed" tariff items (a Penalty Fee): not on the bill until added. --}}
+            <div id="pay-addable" class="hidden flex flex-wrap items-center gap-2"></div>
             <div class="flex items-center justify-between">
                 <p id="pay-balance-note" class="text-xs text-gray-500"></p>
-                <button type="button" id="btn-pay-full"
-                    class="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Pay full balance</button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Payment Date <span class="text-red-500">*</span></label>
-                    <input type="date" name="payment_date" required
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Receipt Number</label>
-                    <input type="text" name="receipt_number"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-                <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
                     <select name="payment_method"
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="cash">Cash</option>
                         <option value="bank_transfer">Bank Transfer</option>
                         <option value="pos">POS</option>
                         <option value="cheque">Cheque</option>
@@ -145,7 +146,7 @@
             </div>
             <div class="flex justify-end gap-3 pt-2">
                 <button type="button" class="pay-close px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" class="px-5 py-2 text-sm text-white bg-[rgb(186,191,12)] rounded-lg hover:opacity-90">Record Payment</button>
+                <button type="submit" class="px-5 py-2 text-sm text-white bg-[rgb(186,191,12)] rounded-lg hover:opacity-90">GENERATE BILL</button>
             </div>
         </form>
     </div>
@@ -182,6 +183,7 @@
     .dataTables_wrapper .dataTables_length select { border:1px solid #e5e7eb; border-radius:.5rem; padding:.25rem .5rem; }
 </style>
 
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
 <script>
 const CSRF      = '{{ csrf_token() }}';
 const BILLS_URL = window.location.href;
@@ -190,6 +192,8 @@ const PAY_STORE = '{{ route("special-assignment.bills.pay") }}';
 // is what left the old form posting to a URL that did not exist, so the modal
 // sat on "Saving…" and the bill was never marked paid.
 const SHEET_URL = '{{ route("special-assignment.bills.sheet", ["id" => "__ID__"]) }}';
+const ADD_ITEM_URL    = '{{ route("special-assignment.bills.add-item", ["id" => "__ID__"]) }}';
+const REMOVE_ITEM_URL = '{{ route("special-assignment.bills.remove-item", ["id" => "__ID__"]) }}';
 
 const STATUS_COLORS = { unpaid:'bg-red-100 text-red-700', partial:'bg-amber-100 text-amber-700', paid:'bg-green-100 text-green-700' };
 
@@ -210,7 +214,7 @@ $(document).ready(function () {
         columns: [
             { data:'DT_RowIndex', orderable:false, searchable:false },
             { data:'reference_id', render: d => d && d!=='—' ? `<span class="font-semibold text-red-600">${d}</span>` : '<span class="text-gray-400">—</span>' },
-            { data:'file_number' }, { data:'owner_name' }, { data:'bill_type' },
+            { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number' }, { data:'owner_name' }, { data:'bill_type' },
             {
                 data: 'description',
                 className: 'desc-cell',
@@ -248,6 +252,7 @@ $(document).ready(function () {
     $('#spa-bills-table').on('click', '.btn-pay', function () {
         const id = $(this).data('id');
         document.getElementById('pay-bill-id').value = id;
+        window.SpasPipeline && SpasPipeline.mount(document.getElementById('pay-pipeline'), $(this).data('app'), { current: 'payment', force: true });
         const m = document.getElementById('modal-pay');
         m.classList.remove('hidden'); m.classList.add('flex');
         loadPaySheet(id);
@@ -267,6 +272,7 @@ $(document).ready(function () {
         payLines.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr>';
         payTotalEl.textContent = money(0);
         payNote.textContent = '';
+        renderAddable(billId, []);
         document.getElementById('pay-bill-meta').textContent = '—';
 
         const res  = await fetch(SHEET_URL.replace('__ID__', billId), { headers: { 'Accept': 'application/json' } });
@@ -278,8 +284,11 @@ $(document).ready(function () {
         }
 
         const b = data.bill;
-        document.getElementById('pay-bill-meta').textContent =
-            `${b.reference_id || '—'} · ${b.file_number || '—'} · ${b.owner_name || '—'}`;
+        const meta = document.getElementById('pay-bill-meta');
+        const ref  = document.createElement('span');
+        ref.className   = 'text-red-600 font-semibold';
+        ref.textContent = b.reference_id || '—';
+        meta.replaceChildren(ref, ` · ${b.file_number || '—'} · ${b.owner_name || '—'}`);
 
         // A bill raised before the tariff existed has no items. Rather than show
         // an empty table, fall back to a single field against the whole bill —
@@ -296,7 +305,9 @@ $(document).ready(function () {
                 </td></tr>`;
         } else {
             payLines.innerHTML = data.lines.map(l => `<tr class="border-t border-gray-100" data-line-id="${l.id}">
-                <td class="px-3 py-2">${esc(l.name)}</td>
+                <td class="px-3 py-2">${esc(l.name)}${l.removable
+                    ? ` <button type="button" class="pay-remove-item ml-1 text-xs text-red-500 hover:text-red-700" data-line-id="${l.id}" data-name="${esc(l.name)}" title="Take ${esc(l.name)} off this bill">&times;</button>`
+                    : ''}</td>
                 <td class="px-3 py-2 text-right text-gray-600">${Number(l.amount).toFixed(2)}</td>
                 <td class="px-3 py-2 text-right text-gray-500">${Number(l.paid).toFixed(2)}</td>
                 <td class="px-3 py-2 text-right font-medium ${l.outstanding > 0 ? 'text-gray-800' : 'text-green-600'}">${Number(l.outstanding).toFixed(2)}</td>
@@ -307,11 +318,63 @@ $(document).ready(function () {
                 </td></tr>`).join('');
         }
 
+        renderAddable(billId, data.addable || []);
+
         payNote.innerHTML = `Bill total ${money(b.amount)} · already paid ${money(b.total_paid)} · <strong>outstanding ${money(b.balance)}</strong>`
             + (b.unallocated > 0 ? `<br><span class="text-amber-600">${money(b.unallocated)} of earlier payments was recorded against the bill as a whole, not against items.</span>` : '');
 
         recalcPayTotal();
     }
+
+    // Buttons for the "add when needed" items not yet on this bill, each at its
+    // tariff amount. One still at 0 on the tariff says where to set it instead.
+    const payAddable = document.getElementById('pay-addable');
+    function renderAddable(billId, items) {
+        payAddable.dataset.billId = billId;
+        payAddable.classList.toggle('hidden', !items.length);
+        payAddable.innerHTML = items.map(it => it.amount > 0
+            ? `<button type="button" class="pay-add-item inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
+                   data-item-id="${it.id}" data-name="${esc(it.name)}" data-amount="${it.amount}">+ Add ${esc(it.name)} (${money(it.amount)})</button>`
+            : `<span class="text-xs text-gray-400">${esc(it.name)} has no amount yet — set it in Configurable Entries → SPAS Bill Items.</span>`
+        ).join('');
+    }
+
+    async function changeBillItem(url, body) {
+        const res  = await fetch(url, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!data.success) {
+            Swal.fire({ icon:'error', title:'Not changed', text: data.message || 'Could not update the bill.' });
+            return;
+        }
+        const billId = document.getElementById('pay-bill-id').value;
+        await loadPaySheet(billId);
+        table.ajax.reload(null, false);
+    }
+
+    payAddable.addEventListener('click', async e => {
+        const btn = e.target.closest('.pay-add-item');
+        if (!btn) return;
+        const ok = await Swal.fire({
+            icon: 'question',
+            title: `Add ${btn.dataset.name}?`,
+            text: `${money(btn.dataset.amount)} will be added to this bill's total.`,
+            showCancelButton: true, confirmButtonText: 'Add', confirmButtonColor: 'rgb(186,191,12)',
+        });
+        if (!ok.isConfirmed) return;
+        changeBillItem(ADD_ITEM_URL.replace('__ID__', payAddable.dataset.billId), { item_id: Number(btn.dataset.itemId) });
+    });
+
+    payLines.addEventListener('click', async e => {
+        const btn = e.target.closest('.pay-remove-item');
+        if (!btn) return;
+        const ok = await Swal.fire({
+            icon: 'warning',
+            title: `Take ${btn.dataset.name} off this bill?`,
+            showCancelButton: true, confirmButtonText: 'Take off', confirmButtonColor: '#dc2626',
+        });
+        if (!ok.isConfirmed) return;
+        changeBillItem(REMOVE_ITEM_URL.replace('__ID__', document.getElementById('pay-bill-id').value), { line_id: Number(btn.dataset.lineId) });
+    });
 
     function recalcPayTotal() {
         let total = 0;
@@ -325,14 +388,6 @@ $(document).ready(function () {
         // it anyway, and correcting it here says why without a round trip.
         const max = parseFloat(e.target.dataset.outstanding);
         if (!isNaN(max) && (parseFloat(e.target.value) || 0) > max) e.target.value = max.toFixed(2);
-        recalcPayTotal();
-    });
-
-    document.getElementById('btn-pay-full').addEventListener('click', () => {
-        payLines.querySelectorAll('.pay-amount').forEach(i => {
-            const max = parseFloat(i.dataset.outstanding);
-            if (!isNaN(max)) i.value = max.toFixed(2);
-        });
         recalcPayTotal();
     });
 
@@ -375,7 +430,7 @@ $(document).ready(function () {
         } else {
             Swal.fire({ icon:'error', title:'Error', text:data.message||'Save failed.' });
         }
-        btn.disabled=false; btn.textContent='Record Payment';
+        btn.disabled=false; btn.textContent='GENERATE BILL';
     });
 });
 </script>

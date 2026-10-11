@@ -23,7 +23,9 @@
                              OSS tab of the Land page these two differ. --}}
                         <input type="hidden" name="type" value="{{ $pageType ?? (!empty($isOssView) ? 'OSS' : 'ROFO') }}">
                         <input type="hidden" name="tab" value="{{ $tab ?? 'not_printed' }}">
-                        
+                        {{-- Marks a search typed here, so the controller may move to the tab holding the file. --}}
+                        <input type="hidden" name="searched" value="1">
+
                         {{-- The per-user filter is gone: the register is shown whole, so
                              a recommendation captured by a colleague is on the list like
                              any other. --}}
@@ -345,12 +347,46 @@
                                                              mother's grant, so the letter is printed once for the
                                                              mother and signed on paper, and that sheet is what gets
                                                              scanned in. --}}
-                                                        <button type="button" @click="open = false"
-                                                            onclick="uploadMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), {{ (int) $total }}, {{ $batchDoc ? 'true' : 'false' }})"
-                                                            class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-violet-700 hover:bg-violet-50 transition">
-                                                            <i data-lucide="upload" class="h-4 w-4 shrink-0"></i>
-                                                            <span class="flex-1 leading-tight">{{ $batchDoc ? 'Replace mother recommendation' : 'Upload mother recommendation' }}</span>
-                                                        </button>
+                                                        {{-- The Brief Recommendation is that letter, one step at a time:
+                                                             download the memo for the mother, then upload the signed copy.
+                                                             Download closes once a signed copy is on file (Reset reopens
+                                                             it); Upload opens once the brief has been downloaded. --}}
+                                                        @php $briefDownloaded = !empty($b->brief_downloaded_at); @endphp
+                                                        @if($batchDoc)
+                                                            <span title="The signed brief Recommendation is already uploaded. Use Reset upload to start again."
+                                                                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
+                                                                <i data-lucide="file-text" class="h-4 w-4 shrink-0 text-slate-200"></i>
+                                                                <span class="flex-1 leading-tight italic">
+                                                                    Brief Recommendation (mother)
+                                                                    <span class="block text-[10px] font-medium not-italic text-emerald-600">Signed brief Recommendation already uploaded</span>
+                                                                </span>
+                                                            </span>
+                                                        @else
+                                                            <button type="button" @click="open = false"
+                                                                onclick="openBatchBrief(@js($b->rofo_batch_id), @js($b->mother_file_no), {{ (int) $total }}, false, {{ $briefDownloaded ? 'true' : 'false' }})"
+                                                                class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-sky-700 hover:bg-sky-50 transition">
+                                                                <i data-lucide="file-text" class="h-4 w-4 shrink-0"></i>
+                                                                <span class="flex-1 leading-tight">Brief Recommendation (mother)</span>
+                                                            </button>
+                                                        @endif
+
+                                                        @if($batchDoc || $briefDownloaded)
+                                                            <button type="button" @click="open = false"
+                                                                onclick="uploadMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), {{ (int) $total }}, {{ $batchDoc ? 'true' : 'false' }})"
+                                                                class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-violet-700 hover:bg-violet-50 transition">
+                                                                <i data-lucide="upload" class="h-4 w-4 shrink-0"></i>
+                                                                <span class="flex-1 leading-tight">{{ $batchDoc ? 'Replace signed brief Recommendation (mother)' : 'Upload signed brief Recommendation (mother)' }}</span>
+                                                            </button>
+                                                        @else
+                                                            <span title="Download the Brief Recommendation (mother) first, then upload the signed copy."
+                                                                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
+                                                                <i data-lucide="upload" class="h-4 w-4 shrink-0 text-slate-200"></i>
+                                                                <span class="flex-1 leading-tight italic">
+                                                                    Upload signed brief Recommendation (mother)
+                                                                    <span class="block text-[10px] font-medium not-italic text-amber-600">Download the brief first</span>
+                                                                </span>
+                                                            </span>
+                                                        @endif
 
                                                         @if($batchDoc)
                                                             {{-- Opens the preview card rather than a new tab: the sheet
@@ -360,7 +396,7 @@
                                                                 onclick="viewMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), @js($batchDoc->summary()), @js($batchDoc->mime_type), {{ (int) $total }})"
                                                                 class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition">
                                                                 <i data-lucide="image" class="h-4 w-4 shrink-0"></i>
-                                                                <span class="flex-1 leading-tight">View mother recommendation</span>
+                                                                <span class="flex-1 leading-tight">View signed brief Recommendation (mother)</span>
                                                                 <span class="shrink-0 text-[10px] font-medium text-slate-400">{{ $batchDoc->summary() }}</span>
                                                             </button>
 
@@ -380,7 +416,7 @@
                                                                  makes the menu change shape under the officer. --}}
                                                             <span class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
                                                                 <i data-lucide="image" class="h-4 w-4 shrink-0 text-slate-200"></i>
-                                                                <span class="flex-1 leading-tight italic">View (nothing uploaded)</span>
+                                                                <span class="flex-1 leading-tight italic">View signed brief Recommendation (nothing uploaded)</span>
                                                             </span>
                                                         @endif
 
@@ -404,14 +440,30 @@
                                                                      a bug, and the officer would go looking for it. The
                                                                      server refuses this too (motherRecommendationGate),
                                                                      because the same approval runs from the main list. --}}
-                                                                <span title="Upload the mother recommendation first — these children inherit it"
+                                                                <span title="Upload the signed brief Recommendation (mother) first — these children inherit it"
                                                                     class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
                                                                     <i data-lucide="check-circle" class="h-4 w-4 shrink-0 text-slate-200"></i>
                                                                     <span class="flex-1 leading-tight">
                                                                         Approve all (<span data-approve-all-count="{{ $b->rofo_batch_id }}">{{ $pending }}</span>)
-                                                                        <span class="block text-[10px] font-medium not-italic text-amber-600">Upload the recommendation first</span>
+                                                                        <span class="block text-[10px] font-medium not-italic text-amber-600">Upload the signed brief Recommendation (mother) first</span>
                                                                     </span>
                                                                 </span>
+                                                                {{-- Hidden for now (2026-10-10): set $showBatchOverride to true to
+                                                                     bring "Approve all with override" back. The server still
+                                                                     accepts the override; only this menu entry is off. --}}
+                                                                @php $showBatchOverride = false; @endphp
+                                                                @if($showBatchOverride && auth()->user()?->assign_role === 'Supper Admin')
+                                                                    @canDo('Letter of Grant (RofO)', 'approve')
+                                                                    {{-- The pending ids are fetched by approveWholeBatchOverride(),
+                                                                         the same way Approve all fetches them. --}}
+                                                                    <button type="button" @click="open = false"
+                                                                        onclick='approveWholeBatchOverride(@json($b->rofo_batch_id), @json($b->mother_file_no))'
+                                                                        class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-amber-700 hover:bg-amber-50 transition">
+                                                                        <i data-lucide="shield-alert" class="h-4 w-4 shrink-0"></i>
+                                                                        <span class="flex-1 leading-tight">Approve all with override</span>
+                                                                    </button>
+                                                                    @endcanDo
+                                                                @endif
                                                             @endif
                                                         @endif
                                                     @elseif($pending > 0)
@@ -556,12 +608,17 @@
                                 // cell: the EXTANT badge in the File Number cell is drawn long before the
                                 // menu is, and both have to read the same answer.
                                 $subTpl       = (bool) $rec->use_subdivision_template;
+                                // A single record captured under an Application Type with a mother file
+                                // (Regrant, Merger, Reinstatement, ...) inherits the mother's signed Brief
+                                // Recommendation the same way, under the same per-record key. It still
+                                // prints its own letter, so $subTpl (which swaps Print for View) stays apart.
+                                $briefRec     = $subTpl || $rec->isDerivedSingleRecord();
                                 // Several letters, not one: a merged file inherits a recommendation from
                                 // each of the files it was merged from. $subTplDoc stays as the FIRST of
                                 // them so every existing test for "is there a letter" still reads true.
-                                $subTplDocs   = $subTpl ? collect(($subdivisionTemplateDocs ?? collect())[$rec->id] ?? []) : collect();
+                                $subTplDocs   = $briefRec ? collect(($subdivisionTemplateDocs ?? collect())[$rec->id] ?? []) : collect();
                                 $subTplDoc    = $subTplDocs->first();
-                                $subTplKey    = $subTpl ? \App\Models\LandRecommendationBatchDocument::subdivisionTemplateKey((int) $rec->id) : null;
+                                $subTplKey    = $briefRec ? \App\Models\LandRecommendationBatchDocument::subdivisionTemplateKey((int) $rec->id) : null;
                                 $subTplMother = trim((string) $rec->old_file_number);
                             @endphp
 
@@ -600,14 +657,14 @@
                                          is an ordinary Land row in every other respect, deliberately, so
                                          that it stays on the page whose actions can work it. Amber while
                                          the letter is still missing, because approval is held until it. --}}
-                                    @if($rec->is_existing_recommendation || $subTpl)
+                                    @if($rec->is_existing_recommendation || $briefRec)
                                         @php
                                             // Two routes to the same fact: this file's recommendation exists as a
                                             // document rather than as something KLAES prints. The OP-holder Match
                                             // keeps the file's OWN approved letter; Use Subdivision Template makes
                                             // it a subdivision child, which inherits the MOTHER's. Either way the
                                             // badge says whether that document is in hand yet.
-                                            $hasLetter = $subTpl
+                                            $hasLetter = $briefRec
                                                 ? (bool) $subTplDoc
                                                 : isset(($approvedLetters ?? collect())[$rec->id]);
                                         @endphp
@@ -616,12 +673,20 @@
                                               title="{{ $subTpl
                                                     ? ($hasLetter
                                                         ? 'This file prints as a subdivision child. It inherits the recommendation granted to ' . ($subTplMother !== '' ? $subTplMother : 'its mother file') . ' — the uploaded scan is its letter, and none is printed from KLAES.'
-                                                        : 'This file prints as a subdivision child. Upload the mother recommendation it inherits.')
+                                                        : 'This file prints as a subdivision child. Upload the signed brief Recommendation (mother) it inherits.')
+                                                    : ($briefRec
+                                                    ? ($hasLetter
+                                                        ? 'This ' . $rec->application_type . ' inherits the signed Brief Recommendation of mother file ' . $subTplMother . '.'
+                                                        : 'This ' . $rec->application_type . ' inherits the Brief Recommendation of mother file ' . $subTplMother . '. Download it, sign it, then upload the signed copy before approval.')
                                                     : ($hasLetter
-                                                        ? 'This file\'s Occupancy Permit was matched. It keeps the recommendation approved on paper — the uploaded scan is its letter, and none is printed from KLAES.'
-                                                        : 'This file\'s Occupancy Permit was matched. Upload the already-approved recommendation before it can be approved.') }}">
+                                                        ? 'This file\'s Occupancy Permit was matched. The recommendation approved on paper is uploaded against it.'
+                                                        : 'This file\'s Occupancy Permit was matched. Upload the already-approved recommendation before it can be approved.')) }}">
                                             <i data-lucide="{{ $hasLetter ? 'file-check-2' : 'upload' }}" class="h-3 w-3"></i>
-                                            {{ $hasLetter ? 'MOTHER RECOMMENDATION' : 'MOTHER RECOMMENDATION PENDING' }}
+                                            @if($briefRec && !$subTpl)
+                                                {{ $hasLetter ? 'BRIEF RECOMMENDATION (MOTHER)' : 'BRIEF RECOMMENDATION (MOTHER) PENDING' }}
+                                            @else
+                                                {{ $hasLetter ? 'BRIEF RECOMMENDATION (MOTHER)' : 'BRIEF RECOMMENDATION (MOTHER) PENDING' }}
+                                            @endif
                                         </span>
                                     @endif
                                 </td>
@@ -737,31 +802,71 @@
 
                                                     <div class="border-t border-slate-100 my-1"></div>
 
-                                                    @if($subTpl)
-                                                        {{-- One entry per letter already held. A file merged from several parents
-                                                             inherits one from each, so these stack; Replace re-scans that one
-                                                             letter, and the Upload entry below adds the next. --}}
-                                                        @foreach($subTplDocs as $i => $doc)
-                                                        {{-- Opens the preview card, the same one the batch menu and the
-                                                             approved-recommendation entry open: Replace and Reset sit on the
-                                                             card itself, so the menu needs no separate entry for either. --}}
+                                                    @if($briefRec)
+                                                        {{-- Brief Recommendation for the mother file, one step at a time:
+                                                             download the memo (Word), sign it on paper, then upload the
+                                                             signed copy, which approval waits for. Download closes once a
+                                                             signed copy is on file; Upload opens once the brief is downloaded. --}}
+                                                        @php $briefDownloaded = !empty($rec->brief_rec_downloaded_at); @endphp
+                                                        @if($subTplDocs->count())
+                                                            <span title="The signed brief Recommendation is already uploaded."
+                                                                  class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
+                                                                <i data-lucide="file-text" class="h-4 w-4 text-slate-200"></i>
+                                                                <span class="flex-1 leading-tight">
+                                                                    Brief Recommendation (mother)
+                                                                    <span class="block text-[10px] font-medium not-italic text-emerald-600">Signed brief Recommendation already uploaded</span>
+                                                                </span>
+                                                            </span>
+                                                        @else
+                                                            <button type="button"
+                                                                    onclick="openRecordBrief(@js($subTplMother), @js($subTplKey), @js($rec->file_number), false, {{ $briefDownloaded ? 'true' : 'false' }})"
+                                                                    class="flex w-full items-center px-4 py-2.5 text-sm text-sky-700 hover:bg-sky-50 transition gap-2 font-bold">
+                                                                <i data-lucide="file-text" class="h-4 w-4"></i>
+                                                                <span class="flex-1 leading-tight">
+                                                                    Brief Recommendation (mother)
+                                                                    <span class="block text-[10px] font-medium text-slate-500">Mother file {{ $subTplMother }}</span>
+                                                                </span>
+                                                            </button>
+                                                        @endif
+
+                                                        {{-- A file merged from several parents inherits a brief from each, so
+                                                             once one is on file Upload adds the next rather than replacing it. --}}
+                                                        @if($subTplDocs->count() || $briefDownloaded)
+                                                            <button type="button"
+                                                                    onclick="uploadMotherRecommendation(@js($subTplKey), @js($subTplMother), 1, false, {{ $subTplDocs->count() ? 'true' : 'false' }})"
+                                                                    class="flex w-full items-center px-4 py-2.5 text-sm {{ $subTplDocs->count() ? 'text-slate-700 hover:bg-slate-50' : 'text-violet-700 hover:bg-violet-50' }} transition gap-2 font-bold">
+                                                                <i data-lucide="upload" class="h-4 w-4"></i>
+                                                                {{ $subTplDocs->count() ? 'Upload another signed brief Recommendation (mother)' : 'Upload signed brief Recommendation (mother)' }}
+                                                            </button>
+                                                        @else
+                                                            <span title="Download the Brief Recommendation (mother) first, then upload the signed copy."
+                                                                  class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
+                                                                <i data-lucide="upload" class="h-4 w-4 text-slate-200"></i>
+                                                                <span class="flex-1 leading-tight">
+                                                                    Upload signed brief Recommendation (mother)
+                                                                    <span class="block text-[10px] font-medium not-italic text-amber-600">Download the brief first</span>
+                                                                </span>
+                                                            </span>
+                                                        @endif
+
+                                                        {{-- One View per signed brief held. Opens the preview card, where
+                                                             Replace and Reset sit. --}}
+                                                        @forelse($subTplDocs as $i => $doc)
                                                         <button type="button"
                                                                 onclick="viewSubdivisionMother(@js($doc->rofo_batch_id), @js($rec->file_number), @js($subTplMother), @js($doc->summary()), @js($doc->mime_type), {{ $i + 1 }}, {{ $subTplDocs->count() }})"
                                                                 class="flex w-full items-center px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition gap-2 font-bold">
                                                             <i data-lucide="file-check-2" class="h-4 w-4"></i>
                                                             <span class="flex-1 leading-tight">
-                                                                View mother recommendation{{ $subTplDocs->count() > 1 ? ' ' . ($i + 1) : '' }}
+                                                                View signed brief Recommendation (mother){{ $subTplDocs->count() > 1 ? ' ' . ($i + 1) : '' }}
                                                                 <span class="block text-[10px] font-medium not-italic text-slate-500">{{ $doc->original_name }}</span>
                                                             </span>
                                                         </button>
-                                                        @endforeach
-
-                                                        <button type="button"
-                                                                onclick="uploadMotherRecommendation(@js($subTplKey), @js($subTplMother), 1, false, {{ $subTplDocs->count() ? 'true' : 'false' }})"
-                                                                class="flex w-full items-center px-4 py-2.5 text-sm {{ $subTplDocs->count() ? 'text-slate-700 hover:bg-slate-50' : 'text-violet-700 hover:bg-violet-50' }} transition gap-2 font-bold">
-                                                            <i data-lucide="upload" class="h-4 w-4"></i>
-                                                            {{ $subTplDocs->count() ? 'Upload another mother recommendation' : 'Upload mother recommendation' }}
-                                                        </button>
+                                                        @empty
+                                                        <span class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
+                                                            <i data-lucide="file-check-2" class="h-4 w-4 text-slate-200"></i>
+                                                            View signed brief Recommendation (nothing uploaded)
+                                                        </span>
+                                                        @endforelse
 
                                                         <div class="border-t border-slate-100 my-1"></div>
                                                     @endif
@@ -799,19 +904,29 @@
                                                     @endif
 
                                                     <!-- Approval Action -->
-                                                    @if($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $subTpl && !$subTplDoc)
-                                                        {{-- Same hold for a Use Subdivision Template record: it inherits the
-                                                             mother's letter, so approving before that scan is up approves a
-                                                             recommendation with nothing behind it. motherRecommendationGate
-                                                             refuses it server-side as well. --}}
-                                                        <span title="Upload the mother recommendation this file inherits first."
+                                                    @if($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $briefRec && !$subTplDoc)
+                                                        {{-- Same hold for a Use Subdivision Template record or a single
+                                                             derived record: it inherits the mother's signed brief, so
+                                                             approving before that scan is up approves a recommendation with
+                                                             nothing behind it. motherRecommendationGate refuses it
+                                                             server-side as well, short of a Supper Admin override. --}}
+                                                        <span title="Upload the signed Brief Recommendation this file inherits first."
                                                               class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
                                                             <i data-lucide="check-circle" class="h-4 w-4 text-slate-200"></i>
                                                             <span class="flex-1 leading-tight">
                                                                 Approve
-                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the mother recommendation first</span>
+                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the signed Brief Recommendation first</span>
                                                             </span>
                                                         </span>
+                                                        @if(auth()->user()?->assign_role === 'Supper Admin')
+                                                            @canDo('Letter of Grant (RofO)', 'approve')
+                                                            <button type="button"
+                                                                    onclick="BriefRec.overrideApprove([{{ (int) $rec->id }}], @js('The signed Brief Recommendation for mother file ' . $subTplMother . ' has not been uploaded for ' . $rec->file_number . '.'), @js(url('land-recommendations/' . (int) $rec->id . '/approve')), true)"
+                                                                    class="flex w-full items-center px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition gap-2 font-bold">
+                                                                <i data-lucide="shield-alert" class="h-4 w-4"></i> Approve with override
+                                                            </button>
+                                                            @endcanDo
+                                                        @endif
                                                     @elseif($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $letterMissing)
                                                         {{-- Held shut on purpose: approving now would approve a
                                                              recommendation with nothing behind it. The server
@@ -876,7 +991,7 @@
                                                             <i data-lucide="printer" class="h-4 w-4 text-slate-200"></i>
                                                             <span class="flex-1 leading-tight">
                                                                 Print
-                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the mother recommendation first</span>
+                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the signed brief Recommendation (mother) first</span>
                                                             </span>
                                                         </span>
                                                         @endif
@@ -1185,6 +1300,50 @@
     </div>
 </div>
 
+{{-- Brief Recommendation for a mother file (public/js/brief-recommendation.js): download the
+     memo from a row or batch menu, sign it, then upload it through the mother-recommendation
+     upload. The file number selector is for the re-instatement memo's revoked title. --}}
+@include('components.global-fileno-modal')
+@push('scripts')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+<script src="{{ asset('js/brief-recommendation.js') }}"></script>
+<script>
+    BriefRec.configure({
+        detailsUrl: @js(route('land-recommendations.brief.details')),
+        downloadedUrl: @js(route('land-recommendations.brief.downloaded')),
+        csrf: @js(csrf_token())
+    });
+
+    // A single derived / Use Subdivision Template record. Step 2 is the mother-recommendation
+    // upload against the record's own key; a record that already holds one adds another
+    // (a merged file inherits one from each parent), exactly as the menu entry below it does.
+    function openRecordBrief(motherFileNo, key, fileNumber, hasUpload, downloaded) {
+        BriefRec.open({
+            motherFileNo: motherFileNo,
+            subject: 'for ' + fileNumber,
+            uploadKey: key,
+            hasUpload: false,
+            downloaded: !!downloaded,
+            onUpload: function () { uploadMotherRecommendation(key, motherFileNo, 1, false, !!hasUpload); }
+        });
+    }
+
+    // A mother-file batch: one brief for the mother, inherited by every child.
+    function openBatchBrief(batchId, motherFileNo, childCount, hasUpload, downloaded) {
+        BriefRec.open({
+            motherFileNo: motherFileNo,
+            subject: childCount + ' ' + (childCount === 1 ? 'child' : 'children') + ' in this batch',
+            uploadKey: batchId,
+            hasUpload: !!hasUpload,
+            downloaded: !!downloaded,
+            onUpload: function () { uploadMotherRecommendation(batchId, motherFileNo, childCount, !!hasUpload); }
+        });
+    }
+</script>
+@endpush
+
 @push('scripts')
 <script src="{{ asset('js/master-delete.js') }}"></script>
 <script>
@@ -1279,7 +1438,7 @@
     // (approvedLetterGate). The server still refuses either way — this only saves
     // the officer a refused round trip and says which of the two it is.
     function childApprovalBlock(data, c) {
-        if (!data.mother_satisfied) return 'Upload the mother recommendation first — this child inherits it';
+        if (!data.mother_satisfied) return 'Upload the signed brief Recommendation (mother) first — this child inherits it';
         if (c.needs_letter && !c.letter_uploaded) return 'Upload this file’s own approved recommendation first';
         return null;
     }
@@ -1582,9 +1741,9 @@
             +   'All ' + data.count + ' children of this batch'
             +   (data.is_subdivision
                     ? (doc
-                        ? '<span class="ml-2 normal-case tracking-normal font-bold text-emerald-700">· mother recommendation uploaded '
+                        ? '<span class="ml-2 normal-case tracking-normal font-bold text-emerald-700">· signed brief Recommendation (mother) uploaded '
                             + escHtml(doc.uploaded_at || '') + ' (' + escHtml(doc.summary || '') + ')</span>'
-                        : '<span class="ml-2 normal-case tracking-normal font-bold text-amber-600">· no mother recommendation uploaded yet — approval is held until it is on file</span>')
+                        : '<span class="ml-2 normal-case tracking-normal font-bold text-amber-600">· no signed brief Recommendation (mother) uploaded yet — approval is held until it is on file</span>')
                     : '')
             +   (selectable
                     ? '<span class="ml-2 normal-case tracking-normal font-medium text-slate-500">· approve one at a time, or tick the files that are ready</span>'
@@ -1741,7 +1900,7 @@
         var base = CHILDREN_URL + '/' + encodeURIComponent(batchId) + '/document';
 
         openRecDocModal({
-            title:    'Mother recommendation',
+            title:    'Signed brief Recommendation (mother)',
             subtitle: (motherFileNo ? motherFileNo + ' · ' : '') + batchId
                         + (childCount ? ' · inherited by all ' + childCount + ' children' : ''),
             meta:     summary,
@@ -1763,7 +1922,7 @@
         var base = CHILDREN_URL + '/' + encodeURIComponent(key) + '/document';
 
         openRecDocModal({
-            title:    total > 1 ? ('Mother recommendation ' + position + ' of ' + total) : 'Mother recommendation',
+            title:    total > 1 ? ('Signed brief Recommendation (mother) ' + position + ' of ' + total) : 'Signed brief Recommendation (mother)',
             subtitle: (fileNumber ? fileNumber + ' · ' : '')
                         + (motherFileNo ? 'inherited from ' + motherFileNo : 'inherited from the mother file'),
             meta:     summary,
@@ -1982,9 +2141,9 @@
 
         Swal.fire({
             title: alreadyUploaded
-                ? 'Replace mother recommendation'
-                : (addAnother ? 'Add another mother recommendation' : 'Upload mother recommendation'),
-            html: '<p class="text-sm text-slate-600">Scan or photograph the signed recommendation for ' + label + '.</p>'
+                ? 'Replace signed brief Recommendation (mother)'
+                : (addAnother ? 'Add another signed brief Recommendation (mother)' : 'Upload signed brief Recommendation (mother)'),
+            html: '<p class="text-sm text-slate-600">Scan or photograph the signed Brief Recommendation for ' + label + '.</p>'
                 // A Use Subdivision Template record is a batch of one, and
                 // "all 1 children" is not a sentence.
                 + (childCount === 1
@@ -1995,11 +2154,44 @@
                     : '')
                 + '<input type="file" id="mother-rec-file" accept="image/*,application/pdf" '
                 + 'class="mt-4 block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg '
-                + 'file:border-0 file:text-sm file:font-bold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100">',
+                + 'file:border-0 file:text-sm file:font-bold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100">'
+                // Signature check result, filled in as soon as a file is chosen.
+                + '<div id="mother-rec-sig" class="hidden mt-3 rounded-lg border px-3 py-2 text-xs font-semibold text-left"></div>'
+                + '<label id="mother-rec-sig-anyway" class="hidden mt-2 items-center gap-2 text-xs font-bold text-amber-800 text-left cursor-pointer">'
+                + '<input type="checkbox" id="mother-rec-sig-ok" class="h-4 w-4"> Upload anyway — I have checked it is signed</label>',
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: alreadyUploaded ? 'Replace' : 'Upload',
             confirmButtonColor: '#7c3aed',
+            // Ink check on the chosen file (BriefRec.checkSignature): a signed brief
+            // shows handwriting in its signature area. A warning, not a refusal —
+            // the officer can confirm and upload anyway, and the result is saved.
+            didOpen: function () {
+                var input = document.getElementById('mother-rec-file');
+                var box = document.getElementById('mother-rec-sig');
+                var anyway = document.getElementById('mother-rec-sig-anyway');
+                input.addEventListener('change', function () {
+                    var file = input.files && input.files[0];
+                    window.__motherRecSig = null;
+                    anyway.classList.add('hidden'); anyway.classList.remove('flex');
+                    document.getElementById('mother-rec-sig-ok').checked = false;
+                    if (!file || !window.BriefRec) { box.classList.add('hidden'); return; }
+                    box.className = 'mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-left text-slate-600';
+                    box.textContent = 'Checking for a signature…';
+                    var pending = BriefRec.checkSignature(file).then(function (res) {
+                        if (input.files[0] !== file) return res;   // a newer file was chosen
+                        var tone = res.status === 'detected'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                            : (res.status === 'not_detected' ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-600');
+                        box.className = 'mt-3 rounded-lg border px-3 py-2 text-xs font-semibold text-left ' + tone;
+                        box.textContent = (res.status === 'detected' ? '✓ ' : (res.status === 'not_detected' ? '⚠ ' : '')) + res.message
+                            + (res.status === 'not_detected' ? ' Make sure you are uploading the SIGNED copy.' : '');
+                        if (res.status === 'not_detected') { anyway.classList.remove('hidden'); anyway.classList.add('flex'); }
+                        return res;
+                    });
+                    window.__motherRecSig = { file: file, pending: pending };
+                });
+            },
             preConfirm: function () {
                 var input = document.getElementById('mother-rec-file');
                 var file = input && input.files ? input.files[0] : null;
@@ -2015,10 +2207,22 @@
                     return false;
                 }
 
+                var sig = window.__motherRecSig && window.__motherRecSig.file === file
+                    ? window.__motherRecSig.pending
+                    : Promise.resolve({ status: 'unchecked', marks: null });
+
+                return sig.then(function (check) {
+                if (check.status === 'not_detected' && !document.getElementById('mother-rec-sig-ok').checked) {
+                    Swal.showValidationMessage('No signature was detected. Upload the signed copy, or tick "Upload anyway" if it is signed.');
+                    return false;
+                }
+
                 var body = new FormData();
                 body.append('document', file);
                 body.append('_token', '{{ csrf_token() }}');
                 if (addAnother) body.append('add_another', '1');
+                body.append('signature_check', check.status);
+                if (check.marks != null) body.append('signature_marks', String(check.marks));
 
                 Swal.showLoading();
 
@@ -2042,6 +2246,7 @@
                         Swal.showValidationMessage(err.message || 'Network error during the upload.');
                         return false;
                     });
+                });
             }
         }).then(function (result) {
             if (!result.isConfirmed || !result.value) return;
@@ -2176,6 +2381,34 @@
             });
     }
 
+    // Supper Admin: approve a batch whose mother has no signed Brief Recommendation
+    // on file yet. Same pending ids as Approve all; the reason is asked for and
+    // recorded by BriefRec.overrideApprove().
+    function approveWholeBatchOverride(batchId, motherFileNo) {
+        fetch(CHILDREN_URL + '/' + encodeURIComponent(batchId) + '/children', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) throw new Error(data.message || 'Could not load the batch.');
+                var ids = data.children
+                    .filter(function (c) { return String(c.status).toLowerCase() !== 'approved'; })
+                    .map(function (c) { return c.id; });
+                if (!ids.length) {
+                    Swal.fire({ icon: 'info', title: 'Nothing to approve', text: 'Every recommendation in this batch is already approved.' });
+                    return;
+                }
+                BriefRec.overrideApprove(ids,
+                    'The signed Brief Recommendation for mother file ' + motherFileNo + ' has not been uploaded. '
+                    + ids.length + ' pending recommendation(s) in this batch inherit it.',
+                    '{{ route('land-recommendations.batch-approve') }}');
+            })
+            .catch(function (err) {
+                Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Network error.' });
+            });
+    }
+
     // Approve every still-pending child of a batch in one call. Reuses the same
     // endpoint the row checkboxes use, so approval behaves identically either way.
     function approveBatch(batchId, ids) {
@@ -2203,6 +2436,10 @@
             })
             .then(function (res) { return res.json(); })
             .then(function (data) {
+                if (!data.success && data.can_override) {
+                    BriefRec.overrideApprove(ids, data.message, '{{ route('land-recommendations.batch-approve') }}');
+                    return;
+                }
                 if (!data.success) throw new Error(data.message || 'Approval failed.');
                 Swal.fire({
                     icon: 'success', title: 'Batch approved',
@@ -2253,6 +2490,20 @@
                     title: 'Error',
                     text: @json(session('error')),
                     confirmButtonColor: '#dc2626',
+                });
+            }
+        @endif
+
+        @if(session('search_tab_moved'))
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: @json(session('search_tab_moved')),
+                    showConfirmButton: false,
+                    timer: 4000,
+                    timerProgressBar: true,
                 });
             }
         @endif
@@ -2319,6 +2570,11 @@
                 // the files still waiting on their mother recommendation.
                 .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data })))
                 .then(res => {
+                    // A Supper Admin may override a missing signed brief: hand over
+                    // to the override prompt rather than reporting a failure.
+                    if (!res.ok && res.data.can_override) {
+                        return { override: true, message: res.data.message };
+                    }
                     if (!res.ok || !res.data.success) {
                         throw new Error(res.data.message || 'The approval failed.');
                     }
@@ -2327,6 +2583,10 @@
                 .catch(err => { Swal.showValidationMessage(err.message || 'Request failed.'); return false; });
             }
         }).then(result => {
+            if (result.isConfirmed && result.value && result.value.override) {
+                BriefRec.overrideApprove(ids, result.value.message, `{{ url('land-recommendations/batch-approve') }}`);
+                return;
+            }
             if (result.isConfirmed) {
                 Swal.fire('Approved!', `${result.value?.approved ?? ids.length} record(s) approved successfully.`, 'success')
                 .then(() => window.location.reload());
@@ -2361,6 +2621,11 @@
                     .catch(() => ({}))
                     .then(data => ({ ok: response.ok, data })))
                 .then(res => {
+                    // A Supper Admin may override a missing signed brief: hand over
+                    // to the override prompt rather than reporting a failure.
+                    if (!res.ok && res.data.can_override) {
+                        return { override: true, message: res.data.message };
+                    }
                     if (!res.ok || !res.data.success) {
                         throw new Error(res.data.message || 'The approval failed.');
                     }
@@ -2375,6 +2640,10 @@
             }
         }).then((result) => {
             if (!result.isConfirmed || !result.value) return;
+            if (result.value.override) {
+                BriefRec.overrideApprove([id], result.value.message, `{{ url('land-recommendations') }}/${id}/approve`, true);
+                return;
+            }
 
             Swal.fire('Approved!', 'Document has been approved successfully.', 'success')
                 .then(() => window.location.reload());

@@ -173,7 +173,7 @@
                     <table class="min-w-full text-sm">
                         <thead class="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
                             <tr>
-                                <th class="px-4 py-3 text-left">S/N</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Duplex ID</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left">Source File(s)</th>
@@ -188,7 +188,7 @@
                         <tbody class="divide-y divide-slate-100">
                             @forelse ($records as $record)
                             <tr class="hover:bg-slate-50/60">
-                                <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
+                                <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['file' => $record->duplex_id]){{ $records->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-3 font-black text-slate-700 whitespace-nowrap holding-no">{{ $record->duplex_id }}</td>
                                 {{-- One case for the column: names arrive as the officer typed
                                      them, so a register listing "IBRAHIM DANLADI" beside
@@ -235,7 +235,7 @@
                                         : '';
                                 @endphp
                                 <td class="px-4 py-3 text-slate-600 text-xs font-semibold whitespace-nowrap">
-                                    {{ $creatorName !== '' ? \App\Support\PersonName::display($creatorName) : '—' }}
+                                    @include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by, 'name' => $creatorName])
                                 </td>
                                 <td class="px-4 py-3">
                                     @php
@@ -392,6 +392,8 @@
                                                 return $reason;
                                             };
                                         @endphp
+                                        {{-- The rights computed above, for the batch toolbar (the row checkbox is drawn before them). --}}
+                                        <span hidden data-pu-batch-flags="{{ $record->id }}" data-can-knupda="{{ $canKnupda ? 1 : 0 }}" data-can-approve="{{ $canApprove ? 1 : 0 }}" data-can-reject="{{ $canReject ? 1 : 0 }}"></span>
 
                                         <div id="row-menu-{{ $record->id }}"
                                             class="hidden fixed z-[999] w-60 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 text-left">
@@ -576,4 +578,13 @@
     .dx-decision:disabled .dx-decision-title { color:#94a3b8; }
     .dx-decision:disabled .dx-decision-note  { color:#94a3b8; }
 </style>
+
+@include('deeds.parcel_update.partials.batch_decisions', [
+    'batchLabel' => 'Duplex',
+    'batchRoutes' => [
+        'knupda' => route('duplex-parcel-update.knupda', '__ID__'),
+        'approve' => route('duplex-parcel-update.approve', '__ID__'),
+        'reject' => route('duplex-parcel-update.reject', '__ID__'),
+    ],
+])
 @endsection

@@ -16,6 +16,9 @@
             </button>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['certificate']])
+
         {{-- Stats --}}
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
@@ -46,7 +49,7 @@
                         <tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th>
                             <th class="px-3 py-2">Sheet No</th>
-                            <th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Holder Name</th>
                             <th class="px-3 py-2">From Use</th>
                             <th class="px-3 py-2">To Use</th>
@@ -99,6 +102,7 @@
                             </option>
                         @endforeach
                     </select>
+                <div id="cert-pipeline" class="hidden rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3" style="margin-top:10px"></div>
                     <p id="cert-app-warning" class="text-[11px] text-red-500 mt-1 hidden">
                         This file has no approved Commissioner memo, so a sheet cannot be issued for it yet.
                     </p>
@@ -169,6 +173,8 @@
     .dataTables_wrapper .dataTables_length select { border:1px solid #e5e7eb; border-radius:.5rem; padding:.25rem .5rem; }
 </style>
 
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
+<script>document.addEventListener('DOMContentLoaded', function () { window.SpasPipeline && SpasPipeline.watch('#cert-pipeline', '#cert-app-select', { current: 'certificate' }); });</script>
 <script>
 const CSRF      = '{{ csrf_token() }}';
 const STORE_CERT= '{{ route("special-assignment.certificate.issue") }}';
@@ -189,7 +195,7 @@ $(document).ready(function () {
         columns: [
             { data:'DT_RowIndex', orderable:false, searchable:false },
             { data:'cert_number' },
-            { data:'file_number' },
+            { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number' },
             { data:'holder_name' },
             { data:'from_use' },
             { data:'to_use' },

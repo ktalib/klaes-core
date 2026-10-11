@@ -418,8 +418,15 @@
                 </div>
             </div>
 
+            {{-- SPAS ID: every record gets one (the sequence that numbers customary
+                 titles). Most owners do not know their file number, so it is optional. --}}
+            <div class="field">
+                <label>SPAS ID</label>
+                <input type="text" id="m-spa-id" class="inp inp-ro" readonly placeholder="Assigned when the record is saved">
+            </div>
+
             <div class="field" style="margin-bottom:2px;position:relative;">
-                <label>File Number <span class="req">*</span></label>
+                <label>File Number</label>
                 <div style="position:relative;">
                     <input type="search" id="m-file-no-input" class="inp" placeholder="Type to search file number…"
                         style="text-transform:uppercase;padding-right:38px;" autocomplete="off">
@@ -433,9 +440,18 @@
                 <p id="lookup-msg" class="lookup-msg" style="display:none;"></p>
             </div>
 
+            {{-- Sticker number: the QR sticker on the property. Typed, or scanned. --}}
+            <div class="field">
+                <label>Sticker Number</label>
+                <div class="inp-row">
+                    <input type="text" name="sticker_number" id="m-sticker" class="inp" maxlength="100" placeholder="Type, or scan the QR" style="text-transform:uppercase;">
+                    <button type="button" id="m-scan-sticker" class="inp" style="flex:0 0 auto;width:auto;padding:0 14px;color:var(--accent);border-color:var(--accent);font-weight:800;font-size:11px;cursor:pointer;">SCAN QR</button>
+                </div>
+            </div>
+
             <div class="field">
                 <label>Owner / File Title <span class="req">*</span></label>
-                <input type="text" name="owner_name" id="m-owner" class="inp inp-ro" readonly placeholder="Auto-filled after lookup">
+                <input type="text" name="owner_name" id="m-owner" class="inp" placeholder="Enter the owner's name, or pick a file">
             </div>
 
             <div id="m-location-badge" class="info-badge" style="display:none;">
@@ -517,7 +533,7 @@
                 <label for="m-photos" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 12px;border:2px dashed var(--border);border-radius:var(--radius-sm);background:var(--surface2);cursor:pointer;transition:border-color .2s;">
                     <i data-lucide="image-plus" style="width:22px;height:22px;color:var(--text-dim);"></i>
                     <span style="font-size:11px;color:var(--text-muted);">Tap to upload photos</span>
-                    <input type="file" id="m-photos" name="photos[]" multiple accept="image/*" capture="environment" style="display:none;">
+                    <input type="file" id="m-photos" name="photos[]" multiple accept="image/*" style="display:none;">
                 </label>
                 <div id="m-photo-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
             </div>
@@ -607,7 +623,7 @@
 
             <div class="field">
                 <label>Photos</label>
-                <input type="file" name="photos[]" multiple accept="image/*" capture="environment"
+                <input type="file" name="photos[]" multiple accept="image/*"
                     style="background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text-muted);font-size:12px;width:100%;">
             </div>
 
@@ -1008,7 +1024,7 @@ function renderInspections(data) {
         return `
         <div class="insp-card" style="animation-delay:${i * .04}s">
             <div class="insp-card-head">
-                <span class="insp-fileno">${f.file_number||'—'}</span>
+                <span class="insp-fileno">${f.spa_id && f.spa_id !== '—' ? f.spa_id : (f.file_number||'—')}</span>
                 <div style="display:flex;align-items:center;gap:6px;">${statusBadge}</div>
             </div>
             <div class="insp-card-body">
@@ -1024,6 +1040,10 @@ function renderInspections(data) {
                 </div>
                 ${contravBadge ? `<div style="margin-top:6px;">${contravBadge}</div>` : ''}
                 ${inspected ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">📅 ${f.inspection_date||'—'} &nbsp;|&nbsp; ${f.findings && f.findings!=='—' ? f.findings.slice(0,60)+'…' : 'No findings recorded'}</div>` : ''}
+                <div class="rec-row"><span class="rec-lbl">Inspected by</span><span class="rec-val">${f.inspected_by||'—'}</span></div>
+                <div class="rec-row"><span class="rec-lbl">Created by</span><span class="rec-val">${f.created_by||'—'}</span></div>
+                <div class="rec-row"><span class="rec-lbl">Date created</span><span class="rec-val">${f.date_created||'—'}</span></div>
+                ${(f.photos || []).length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${f.photos.slice(0, 4).map(u => `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);" onerror="this.style.display='none'"></a>`).join('')}${f.photos.length > 4 ? `<span style="align-self:center;font-size:11px;color:var(--text-muted);">+${f.photos.length - 4}</span>` : ''}</div>` : '<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">No photos yet</div>'}
             </div>
         </div>`;
     }).join('');
@@ -1146,6 +1166,7 @@ document.addEventListener('click', e => {
                     document.getElementById('h-lga').value              = d.lga || '';
                     document.getElementById('h-district').value         = d.district || '';
                     document.getElementById('m-owner').value            = (d.file_title || d.owner_name || '').trim();
+                    mOwnerFromFile(true);
                     document.getElementById('m-phone').value            = d.phone || '';
                     document.getElementById('m-land-use').value         = d.land_use_type || '';
                     const loc = [d.location, d.district, d.lga].filter(Boolean).join(', ');
@@ -1163,6 +1184,7 @@ document.addEventListener('click', e => {
                 } else {
                     document.getElementById('h-file_number').value = fileNo;
                     document.getElementById('h-is_indexed').value  = '0';
+                    mOwnerFromFile(false);
                     document.getElementById('m-location-badge').style.display = 'none';
                     msg.className = 'lookup-msg err'; msg.textContent = 'File not in index — fill details manually.';
                 }
@@ -1294,6 +1316,33 @@ function applyMobileCustomaryLocation() {
 // Statutory: file number is picked from an existing indexed file (default).
 // Customary: no existing file — a temporary "SPAS-YYYY-####" number is
 // generated server-side and the owner/applicant name is typed manually.
+// Sticker number: scanned from its QR code (partials/qr_scan), or typed.
+document.getElementById('m-scan-sticker').addEventListener('click', function () {
+    if (!window.SpaQrScan) { toast('Scanner unavailable — type the sticker number.', 'error'); return; }
+    window.SpaQrScan.open(sticker => {
+        if (sticker) document.getElementById('m-sticker').value = sticker.toUpperCase();
+    });
+});
+
+// Owner comes from the file when one is found, and is locked then; otherwise typed.
+function mOwnerFromFile(hasFile) {
+    const o = document.getElementById('m-owner');
+    o.readOnly = hasFile;
+    o.classList.toggle('inp-ro', hasFile);
+    o.placeholder = hasFile ? 'Auto-filled from the file' : "Enter the owner's name, or pick a file";
+}
+
+// The next SPAS ID, as a preview — the server assigns the real one on save.
+function previewMobileSpasId() {
+    const box = document.getElementById('m-spa-id');
+    box.value = '';
+    box.placeholder = 'Generating…';
+    return fetch(URLS.nextCustomaryFileNo, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => { const next = d.spa_id || d.file_number || ''; box.value = next; return next; })
+        .catch(() => { box.placeholder = 'Assigned when the record is saved'; return ''; });
+}
+
 function setMobileLandTitleType(type) {
     const fileInput  = document.getElementById('m-file-no-input');
     const ownerInput = document.getElementById('m-owner');
@@ -1344,19 +1393,16 @@ function setMobileLandTitleType(type) {
         ownerInput.placeholder = "Enter applicant's name";
         document.getElementById('h-is_indexed').value = '0';
 
-        fetch(URLS.nextCustomaryFileNo, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(r => r.json())
-            .then(d => {
-                fileInput.value = d.file_number;
-                document.getElementById('h-file_number').value = d.file_number;
-            })
-            .catch(() => { fileInput.placeholder = 'Could not generate — try again'; });
+        // A customary title's file number IS its SPAS ID.
+        previewMobileSpasId().then(next => {
+            if (next) { fileInput.value = next; document.getElementById('h-file_number').value = next; }
+            else fileInput.placeholder = 'Assigned on save';
+        });
     } else {
         fileInput.disabled = false;
-        fileInput.placeholder = 'Type to search file number…';
-        ownerInput.readOnly = true;
-        ownerInput.classList.add('inp-ro');
-        ownerInput.placeholder = 'Auto-filled after lookup';
+        fileInput.placeholder = 'Optional — type to search file number…';
+        mOwnerFromFile(false);
+        previewMobileSpasId();
     }
 }
 
@@ -1530,10 +1576,7 @@ function initForms() {
     document.getElementById('form-add-record').addEventListener('submit', async function(e) {
         e.preventDefault();
         const isCustomary = document.getElementById('m-land-title-type').value === 'customary';
-        if (!document.getElementById('h-file_number').value.trim()) {
-            toast(isCustomary ? 'Temporary file number still generating — try again.' : 'Select a file number first.', 'error');
-            return;
-        }
+        // The file number is optional; the server assigns the SPAS ID.
         if (isCustomary && !document.getElementById('m-lga').value.trim()) {
             toast('Select the LGA — a customary title has no file to take its location from.', 'error');
             return;
@@ -1564,7 +1607,7 @@ function initForms() {
             }
             if (data.success) {
                 closeSheet('sheet-add-record');
-                toast('Record saved.', 'success');
+                toast(data.spa_id ? `Record saved — SPAS ID ${data.spa_id}.` : 'Record saved.', 'success');
                 loadRecords();
                 // Read the inspection fields (if any) before this.reset() clears them.
                 await saveMobileInspectionFor({ id: data.id, file_number: data.file_number });
@@ -1683,5 +1726,7 @@ function initKeyboardDetect() {
 <style>
 @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
 </style>
+{{-- Sticker QR scanner --}}
+@include('special_assignment.partials.qr_scan')
 </body>
 </html>

@@ -84,7 +84,11 @@ class SpaMobileService
             // file number must be a string". Offline that is unrecoverable: the
             // push 422s forever and the surveyor's record never lands.
             // `required_if` is an implicit rule and still fires for statutory.
-            'file_number'     => 'nullable|required_if:land_title_type,statutory|string|max:255',
+            // Optional for every title since 2026-10-09: most owners do not know
+            // their file number. Each record is identified by its SPAS ID instead.
+            'file_number'     => 'nullable|string|max:255',
+            // The QR sticker on the property — typed or scanned; optional.
+            'sticker_number'  => 'nullable|string|max:100',
             'owner_name'      => 'required|string|max:255',
             'phone'           => 'nullable|string|max:20',
             'proposed_use'    => 'required|string|max:255',
@@ -174,6 +178,45 @@ class SpaMobileService
             .'). Open the existing record instead of adding it again.';
     }
 
+    /** The fields an edit may change (the sticker once its column exists). */
+    private function editableRecordFields(): array
+    {
+        $fields = ['owner_name', 'phone', 'location', 'district', 'lga', 'land_use_type', 'proposed_use', 'existing_use'];
+
+        return SpaApplication::supportsSticker() ? array_merge($fields, ['sticker_number']) : $fields;
+    }
+
+    /** A sticker as stored: trimmed, upper-case, null when blank. */
+    public static function cleanSticker($value): ?string
+    {
+        $v = mb_strtoupper(trim((string) $value), 'UTF-8');
+
+        return $v === '' ? null : $v;
+    }
+
+    /**
+     * One sticker belongs to one property. Refuse a sticker already on another
+     * record, naming it, so a mis-scan is caught on the spot.
+     *
+     * @return string|null null when the sticker is free (or none was given)
+     */
+    public function duplicateStickerError($sticker, ?int $exceptId = null): ?string
+    {
+        $sticker = self::cleanSticker($sticker);
+        if (! $sticker || ! SpaApplication::supportsSticker()) {
+            return null;
+        }
+
+        $existing = SpaApplication::where('sticker_number', $sticker)
+            ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->first();
+
+        return $existing
+            ? 'Sticker '.$sticker.' is already on '.($existing->spa_id ?: $existing->file_number ?: 'another record')
+                .' ('.$existing->owner_name.'). Check the sticker, or open that record.'
+            : null;
+    }
+
     /**
      * Create a land record.
      *
@@ -189,11 +232,12 @@ class SpaMobileService
         // from the client, so the sequence stays authoritative and
         // collision-free. An offline device that invented a placeholder number
         // gets the real one back in the response and must adopt it.
-        $fileNumber = $isCustomary
-            ? SpaApplication::generateCustomaryFileNumber()
-            : ($data['file_number'] ?? null);
+        // Every record gets a SPAS ID from the one sequence; a customary title
+        // also uses it as its file number. A statutory file number is optional.
+        $spaId      = SpaApplication::generateSpasId();
+        $fileNumber = $isCustomary ? $spaId : (trim((string) ($data['file_number'] ?? '')) ?: null);
 
-        $app = SpaApplication::create([
+        $app = SpaApplication::create(array_merge(SpaApplication::supportsSpaId() ? ['spa_id' => $spaId] : [], [
             'file_number'      => $fileNumber,
             'tracking_id'      => $isCustomary ? null : ($data['tracking_id'] ?? null),
             'file_indexing_id' => $isCustomary ? null : (($data['file_indexing_id'] ?? null) ?: null),
@@ -211,7 +255,7 @@ class SpaMobileService
             'status'           => 'open',
             'created_by'       => $createdBy,
             'client_uuid'      => $data['client_uuid'] ?? null,
-        ]);
+        ], SpaApplication::supportsSticker() ? ['sticker_number' => self::cleanSticker($data['sticker_number'] ?? null)] : []));
 
         // A contravention is billable the moment it is recorded. Raising it
         // here rather than in a controller means it happens for EVERY caller —
@@ -243,6 +287,7 @@ class SpaMobileService
     {
         $rules = [
             'owner_name'    => 'required|string|max:255',
+            'sticker_number' => 'nullable|string|max:100',
             'phone'         => 'nullable|string|max:20',
             'location'      => 'nullable|string|max:255',
             'district'      => 'nullable|string|max:255',
@@ -267,7 +312,10 @@ class SpaMobileService
      */
     public function applyLandRecordUpdate(SpaApplication $app, array $data, bool $withStatus = false): SpaApplication
     {
-        $fields = ['owner_name', 'phone', 'location', 'district', 'lga', 'land_use_type', 'proposed_use', 'existing_use'];
+        $fields = $this->editableRecordFields();
+        if (array_key_exists('sticker_number', $data)) {
+            $data['sticker_number'] = self::cleanSticker($data['sticker_number']);
+        }
 
         if ($withStatus) {
             $fields[] = 'status';
@@ -306,7 +354,10 @@ class SpaMobileService
      */
     public function isNoOpUpdate(SpaApplication $app, array $data, bool $withStatus = false): bool
     {
-        $fields = ['owner_name', 'phone', 'location', 'district', 'lga', 'land_use_type', 'proposed_use', 'existing_use'];
+        $fields = $this->editableRecordFields();
+        if (array_key_exists('sticker_number', $data)) {
+            $data['sticker_number'] = self::cleanSticker($data['sticker_number']);
+        }
 
         if ($withStatus) {
             $fields[] = 'status';

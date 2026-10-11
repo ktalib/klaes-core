@@ -16,6 +16,9 @@
             </button>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['response']])
+
         {{-- Stats --}}
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
@@ -57,7 +60,7 @@
                     @include('special_assignment.partials.table_case')
                     <table id="table-cadastral" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
-                            <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
+                            <th class="px-3 py-2">#</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Referred By</th><th class="px-3 py-2">Referral Date</th>
                             <th class="px-3 py-2">Notes</th><th class="px-3 py-2">Response Date</th>
                             <th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th>
@@ -75,7 +78,7 @@
                 <div class="p-4">
                     <table id="table-physical_planning" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
-                            <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
+                            <th class="px-3 py-2">#</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Referred By</th><th class="px-3 py-2">Referral Date</th>
                             <th class="px-3 py-2">Notes</th><th class="px-3 py-2">Response Date</th>
                             <th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th>
@@ -93,7 +96,7 @@
                 <div class="p-4">
                     <table id="table-survey" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
-                            <th class="px-3 py-2">#</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
+                            <th class="px-3 py-2">#</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th><th class="px-3 py-2">Owner</th>
                             <th class="px-3 py-2">Referred By</th><th class="px-3 py-2">Referral Date</th>
                             <th class="px-3 py-2">Notes</th><th class="px-3 py-2">Response Date</th>
                             <th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th>
@@ -120,8 +123,12 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Application <span class="text-red-500">*</span></label>
                     <select name="spa_application_id" id="refer-app-select" required
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="">Select application…</option>
+                        <option value="">Select a SPAS record…</option>
+                        @foreach($referApps as $ra)
+                            <option value="{{ $ra->id }}" data-file="{{ $ra->file_number ?: $ra->spa_id }}">{{ collect([$ra->spa_id, $ra->file_number && $ra->file_number !== $ra->spa_id ? $ra->file_number : null])->filter()->implode(' · ') }} – {{ $ra->owner_name ?: '—' }}</option>
+                        @endforeach
                     </select>
+                <div id="refer-pipeline" class="hidden rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3" style="margin-top:10px"></div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">File Number</label>
@@ -205,6 +212,8 @@
     .dataTables_wrapper .dataTables_length select { border:1px solid #e5e7eb; border-radius:.5rem; padding:.25rem .5rem; }
 </style>
 
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
+<script>document.addEventListener('DOMContentLoaded', function () { window.SpasPipeline && SpasPipeline.watch('#refer-pipeline', '#refer-app-select', { current: null }); });</script>
 <script>
 const CSRF       = '{{ csrf_token() }}';
 const STORE_REF  = '{{ route("special-assignment.departments.store") }}';
@@ -220,7 +229,7 @@ const STATUS_MAP = {
 
 const COLS = [
     { data:'DT_RowIndex', orderable:false, searchable:false },
-    { data:'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
+    { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
     { data:'owner_name' },
     { data:'referred_by' },
     { data:'referral_date' },
@@ -319,21 +328,11 @@ $(document).ready(function () {
     const modalResp = document.getElementById('modal-response');
     document.querySelectorAll('.resp-close').forEach(b => b.addEventListener('click', () => { modalResp.classList.add('hidden'); modalResp.classList.remove('flex'); }));
 
-    // Load applications
-    fetch(APP_AJAX + '?ajax=1&length=500&start=0').then(r=>r.json()).then(d=>{
-        const sel = document.getElementById('refer-app-select');
-        (d.data||[]).forEach(a => {
-            const opt = document.createElement('option');
-            opt.value = a.id;
-            opt.dataset.file = a.file_number;
-            opt.textContent = `${a.file_number} – ${a.owner_name}`;
-            sel.appendChild(opt);
-        });
-        sel.addEventListener('change', function() {
-            const opt = this.options[this.selectedIndex];
-            document.getElementById('refer-file-no').value = opt.dataset.file || '';
-        });
-    }).catch(()=>{});
+    // The SPAS records are rendered into the picker by the server.
+    document.getElementById('refer-app-select').addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        document.getElementById('refer-file-no').value = (opt && opt.dataset.file) || '';
+    });
 
     // Submit referral
     document.getElementById('form-refer').addEventListener('submit', async function(e) {

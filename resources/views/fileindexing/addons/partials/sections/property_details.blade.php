@@ -90,6 +90,7 @@
                     <option value="">Select Street Name</option>
                     @if(isset($streetNames))
                         @foreach($streetNames as $streetName)
+                            @continue(in_array(strtolower(trim((string) $streetName->name)), ['other', 'others'], true))
                             <option value="{{ $streetName->name }}">
                                 {{ $streetName->name }}
                             </option>

@@ -16,6 +16,9 @@
             </button>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['memo', 'decision']])
+
         {{-- Stats --}}
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
@@ -46,7 +49,7 @@
                         <tr class="text-left text-xs text-gray-500 uppercase">
                             <th class="px-3 py-2">#</th>
                             <th class="px-3 py-2">Memo No</th>
-                            <th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Forwarded To</th>
                             <th class="px-3 py-2">Forwarded Date</th>
                             <th class="px-3 py-2">Status</th>
@@ -80,6 +83,7 @@
                             <option value="{{ $app->id }}">{{ $app->file_number }} – {{ $app->owner_name }}</option>
                         @endforeach
                     </select>
+                <div id="memo-pipeline" class="hidden rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3" style="margin-top:10px"></div>
                 </div>
                 <input type="hidden" name="forwarded_to" value="Honourable Commissioner">
             </div>
@@ -137,6 +141,8 @@
     .dataTables_wrapper .dataTables_length select { border:1px solid #e5e7eb; border-radius:.5rem; padding:.25rem .5rem; }
 </style>
 
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
+<script>document.addEventListener('DOMContentLoaded', function () { window.SpasPipeline && SpasPipeline.watch('#memo-pipeline', '#form-gen-memo select[name=spa_application_id]', { current: 'memo' }); });</script>
 <script>
 const CSRF         = '{{ csrf_token() }}';
 const STORE_MEMO   = '{{ route("special-assignment.memo.generate") }}';
@@ -155,7 +161,7 @@ $(document).ready(function () {
         columns: [
             { data:'DT_RowIndex', orderable:false, searchable:false },
             { data:'memo_no' },
-            { data:'file_number' },
+            { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number' },
             { data:'forwarded_to' },
             { data:'forwarded_at' },
             { data:'decision', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${DEC_COLORS[d]||'bg-gray-100 text-gray-600'}">${d||'—'}</span>` },

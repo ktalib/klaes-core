@@ -117,11 +117,16 @@ class SecretariatFileLogService
             throw new RuntimeException('Give the document a title or subject.');
         }
         if (($data['received_via'] ?? null) === 'manual') {
+            // Both gaps are reported at once, so the page asks for them together.
+            $needs = [];
             if (!$this->purposeChoice($data['request_purpose_id'] ?? null, $data['request_purpose_other'] ?? null)) {
-                throw new RuntimeException('Choose a request purpose, or choose Other and specify it.');
+                $needs[] = 'purpose';
             }
             if (!$this->officerChoice($data['receiving_officer_id'] ?? null, $data['receiving_officer_other'] ?? null)) {
-                throw new RuntimeException('Choose a receiving officer, or choose Other and specify the name.');
+                $needs[] = 'officer';
+            }
+            if ($needs) {
+                throw new MissingReceiptDetailsException($needs);
             }
         }
 
@@ -348,11 +353,15 @@ class SecretariatFileLogService
             if ($status === 'pending_acceptance') {
                 $pending[] = $this->row($tracker, $last, [
                     'from' => $last['sent_from_office_name'] ?? ($prev['office_name'] ?? $tracker->origin_office_name),
+                    'to' => $last['receiving_office_name'] ?? $last['office_name'] ?? $office['name'],
+                    'to_officer' => $last['receiving_officer_name'] ?? null,
                     'since' => $last['timestamp'] ?? null,
                 ]);
             } elseif ($status === 'active') {
                 $held[] = $this->row($tracker, $last, [
                     'from' => $prev['office_name'] ?? $tracker->origin_office_name,
+                    'to' => $last['receiving_office_name'] ?? $last['office_name'] ?? $office['name'],
+                    'to_officer' => $last['receiving_officer_name'] ?? null,
                     'since' => $last['accepted_at'] ?? $last['timestamp'] ?? null,
                 ]);
             }
@@ -381,7 +390,9 @@ class SecretariatFileLogService
                 }
                 $nextStatus = strtolower((string) ($next['status'] ?? ''));
                 $sent[] = $this->row($tracker, $next, [
+                    'from' => $log[$i]['receiving_office_name'] ?? $log[$i]['office_name'] ?? $office['name'],
                     'to' => $next['office_name'] ?? null,
+                    'to_officer' => $next['receiving_officer_name'] ?? null,
                     'since' => trim($sentAt),
                     'state' => $nextStatus === 'pending_acceptance' ? 'In transit' : 'Received',
                     'now_at' => $tracker->current_office_name,
@@ -772,6 +783,233 @@ class SecretariatFileLogService
 
             return ['id' => (int) $row->id, 'file_number' => $row->file_number, 'file_title' => $row->file_title];
         });
+    }
+
+    /**
+     * Correct one stored log: its office, log-out date and time, receiving
+     * officer, request purpose and notes. The log-in date and time are not
+     * editable. Moving the newest step to another office moves the file's
+     * current location with it.
+     *
+     * Nothing is lost: the entry as it was and as it becomes are written to
+     * file_movement_log_edits (append-only, shown on no screen) before the tracker
+     * is saved, in the same transaction, so an edit without its history copy
+     * cannot happen. $onlyOffice limits a non-admin to logs at their own office.
+     *
+     * @param array{office_code?:?string, log_out_date?:?string, log_out_time?:?string,
+     *              receiving_officer_id?:?int, receiving_officer_other?:?string, request_purpose_id?:?int,
+     *              request_purpose_other?:?string, notes?:?string, completion_notes?:?string} $changes
+     */
+    public function editLogEntry(int $trackerId, int $index, string $key, array $changes, string $reason, User $user,
+                                 ?string $onlyOffice = null, array $context = []): FileTracker
+    {
+        $reason = $this->clean($reason);
+        if (!$reason) {
+            throw new RuntimeException('Give a reason for editing the log.');
+        }
+
+        return DB::connection('sqlsrv')->transaction(function () use ($trackerId, $index, $key, $changes, $reason, $user, $onlyOffice, $context) {
+            $tracker = FileTracker::lockForUpdate()->find($trackerId);
+            if (!$tracker) {
+                throw new RuntimeException('File tracker not found.');
+            }
+
+            $log = array_values($tracker->movement_log ?: []);
+            if (!isset($log[$index]) || !is_array($log[$index]) || self::logKey($log[$index]) !== $key) {
+                throw new RuntimeException('This log has changed since the page loaded. Reload the file and try again.');
+            }
+
+            $before = $log[$index];
+            $entryOffice = $before['receiving_office_code'] ?? $before['office_code'] ?? null;
+            if ($onlyOffice !== null && $entryOffice !== $onlyOffice) {
+                throw new RuntimeException('You can only edit logs made at your own office.');
+            }
+
+            $status = strtolower((string) ($before['status'] ?? ''));
+            $after = $before;
+
+            if ($this->anyFilled($changes, ['log_in_date', 'log_in_time'])) {
+                throw new RuntimeException('The log-in date and time cannot be edited.');
+            }
+            // Log-out: only a step the file has left.
+            if ($status !== 'completed' && $this->anyFilled($changes, ['log_out_date', 'log_out_time'])) {
+                throw new RuntimeException('This file has not left that office yet, so it has no log-out time to edit.');
+            }
+            foreach (['log_out'] as $side) {
+                $date = $this->clean($changes[$side . '_date'] ?? null);
+                $time = $this->clean($changes[$side . '_time'] ?? null);
+                if ($date !== null) {
+                    $after[$side . '_date'] = $this->validDate($date);
+                }
+                if ($time !== null) {
+                    $after[$side . '_time'] = $this->validTime($time);
+                }
+            }
+            // Checked only when a time is edited: Log a File pre-stamps a log-out
+            // before the log-in, and that stored data is left as it is.
+            if ($this->anyFilled($changes, ['log_out_date', 'log_out_time'])) {
+                $inAt = $this->entryMoment($after['log_in_date'] ?? null, $after['log_in_time'] ?? null);
+                $outAt = $this->entryMoment($after['log_out_date'] ?? null, $after['log_out_time'] ?? null);
+                foreach (['log-in' => $inAt, 'log-out' => $outAt] as $label => $at) {
+                    if ($at && $at->isFuture()) {
+                        throw new RuntimeException("The {$label} time cannot be in the future.");
+                    }
+                }
+                if ($status === 'completed' && $inAt && $outAt && $outAt->lt($inAt)) {
+                    throw new RuntimeException('The log-out time cannot be before the log-in time.');
+                }
+            }
+
+            $isNewest = $index === count($log) - 1;
+            $newOffice = null;
+            $nextBefore = $nextAfter = null;
+            $code = $this->clean($changes['office_code'] ?? null);
+            if ($code !== null && $code !== $entryOffice) {
+                $newOffice = $this->office($code);
+                $after['office_code'] = $newOffice['code'];
+                $after['office_name'] = $newOffice['name'];
+                $after['receiving_office_code'] = $newOffice['code'];
+                $after['receiving_office_name'] = $newOffice['name'];
+                // The step after this one names it as where the file was sent from.
+                $next = $log[$index + 1] ?? null;
+                if (is_array($next) && ($next['sent_from_office_code'] ?? null) === $entryOffice) {
+                    $nextBefore = $next;
+                    $next['sent_from_office_code'] = $newOffice['code'];
+                    $next['sent_from_office_name'] = $newOffice['name'];
+                    $nextAfter = $next;
+                }
+            }
+
+            if ($officer = $this->officerChoice($changes['receiving_officer_id'] ?? null, $changes['receiving_officer_other'] ?? null)) {
+                $after['receiving_officer_id'] = $officer->id;
+                $after['receiving_officer_name'] = $officer->name;
+            }
+            if ($purpose = $this->purposeChoice($changes['request_purpose_id'] ?? null, $changes['request_purpose_other'] ?? null)) {
+                $after['purpose'] = $purpose->name;
+            }
+            // Log-out notes belong to a step the file has left.
+            foreach ($status === 'completed' ? ['notes', 'completion_notes'] : ['notes'] as $field) {
+                if (array_key_exists($field, $changes)) {
+                    $value = $this->clean($changes[$field]);
+                    if ($value === null) {
+                        unset($after[$field]);
+                    } else {
+                        $after[$field] = mb_substr($value, 0, 1000);
+                    }
+                }
+            }
+
+            $changed = [];
+            foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $field) {
+                if (($before[$field] ?? null) !== ($after[$field] ?? null)) {
+                    $changed[] = $field;
+                }
+            }
+            if (!$changed) {
+                throw new RuntimeException('Nothing was changed.');
+            }
+
+            // The newest step is also mirrored on the tracker row.
+            $trackerFields = ['current_office_code', 'current_office_name', 'receiving_office_code', 'receiving_office_name',
+                'receiving_officer_id', 'receiving_officer_name', 'request_purpose_id', 'request_purpose_name'];
+            $trackerBefore = $tracker->only($trackerFields);
+            if ($isNewest) {
+                if ($newOffice) {
+                    $tracker->current_office_code = $newOffice['code'];
+                    $tracker->current_office_name = $newOffice['name'];
+                    $tracker->receiving_office_code = $newOffice['code'];
+                    $tracker->receiving_office_name = $newOffice['name'];
+                }
+                if ($officer) {
+                    $tracker->receiving_officer_id = $officer->id;
+                    $tracker->receiving_officer_name = $officer->name;
+                }
+                if ($purpose) {
+                    $tracker->request_purpose_id = $purpose->id;
+                    $tracker->request_purpose_name = $purpose->name;
+                }
+            }
+            $trackerAfter = $tracker->only($trackerFields);
+            if ($nextBefore) {
+                $trackerBefore['next_entry'] = $nextBefore;
+                $trackerAfter['next_entry'] = $nextAfter;
+                $log[$index + 1] = $nextAfter;
+            }
+
+            DB::connection('sqlsrv')->table('file_movement_log_edits')->insert([
+                'file_tracker_id' => $tracker->id,
+                'tracking_id'     => $tracker->tracking_id,
+                'file_number'     => $tracker->file_number,
+                'entry_index'     => $index,
+                'log_id'          => $before['log_id'] ?? null,
+                'office_code'     => $entryOffice,
+                'changed_fields'  => json_encode($changed),
+                'before_entry'    => json_encode($before, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'after_entry'     => json_encode($after, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'tracker_before'  => $trackerBefore == $trackerAfter ? null : json_encode($trackerBefore, JSON_UNESCAPED_UNICODE),
+                'tracker_after'   => $trackerBefore == $trackerAfter ? null : json_encode($trackerAfter, JSON_UNESCAPED_UNICODE),
+                'reason'          => mb_substr($reason, 0, 500),
+                'edited_by'       => $user->id,
+                'edited_by_name'  => $this->userName($user),
+                'acting_office'   => $onlyOffice,
+                'ip_address'      => isset($context['ip']) ? mb_substr((string) $context['ip'], 0, 45) : null,
+                'user_agent'      => isset($context['user_agent']) ? mb_substr((string) $context['user_agent'], 0, 500) : null,
+                'created_at'      => now(),
+            ]);
+
+            $log[$index] = $after;
+            $tracker->movement_log = $log;
+            $tracker->save();
+
+            \Illuminate\Support\Facades\Log::info('File movement log edited', [
+                'tracker_id' => $tracker->id, 'index' => $index, 'fields' => $changed, 'by' => $user->id,
+            ]);
+
+            return $tracker->refresh();
+        });
+    }
+
+    private function anyFilled(array $data, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if ($this->clean($data[$key] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function validDate(string $value): string
+    {
+        $date = \DateTime::createFromFormat('!Y-m-d', $value);
+        if (!$date || $date->format('Y-m-d') !== $value) {
+            throw new RuntimeException("\"{$value}\" is not a valid date.");
+        }
+
+        return $value;
+    }
+
+    private function validTime(string $value): string
+    {
+        if (!preg_match('/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/', $value)) {
+            throw new RuntimeException("\"{$value}\" is not a valid time.");
+        }
+
+        return substr($value, 0, 5);
+    }
+
+    private function entryMoment(?string $date, ?string $time): ?\Illuminate\Support\Carbon
+    {
+        $date = $this->clean($date);
+        if (!$date) {
+            return null;
+        }
+        try {
+            return \Illuminate\Support\Carbon::parse($date . ' ' . ($this->clean($time) ?: '00:00'));
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function auditDeletion(array $record): void

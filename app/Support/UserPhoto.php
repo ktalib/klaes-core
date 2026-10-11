@@ -86,6 +86,24 @@ class UserPhoto
     }
 
     /**
+     * The first of profile / passport photo that has a file on the public disk, as a
+     * disk-relative path — for callers that need the bytes (the SPAS app keeps a copy
+     * offline), not a URL. Same shape rules as url().
+     */
+    public static function existingPath($profile, $passportPath = null): ?string
+    {
+        foreach ([$profile, $passportPath] as $candidate) {
+            $path = self::relativePath($candidate);
+
+            if ($path !== null && Storage::disk('public')->exists($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The public-disk-relative path a stored `profile` value names, or null when it names
      * nothing (blank, or the legacy "avatar.png" placeholder that has no file behind it).
      */

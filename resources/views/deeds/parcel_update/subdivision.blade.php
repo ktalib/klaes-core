@@ -156,7 +156,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">S/N</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left whitespace-nowrap">File No</th>
                                 <th class="px-4 py-3 text-left">File Title</th>
@@ -164,13 +164,18 @@
                                 <th class="px-4 py-3 text-left">Location</th>
                                 <th class="px-4 py-3 text-left">Source</th>
                                 <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left">Created By</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse($records as $record)
+                                @php
+                                    // The batch obeys the same blockers as this row's menu.
+                                    $batchBlockers = \App\Support\SubdivisionWorkflow::blockers($record, $jsiCleared[$record->id] ?? false);
+                                @endphp
                                 <tr>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchBlockers['planning'], 'canApprove' => !$batchBlockers['decision'], 'canReject' => !$batchBlockers['decision']]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 text-slate-700 font-bold">{{ $record->applicant_name ?: '—' }}</td>
                                     <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no }}</td>
                                     <td class="px-4 py-3 text-slate-600">{{ $record->file_title }}</td>
@@ -191,14 +196,7 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 text-slate-600 text-xs">
-                                        {{ implode(', ', array_filter([
-                                            $record->house_no ? 'House No '.$record->house_no : null,
-                                            $record->plot_no ? 'Plot '.$record->plot_no : null,
-                                            $record->street_name,
-                                            $record->district,
-                                            $record->lga,
-                                            $record->state
-                                        ])) }}
+                                        {{ \App\Support\DistrictLgaLabel::for($record->district, $record->lga) ?: '-' }}
                                     </td>
                                     {{-- Which sidebar raised it: both open this same register. --}}
                                     <td class="px-4 py-3">
@@ -207,6 +205,7 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-slate-500 text-xs">{{ $record->created_at->format('M d, Y') }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by])</td>
                                     <td class="px-4 py-3 text-center">
                                             @php
                                                 /**
@@ -243,96 +242,33 @@
                                                             </button>
                                                         @endif
                                                     </div>
+                                                    @php
+                                                        $workflowBlockers = \App\Support\SubdivisionWorkflow::blockers($record, $jsiCleared[$record->id] ?? false);
+                                                        $workflowActions = [
+                                                            ['planning', 'KAMMA / Physical Planning', 'ruler', 'openKnupdaModal', null],
+                                                            ['generate-recommendation', 'Generate Recommendation', 'file-check', 'generateRecommendation', null],
+                                                            ['print-recommendation', 'Print Recommendation', 'file-text', null, 'plot-subdivision.print-recommendation'],
+                                                            ['decision', 'Approve / Reject', 'scale', 'openApprovalDecision', null],
+                                                            ['generate-application', 'Generate Application', 'file-plus', 'generateApplication', null],
+                                                            ['print-application', 'Print Application', 'printer', null, 'plot-subdivision.print-application'],
+                                                        ];
+                                                    @endphp
                                                     <div class="py-1 border-t border-slate-100">
-                                                        @if(strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0)
-                                                        <button disabled title="Already approved by KAMMA / Physical Planning" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50"><i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> KAMMA / Physical Planning</button>
-                                                        @else
-                                                        <button onclick="openKnupdaModal({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 gap-2">
-                                                            <i data-lucide="ruler" class="w-4 h-4 text-blue-500"></i> KAMMA / Physical Planning
-                                                        </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                        @if(($jsiCleared[$record->id] ?? false))
-                                                            @if(!$record->recommendation_generated_at)
-                                                                <button onclick="generateRecommendation({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-check" class="w-4 h-4 text-emerald-500"></i> Generate Recommendation
+                                                        @foreach($workflowActions as [$action, $label, $icon, $handler, $printRoute])
+                                                            @if($workflowBlockers[$action])
+                                                                <button disabled title="{{ $workflowBlockers[$action] }}" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50">
+                                                                    <i data-lucide="{{ $icon }}" class="w-4 h-4 text-slate-300"></i> {{ $label }}
                                                                 </button>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Recommendation already generated">
-                                                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
-                                                                </button>
-                                                            @endif
-
-                                                            @if($record->recommendation_generated_at)
-                                                                <a href="{{ route('plot-subdivision.print-recommendation', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-text" class="w-4 h-4 text-indigo-500"></i> Print Recommendation
+                                                            @elseif($printRoute)
+                                                                <a href="{{ route($printRoute, $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                    <i data-lucide="{{ $icon }}" class="w-4 h-4 text-indigo-500"></i> {{ $label }}
                                                                 </a>
                                                             @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate recommendation first">
-                                                                    <i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation
+                                                                <button onclick="{{ $handler }}({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                    <i data-lucide="{{ $icon }}" class="w-4 h-4 text-emerald-500"></i> {{ $label }}
                                                                 </button>
                                                             @endif
-                                                        @else
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-check" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
-                                                            </button>
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation
-                                                            </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                    {{-- Approve sits BELOW the recommendation and above the
-                                                         application: the approval is given on the strength of the
-                                                         recommendation memo, so it cannot be offered above it. Reject
-                                                         is the same question's other answer and sits beside it - its
-                                                         handler has always existed here, it had simply never been put
-                                                         on the menu. Same order of business the duplex register
-                                                         follows. --}}
-                                                        @if($record->commissionedCount() > 0 || $record->status === 'commissioned')
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Approved — {{ $record->commissionedCount() }} of {{ $record->num_plots }} plots already commissioned">
-                                                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i> Approved
-                                                            </button>
-                                                        @elseif(in_array($record->status, ['approved', 'rejected'], true))
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Already approved{{ ($jsiCleared[$record->id] ?? false) ? ' via the Master JSI' : '' }}">
-                                                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i> Approve / Reject
-                                                            </button>
-                                                        @else
-                                                            <button onclick="openApprovalDecision({{ $record->id }}, {{ ($jsiCleared[$record->id] ?? false) ? 'true' : 'false' }}, {{ ($jsiCleared[$record->id] ?? false) ? 'false' : 'true' }})" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 gap-2 font-bold">
-                                                                <i data-lucide="scale" class="w-4 h-4 text-emerald-500"></i> Approve / Reject
-                                                            </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                        @if(($jsiCleared[$record->id] ?? false))
-                                                            @if(!$record->application_generated_at)
-                                                                <button onclick="generateApplication({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-plus" class="w-4 h-4 text-orange-500"></i> Generate Application
-                                                                </button>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Application already generated">
-                                                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> Generate Application
-                                                                </button>
-                                                            @endif
-
-                                                            @if($record->application_generated_at)
-                                                                <a href="{{ route('plot-subdivision.print-application', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="printer" class="w-4 h-4 text-slate-500"></i> Print Application
-                                                                </a>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate application first">
-                                                                    <i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application
-                                                                </button>
-                                                            @endif
-                                                        @else
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-plus" class="w-4 h-4 text-slate-300"></i> Generate Application
-                                                            </button>
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application
-                                                            </button>
-                                                        @endif
+                                                        @endforeach
                                                     </div>
                                                     <div class="py-1">
                                                         @if($record->status === 'approved')
@@ -351,7 +287,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-4 py-10 text-center text-slate-400">No records found.</td>
+                                    <td colspan="10" class="px-4 py-10 text-center text-slate-400">No records found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -506,6 +442,7 @@
                                         <select name="location_details[1][street_name]" id="loc_street_name" onchange="toggleOtherInput(this); updateLocationPreview(1)" class="searchable-select w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm loc-street">
                                             <option value="">Select Street</option>
                                             @foreach($streetNames as $street)
+                                                @continue(in_array(strtolower(trim((string) $street->name)), ['other', 'others'], true))
                                                 <option value="{{ $street->name }}">{{ strtoupper($street->name) }}</option>
                                             @endforeach
                                             <option value="OTHER">OTHER</option>
@@ -517,6 +454,7 @@
                                         <select name="location_details[1][district]" id="loc_district" onchange="toggleOtherInput(this); updateLocationPreview(1)" class="searchable-select w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm loc-district">
                                             <option value="">Select District</option>
                                             @foreach($districts as $district)
+                                                @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                                 <option value="{{ $district->name }}">{{ strtoupper($district->name) }}</option>
                                             @endforeach
                                             <option value="OTHER">OTHER</option>
@@ -1942,7 +1880,7 @@
                 await Swal.fire({ icon: 'success', title: 'Updated', text: 'KAMMA status updated successfully.', timer: 1500, showConfirmButton: false });
                 location.reload();
             } else {
-                Swal.fire('Error', 'Failed to update KAMMA status', 'error');
+                Swal.fire('Error', result.message || 'Failed to update KAMMA status', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'An error occurred', 'error');
@@ -1970,6 +1908,8 @@
             if (res.success) {
                 await Swal.fire('Success', 'Application generated. You can now print it.', 'success');
                 location.reload();
+            } else {
+                Swal.fire('Error', res.message || 'Failed to generate application.', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'Failed to generate application', 'error');
@@ -1998,7 +1938,7 @@
                 await Swal.fire('Success', 'Recommendation generated. You can now print it.', 'success');
                 location.reload();
             } else {
-                Swal.fire('Error', 'Recommendation can only be generated for Approved applications.', 'error');
+                Swal.fire('Error', res.message || 'Failed to generate recommendation.', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'Failed to generate recommendation', 'error');
@@ -2006,29 +1946,24 @@
     }
 
 
-    // `jsiPending` — the planning clearance is an approved Master JSI now, where it
-    // used to be the KAMMA Handshake. The approval is still allowed without it;
-    // the officer is told, and decides.
-    async function openApprovalDecision(id, canApprove = true, jsiPending = false) {
+    async function openApprovalDecision(id) {
         const result = await Swal.fire({
             title: 'Approval decision',
-            text: canApprove ? 'Choose whether to approve or reject this application.' : 'The Master JSI is not approved, so only rejection is available.',
+            text: 'Choose whether to approve or reject this application.',
             input: 'radio',
-            inputOptions: canApprove ? { approve: 'Approve', reject: 'Reject' } : { reject: 'Reject' },
+            inputOptions: { approve: 'Approve', reject: 'Reject' },
             inputValidator: value => !value && 'Select an action to continue.',
             showCancelButton: true,
             confirmButtonText: 'Continue'
         });
         if (!result.isConfirmed) return;
-        return result.value === 'approve' ? approveRecord(id, jsiPending) : rejectRecord(id);
+        return result.value === 'approve' ? approveRecord(id) : rejectRecord(id);
     }
 
-    async function approveRecord(id, jsiPending = false) {
+    async function approveRecord(id) {
         const result = await Swal.fire({
             title: 'Approve Application?',
-            html: jsiPending
-                ? "Are you sure you want to approve this subdivision application?<br><span class='text-amber-600 font-bold'>Note: the Master JSI has not been approved yet.</span>"
-                : "Are you sure you want to approve this subdivision application?",
+            text: 'Are you sure you want to approve this subdivision application?',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#10b981',
@@ -2080,6 +2015,8 @@
                 if (res.success) {
                     Swal.fire('Rejected!', res.message, 'success');
                     location.reload();
+                } else {
+                    Swal.fire('Error', res.message || 'Failed to reject application.', 'error');
                 }
             } catch (error) {
                 Swal.fire('Error!', 'Failed to reject record.', 'error');
@@ -2202,5 +2139,13 @@
     }
 </script>
 
+@include('deeds.parcel_update.partials.batch_decisions', [
+    'batchLabel' => 'Plot Subdivision',
+    'batchRoutes' => [
+        'knupda' => route('plot-subdivision.knupda', '__ID__'),
+        'approve' => route('plot-subdivision.approve', '__ID__'),
+        'reject' => route('plot-subdivision.reject', '__ID__'),
+    ],
+])
 
 @endsection

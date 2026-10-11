@@ -243,9 +243,9 @@
                             <input type="radio" name="batch_kind_ui" value="subdivision" checked
                                 class="batch-kind-radio mt-0.5 w-4 h-4 text-violet-600 focus:ring-violet-500 border-slate-300">
                             <span class="leading-snug">
-                                <span class="block text-sm font-bold text-slate-900">Subdivision batch</span>
+                                <span class="block text-sm font-bold text-slate-900">Mother file batch</span>
                                 <span class="block text-[11px] text-slate-500">
-                                    Pick a subdivided mother file; every commissioned child loads into the table.
+                                    Pick a mother file (Subdivision, Merger, Regrant, Change of Purpose, …); every commissioned child loads into the table.
                                 </span>
                             </span>
                         </label>
@@ -262,7 +262,7 @@
                     </div>
 
                     <p id="batch-mode-hint" class="hidden mt-3 text-xs text-violet-900 bg-white/70 border border-violet-200 rounded-lg px-3 py-2">
-                        Pick <span class="font-bold">Plot Subdivision</span> below, then select the mother file &mdash;
+                        Pick the <span class="font-bold">Application Type</span> below (Plot Subdivision, Plot Merger, Regrant, …), then select the mother file &mdash;
                         its children load into a table where you key only what differs between them.
                     </p>
 
@@ -403,7 +403,7 @@
                     <div class="px-5 py-4 border-b border-amber-200 bg-amber-50 flex items-center justify-between gap-4">
                         <div>
                             <h3 class="font-extrabold text-amber-950 text-sm">Remaining Files</h3>
-                            <p class="text-[11px] text-amber-800 mt-0.5">All children outside this batch. Available records can be added below; previously processed records stay visible for a complete count.</p>
+                            <p class="text-[11px] text-amber-800 mt-0.5">All children outside this batch. Available records can be added below; children recommended separately stay visible for a complete count but cannot be added.</p>
                         </div>
                         <span id="batch-remaining-count" class="px-2.5 py-1 rounded-full bg-white border border-amber-200 text-xs font-bold text-amber-800">0 of 0 remaining</span>
                     </div>
@@ -607,7 +607,7 @@
                                          into rows left blank, which the tint carries. --}}
                                     <th class="px-2 py-3 align-bottom w-[146px] bg-sky-50/70 text-sky-900 batch-group-split">
                                         Applicant Name
-                                        <span class="block font-medium normal-case tracking-normal text-[9px] text-sky-600">if blank</span>
+                                        <span class="batch-copy-note block font-medium normal-case tracking-normal text-[9px] text-sky-600">if blank</span>
                                     </th>
                                     <th class="px-2 py-3 align-bottom w-[146px] bg-sky-50/70 text-sky-900">
                                         Location
@@ -717,7 +717,7 @@
                     @endphp
 
                     <!-- Recommendation Type Selection -->
-                    <div id="recommendation-type-block" class="bg-blue-50/30 border border-blue-100 rounded-xl p-6 col-span-2 transition-opacity {{ $lockRecType ? 'opacity-40 pointer-events-none' : '' }}">
+                    <div id="recommendation-type-block" class="bg-blue-50/30 border border-blue-100 rounded-xl p-6 col-span-2 transition-opacity {{ $batchEdit ? 'hidden' : '' }} {{ $lockRecType ? 'opacity-40 pointer-events-none' : '' }}">
                         <label class="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-3">
                             Recommendation Type
                             @if($isOssRec)
@@ -751,7 +751,7 @@
                     </div>
 
                     <!-- Application Type -->
-                    <div id="application-type-card" class="bg-slate-50/60 border border-slate-200 rounded-xl p-6 col-span-2">
+                    <div id="application-type-card" class="bg-slate-50/60 border border-slate-200 rounded-xl p-6 col-span-2 {{ ($batchEdit ?? null) ? '' : 'hidden' }}">
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
                             <div>
                                 <label class="block text-sm font-extrabold text-slate-900 uppercase tracking-wider">Application Type</label>
@@ -783,7 +783,7 @@
                                 <span class="text-sm text-slate-700 leading-snug">
                                     <span class="font-semibold text-slate-900">Print the standard Recommendation Type document</span>
                                     <span class="block text-xs text-slate-500">
-                                        Keeps the application type (and its Old File Number / extra fields) on the record,
+                                        Keeps the application type (and its Mother File No / extra fields) on the record,
                                         but prints the Direct / Conversion template instead of the application-type template.
                                     </span>
                                 </span>
@@ -799,6 +799,8 @@
                                     'Ministry of Works',
                                     'Change of Purpose',
                                     'Regrant',
+                                    'Reinstatement',
+                                    'Revocation',
                                 ] as $appType)
                                 <label class="flex items-center gap-3 cursor-pointer p-3 bg-white border border-slate-200 rounded-xl hover:border-blue-400 transition shadow-sm group">
                                     <input type="radio" name="application_type_radio" value="{{ $appType }}"
@@ -950,7 +952,7 @@
                             {{-- Under Use Subdivision Template this same field IS the mother
                                  file number, so the heading says so rather than making the
                                  officer know that "old file number" means "mother" here. --}}
-                            <h3 class="text-sm font-bold text-amber-900 uppercase tracking-tight"><span id="atx-old-fileno-title">Old File Number</span> <span class="text-red-500">*</span></h3>
+                            <h3 class="text-sm font-bold text-amber-900 uppercase tracking-tight"><span id="atx-old-fileno-title">Mother File No</span> <span class="text-red-500">*</span></h3>
                         </div>
                         <div class="flex gap-2 items-center" id="atx-old-fileno-manual">
                             {{-- readonly by default: an old file number is picked from the
@@ -958,7 +960,7 @@
                                  mother that is not indexed cannot be picked from anywhere. --}}
                             <input type="text" name="old_file_number" id="old_file_number" readonly
                                 value="{{ old('old_file_number', $recommendation->old_file_number ?? '') }}"
-                                placeholder="No old file number selected"
+                                placeholder="No mother file no selected"
                                 autocomplete="off"
                                 class="w-64 border border-amber-200 rounded-lg px-3 py-2.5 bg-white font-mono text-sm outline-none shadow-sm read-only:cursor-default focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition">
                             <button type="button" id="atx-old-fileno-pick"
@@ -990,7 +992,7 @@
                         <p class="mt-2 text-[11px] text-slate-500">
                             <span id="atx-old-fileno-help">The parent / previous file this <span id="atx-old-fileno-context">application</span> derives from.</span>
                             <span id="batch-mother-help" class="hidden">
-                                Only files that already have commissioned subdivision children are listed.
+                                Only files that already have children commissioned under the Application Type picked above are listed.
                             </span>
                             {{-- Shown in place of the help above while Use Subdivision Template
                                  is on: there, the field is typed into rather than picked. --}}
@@ -1000,6 +1002,29 @@
                                 It prints on the "as per plan No." line of the R of O.
                             </span>
                         </p>
+
+                        {{-- Brief Recommendation for the mother file. Shown once a mother is
+                             picked: download the memo here (it is filled in the browser, so
+                             leaving for Word loses nothing on this form), then upload the signed
+                             copy from the saved record or batch menu — approval waits for it. --}}
+                        <div id="brief-rec-section" class="hidden mt-4 rounded-xl border border-sky-200 bg-white px-4 py-3">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <div class="h-9 w-9 shrink-0 rounded-lg bg-sky-100 flex items-center justify-center">
+                                    <i data-lucide="file-text" class="h-4 w-4 text-sky-700"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-black text-slate-900">Brief Recommendation</p>
+                                    <p class="text-[11px] text-slate-500">
+                                        For mother file <span id="brief-rec-mother" class="font-mono font-bold text-slate-800"></span>.
+                                        The children inherit this brief. Download it, sign it, and upload the signed copy from the record&rsquo;s menu after saving.
+                                    </p>
+                                </div>
+                                <button type="button" id="brief-rec-download"
+                                    class="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition">
+                                    <i data-lucide="download" class="h-3.5 w-3.5"></i> Download Brief
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
 
@@ -1969,8 +1994,59 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">The Director of Land recommends/does not recommend for the following reasons:</label>
-                            <textarea name="recommendation" rows="4" placeholder="Enter reasons for recommendation..."
+                            <div class="relative">
+                            <textarea name="recommendation" id="rec-reason" rows="4" placeholder="Enter reasons for recommendation... (saved reasons are suggested as you type)" autocomplete="off"
                                 class="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition bg-white shadow-sm resize-none">{{ old('recommendation', $recommendation->recommendation ?? '') }}</textarea>
+                            {{-- Suggestions from reasons already saved, most used first. --}}
+                            <div id="rec-reason-suggestions" class="hidden absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg"></div>
+                            </div>
+                            <script>
+                            (function () {
+                                const box = document.getElementById('rec-reason');
+                                const list = document.getElementById('rec-reason-suggestions');
+                                const url = @json(route('land-recommendations.reason-suggestions'));
+                                if (!box || !list) return;
+                                let timer = null, seq = 0, picked = false;
+                                const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+                                function load() {
+                                    const mine = ++seq;
+                                    fetch(url + '?q=' + encodeURIComponent(box.value.trim()), { headers: { 'Accept': 'application/json' } })
+                                        .then((r) => r.json())
+                                        .then((p) => {
+                                            if (mine !== seq) return;
+                                            const rows = (p && p.data) || [];
+                                            const typed = box.value.trim().toUpperCase();
+                                            const show = rows.filter((r) => r.reason.trim().toUpperCase() !== typed);
+                                            if (!show.length || document.activeElement !== box) { list.classList.add('hidden'); return; }
+                                            list.innerHTML = '<div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">Saved reasons — most used first</div>'
+                                                + show.map((r) => '<button type="button" class="rec-reason-pick block w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 border-b border-slate-50">'
+                                                    + esc(r.reason) + ' <span class="text-[10px] text-slate-400">· used ' + r.uses + 'x</span></button>').join('');
+                                            list.querySelectorAll('.rec-reason-pick').forEach((b, i) => {
+                                                // mousedown, not click: it fires before the textarea's blur hides the list.
+                                                b.addEventListener('mousedown', (e) => {
+                                                    e.preventDefault();
+                                                    box.value = show[i].reason;
+                                                    picked = true;
+                                                    box.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    list.classList.add('hidden');
+                                                });
+                                            });
+                                            list.classList.remove('hidden');
+                                        })
+                                        .catch(() => list.classList.add('hidden'));
+                                }
+
+                                box.addEventListener('focus', load);
+                                box.addEventListener('input', () => {
+                                    clearTimeout(timer);
+                                    if (picked) { picked = false; return; } // a pick, not typing
+                                    timer = setTimeout(load, 250);
+                                });
+                                box.addEventListener('blur', () => setTimeout(() => list.classList.add('hidden'), 150));
+                                box.addEventListener('keydown', (e) => { if (e.key === 'Escape') list.classList.add('hidden'); });
+                            })();
+                            </script>
                         </div>
                     </div>
 
@@ -2038,14 +2114,14 @@
             <i data-lucide="folder-input" class="w-5 h-5"></i>
             {{-- Wording is swapped by openModal(): under Use Subdivision Template this
                  same prompt asks for the mother file instead. --}}
-            <h3 id="atx-old-fileno-modal-title" class="text-base font-bold">Old File Number Required</h3>
+            <h3 id="atx-old-fileno-modal-title" class="text-base font-bold">Mother File No Required</h3>
         </div>
         <div class="px-6 py-5 space-y-4">
             <p class="text-sm text-slate-600">
                 <span id="atx-old-fileno-modal-type" class="font-semibold text-slate-900">This application</span><span id="atx-old-fileno-modal-lead"> derives from an existing file. Select the old (parent) file number from the file number selector.</span>
             </p>
             <div>
-                <label id="atx-old-fileno-modal-label" class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Old File Number</label>
+                <label id="atx-old-fileno-modal-label" class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Mother File No</label>
                 <div class="flex gap-2">
                     <input type="text" id="atx-old-fileno-modal-value" readonly
                         placeholder="Nothing selected yet"
@@ -2127,6 +2203,48 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+<script src="{{ asset('js/brief-recommendation.js') }}?v={{ filemtime(public_path('js/brief-recommendation.js')) }}"></script>
+<script>
+// Brief Recommendation section under the Mother File No. The field is filled from
+// several places (the selector, the batch mother dropdown, a draft restore), not
+// all of which fire an event, so a light poll keeps the section honest as well.
+document.addEventListener('DOMContentLoaded', function () {
+    var field   = document.getElementById('old_file_number');
+    var section = document.getElementById('brief-rec-section');
+    var label   = document.getElementById('brief-rec-mother');
+    var button  = document.getElementById('brief-rec-download');
+    if (!field || !section || !window.BriefRec) return;
+
+    BriefRec.configure({
+        detailsUrl: @js(route('land-recommendations.brief.details')),
+        downloadedUrl: @js(route('land-recommendations.brief.downloaded')),
+        csrf: @js(csrf_token())
+    });
+
+    var shown = null;
+    function sync() {
+        var mother = (field.value || '').trim();
+        if (mother === shown) return;
+        shown = mother;
+        label.textContent = mother;
+        section.classList.toggle('hidden', !mother);
+    }
+
+    field.addEventListener('change', sync);
+    field.addEventListener('input', sync);
+    setInterval(sync, 1000);
+    sync();
+
+    button.addEventListener('click', function () {
+        var mother = (field.value || '').trim();
+        BriefRec.open({
+            motherFileNo: mother,
+            uploadNote: 'Save this record (or batch) first. Then open its menu in the recommendation list and use '
+                + 'Upload mother recommendation to file the signed copy — approval waits for it.'
+        });
+    });
+});
+</script>
 <script src="{{ asset('js/land-recommendation-op-match.js') }}?v={{ filemtime(public_path('js/land-recommendation-op-match.js')) }}"></script>
 {{-- The capture screen's own account of itself — batch mode, mother/children
      loads, draft saves and restores, submits, script errors, unloads. Posted to
@@ -2199,8 +2317,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // and may be doing so with no application type set at all — which would
         // otherwise leave the sentence starting on a blank.
         var subdivision = subdivisionTemplateOn();
-        if (modalTitle) modalTitle.textContent = subdivision ? 'Mother File Number Required' : 'Old File Number Required';
-        if (modalLabel) modalLabel.textContent = subdivision ? 'Mother File Number' : 'Old File Number';
+        if (modalTitle) modalTitle.textContent = 'Mother File No Required';
+        if (modalLabel) modalLabel.textContent = 'Mother File No';
         if (modalLead) {
             modalLead.textContent = subdivision
                 ? ' was subdivided from a mother file. Pick it with the file number selector — or build it there with the Manual method if it is not in the register.'
@@ -2260,8 +2378,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // costs nothing here and there is no second way in to keep in step.
         field.placeholder = subdivision
             ? 'No mother file selected'
-            : 'No old file number selected';
-        if (titleLabel) titleLabel.textContent = subdivision ? 'Mother File Number' : 'Old File Number';
+            : 'No mother file no selected';
+        if (titleLabel) titleLabel.textContent = 'Mother File No';
         if (manualHelpEl) manualHelpEl.classList.toggle('hidden', subdivision);
         if (subdivHelp) subdivHelp.classList.toggle('hidden', !subdivision);
         if (subdivNote) subdivNote.classList.toggle('hidden', !subdivision);
@@ -2475,6 +2593,15 @@ document.addEventListener('DOMContentLoaded', function () {
        right bank so it runs the full height of the table, header included. */
     #batch-children-card .batch-group-split { border-left: 2px solid #7dd3fc; }
 
+    /* A regular batch has no Apply-to-all, so it has no banks either: one plain
+       table, no dividing line, no "copied / never copied" tints. Done in CSS so
+       rows re-rendered later come out plain too. */
+    #batch-children-card.batch-is-regular .batch-group-split { border-left: 0; }
+    #batch-children-card.batch-is-regular thead tr:not(#batch-band-header) > th { background-color: rgb(248 250 252); color: rgb(71 85 105); }
+    #batch-children-card.batch-is-regular #batch-children-rows tr:not(:hover) > td.bg-amber-50\/40,
+    #batch-children-card.batch-is-regular #batch-children-rows tr:not(:hover) > td.bg-sky-50\/40 { background-color: transparent; }
+    #batch-children-card.batch-is-regular .batch-copy-note { display: none; }
+
     /* Three page numbers share one column, and the browser's spinner arrows were
        taking most of the room from each — leaving a box too narrow to see what was
        typed in it. Nobody steps a page reference up one at a time, so the arrows go
@@ -2499,8 +2626,27 @@ document.addEventListener('DOMContentLoaded', function () {
 // posts to the batch endpoint instead.
 document.addEventListener('DOMContentLoaded', function () {
     var BATCH_TYPE     = 'Plot Subdivision';
+    // Every application type a mother-file batch can be captured under. Kept in
+    // step with MOTHER_CATEGORIES in LandRecommendationController: the mother
+    // dropdown lists the files whose children came through the picked type.
+    var MOTHER_TYPES   = ['Private Layout', 'Plot Subdivision', 'Plot Merger', 'Plot Extension', 'Temporary File No',
+                          'Ministry of Works', 'Change of Purpose', 'Regrant', 'Reinstatement', 'Revocation'];
     var MOTHERS_URL    = '{{ route('land-recommendations.subdivision-mothers') }}';
     var CHILDREN_URL   = '{{ route('land-recommendations.subdivision-children') }}';
+    function isMotherType(type) { return MOTHER_TYPES.indexOf(type) !== -1; }
+    // The category the mother list and children are fetched under: the batch's own
+    // type when editing one, else the picked type, else Plot Subdivision.
+    function motherCategory() {
+        if (typeof BATCH_EDIT !== 'undefined' && BATCH_EDIT && isMotherType(BATCH_EDIT.application_type)) {
+            return BATCH_EDIT.application_type;
+        }
+        var type = currentAppType();
+        return isMotherType(type) ? type : BATCH_TYPE;
+    }
+    function childrenUrl(mother) {
+        return CHILDREN_URL + '?mother_file_no=' + encodeURIComponent(mother)
+            + '&category=' + encodeURIComponent(motherCategory());
+    }
     // Where switching batch mode on points the form. On an edit that is the batch
     // it is editing, NOT the capture endpoint — applyBatchMode() writes this over
     // whatever the markup set, so a create URL here sends the edit's spoofed PUT
@@ -2885,6 +3031,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // "copied from the source row" over columns nothing copies into is worse
         // than no band at all.
         if (applyAllBtn) applyAllBtn.classList.toggle('hidden', regular);
+        // ...and so does the split into two banks that only exists to explain it.
+        var batchCard = document.getElementById('batch-children-card');
+        if (batchCard) batchCard.classList.toggle('batch-is-regular', regular);
         // The per-column Apply buttons copy from the same source row, so they
         // stand down with it.
         document.querySelectorAll('.batch-col-apply').forEach(function (b) {
@@ -2950,6 +3099,13 @@ document.addEventListener('DOMContentLoaded', function () {
         var appCard = document.getElementById('application-type-card');
         if (appCard) appCard.classList.toggle('opacity-60', on);
 
+        // Each mode shows only its own card: a batch takes its Recommendation Type
+        // from the files (the radios still post), and a single record keeps the
+        // standard document, so the other card is noise there.
+        var recTypeCard = document.getElementById('recommendation-type-block');
+        if (recTypeCard) recTypeCard.classList.toggle('hidden', on);
+        if (appCard) appCard.classList.toggle('hidden', !on);
+
         // The rows mean different things, so the table says which it is holding.
         if (cardTitle)  cardTitle.textContent = regular ? 'Selected files' : 'Children of';
         if (motherLabel) motherLabel.classList.toggle('hidden', regular);
@@ -2991,11 +3147,21 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!toggle.checked || suppressChildLoad || isRegular()) return;
         var type = currentAppType();
 
-        if (type !== BATCH_TYPE) {
+        if (!isMotherType(type)) {
             card.classList.add('hidden');
             rowsBody.innerHTML = '';
-            setStatus(type ? 'A subdivision batch covers ' + BATCH_TYPE + ' only — switch to Regular files for any other type.' : '', 'warn');
+            setStatus(type ? 'A mother-file batch covers ' + MOTHER_TYPES.join(', ') + ' — switch to Regular files for any other type.' : '', 'warn');
             return;
+        }
+
+        // A different category lists different mothers, so the one picked under
+        // the previous type (and the children it loaded) no longer applies.
+        if (listedCategory !== null && listedCategory !== type) {
+            reloadMothers();
+            if (oldFileNo && oldFileNo.value.trim()) {
+                oldFileNo.value = '';
+                if (motherField) motherField.value = '';
+            }
         }
 
         setStatus('');
@@ -3339,9 +3505,26 @@ document.addEventListener('DOMContentLoaded', function () {
     // Searchable picker over the subdivided files. Searching server-side (rather
     // than shipping the whole list and filtering in the browser) is what keeps this
     // usable as more files are subdivided — same approach as the TP No. field.
+    // The application type the mother list currently shows (null until first loaded).
+    var listedCategory = null;
+
+    // The type changed: drop the picked mother and list the new type's files. The
+    // Select2 source reads motherCategory() on every request, so emptying it is
+    // enough; the plain fallback has to fetch again.
+    function reloadMothers() {
+        listedCategory = motherCategory();
+        if (!motherSel) return;
+        if (window.jQuery && jQuery.fn && jQuery.fn.select2 && jQuery(motherSel).data('select2')) {
+            jQuery(motherSel).empty().append(new Option('', '', false, false)).trigger('change.select2');
+        } else if (mothersLoaded) {
+            loadMothersPlain();
+        }
+    }
+
     function loadMothers() {
         if (mothersLoaded || !motherSel) return;
         mothersLoaded = true;
+        listedCategory = motherCategory();
 
         // Select2 needs jQuery; without it the plain <select> still works, just
         // without a search box.
@@ -3354,7 +3537,7 @@ document.addEventListener('DOMContentLoaded', function () {
         $sel.empty().append(new Option('', '', false, false));
 
         $sel.select2({
-            placeholder: 'Search or select a subdivided file…',
+            placeholder: 'Search or select a mother file…',
             allowClear: true,
             width: '100%',
             minimumInputLength: 0,
@@ -3362,7 +3545,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 url: MOTHERS_URL,
                 dataType: 'json',
                 delay: 250,
-                data: function (params) { return { q: params.term || '' }; },
+                data: function (params) { return { q: params.term || '', category: motherCategory() }; },
                 processResults: function (data) {
                     var list = (data && data.mothers) || [];
                     return {
@@ -3397,19 +3580,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // No-jQuery fallback: one fetch, plain options, no search box.
     function loadMothersPlain() {
-        fetch(MOTHERS_URL + '?limit=200', { headers: { 'Accept': 'application/json' } })
+        var category = motherCategory();
+        fetch(MOTHERS_URL + '?limit=200&category=' + encodeURIComponent(category), { headers: { 'Accept': 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var current = oldFileNo ? oldFileNo.value.trim() : '';
                 var list = (data && data.mothers) || [];
 
                 if (!list.length) {
-                    motherSel.innerHTML = '<option value="">No subdivided files available</option>';
-                    setStatus('No file has commissioned subdivision children yet, so there is nothing to batch.', 'warn');
+                    motherSel.innerHTML = '<option value="">No ' + esc(category) + ' mother files available</option>';
+                    setStatus('No file has commissioned ' + category + ' children yet, so there is nothing to batch.', 'warn');
                     return;
                 }
 
-                var html = '<option value="">Select a subdivided file…</option>';
+                var html = '<option value="">Select a mother file…</option>';
                 list.forEach(function (m) {
                     html += '<option value="' + esc(m.file_number) + '"'
                         + (m.file_number === current ? ' selected' : '') + '>' + esc(formatMotherOption(m)) + '</option>';
@@ -3418,8 +3602,8 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(function () {
                 mothersLoaded = false;   // let a retry happen on the next toggle
-                motherSel.innerHTML = '<option value="">Could not load subdivided files</option>';
-                setStatus('Network error while loading subdivided files.', 'error');
+                motherSel.innerHTML = '<option value="">Could not load mother files</option>';
+                setStatus('Network error while loading mother files.', 'error');
             });
     }
 
@@ -3806,10 +3990,18 @@ document.addEventListener('DOMContentLoaded', function () {
             : 0;
         var outside = remainingChildren.length;
         var total = inBatch + outside;
+        // "Remaining" means still to be done. A child recommended outside this
+        // batch is done — it is listed for a complete count but cannot be added —
+        // so it is reported separately instead of being counted as remaining.
+        var elsewhere = remainingChildren.filter(function (child) {
+            return !!child.has_recommendation && !child.is_batch_hidden;
+        }).length;
+        var available = outside - elsewhere;
+        var elsewhereNote = elsewhere ? ' · ' + elsewhere + ' recommended separately' : '';
 
-        if (remainingCount) remainingCount.textContent = outside + ' of ' + total + ' remaining';
+        if (remainingCount) remainingCount.textContent = available + ' of ' + total + ' remaining' + elsewhereNote;
         if (countLabel) countLabel.textContent = inBatch + ' children';
-        if (savedRemainingCount) savedRemainingCount.textContent = outside + ' remaining';
+        if (savedRemainingCount) savedRemainingCount.textContent = available + ' remaining';
         if (savedRofoCount) savedRofoCount.textContent = rofoGenerated + ' RoFO generated';
     }
 
@@ -3845,7 +4037,8 @@ document.addEventListener('DOMContentLoaded', function () {
             var returnedToRemaining = !!child.is_batch_hidden;
             var locked = !!child.has_recommendation && !returnedToRemaining;
             var status = locked
-                ? '<span class="inline-flex px-3 py-1.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500 font-bold">Already processed</span>'
+                ? '<span class="inline-flex px-3 py-1.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500 font-bold"'
+                    + ' title="Has its own recommendation outside this batch' + (child.existing_status ? ' (' + esc(child.existing_status) + ')' : '') + ', so it cannot be added here">Recommended separately</span>'
                 : (returnedToRemaining
                     ? '<span class="inline-flex px-3 py-1.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 font-bold">Add back to batch</span>'
                     : '<span class="inline-flex px-3 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-800 font-bold">Available</span>');
@@ -3944,6 +4137,33 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Editing a saved batch with files just added to it: the cards' "1 of N"
+    // stepper and every Apply-to-all work on the newly added files only, so
+    // keying the new files never walks or overwrites the files already saved.
+    // grantStore still holds every ticked file — the saved ones must keep posting
+    // their own values rather than fall back to whatever the card shows.
+    function newFilesOnly() {
+        return BATCH_EDIT && newlyAddedBatchFiles.size > 0;
+    }
+    function isNewlyAddedFile(fileNumber) {
+        return newlyAddedBatchFiles.has(String(fileNumber || '').trim().toUpperCase());
+    }
+    // Store indexes the stepper walks and the card Apply-to-all writes to.
+    function grantScope() {
+        var all = grantStore.map(function (g, i) { return i; });
+        if (!newFilesOnly()) return all;
+        return all.filter(function (i) { return grantStore[i] && isNewlyAddedFile(grantStore[i].__file); });
+    }
+    // Table rows the toolbar and per-column Apply-to-all write to.
+    function applyTargetRows() {
+        var rows = grantRows();
+        if (!newFilesOnly()) return rows;
+        return rows.filter(function (tr) {
+            var hid = tr.querySelector('input[name$="[file_number]"]');
+            return isNewlyAddedFile(hid ? hid.value : '');
+        });
+    }
+
     function grantFileNumber(i) {
         var tr = grantRows()[i];
         if (!tr) return '';
@@ -3965,16 +4185,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderGrantStep() {
         if (!stepNavs.length) return;
-        var total = grantStore.length;
+        var scope = grantScope();
+        var total = scope.length;
+        var pos = scope.indexOf(grantIndex);
 
         eachStep('.per-file-step-label', function (el) {
-            el.textContent = total ? (grantIndex + 1) + ' of ' + total : 'No editable files';
+            el.textContent = total ? (Math.max(pos, 0) + 1) + ' of ' + total : 'No editable files';
         });
         eachStep('.per-file-step-file', function (el) {
             el.textContent = grantFileNumber(grantIndex);
         });
-        eachStep('.per-file-step-prev', function (el) { el.disabled = grantIndex <= 0; });
-        eachStep('.per-file-step-next', function (el) { el.disabled = grantIndex >= total - 1; });
+        eachStep('.per-file-step-prev', function (el) { el.disabled = pos <= 0; });
+        eachStep('.per-file-step-next', function (el) { el.disabled = pos < 0 || pos >= total - 1; });
         eachStep('.per-file-step-untick', function (el) {
             el.classList.add('hidden');
         });
@@ -4043,6 +4265,25 @@ document.addEventListener('DOMContentLoaded', function () {
         renderGrantStep();
     }
 
+    // Step within the scope (the newly added files, when there are any).
+    function stepGrant(delta) {
+        var scope = grantScope();
+        if (!scope.length) return;
+        var pos = scope.indexOf(grantIndex);
+        var next = pos < 0 ? 0 : Math.max(0, Math.min(scope.length - 1, pos + delta));
+        gotoGrant(scope[next]);
+    }
+
+    // Keep the card on a file inside the scope — after files are added, the
+    // first newly added file rather than whichever saved file was showing.
+    function keepGrantInScope() {
+        var scope = grantScope();
+        if (scope.length && scope.indexOf(grantIndex) === -1) {
+            grantIndex = scope[0];
+            writeGrantCard(grantStore[grantIndex]);
+        }
+    }
+
     // Rebuild the store to match the table. Rows keep their values across a
     // re-render by file number, so reordering or reloading the picked set does not
     // scramble conditions onto the wrong file. `seed` carries values restored from
@@ -4078,6 +4319,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (grantIndex >= grantStore.length) grantIndex = Math.max(0, grantStore.length - 1);
         if (grantStore.length) writeGrantCard(grantStore[grantIndex]);
+        keepGrantInScope();
         renderGrantStep();
     }
 
@@ -4127,10 +4369,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     eachStep('.per-file-step-prev', function (el) {
-        el.addEventListener('click', function () { gotoGrant(grantIndex - 1); });
+        el.addEventListener('click', function () { stepGrant(-1); });
     });
     eachStep('.per-file-step-next', function (el) {
-        el.addEventListener('click', function () { gotoGrant(grantIndex + 1); });
+        el.addEventListener('click', function () { stepGrant(1); });
     });
 
     // Apply-to-all for a stepped card: the file on screen is copied onto every
@@ -4147,10 +4389,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             commitGrant();
             var source = grantStore[grantIndex];
-            if (!source || grantStore.length < 2) return;
+            var scope = grantScope();
+            if (!source || scope.length < 2) return;
 
+            var where = newFilesOnly() ? ' newly added files' : ' files in this batch';
             if (!confirm('Copy ' + cardLabel + ' on screen onto all '
-                    + grantStore.length + ' files in this batch? Whatever those files '
+                    + scope.length + where + '? Whatever those files '
                     + 'currently hold in these fields is replaced.')) {
                 return;
             }
@@ -4158,7 +4402,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // Other cards retain the existing blank-only rule for issued files.
             // Grant Conditions applies every displayed value after confirmation.
             var kept = 0;
-            grantStore.forEach(function (g, i) {
+            scope.forEach(function (i) {
+                var g = grantStore[i];
                 if (i === grantIndex || !g) return;
                 var tr = rowsBody.querySelector('.batch-row[data-index="' + g.__rowIndex + '"]');
                 // Grant Conditions explicitly replaces the selected batch's values,
@@ -4173,7 +4418,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (BATCH_EDIT) editDirty = true;
             renderGrantStep();
-            setStatus(cardLabel + ' copied onto ' + (grantStore.length - 1) + ' other file(s).'
+            setStatus(cardLabel + ' copied onto ' + (scope.length - 1) + ' other' + (newFilesOnly() ? ' newly added' : '') + ' file(s).'
                 + (kept ? ' ' + kept + ' value(s) already saved on issued files were kept.' : ''), 'warn');
             // Real work, and a lot of it at once — drafted rather than left waiting on
             // the next keystroke. No-op while a saved batch is being edited.
@@ -4365,7 +4610,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (window.lucide) window.lucide.createIcons();
         setStatus('');
 
-        fetch(CHILDREN_URL + '?mother_file_no=' + encodeURIComponent(mother), { headers: { 'Accept': 'application/json' } })
+        fetch(childrenUrl(mother), { headers: { 'Accept': 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (ticket !== childLoadSeq) return;
@@ -4459,7 +4704,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Used by a draft restore to backfill blanks and to notice children that were
     // commissioned after the draft was started.
     function fetchChildren(mother) {
-        return fetch(CHILDREN_URL + '?mother_file_no=' + encodeURIComponent(mother), { headers: { 'Accept': 'application/json' } })
+        return fetch(childrenUrl(mother), { headers: { 'Accept': 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (data) { return (data && data.success && data.children) ? data.children : []; })
             .catch(function () { return []; });
@@ -4531,8 +4776,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // Plot Subdivision is the first. Returning quietly here is what made a
             // chosen mother look like a broken picker — the children never loaded and
             // nothing on the screen said why.
-            if (currentAppType() !== BATCH_TYPE) {
-                setStatus('Pick ' + BATCH_TYPE + ' as the Application Type above before choosing the mother file — a subdivision batch covers ' + BATCH_TYPE + ' only. For any other type, switch to Regular files.', 'warn');
+            if (!isMotherType(currentAppType())) {
+                setStatus('Pick the Application Type above (Plot Subdivision, Plot Merger, Regrant, …) before choosing the mother file. For any other type, switch to Regular files.', 'warn');
                 return;
             }
 
@@ -4577,7 +4822,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (motherField) motherField.value = v;
 
             var forced = false;
-            if (currentAppType() !== BATCH_TYPE) {
+            if (!isMotherType(currentAppType())) {
                 if (appToggle && !appToggle.checked) {
                     appToggle.checked = true;
                     appToggle.dispatchEvent(new Event('change', { bubbles: true }));
@@ -4597,7 +4842,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // After the load: loadChildren() clears the status box on its way in.
             if (forced) {
-                setStatus('Application Type set to ' + BATCH_TYPE + ' — a subdivision batch saves every child as ' + BATCH_TYPE + '. Switch to Regular files for any other type.', 'warn');
+                setStatus('Application Type set to ' + BATCH_TYPE + ' — a mother-file batch saves every child under its Application Type. Pick another type above to change it.', 'warn');
             }
         });
     }
@@ -4706,11 +4951,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     if (applyAllBtn) applyAllBtn.addEventListener('click', function () {
-        var rows = grantRows();
-        if (rows.length < 2) return;
+        // Newly added files only, when the saved batch has some; the source row may
+        // still be a saved file.
+        var rows = applyTargetRows();
 
         var src = sourceRow();
         if (!src) return;
+        if (!rows.some(function (tr) { return tr !== src; })) return;
 
         // The page references describe the grant, not the plot, so they are copied
         // over whatever is in the other rows.
@@ -4763,11 +5010,11 @@ document.addEventListener('DOMContentLoaded', function () {
             var f     = btn.dataset.f;
             var label = btn.dataset.label || f;
 
-            var rows = grantRows();
-            if (rows.length < 2) return;
+            var rows = applyTargetRows();
 
             var src = sourceRow();
             if (!src) return;
+            if (!rows.some(function (tr) { return tr !== src; })) return;
 
             var from = src.querySelector('[data-f="' + f + '"]');
             if (!from) return;
@@ -5689,9 +5936,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (kindInput) kindInput.value = currentKind();
 
         if (!isRegular()) {
-            if (currentAppType() !== BATCH_TYPE) {
+            if (!isMotherType(currentAppType())) {
                 e.preventDefault(); e.stopPropagation();
-                setStatus('A subdivision batch covers ' + BATCH_TYPE + ' only — pick that type, or switch to Regular files.', 'error');
+                setStatus('A mother-file batch needs one of these Application Types: ' + MOTHER_TYPES.join(', ') + ' — or switch to Regular files.', 'error');
                 return;
             }
             if (!oldFileNo || !oldFileNo.value.trim()) {
@@ -5885,7 +6132,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // makes the upper and lower counts reconcile to the full lineage without
         // permitting a duplicate recommendation.
         var savedKeys = initialBatchChildren.map(childKey);
-        fetch(CHILDREN_URL + '?mother_file_no=' + encodeURIComponent(mother)
+        fetch(childrenUrl(mother)
             + '&exclude_batch_id=' + encodeURIComponent(BATCH_EDIT.batch_id), {
                 headers: { 'Accept': 'application/json' }, credentials: 'same-origin'
             })

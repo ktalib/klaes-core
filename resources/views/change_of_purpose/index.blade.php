@@ -174,7 +174,7 @@
                         <table id="cop-pending-table" class="w-full text-sm" style="min-width:1000px">
                             <thead>
                                 <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                    <th class="px-4 py-3 text-left">#</th>
+                                    <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">#</th>
                                     <th class="px-4 py-3 text-left">Applicant</th>
                                     <th class="px-4 py-3 text-left">File No</th>
                                     <th class="px-4 py-3 text-left">Current Use</th>
@@ -182,26 +182,28 @@
                                     <th class="px-4 py-3 text-left">Location</th>
                                     <th class="px-4 py-3 text-left">Status</th>
                                     <th class="px-4 py-3 text-left">Source</th>
+                                    <th class="px-4 py-3 text-left">Created By</th>
                                     <th class="px-4 py-3 text-left">Date</th>
                                     <th class="px-4 py-3 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($pendingRecords as $record)
+                                    @php
+                                        // Same order the row menu enforces: KAMMA first, then the
+                                        // decision once the recommendation is generated.
+                                        $batchKammaOk = strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0;
+                                        $batchOpen = !in_array($record->status, ['approved', 'commissioned', 'rejected'], true);
+                                        $batchDecide = $batchOpen && $batchKammaOk && (bool) $record->recommendation_generated_at;
+                                    @endphp
                                     <tr data-record='@json($record)'>
-                                        <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $loop->iteration }}</td>
+                                        <td class="px-4 py-2.5 text-xs text-slate-400 font-mono whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => $batchOpen && !$batchKammaOk, 'canApprove' => $batchDecide, 'canReject' => $batchDecide]){{ $loop->iteration }}</td>
                                         <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                         <td class="px-4 py-2.5 text-slate-700 font-mono text-xs">@include('change_of_purpose.partials.file_no_cell')</td>
-                                        <td class="px-4 py-2.5 text-slate-700 text-xs">{{ $record->land_use ?: '-' }}</td>
+                                        <td class="px-4 py-2.5 text-slate-700 text-xs">{{ $landUseOptions[strtoupper(trim((string) $record->land_use))] ?? ($record->land_use ?: '-') }}</td>
                                         <td class="px-4 py-2.5 text-slate-700 text-xs">{{ $landUseOptions[strtoupper($record->purpose ?? '')] ?? ($record->purpose ?: '-') }}</td>
-                                        <td class="px-4 py-2.5 text-[10px] text-slate-500 leading-snug">
-                                            {{ implode(', ', array_filter([
-                                                $record->plot_no ? 'Plot '.$record->plot_no : null,
-                                                $record->location,
-                                                $record->district,
-                                                $record->lga,
-                                                $record->state
-                                            ])) }}
+                                        <td class="px-4 py-2.5 text-xs text-slate-500 leading-snug">
+                                            {{ $record->districtLgaLabel() ?: '-' }}
                                         </td>
                                         <td class="px-4 py-2.5">
                                             @php $sc = match(strtolower((string) $record->status)) {
@@ -220,6 +222,7 @@
                                                 {{ \App\Support\ParcelUpdateSource::label($record->source_module) }}
                                             </span>
                                         </td>
+                                        <td class="px-4 py-2.5 text-xs text-slate-600">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by, 'name' => $creatorNames[(int) $record->captured_by] ?? ''])</td>
                                         <td class="px-4 py-2.5 font-mono text-xs text-slate-500" data-order="{{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('Y-m-d H:i:s') : '' }}">
                                             {{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('M d, Y') : '-' }}
                                         </td>
@@ -229,6 +232,8 @@
                                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                                 </button>
                                                 
+                                                @php $copKammaOk = strcasecmp(trim((string) ($record->knupda_status ?? "")), "Approved") === 0; @endphp
+                                                
                                                 <div id="cop-menu-{{ $record->id }}" data-knupda-approved="{{ strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0 ? '1' : '0' }}" class="hidden fixed z-[999] mt-2 w-max origin-top-right rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none divide-y divide-slate-100 whitespace-nowrap">
                                                     <div class="py-1">
                                                         <button onclick="copViewApplication(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
@@ -236,7 +241,11 @@
                                                         </button>
                                                         <div class="py-1">
                                                             @if(($jsiCleared[$record->id] ?? false))
-                                                                @if(!$record->application_generated_at)
+                                                                @if(!$copKammaOk)
+                                                                    <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Awaiting KAMMA / Physical Planning approval">
+                                                                        <i data-lucide="file-plus" class="w-4 h-4 text-slate-300"></i> Generate Application
+                                                                    </button>
+                                                                @elseif(!$record->application_generated_at)
                                                                     <button onclick="copGenerateApplication({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
                                                                         <i data-lucide="file-plus" class="w-4 h-4 text-orange-500"></i> Generate Application
                                                                     </button>
@@ -266,7 +275,11 @@
                                                         </div>
                                                         <div class="py-1">
                                                             @if(($jsiCleared[$record->id] ?? false))
-                                                                @if(!$record->recommendation_generated_at)
+                                                                @if(!$record->application_generated_at)
+                                                                    <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate application first">
+                                                                        <i data-lucide="file-check" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
+                                                                    </button>
+                                                                @elseif(!$record->recommendation_generated_at)
                                                                     <button onclick="copGenerateRecommendation({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
                                                                         <i data-lucide="file-check" class="w-4 h-4 text-emerald-500"></i> Generate Recommendation
                                                                     </button>
@@ -299,9 +312,15 @@
                                                         </div>
                                                          @if($record->status !== 'approved' && $record->status !== 'commissioned')
                                                          <div class="py-1 border-t border-slate-100">
+                                                             @if($copKammaOk && $record->recommendation_generated_at)
                                                              <button onclick="copOpenApprovalDecision(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-600 hover:bg-emerald-50 gap-2 font-medium">
                                                                  <i data-lucide="scale" class="w-4 h-4 text-emerald-500"></i> Approve / Reject
                                                              </button>
+                                                             @else
+                                                             <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="{{ $copKammaOk ? 'Generate recommendation first' : 'Awaiting KAMMA / Physical Planning approval' }}">
+                                                                 <i data-lucide="scale" class="w-4 h-4 text-slate-300"></i> Approve / Reject
+                                                             </button>
+                                                             @endif
                                                          </div>
                                                          @endif
                                                          <div class="py-1 border-t border-slate-100">
@@ -348,6 +367,7 @@
                                     <th class="px-4 py-3 text-left">Location</th>
                                     <th class="px-4 py-3 text-left">Status</th>
                                     <th class="px-4 py-3 text-left">Source</th>
+                                    <th class="px-4 py-3 text-left">Created By</th>
                                     <th class="px-4 py-3 text-left">Date</th>
                                     <th class="px-4 py-3 text-center">Actions</th>
                                 </tr>
@@ -358,11 +378,11 @@
                                         <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $loop->iteration }}</td>
                                         <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                         <td class="px-4 py-2.5 text-slate-700 font-mono text-xs">@include('change_of_purpose.partials.file_no_cell')</td>
-                                        <td class="px-4 py-2.5 text-slate-700 text-xs">{{ $record->land_use ?: '-' }}</td>
+                                        <td class="px-4 py-2.5 text-slate-700 text-xs">{{ $landUseOptions[strtoupper(trim((string) $record->land_use))] ?? ($record->land_use ?: '-') }}</td>
                                         <td class="px-4 py-2.5 text-xs">
                                             <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded font-semibold">{{ $landUseOptions[strtoupper($record->purpose ?? '')] ?? ($record->purpose ?: '-') }}</span>
                                         </td>
-                                        <td class="px-4 py-2.5 text-xs text-slate-500 leading-snug">{{ $record->location ?: '-' }}</td>
+                                        <td class="px-4 py-2.5 text-xs text-slate-500 leading-snug">{{ $record->districtLgaLabel() ?: '-' }}</td>
                                         <td class="px-4 py-2.5">
                                             @php $sc = match(strtolower((string) $record->status)) {
                                                 'approved'     => 'bg-emerald-50 text-emerald-700',
@@ -377,6 +397,7 @@
                                                 {{ \App\Support\ParcelUpdateSource::label($record->source_module) }}
                                             </span>
                                         </td>
+                                        <td class="px-4 py-2.5 text-xs text-slate-600">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by, 'name' => $creatorNames[(int) $record->captured_by] ?? ''])</td>
                                         <td class="px-4 py-2.5 font-mono text-xs text-slate-500" data-order="{{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('Y-m-d H:i:s') : '' }}">
                                             {{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('M d, Y') : '-' }}
                                         </td>
@@ -386,6 +407,8 @@
                                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                                 </button>
 
+                                                @php $copKammaOk = strcasecmp(trim((string) ($record->knupda_status ?? "")), "Approved") === 0; @endphp
+
                                                 <div id="cop-menu-{{ $record->id }}" data-knupda-approved="{{ strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0 ? '1' : '0' }}" class="hidden fixed z-[999] mt-2 w-max origin-top-right rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none divide-y divide-slate-100 whitespace-nowrap">
                                                     <div class="py-1">
                                                         <button onclick="copViewApplication(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
@@ -393,7 +416,11 @@
                                                         </button>
                                                         <div class="py-1">
                                                             @if(($jsiCleared[$record->id] ?? false))
-                                                                @if(!$record->application_generated_at)
+                                                                @if(!$copKammaOk)
+                                                                    <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Awaiting KAMMA / Physical Planning approval">
+                                                                        <i data-lucide="file-plus" class="w-4 h-4 text-slate-300"></i> Generate Application
+                                                                    </button>
+                                                                @elseif(!$record->application_generated_at)
                                                                     <button onclick="copGenerateApplication({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
                                                                         <i data-lucide="file-plus" class="w-4 h-4 text-orange-500"></i> Generate Application
                                                                     </button>
@@ -423,7 +450,11 @@
                                                         </div>
                                                         <div class="py-1">
                                                             @if(($jsiCleared[$record->id] ?? false))
-                                                                @if(!$record->recommendation_generated_at)
+                                                                @if(!$record->application_generated_at)
+                                                                    <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate application first">
+                                                                        <i data-lucide="file-check" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
+                                                                    </button>
+                                                                @elseif(!$record->recommendation_generated_at)
                                                                     <button onclick="copGenerateRecommendation({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
                                                                         <i data-lucide="file-check" class="w-4 h-4 text-emerald-500"></i> Generate Recommendation
                                                                     </button>
@@ -456,9 +487,15 @@
                                                     </div>
                                                      @if($record->status !== 'approved' && $record->status !== 'commissioned')
                                                      <div class="py-1 border-t border-slate-100">
+                                                         @if($copKammaOk && $record->recommendation_generated_at)
                                                          <button onclick="copOpenApprovalDecision(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-600 hover:bg-emerald-50 gap-2 font-medium">
                                                              <i data-lucide="scale" class="w-4 h-4 text-emerald-500"></i> Approve / Reject
                                                          </button>
+                                                         @else
+                                                         <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="{{ $copKammaOk ? 'Generate recommendation first' : 'Awaiting KAMMA / Physical Planning approval' }}">
+                                                             <i data-lucide="scale" class="w-4 h-4 text-slate-300"></i> Approve / Reject
+                                                         </button>
+                                                         @endif
                                                      </div>
                                                      @endif
                                                      <div class="py-1 border-t border-slate-100">
@@ -668,13 +705,13 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Land Size (Sqm) <span class="text-red-500">*</span></label>
-                            <input id="cop-land-size" name="land_size" type="number" step="0.01"
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Land Size (Ha) <span class="text-red-500">*</span></label>
+                            <input id="cop-land-size" name="land_size" type="number" step="0.0001" min="0"
                                 class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition text-sm"
-                                placeholder="e.g. 500.00" oninput="calculateCopFee()">
+                                placeholder="e.g. 0.05" oninput="calculateCopFee()">
                         </div>
                         <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex flex-col justify-center">
-                            <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">Application Fee (₦50/sqm)</label>
+                            <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">Application Fee (₦50/sqm = ₦500,000/ha)</label>
                             <input type="text" id="cop-knupda-fee-display" class="w-full bg-transparent border-none text-sm font-bold text-blue-700 p-0" value="₦0.00" readonly>
                             <input type="hidden" name="knupda_fee" id="cop-knupda-fee-hidden" value="0">
                         </div>
@@ -780,6 +817,7 @@
                                 <select id="cop_res_addr_street" class="searchable-select w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500">
                                     <option value="">SELECT STREET</option>
                                     @foreach($streetNames as $street)
+                                        @continue(in_array(strtolower(trim((string) $street->name)), ['other', 'others'], true))
                                         <option value="{{ $street->name }}">{{ \Illuminate\Support\Str::upper((string) $street->name) }}</option>
                                     @endforeach
                                     <option value="Other">OTHER</option>
@@ -793,7 +831,8 @@
                                 <label class="block text-[11px] font-semibold text-slate-500 mb-1">District</label>
                                 <select id="cop_res_addr_district" class="searchable-select w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500">
                                     <option value="">SELECT DISTRICT</option>
-                                    @foreach($districts as $district)
+                                    {{-- The districts table carries its own "Other" row; the fixed OTHER below is the one that opens the specify box. --}}
+                                    @foreach($districts->reject(fn ($d) => strcasecmp(trim((string) $d->name), 'Other') === 0) as $district)
                                         <option value="{{ $district->name }}">{{ \Illuminate\Support\Str::upper((string) $district->name) }}</option>
                                     @endforeach
                                     <option value="Other">OTHER</option>
@@ -822,7 +861,7 @@
                                 </select>
                             </div>
                         </div>
-                        <textarea id="cop-residential-address" name="residential_address" rows="2" readonly
+                        <textarea id="cop-residential-address" name="residential_address" rows="2"
                             placeholder="Address will be built automatically..."
                             class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-slate-600 mt-2 resize-none"></textarea>
                     </div>
@@ -926,11 +965,12 @@
 @section('footer-scripts')
 @include('components.searchable-select2')
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
-<script src="{{ asset('js/change-of-purpose.js') }}"></script>
+<script src="{{ asset('js/change-of-purpose.js') . '?v=' . filemtime(public_path('js/change-of-purpose.js')) }}"></script>
 <script>
     function calculateCopFee() {
         const size = parseFloat(document.getElementById('cop-land-size').value) || 0;
-        const fee = size * 50;
+        // Size is entered in hectares; the rate stays ₦50 per square metre (1 ha = 10,000 sqm).
+        const fee = size * 10000 * 50;
         const display = document.getElementById('cop-knupda-fee-display');
         if (display) {
             display.value = '₦' + fee.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -958,7 +998,7 @@
                 </div>`,
                 didOpen: () => { document.getElementById('cop-knupda-status').value = data.knupda_status || 'Pending'; },
                 showCancelButton: true,
-                confirmButtonText: 'Save Physical Planning Decision',
+                confirmButtonText: 'Save KAMMA / Physical Planning',
                 preConfirm: async () => {
                     const body = {
                         land_value: document.getElementById('cop-knupda-value').value,
@@ -1001,6 +1041,15 @@
     });
     if (window.lucide) window.lucide.createIcons();
 </script>
+
+@include('deeds.parcel_update.partials.batch_decisions', [
+    'batchLabel' => 'Change of Purpose',
+    'batchRoutes' => [
+        'knupda' => route('change-of-purpose.knupda', '__ID__'),
+        'approve' => route('change-of-purpose.approve', '__ID__'),
+        'reject' => route('change-of-purpose.reject', '__ID__'),
+    ],
+])
 
 
 @endsection

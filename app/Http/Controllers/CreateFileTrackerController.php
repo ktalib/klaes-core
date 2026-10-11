@@ -26,6 +26,9 @@ use Illuminate\Validation\Rule;
 
 class CreateFileTrackerController extends Controller
 {
+    /** Quick Search File Requests email the SCB Monitors only while this is true. */
+    private const FILE_REQUEST_EMAILS_ENABLED = false;
+
     /**
      * The "Submitted Request" predicate — an officer asked for this file. The
      * In-transit tab is its exact negation, so the two request-type tabs can
@@ -3480,10 +3483,12 @@ HTML;
                         'file_number'  => $fr->file_number,
                         'location'     => $fr->current_location,
                     ],
-                    ['module' => 'file_search_request', 'enabled_email' => true]
+                    ['module' => 'file_search_request', 'enabled_email' => false]
                 );
 
-                if (!empty($monitor->email)) {
+                // File Request emails to SCB Monitors are switched off (2026-10-09, on
+                // request); the monitors still get the in-app notification above.
+                if (self::FILE_REQUEST_EMAILS_ENABLED && !empty($monitor->email)) {
                     \Illuminate\Support\Facades\Mail::to($monitor->email)
                         ->send(new FileSearchRequestIssued($fr, $requesterName));
                 }

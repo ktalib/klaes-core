@@ -448,11 +448,15 @@ Route::prefix('spas')->name('api.spas.')->group(function () {
     // token in the system would open every endpoint.
     Route::middleware(['auth:sanctum', 'ability:spas-mobile'])->group(function () {
         Route::post('/auth/logout', [\App\Http\Controllers\Api\Spas\SpasAuthController::class, 'logout'])->name('auth.logout');
+        // The signed-in user (name, role, photo) for the app's sidebar.
+        Route::get('/auth/me', [\App\Http\Controllers\Api\Spas\SpasAuthController::class, 'me'])->name('auth.me');
 
         // Delta pull — `since` is an ISO timestamp cursor held on the device.
         Route::controller(\App\Http\Controllers\Api\Spas\SpasSyncController::class)->group(function () {
             Route::get('/records',     'records')->name('records.pull');
             Route::get('/field-data',  'fieldData')->name('field-data.pull');
+            // Ids still on the server, so the app can drop rows deleted here.
+            Route::get('/existing-ids', 'existingIds')->name('existing-ids');
 
             // Push — both idempotent on client_uuid, so a retried request after
             // a dropped connection returns the existing row instead of a duplicate.

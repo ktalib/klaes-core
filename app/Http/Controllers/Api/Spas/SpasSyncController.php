@@ -37,6 +37,8 @@ class SpasSyncController extends Controller
         return $this->pullResponse($rows->map(fn (SpaApplication $a) => [
             'id'               => $a->id,
             'client_uuid'      => $a->client_uuid,
+            'spa_id'           => $a->spa_id,
+            'sticker_number'   => $a->sticker_number,
             'file_number'      => $a->file_number,
             'tracking_id'      => $a->tracking_id,
             'file_indexing_id' => $a->file_indexing_id,
@@ -93,6 +95,23 @@ class SpasSyncController extends Controller
         ]));
     }
 
+    /**
+     * Every record and inspection id that still exists on the server.
+     *
+     * The delta pull only carries rows that were added or changed, so it can
+     * never tell a phone that a row was deleted (master delete, Delete
+     * Inspection). The app compares its synced rows against these lists and
+     * drops what is gone. Ids only — a few KB even for thousands of rows.
+     */
+    public function existingIds(): JsonResponse
+    {
+        return response()->json([
+            'success'    => true,
+            'records'    => SpaApplication::query()->pluck('id')->map(fn ($id) => (int) $id)->values(),
+            'field_data' => SpaFieldData::query()->pluck('id')->map(fn ($id) => (int) $id)->values(),
+        ]);
+    }
+
     // -----------------------------------------------------------------------
     // Push (device → server)
     // -----------------------------------------------------------------------
@@ -117,6 +136,7 @@ class SpasSyncController extends Controller
                 'id'          => $existing->id,
                 'client_uuid' => $existing->client_uuid,
                 'file_number' => $existing->file_number,
+                'spa_id'      => $existing->spa_id,
                 'message'     => 'Already synced.',
             ]);
         }
@@ -128,6 +148,10 @@ class SpasSyncController extends Controller
             // already registered this file. 409 rather than 422 so the app can
             // route it to the Conflicts list instead of retrying forever.
             return response()->json(['success' => false, 'conflict' => 'file_number', 'message' => $duplicate], 409);
+        }
+
+        if ($stickerTaken = $spa->duplicateStickerError($request->input('sticker_number'))) {
+            return response()->json(['success' => false, 'conflict' => 'sticker_number', 'message' => $stickerTaken], 409);
         }
 
         $photos = $spa->storePhotos($request->file('photos'), 'spa/land-records');
@@ -146,6 +170,7 @@ class SpasSyncController extends Controller
             // offline — the server generates the authoritative one. The app must
             // adopt the value returned here.
             'file_number' => $app->file_number,
+            'spa_id'      => $app->spa_id,
             'message'     => 'Land record saved.',
         ], 201);
     }
@@ -210,7 +235,10 @@ class SpasSyncController extends Controller
             'base_updated_at' => 'nullable|date',
         ]);
 
-        $app = SpaApplication::where('client_uuid', $clientUuid)->first();
+        $app = SpaApplication::where('client_uuid', $clientUuid)->first()
+            // Records keyed in on the web have no client_uuid; the app then
+            // addresses them by the server id it pulled.
+            ?? ($request->filled('server_id') ? SpaApplication::find((int) $request->input('server_id')) : null);
 
         if (! $app) {
             // Not synced yet — the create is still sitting in the outbox ahead
@@ -235,6 +263,10 @@ class SpasSyncController extends Controller
 
         if ($conflict = $this->staleWrite($request, $app)) {
             return $conflict;
+        }
+
+        if ($stickerTaken = $spa->duplicateStickerError($request->input('sticker_number'), $app->id)) {
+            return response()->json(['success' => false, 'conflict' => 'sticker_number', 'message' => $stickerTaken], 409);
         }
 
         // Only the capturing officer or a Super Admin may change a record.
@@ -268,7 +300,8 @@ class SpasSyncController extends Controller
             'base_updated_at' => 'nullable|date',
         ]);
 
-        $record = SpaFieldData::where('client_uuid', $clientUuid)->first();
+        $record = SpaFieldData::where('client_uuid', $clientUuid)->first()
+            ?? ($request->filled('server_id') ? SpaFieldData::find((int) $request->input('server_id')) : null);
 
         if (! $record) {
             return response()->json([
@@ -347,16 +380,18 @@ class SpasSyncController extends Controller
     {
         $request->validate([
             'entity_type' => 'required|in:record,field_data',
-            'client_uuid' => 'required|string|max:36',
+            'client_uuid' => 'required_without:server_id|nullable|string|max:36',
+            'server_id'   => 'nullable|integer',
             'photos'      => 'required|array|min:1',
-            'photos.*'    => 'required|image|max:5120',
+            'photos.*'    => 'required|image|max:8192',
         ]);
 
         $isRecord = $request->entity_type === 'record';
+        $model    = $isRecord ? SpaApplication::class : SpaFieldData::class;
 
-        $row = $isRecord
-            ? SpaApplication::where('client_uuid', $request->client_uuid)->first()
-            : SpaFieldData::where('client_uuid', $request->client_uuid)->first();
+        $row = ($request->filled('client_uuid') ? $model::where('client_uuid', $request->client_uuid)->first() : null)
+            // Rows created on the web have no client_uuid — the app sends the server id.
+            ?? ($request->filled('server_id') ? $model::find((int) $request->input('server_id')) : null);
 
         if (! $row) {
             // The parent has not synced yet. 404 tells the app to leave this
@@ -368,18 +403,43 @@ class SpasSyncController extends Controller
             ], 404);
         }
 
-        $new = $spa->storePhotos(
-            $request->file('photos'),
-            $isRecord ? 'spa/land-records' : 'spa/field-data'
-        );
+        // Locked read-modify-write: two uploads for the same row arriving
+        // together (a phone running two syncs at once) each read the list and
+        // saved their own copy, so one photo could be lost — or, from a resend,
+        // stored twice. Under the lock the second sees the first's photo, and a
+        // file identical to one already stored is skipped.
+        [$row, $new, $skipped] = \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($row, $model, $request, $spa, $isRecord) {
+            $row = $model::query()->lockForUpdate()->find($row->id);
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
 
-        $row->photos = array_values(array_unique(array_merge((array) $row->photos, $new)));
-        $row->save();
+            $seen = [];
+            foreach ((array) $row->photos as $p) {
+                if (is_string($p) && $disk->exists($p)) {
+                    $seen[md5_file($disk->path($p))] = true;
+                }
+            }
+            $fresh = [];
+            foreach ((array) $request->file('photos') as $file) {
+                $hash = md5_file($file->getRealPath());
+                if (! isset($seen[$hash])) {
+                    $seen[$hash] = true;
+                    $fresh[] = $file;
+                }
+            }
+
+            $new = $fresh ? $spa->storePhotos($fresh, $isRecord ? 'spa/land-records' : 'spa/field-data') : [];
+            if ($new) {
+                $row->photos = array_values(array_unique(array_merge((array) $row->photos, $new)));
+                $row->save();
+            }
+
+            return [$row, $new, count((array) $request->file('photos')) - count($fresh)];
+        });
 
         return response()->json([
             'success' => true,
             'photos'  => $this->photoUrls($row->photos),
-            'message' => count($new).' photo(s) uploaded.',
+            'message' => count($new).' photo(s) uploaded.'.($skipped ? " $skipped already on the server." : ''),
         ]);
     }
 

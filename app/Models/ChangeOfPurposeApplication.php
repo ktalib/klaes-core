@@ -86,4 +86,10 @@ class ChangeOfPurposeApplication extends Model
     {
         return max(1, (int) ($this->plot_count ?? 1));
     }
+
+    /** "DISTRICT, LGA" for listings; see App\Support\DistrictLgaLabel. */
+    public function districtLgaLabel(): string
+    {
+        return \App\Support\DistrictLgaLabel::for($this->district, $this->lga, $this->location);
+    }
 }

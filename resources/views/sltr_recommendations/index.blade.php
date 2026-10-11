@@ -508,6 +508,7 @@
                                     class="addr-component w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-teal-500 transition">
                                     <option value="">Select District</option>
                                     @foreach($districts as $district)
+                                        @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                         <option value="{{ $district->name }}">{{ $district->name }}</option>
                                     @endforeach
                                     <option value="Other">Other</option>
@@ -579,6 +580,7 @@
                                     class="prop-component w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-indigo-500 transition">
                                     <option value="">Select District</option>
                                     @foreach($districts as $district)
+                                        @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                         <option value="{{ $district->name }}">{{ $district->name }}</option>
                                     @endforeach
                                     <option value="Other">Other</option>

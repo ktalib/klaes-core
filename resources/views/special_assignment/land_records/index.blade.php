@@ -20,6 +20,9 @@
             </div>
         </div>
 
+        {{-- Where this page sits in the SPAS workflow. --}}
+        @include('special_assignment.partials.workflow', ['current' => ['field']])
+
         {{-- Stats --}}
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
@@ -63,6 +66,7 @@
                         <tr class="text-left text-xs text-gray-500 uppercase tracking-wide">
                             <th class="px-3 py-2">#</th>
                             <th class="px-3 py-2">Registry</th>
+                            <th class="px-3 py-2">SPAS ID</th>
                             <th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Owner Name</th>
                             <th class="px-3 py-2">Phone</th>
@@ -202,6 +206,7 @@
     }
 </style>
 
+<script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
 <script>
 const CSRF   = '{{ csrf_token() }}';
@@ -245,6 +250,7 @@ $(document).ready(function () {
                 const key = (d || 'MLS').toUpperCase();
                 return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${REGISTRY_CLS[key] || 'bg-gray-100 text-gray-600'}">${REGISTRY_LABEL[key] || key}</span>`;
             }},
+            { data: 'spa_ref', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` },
             { data: 'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
             { data: 'owner_name'   },
             { data: 'phone'        },

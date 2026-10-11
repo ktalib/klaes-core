@@ -1,0 +1,70 @@
+{
+    "deleted_at": "2026-10-09T22:57:16+01:00",
+    "deleted_by": {
+        "id": 1,
+        "name": "Klaes Admin"
+    },
+    "reference": "SPAS-2026-0014",
+    "photo_paths": [
+        "spa/field-data/c6SYqT8hmPBq2gvkdjw8axlbnOfF0Lex5p7jdqJq.jpg",
+        "spa/field-data/djF2WUKMJOgB78fG4O7Fipds37Exl9URQDoEysz0.jpg",
+        "spa/field-data/5tys21kzHbFE4PZ3fDObE6LZVZ2cR7CJcwV9tgaz.jpg"
+    ],
+    "rows": {
+        "spa_payment_lines": [],
+        "spa_payments": [],
+        "spa_bill_lines": [],
+        "spa_bills": [],
+        "spa_notice_responses": [],
+        "spa_notices": [],
+        "spa_department_referrals": [],
+        "spa_certificates": [],
+        "spa_memos": [],
+        "spa_field_data": [
+            {
+                "id": "44",
+                "spa_application_id": "110",
+                "file_number": "AG-2008-2807",
+                "surveyor_id": "1",
+                "inspection_date": "2026-10-09",
+                "coordinates": "{\"lat\":11.974194,\"lng\":8.631016}",
+                "findings": "Inspected on site.",
+                "photos": "[\"spa\\/field-data\\/c6SYqT8hmPBq2gvkdjw8axlbnOfF0Lex5p7jdqJq.jpg\",\"spa\\/field-data\\/djF2WUKMJOgB78fG4O7Fipds37Exl9URQDoEysz0.jpg\",\"spa\\/field-data\\/5tys21kzHbFE4PZ3fDObE6LZVZ2cR7CJcwV9tgaz.jpg\"]",
+                "status": "active",
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-09 21:30:49",
+                "updated_at": "2026-10-09 21:48:34",
+                "parcel_geometry": null,
+                "spa_application_client_uuid": "3bd5b13b-7382-4661-a717-f43b7ee74957",
+                "client_uuid": "31f9c063-832e-4a38-869d-69b6d452c88d"
+            }
+        ],
+        "spa_applications": [
+            {
+                "id": "110",
+                "file_number": "AG-2008-2807",
+                "tracking_id": "TRK-3WU56FPY-F0P80",
+                "file_indexing_id": "184326",
+                "is_indexed": "1",
+                "owner_name": "KABIRU UMAR TAMMA",
+                "phone": null,
+                "location": "505 TP/KAS/255A, KUMBOSTO, KUMBOTSO, KANO STATE",
+                "district": "KUMBOSTO",
+                "lga": "KUMBOTSO",
+                "land_use_type": "RESIDENTIAL",
+                "existing_use": "RESIDENTIAL",
+                "proposed_use": "RESIDENTIAL",
+                "photos": null,
+                "scenario": null,
+                "status": "in_progress",
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-09 21:30:44",
+                "updated_at": "2026-10-09 21:30:49",
+                "land_title_type": "statutory",
+                "client_uuid": "3bd5b13b-7382-4661-a717-f43b7ee74957",
+                "spa_id": "SPAS-2026-0014",
+                "sticker_number": null
+            }
+        ]
+    }
+}

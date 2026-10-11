@@ -67,6 +67,11 @@ class LandRecommendationBatchDocumentController extends Controller
     {
         $request->validate([
             'document' => 'required|file|mimes:' . self::ACCEPTED . '|max:' . self::MAX_KILOBYTES,
+            // Sent by the upload dialog's ink check (BriefRec.checkSignature). A
+            // warning, not a gate: 'not_detected' means the officer was told and
+            // uploaded anyway. Absent from older pages, so nullable.
+            'signature_check' => 'nullable|string|in:detected,not_detected,unchecked',
+            'signature_marks' => 'nullable|integer|min:0|max:100000',
         ], [
             'document.mimes' => 'Upload the letter as an image (JPG, PNG, WEBP, HEIC) or a PDF.',
             'document.max'   => 'That file is larger than 20 MB. Scan it at a lower resolution and try again.',
@@ -165,6 +170,8 @@ class LandRecommendationBatchDocumentController extends Controller
                 'size_bytes'     => $sizeBytes,
                 'uploaded_by'    => Auth::id(),
                 'uploaded_at'    => now(),
+                'signature_check' => $request->input('signature_check'),
+                'signature_marks' => $request->filled('signature_marks') ? (int) $request->input('signature_marks') : null,
             ]
         );
 
@@ -181,6 +188,8 @@ class LandRecommendationBatchDocumentController extends Controller
             'original_name'  => $document->original_name,
             'size_bytes'     => $document->size_bytes,
             'replaced_path'  => $replaced,
+            'signature_check' => $document->signature_check,
+            'signature_marks' => $document->signature_marks,
         ]);
 
         // A Use Subdivision Template record is a batch of one, and "all 1 children"
@@ -272,9 +281,15 @@ class LandRecommendationBatchDocumentController extends Controller
         // one. Everything downstream reads only batch_mother_file_no and children,
         // so the upload, the EDMS folder and the replace all work unchanged.
         if ($id = LandRecommendationBatchDocument::subdivisionTemplateId($batchId)) {
+            // Or a single record captured under an Application Type with a mother
+            // file (Regrant, Merger, Reinstatement, ...): it inherits that file's
+            // signed Brief Recommendation the same way.
             $record = LandRecommendation::query()
                 ->whereKey($id)
-                ->where('use_subdivision_template', true)
+                ->where(function ($q) {
+                    $q->where('use_subdivision_template', true)
+                      ->orWhere(fn ($d) => LandRecommendation::derivedSingleRecordScope($d));
+                })
                 ->first(['id', 'old_file_number']);
 
             if (!$record) {

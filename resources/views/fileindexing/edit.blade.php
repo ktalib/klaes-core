@@ -485,6 +485,7 @@
                                             <select id="district" name="district" class="w-full form-input-clean">
                                                 <option value="">Select District</option>
                                                 @foreach($districts as $districtName)
+                                                    @continue(in_array(strtolower(trim((string) $districtName)), ['other', 'others'], true))
                                                     <option value="{{ $districtName }}" {{ ($currentDistrict == $districtName) ? 'selected' : '' }}>
                                                         {{ $districtName }}
                                                     </option>

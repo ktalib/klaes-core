@@ -96,7 +96,7 @@
                     <table id="plot-extension-table" class="w-full text-sm" style="min-width:1200px">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">S/N</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left">R of Occupancy</th>
                                 <th class="px-4 py-3 text-left">Existing Land Use</th>
@@ -105,13 +105,20 @@
                                 <th class="px-4 py-3 text-left">Occupation</th>
                                 <th class="px-4 py-3 text-left">Source</th>
                                 <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left">Created By</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($records as $record)
+                                @php
+                                    // Same conditions as this row's menu: KAMMA until approved;
+                                    // reject while open; approve also needs the Master JSI.
+                                    $batchOpen = !in_array($record->status, ['approved', 'rejected', 'commissioned'], true);
+                                    $batchKammaDone = strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0;
+                                @endphp
                                 <tr data-record='@json($record)'>
-                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $records->firstItem() + $loop->index }}</td>
+                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->file_no ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->land_use ?: '—' }}</td>
@@ -135,6 +142,7 @@
                                     <td class="px-4 py-2.5 font-mono text-xs text-slate-600">
                                         {{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('M d, Y') : '—' }}
                                     </td>
+                                    <td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by])</td>
                                     <td class="px-4 py-2.5 text-center">
                                             <div class="relative inline-block text-left" id="pe-dropdown-{{ $record->id }}">
                                                 <button type="button" onclick="togglePeDropdown({{ $record->id }})" class="p-2 hover:bg-slate-100 text-slate-600 rounded-full transition">
@@ -248,6 +256,8 @@
                                 </tr>
                             @empty
                                 <tr>
+                                    <td class="px-4 py-2.5"></td>
+                                    <td class="px-4 py-2.5"></td>
                                     <td class="px-4 py-2.5"></td>
                                     <td class="px-4 py-2.5"></td>
                                     <td class="px-4 py-2.5"></td>
@@ -1277,4 +1287,13 @@
         document.getElementById('doc-preview-modal').classList.add('hidden');
     }
 </script>
+
+@include('deeds.parcel_update.partials.batch_decisions', [
+    'batchLabel' => 'Plot Extension',
+    'batchRoutes' => [
+        'knupda' => route('plot-extension.knupda', '__ID__'),
+        'approve' => route('plot-extension.approve', '__ID__'),
+        'reject' => route('plot-extension.reject', '__ID__'),
+    ],
+])
 @endsection

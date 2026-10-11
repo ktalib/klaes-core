@@ -277,6 +277,7 @@
                             class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
                             <option value="">Select district</option>
                             @foreach ($districts as $d)
+                                @continue(in_array(strtolower(trim((string) $d->name)), ['other', 'others'], true))
                                 <option value="{{ $d->name }}" @selected(strcasecmp($districtValue, (string) $d->name) === 0)>
                                     {{ strtoupper($d->name) }}
                                 </option>

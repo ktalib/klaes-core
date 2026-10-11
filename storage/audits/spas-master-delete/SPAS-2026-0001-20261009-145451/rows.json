@@ -1,0 +1,221 @@
+{
+    "deleted_at": "2026-10-09T14:54:51+01:00",
+    "deleted_by": {
+        "id": 1,
+        "name": "Klaes Admin"
+    },
+    "reference": "SPAS-2026-0001",
+    "photo_paths": [
+        "spa/land-records/4ENRgcNNeW1PkOifOONsZMwse282u3Es5Ao6PrYh.jpg"
+    ],
+    "rows": {
+        "spa_payment_lines": [
+            {
+                "id": "1",
+                "spa_payment_id": "1",
+                "spa_bill_line_id": "35",
+                "name": "Application Fee",
+                "amount_paid": "1000.00",
+                "created_at": "2026-10-08 10:17:05",
+                "updated_at": "2026-10-08 10:17:05"
+            },
+            {
+                "id": "2",
+                "spa_payment_id": "1",
+                "spa_bill_line_id": "36",
+                "name": "Processing Fee",
+                "amount_paid": "1000.00",
+                "created_at": "2026-10-08 10:17:05",
+                "updated_at": "2026-10-08 10:17:05"
+            },
+            {
+                "id": "3",
+                "spa_payment_id": "1",
+                "spa_bill_line_id": "37",
+                "name": "Change of Use Fee",
+                "amount_paid": "1000.00",
+                "created_at": "2026-10-08 10:17:05",
+                "updated_at": "2026-10-08 10:17:05"
+            },
+            {
+                "id": "4",
+                "spa_payment_id": "1",
+                "spa_bill_line_id": "38",
+                "name": "Penalty Fee",
+                "amount_paid": "1000.00",
+                "created_at": "2026-10-08 10:17:05",
+                "updated_at": "2026-10-08 10:17:05"
+            },
+            {
+                "id": "5",
+                "spa_payment_id": "1",
+                "spa_bill_line_id": "39",
+                "name": "Survey Fee",
+                "amount_paid": "1000.00",
+                "created_at": "2026-10-08 10:17:05",
+                "updated_at": "2026-10-08 10:17:05"
+            }
+        ],
+        "spa_payments": [
+            {
+                "id": "1",
+                "spa_bill_id": "21",
+                "spa_application_id": "83",
+                "amount_paid": "5000.00",
+                "receipt_number": "2436535567",
+                "payment_date": "2026-10-09",
+                "payment_method": "pos",
+                "recorded_by": "System Admin",
+                "created_at": "2026-10-08 10:17:05",
+                "updated_at": "2026-10-08 10:17:05"
+            }
+        ],
+        "spa_bill_lines": [
+            {
+                "id": "35",
+                "spa_bill_id": "21",
+                "spa_bill_item_id": "1",
+                "name": "Application Fee",
+                "amount": "1000.00",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:07:40"
+            },
+            {
+                "id": "36",
+                "spa_bill_id": "21",
+                "spa_bill_item_id": "2",
+                "name": "Processing Fee",
+                "amount": "1000.00",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:07:40"
+            },
+            {
+                "id": "37",
+                "spa_bill_id": "21",
+                "spa_bill_item_id": "3",
+                "name": "Change of Use Fee",
+                "amount": "1000.00",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:07:40"
+            },
+            {
+                "id": "38",
+                "spa_bill_id": "21",
+                "spa_bill_item_id": "4",
+                "name": "Penalty Fee",
+                "amount": "1000.00",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:07:40"
+            },
+            {
+                "id": "39",
+                "spa_bill_id": "21",
+                "spa_bill_item_id": "5",
+                "name": "Survey Fee",
+                "amount": "1000.00",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:07:40"
+            }
+        ],
+        "spa_bills": [
+            {
+                "id": "21",
+                "spa_application_id": "83",
+                "bill_type": "Contravention",
+                "description": "Contravention: approved use \"RESIDENTIAL\" differs from prevailing use \"INDUSTRIAL\". Composed of: Application Fee (1,000.00), Processing Fee (1,000.00), Change of Use Fee (1,000.00), Penalty Fee (1,000.00), Survey Fee (1,000.00).",
+                "amount": "5000.00",
+                "reference_id": "SPAS-BILL-2026-001",
+                "due_date": "2026-11-07",
+                "status": "paid",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:17:05",
+                "source": "contravention"
+            }
+        ],
+        "spa_notice_responses": [],
+        "spa_notices": [
+            {
+                "id": "62",
+                "spa_application_id": "83",
+                "file_number": "SPAS-2026-0001",
+                "notice_type": "first",
+                "recipient_name": "GANE MILLERS COMPANY",
+                "phone": "08034989043",
+                "served_by": "2",
+                "served_date": "2026-10-08",
+                "scheduled_date": "2026-10-22",
+                "sms_sent": "1",
+                "sms_sent_at": "2026-10-08 10:09:32",
+                "status": "served",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:09:30",
+                "updated_at": "2026-10-08 10:09:32"
+            }
+        ],
+        "spa_department_referrals": [],
+        "spa_certificates": [
+            {
+                "id": "2",
+                "spa_application_id": "83",
+                "cert_number": "SPAS-COP/2026/0001",
+                "file_number": "SPAS-2026-0001",
+                "holder_name": "GANE MILLERS COMPANY",
+                "from_use": "RESIDENTIAL",
+                "to_use": "INDUSTRIAL",
+                "issue_date": "2026-10-08",
+                "expiry_date": null,
+                "issued_by": "2",
+                "status": "issued",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:30:14",
+                "updated_at": "2026-10-08 10:30:14",
+                "new_file_number": "RES-2010-984"
+            }
+        ],
+        "spa_memos": [
+            {
+                "id": "3",
+                "spa_application_id": "83",
+                "memo_no": "SPAS/2026/0001",
+                "prepared_by": "2",
+                "forwarded_to": "Honourable Commissioner",
+                "forwarded_at": "2026-10-08 10:24:32",
+                "commissioner_decision": "approved",
+                "commissioner_notes": null,
+                "decided_at": "2026-10-08 10:24:46",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:24:32",
+                "updated_at": "2026-10-08 10:24:46"
+            }
+        ],
+        "spa_field_data": [],
+        "spa_applications": [
+            {
+                "id": "83",
+                "file_number": "SPAS-2026-0001",
+                "tracking_id": null,
+                "file_indexing_id": null,
+                "is_indexed": "0",
+                "owner_name": "GANE MILLERS COMPANY",
+                "phone": "08034989043",
+                "location": "BADAWA PHAS II, Nasarawa",
+                "district": "BADAWA PHAS II",
+                "lga": "Nasarawa",
+                "land_use_type": "RESIDENTIAL",
+                "existing_use": "INDUSTRIAL",
+                "proposed_use": "RESIDENTIAL",
+                "photos": "[\"spa\\/land-records\\/4ENRgcNNeW1PkOifOONsZMwse282u3Es5Ao6PrYh.jpg\"]",
+                "scenario": null,
+                "status": "certificate_issued",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:07:40",
+                "updated_at": "2026-10-08 10:30:14",
+                "land_title_type": "customary",
+                "client_uuid": null,
+                "spa_id": "SPAS-2026-0001",
+                "sticker_number": null
+            }
+        ]
+    }
+}

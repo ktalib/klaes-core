@@ -519,6 +519,7 @@ Route::middleware(['auth'])->group(function () {
     // Special Assignment Routes
     Route::prefix('special-assignment')->name('special-assignment.')->group(function () {
         // Pages (GET)
+        Route::get('/dashboard',         [\App\Http\Controllers\SpecialAssignmentController::class, 'dashboard'])->name('dashboard');
         Route::get('/land-records',      [\App\Http\Controllers\SpecialAssignmentController::class, 'landRecords'])->name('land-records');
         Route::get('/field-data',        [\App\Http\Controllers\SpecialAssignmentController::class, 'fieldData'])->name('field-data');
         Route::get('/notice',            [\App\Http\Controllers\SpecialAssignmentController::class, 'notice'])->name('notice');
@@ -528,6 +529,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/memo/{id}/print',   [\App\Http\Controllers\SpecialAssignmentController::class, 'printMemo'])->name('memo.print');
         Route::get('/report',            [\App\Http\Controllers\SpecialAssignmentController::class, 'report'])->name('report');
         // AJAX / actions
+        // Workflow stages (Record → … → Certificate) for the pipeline dots and strips.
+        Route::get ('/pipeline/status',          [\App\Http\Controllers\SpecialAssignmentController::class, 'pipelineStatus'])->name('pipeline.status');
         Route::get ('/check-file',               [\App\Http\Controllers\SpecialAssignmentController::class, 'checkFileIndexed'])->name('check-file');
         Route::get ('/search-files',             [\App\Http\Controllers\SpecialAssignmentController::class, 'searchFileIndexings'])->name('search-files');
         Route::get ('/next-customary-fileno',    [\App\Http\Controllers\SpecialAssignmentController::class, 'nextCustomaryFileNumber'])->name('next-customary-fileno');
@@ -538,9 +541,16 @@ Route::middleware(['auth'])->group(function () {
         // Edit one inspection (visit): its own officer or a Super Admin only.
         Route::post  ('/field-data/{id}/update',  [\App\Http\Controllers\SpecialAssignmentController::class, 'updateFieldData'])->name('field-data.update');
         Route::delete('/field-data/{id}',         [\App\Http\Controllers\SpecialAssignmentController::class, 'deleteFieldData'])->name('field-data.delete');
+        // Master delete: a record and everything linked to it (Super Admin, exported first).
+        Route::get   ('/land-records/{id}/master-delete', [\App\Http\Controllers\SpecialAssignmentController::class, 'masterDeleteSummary'])->name('land-records.master-delete.summary');
+        Route::post  ('/land-records/{id}/master-delete', [\App\Http\Controllers\SpecialAssignmentController::class, 'masterDelete'])->name('land-records.master-delete');
         Route::post('/notice/store',             [\App\Http\Controllers\SpecialAssignmentController::class, 'storeNotice'])->name('notice.store');
         // The printable notice (First Serve / Second Serve reminder letter).
         Route::get('/notice/{id}/print', [\App\Http\Controllers\SpecialAssignmentController::class, 'printNotice'])->name('notice.print');
+        // The allottee's response to a First Serve (form, save, print filled / ?blank=1).
+        Route::get ('/notice/{id}/response',       [\App\Http\Controllers\SpecialAssignmentController::class, 'noticeResponse'])->name('notice.response');
+        Route::post('/notice/{id}/response',       [\App\Http\Controllers\SpecialAssignmentController::class, 'saveNoticeResponse'])->name('notice.response.save');
+        Route::get ('/notice/{id}/response/print', [\App\Http\Controllers\SpecialAssignmentController::class, 'printNoticeResponse'])->name('notice.response.print');
         Route::post('/notice/{id}/second',       [\App\Http\Controllers\SpecialAssignmentController::class, 'triggerSecondNotice'])->name('notice.second');
         // Re-attempt a failed send. A first serve whose SMS never went is never
         // escalated, so without this it is a dead end.
@@ -560,6 +570,9 @@ Route::middleware(['auth'])->group(function () {
         // Payments are collected item by item, so the form has to know what the
         // bill is made of and what is still owed on each part of it.
         Route::get ('/bills/{id}/sheet',            [\App\Http\Controllers\SpecialAssignmentController::class, 'billPaymentSheet'])->name('bills.sheet');
+        // "Add when needed" tariff items (a Penalty Fee), added to one bill at the tariff amount.
+        Route::post('/bills/{id}/add-item',         [\App\Http\Controllers\SpecialAssignmentController::class, 'addBillItem'])->name('bills.add-item');
+        Route::post('/bills/{id}/remove-item',      [\App\Http\Controllers\SpecialAssignmentController::class, 'removeBillItem'])->name('bills.remove-item');
         Route::get ('/bills/receipt/{id}',          [\App\Http\Controllers\SpecialAssignmentController::class, 'printBillReceipt'])->name('bills.receipt');
 
         // The contravention tariff is edited on System Admin -> Configurable

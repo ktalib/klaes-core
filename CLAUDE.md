@@ -45,6 +45,8 @@ KLAES (Kano Land Administration & Electronic System): a Laravel 9 / PHP 8.2 mono
 - Imports load every source row, including dirty ones.
 - **Survey module.** It renders in the main KLAES shell. Never re-run `docs/_extract_survey_pages.ps1` or the other survey generator scripts, because they regenerate broken views.
 
+- **Bulk actions on a listing use the sticky footer bar** (row checkboxes + a floating "N selected" bar), the pattern the user chose. Reuse `resources/views/deeds/parcel_update/partials/batch_check.blade.php` and `batch_decisions.blade.php`; the `batch-actions` skill (`.claude/skills/batch-actions/SKILL.md`) has the recipe. Rows carry their own menu conditions, already-decided rows are disabled, and a button opens only when every selected row is at that step.
+
 ## Blade gotchas
 
 - Module action checks use the custom `@canDo('Module', 'action') ... @elsecanDo ... @endcanDo` directive (defined in `AppServiceProvider`), not `@can`.

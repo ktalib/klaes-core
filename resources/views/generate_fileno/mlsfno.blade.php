@@ -1934,6 +1934,7 @@
                                                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                     <option value="">Select Street Name</option>
                                                     @foreach($streetNames as $street)
+                                                        @continue(in_array(strtolower(trim((string) $street->name)), ['other', 'others'], true))
                                                         <option value="{{ $street->name }}">{{ $street->name }}</option>
                                                     @endforeach
                                                     {{-- Explicit, rather than relying on an "Other" row existing in
@@ -1975,6 +1976,7 @@
                                                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                                     <option value="">Select District</option>
                                                     @foreach($districts as $dist)
+                                                        @continue(in_array(strtolower(trim((string) $dist->name)), ['other', 'others'], true))
                                                         <option value="{{ $dist->name }}">{{ $dist->name }}</option>
                                                     @endforeach
                                                     {{-- onDistrictChange() and loadDistrictField() both key off an
@@ -2659,9 +2661,11 @@
                                     <i data-lucide="map" class="w-4 h-4 inline mr-1"></i>
                                     Location
                                 </label>
-                                <input type="text" id="editLocation" name="location"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
-                                       placeholder="Enter location" >
+                                {{-- Not typed: built from District and LGA by updateEditLocation(),
+                                     the same "DISTRICT, LGA" form the generator writes. --}}
+                                <input type="text" id="editLocation" name="location" readonly tabindex="-1"
+                                       class="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-100 text-gray-700 cursor-not-allowed focus:outline-none uppercase"
+                                       placeholder="Filled from District and LGA" >
                             </div>
 
                             <!-- Details of local Rep (section) -->

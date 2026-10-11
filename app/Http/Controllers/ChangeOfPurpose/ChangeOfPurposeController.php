@@ -32,6 +32,15 @@ class ChangeOfPurposeController extends Controller
         'IND' => 'Industrial',
         'AGR' => 'Agricultural',
         'MIX' => 'Mixed Use',
+        // Label lookups only: other spellings stored on older rows ("AG" as a
+        // purpose, "COM" as a current use) still resolve to the full name.
+        'AG'           => 'Agricultural',
+        'AGRIC'        => 'Agricultural',
+        'MIXED'        => 'Mixed Use',
+        'RESIDENTIAL'  => 'Residential',
+        'COMMERCIAL'   => 'Commercial',
+        'INDUSTRIAL'   => 'Industrial',
+        'AGRICULTURAL' => 'Agricultural',
     ];
 
     /**
@@ -81,6 +90,15 @@ class ChangeOfPurposeController extends Controller
             ->limit($limit)
             ->get();
 
+        // "Created By": captured_by holds the user id of whoever raised the application.
+        $creatorIds = $pendingRecords->concat($approvedRecords)->pluck('captured_by')
+            ->filter(fn ($id) => is_numeric($id))->map(fn ($id) => (int) $id)->unique()->values();
+        $creatorNames = $creatorIds->isEmpty() ? [] : DB::connection('sqlsrv')->table('users')
+            ->whereIn('id', $creatorIds->all())
+            ->get(['id', 'first_name', 'last_name', 'email'])
+            ->mapWithKeys(fn ($u) => [$u->id => trim($u->first_name . ' ' . $u->last_name) ?: $u->email])
+            ->all();
+
         $states = DB::connection('sqlsrv')->table('States')->orderBy('StateName')->get();
         $lgas = DB::connection('sqlsrv')->table('lgas')->where('is_active', 1)->orderBy('name')->get();
         $districts = DB::connection('sqlsrv')->table('districts')->where('is_active', 1)->orderBy('name')->get();
@@ -106,7 +124,8 @@ class ChangeOfPurposeController extends Controller
             'lgas',
             'districts',
             'streetNames',
-            'stats'
+            'stats',
+            'creatorNames'
         ) + ['landUseOptions' => self::LAND_USE_OPTIONS]);
     }
 
@@ -119,7 +138,7 @@ class ChangeOfPurposeController extends Controller
 
             ->findOrFail($id);
 
-        return response()->json(['success' => true, 'data' => $record]);
+        return response()->json(['success' => true, 'data' => app(\App\Services\ChangeOfPurposeDetails::class)->application($record)]);
     }
 
     /**
@@ -152,7 +171,7 @@ class ChangeOfPurposeController extends Controller
 
         // Which sidebar raised this. Both open the same register, and until this
         // column existed only the page title knew the difference.
-        $data['source_module'] = \App\Support\ParcelUpdateSource::fromRequest($request);
+        $data['source_module'] = $request->query('mode') === 'land' ? 'land' : 'deeds';
 
         // A file already carrying a live application must not take a second one:
         // both would try to retire it.
@@ -221,6 +240,25 @@ class ChangeOfPurposeController extends Controller
     }
 
     /**
+     * The menu steps run in order: KAMMA / Physical Planning approval, then the
+     * application, then the recommendation, then the decision. Returns the refusal
+     * for the first step still missing before $step, or null when it may proceed.
+     */
+    private function stepBlocked(ChangeOfPurposeApplication $record, string $step): ?JsonResponse
+    {
+        $order = ['application', 'recommendation', 'decision'];
+        $missing = null;
+        if (strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') !== 0) {
+            $missing = 'KAMMA / Physical Planning must approve this application first.';
+        } elseif (array_search($step, $order) > 0 && !$record->application_generated_at) {
+            $missing = 'Generate the application first.';
+        } elseif (array_search($step, $order) > 1 && !$record->recommendation_generated_at) {
+            $missing = 'Generate the recommendation first.';
+        }
+        return $missing ? response()->json(['success' => false, 'message' => $missing], 422) : null;
+    }
+
+    /**
      * Approve a pending application.
      */
     public function approve(int $id): JsonResponse
@@ -228,6 +266,8 @@ class ChangeOfPurposeController extends Controller
         $record = ChangeOfPurposeApplication::query()
 
             ->findOrFail($id);
+
+        if ($blocked = $this->stepBlocked($record, 'decision')) return $blocked;
 
         $record->update([
             'status' => ChangeOfPurposeApplication::STATUS_APPROVED,
@@ -260,6 +300,8 @@ class ChangeOfPurposeController extends Controller
         $record = ChangeOfPurposeApplication::query()
 
             ->findOrFail($id);
+
+        if ($blocked = $this->stepBlocked($record, 'decision')) return $blocked;
 
         $reason = trim((string) $request->input('reason', ''));
 
@@ -370,6 +412,10 @@ class ChangeOfPurposeController extends Controller
             'purpose_id'      => 'nullable|integer',
         ]);
 
+        // Where the new files go next, from the summary card. Handed on to the batch
+        // engine, which opens their tracking exactly as for any other batch.
+        $meta += $request->only(ChangeOfPurposeBatchCommitService::DESTINATION_FIELDS);
+
         try {
             $result = app(ChangeOfPurposeBatchCommitService::class)
                 ->commit(ChangeOfPurposeApplication::findOrFail($id), $meta);
@@ -377,18 +423,9 @@ class ChangeOfPurposeController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $done = count($result['commissioned']);
-
-        // A partial run is reported as a failure with what it managed, so the officer
-        // is never told "done" over a batch that stopped halfway.
-        if (!empty($result['failed'])) {
-            return response()->json([
-                'success' => false,
-                'message' => "Commissioned {$done} plot(s), then stopped at {$result['failed']['file_no']}: "
-                    . $result['failed']['message'],
-                'result'  => $result,
-            ], 422);
-        }
+        // The service runs one batch and throws on failure, so reaching here means
+        // every plot was issued a number.
+        $done = count($result['files']);
 
         return response()->json([
             'success' => true,
@@ -470,7 +507,7 @@ class ChangeOfPurposeController extends Controller
         $indexing = $conn->table('file_indexings')
             ->where('file_number', $fileNo)
             ->orderByDesc('id')
-            ->first(['phone', 'residence_address']);
+            ->first();
 
         if ($indexing) {
             $phone   = $take($indexing->phone);
@@ -528,6 +565,7 @@ class ChangeOfPurposeController extends Controller
                 'phone'   => $phone,
                 'address' => $address,
                 'source'  => $from,
+                'property' => \App\Services\ChangeOfPurposeDetails::indexingFields((array) $indexing),
             ],
         ]);
     }
@@ -593,7 +631,7 @@ class ChangeOfPurposeController extends Controller
         // count travels with the row rather than being looked up again.
         $results->each(fn ($record) => $record->setAttribute('plot_count', $record->plotCount()));
 
-        return response()->json(['success' => true, 'data' => $results->values()]);
+        return response()->json(['success' => true, 'data' => $results->map(fn ($record) => app(\App\Services\ChangeOfPurposeDetails::class)->application($record))->values()]);
     }
 
     /**
@@ -644,7 +682,7 @@ class ChangeOfPurposeController extends Controller
             return response()->json(['success' => false, 'message' => "The Change of Purpose application for this file number is currently '{$application->status}'. It must be Approved before generating an MLPP File Number."]);
         }
 
-        return response()->json(['success' => true, 'data' => $application]);
+        return response()->json(['success' => true, 'data' => app(\App\Services\ChangeOfPurposeDetails::class)->application($application)]);
     }
 
     /**
@@ -726,6 +764,7 @@ class ChangeOfPurposeController extends Controller
     public function generateApplication(int $id): JsonResponse
     {
         $record = ChangeOfPurposeApplication::findOrFail($id);
+        if ($blocked = $this->stepBlocked($record, 'application')) return $blocked;
         // Stamp the generation flag the menu reads — NOT created_at, which is the
         // application's own capture date and must not move.
         $record->update([
@@ -757,6 +796,8 @@ class ChangeOfPurposeController extends Controller
         if (!$record) {
             return response()->json(['success' => false, 'message' => 'Application not found.'], 404);
         }
+
+        if ($blocked = $this->stepBlocked($record, 'recommendation')) return $blocked;
 
         // The clearance is an approved Master JSI. MasterJsiGate also lets through
         // a record cleared by the old KAMMA handshake, which is why this is asked

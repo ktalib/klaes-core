@@ -396,6 +396,81 @@
         if (window.lucide) window.lucide.createIcons();
     }
 
+    // Single-record save: the Capture OP button. Posts to op-capture-and-link, which creates
+    // the OP (its own TEMP file number, the TOT's prop_id) and links it to the Awaiting TOT
+    // in one transaction. The button always pointed here, but the function was never written,
+    // so the click did nothing.
+    window.copCaptureAndLink = function () {
+        if (!copTot || copBatch) return;
+
+        copNormalizeNumberFields();
+        copMirrorSerialToPage();
+        const val = id => (document.getElementById(id)?.value || '').trim();
+        const systemFileno = val('copFileNo');
+        const payload = {
+            tot_pra_id: copTot.pra_id,
+            grantee: val('copGrantee'),
+            op_type: val('copOpType'),
+            status: val('copStatus'),
+            system_fileno: /^TEMP-\d+$/i.test(systemFileno) ? systemFileno : '',
+            op_serial_number: val('copOpSerial'),
+            transaction_date: val('copTxDate') || null,
+            land_use: val('copLandUse') || null,
+            location: val('copLocation') || null,
+            plot_no: val('copPlot') || null,
+            serial_no: val('copSerialNo') || null,
+            page_no: val('copPageNo') || null,
+            volume_no: val('copVolNo') || null,
+            deeds_date: val('copDeedsDate') || null,
+            deeds_time: val('copDeedsTime') || null,
+        };
+
+        // The same checks the server makes, so the user hears about them before the round trip.
+        let problem = '';
+        if (!payload.tot_pra_id) problem = 'This file has no Transfer of Title row to link the OP to.';
+        else if (!payload.op_type) problem = 'Select the Occupancy Permit (OP) Type.';
+        else if (!payload.status) problem = 'Select a Status.';
+        else if (!payload.grantee) problem = "Party 2 (allottee) is required — it becomes the file's Party 1.";
+        else if (!payload.op_serial_number) problem = 'OP Serial Number is required.';
+        else if (!/^[1-9][0-9]*$/.test(payload.op_serial_number)) problem = 'OP Serial Number must contain positive digits without leading zeros.';
+        if (problem) {
+            Swal.fire({ icon: 'warning', title: 'Check the form', text: problem });
+            return;
+        }
+
+        const btn = document.getElementById('copCaptureBtn');
+        const btnHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Saving…';
+        const done = () => { btn.disabled = false; btn.innerHTML = btnHtml; if (window.lucide) window.lucide.createIcons(); };
+
+        const tot = copTot;
+        const send = () => copFetch('{{ route("lands-one-stop-shop.applications.op-capture-and-link") }}', payload)
+            .then(({ ok, status, d }) => {
+                done();
+                if (status === 419) { copSessionExpiredDialog(send); return; }
+                if (!ok || !d.success) {
+                    const firstError = d.errors ? Object.values(d.errors).flat()[0] : '';
+                    Swal.fire({ icon: 'error', title: 'Not saved', text: firstError || d.message || ('The server refused the capture (' + status + ').') });
+                    return;
+                }
+                closeCaptureOpModal();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'OP captured and linked',
+                    text: tot.file_number + ' is now linked to ' + (d.temp_fileno || 'the new OP') + '. Party 1 is now ' + d.allottee + '.',
+                });
+                // Redraw the batch so the row reads "OP linked".
+                if (tot.batch_no && typeof window.openOpBatchModal === 'function') window.openOpBatchModal(tot.batch_no);
+            })
+            .catch(err => {
+                done();
+                console.error('Capture & Link failed', err);
+                Swal.fire({ icon: 'error', title: 'Not saved', text: 'Could not reach the server. Nothing was saved; please try again.' });
+            });
+        send();
+    };
+
     // Pull the next TEMP-XXXXX from temp_fileno_sequence and show it read-only as System FileNo.
     function copAllocateTempFileno() {
         const el = document.getElementById('copFileNo');

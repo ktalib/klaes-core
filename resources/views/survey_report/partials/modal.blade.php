@@ -407,6 +407,7 @@
                                 @if($isView || $isLands) disabled @endif>
                                 <option value="">Select Street</option>
                                 @foreach($streetOptions as $street)
+                                    @continue(in_array(strtolower(trim((string) $street)), ['other', 'others'], true))
                                     <option value="{{ $street }}">{{ $street }}</option>
                                 @endforeach
                                 <option value="Other">Other</option>
@@ -426,6 +427,7 @@
                                 @if($isView || $isLands) disabled @endif>
                                 <option value="">Select District</option>
                                 @foreach($districtOptions as $district)
+                                    @continue(in_array(strtolower(trim((string) $district)), ['other', 'others'], true))
                                     <option value="{{ $district }}">{{ $district }}</option>
                                 @endforeach
                                 <option value="Other">Other</option>

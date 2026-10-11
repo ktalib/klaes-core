@@ -21,6 +21,10 @@
     ], fn ($line) => $line !== null && $line !== ''));
     // Location repeats District, LGA when it was built from them.
     $address = array_values(array_unique($address));
+    // SPAS ID first; the file number only when the owner gave one (a notice
+    // for a record with none carries the SPAS ID in file_number).
+    $spaId  = $app->spa_id ?? null;
+    $fileNo = $app ? $app->file_number : $notice->file_number;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -29,7 +33,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $isSecond ? 'Reminder' : 'Notice' }} - Contravention of Landuse - {{ $notice->file_number }}</title>
     <style>
-        @page { size: A4; margin: 0; }
+        /* Printer margins as set by the office: top 0.92in, left 0.43in, right and bottom 0. */
+        @page { size: A4; margin: 0.92in 0 0 0.43in; }
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; background: #f2f2f2; font-family: "Times New Roman", Times, serif; color: #000; }
         .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 25mm; position: relative; }
@@ -50,6 +55,7 @@
 
         .content { font-size: 12pt; line-height: 1.55; text-align: left; }
         .content p { margin: 0 0 8mm 0; }
+        .content p:first-child { text-align: justify; }
 
         .closing { margin-top: 25mm; font-size: 12pt; line-height: 1.45; }
         .signature { margin-top: 13mm; font-size: 12pt; line-height: 1.3; }
@@ -61,7 +67,9 @@
 
         @media print {
             body { background: #fff; }
-            .page { margin: 0; width: 210mm; min-height: 297mm; box-shadow: none; }
+            /* Fill what the @page margins leave rather than a full A4, or the
+               signature block spills onto a second sheet. */
+            .page { margin: 0; width: auto; min-height: 0; box-shadow: none; page-break-inside: avoid; }
             .no-print { display: none !important; }
         }
     </style>
@@ -77,7 +85,10 @@
             Date:
             <span class="date-line">{{ $served ? \Carbon\Carbon::parse($served)->format('jS F, Y') : '' }}</span>
         </div>
-        <div class="ref">File No: <strong>{{ $notice->file_number }}</strong></div>
+        <div class="ref">
+            @if($spaId)SPAS ID: <strong>{{ $spaId }}</strong>@endif
+            @if($fileNo && $fileNo !== $spaId)@if($spaId)<br>@endif File No: <strong>{{ $fileNo }}</strong>@endif
+        </div>
 
         <div class="address">
             @for ($i = 0; $i < 3; $i++)

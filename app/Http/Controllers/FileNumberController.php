@@ -1899,12 +1899,15 @@ class FileNumberController extends Controller
                     // Coalesce crucial fields across every source so the edit form
                     // backfills whatever data exists (fileNumber -> mls_file_no ->
                     // file indexing -> mother application).
-                    DB::raw('COALESCE(fileNumber.lga, mls_file_no.lga, fi.lga, ma.property_lga) as lga'),
-                    DB::raw('COALESCE(fileNumber.FileName, mls_file_no.file_name, fi.file_title) as FileName'),
-                    DB::raw('COALESCE(fileNumber.plot_no, mls_file_no.plot_no, fi.plot_number, ma.property_plot_no) as plot_no'),
-                    DB::raw('COALESCE(fileNumber.tp_no, mls_file_no.tp_no, fi.tp_no) as tp_no'),
-                    DB::raw('COALESCE(fileNumber.location, mls_file_no.location) as location'),
-                    DB::raw('COALESCE(fileNumber.district, mls_file_no.district, fi.district, ma.property_district) as district'),
+                    // Blank is treated as missing: COALESCE alone stops at '' and hid
+                    // the plot / TP held further down (391 fileNumber rows store '' as
+                    // plot_no, 784 as tp_no).
+                    DB::raw($this->firstFilled(['fileNumber.lga', 'mls_file_no.lga', 'fi.lga', 'ma.property_lga'], 'lga')),
+                    DB::raw($this->firstFilled(['fileNumber.FileName', 'mls_file_no.file_name', 'fi.file_title'], 'FileName')),
+                    DB::raw($this->firstFilled(['fileNumber.plot_no', 'mls_file_no.plot_no', 'fi.plot_number', 'ma.property_plot_no'], 'plot_no')),
+                    DB::raw($this->firstFilled(['fileNumber.tp_no', 'mls_file_no.tp_no', 'fi.tp_no'], 'tp_no')),
+                    DB::raw($this->firstFilled(['fileNumber.location', 'mls_file_no.location'], 'location')),
+                    DB::raw($this->firstFilled(['fileNumber.district', 'mls_file_no.district', 'fi.district', 'ma.property_district'], 'district')),
                     'ma.property_house_no as ma_house_no',
                     'ma.property_street_name as ma_street_name',
                     'mls_file_no.customer_type',
@@ -1924,6 +1927,8 @@ class FileNumberController extends Controller
                     'message' => 'Record not found'
                 ], 404);
             }
+
+            $record = app(\App\Services\ChangeOfPurposeDetails::class)->editFallback($record);
 
             // The applicant's passport, if one was ever filed (at commissioning or from a
             // previous edit). Null simply means this file has no photograph on record —
@@ -1967,6 +1972,17 @@ class FileNumberController extends Controller
                 'message' => 'Error retrieving record: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * COALESCE over trimmed, non-empty values: the first column that actually holds
+     * something. Column names are fixed identifiers from show(), never user input.
+     */
+    private function firstFilled(array $columns, string $alias): string
+    {
+        $parts = array_map(fn ($c) => "NULLIF(LTRIM(RTRIM(CAST($c AS nvarchar(max)))), '')", $columns);
+
+        return 'COALESCE(' . implode(', ', $parts) . ') as ' . $alias;
     }
 
     /**
@@ -3475,6 +3491,12 @@ class FileNumberController extends Controller
         $newKangisFileNo = trim($fileRecord->NewKANGISFileNo ?? '');
         $stFileNo        = trim($fileRecord->st_file_no ?? '');
 
+        // 0. What commissioning wrote outside the registers below: the parent's
+        // retirement, its moved staging rows, PRA, PropID_Master, lineage. First, so a
+        // parent's staging rows are handed back before step 2/3 delete them.
+        $lineage = app(\App\Services\FileNumber\MasterDeleteLineageCleanup::class)
+            ->purge([$mlsfNo, $kangisFileNo, $newKangisFileNo, $stFileNo]);
+
         // 1. Delete from mls_file_no
         $deletedMlsFileNo = 0;
         if ($mlsfNo !== '') {
@@ -3641,6 +3663,7 @@ class FileNumberController extends Controller
                 'oss_applications' => $deletedOssApplications,
                 'file_tracking' => $deletedTracking,
             ],
+            'lineage' => $lineage,
         ];
     }
 

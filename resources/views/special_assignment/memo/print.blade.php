@@ -10,6 +10,18 @@
     $app      = $memo->application;
     $decision = $memo->commissioner_decision;
     $decided  = in_array($decision, ['approved', 'rejected'], true);
+    $inspections = $app ? $app->fieldData()->orderByDesc('inspection_date')->orderByDesc('id')->get() : collect();
+    $photo = collect($app->photos ?? [])->filter()->first()
+        ?: $inspections->flatMap(fn ($inspection) => $inspection->photos ?? [])->filter()->first();
+    $photoUrl = $photo ? url('storage/'.ltrim($photo, '/')) : null;
+    $mapInspection = $inspections->first(fn ($inspection) => !empty($inspection->coordinates) || !empty($inspection->parcel_geometry));
+    $coordinates = $mapInspection?->coordinates;
+    $geometry = $mapInspection?->parcel_geometry;
+    $qrRenderer = new \BaconQrCode\Renderer\ImageRenderer(
+        new \BaconQrCode\Renderer\RendererStyle\RendererStyle(160, 4),
+        new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+    );
+    $qrSvg = (new \BaconQrCode\Writer($qrRenderer))->writeString(route('special-assignment.memo.print', $memo->id));
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -35,7 +47,7 @@
             margin: 20px auto;
             background: #fff;
             box-sizing: border-box;
-            padding: 18mm 20mm 20mm;
+            padding: 14mm 20mm 8mm;
             box-shadow: 0 0 15px rgba(0,0,0,.1);
         }
 
@@ -47,6 +59,8 @@
             padding-bottom: 10px;
         }
         .logo-box img { max-width: 80px; max-height: 80px; object-fit: contain; }
+        .header-marks { display: flex; align-items: center; gap: 8px; }
+        .memo-qr { width: 60px; height: 60px; flex-shrink: 0; }
         .gov-title-container { text-align: center; }
         .gov-title-container h1 { font-size: 18px; margin: 0; }
         .gov-title-container h2 { font-size: 14px; margin: 2px 0 0; font-weight: normal; }
@@ -57,8 +71,8 @@
             margin-top: 3px; color: #333;
         }
         .memo-footer-logo {
-            margin-top: 26px; padding-top: 12px;
-            border-top: 1px solid #ddd; text-align: center;
+            margin-top: 14px; padding-top: 8px;
+            border-top: 1px solid #ddd; text-align: right;
         }
         .memo-footer-logo img { max-height: 46px; width: auto; object-fit: contain; }
         .gov-title-container h3 {
@@ -111,6 +125,19 @@
             letter-spacing: .03em;
         }
 
+        .property-summary { display: flex; gap: 10px; align-items: stretch; margin-top: 12px; }
+        .property-summary table.details { width: 70%; margin: 0; table-layout: fixed; }
+        .property-summary table.details th { width: 34%; }
+        .property-summary table.details td { overflow-wrap: anywhere; }
+        .property-summary table.details th, .property-summary table.details td { padding: 6px; }
+        .property-photo { width: 30%; margin: 0; border: 1px solid #cfcfcf; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+        .property-photo img { display: block; width: 100%; height: 53mm; object-fit: contain; }
+        .property-photo figcaption { font-size: 10px; padding: 5px; }
+        .media-placeholder { color: #666; font-size: 12px; padding: 12px; text-align: center; }
+        .map-section { margin-top: 12px; border: 1px solid #cfcfcf; break-inside: avoid; }
+        .map-section h4 { margin: 0; padding: 6px 10px; font-size: 11px; text-transform: uppercase; }
+        #memo-map { height: 42mm; background: #f4f4f0; }
+        .property-summary, .decision-block, .sign-row { break-inside: avoid; }
         .decision-block {
             margin-top: 16px;
             border: 1px solid #cfcfcf;
@@ -137,7 +164,7 @@
         .stamp.approved { color: #15803d; border-color: #15803d; }
         .stamp.rejected { color: #b91c1c; border-color: #b91c1c; }
 
-        .sign-row { display: flex; justify-content: space-between; margin-top: 22mm; font-size: 12px; }
+        .sign-row { display: flex; justify-content: space-between; margin-top: 15mm; font-size: 12px; }
         .sign-box { width: 68mm; text-align: center; }
         .sign-line { border-top: 1px solid #333; padding-top: 4px; }
 
@@ -177,20 +204,23 @@
             <h2 class="dept-line">Department of Special Assignment</h2>
             <h3>Internal Memo</h3>
         </div>
-        <div class="logo-box">
-            <img src="{{ url('assets/logo/ministry1.jpg') }}" alt="Coat of Arms">
+        <div class="header-marks">
+            <img class="memo-qr" src="data:image/svg+xml;base64,{{ base64_encode($qrSvg) }}" alt="QR code to open this memo">
+            <div class="logo-box">
+                <img src="{{ url('assets/logo/ministry1.jpg') }}" alt="Coat of Arms">
+            </div>
         </div>
     </div>
 
     <div class="memo-head">
         <div class="row"><span class="label">Memo No:</span><span><strong>{{ $memo->memo_no }}</strong></span></div>
         <div class="row"><span class="label">To:</span><span>{{ $memo->forwarded_to ?? '—' }}</span></div>
-        <div class="row"><span class="label">From:</span><span>{{ optional($memo->preparedBy)->name ?? $memo->created_by ?? '—' }}</span></div>
+        <div class="row"><span class="label">From:</span><span>Director Special Assignment</span></div>
         <div class="row"><span class="label">Date:</span><span>{{ $memo->forwarded_at?->format('d F Y') ?? '—' }}</span></div>
     </div>
 
     <p class="subject">
-        Special Assignment — Change of Land Use: File No {{ $app->file_number ?? '—' }}
+        Special Assignment — Change of Land Use: {{ ($app->spa_id ?? null) ? 'SPAS ID '.($app->spa_id ?? null) : '' }}{{ ($app->spa_id ?? null) && ($app->file_number ?? null) && ($app->file_number ?? null) !== ($app->spa_id ?? null) ? ' · ' : '' }}{{ ($app->file_number ?? null) && ($app->file_number ?? null) !== ($app->spa_id ?? null) ? 'File No '.($app->file_number ?? null) : (! ($app->spa_id ?? null) ? 'File No —' : '') }}
     </p>
 
     <p class="body-text">
@@ -199,15 +229,31 @@
         for {{ $memo->forwarded_to ?? 'the Honourable Commissioner' }}'s consideration and approval.
     </p>
 
+    <div class="property-summary">
     <table class="details">
-        <tr><th>File Number</th><td>{{ $app->file_number ?? '—' }}</td></tr>
+        <tr><th>SPAS ID</th><td>{{ $app->spa_id ?? '—' }}</td></tr>
+        <tr><th>File Number</th><td>{{ ($app->file_number ?? null) ?: 'Not known' }}</td></tr>
         <tr><th>Owner</th><td>{{ $app->owner_name ?? '—' }}</td></tr>
-        <tr><th>District / LGA</th><td>{{ $app->district ?? '—' }}{{ $app->lga ? ' / '.$app->lga : '' }}</td></tr>
-        <tr><th>Location</th><td>{{ $app->location ?? '—' }}</td></tr>
+        <tr><th>District / LGA</th><td>{{ mb_strtoupper($app->district ?? '—', 'UTF-8') }}{{ $app->lga ? ' / '.mb_strtoupper($app->lga, 'UTF-8') : '' }}</td></tr>
+        <tr><th>Location</th><td>{{ mb_strtoupper($app->location ?? '—', 'UTF-8') }}</td></tr>
         <tr><th>Approved Land Use</th><td>{{ $app->land_use_type ?? '—' }}</td></tr>
-        <tr><th>Prevailing Use</th><td>{{ $app->existing_use ?? '—' }}</td></tr>
-        <tr><th>Proposed Use</th><td>{{ $app->proposed_use ?? '—' }}</td></tr>
+        <tr><th>Prevailing Use (Surrounding)</th><td>{{ $app->existing_use ?? '—' }}</td></tr>
+        <tr><th>Contravening Use</th><td>{{ $app->proposed_use ?? '—' }}</td></tr>
     </table>
+    <figure class="property-photo">
+        @if ($photoUrl)
+            <img src="{{ $photoUrl }}" alt="Property photograph" onerror="this.hidden=true; this.nextElementSibling.textContent='Property photograph unavailable';">
+        @else
+            <div class="media-placeholder">No property photograph recorded</div>
+        @endif
+        <figcaption>Property Photograph</figcaption>
+    </figure>
+    </div>
+
+    <section class="map-section">
+        <h4>Property Location Map</h4>
+        <div id="memo-map"><div class="media-placeholder">{{ $mapInspection ? 'Loading property map...' : 'No property coordinates recorded' }}</div></div>
+    </section>
 
     <div class="decision-block">
         <h4>Commissioner's Decision</h4>
@@ -230,8 +276,8 @@
     <div class="sign-row">
         <div class="sign-box">
             <div class="sign-line">
-                {{ optional($memo->preparedBy)->name ?? 'Preparing Officer' }}<br>
-                <span style="font-size:11px;color:#555;">Prepared By</span>
+                Director Special Assignment<br>
+                <span style="font-size:11px;color:#555;">Signature &amp; Date</span>
             </div>
         </div>
         <div class="sign-box">
@@ -251,5 +297,41 @@
 
 </div>
 
+@if ($mapInspection)
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    (() => {
+        const container = document.getElementById('memo-map');
+        const coordinates = @json($coordinates);
+        const geometry = @json($geometry);
+        if (typeof L === 'undefined') {
+            container.textContent = 'Property map unavailable. Please reload before printing.';
+            return;
+        }
+        const lat = Number(coordinates?.lat), lng = Number(coordinates?.lng);
+        const hasPin = coordinates?.lat != null && coordinates?.lng != null
+            && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+        container.innerHTML = '';
+        const map = L.map(container, { zoomControl: false, attributionControl: true,
+            dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false });
+        const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; Esri', maxZoom: 19
+        }).addTo(map);
+        let bounds;
+        if (geometry) {
+            try {
+                const parcel = L.geoJSON(geometry, { style: { color: '#ffdf00', weight: 3, fillOpacity: 0.12 } }).addTo(map);
+                if (parcel.getBounds().isValid()) bounds = parcel.getBounds();
+            } catch (error) { /* A valid recorded pin can still locate the property. */ }
+        }
+        if (hasPin) L.circleMarker([lat, lng], { radius: 6, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).addTo(map);
+        if (bounds) map.fitBounds(bounds, { padding: [16, 16], maxZoom: 18 });
+        else if (hasPin) map.setView([lat, lng], 17);
+        else { map.remove(); container.textContent = 'No valid property coordinates recorded'; return; }
+        window.addEventListener('beforeprint', () => map.invalidateSize({ animate: false }));
+    })();
+</script>
+@endif
 </body>
 </html>

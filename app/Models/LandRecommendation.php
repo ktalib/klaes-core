@@ -234,6 +234,27 @@ class LandRecommendation extends Model
     ];
 
     /**
+     * Records outside any batch that were captured under an Application Type and
+     * name their mother / old file (a single Regrant, Merger, Reinstatement, ...).
+     * Like a batch child, such a record inherits the mother file's signed Brief
+     * Recommendation, filed under LandRecommendationBatchDocument's per-record key.
+     */
+    public static function derivedSingleRecordScope($query)
+    {
+        return $query->whereNull('rofo_batch_id')
+            ->whereRaw("ISNULL(application_type, '') <> ''")
+            ->whereRaw("ISNULL(old_file_number, '') <> ''");
+    }
+
+    /** Whether this record is one derivedSingleRecordScope() selects. */
+    public function isDerivedSingleRecord(): bool
+    {
+        return $this->rofo_batch_id === null
+            && trim((string) $this->application_type) !== ''
+            && trim((string) $this->old_file_number) !== '';
+    }
+
+    /**
      * The stored `location` is auto-built as "<plot/house no> <street> <district> <lga> <state>",
      * but Plot No. / House No. are already shown in their own field wherever this is displayed,
      * so strip a leading occurrence of either before showing the location.

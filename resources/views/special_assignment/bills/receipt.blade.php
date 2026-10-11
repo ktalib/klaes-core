@@ -1,9 +1,7 @@
 {{--
-    Payment receipt for one SPAS bill payment.
-
-    Itemised from the payment's own lines, not recomputed from the tariff: a
-    receipt reprinted next year must show what was actually collected that day,
-    even after somebody edits a bill item's amount.
+    Contraventing bill printout for one SPAS payment. Display-only adjustments:
+    omit Survey Fee and Penalty Fee. Stored financial records are
+    unchanged; printed totals reflect these same adjustments.
 
     Payments recorded before item-by-item entry existed have no lines. Those
     print as a single unallocated figure rather than a fabricated split.
@@ -13,14 +11,31 @@
     $app       = $bill?->application;
     $billTotal = (float) ($bill->amount ?? 0);
     $thisPaid  = (float) $payment->amount_paid;
+    $feeKey = fn ($name) => mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $name)), 'UTF-8');
+    $billLines = $bill?->lines ?? collect();
+    $lineName = fn ($line) => $billLines->firstWhere('id', $line->spa_bill_line_id)?->display_name ?? $line->name;
+    $excludedFee = fn ($name) => in_array($feeKey($name), ['survey fee', 'penalty fee'], true);
+    $printedLines = $payment->lines->reject(fn ($line) => $excludedFee($lineName($line)))->values();
+    $billTotal = max(0, $billTotal - $billLines->filter(fn ($line) => $excludedFee($line->display_name))->sum('amount'));
+    $thisPaid = max(0, $thisPaid - $payment->lines->filter(fn ($line) => $excludedFee($lineName($line)))->sum('amount_paid'));
+    if ($priorPaid > 0) {
+        $priorLines = \App\Models\SpaPaymentLine::whereHas('payment', fn ($query) => $query
+            ->where('spa_bill_id', $payment->spa_bill_id)->where('id', '<', $payment->id))->get();
+        $priorPaid = max(0, $priorPaid - $priorLines->filter(fn ($line) => $excludedFee($lineName($line)))->sum('amount_paid'));
+    }
     $balance   = max(0, $billTotal - $priorPaid - $thisPaid);
+    $qrRenderer = new \BaconQrCode\Renderer\ImageRenderer(
+        new \BaconQrCode\Renderer\RendererStyle\RendererStyle(160, 4),
+        new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+    );
+    $qrSvg = (new \BaconQrCode\Writer($qrRenderer))->writeString(route('special-assignment.bills.receipt', $payment->id));
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Receipt – {{ $payment->receipt_number ?: $bill?->reference_id }}</title>
+    <title>Contraventing Bill – {{ $payment->receipt_number ?: $bill?->reference_id }}</title>
     <style>
         @page { size: A4; margin: 0; }
 
@@ -34,6 +49,8 @@
         }
 
         .a4-page {
+            display: flex;
+            flex-direction: column;
             width: 210mm;
             min-height: 297mm;
             margin: 20px auto;
@@ -42,6 +59,7 @@
             padding: 20mm;
             box-shadow: 0 0 15px rgba(0,0,0,.1);
         }
+        .a4-page > * { flex-shrink: 0; }
 
         .header-section {
             display: flex;
@@ -52,6 +70,8 @@
         }
 
         .logo-box img { max-width: 80px; max-height: 80px; object-fit: contain; }
+        .header-marks { display: flex; align-items: center; gap: 8px; }
+        .bill-qr { width: 60px; height: 60px; flex-shrink: 0; }
 
         .gov-title-container { text-align: center; }
         .gov-title-container h1 { font-size: 18px; margin: 0; }
@@ -111,6 +131,7 @@
             display: flex;
             justify-content: space-between;
             margin-top: 28mm;
+            margin-bottom: 24px;
             font-size: 12px;
         }
         .sign-box { width: 62mm; text-align: center; }
@@ -133,22 +154,22 @@
         .toolbar .btn-close { background: #6b7280; }
 
         .doc-footer-logo {
-            margin-top: 24px; padding-top: 12px;
-            border-top: 1px solid #ddd; text-align: center;
+            margin-top: auto; padding-top: 12px;
+            border-top: 1px solid #ddd; text-align: right;
         }
         .doc-footer-logo img { max-height: 44px; width: auto; object-fit: contain; }
 
         @media print {
             body { background: #fff; }
             .toolbar { display: none; }
-            .a4-page { margin: 0; box-shadow: none; width: auto; min-height: auto; }
+            .a4-page { margin: 0; box-shadow: none; width: auto; min-height: 297mm; }
         }
     </style>
 </head>
 <body>
 
 <div class="toolbar">
-    <button onclick="window.print()">Print Receipt</button>
+    <button onclick="window.print()">Print Bill</button>
     <button class="btn-close" onclick="window.close()">Close</button>
 </div>
 
@@ -161,10 +182,13 @@
         <div class="gov-title-container">
             <h1>Kano State Government</h1>
             <h2>Ministry of Land &amp; Physical Planning</h2>
-            <h3>Payment Receipt</h3>
+            <h3>Contraventing Bill</h3>
         </div>
-        <div class="logo-box">
-            <img src="{{ url('assets/logo/ministry1.jpg') }}" alt="Coat of Arms">
+        <div class="header-marks">
+            <img class="bill-qr" src="data:image/svg+xml;base64,{{ base64_encode($qrSvg) }}" alt="QR code to open this bill">
+            <div class="logo-box">
+                <img src="{{ url('assets/logo/ministry1.jpg') }}" alt="Coat of Arms">
+            </div>
         </div>
     </div>
 
@@ -172,7 +196,8 @@
         <div>
             <strong>Receipt No:</strong> {{ $payment->receipt_number ?: '—' }}<br>
             <strong>Bill Ref:</strong> {{ $bill->reference_id ?? '—' }}<br>
-            <strong>File No:</strong> {{ $app->file_number ?? '—' }}
+            <strong>SPAS ID:</strong> {{ $app->spa_id ?? '—' }}<br>
+            <strong>File No:</strong> {{ ($app->file_number ?? null) ?: '—' }}
         </div>
         <div>
             <strong>Date:</strong> {{ $payment->payment_date?->format('d/m/Y') ?? '—' }}<br>
@@ -196,8 +221,10 @@
             </tr>
         </thead>
         <tbody>
-            @forelse ($payment->lines as $i => $line)
-                @php $billed = $bill?->lines->firstWhere('id', $line->spa_bill_line_id); @endphp
+            @foreach ($printedLines as $i => $line)
+                @php
+                    $billed = $billLines->firstWhere('id', $line->spa_bill_line_id);
+                @endphp
                 <tr>
                     <td>{{ $i + 1 }}</td>
                     {{-- The item's current tariff name; the amounts are as paid. --}}
@@ -205,7 +232,8 @@
                     <td class="num">{{ $billed ? number_format($billed->amount, 2) : '—' }}</td>
                     <td class="num">{{ number_format($line->amount_paid, 2) }}</td>
                 </tr>
-            @empty
+            @endforeach
+            @if ($payment->lines->isEmpty())
                 {{-- Recorded before item-by-item entry: one figure, no split. --}}
                 <tr>
                     <td>1</td>
@@ -213,11 +241,11 @@
                     <td class="num">{{ number_format($billTotal, 2) }}</td>
                     <td class="num">{{ number_format($thisPaid, 2) }}</td>
                 </tr>
-            @endforelse
+            @endif
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="3" class="num">Total Paid on This Receipt</td>
+                <td colspan="3" class="num">Total Paid for Listed Items</td>
                 <td class="num">{{ number_format($thisPaid, 2) }}</td>
             </tr>
         </tfoot>

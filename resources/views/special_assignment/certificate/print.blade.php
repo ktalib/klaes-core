@@ -1,9 +1,16 @@
+@php
+    $qrRenderer = new \BaconQrCode\Renderer\ImageRenderer(
+        new \BaconQrCode\Renderer\RendererStyle\RendererStyle(160, 4),
+        new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+    );
+    $qrSvg = (new \BaconQrCode\Writer($qrRenderer))->writeString(route('special-assignment.certificate.print', $cert->id));
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Change of Purpose Sheet – {{ $cert->cert_number }}</title>
+    <title>CONRAVENTION SHEET – {{ $cert->cert_number }}</title>
     <style>
         /* A4 Page Setup */
         @page {
@@ -35,6 +42,18 @@
         }
 
         /* Header Section styling */
+        .sheet-qr {
+            width: 60px;
+            height: 60px;
+            flex-shrink: 0;
+        }
+
+        .header-marks {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         .header-section {
             display: flex;
             justify-content: space-between;
@@ -249,11 +268,14 @@
                  the holder keeps, so it has to say which department issued it,
                  not only which Ministry. --}}
             <h2 class="dept-line">Department of Special Assignment</h2>
-            <h3>Change of Purpose Sheet</h3>
+            <h3>CONRAVENTION SHEET</h3>
         </div>
 
-        <div class="logo-box">
-            <img src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Coat of Arms">
+        <div class="header-marks">
+            <img class="sheet-qr" src="data:image/svg+xml;base64,{{ base64_encode($qrSvg) }}" alt="QR code to open this sheet">
+            <div class="logo-box">
+                <img src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Coat of Arms">
+            </div>
         </div>
     </div>
 
@@ -265,6 +287,11 @@
     </p>
 
     <div class="details-section">
+        <div class="detail-row">
+            <span class="detail-label">SPAS ID:</span>
+            <div class="detail-value-line">{{ optional($cert->application)->spa_id ?? '' }}</div>
+        </div>
+
         <div class="detail-row">
             <span class="detail-label">New File No:</span>
             <div class="detail-value-line">{{ $cert->new_file_number ?: ($cert->file_number ?? '') }}</div>

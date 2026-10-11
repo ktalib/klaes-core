@@ -141,6 +141,9 @@ class LandRecommendationBatchDocument extends Model
         'size_bytes',
         'uploaded_by',
         'uploaded_at',
+        // The browser's ink check on the signed brief: detected / not_detected / unchecked.
+        'signature_check',
+        'signature_marks',
     ];
 
     protected $casts = [

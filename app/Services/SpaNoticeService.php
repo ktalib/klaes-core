@@ -42,7 +42,7 @@ class SpaNoticeService
 
             $existing = SpaNotice::where('notice_type', 'first')
                 ->where(fn ($q) => $q->where('spa_application_id', $app->id)
-                    ->when($app->file_number, fn ($qq) => $qq->orWhere('file_number', $app->file_number)))
+                    ->when($app->reference, fn ($qq) => $qq->orWhere('file_number', $app->reference)))
                 ->first();
 
             if ($existing) {
@@ -51,7 +51,7 @@ class SpaNoticeService
 
             $notice = SpaNotice::create([
                 'spa_application_id' => $app->id,
-                'file_number'        => $app->file_number,
+                'file_number'        => $app->reference,
                 'notice_type'        => 'first',
                 'recipient_name'     => $app->owner_name,
                 'phone'              => $app->phone,
@@ -62,7 +62,7 @@ class SpaNoticeService
             ]);
 
             $sms = $this->canText($app->phone)
-                ? $this->sendSms((string) $app->phone, (string) $app->owner_name, 'first', $app->file_number)
+                ? $this->sendSms((string) $app->phone, (string) $app->owner_name, 'first', $app->reference)
                 : ['sent' => false, 'code' => null, 'reason' => 'no usable phone number'];
 
             $sentAt = $sms['sent'] ? now() : null;
@@ -75,7 +75,7 @@ class SpaNoticeService
 
             Log::info('SPAS first serve served automatically', [
                 'application' => $app->id,
-                'file_no'     => $app->file_number,
+                'file_no'     => $app->reference,
                 'sms_sent'    => $sms['sent'],
                 'reason'      => $sms['reason'],
             ]);

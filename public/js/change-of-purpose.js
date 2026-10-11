@@ -374,7 +374,7 @@
             ['Plot No',       document.getElementById('cop-plot-no')?.value],
             ['Plan No',       document.getElementById('cop-plan-no')?.value],
             ['Location',      document.getElementById('cop-location')?.value],
-            ['Land Size',     document.getElementById('cop-land-size')?.value ? document.getElementById('cop-land-size').value + ' Sqm' : null],
+            ['Land Size',     document.getElementById('cop-land-size')?.value ? document.getElementById('cop-land-size').value + ' Ha' : null],
             ['Address',       document.getElementById('cop-residential-address')?.value],
             ['Comment',       document.getElementById('cop-comment')?.value],
         ];
@@ -515,7 +515,7 @@
         formData.set('lga', copResolveLocField('cop-lga', 'cop-lga-other'));
 
         try {
-            var response = await fetch('/change-of-purpose', {
+            var response = await fetch('/change-of-purpose' + (new URLSearchParams(window.location.search).get('mode') === 'land' ? '?mode=land' : ''), {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
                 body: formData
@@ -552,7 +552,7 @@
                             <div class="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-4">
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">Land Size (Sqm)</label>
+                                        <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">Land Size (Ha)</label>
                                         <input type="number" id="knupda_land_size" oninput="copCalcCopFee(this)" class="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm bg-white" value="${data.land_size || '0'}">
                                     </div>
                                     <div>
@@ -792,9 +792,18 @@
     /* ----------------------------------------
        Commission  (uses shared commission-fileno modal)
        ---------------------------------------- */
-    window.copOpenCommission = function (btn) {
+    window.copOpenCommission = async function (btn) {
         var data = rowData(btn);
         if (!data || !data.id) return;
+        try {
+            var detailsResponse = await fetch('/change-of-purpose/' + data.id, { headers: { 'Accept': 'application/json' } });
+            var detailsPayload = await detailsResponse.json();
+            if (!detailsResponse.ok || !detailsPayload.success) throw new Error(detailsPayload.message || 'Could not load commissioning details.');
+            data = detailsPayload.data;
+        } catch (error) {
+            Swal.fire('Error', error.message, 'error');
+            return;
+        }
         commissionRecordId = data.id;
 
         // Helper to set hidden fields in the shared modal form
@@ -824,6 +833,28 @@
             component.changeOfPurposeAppId = data.id;
             component.originalFileNo = data.file_no || '';
             component.newPurpose = data.purpose || '';
+            component.relatedFileNo = data.file_no || '';
+            component.fileName = data.applicant_name || '';
+            component.address = data.residential_address || data.address || '';
+            component.phone_no = data.phone || data.phone_no || '';
+            component.plotNo = data.plot_no || '';
+            component.tpNo = data.tp_no || data.plan_no || '';
+            component.tpSearchQuery = component.tpNo;
+            component.tpIsOther = false;
+            component.tpOtherValue = '';
+            component.houseNo = data.house_no || '';
+            component.streetName = data.street_name || '';
+            component.district = data.district || '';
+            component.lga = data.lga || '';
+            component.location = data.location || '';
+            component.latitude = data.latitude || '';
+            component.longitude = data.longitude || '';
+            component.$nextTick(function () {
+                component.syncLocationSelects();
+                var tpHidden = document.getElementById('generator_tp_no_val');
+                if (tpHidden) tpHidden.value = component.tpNo;
+            });
+
         }
 
         // Pre-select land use for the new purpose
@@ -1202,6 +1233,11 @@
     function copFillApplicantDetails(fileNo) {
         if (!fileNo) return;
 
+        var propertyFields = { 'cop-applicant-name': 'applicant_name', 'cop-plot-no': 'plot_no', 'cop-plan-no': 'tp_no', 'cop-land-size': 'land_size' };
+        var baseline = {};
+        Object.keys(propertyFields).concat(['cop-street', 'cop-district', 'cop-lga', 'cop-location']).forEach(function (id) {
+            baseline[id] = document.getElementById(id)?.value || '';
+        });
         fetch('/change-of-purpose/applicant-details?file_no=' + encodeURIComponent(fileNo), {
             headers: { 'Accept': 'application/json' }
         })
@@ -1209,6 +1245,19 @@
             .then(function (res) {
                 if (!res || !res.success || !res.data) return;
 
+                if (document.getElementById('cop-file-no')?.value.trim().toUpperCase() !== fileNo.toUpperCase()) return;
+                var property = res.data.property || {};
+                Object.keys(propertyFields).forEach(function (id) {
+                    var el = document.getElementById(id), value = property[propertyFields[id]];
+                    if (el && el.value === baseline[id] && value != null && String(value).trim() !== '') {
+                        if (id !== 'cop-land-size' || Number.isFinite(Number(value))) el.value = value;
+                    }
+                });
+                [['cop-street', 'street_name'], ['cop-district', 'district'], ['cop-lga', 'lga']].forEach(function (pair) {
+                    var el = document.getElementById(pair[0]);
+                    if (el && el.value === baseline[pair[0]] && property[pair[1]]) copSetLocValue(pair[0], pair[0] + '-other', property[pair[1]]);
+                });
+                if (property.location && document.getElementById('cop-location')?.value === baseline['cop-location']) copApplyLocation(property.location);
                 var phoneEl = document.getElementById('cop-phone');
                 var addrEl  = document.getElementById('cop-residential-address');
                 var src     = res.data.source || {};
@@ -1218,7 +1267,7 @@
                     phoneEl.title = 'From ' + (src.phone || 'the file record') + ' — edit if it is out of date.';
                 }
 
-                if (addrEl && !addrEl.value.trim() && res.data.address) {
+                if (addrEl && (!addrEl.value.trim() || addrEl.value.trim().toUpperCase() === 'KANO') && res.data.address) {
                     addrEl.value = res.data.address;
                     addrEl.title = 'From ' + (src.address || 'the file record') + ' — enter an address below to replace it.';
                 }
@@ -1348,16 +1397,16 @@
         };
 
         // Columns: 0 #, 1 Applicant, 2 File No, 3 Land Use, 4 New Purpose,
-        //          5 Location, 6 Status, 7 Date, 8 Actions.
-        var dtColumnDefs = [{ orderable: false, targets: [0, 8] }];
+        //          5 Location, 6 Status, 7 Source, 8 Created By, 9 Date, 10 Actions.
+        var dtColumnDefs = [{ orderable: false, targets: [0, 10] }];
 
         var pendingTable  = $('#cop-pending-table').DataTable(Object.assign({}, dtOptions, {
-            order: [[7, 'desc']],
+            order: [[9, 'desc']],
             columnDefs: dtColumnDefs
         }));
 
         var approvedTable = $('#cop-approved-table').DataTable(Object.assign({}, dtOptions, {
-            order: [[7, 'desc']],
+            order: [[9, 'desc']],
             columnDefs: dtColumnDefs
         }));
 

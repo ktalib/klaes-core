@@ -1,0 +1,69 @@
+{
+    "deleted_at": "2026-10-09T21:19:24+01:00",
+    "deleted_by": {
+        "id": 1,
+        "name": "Klaes Admin"
+    },
+    "reference": "SPAS-2026-0014",
+    "photo_paths": [
+        "spa/field-data/pUf1cWxX9VlV9RK1ELdTBqIPGHKxh8d4XQjVHxoR.jpg",
+        "spa/field-data/X34HdPs3ES7V6E1sX91ZgKEkwRYsmyWMPvqBu4GK.jpg"
+    ],
+    "rows": {
+        "spa_payment_lines": [],
+        "spa_payments": [],
+        "spa_bill_lines": [],
+        "spa_bills": [],
+        "spa_notice_responses": [],
+        "spa_notices": [],
+        "spa_department_referrals": [],
+        "spa_certificates": [],
+        "spa_memos": [],
+        "spa_field_data": [
+            {
+                "id": "43",
+                "spa_application_id": "109",
+                "file_number": "AG-1995-7",
+                "surveyor_id": "1",
+                "inspection_date": "2026-10-09",
+                "coordinates": "{\"lat\":11.980053,\"lng\":8.582662}",
+                "findings": "Inspected on site.",
+                "photos": "[\"spa\\/field-data\\/pUf1cWxX9VlV9RK1ELdTBqIPGHKxh8d4XQjVHxoR.jpg\",\"spa\\/field-data\\/X34HdPs3ES7V6E1sX91ZgKEkwRYsmyWMPvqBu4GK.jpg\"]",
+                "status": "active",
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-09 21:17:48",
+                "updated_at": "2026-10-09 21:17:51",
+                "parcel_geometry": null,
+                "spa_application_client_uuid": "0e54baa9-5e40-4ec4-85b7-1717411bcc1e",
+                "client_uuid": "14aace66-a03d-4f59-8c38-6d75e7b8b528"
+            }
+        ],
+        "spa_applications": [
+            {
+                "id": "109",
+                "file_number": "AG-1995-7",
+                "tracking_id": "TRK-7S6PIF2Y-6TALL",
+                "file_indexing_id": "36467",
+                "is_indexed": "1",
+                "owner_name": "HVJHCB",
+                "phone": null,
+                "location": "MITCHELL, NASARAWA",
+                "district": "MITCHELL",
+                "lga": "NASARAWA",
+                "land_use_type": "RESIDENTIAL",
+                "existing_use": "RESIDENTIAL",
+                "proposed_use": "RESIDENTIAL",
+                "photos": null,
+                "scenario": null,
+                "status": "in_progress",
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-09 21:17:46",
+                "updated_at": "2026-10-09 21:17:48",
+                "land_title_type": "statutory",
+                "client_uuid": "0e54baa9-5e40-4ec4-85b7-1717411bcc1e",
+                "spa_id": "SPAS-2026-0014",
+                "sticker_number": null
+            }
+        ]
+    }
+}

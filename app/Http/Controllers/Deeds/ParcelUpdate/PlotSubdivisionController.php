@@ -657,9 +657,20 @@ class PlotSubdivisionController extends Controller
     }
 
 
+    private function assertWorkflowAction(PlotSubdivisionApplication $record, string $action): void
+    {
+        $blockers = \App\Support\SubdivisionWorkflow::blockers(
+            $record, MasterJsiGate::clearedFor($record, 'subdivision')
+        );
+        if ($message = $blockers[$action]) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['workflow' => $message]);
+        }
+    }
+
     public function approve(int $id)
     {
         $record = PlotSubdivisionApplication::findOrFail($id);
+        $this->assertWorkflowAction($record, 'decision');
         $previousStatus = $record->status;
 
         // Never walk a commissioned application back to 'approved' — its fragments
@@ -700,6 +711,7 @@ class PlotSubdivisionController extends Controller
     public function reject(Request $request, int $id)
     {
         $record = PlotSubdivisionApplication::findOrFail($id);
+        $this->assertWorkflowAction($record, 'decision');
         $reason = trim((string) $request->input('reason', ''));
         $previousStatus = $record->status;
         $record->update([
@@ -721,6 +733,7 @@ class PlotSubdivisionController extends Controller
     public function generateApplication(int $id): JsonResponse
     {
         $record = PlotSubdivisionApplication::findOrFail($id);
+        $this->assertWorkflowAction($record, 'generate-application');
         $record->update([
             'application_generated_at' => now(),
             'updated_by' => Auth::id(),
@@ -737,6 +750,7 @@ class PlotSubdivisionController extends Controller
     public function printApplication(int $id)
     {
         $record = PlotSubdivisionApplication::with('plotSizes')->findOrFail($id);
+        $this->assertWorkflowAction($record, 'print-application');
         return view('deeds.parcel_update.print.subdivision_application', compact('record'));
     }
 
@@ -753,6 +767,7 @@ class PlotSubdivisionController extends Controller
     public function generateRecommendation(int $id): JsonResponse
     {
         $record = PlotSubdivisionApplication::findOrFail($id);
+        $this->assertWorkflowAction($record, 'generate-recommendation');
 
         if (!MasterJsiGate::clearedFor($record, 'subdivision')) {
             return response()->json([
@@ -777,6 +792,7 @@ class PlotSubdivisionController extends Controller
     public function printRecommendation(int $id)
     {
         $record = PlotSubdivisionApplication::with('plotSizes')->findOrFail($id);
+        $this->assertWorkflowAction($record, 'print-recommendation');
         return view('deeds.parcel_update.print.subdivision_recommendation', compact('record'));
     }
 
@@ -798,6 +814,7 @@ class PlotSubdivisionController extends Controller
     public function updateKnupda(Request $request, int $id): JsonResponse
     {
         $record = PlotSubdivisionApplication::findOrFail($id);
+        $this->assertWorkflowAction($record, 'planning');
         $knupdaStatus = $request->input('knupda_status');
 
         $record->update([

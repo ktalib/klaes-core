@@ -24,6 +24,7 @@
             lists: @js(route('secretariat-file-log.lists')),
             profile: @js(route('secretariat-file-log.profile')),
             deleteLog: @js(route('secretariat-file-log.delete-log')),
+            editLog: @js(route('secretariat-file-log.edit-log')),
             deleteTracker: @js(route('secretariat-file-log.delete-tracker')),
             {{-- Relative on purpose: the sheet builder runs in a same-origin frame. --}}
             trackingPage: @js(route('create-file-tracker.index', [], false)),
@@ -35,6 +36,7 @@
         userId: @js(auth()->id()),
         canChooseOffice: @js($canChooseOffice),
         canDeleteLogs: @js($canDeleteLogs ?? false),
+        canEditLogs: @js($canEditLogs ?? false),
         myOffice: @js($myOffice),
         requestPurposes: @js($requestPurposes),
         officers: @js($officers),
@@ -207,12 +209,13 @@
                         <div class="p-5 space-y-4 bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-100">
                             <div>
                                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">Mode</div>
-                                <div class="grid grid-cols-2 rounded-xl border border-gray-200 bg-gray-100 p-0.5">
-                                    <button type="button" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
-                                            :class="mode === 'in' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'"
+                                {{-- Each control has its own colour: Receive green, Send orange, Batch purple, Log manually blue. Inline, so the Tailwind v2 CDN cannot drop them. --}}
+                                <div class="grid grid-cols-2 gap-1.5">
+                                    <button type="button" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm"
+                                            :style="mode === 'in' ? 'background:#16a34a;color:#fff;border:1px solid #16a34a;' : 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;'"
                                             @click="setMode('in')"><i data-lucide="log-in" class="h-4 w-4"></i> Receive</button>
-                                    <button type="button" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
-                                            :class="mode === 'out' ? 'bg-white text-orange-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'"
+                                    <button type="button" class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm"
+                                            :style="mode === 'out' ? 'background:#ea580c;color:#fff;border:1px solid #ea580c;' : 'background:#ffedd5;color:#9a3412;border:1px solid #fed7aa;'"
                                             @click="setMode('out')"><i data-lucide="log-out" class="h-4 w-4"></i> Send</button>
                                 </div>
                             </div>
@@ -221,10 +224,210 @@
                                 Scan a file held at your office, then choose the next office to send it to.
                             </div>
 
-                            <button type="button" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100"
+                            <button type="button" :disabled="batch.running" @click="toggleBatch()"
+                                    class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold shadow-sm disabled:opacity-50"
+                                    :style="batch.on ? 'background:#7c3aed;color:#fff;border:1px solid #7c3aed;' : 'background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe;'">
+                                <i data-lucide="layers" class="h-4 w-4"></i>
+                                <span x-text="batch.on ? 'Batch mode: ON' : 'Batch mode'"></span>
+                            </button>
+                            <p class="text-xs text-gray-400 text-center -mt-2" x-text="batch.on ? 'Scans are collected on the batch card below.' : (mode === 'in' ? 'Scan several files, then receive them together.' : 'Scan several files, then send them together.')"></p>
+
+                            <button type="button" x-show="!batch.on" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold shadow-sm"
+                                    style="background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;"
                                     @click="openManual()"><i data-lucide="pencil-line" class="h-4 w-4"></i> Log manually</button>
-                            <p class="text-xs text-gray-400 text-center -mt-2">No tracking sheet or QR code? Log it by hand.</p>
+                            <p x-show="!batch.on" class="text-xs text-gray-400 text-center -mt-2">No tracking sheet or QR code? Log it by hand.</p>
                         </div>
+                    </div>
+                </div>
+
+                {{-- Batch card: scans collect here, then receive all / send all --}}
+                <div x-show="batch.on" x-transition x-cloak class="bg-white border-2 rounded-xl shadow-sm overflow-hidden"
+                     :class="mode === 'in' ? 'border-green-300' : 'border-orange-300'">
+                    <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3"
+                         :class="mode === 'in' ? 'bg-green-50' : 'bg-orange-50'">
+                        <div>
+                            <h3 class="text-base font-bold text-gray-900" x-text="mode === 'in' ? 'Batch receive' : 'Batch send'"></h3>
+                            <p class="text-xs text-gray-500" x-text="mode === 'in'
+                                ? 'Scan each file\'s QR code, or add files waiting for receipt. Then receive them all at once.'
+                                : 'Scan each file\'s QR code, or add files held at your office. Give each a destination, then send them all at once.'"></p>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="px-2 py-1 rounded-full bg-white border border-gray-200 font-semibold text-gray-700"><span x-text="batchPending().length"></span> to <span x-text="mode === 'in' ? 'receive' : 'send'"></span></span>
+                            <span x-show="batchCount('done')" class="px-2 py-1 rounded-full bg-green-100 text-green-800 font-semibold"><span x-text="batchCount('done')"></span> done</span>
+                            <span x-show="batchCount('error')" class="px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold"><span x-text="batchCount('error')"></span> failed</span>
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4 space-y-4">
+                        {{-- Add from the register --}}
+                        <div class="flex flex-wrap items-end gap-2">
+                            <div class="flex-1 min-w-0" style="min-width:16rem">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1" x-text="mode === 'in' ? 'Or select a file pending receipt' : 'Or select a file held at your office'"></label>
+                                <select x-model="batch.pick" @change="addPicked()" :disabled="batch.running" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                    <option value="" x-text="batchPickable().length ? '— Select a file —' : '— No more files to add —'"></option>
+                                    <template x-for="r in batchPickable()" :key="'bp-' + r.id">
+                                        <option :value="String(r.id)" x-text="(r.file_number || r.related_file_number || 'Document') + (r.file_title ? ' — ' + nice(r.file_title) : '')"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <button type="button" :disabled="batch.running || !batchPickable().length" @click="addAllPickable()"
+                                    class="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">
+                                Add all (<span x-text="batchPickable().length"></span>)
+                            </button>
+                        </div>
+
+                        {{-- Send: one destination for every file --}}
+                        <div x-show="mode === 'out' && batchPending().length" class="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                            <div class="text-xs font-bold uppercase tracking-wide text-orange-800 mb-2">Same destination for all files?</div>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-start">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Send to (office)</label>
+                                    <select x-model="batch.all.to_office" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                        <option value="">— Select office —</option>
+                                        <template x-for="group in officeGroups()" :key="'bao-' + group.department">
+                                            <optgroup :label="group.department">
+                                                <template x-for="o in group.items.filter(i => i.office_code !== office)" :key="'baof-' + o.office_code">
+                                                    <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                                </template>
+                                            </optgroup>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer</label>
+                                    <select x-model="batch.all.receiving_officer_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                        <option value="">— Select officer —</option>
+                                        <template x-for="o in officers" :key="'baof-o-' + o.id">
+                                            <option :value="String(o.id)" x-text="nice(o.name) + (o.username ? ' (' + o.username + ')' : '')"></option>
+                                        </template>
+                                        <option value="other">Other (not listed)…</option>
+                                    </select>
+                                    <input type="text" x-show="batch.all.receiving_officer_id === 'other'" x-model="batch.all.officer_other" placeholder="Officer's name"
+                                           class="mt-1 w-full border border-gray-300 rounded-lg text-sm px-3 py-2">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose</label>
+                                    <select x-model="batch.all.request_purpose_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                        <option value="">— Select purpose —</option>
+                                        <template x-for="p in requestPurposes" :key="'bap-' + p.id">
+                                            <option :value="String(p.id)" x-text="nice(p.name)"></option>
+                                        </template>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <input type="text" x-show="batch.all.request_purpose_id === 'other'" x-model="batch.all.purpose_other" placeholder="Specify the purpose"
+                                           class="mt-1 w-full border border-gray-300 rounded-lg text-sm px-3 py-2">
+                                </div>
+                                <div class="md:pt-5">
+                                    <button type="button" :disabled="batch.running" @click="applyToAll()"
+                                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg disabled:opacity-50">
+                                        <i data-lucide="copy-check" class="w-4 h-4"></i> Apply to all
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- The files --}}
+                        <div x-show="!batch.items.length" class="py-8 text-center text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                            <span x-text="mode === 'in' ? 'Scan the first file to start the batch.' : 'Scan or select the first file to send.'"></span>
+                        </div>
+                        <div x-show="batch.items.length" class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left w-10">#</th>
+                                        <th class="px-3 py-2 text-left">File</th>
+                                        <th class="px-3 py-2 text-left" x-show="mode === 'in'">Now at</th>
+                                        <th class="px-3 py-2 text-left" x-show="mode === 'out'">Send to (office) *</th>
+                                        <th class="px-3 py-2 text-left" x-show="mode === 'out'">Receiving officer *</th>
+                                        <th class="px-3 py-2 text-left" x-show="mode === 'out'">Request purpose *</th>
+                                        <th class="px-3 py-2 text-left">Status</th>
+                                        <th class="px-3 py-2"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <template x-for="(item, n) in batch.items" :key="'bi-' + (item.tracker_id || item.file_number)">
+                                        <tr class="align-top" :class="item.state === 'done' ? 'bg-green-50' : (item.state === 'error' ? 'bg-red-50' : '')">
+                                            <td class="px-3 py-2 text-gray-400" x-text="n + 1"></td>
+                                            <td class="px-3 py-2">
+                                                <div class="font-semibold text-gray-900" x-text="item.file_number || 'Document'"></div>
+                                                <div class="text-xs text-gray-500" x-text="nice(item.file_title) || ''"></div>
+                                            </td>
+                                            <td class="px-3 py-2 text-gray-600" x-show="mode === 'in'" x-text="nice(item.where) || '—'"></td>
+                                            <td class="px-3 py-2" x-show="mode === 'out'">
+                                                <select x-model="item.to_office" :disabled="item.state === 'done' || batch.running"
+                                                        class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.to_office || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:11rem">
+                                                    <option value="">— Select office —</option>
+                                                    <template x-for="group in officeGroups()" :key="'bio-' + group.department">
+                                                        <optgroup :label="group.department">
+                                                            <template x-for="o in group.items.filter(i => i.office_code !== office)" :key="'biof-' + o.office_code">
+                                                                <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                                            </template>
+                                                        </optgroup>
+                                                    </template>
+                                                </select>
+                                            </td>
+                                            <td class="px-3 py-2" x-show="mode === 'out'">
+                                                <select x-model="item.receiving_officer_id" :disabled="item.state === 'done' || batch.running"
+                                                        class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.receiving_officer_id || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:11rem">
+                                                    <option value="">— Select officer —</option>
+                                                    <template x-for="o in officers" :key="'bif-' + o.id">
+                                                        <option :value="String(o.id)" x-text="nice(o.name) + (o.username ? ' (' + o.username + ')' : '')"></option>
+                                                    </template>
+                                                    <option value="other">Other (not listed)…</option>
+                                                </select>
+                                                <input type="text" x-show="item.receiving_officer_id === 'other'" x-model="item.officer_other" :disabled="item.state === 'done' || batch.running"
+                                                       placeholder="Officer's name *" class="mt-1 w-full border border-gray-300 rounded-lg text-sm px-2 py-1.5">
+                                            </td>
+                                            <td class="px-3 py-2" x-show="mode === 'out'">
+                                                <select x-model="item.request_purpose_id" :disabled="item.state === 'done' || batch.running"
+                                                        class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.request_purpose_id || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:10rem">
+                                                    <option value="">— Select purpose —</option>
+                                                    <template x-for="p in requestPurposes" :key="'bip-' + p.id">
+                                                        <option :value="String(p.id)" x-text="nice(p.name)"></option>
+                                                    </template>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                                <input type="text" x-show="item.request_purpose_id === 'other'" x-model="item.purpose_other" :disabled="item.state === 'done' || batch.running"
+                                                       placeholder="Specify the purpose *" class="mt-1 w-full border border-gray-300 rounded-lg text-sm px-2 py-1.5">
+                                            </td>
+                                            <td class="px-3 py-2 text-xs" style="min-width:9rem">
+                                                <span x-show="item.state === 'ready'" class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-semibold">Ready</span>
+                                                <span x-show="item.state === 'working'" class="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-semibold">Working…</span>
+                                                <span x-show="item.state === 'done'" class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-semibold" x-text="mode === 'in' ? 'Received' : 'Sent'"></span>
+                                                <span x-show="item.state === 'error'" class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">Failed</span>
+                                                <div x-show="item.message && item.state !== 'ready'" class="mt-1" :class="item.state === 'error' ? 'text-red-700' : 'text-gray-500'" x-text="item.message"></div>
+                                            </td>
+                                            <td class="px-3 py-2 text-right">
+                                                <button type="button" x-show="item.state !== 'done'" :disabled="batch.running" @click="removeFromBatch(item)"
+                                                        title="Remove from the batch" class="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50">
+                                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div x-show="batch.items.length" class="flex flex-wrap items-end justify-between gap-3 pt-1">
+                            <div class="flex-1" style="min-width:16rem">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Notes (applied to every file)</label>
+                                <input type="text" x-model="batch.notes" :disabled="batch.running" maxlength="1000" class="w-full border border-gray-300 rounded-lg text-sm px-3 py-2">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" x-show="batchCount('done')" :disabled="batch.running" @click="clearBatchDone()"
+                                        class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50">Clear done</button>
+                                <button type="button" :disabled="!batchReady()" @click="runBatch()"
+                                        class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50"
+                                        :class="mode === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'">
+                                    <i data-lucide="check-check" class="w-4 h-4"></i>
+                                    <span x-text="batch.running ? 'Working…' : (mode === 'in' ? 'Receive all (' + batchPending().length + ')' : 'Send all (' + batchPending().length + ')')"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <p x-show="mode === 'out' && batchPending().length && !batchReady() && !batch.running" class="text-xs text-red-600 text-right">
+                            Every file needs an office, a receiving officer and a request purpose. Use Apply to all if they are the same.
+                        </p>
                     </div>
                 </div>
 
@@ -430,6 +633,11 @@
                                                             </div>
                                                             <div class="flex items-center gap-2">
                                                                 <span class="rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap" :style="ev.style" x-text="ev.label"></span>
+                                                                <button type="button" x-show="canEditEvent(ev)" @click="openEdit(ev)" :disabled="busy"
+                                                                        title="Edit this log"
+                                                                        class="p-1 rounded-md text-blue-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50">
+                                                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                                                </button>
                                                                 <button type="button" x-show="canDeleteLogs && ev.ref && ev.primary" @click="deleteLog(ev)" :disabled="busy"
                                                                         title="Delete this log (admin)"
                                                                         class="p-1 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50">
@@ -688,8 +896,12 @@
 
                         <div class="flex justify-end gap-2">
                             <button type="button" class="px-4 py-2 text-sm text-gray-600" @click="manual.open = false">Cancel</button>
-                            <button type="button" class="inline-flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
-                                    :disabled="busy || !manualValid()" @click="receiveManual()"><i data-lucide="check" class="w-4 h-4"></i> Create log &amp; receive</button>
+                            <button type="button" class="inline-flex items-center gap-2 px-5 py-2 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                                    :class="mode === 'out' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'"
+                                    :disabled="busy || !manualValid()" @click="receiveManual()">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                                <span x-text="mode === 'out' ? 'Create log & send' : 'Create log & receive'"></span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -729,7 +941,8 @@
                                     <th class="px-5 py-3 text-left w-12">S/N</th>
                                     <th class="px-5 py-3 text-left whitespace-nowrap">File Number</th>
                                     <th class="px-5 py-3 text-left">File Title</th>
-                                    <th class="px-5 py-3 text-left" x-text="tab === 'sent' ? 'Sent to' : 'From'"></th>
+                                    <th class="px-5 py-3 text-left">From</th>
+                                    <th class="px-5 py-3 text-left">To</th>
                                     <th class="px-5 py-3 text-left" x-text="tab === 'sent' ? 'Sent' : (tab === 'held' ? 'Received' : 'Sent at')"></th>
                                     <th class="px-5 py-3 text-left">Purpose / Notes</th>
                                     <th class="px-5 py-3 text-right">Action</th>
@@ -748,7 +961,15 @@
                                             </div>
                                         </td>
                                         <td class="px-5 py-3 text-gray-700" x-text="nice(row.file_title) || '—'"></td>
-                                        <td class="px-5 py-3 text-gray-700" x-text="nice(tab === 'sent' ? row.to : row.from) || '—'"></td>
+                                        <td class="px-5 py-3">
+                                            <span x-show="row.from" class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#e0f2fe;color:#075985;border:1px solid #bae6fd;" x-text="nice(row.from)"></span>
+                                            <span x-show="!row.from" class="text-gray-400">—</span>
+                                        </td>
+                                        <td class="px-5 py-3">
+                                            <span x-show="row.to" class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#ccfbf1;color:#115e59;border:1px solid #99f6e4;" x-text="nice(row.to)"></span>
+                                            <span x-show="!row.to" class="text-gray-400">—</span>
+                                            <div x-show="row.to_officer" class="mt-0.5 text-xs text-gray-400" x-text="nice(row.to_officer)"></div>
+                                        </td>
                                         <td class="px-5 py-3 text-gray-500 whitespace-nowrap" x-text="fmt(row.since)"></td>
                                         <td class="px-5 py-3 text-gray-600">
                                             <div x-text="nice(row.purpose) || ''"></div>
@@ -779,7 +1000,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="!visibleRows().length">
-                                    <td colspan="7" class="px-5 py-10 text-center text-gray-400">
+                                    <td colspan="8" class="px-5 py-10 text-center text-gray-400">
                                         <i data-lucide="inbox" class="w-8 h-8 mx-auto"></i>
                                         <p class="mt-2" x-text="listsLoading ? 'Loading…' : 'Nothing here.'"></p>
                                     </td>
@@ -793,6 +1014,103 @@
     </div>
 
     {{-- Lightbox --}}
+    {{-- Edit one log. The entry as it was is kept in a hidden history (file_movement_log_edits). --}}
+    <div x-show="edit.open" x-transition.opacity class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4" @keydown.window.escape="edit.open && closeEdit()" x-cloak>
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-full overflow-y-auto" @click.outside="closeEdit()">
+            <div class="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Edit log</h3>
+                    <p class="text-sm text-gray-500" x-text="nice(edit.office) + (edit.statusLabel ? ' — ' + edit.statusLabel : '')"></p>
+                </div>
+                <button type="button" class="p-1 text-gray-400 hover:text-gray-600" @click="closeEdit()"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="px-5 py-4 space-y-4 text-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Office *</label>
+                    <select x-model="edit.office_code" class="w-full border rounded-lg px-2 py-2 bg-white" :class="edit.office_code ? 'border-gray-300' : 'border-red-300'">
+                        <option value="">— Select office —</option>
+                        <template x-for="group in officeGroups()" :key="'eog-' + group.department">
+                            <optgroup :label="group.department">
+                                <template x-for="o in group.items" :key="'eof-' + o.office_code">
+                                    <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                </template>
+                            </optgroup>
+                        </template>
+                    </select>
+                    <p x-show="edit.office_code && edit.office_code !== edit.initial.office_code && edit.isNewest" class="mt-1 text-xs text-amber-700">This is the file's latest step, so its current location moves to this office too.</p>
+                </div>
+                <div x-show="edit.status !== 'pending_acceptance'" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Log-in date <span class="font-normal text-gray-400">(locked)</span></label>
+                        <input type="date" x-model="edit.log_in_date" disabled readonly title="The log-in date and time cannot be edited"
+                               class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Log-in time <span class="font-normal text-gray-400">(locked)</span></label>
+                        <input type="time" x-model="edit.log_in_time" disabled readonly title="The log-in date and time cannot be edited"
+                               class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed">
+                    </div>
+                </div>
+                <div x-show="edit.status === 'completed'" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Log-out date</label>
+                        <input type="date" x-model="edit.log_out_date" :max="today()" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Log-out time</label>
+                        <input type="time" x-model="edit.log_out_time" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer</label>
+                        <select x-model="edit.receiving_officer_id" class="w-full border border-gray-300 rounded-lg px-2 py-2 bg-white">
+                            <option value="">— Not set —</option>
+                            <template x-for="o in officers" :key="'eo-' + o.id">
+                                <option :value="String(o.id)" x-text="nice(o.name) + (o.username ? ' (' + o.username + ')' : '')"></option>
+                            </template>
+                            <option value="other">Other (not listed)…</option>
+                        </select>
+                        <input type="text" x-show="edit.receiving_officer_id === 'other'" x-model="edit.officer_other" placeholder="Specify the receiving officer's name"
+                               class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose</label>
+                        <select x-model="edit.request_purpose_id" class="w-full border border-gray-300 rounded-lg px-2 py-2 bg-white">
+                            <option value="">— Not set —</option>
+                            <template x-for="p in requestPurposes" :key="'ep-' + p.id">
+                                <option :value="String(p.id)" x-text="nice(p.name)"></option>
+                            </template>
+                            <option value="other">Other</option>
+                        </select>
+                        <input type="text" x-show="edit.request_purpose_id === 'other'" x-model="edit.purpose_other" placeholder="Specify the purpose"
+                               class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
+                    <textarea x-model="edit.notes" rows="2" maxlength="1000" class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                </div>
+                <div x-show="edit.status === 'completed'">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Log-out notes</label>
+                    <textarea x-model="edit.completion_notes" rows="2" maxlength="1000" class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Reason for the change *</label>
+                    <textarea x-model="edit.reason" rows="2" maxlength="500" placeholder="Why is this log being corrected?"
+                              class="w-full border rounded-lg px-3 py-2" :class="edit.reason.trim() ? 'border-gray-300' : 'border-red-300'"></textarea>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+                <button type="button" class="px-4 py-2 text-sm text-gray-600" @click="closeEdit()">Cancel</button>
+                <button type="button" :disabled="busy || !editValid()" @click="saveEdit()"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save changes
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div x-show="lightbox.open" x-transition.opacity class="fixed inset-0 z-50 bg-black bg-opacity-80 flex flex-col" @keydown.window.escape="lightbox.open = false" @keydown.window.arrow-right="lightbox.open && lightboxStep(1)" @keydown.window.arrow-left="lightbox.open && lightboxStep(-1)" x-cloak>
         <div class="flex items-center justify-between px-5 py-3 text-white">
             <div class="text-sm" x-text="lightboxCaption()"></div>

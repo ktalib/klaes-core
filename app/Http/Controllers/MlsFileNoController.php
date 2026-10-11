@@ -2224,6 +2224,14 @@ class MlsFileNoController extends Controller
     public function generateMlsFileNumber(Request $request)
     {
         try {
+            // Preserve entered values; recover omitted CoP details before validation.
+            if ($request->input('application_type') === 'change_of_purpose' && $request->filled('change_of_purpose_app_id')) {
+                $copDetailsRecord = ChangeOfPurposeApplication::findOrFail($request->input('change_of_purpose_app_id'));
+                $copDetails = app(\App\Services\ChangeOfPurposeDetails::class)->application($copDetailsRecord);
+                $fallback = array_intersect_key($copDetails, array_flip(['address', 'phone_no', 'plot_no', 'tp_no', 'house_no', 'street_name', 'district', 'lga', 'location', 'latitude', 'longitude']));
+                $request->merge(\App\Services\ChangeOfPurposeDetails::fillBlanks($request->all(), $fallback));
+            }
+
             $this->logPlotsWorkflow('info', 'Generate request received', [
                 'user_id' => Auth::id(),
                 // if the application type is new , the application_type should be "Direct Allocation", 
@@ -2296,6 +2304,11 @@ class MlsFileNoController extends Controller
                 // would block every edit of a legacy record.
                 'phone_no' => ['required', 'string', 'max:100', new NigerianPhone()],
                 'rep_phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
+                // The applicant's address. The form has always posted it, but with no
+                // rule it never reached $validated, so only Subdivision (its own path)
+                // ever stored one -- 0 of 255 Direct Allocations since 15 Sep 2026.
+                'address' => 'nullable|string|max:500',
+                'rep_address' => 'nullable|string|max:500',
                 // Optional. Becomes the applicant's LAAS Portal email; left blank, the
                 // portal account gets a generated placeholder instead.
                 'email' => 'nullable|email|max:150',
@@ -2485,7 +2498,30 @@ class MlsFileNoController extends Controller
 
                     // 1. Generate new file number, consuming new serial
                     $forceFileNumber = $request->input('force_file_number');
-                    if ($forceFileNumber) {
+                    $copReclaimedSerial = (int) ($validated['reclaimed_serial'] ?? 0);
+                    if (!$forceFileNumber && $copReclaimedSerial > 0) {
+                        // "Use a missing serial number" on a Change of Purpose. This branch
+                        // used to take the counter's next serial whatever was picked, so the
+                        // officer chose COM-2026-378 and got 379. Same rules as the normal
+                        // path below: re-checked inside the transaction, and the counter is
+                        // left where it is -- filling a hole must not wind it back.
+                        $allocator = app(\App\Services\MlsSerialAllocationService::class);
+                        if (!$allocator->isSerialReclaimable($landUse, $year, $copReclaimedSerial)) {
+                            DB::connection('sqlsrv')->rollBack();
+                            $taken = \App\Models\MlsFileNo::generateFileNumber($landUse, $year, $copReclaimedSerial);
+                            return response()->json([
+                                'success' => false,
+                                'message' => "Serial {$copReclaimedSerial} ({$taken}) is no longer available — it was taken while this form was open. Please refresh the list and pick another.",
+                            ], 409);
+                        }
+                        $serial = $copReclaimedSerial;
+                        $fullFileNumber = \App\Models\MlsFileNo::generateFileNumber($landUse, $year, $serial);
+                        \Log::channel('fileno_duplicates')->info('COP: reclaimed serial used', [
+                            'file_number' => $fullFileNumber,
+                            'original_file_no' => $originalFileNo,
+                            'user_id' => Auth::id(),
+                        ]);
+                    } elseif ($forceFileNumber) {
                         $fullFileNumber = $forceFileNumber;
                         $serialParts = explode('-', $fullFileNumber);
                         $serial = (int) end($serialParts);
@@ -2599,6 +2635,12 @@ class MlsFileNoController extends Controller
                             ?? ($oldFileNoRecord->phone_no ?? null),
                         'rep_phone_no' => $validated['rep_phone_no']
                             ?? ($oldFileNoRecord->rep_phone_no ?? null),
+                        // Same for the address: the form is prefilled from the CoP
+                        // application's residential address.
+                        'address' => ($validated['address'] ?? null)
+                            ?: ($oldFileNoRecord->address ?? null),
+                        'rep_address' => ($validated['rep_address'] ?? null)
+                            ?: ($oldFileNoRecord->rep_address ?? null),
                         'created_at'  => now(),
                         'updated_at'  => now(),
                     ]);
@@ -2663,6 +2705,8 @@ class MlsFileNoController extends Controller
                             // commissioning SMS was skipped for having no one to text.
                             'phone_no' => $validated['phone_no'] ?? null,
                             'rep_phone_no' => $validated['rep_phone_no'] ?? null,
+                            'address' => ($validated['address'] ?? null) ?: ($oldFileNoRecord->address ?? null),
+                            'rep_address' => ($validated['rep_address'] ?? null) ?: ($oldFileNoRecord->rep_address ?? null),
                             'email' => $validated['email'] ?? null,
                         ]);
                     }
@@ -2934,6 +2978,17 @@ class MlsFileNoController extends Controller
                     if (!empty($passportUpload['stored']) && !empty($passportUpload['path'])) {
                         app(MlsCommissioningOssApplicationService::class)
                             ->attachPassport($fullFileNumber, $passportUpload['path']);
+                    }
+
+                    // The common tail also opens the file's tracking toward the office picked
+                    // on the Generation Summary. Returning early skipped it, so every Change of
+                    // Purpose output showed "No tracking opened" on its checklist.
+                    $copMlsRecord = DB::connection('sqlsrv')->table('mls_file_no')
+                        ->where('full_file_number', $fullFileNumber)
+                        ->orderByDesc('id')
+                        ->first();
+                    if ($copMlsRecord) {
+                        $this->startCommissioningTracking($request, $copMlsRecord);
                     }
 
                     $this->refreshFileNumberListingCache();
@@ -3278,6 +3333,8 @@ class MlsFileNoController extends Controller
                     // anything later that needs to reach the holder.
                     'phone_no' => $validated['phone_no'] ?? null,
                     'rep_phone_no' => $validated['rep_phone_no'] ?? null,
+                    'address' => $validated['address'] ?? null,
+                    'rep_address' => $validated['rep_address'] ?? null,
                     'email' => $validated['email'] ?? null,
                     'sit_reason' => $fileOption === 'sit' ? ($validated['sit_reason'] ?? null) : null,
                     'old_fileno' => $fileOption === 'reissuance' ? ($validated['old_fileno'] ?? null) : null,
@@ -3319,6 +3376,8 @@ class MlsFileNoController extends Controller
                         // compat table for a contact number found nothing.
                         'phone_no' => $validated['phone_no'] ?? null,
                         'rep_phone_no' => $validated['rep_phone_no'] ?? null,
+                        'address' => $validated['address'] ?? null,
+                        'rep_address' => $validated['rep_address'] ?? null,
                         'email' => $validated['email'] ?? null,
                         'updated_at' => now()
                     ];

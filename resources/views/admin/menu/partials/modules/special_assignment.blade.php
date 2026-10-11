@@ -27,6 +27,12 @@
 
       <div class="pl-4 mt-1 space-y-0.5 {{ $spaActive ? '' : 'hidden' }}" data-content="special-assignment">
 
+        <!-- Dashboard: the workflow at a glance (anyone who can open the module) -->
+        <a href="{{ route('special-assignment.dashboard') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('special-assignment.dashboard') ? 'active' : '' }}">
+          <i data-lucide="layout-dashboard" class="h-4 w-4 text-[rgb(186,191,12)]"></i>
+          <span>Dashboard</span>
+        </a>
+
         <!-- a. Land Records -->
         @if($hasRole('Special Assignment - Land Records') || $hasRole('Supper Admin'))
         <a href="{{ route('special-assignment.land-records') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('special-assignment.land-records') ? 'active' : '' }}">

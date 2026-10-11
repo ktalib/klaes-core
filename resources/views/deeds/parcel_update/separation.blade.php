@@ -150,7 +150,7 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">S/N</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left whitespace-nowrap">File No</th>
                                 <th class="px-4 py-3 text-left">File Title</th>
@@ -158,13 +158,20 @@
                                 <th class="px-4 py-3 text-left">Location</th>
                                 <th class="px-4 py-3 text-left">Source</th>
                                 <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left">Created By</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse($records as $record)
+                                @php
+                                    // Same conditions as this row's menu: KAMMA until approved;
+                                    // reject while open; approve also needs the Master JSI.
+                                    $batchOpen = !in_array($record->status, ['approved', 'rejected', 'commissioned'], true);
+                                    $batchKammaDone = strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0;
+                                @endphp
                                 <tr>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ $records->firstItem() + $loop->index }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 text-slate-700 font-bold">{{ $record->applicant_name ?: '—' }}</td>
                                     <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no }}</td>
                                     <td class="px-4 py-3 text-slate-600">{{ $record->file_title }}</td>
@@ -186,6 +193,7 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-slate-500 text-xs">{{ $record->created_at->format('M d, Y') }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by])</td>
                                     <td class="px-4 py-3 text-center">
                                         <div class="relative inline-block text-left" id="dropdown-{{ $record->id }}">
                                             <button type="button" onclick="toggleDropdown({{ $record->id }})" class="p-2 hover:bg-slate-100 text-slate-600 rounded-full transition">
@@ -303,7 +311,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-4 py-10 text-center text-slate-400">No records found.</td>
+                                    <td colspan="10" class="px-4 py-10 text-center text-slate-400">No records found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -400,6 +408,7 @@
                                         <select name="location_details[1][street_name]" id="loc_street_name" onchange="toggleOtherInput(this); updateLocationPreview(1)" class="searchable-select w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm">
                                             <option value="">Select Street</option>
                                             @foreach($streetNames as $street)
+                                                @continue(in_array(strtolower(trim((string) $street->name)), ['other', 'others'], true))
                                                 <option value="{{ $street->name }}">{{ strtoupper($street->name) }}</option>
                                             @endforeach
                                             <option value="OTHER">OTHER</option>
@@ -411,6 +420,7 @@
                                         <select name="location_details[1][district]" id="loc_district" onchange="toggleOtherInput(this); updateLocationPreview(1)" class="searchable-select w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm">
                                             <option value="">Select District</option>
                                             @foreach($districts as $district)
+                                                @continue(in_array(strtolower(trim((string) $district->name)), ['other', 'others'], true))
                                                 <option value="{{ $district->name }}">{{ strtoupper($district->name) }}</option>
                                             @endforeach
                                             <option value="OTHER">OTHER</option>
@@ -1034,4 +1044,13 @@
         if (window.GlobalFileNoModal) GlobalFileNoModal.init();
     });
 </script>
+
+@include('deeds.parcel_update.partials.batch_decisions', [
+    'batchLabel' => 'Plot Separation',
+    'batchRoutes' => [
+        'knupda' => route('plot-separation.knupda', '__ID__'),
+        'approve' => route('plot-separation.approve', '__ID__'),
+        'reject' => route('plot-separation.reject', '__ID__'),
+    ],
+])
 @endsection
