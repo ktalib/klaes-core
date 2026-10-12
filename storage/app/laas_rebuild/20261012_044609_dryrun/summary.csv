@@ -1,0 +1,14 @@
+measure,value
+accounts_kept,134
+accounts_after,275
+accounts_contact_pending,141
+applications_after,681
+files_retired,0
+transfer_candidates,1
+files_live,400
+files_already_on_kept_accounts,0
+files_joined_parent_account,0
+files_with_phone,0
+files_without_phone,400
+files_failed,0
+files_joined_batch_account,230

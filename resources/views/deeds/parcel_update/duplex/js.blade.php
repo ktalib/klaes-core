@@ -4104,7 +4104,7 @@
             const r = await Swal.fire({
                 icon: 'question',
                 title: 'Approve this duplex?',
-                html: 'Approving closes the KAMMA answer and the recommendation, opens the '
+                html: 'Approving closes the KAMMA/Physical Planning answer and the recommendation, opens the '
                     + 'conveyance, and lists the duplex for commissioning.',
                 showCancelButton: true,
                 confirmButtonText: 'Yes, approve',

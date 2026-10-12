@@ -72,10 +72,13 @@ class CaseWorkflow
             throw WorkflowGuardException::because("A {$fileType['label']} cannot go through " . $def->workflow($workflow)['label'] . '.');
         }
 
-        // Only OP asks; every other Direct file takes the default (Direct Allocation).
+        // Verification always asks (Statutory / Customary); under Direct Allocation only OP
+        // asks, and every other file takes the default (Direct).
         $subType = ($data['sub_type'] ?? '') ?: null;
-        if ($workflow === 'verification') {
-            $subType = null;
+        if (!empty($def->workflow($workflow)['asks_sub_type'])) {
+            if (!$subType || !isset($def->subTypes($workflow)[$subType])) {
+                throw WorkflowGuardException::because('Choose whether this ' . $def->workflow($workflow)['label'] . ' is ' . implode(' or ', $def->subTypes($workflow)) . '.');
+            }
         } elseif (!empty($fileType['asks_sub_type'])) {
             if (!$subType || !isset($def->subTypes($workflow)[$subType])) {
                 throw WorkflowGuardException::because("Choose whether this {$fileType['label']} is " . implode(' or ', $def->subTypes($workflow)) . '.');
@@ -87,12 +90,19 @@ class CaseWorkflow
         if (!isset($def->fileSources()[$data['file_source'] ?? ''])) {
             throw WorkflowGuardException::because('Choose where the file came from.');
         }
+        // "Other" needs its specify text (tidied: trimmed, single spaces); any other source keeps none.
+        $sourceOther = $data['file_source'] === 'other'
+            ? (preg_replace('/\s+/', ' ', trim((string) ($data['file_source_other'] ?? ''))) ?: null)
+            : null;
+        if ($data['file_source'] === 'other' && $sourceOther === null) {
+            throw WorkflowGuardException::because('Specify where the file came from.');
+        }
         $fileNumber = trim((string) ($data['file_number'] ?? ''));
         if ($fileNumber === '') {
             throw WorkflowGuardException::because('Pick the file with the file number selector.');
         }
 
-        return DB::connection(self::CONN)->transaction(function () use ($data, $def, $workflow, $subType, $fileNumber, $userId) {
+        return DB::connection(self::CONN)->transaction(function () use ($data, $def, $workflow, $subType, $fileNumber, $userId, $sourceOther) {
             $open = CadastralCase::query()->open()
                 ->where('file_number', $fileNumber)
                 ->lockForUpdate()
@@ -110,6 +120,7 @@ class CaseWorkflow
                 'sub_type' => $subType,
                 'file_type' => $data['file_type'],
                 'file_source' => $data['file_source'],
+                'file_source_other' => $sourceOther,
                 'file_number' => $fileNumber,
                 'file_indexing_id' => $data['file_indexing_id'] ?? null,
                 'file_system' => $data['file_system'] ?? null,
@@ -167,6 +178,10 @@ class CaseWorkflow
         }
         if (isset(ChartingCards::TASK_STAGE[$taskKey])) {
             throw WorkflowGuardException::because('Fill in the charting card; saving it ticks this task.');
+        }
+        // Land 12 has no screen here, so its tick stays manual, but only once the Yes/No form is answered.
+        if ($taskKey === YesNoForms::TASK && YesNoForms::installed() && !app(YesNoForms::class)->isComplete($case)) {
+            throw WorkflowGuardException::because('Answer all seven questions on the Yes/No form first.');
         }
 
         return DB::connection(self::CONN)->transaction(function () use ($case, $taskKey, $tasks, $note, $userId) {
@@ -244,7 +259,11 @@ class CaseWorkflow
             $case->update(['current_step' => $next, 'current_desk' => $desk]);
             $this->move($case, $from, $next, $outcome, $remarks, $userId);
 
-            return "{$case->case_ref} sent to " . $def->deskShort($desk) . '.';
+            // Name the choice and the receiving desk, so the officer sees what happened.
+            $chose = $def->step($case->workflow, $from)['outcomes'][$outcome]['label'] ?? null;
+
+            return ($chose ? "{$chose}: " : '') . "{$case->case_ref} sent to " . $def->deskShort($desk)
+                . ' (' . $def->deskLabel($desk) . ').';
         });
     }
 
@@ -254,7 +273,7 @@ class CaseWorkflow
         $this->assertOpen($case);
         $def = $this->def();
         if (empty($def->fileTypes()[$case->file_type]['asks_sub_type'])) {
-            throw WorkflowGuardException::because('Only an OP file chooses between Resettlement and Direct Allocation.');
+            throw WorkflowGuardException::because('Only an OP file chooses between Resettlement and Direct.');
         }
         if (!isset($def->subTypes($case->workflow)[$subType])) {
             throw WorkflowGuardException::because('That sub-type does not belong to this application type.');

@@ -72,7 +72,7 @@
         gate(knupdaBtn, n > 0 && picked.every((c) => flag(c, 'knupda')),
             'Every selected file must be waiting for KAMMA / Physical Planning');
         gate(decisionBtn, n > 0 && picked.every(canDecide),
-            'Every selected file must have passed KAMMA and be at the decision step');
+            'Every selected file must have passed KAMMA/Physical Planning and be at the decision step');
         document.querySelectorAll('.pu-batch-all').forEach((all) => {
             const total = pickable().length;
             all.checked = total > 0 && n === total;

@@ -4,7 +4,7 @@
     <div class="text-sm text-gray-600">Logged in to</div>
     <div class="text-lg font-bold text-gray-800">{{ $loggedIn['unit_name'] }}</div>
     <div class="text-xs text-gray-500 mb-4">since {{ $loggedIn['at']->format('d M Y H:i') }}</div>
-    <form method="POST" action="{{ route('cadastral-dept.fmc.log.save', $fmc->qr_token) }}" class="space-y-3">
+    <form method="POST" action="{{ route('cadastral-dept.fmc.log.save', $fmc->qr_token) }}" class="space-y-3" data-confirm-title="Log the file out?" data-confirm="{{ $fmc->fmc_no }} is logged out of {{ $loggedIn['unit_name'] }}.">
       @csrf
       <input type="hidden" name="direction" value="out">
       <textarea name="reason" rows="2" placeholder="Note (optional)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">{{ old('reason') }}</textarea>
@@ -15,7 +15,8 @@
   @else
     <div class="text-sm text-gray-600 mb-3">Not logged in to any unit. Log it in where it is now.</div>
     <form method="POST" action="{{ route('cadastral-dept.fmc.log.save', $fmc->qr_token) }}" class="space-y-3"
-          x-data="{ unit: @js(old('unit_key', '')), other: @js(old('unit_other', '')), reason: @js(old('reason', '')) }">
+          x-data="{ unit: @js(old('unit_key', '')), other: @js(old('unit_other', '')), reason: @js(old('reason', '')) }"
+          data-confirm-title="Log the file in?" data-confirm="{{ $fmc->fmc_no }} is logged in to the chosen unit.">
       @csrf
       <input type="hidden" name="direction" value="in">
       <div>

@@ -325,6 +325,45 @@ class WorkflowDefinition
             }
         }
 
+        // Sidebar lists: every name they use must exist, or a list is silently empty.
+        $allSteps = $allTasks = [];
+        foreach ($this->workflows() as $def) {
+            foreach ((array) ($def['steps'] ?? []) as $key => $s) {
+                $allSteps[$key] = true;
+                foreach (array_keys((array) ($s['tasks'] ?? [])) as $t) {
+                    $allTasks[$t] = true;
+                }
+            }
+        }
+        foreach ($this->queues() as $desk => $q) {
+            if (empty($desks[$desk]['internal'])) {
+                $problems[] = "queues: [$desk] is not an internal desk";
+            }
+            foreach ((array) ($q['entries'] ?? []) as $key => $e) {
+                foreach ((array) ($e['steps'] ?? []) as $s) {
+                    isset($allSteps[$s]) || $problems[] = "queues.$desk.$key: unknown step [$s]";
+                }
+                foreach ((array) ($e['tasks'] ?? []) as $t) {
+                    isset($allTasks[$t]) || $problems[] = "queues.$desk.$key: unknown task [$t]";
+                }
+                foreach (array_merge((array) ($e['to'] ?? []), (array) ($e['at'] ?? [])) as $d) {
+                    isset($desks[$d]) || $problems[] = "queues.$desk.$key: unknown desk [$d]";
+                }
+            }
+        }
+
         return $problems;
+    }
+
+    /** Sidebar lists per desk: [desk => [group, entries => [key => rules]]]. */
+    public function queues(): array
+    {
+        return (array) ($this->config['queues'] ?? []);
+    }
+
+    /** One sidebar list's rules, or null. */
+    public function queue(string $desk, string $key): ?array
+    {
+        return $this->queues()[$desk]['entries'][$key] ?? null;
     }
 }

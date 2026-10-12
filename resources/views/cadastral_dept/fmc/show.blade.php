@@ -4,7 +4,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'File Movement Card ' . $fmc->fmc_no, 'PageDescription' => $case->case_ref . ' · ' . $fmc->file_number])
 
-  <div class="p-6 max-w-6xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     <div class="flex flex-wrap items-center gap-2 mb-6">
@@ -34,12 +34,13 @@
           @if ($qr)
             <img src="{{ $qr }}" alt="QR code for {{ $fmc->fmc_no }}" class="mx-auto" style="width: 160px; height: 160px;">
           @endif
-          <div class="text-xs text-gray-500 mt-2">Units scan this to log the file in and out.</div>
-          <div class="text-xs font-mono text-gray-400 break-all mt-1">{{ $scanUrl }}</div>
+          <div class="text-xs text-gray-500 mt-2">QR code: {{ $qrLabel }} <span class="font-mono font-semibold text-gray-700">{{ $qrValue }}</span></div>
+          <a href="{{ $scanUrl }}" class="inline-block text-xs text-blue-700 hover:underline mt-1">Open the log in / out page</a>
         </div>
         @include('cadastral_dept.fmc._log_form')
       </div>
     </div>
   </div>
+  @include('admin.footer')
 </div>
 @endsection

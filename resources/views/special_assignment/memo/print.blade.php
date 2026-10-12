@@ -131,12 +131,12 @@
         .property-summary table.details td { overflow-wrap: anywhere; }
         .property-summary table.details th, .property-summary table.details td { padding: 6px; }
         .property-photo { width: 30%; margin: 0; border: 1px solid #cfcfcf; display: flex; flex-direction: column; justify-content: center; text-align: center; }
-        .property-photo img { display: block; width: 100%; height: 53mm; object-fit: contain; }
+        .property-photo img { display: block; width: 100%; height: 44mm; object-fit: contain; }
         .property-photo figcaption { font-size: 10px; padding: 5px; }
         .media-placeholder { color: #666; font-size: 12px; padding: 12px; text-align: center; }
         .map-section { margin-top: 12px; border: 1px solid #cfcfcf; break-inside: avoid; }
         .map-section h4 { margin: 0; padding: 6px 10px; font-size: 11px; text-transform: uppercase; }
-        #memo-map { height: 42mm; background: #f4f4f0; }
+        #memo-map { height: 30mm; background: #f4f4f0; }
         .property-summary, .decision-block, .sign-row { break-inside: avoid; }
         .decision-block {
             margin-top: 16px;
@@ -174,6 +174,22 @@
             cursor: pointer; margin: 0 4px; background: rgb(186,191,12); color: #fff;
         }
         .toolbar .btn-close { background: #6b7280; }
+
+        /* The three signing sections of the updated memo. */
+        .sig-sections { margin-top: 5mm; font-size: 12.5px; break-inside: avoid; }
+        .sig-prep { display: flex; justify-content: space-between; gap: 24px; }
+        .sig-col { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+        .sig-counter { flex: 0 0 46%; }
+        .sig-field { display: flex; align-items: flex-end; gap: 6px; }
+        .sig-field span { flex-shrink: 0; font-weight: bold; }
+        .sig-field span.gap { margin-left: 12px; }
+        .sig-field i { flex: 1; border-bottom: 1px solid #000; height: 14px; }
+        .sig-field i.short { flex: 0 0 22%; }
+        .sig-role { text-align: right; font-weight: bold; }
+        .sig-office { margin-top: 4mm; }
+        .sig-office h4 { margin: 0 0 4px; text-align: center; font-size: 12.5px; text-transform: uppercase; text-decoration: underline; }
+        .sig-office p { margin: 0 0 8px; }
+        .sig-decided { margin: 8px 0 0; display: flex; gap: 10px; align-items: center; }
 
         @media print {
             body { background: #fff; }
@@ -214,14 +230,13 @@
 
     <div class="memo-head">
         <div class="row"><span class="label">Memo No:</span><span><strong>{{ $memo->memo_no }}</strong></span></div>
-        <div class="row"><span class="label">To:</span><span>{{ $memo->forwarded_to ?? '—' }}</span></div>
-        <div class="row"><span class="label">From:</span><span>Director Special Assignment</span></div>
+        <div class="row"><span class="label">To:</span><span>{{ $memo->forwarded_to ?: 'Honourable Commissioner' }}</span></div>
+        <div class="row"><span class="label">From:</span><span>Special Assignment Department</span></div>
         <div class="row"><span class="label">Date:</span><span>{{ $memo->forwarded_at?->format('d F Y') ?? '—' }}</span></div>
     </div>
 
-    <p class="subject">
-        Special Assignment — Change of Land Use: {{ ($app->spa_id ?? null) ? 'SPAS ID '.($app->spa_id ?? null) : '' }}{{ ($app->spa_id ?? null) && ($app->file_number ?? null) && ($app->file_number ?? null) !== ($app->spa_id ?? null) ? ' · ' : '' }}{{ ($app->file_number ?? null) && ($app->file_number ?? null) !== ($app->spa_id ?? null) ? 'File No '.($app->file_number ?? null) : (! ($app->spa_id ?? null) ? 'File No —' : '') }}
-    </p>
+    {{-- Wording and layout as on the Department's updated memo (2026-10-12). --}}
+    <p class="subject">Contravention File No. {{ ($app->spa_id ?? null) ?: (($app->file_number ?? null) ?: '—') }}</p>
 
     <p class="body-text">
         Following the special assignment field exercise, the property described below was
@@ -231,14 +246,13 @@
 
     <div class="property-summary">
     <table class="details">
-        <tr><th>SPAS ID</th><td>{{ $app->spa_id ?? '—' }}</td></tr>
-        <tr><th>File Number</th><td>{{ ($app->file_number ?? null) ?: 'Not known' }}</td></tr>
-        <tr><th>Owner</th><td>{{ $app->owner_name ?? '—' }}</td></tr>
-        <tr><th>District / LGA</th><td>{{ mb_strtoupper($app->district ?? '—', 'UTF-8') }}{{ $app->lga ? ' / '.mb_strtoupper($app->lga, 'UTF-8') : '' }}</td></tr>
+        {{-- Approved vs prevailing: the same two uses the contravention bill is raised on. --}}
+        <tr><th>File Number</th><td>{{ ($app->file_number ?? null) ?: (($app->spa_id ?? null) ?: '—') }}</td></tr>
+        <tr><th>Owner's Name</th><td>{{ mb_strtoupper($app->owner_name ?? '—', 'UTF-8') }}</td></tr>
         <tr><th>Location</th><td>{{ mb_strtoupper($app->location ?? '—', 'UTF-8') }}</td></tr>
-        <tr><th>Approved Land Use</th><td>{{ $app->land_use_type ?? '—' }}</td></tr>
-        <tr><th>Prevailing Use (Surrounding)</th><td>{{ $app->existing_use ?? '—' }}</td></tr>
-        <tr><th>Contravening Use</th><td>{{ $app->proposed_use ?? '—' }}</td></tr>
+        <tr><th>District / LGA</th><td>{{ mb_strtoupper($app->district ?? '—', 'UTF-8') }}{{ $app->lga ? ' / '.mb_strtoupper($app->lga, 'UTF-8') : '' }}</td></tr>
+        <tr><th>Approved Land Use</th><td>{{ ($app->proposed_use ?? null) ? mb_strtoupper($app->proposed_use, 'UTF-8').' PURPOSE' : '—' }}</td></tr>
+        <tr><th>Prevailing Use</th><td>{{ ($app->existing_use ?? null) ? mb_strtoupper($app->existing_use, 'UTF-8').' USE' : '—' }}</td></tr>
     </table>
     <figure class="property-photo">
         @if ($photoUrl)
@@ -255,36 +269,40 @@
         <div id="memo-map"><div class="media-placeholder">{{ $mapInspection ? 'Loading property map...' : 'No property coordinates recorded' }}</div></div>
     </section>
 
-    <div class="decision-block">
-        <h4>Commissioner's Decision</h4>
-
-        @if ($decided)
-            <p style="margin:0 0 8px;">
-                <span class="stamp {{ $decision }}">{{ $decision }}</span>
-                <span style="margin-left:10px;">Dated: {{ $memo->decided_at?->format('d F Y') ?? '—' }}</span>
-            </p>
-            <p style="margin:0;"><strong>Remarks:</strong> {{ $memo->commissioner_notes ?: '—' }}</p>
-        @else
-            {{-- Pending: this is the copy taken in for signature, so it prints
-                 ruled lines to write on rather than an empty box. --}}
-            <div class="decision-line"></div>
-            <div class="decision-line"></div>
-            <p style="margin:0;font-size:11.5px;color:#666;">Approved / Not Approved (delete as appropriate)</p>
-        @endif
-    </div>
-
-    <div class="sign-row">
-        <div class="sign-box">
-            <div class="sign-line">
-                Director Special Assignment<br>
-                <span style="font-size:11px;color:#555;">Signature &amp; Date</span>
+    <div class="sig-sections">
+        {{-- Prepared by, counter-signed by the Director. --}}
+        <div class="sig-prep">
+            <div class="sig-col">
+                <div class="sig-field"><span>Name:</span><i></i></div>
+                <div class="sig-field"><span>Rank:</span><i></i></div>
+                <div class="sig-field"><span>Date:</span><i></i></div>
+                <div class="sig-field"><span>Sign:</span><i></i><span class="gap">Date:</span><i></i></div>
+            </div>
+            <div class="sig-col sig-counter">
+                <div class="sig-field"><span>Counter Sign:</span><i></i><span class="gap">Date:</span><i class="short"></i></div>
+                <div class="sig-role">Director Special Assignment</div>
             </div>
         </div>
-        <div class="sign-box">
-            <div class="sign-line">
-                {{ $memo->forwarded_to ?? 'Honourable Commissioner' }}<br>
-                <span style="font-size:11px;color:#555;">Signature &amp; Date</span>
-            </div>
+
+        <div class="sig-office">
+            <h4>Permanent Secretary</h4>
+            <p>The application is hereby approved / not approved</p>
+            <div class="sig-field"><span>Sign:</span><i></i><span class="gap">Date:</span><i></i></div>
+        </div>
+
+        <div class="sig-office">
+            <h4>Honourable Commissioner</h4>
+            <p>The application is hereby recommended for approval please</p>
+            <div class="sig-field"><span>Sign:</span><i></i><span class="gap">Date:</span><i></i></div>
+    
+            {{-- Once recorded in KLAES, the decision prints as the record of it. --}}
+            @if ($decided)
+                <p class="sig-decided">
+                    <span class="stamp {{ $decision }}">{{ $decision }}</span>
+                    <span>Dated {{ $memo->decided_at?->format('d F Y') ?? '—' }}</span>
+                    @if ($memo->commissioner_notes)<span>— {{ $memo->commissioner_notes }}</span>@endif
+                </p>
+            @endif
         </div>
     </div>
 

@@ -1843,7 +1843,7 @@
         if (roadReservationSelected) {
             // ...similar pattern for road reservation...
             reasonText += reasonCount + ". Road Reservation Issues\n";
-            reasonText += "• Condition: The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA guidelines.\n";
+            reasonText += "• Condition: The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA/Physical Planning guidelines.\n";
             reasonText += "• Findings:\n";
             
             if (roadReservationIssues) {

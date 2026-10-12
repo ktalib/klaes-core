@@ -326,6 +326,10 @@ class LandRegistrationController extends Controller
                 'registration_number' => $result['registration_number'],
             ]);
 
+            // LAAS Portal: a registered transfer to someone else is queued for
+            // staff to move the file to the new holder's account. Never throws.
+            app(\App\Services\Laas\LaasTransferService::class)->detectFromCapture((int) $captureId);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Registered as ' . $result['registration_number'] . '.',

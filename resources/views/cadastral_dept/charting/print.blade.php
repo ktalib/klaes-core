@@ -13,7 +13,9 @@
         body { font-family: "Times New Roman", Georgia, serif; font-size: 12px; color: #000; margin: 0; }
         .sheet { max-width: 190mm; margin: 0 auto; }
         .head { text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
-        .head h1 { font-size: 15px; margin: 0; letter-spacing: .06em; text-transform: uppercase; }
+        .head .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .head .logo { height: 18mm; width: auto; display: block; flex: none; }
+        .head h1 { font-size: 13px; margin: 0; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
         .head h2 { font-size: 12px; margin: 2px 0 0; font-weight: normal; }
         table { width: 100%; border-collapse: collapse; }
         .fields td { padding: 4px 6px; vertical-align: top; }
@@ -36,13 +38,18 @@
     </div>
 
     <div class="head">
-        <h1>Kano State Ministry of Land and Physical Planning</h1>
-        <h2>Cadastral Department · Charting Card · {{ $card->stageLabel() }}</h2>
+        {{-- Same header as the File Movement Card: [logo] ministry name [logo], card title under it (user, 2026-10-12). --}}
+        <div class="title-row">
+            <img class="logo" src="{{ asset('assets/logo/ministry1.jpg') }}" alt="Kano State">
+            <h1>Kano State Ministry of Land and Physical Planning</h1>
+            <img class="logo" src="{{ asset('assets/logo/ministry2.png') }}" alt="Ministry of Land and Physical Planning">
+        </div>
+        <h2>Charting Card · Cadastral Department</h2>
     </div>
 
     {{-- Property details in the standard order: Plot No., District, LGA, Location. --}}
     <table class="fields">
-        <tr><td class="label">Charting No.</td><td class="value">{{ $card->charting_no }} (v{{ $card->version }})</td>
+        <tr><td class="label">Charting No.</td><td class="value">{{ $card->charting_no }} (v{{ $card->version }}) · {{ $card->stageLabel() }}</td>
             <td class="label">File Number</td><td class="value">{{ $case->file_number }}</td></tr>
         <tr><td class="label">File Title</td><td class="value" colspan="3">{{ $case->file_title ?: '—' }}</td></tr>
         <tr><td class="label">Plot No.</td><td class="value">{{ $case->plot_no ?: '—' }}</td>

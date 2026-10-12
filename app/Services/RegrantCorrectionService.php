@@ -179,6 +179,9 @@ class RegrantCorrectionService
             }
         });
 
+        // LAAS Portal: the parent's retired badge follows the correction.
+        \App\Services\PlotWorkflowService::refreshLaasLineage(array_filter([$parent, $successor]));
+
         // The due list is cached for 15 minutes and both corrections change who belongs
         // on it — an undone file becomes due again, a swapped one changes which number
         // carries the Re-grant.

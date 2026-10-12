@@ -5,7 +5,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Field Jacket ' . $jacket->field_jacket_no, 'PageDescription' => $case->case_ref . ' · survey job ' . $job->job_number])
 
-  <div class="p-6 max-w-5xl mx-auto space-y-6">
+  <div class="p-6 space-y-6">
     @include('cadastral_dept.partials._nav')
 
     <div class="flex flex-wrap items-center gap-2">
@@ -79,7 +79,7 @@
       @canDo('Cad - Records', 'edit')
         <form method="POST" action="{{ route('cadastral-dept.field-jackets.reassign.update', $jacket->id) }}"
               class="rounded-xl border border-gray-200 bg-white p-5 space-y-3"
-              onsubmit="return confirm(@js('Reassign ' . $jacket->field_jacket_no . ' and job ' . $job->job_number . ' to the chosen surveyor?'))">
+              data-confirm-title="Reassign the surveyor?" data-confirm="{{ $jacket->field_jacket_no }} and job {{ $job->job_number }} go to the chosen surveyor.">
           @csrf
           <div>
             <div class="text-base font-bold text-gray-800">Reassign surveyor</div>
@@ -92,5 +92,6 @@
       @endcanDo
     @endif
   </div>
+  @include('admin.footer')
 </div>
 @endsection

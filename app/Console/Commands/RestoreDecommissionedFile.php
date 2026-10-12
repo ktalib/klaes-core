@@ -201,6 +201,8 @@ class RestoreDecommissionedFile extends Command
             }
         });
 
+        \App\Services\PlotWorkflowService::refreshLaasLineage([$fileNo]);
+
         $this->info('  restored');
     }
 

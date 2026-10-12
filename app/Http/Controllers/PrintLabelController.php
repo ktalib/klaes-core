@@ -1083,6 +1083,14 @@ SQL;
                 'records.*.lga' => 'nullable|string|max:255',
                 'records.*.shelf_label' => 'nullable|string|max:255',
                 'manual_override' => 'nullable|boolean',
+                // Manual override sub groups: serial slices, each on its own rack/shelf.
+                'sub_groups' => 'nullable|array',
+                'sub_groups.*.record_ids' => 'required_with:sub_groups|array|min:1',
+                'sub_groups.*.record_ids.*' => 'integer',
+                'sub_groups.*.rack_primary' => 'required_with:sub_groups|alpha|size:1',
+                'sub_groups.*.rack_secondary' => 'nullable|alpha|size:1',
+                'sub_groups.*.shelf' => 'required_with:sub_groups|integer|min:1|max:100',
+                'sub_groups.*.full_label' => 'nullable|string|max:10',
             ]);
         } else {
             $rules = array_merge($baseRules, [
@@ -1223,155 +1231,209 @@ SQL;
                         throw new \RuntimeException('Unable to build label entries for the selected grouping records.');
                     }
 
-                    $pendingRecords = $recordsToAssign->values();
+                    // One segment per rack/shelf. Without sub groups that is the
+                    // whole selection on the chosen rack/shelf; with manual
+                    // override sub groups, each serial slice gets its own.
+                    $segments = [];
+                    if ($manualOverride && !empty($validated['sub_groups'])) {
+                        $claimedPositions = [];
+                        foreach ($validated['sub_groups'] as $subGroup) {
+                            $wantedIds = array_flip(array_map('intval', $subGroup['record_ids']));
+                            $segmentRecords = collect();
+                            foreach ($recordsToAssign as $position => $record) {
+                                if (!isset($claimedPositions[$position]) && isset($wantedIds[(int) $record['id']])) {
+                                    $claimedPositions[$position] = true;
+                                    $segmentRecords->push($record);
+                                }
+                            }
+                            if ($segmentRecords->isEmpty()) {
+                                continue;
+                            }
+                            $segments[] = [
+                                'records' => $segmentRecords,
+                                'rack_primary' => strtoupper(trim($subGroup['rack_primary'])),
+                                'rack_secondary' => isset($subGroup['rack_secondary']) && $subGroup['rack_secondary'] !== ''
+                                    ? strtoupper(trim($subGroup['rack_secondary']))
+                                    : null,
+                                'shelf' => (int) $subGroup['shelf'],
+                            ];
+                        }
+                        // Anything not covered by a sub group stays on the main rack/shelf.
+                        $leftover = $recordsToAssign->reject(function ($record, $position) use ($claimedPositions) {
+                            return isset($claimedPositions[$position]);
+                        })->values();
+                        if ($leftover->isNotEmpty()) {
+                            $segments[] = [
+                                'records' => $leftover,
+                                'rack_primary' => $rackPrimary,
+                                'rack_secondary' => $rackSecondary,
+                                'shelf' => $shelfNumber,
+                            ];
+                        }
+                    } else {
+                        $segments[] = [
+                            'records' => $recordsToAssign,
+                            'rack_primary' => $rackPrimary,
+                            'rack_secondary' => $rackSecondary,
+                            'shelf' => $shelfNumber,
+                        ];
+                    }
+
                     $placeholderIndex = -1;
                     $fileIndexingIdsToUpdate = [];
                     $lastRackLabel = null;
-                    $shelfOffset = 0;
                     $capacityOverrideApplied = false;
 
-                    while ($pendingRecords->isNotEmpty()) {
-                        $activeShelfNumber = $shelfNumber + $shelfOffset;
-                        $activeFullLabel = $this->buildFullLabelFromParts($rackPrimary, $rackSecondary, $activeShelfNumber);
+                    foreach ($segments as $segment) {
+                        $pendingRecords = $segment['records']->values();
+                        $segmentRackPrimary = $segment['rack_primary'];
+                        $segmentRackSecondary = $segment['rack_secondary'];
+                        $segmentShelfNumber = $segment['shelf'];
+                        $shelfOffset = 0;
 
-                        $claim = $this->claimRackLabelForRange(
-                            $activeFullLabel,
-                            $registryBatchNo,
-                            $validated['registry'] ?? null,
-                            $pendingRecords->count(),
-                            $rackPrimary,
-                            $rackSecondary,
-                            $activeShelfNumber,
-                            true,
-                            $manualOverride
-                        );
+                        while ($pendingRecords->isNotEmpty()) {
+                            $activeShelfNumber = $segmentShelfNumber + $shelfOffset;
+                            $activeFullLabel = $this->buildFullLabelFromParts($segmentRackPrimary, $segmentRackSecondary, $activeShelfNumber);
 
-                        $assignable = (int) ($claim['assignable'] ?? 0);
-                        $label = $claim['label'];
-                        if (!empty($claim['capacity_overridden'])) {
-                            $capacityOverrideApplied = true;
-                        }
+                            $claim = $this->claimRackLabelForRange(
+                                $activeFullLabel,
+                                $registryBatchNo,
+                                $validated['registry'] ?? null,
+                                $pendingRecords->count(),
+                                $segmentRackPrimary,
+                                $segmentRackSecondary,
+                                $activeShelfNumber,
+                                true,
+                                $manualOverride
+                            );
 
-                        if ($assignable <= 0) {
-                            // Shelf is full for this registry; advance to the next shelf automatically.
-                            $shelfOffset++;
-                            continue;
-                        }
+                            $assignable = (int) ($claim['assignable'] ?? 0);
+                            $label = $claim['label'];
+                            if (!empty($claim['capacity_overridden'])) {
+                                $capacityOverrideApplied = true;
+                            }
 
-                        $lastRackLabel = $label;
-
-                        // Prefer the computed full label (from selected rack parts) when
-                        // persisting the shelf location so the preview matches the
-                        // persisted batch items. Fall back to the database's
-                        // `full_label` only when it exactly matches the computed value.
-                        $labelDisplay = $activeFullLabel;
-                        if (!empty($label->full_label) && strcasecmp(trim((string)$label->full_label), trim((string)$activeFullLabel)) === 0) {
-                            $labelDisplay = $label->full_label;
-                        }
-                        $chunkRecords = $pendingRecords->splice(0, $assignable);
-
-                        foreach ($chunkRecords as $record) {
-                            $indexing = $this->resolveFileIndexingForGroupingRecord($record, $indexingCaches, false);
-
-                            if ($indexing && in_array($indexing->id, $indexedIds, true)) {
-                                $duplicateReferences[] = $indexing->file_number
-                                    ?? $indexing->tracking_id
-                                    ?? (string) $indexing->id;
+                            if ($assignable <= 0) {
+                                // Shelf is full for this registry; advance to the next shelf automatically.
+                                $shelfOffset++;
                                 continue;
                             }
 
-                            if ($indexing) {
-                                $indexedIds[] = $indexing->id;
-                                $fileIndexingIdsToUpdate[] = $indexing->id;
+                            $lastRackLabel = $label;
 
-                                $fileNumber = $record['file_number']
-                                    ?? $record['indexing_mls_fileno']
-                                    ?? $record['awaiting_fileno']
-                                    ?? $indexing->file_number
-                                    ?? $indexing->tracking_id;
+                            // Prefer the computed full label (from selected rack parts) when
+                            // persisting the shelf location so the preview matches the
+                            // persisted batch items. Fall back to the database's
+                            // `full_label` only when it exactly matches the computed value.
+                            $labelDisplay = $activeFullLabel;
+                            if (!empty($label->full_label) && strcasecmp(trim((string)$label->full_label), trim((string)$activeFullLabel)) === 0) {
+                                $labelDisplay = $label->full_label;
+                            }
+                            $chunkRecords = $pendingRecords->splice(0, $assignable);
 
-                                $title = $record['file_title']
-                                    ?? $record['tracking_id']
-                                    ?? $record['awaiting_fileno']
-                                    ?? $fileNumber
-                                    ?? 'Grouping record';
+                            foreach ($chunkRecords as $record) {
+                                $indexing = $this->resolveFileIndexingForGroupingRecord($record, $indexingCaches, false);
 
-                                $resolvedItems[] = [
-                                    'batch_id' => $batch->id,
-                                    'file_indexing_id' => $indexing->id,
-                                    'file_number' => $fileNumber,
-                                    'file_title' => $title,
-                                    'plot_number' => $record['plot_number'] ?? $indexing->plot_number,
-                                    'district' => $record['district'] ?? $indexing->district,
-                                    'lga' => $record['lga'] ?? $indexing->lga,
-                                    'land_use_type' => $record['land_use_type'] ?? $indexing->land_use_type,
-                                    'shelf_location' => $labelDisplay,
-                                    'label_position' => count($resolvedItems) + 1,
-                                    'qr_code_data' => json_encode([
+                                if ($indexing && in_array($indexing->id, $indexedIds, true)) {
+                                    $duplicateReferences[] = $indexing->file_number
+                                        ?? $indexing->tracking_id
+                                        ?? (string) $indexing->id;
+                                    continue;
+                                }
+
+                                if ($indexing) {
+                                    $indexedIds[] = $indexing->id;
+                                    $fileIndexingIdsToUpdate[] = $indexing->id;
+
+                                    $fileNumber = $record['file_number']
+                                        ?? $record['indexing_mls_fileno']
+                                        ?? $record['awaiting_fileno']
+                                        ?? $indexing->file_number
+                                        ?? $indexing->tracking_id;
+
+                                    $title = $record['file_title']
+                                        ?? $record['tracking_id']
+                                        ?? $record['awaiting_fileno']
+                                        ?? $fileNumber
+                                        ?? 'Grouping record';
+
+                                    $resolvedItems[] = [
+                                        'batch_id' => $batch->id,
+                                        'file_indexing_id' => $indexing->id,
                                         'file_number' => $fileNumber,
-                                        'tracking_id' => $record['tracking_id'] ?? $indexing->tracking_id,
-                                        'awaiting_fileno' => $record['awaiting_fileno'] ?? null,
-                                        'indexing_mls_fileno' => $record['indexing_mls_fileno'] ?? null,
+                                        'file_title' => $title,
+                                        'plot_number' => $record['plot_number'] ?? $indexing->plot_number,
+                                        'district' => $record['district'] ?? $indexing->district,
+                                        'lga' => $record['lga'] ?? $indexing->lga,
                                         'land_use_type' => $record['land_use_type'] ?? $indexing->land_use_type,
                                         'shelf_location' => $labelDisplay,
-                                        'generated_at' => $now->toIso8601String(),
-                                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                                ];
-                            } else {
-                                $missingReferences[] = $this->describeGroupingRecord($record);
+                                        'label_position' => count($resolvedItems) + 1,
+                                        'qr_code_data' => json_encode([
+                                            'file_number' => $fileNumber,
+                                            'tracking_id' => $record['tracking_id'] ?? $indexing->tracking_id,
+                                            'awaiting_fileno' => $record['awaiting_fileno'] ?? null,
+                                            'indexing_mls_fileno' => $record['indexing_mls_fileno'] ?? null,
+                                            'land_use_type' => $record['land_use_type'] ?? $indexing->land_use_type,
+                                            'shelf_location' => $labelDisplay,
+                                            'generated_at' => $now->toIso8601String(),
+                                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                                    ];
+                                } else {
+                                    $missingReferences[] = $this->describeGroupingRecord($record);
 
-                                $fileNumber = $record['file_number']
-                                    ?? $record['awaiting_fileno']
-                                    ?? $record['indexing_mls_fileno']
-                                    ?? $record['tracking_id']
-                                    ?? 'UNASSIGNED';
+                                    $fileNumber = $record['file_number']
+                                        ?? $record['awaiting_fileno']
+                                        ?? $record['indexing_mls_fileno']
+                                        ?? $record['tracking_id']
+                                        ?? 'UNASSIGNED';
 
-                                $title = $record['file_title']
-                                    ?? $record['tracking_id']
-                                    ?? $fileNumber;
+                                    $title = $record['file_title']
+                                        ?? $record['tracking_id']
+                                        ?? $fileNumber;
 
-                                $resolvedItems[] = [
-                                    'batch_id' => $batch->id,
-                                    'file_indexing_id' => $placeholderIndex,
-                                    'file_number' => $fileNumber,
-                                    'file_title' => $title,
-                                    'plot_number' => $record['plot_number'] ?? null,
-                                    'district' => $record['district'] ?? null,
-                                    'lga' => $record['lga'] ?? null,
-                                    'land_use_type' => $record['land_use_type'] ?? null,
-                                    'shelf_location' => $labelDisplay,
-                                    'label_position' => count($resolvedItems) + 1,
-                                    'qr_code_data' => json_encode([
+                                    $resolvedItems[] = [
+                                        'batch_id' => $batch->id,
+                                        'file_indexing_id' => $placeholderIndex,
                                         'file_number' => $fileNumber,
-                                        'tracking_id' => $record['tracking_id'] ?? null,
-                                        'awaiting_fileno' => $record['awaiting_fileno'] ?? null,
-                                        'indexing_mls_fileno' => $record['indexing_mls_fileno'] ?? null,
+                                        'file_title' => $title,
+                                        'plot_number' => $record['plot_number'] ?? null,
+                                        'district' => $record['district'] ?? null,
+                                        'lga' => $record['lga'] ?? null,
+                                        'land_use_type' => $record['land_use_type'] ?? null,
                                         'shelf_location' => $labelDisplay,
-                                        'generated_at' => $now->toIso8601String(),
-                                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                                ];
+                                        'label_position' => count($resolvedItems) + 1,
+                                        'qr_code_data' => json_encode([
+                                            'file_number' => $fileNumber,
+                                            'tracking_id' => $record['tracking_id'] ?? null,
+                                            'awaiting_fileno' => $record['awaiting_fileno'] ?? null,
+                                            'indexing_mls_fileno' => $record['indexing_mls_fileno'] ?? null,
+                                            'shelf_location' => $labelDisplay,
+                                            'generated_at' => $now->toIso8601String(),
+                                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                                    ];
 
-                                $placeholderIndex -= 1;
+                                    $placeholderIndex -= 1;
+                                }
                             }
+
+                            if (!$manualOverride) {
+                                $this->finalizeRackLabelUsage(
+                                    $label,
+                                    $registryBatchNo,
+                                    $validated['registry'] ?? null,
+                                    $assignable,
+                                    $now
+                                );
+                            }
+
+                            $shelfOffset++;
                         }
 
-                        if (!$manualOverride) {
-                            $this->finalizeRackLabelUsage(
-                                $label,
-                                $registryBatchNo,
-                                $validated['registry'] ?? null,
-                                $assignable,
-                                $now
-                            );
+                        if ($pendingRecords->isNotEmpty()) {
+                            throw ValidationException::withMessages([
+                                'range_key' => 'Unable to allocate shelf space for all requested labels. Please review the rack selection.',
+                            ]);
                         }
-
-                        $shelfOffset++;
-                    }
-
-                    if ($pendingRecords->isNotEmpty()) {
-                        throw ValidationException::withMessages([
-                            'range_key' => 'Unable to allocate shelf space for all requested labels. Please review the rack selection.',
-                        ]);
                     }
 
                     $fileIndexingIdsToUpdate = array_values(array_unique($fileIndexingIdsToUpdate));

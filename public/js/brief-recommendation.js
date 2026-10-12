@@ -32,9 +32,9 @@
     var downloaded = {};  // motherFileNo|key -> true, for this page load
 
     var VARIANTS = [
-        { value: 'access-road',   label: 'Accessible with recommended and adequate access road' },
-        { value: 'compensated',   label: 'Compensated land (report at page 2)' },
-        { value: 'reinstatement', label: 'Re-instatement of revoked title' }
+        { value: 'access-road',   title: 'Template 1', label: 'Accessible with recommended and adequate access road' },
+        { value: 'compensated',   title: 'Template 2', label: 'Compensated land (report at page 2)' },
+        { value: 'reinstatement', title: 'Template 3', label: 'Re-instatement of revoked title' }
     ];
 
     function esc(v) {
@@ -56,7 +56,8 @@
         var radios = VARIANTS.map(function (v, i) {
             return '<label class="flex items-start gap-2 text-xs font-semibold text-slate-700 cursor-pointer">'
                 + '<input type="radio" name="briefRecVariant" value="' + v.value + '"' + (i === 0 ? ' checked' : '') + ' class="mt-0.5">'
-                + '<span>' + esc(v.label) + '</span></label>'
+                + '<span><span class="block font-bold text-slate-900">' + esc(v.title) + '</span>'
+                + '<span class="block font-medium text-[11px] text-slate-500">' + esc(v.label) + '</span></span></label>'
                 + (v.value === 'access-road'
                     ? '<div id="briefRecMeasureWrap" class="pl-6">'
                         + '<input type="text" id="briefRecMeasurement" placeholder="Recommended measurement, e.g. 143.38m X 102.6m X 45.77m"'
@@ -88,7 +89,7 @@
             +   '<div class="px-6 py-5 space-y-3">'
             +     '<div id="briefRecStatus" class="hidden"></div>'
             +     '<div id="briefRecOptions" class="rounded-xl border border-slate-200 px-4 py-3 space-y-2">'
-            +       '<p class="text-[11px] font-black uppercase tracking-wider text-slate-500">Memo type</p>' + radios
+            +       '<p class="text-[11px] font-black uppercase tracking-wider text-slate-500">Template</p>' + radios
             +     '</div>'
             +     '<button type="button" id="briefRecDownload" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 text-left hover:border-slate-300 transition">'
             +       '<span class="h-9 w-9 shrink-0 rounded-lg bg-blue-100 flex items-center justify-center"><i data-lucide="download" class="h-4 w-4 text-blue-700"></i></span>'

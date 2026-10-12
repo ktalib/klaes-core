@@ -23,6 +23,8 @@
                             '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'],
         'payment'       => ['Payment',       'Bill settled',                 '#16a34a', '#4ade80', route('programmes.bills').'?url=spa',
                             '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>'],
+        'newfile'       => ['New File No.',  'Change of Purpose / New Conversion', '#0d9488', '#2dd4bf', route('change-of-purpose.index'),
+                            '<path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/><path d="M8 15h8M8 18h5"/>'],
         'memo'          => ['Memo',          'Forward to Commissioner',      '#7c3aed', '#a78bfa', route('special-assignment.memo'),
                             '<path d="M4 4h16v16H4z"/><path d="m4 6 8 6 8-6"/>'],
         'decision'      => ['Decision',      'Approve or reject',            '#9333ea', '#c084fc', route('special-assignment.memo'),

@@ -76,8 +76,20 @@ class LaasFolioService
         }
 
         $hidden = (array) config('laas.folio.hidden', []);
+        $docs = array_filter($docs, fn ($doc) => !in_array($doc['key'], $hidden, true));
 
-        return array_values(array_filter($docs, fn ($doc) => !in_array($doc['key'], $hidden, true)));
+        // The old holder of a transferred file sees only what existed up to the
+        // transfer. An undated entry cannot be shown to predate it, so it goes too.
+        if ($application->isTransferredOut()) {
+            $until = $application->visible_until;
+            $docs = array_filter($docs, function ($doc) use ($until) {
+                $date = $doc['date'] ? rescue(fn () => \Carbon\Carbon::parse($doc['date']), null, false) : null;
+
+                return $until && $date && $date->lte($until);
+            });
+        }
+
+        return array_values($docs);
     }
 
     /**
@@ -88,6 +100,12 @@ class LaasFolioService
     {
         $fileNumber = trim((string) $application->file_number);
         if ($fileNumber === '' || in_array($key, (array) config('laas.folio.hidden', []), true)) {
+            return null;
+        }
+
+        // A transferred file opens only what its folio list still shows.
+        if ($application->isTransferredOut()
+            && !in_array($key, array_column($this->documents($application), 'key'), true)) {
             return null;
         }
 

@@ -26,6 +26,19 @@ class LaasApplicant extends Authenticatable
     /** Opened by File Commissioning (Land or OSS) on the applicant's behalf. */
     public const ORIGIN_COMMISSIONING = 'commissioning';
 
+    /** Real contact details on file. NULL reads as ok (rows from before the column). */
+    public const CONTACT_OK = 'ok';
+
+    /** Carries a system-generated email and/or phone until a real one is entered. */
+    public const CONTACT_PENDING = 'pending_update';
+
+    /**
+     * System phone: "SYS-" + 8 digits. Eight digits is deliberate: both
+     * normalizePhone() and BulkSmsNgService::normalizeNumber() accept any 10 or
+     * 11 digits starting with 0, so a digits-only placeholder would be texted.
+     */
+    public const SYSTEM_PHONE_PREFIX = 'SYS-';
+
     protected $fillable = [
         'name',
         'username',
@@ -43,6 +56,9 @@ class LaasApplicant extends Authenticatable
         'verification_code',
         'verification_code_expires_at',
         'verification_attempts',
+        'contact_status',
+        'contact_flagged_at',
+        'contact_flag_reason',
     ];
 
     protected $hidden = [
@@ -57,7 +73,47 @@ class LaasApplicant extends Authenticatable
         'verification_code_expires_at' => 'datetime',
         'verification_attempts'        => 'integer',
         'must_change_password'         => 'boolean',
+        'contact_flagged_at'           => 'datetime',
     ];
+
+    /** The undialable phone a contact-pending account carries: SYS-00003141. */
+    public static function systemPhoneFor(int $applicantId): string
+    {
+        return self::SYSTEM_PHONE_PREFIX . str_pad((string) $applicantId, 8, '0', STR_PAD_LEFT);
+    }
+
+    public static function isSystemPhone(?string $phone): bool
+    {
+        return str_starts_with(strtoupper(trim((string) $phone)), self::SYSTEM_PHONE_PREFIX);
+    }
+
+    /**
+     * The flag columns once a real phone is on file: the phone reasons drop
+     * away; a missing email alone does not keep the account pending.
+     */
+    public static function contactSettledAttributes(?string $reason): array
+    {
+        $left = array_values(array_diff(
+            array_filter(explode(',', (string) $reason)),
+            ['no_phone', 'shared_phone']
+        ));
+
+        return [
+            'contact_status'      => self::CONTACT_OK,
+            'contact_flag_reason' => $left ? implode(',', $left) : null,
+        ];
+    }
+
+    public function hasPendingContact(): bool
+    {
+        return $this->contact_status === self::CONTACT_PENDING;
+    }
+
+    /** A phone the system may text: real, not the SYS- placeholder. */
+    public function textablePhone(): ?string
+    {
+        return self::isSystemPhone($this->phone) ? null : (self::normalizePhone((string) $this->phone) ?: null);
+    }
 
     public function applications()
     {

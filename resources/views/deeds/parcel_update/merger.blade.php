@@ -1453,7 +1453,7 @@
             if (result.success) {
                 const data = result.data;
                 Swal.fire({
-                    title: 'KAMMA Handshake',
+                    title: 'KAMMA/Physical Planning Handshake',
                     html: `
                         <div class="text-left text-sm space-y-4 p-2">
                             <div class="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-4">
@@ -1467,7 +1467,7 @@
                                         <input type="text" id="knupda_fee_input" class="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm font-bold bg-white" value="${data.knupda_fee || '20000'}" readonly>
                                     </div>
                                     <div>
-                                        <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">KAMMA Approval</label>
+                                        <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">KAMMA/Physical Planning Approval</label>
                                         <div class="flex items-center gap-4 mt-2">
                                             <label class="flex items-center gap-2 cursor-pointer">
                                                 <input type="radio" name="knupda_status" value="Approved" ${data.knupda_status === 'Approved' ? 'checked' : ''} class="w-4 h-4 text-emerald-600">
@@ -1482,10 +1482,10 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-blue-600 uppercase mb-1">Remarks</label>
-                                    <textarea id="knupda_remarks_input" class="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm bg-white" rows="2" placeholder="KAMMA feedback...">${data.knupda_remarks || ''}</textarea>
+                                    <textarea id="knupda_remarks_input" class="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm bg-white" rows="2" placeholder="KAMMA/Physical Planning feedback...">${data.knupda_remarks || ''}</textarea>
                                 </div>
                                 <button onclick="saveKnupda(${data.id})" class="w-full py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">
-                                    Update KAMMA Status
+                                    Update KAMMA/Physical Planning Status
                                 </button>
                             </div>
                         </div>
@@ -1519,10 +1519,10 @@
 
             const result = await response.json();
             if (result.success) {
-                await Swal.fire({ icon: 'success', title: 'Updated', text: 'KAMMA status updated successfully.', timer: 1500, showConfirmButton: false });
+                await Swal.fire({ icon: 'success', title: 'Updated', text: 'KAMMA/Physical Planning status updated successfully.', timer: 1500, showConfirmButton: false });
                 location.reload();
             } else {
-                Swal.fire('Error', 'Failed to update KAMMA status', 'error');
+                Swal.fire('Error', 'Failed to update KAMMA/Physical Planning status', 'error');
             }
         } catch (error) {
             Swal.fire('Error', 'An error occurred', 'error');

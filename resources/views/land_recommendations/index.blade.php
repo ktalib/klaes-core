@@ -1308,7 +1308,7 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
-<script src="{{ asset('js/brief-recommendation.js') }}"></script>
+<script src="{{ asset('js/brief-recommendation.js') }}?v={{ filemtime(public_path('js/brief-recommendation.js')) }}"></script>
 <script>
     BriefRec.configure({
         detailsUrl: @js(route('land-recommendations.brief.details')),
@@ -2136,6 +2136,10 @@
     // addAnother: a merged file inherits a recommendation from each of the files
     // it was merged from, so an upload against a record that already holds one is
     // an addition, not a replacement. The server allocates the next slot.
+    // Signature check on the signed brief upload. Off for now: it read unsigned PDFs
+    // as signed (2026-10-12). See didOpen in uploadMotherRecommendation().
+    var SIGNATURE_CHECK_ENABLED = false;
+
     function uploadMotherRecommendation(batchId, motherFileNo, childCount, alreadyUploaded, addAnother) {
         var label = motherFileNo ? ('<b>' + escHtml(motherFileNo) + '</b>') : 'this batch';
 
@@ -2166,7 +2170,12 @@
             // Ink check on the chosen file (BriefRec.checkSignature): a signed brief
             // shows handwriting in its signature area. A warning, not a refusal —
             // the officer can confirm and upload anyway, and the result is saved.
+            //
+            // DISABLED (2026-10-12): it passed unsigned PDFs as signed. Set
+            // SIGNATURE_CHECK_ENABLED to true to bring it back once it is fixed; while
+            // off, nothing is checked and no signature_check is sent with the upload.
             didOpen: function () {
+                if (!SIGNATURE_CHECK_ENABLED) return;
                 var input = document.getElementById('mother-rec-file');
                 var box = document.getElementById('mother-rec-sig');
                 var anyway = document.getElementById('mother-rec-sig-anyway');
@@ -2221,8 +2230,10 @@
                 body.append('document', file);
                 body.append('_token', '{{ csrf_token() }}');
                 if (addAnother) body.append('add_another', '1');
-                body.append('signature_check', check.status);
-                if (check.marks != null) body.append('signature_marks', String(check.marks));
+                if (SIGNATURE_CHECK_ENABLED) {
+                    body.append('signature_check', check.status);
+                    if (check.marks != null) body.append('signature_marks', String(check.marks));
+                }
 
                 Swal.showLoading();
 

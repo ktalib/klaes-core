@@ -266,7 +266,7 @@ class FileMovementCards
      */
     public function timeline(CadastralFmc $fmc): array
     {
-        $case = $fmc->case()->with('movements.actor')->first();
+        $case = $fmc->case()->with('movements.actor', 'receiver')->first();
         $rows = [];
 
         foreach ($case->movements as $m) {
@@ -274,7 +274,7 @@ class FileMovementCards
                 'at' => $m->acted_at,
                 'unit' => $m->to_desk ? $this->def->deskShort($m->to_desk) : ($m->outcome === 'close' ? 'Closed' : '—'),
                 'event' => match (true) {
-                    $m->outcome === 'registered' => 'Registered at Registry, sent on',
+                    $m->outcome === 'registered' => 'From Registry (registered)',
                     $m->outcome === 'close' => 'Closed at ' . $this->def->deskShort($m->from_desk),
                     default => 'From ' . $this->def->deskShort($m->from_desk) . ($m->outcome !== 'forward' ? ' (' . str_replace('_', ' ', $m->outcome) . ')' : ''),
                 },
@@ -295,6 +295,17 @@ class FileMovementCards
         }
 
         usort($rows, fn ($a, $b) => $a['at'] <=> $b['at']);
+
+        // The first row is always the registry the file came from (user, 2026-10-12).
+        $source = $case->file_source === 'other' ? $case->fileSourceLabel() : $case->fileSourceLabel() . ' Registry';
+        array_unshift($rows, [
+            'at' => $case->received_at ?? $case->created_at,
+            'unit' => $source,
+            'event' => 'Received at Cadastral Registry',
+            'reason' => $case->remarks,
+            'by' => optional($case->receiver)->name,
+            'source' => 'workflow',
+        ]);
 
         return $rows;
     }

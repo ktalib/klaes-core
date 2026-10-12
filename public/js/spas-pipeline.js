@@ -23,6 +23,7 @@
         { key: 'response',      letter: 'A', label: 'Response' },
         { key: 'second',        letter: '2', label: '2nd Serve' },
         { key: 'payment',       letter: 'P', label: 'Payment' },
+        { key: 'newfile',       letter: 'N', label: 'New File No.' },
         { key: 'memo',          letter: 'M', label: 'Memo' },
         { key: 'decision',      letter: 'D', label: 'Decision' },
         { key: 'certificate',   letter: 'C', label: 'Certificate' }
@@ -32,7 +33,7 @@
     // out of order always amber, rejected always red — read across the strip.
     var HUE = {
         record: '#64748b', field: '#0891b2', contravention: '#dc2626', second: '#ea580c',
-        response: '#2563eb', payment: '#16a34a', memo: '#7c3aed', decision: '#9333ea',
+        response: '#2563eb', payment: '#16a34a', newfile: '#0d9488', memo: '#7c3aed', decision: '#9333ea',
         certificate: '#db2777'
     };
 
@@ -43,6 +44,7 @@
         second: '<path d="M4 4h16v12H5.5L4 17.5V4z"/><path d="M9 9h6"/>',
         response: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
         payment: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+        newfile: '<path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/><path d="M8 15h8M8 18h5"/>',
         memo: '<path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/>',
         decision: '<path d="M14 4l6 6-8 8H6v-6l8-8z"/><path d="M4 21h16"/>',
         certificate: '<circle cx="12" cy="9" r="5"/><path d="M9 13.5L8 21l4-2 4 2-1-7.5"/>'

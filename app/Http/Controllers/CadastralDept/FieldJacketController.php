@@ -39,9 +39,22 @@ class FieldJacketController extends Controller
                 ->when($status, fn ($q) => $q->whereHas('job', fn ($j) => $j->where('status', $status)))
                 ->orderByDesc('id')
                 ->paginate(25)->withQueryString();
+
+            // Summary cards by the job's status; each filters the list.
+            $byStatus = CadastralSurveyJob::query()
+                ->whereIn('id', CadastralFieldJacket::query()->select('cadastral_survey_job_id'))
+                ->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
+            $link = fn (?string $s) => route('cadastral-dept.field-jackets.index', array_filter(['status' => $s]));
+            $cdCards = [
+                ['label' => 'Field jackets', 'value' => number_format(CadastralFieldJacket::query()->count()), 'hint' => 'commissioned', 'colour' => 'gray', 'url' => $link(null), 'active' => !$status],
+                ['label' => 'I to S not issued', 'value' => number_format($byStatus['Draft'] ?? 0), 'hint' => 'job registered, no instruction yet', 'colour' => 'yellow', 'url' => $link('Draft'), 'active' => $status === 'Draft'],
+                ['label' => 'With the surveyor', 'value' => number_format(($byStatus['Issued'] ?? 0) + ($byStatus['In Field'] ?? 0)), 'hint' => 'I to S issued or in the field', 'colour' => 'blue'],
+                ['label' => 'Accepted', 'value' => number_format($byStatus['Accepted'] ?? 0), 'hint' => 'survey accepted', 'colour' => 'green', 'url' => $link('Accepted'), 'active' => $status === 'Accepted'],
+                ['label' => 'Reassigned', 'value' => number_format(CadastralFieldJacket::query()->has('assignments', '>', 1)->count()), 'hint' => 'given to another surveyor', 'colour' => 'purple'],
+            ];
         }
 
-        return view('cadastral_dept.field_jackets.index', compact('def', 'installed', 'term', 'status', 'rows'));
+        return view('cadastral_dept.field_jackets.index', compact('def', 'installed', 'term', 'status', 'rows') + ['cdCards' => $cdCards ?? []]);
     }
 
     public function store(Request $request, int $case)

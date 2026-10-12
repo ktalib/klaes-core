@@ -4,8 +4,10 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Field Jackets', 'PageDescription' => 'Field jackets, their survey jobs, surveyors and I to S'])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
+
+    @include('cadastral_dept.partials._stat_cards')
 
     <form method="GET" class="flex flex-wrap items-center gap-2 mb-4">
       <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -47,7 +49,7 @@
                         $items[] = ['Print I to S', 'file-text', route('cadastral-dept.field-jackets.its.print', $jacket->id), true];
                     }
                 }
-                $items[] = ['Open file', 'folder-open', route('cadastral-dept.cases.show', $jacket->cadastral_case_id)];
+                $items[] = ['View', 'eye', route('cadastral-dept.cases.show', $jacket->cadastral_case_id)];
               @endphp
               <tr class="hover:bg-gray-50">
                 <td class="px-3 py-2 text-gray-500">{{ $rows->firstItem() + $loop->index }}</td>
@@ -73,5 +75,6 @@
       <div class="mt-4">{{ $rows->links() }}</div>
     @endif
   </div>
+  @include('admin.footer')
 </div>
 @endsection

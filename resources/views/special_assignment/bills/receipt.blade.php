@@ -1,7 +1,7 @@
 {{--
-    Contraventing bill printout for one SPAS payment. Display-only adjustments:
-    omit Survey Fee and Penalty Fee. Stored financial records are
-    unchanged; printed totals reflect these same adjustments.
+    Payment receipt for one SPAS payment, as on the Department's updated
+    receipt (2026-10-12): every tariff fee is listed, "Not yet decided" where
+    the bill does not carry it, and the amounts are the recorded ones.
 
     Payments recorded before item-by-item entry existed have no lines. Those
     print as a single unallocated figure rather than a fabricated split.
@@ -11,19 +11,23 @@
     $app       = $bill?->application;
     $billTotal = (float) ($bill->amount ?? 0);
     $thisPaid  = (float) $payment->amount_paid;
-    $feeKey = fn ($name) => mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $name)), 'UTF-8');
     $billLines = $bill?->lines ?? collect();
-    $lineName = fn ($line) => $billLines->firstWhere('id', $line->spa_bill_line_id)?->display_name ?? $line->name;
-    $excludedFee = fn ($name) => in_array($feeKey($name), ['survey fee', 'penalty fee'], true);
-    $printedLines = $payment->lines->reject(fn ($line) => $excludedFee($lineName($line)))->values();
-    $billTotal = max(0, $billTotal - $billLines->filter(fn ($line) => $excludedFee($line->display_name))->sum('amount'));
-    $thisPaid = max(0, $thisPaid - $payment->lines->filter(fn ($line) => $excludedFee($lineName($line)))->sum('amount_paid'));
-    if ($priorPaid > 0) {
-        $priorLines = \App\Models\SpaPaymentLine::whereHas('payment', fn ($query) => $query
-            ->where('spa_bill_id', $payment->spa_bill_id)->where('id', '<', $payment->id))->get();
-        $priorPaid = max(0, $priorPaid - $priorLines->filter(fn ($line) => $excludedFee($lineName($line)))->sum('amount_paid'));
+    // Every fee on the tariff, in tariff order — the updated receipt lists them
+    // all and says "Not yet decided" for one this bill does not carry (yet).
+    $tariff = \App\Models\SpaBillItem::query()->orderBy('sort_order')->orderBy('name')->get();
+    $paidFor = fn ($line) => (float) $payment->lines->where('spa_bill_line_id', $line->id)->sum('amount_paid');
+    $rows = $tariff->map(function ($item) use ($billLines, $paidFor) {
+        $line = $billLines->firstWhere('spa_bill_item_id', $item->id);
+        return ['name' => $line ? $line->display_name : $item->name,
+                'billed' => $line ? (float) $line->amount : null,
+                'paid' => $line ? $paidFor($line) : null];
+    });
+    // Anything on the bill that is not (or no longer) a tariff item.
+    foreach ($billLines->reject(fn ($l) => $l->spa_bill_item_id && $tariff->contains('id', $l->spa_bill_item_id)) as $line) {
+        $rows->push(['name' => $line->display_name, 'billed' => (float) $line->amount, 'paid' => $paidFor($line)]);
     }
     $balance   = max(0, $billTotal - $priorPaid - $thisPaid);
+    $fileRef   = ($app->file_number ?? null) ?: ($app->spa_id ?? null);
     $qrRenderer = new \BaconQrCode\Renderer\ImageRenderer(
         new \BaconQrCode\Renderer\RendererStyle\RendererStyle(160, 4),
         new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
@@ -35,7 +39,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contraventing Bill – {{ $payment->receipt_number ?: $bill?->reference_id }}</title>
+    <title>Bill – {{ $payment->receipt_number ?: $bill?->reference_id }}</title>
     <style>
         @page { size: A4; margin: 0; }
 
@@ -126,6 +130,12 @@
         }
 
         .note { margin-top: 10px; font-size: 11px; color: #666; }
+        .gov-title-container h2.dept-line { font-size: 12.5px; color: #333; }
+        .receipt-sign { margin-top: 18mm; width: 60%; font-size: 12.5px; display: flex; flex-direction: column; gap: 14px; }
+        .rs-field { display: flex; align-items: flex-end; gap: 8px; }
+        .rs-field span { flex: 0 0 48px; font-weight: bold; }
+        .rs-field i { flex: 1; border-bottom: 1px solid #000; height: 14px; }
+        .rs-for { margin-top: 6px; font-weight: bold; }
 
         .sign-row {
             display: flex;
@@ -182,7 +192,8 @@
         <div class="gov-title-container">
             <h1>Kano State Government</h1>
             <h2>Ministry of Land &amp; Physical Planning</h2>
-            <h3>Contraventing Bill</h3>
+            <h2 class="dept-line">Department of Special Assignment</h2>
+            <h3>Bill</h3>
         </div>
         <div class="header-marks">
             <img class="bill-qr" src="data:image/svg+xml;base64,{{ base64_encode($qrSvg) }}" alt="QR code to open this bill">
@@ -194,10 +205,11 @@
 
     <div class="meta">
         <div>
-            <strong>Receipt No:</strong> {{ $payment->receipt_number ?: '—' }}<br>
-            <strong>Bill Ref:</strong> {{ $bill->reference_id ?? '—' }}<br>
-            <strong>SPAS ID:</strong> {{ $app->spa_id ?? '—' }}<br>
-            <strong>File No:</strong> {{ ($app->file_number ?? null) ?: '—' }}
+            <strong>Receipt No.:</strong> {{ $payment->receipt_number ?: '—' }}<br>
+            <strong>Bill Ref.:</strong> {{ $bill->reference_id ?? '—' }}<br>
+            <strong>File No.:</strong> {{ $fileRef ?: '—' }}<br>
+            @if (($app->spa_id ?? null) && $app->spa_id !== $fileRef)<strong>SPAS ID:</strong> {{ $app->spa_id }}<br>@endif
+            <strong>Received From:</strong> {{ $app->owner_name ?? '—' }}
         </div>
         <div>
             <strong>Date:</strong> {{ $payment->payment_date?->format('d/m/Y') ?? '—' }}<br>
@@ -206,34 +218,31 @@
         </div>
     </div>
 
-    <div style="font-size:12.5px;margin-top:6px;">
-        <strong style="display:inline-block;min-width:105px;">Received From:</strong>
-        {{ $app->owner_name ?? '—' }}
-    </div>
 
     <table class="items">
         <thead>
             <tr>
-                <th style="width:6%">#</th>
+                <th style="width:6%">N</th>
                 <th>Bill Item</th>
                 <th class="num" style="width:22%">Billed (₦)</th>
-                <th class="num" style="width:22%">Paid Now (₦)</th>
+                <th class="num" style="width:22%">Paid (₦)</th>
             </tr>
         </thead>
         <tbody>
-            @foreach ($printedLines as $i => $line)
-                @php
-                    $billed = $billLines->firstWhere('id', $line->spa_bill_line_id);
-                @endphp
+            @foreach ($rows as $i => $row)
                 <tr>
                     <td>{{ $i + 1 }}</td>
-                    {{-- The item's current tariff name; the amounts are as paid. --}}
-                    <td>{{ $billed ? $billed->display_name : $line->name }}</td>
-                    <td class="num">{{ $billed ? number_format($billed->amount, 2) : '—' }}</td>
-                    <td class="num">{{ number_format($line->amount_paid, 2) }}</td>
+                    <td>{{ $row['name'] }}</td>
+                    @if ($row['billed'] === null)
+                        <td class="num" style="color:#666;font-style:italic">Not yet decided</td>
+                        <td class="num"></td>
+                    @else
+                        <td class="num">{{ number_format($row['billed'], 2) }}</td>
+                        <td class="num">{{ $row['paid'] > 0 ? number_format($row['paid'], 2) : '' }}</td>
+                    @endif
                 </tr>
             @endforeach
-            @if ($payment->lines->isEmpty())
+            @if ($payment->lines->isEmpty() && $billLines->isEmpty())
                 {{-- Recorded before item-by-item entry: one figure, no split. --}}
                 <tr>
                     <td>1</td>
@@ -245,18 +254,12 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="3" class="num">Total Paid for Listed Items</td>
-                <td class="num">{{ number_format($thisPaid, 2) }}</td>
+                <td></td>
+                <td colspan="2">Total</td>
+                <td class="num">₦{{ number_format($thisPaid, 2) }}</td>
             </tr>
         </tfoot>
     </table>
-
-    <div class="summary">
-        <div><span>Bill Total</span><span>₦{{ number_format($billTotal, 2) }}</span></div>
-        <div><span>Previously Paid</span><span>₦{{ number_format($priorPaid, 2) }}</span></div>
-        <div class="total"><span>Paid Now</span><span>₦{{ number_format($thisPaid, 2) }}</span></div>
-        <div><span>Balance Outstanding</span><span>₦{{ number_format($balance, 2) }}</span></div>
-    </div>
 
     @if ($balance > 0)
         <p class="note">
@@ -265,9 +268,12 @@
         </p>
     @endif
 
-    <div class="sign-row">
-        <div class="sign-box"><div class="sign-line">Payer's Signature</div></div>
-        <div class="sign-box"><div class="sign-line">Cashier / Authorised Officer</div></div>
+    {{-- One sign-off, for the Hon. Commissioner (updated receipt). --}}
+    <div class="receipt-sign">
+        <div class="rs-field"><span>Name:</span><i></i></div>
+        <div class="rs-field"><span>Rank:</span><i></i></div>
+        <div class="rs-field"><span>Date:</span><i></i></div>
+        <div class="rs-for">For: Hon. Commissioner</div>
     </div>
 
     {{-- Ministry mark at the foot of the printed receipt, matching the memo and

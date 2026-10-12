@@ -4,7 +4,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Cadastral Workflow Map', 'PageDescription' => 'Conversion, Direct Allocation and Verification, desk by desk'])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     <div x-data="{ wf: '{{ array_key_first($def->workflows()) }}' }">
@@ -78,5 +78,6 @@
       @endforeach
     </div>
   </div>
+  @include('admin.footer')
 </div>
 @endsection

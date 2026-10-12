@@ -1626,7 +1626,7 @@
                     <input type="checkbox" id="roadReservationCheck" class="mt-1 decline-reason-check h-4 w-4" onclick="toggleDetails(this, 'roadReservationDetails')">
                     <div class="ml-3">
                         <label for="roadReservationCheck" class="font-medium text-gray-800 text-base">4. Road Reservation Issues</label>
-                        <p class="text-sm text-gray-600">The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA guidelines.</p>
+                        <p class="text-sm text-gray-600">The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA/Physical Planning guidelines.</p>
                     </div>
                 </div>
                 

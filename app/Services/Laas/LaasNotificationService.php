@@ -146,7 +146,8 @@ class LaasNotificationService
         if ($smsBody !== null && $smsBody !== '') {
             $phone = trim((string) $application->applicant_phone);
 
-            if ($phone === '') {
+            // A SYS- placeholder (contact pending update) is never texted.
+            if ($phone === '' || \App\Models\Laas\LaasApplicant::isSystemPhone($phone)) {
                 $event->sms_status = LaasApplicationEvent::SMS_SKIPPED;
                 $event->sms_body   = $smsBody;
             } else {

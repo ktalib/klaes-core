@@ -1158,7 +1158,7 @@
                                         class="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition bg-white shadow-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">KAMMA Page</label>
+                                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">KAMMA/Physical Planning Page</label>
                                     <input type="number" name="page_3" min="1"
                                         value="{{ old('page_3', $recommendation->page_3 ?? '') }}"
                                         class="w-full border border-slate-200 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition bg-white shadow-sm">

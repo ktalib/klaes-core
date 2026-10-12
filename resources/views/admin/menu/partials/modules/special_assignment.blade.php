@@ -132,7 +132,7 @@
           </a>
           <a href="{{ route('special-assignment.other-departments') }}#physical-planning" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
             <i data-lucide="drafting-compass" class="h-3.5 w-3.5 text-[rgb(186,191,12)]"></i>
-            <span>Physical Planning/KAMMA</span>
+            <span>KAMMA/Physical Planning</span>
           </a>
           <a href="{{ route('special-assignment.other-departments') }}#survey" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
             <i data-lucide="scan-line" class="h-3.5 w-3.5 text-[rgb(186,191,12)]"></i>

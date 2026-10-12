@@ -96,6 +96,10 @@ class LaasLoginOtpService
     /** The mobile in the form the gateway wants, or null when it cannot be reached. */
     public function phoneFor(LaasApplicant $applicant): ?string
     {
+        if (LaasApplicant::isSystemPhone($applicant->phone)) {
+            return null; // SYS- placeholder: never texted.
+        }
+
         return BulkSmsNgService::normalizeNumber((string) ($applicant->phone ?? ''));
     }
 

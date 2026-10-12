@@ -65,6 +65,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('propid:reconcile-indexing')->dailyAt('01:30')->withoutOverlapping();
         $schedule->command('op:serial-integrity')->dailyAt('03:15')->withoutOverlapping();
 
+        // LAAS Portal: correct retired/restored badges and queue registered
+        // transfers for staff. The hooks do this live; this is the safety net.
+        $schedule->command('laas:reconcile')->dailyAt('03:30')->withoutOverlapping();
+
         // Clean up expired Digital File Request temp copies daily at 03:00
         $schedule->command('dfr:cleanup-expired')->dailyAt('03:00')->withoutOverlapping();
 

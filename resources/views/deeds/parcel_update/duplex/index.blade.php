@@ -443,7 +443,7 @@
                                                  back.
 
                                                 <button onclick="generateDoc({{ $record->id }}, 'application')" @disabled(!$canGenApp)
-                                                    title="{{ $why($canGenApp, $record->application_generated_at ? 'Already generated' : 'KAMMA approval required') }}"
+                                                    title="{{ $why($canGenApp, $record->application_generated_at ? 'Already generated' : 'KAMMA/Physical Planning approval required') }}"
                                                     class="menu-item">Generate Application</button>
                                                 <a href="{{ route('duplex-parcel-update.print-application', $record->id) }}" target="_blank"
                                                     title="{{ $canPrintApp ? '' : 'Generate the application first' }}"
@@ -451,7 +451,7 @@
                                                 --}}
                                             <div class="py-1">
                                                 <button onclick="generateDoc({{ $record->id }}, 'recommendation')" @disabled(!$canGenRec)
-                                                    title="{{ $why($canGenRec, $record->recommendation_generated_at ? 'Already generated' : 'KAMMA approval required') }}"
+                                                    title="{{ $why($canGenRec, $record->recommendation_generated_at ? 'Already generated' : 'KAMMA/Physical Planning approval required') }}"
                                                     class="menu-item">Generate Recommendation</button>
                                                 <a href="{{ route('duplex-parcel-update.print-recommendation', $record->id) }}" target="_blank"
                                                     title="{{ $canPrintRec ? '' : ($recPrinted ? 'Already printed' : 'Generate the recommendation first') }}"

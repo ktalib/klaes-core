@@ -15,7 +15,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Fees P&D Bill', 'PageDescription' => $case->case_ref . ' · ' . $case->file_number])
 
-  <div class="p-6 max-w-6xl mx-auto space-y-6">
+  <div class="p-6 space-y-6">
     @include('cadastral_dept.partials._nav')
 
     <div class="flex flex-wrap items-center gap-2">
@@ -51,7 +51,7 @@
 
     {{-- 1. Area and beacons --}}
     <form method="POST" action="{{ route('cadastral-dept.cases.bill.area.save', $case->id) }}" class="rounded-xl border border-gray-200 bg-white p-5 space-y-4"
-          x-data="cdPndArea(@js($cdPillars))">
+          x-data="cdPndArea(@js($cdPillars))" data-confirm-title="Save area and beacons?" data-confirm="The area and beacon list for {{ $case->file_number }} are saved.">
       @csrf
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h3 class="text-base font-bold text-gray-800">1. Area and beacons</h3>
@@ -114,7 +114,7 @@
         <h3 class="text-base font-bold text-gray-800">2. Land description</h3>
         @if ($pd && $due)
           <form method="POST" action="{{ route('cadastral-dept.cases.bill.description.store', $case->id) }}"
-                @if ($pd->description_body) onsubmit="return confirm('Rewrite the description from the template? Your edits will be replaced.')" @endif>
+                @if ($pd->description_body) data-confirm-danger data-confirm-title="Rewrite the description?" data-confirm="It is rewritten from the template. Your edits will be replaced." @else data-confirm-title="Write the description?" data-confirm="It is written from the template. Check and edit it before it goes out." @endif>
             @csrf
             <button class="px-3 py-1 rounded-md border border-gray-300 text-sm font-semibold text-gray-700">{{ $pd->description_body ? 'Rewrite from template' : 'Write from template' }}</button>
           </form>
@@ -123,7 +123,7 @@
       @if (! $pd)
         <p class="text-sm text-gray-500">Save the area and beacons first.</p>
       @else
-        <form method="POST" action="{{ route('cadastral-dept.cases.bill.description.save', $case->id) }}" class="space-y-2">
+        <form method="POST" action="{{ route('cadastral-dept.cases.bill.description.save', $case->id) }}" class="space-y-2" data-confirm-title="Save the description?" data-confirm="The plan description for {{ $case->file_number }} is saved.">
           @csrf @method('PUT')
           <textarea name="description_body" rows="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)
                     placeholder="Write it from the template, then edit.">{{ old('description_body', $pd->description_body) }}</textarea>
@@ -137,7 +137,7 @@
     {{-- 3. Fees --}}
     <form method="POST" action="{{ route('cadastral-dept.cases.bill.store', $case->id) }}" class="rounded-xl border border-gray-200 bg-white p-5 space-y-4"
           x-data="cdPndFees(@js($cdFeeInit))" x-init="load()"
-          onsubmit="return confirm('Issue the Fees P&D bill? An earlier unpaid bill for this file is cancelled and replaced.')">
+          data-confirm-title="Issue the Fees P&D bill?" data-confirm="An earlier unpaid bill for {{ $case->file_number }} is cancelled and replaced.">
       @csrf
       <h3 class="text-base font-bold text-gray-800">3. Fees (official sheet)</h3>
       <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -228,6 +228,7 @@
       </div>
     @endif
   </div>
+  @include('admin.footer')
 </div>
 @endsection
 

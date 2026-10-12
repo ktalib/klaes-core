@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\CadastralDept;
 
+use App\Http\Controllers\Concerns\ExecutesMasterDelete;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\InstrumentWorkflow\Concerns\RunsWorkflowActions;
 use App\Models\CadastralDept\CadastralCase;
 use App\Models\CadastralDept\CadastralCharting;
+use App\Services\CadastralDept\CasePurge;
 use App\Services\CadastralDept\CaseWorkflow;
+use App\Services\CadastralDept\DeskQueues;
 use App\Services\CadastralDept\ChartingCards;
 use App\Services\CadastralDept\CorrespondenceCustody;
 use App\Services\CadastralDept\CorrespondenceStep;
@@ -16,13 +19,18 @@ use App\Services\CadastralDept\FileMovementCards;
 use App\Services\CadastralDept\IntakeLookup;
 use App\Services\CadastralDept\WorkflowDefinition;
 use App\Services\CadastralDept\WorkflowEngine;
+use App\Services\CadastralDept\YesNoForms;
 use App\Services\InstrumentWorkflow\WorkflowGuardException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CaseController extends Controller
 {
     use RunsWorkflowActions;
+    use ExecutesMasterDelete;
 
     public function index(Request $request, WorkflowDefinition $def)
     {
@@ -43,9 +51,22 @@ class CaseController extends Controller
                     ->orWhere('file_title', 'like', "%{$term}%"));
             }
             $cases = $q->paginate(25)->withQueryString();
+
+            // Summary cards, within the application type picked (if any); each filters the list.
+            $byStatus = CadastralCase::query()->when($wf, fn ($w) => $w->where('workflow', $wf))
+                ->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
+            $link = fn (?string $s) => route('cadastral-dept.cases.index', array_filter(['workflow' => $wf, 'status' => $s]));
+            $cdCards = [
+                ['label' => 'All files', 'value' => number_format($byStatus->sum()), 'hint' => 'ever registered', 'colour' => 'gray', 'url' => $link(null), 'active' => !$status],
+                ['label' => 'In progress', 'value' => number_format($byStatus[CadastralCase::STATUS_IN_PROGRESS] ?? 0), 'hint' => 'open in the department', 'colour' => 'blue', 'url' => $link('in_progress'), 'active' => $status === 'in_progress'],
+                ['label' => 'Completed', 'value' => number_format($byStatus['completed'] ?? 0), 'hint' => 'sent to Deeds / returned to requester', 'colour' => 'green', 'url' => $link('completed'), 'active' => $status === 'completed'],
+                ['label' => 'Sent back', 'value' => number_format($byStatus['returned'] ?? 0), 'hint' => 'returned to source', 'colour' => 'red', 'url' => $link('returned'), 'active' => $status === 'returned'],
+                ['label' => 'Registered this month', 'value' => number_format(CadastralCase::query()->when($wf, fn ($w) => $w->where('workflow', $wf))
+                    ->where('created_at', '>=', now()->startOfMonth())->count()), 'hint' => now()->format('F Y'), 'colour' => 'indigo'],
+            ];
         }
 
-        return view('cadastral_dept.cases.index', compact('def', 'installed', 'cases'));
+        return view('cadastral_dept.cases.index', ['def' => $def, 'installed' => $installed, 'cases' => $cases, 'cdCards' => $cdCards ?? []]);
     }
 
     /** Registry intake form (the Intake Queue registration, copied for this workflow). */
@@ -81,6 +102,7 @@ class CaseController extends Controller
             'file_type' => 'required|string|max:20',
             'sub_type' => 'nullable|string|max:30',
             'file_source' => 'required|string|max:20',
+            'file_source_other' => 'nullable|required_if:file_source,other|string|max:100',
             'file_number' => 'required|string|max:100',
             'file_indexing_id' => 'nullable|integer|min:1',
             'file_system' => 'nullable|string|max:20',
@@ -91,6 +113,7 @@ class CaseController extends Controller
             'file_number.required' => 'Pick the file with the file number selector.',
             'file_type.required' => 'Choose the file type.',
             'file_source.required' => 'Choose where the file came from.',
+            'file_source_other.required_if' => 'Specify where the file came from.',
         ]);
 
         $found = $lookup->resolve([
@@ -115,6 +138,7 @@ class CaseController extends Controller
                 'file_type' => $data['file_type'],
                 'sub_type' => $data['sub_type'] ?? null,
                 'file_source' => $data['file_source'],
+                'file_source_other' => $data['file_source_other'] ?? null,
                 'file_number' => $file['file_number'],
                 'file_indexing_id' => $file['file_indexing_id'],
                 'file_system' => $data['file_system'] ?? null,
@@ -161,6 +185,13 @@ class CaseController extends Controller
                 // A sub-type route with no sub-type yet: the page asks for it instead.
             }
         }
+        // Where each choice sends the file, shown on the button and in its confirmation.
+        foreach ($actions as &$a) {
+            $a['to'] = $a['next']
+                ? $def->deskShort($def->step($case->workflow, $a['next'])['desk'])
+                : ($a['ends'] === 'returned' ? $case->fileSourceLabel() : 'Deeds / requester');
+        }
+        unset($a);
 
         // Field jacket at AD P&D: the surveyor list only when the jacket is due.
         $fieldJacket = $jackets->forCase($case);
@@ -174,6 +205,8 @@ class CaseController extends Controller
             'actions' => $actions,
             'done' => $case->tasks->where('step', $case->current_step)->keyBy('task_key'),
             'progress' => $engine->phaseProgress($case->workflow, $case->current_step, !$case->isOpen()),
+            'pipeline' => $engine->pipeline($case->workflow, $case->sub_type, $case->movements,
+                $case->isOpen() ? $case->current_step : null, $case->isOpen() ? null : $case->status),
             'fmc' => $fmc,
             'fmcBackfill' => $fmcBackfill,
             'custodyInstalled' => CorrespondenceCustody::installed(),
@@ -185,6 +218,8 @@ class CaseController extends Controller
             'jacketDue' => $jacketDue,
             'surveyors' => $jacketDue ? $jackets->surveyors() : collect(),
             'itsDefault' => $fieldJacket && !$fieldJacket->job->its_number ? $jackets->defaultInstructions($fieldJacket) : null,
+            'yesNoInstalled' => YesNoForms::installed(),
+            'yesNoForm' => app(YesNoForms::class)->forCase($case),
             'chartingInstalled' => ChartingCards::installed(),
             'chartings' => ChartingCards::installed()
                 ? CadastralCharting::query()->with('officer')->where('cadastral_case_id', $case->id)->where('is_current', true)->orderBy('id')->get()
@@ -222,7 +257,54 @@ class CaseController extends Controller
         $data = $request->validate(['action' => 'required|in:detach,attach', 'note' => 'nullable|string|max:1000']);
         $case = CadastralCase::findOrFail($case);
 
-        return $this->attempt(fn () => $custody->record($case, $data['action'], $data['note'] ?? null, auth()->id()), 'Done.');
+        return $this->attempt(fn () => $custody->record($case, $data['action'], $data['note'] ?? null, auth()->id()),
+            $data['action'] === 'detach'
+                ? "{$case->case_ref}: correspondence file detached from {$case->file_number}."
+                : "{$case->case_ref}: correspondence file attached to {$case->file_number}.");
+    }
+
+    /**
+     * Master Delete: the case and everything the workflow made for it. Supper Admin
+     * only, with the case reference typed back (ExecutesMasterDelete, as the Land and
+     * SLTR master deletes). Used to clear test records.
+     */
+    public function masterDestroy(Request $request, int $case, CasePurge $purge): JsonResponse
+    {
+        if ($deny = $this->denyUnlessMasterDeleter()) {
+            return $deny;
+        }
+        $case = CadastralCase::find($case);
+        if (!$case) {
+            return response()->json(['success' => false, 'message' => 'File not found.'], 404);
+        }
+        if ($deny = $this->denyUnlessConfirmationMatches($request, $case->case_ref)) {
+            return $deny;
+        }
+        if ($blockers = $purge->blockers($case)) {
+            return response()->json(['success' => false, 'message' => implode(' ', $blockers)], 422);
+        }
+
+        $snapshot = $case->toArray();
+        $db = DB::connection('sqlsrv');
+        $db->beginTransaction();
+        try {
+            $counts = $purge->purge($case);
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            Log::error('Cadastral case master delete failed', ['id' => $case->id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Could not delete: ' . $e->getMessage()], 500);
+        }
+
+        Cache::forget(DeskQueues::CACHE_KEY);
+        $this->logMasterDelete('cadastral_case', $case->id, $snapshot, $counts, "Cadastral case {$case->case_ref} ({$case->file_number})");
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$case->case_ref} ({$case->file_number}) deleted.",
+            'details' => $counts,
+        ]);
     }
 
     public function setSubType(Request $request, int $case, CaseWorkflow $workflow)

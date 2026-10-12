@@ -39,9 +39,21 @@ class ChartingController extends Controller
                     ->orWhereHas('case', fn ($c) => $c->where('file_number', 'like', "%{$term}%"))))
                 ->orderByDesc('id')
                 ->paginate(25)->withQueryString();
+
+            // Summary cards over the current cards: one per table (each opens it), then the two flags.
+            $byStage = CadastralCharting::query()->where('is_current', true)
+                ->selectRaw('stage, count(*) as n')->groupBy('stage')->pluck('n', 'stage');
+            $colours = ['information' => 'blue', 'reports' => 'indigo', 'checks' => 'green'];
+            foreach (self::TABLES as $key => [$label, $stages]) {
+                $cdCards[] = ['label' => $label, 'value' => number_format($byStage->only($stages)->sum()), 'hint' => 'charting cards',
+                    'colour' => $colours[$key] ?? 'gray', 'url' => route('cadastral-dept.charting.index', ['table' => $key]), 'active' => $table === $key];
+            }
+            $current = CadastralCharting::query()->where('is_current', true);
+            $cdCards[] = ['label' => 'Could not be charted', 'value' => number_format((clone $current)->where('charted', false)->count()), 'hint' => 'flagged on the file', 'colour' => 'red'];
+            $cdCards[] = ['label' => 'Falls on an existing plot', 'value' => number_format((clone $current)->where('falls_on_existing', true)->count()), 'hint' => 'flagged on the file', 'colour' => 'yellow'];
         }
 
-        return view('cadastral_dept.charting.index', compact('def', 'installed', 'table', 'term', 'rows'));
+        return view('cadastral_dept.charting.index', compact('def', 'installed', 'table', 'term', 'rows') + ['cdCards' => $cdCards ?? []]);
     }
 
     public function create(int $case, WorkflowDefinition $def)

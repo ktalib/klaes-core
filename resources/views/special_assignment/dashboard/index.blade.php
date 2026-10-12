@@ -11,6 +11,7 @@
         'second'        => ['2nd Serve',     '#ea580c'],
         'response'      => ['Response',      '#2563eb'],
         'payment'       => ['Payment',       '#16a34a'],
+        'newfile'       => ['New File No.',  '#0d9488'],
         'memo'          => ['Memo',          '#7c3aed'],
         'decision'      => ['Decision',      '#9333ea'],
         'certificate'   => ['Certificate',   '#db2777'],
@@ -164,7 +165,7 @@
                 </span>
                 <div><div class="text-sm font-bold text-gray-800">Needs attention</div><div class="text-xs text-gray-500">The oldest items first</div></div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                 @php
                     $cols = [
                         ['2nd Serve due', '#ea580c', route('special-assignment.notice'), $attention['second']->map(fn ($n) => [
@@ -195,6 +196,28 @@
                     </div>
                 </div>
                 @endforeach
+
+                {{-- Settled bills handed on for a new file number. --}}
+                <div class="rounded-xl border border-gray-100 p-3" style="background:linear-gradient(180deg, #0d94880d, #fff 60%)">
+                    <a href="{{ route('change-of-purpose.index') }}" class="flex items-center justify-between text-xs font-bold uppercase tracking-wide" style="color:#0d9488">
+                        <span>New file no.</span><span class="px-2 py-0.5 rounded-full text-white" style="background:#0d9488">{{ $attention['newfile']->count() }}</span>
+                    </a>
+                    <div class="mt-2 divide-y divide-gray-100">
+                        @forelse($attention['newfile'] as $a)
+                        <div class="py-1.5 flex items-center justify-between gap-2 text-sm">
+                            <span class="min-w-0"><span class="block font-semibold text-gray-800 truncate">{{ $a->spa_id ?: $a->file_number }}</span>
+                                <span class="block text-xs text-gray-500 truncate">{{ $a->new_file_route === 'change_of_purpose' ? 'Change of Purpose' : 'New Conversion' }} · {{ $a->owner_name ?: '—' }}</span></span>
+                            @if($a->new_file_route === 'change_of_purpose')
+                                <a href="{{ route('mls-fileno.index') }}" class="text-xs font-semibold whitespace-nowrap" style="color:#0d9488" title="Pick the Change of Purpose on the MLS screen to commission the new number">Commission →</a>
+                            @else
+                                <button type="button" class="btn-record-newfile text-xs font-semibold whitespace-nowrap" style="color:#0d9488" data-id="{{ $a->id }}" data-ref="{{ $a->spa_id ?: $a->file_number }}">Record no.</button>
+                            @endif
+                        </div>
+                        @empty
+                        <div class="py-3 text-xs text-gray-400">Nothing waiting.</div>
+                        @endforelse
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -231,6 +254,30 @@
     </div>
     @include('admin.footer')
 </div>
+
+<script>
+    // New Conversion: record the file number the officer issued on the MLS screen.
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn-record-newfile');
+        if (!btn) return;
+        const res = await Swal.fire({
+            title: 'New file number for ' + btn.dataset.ref,
+            html: '<p class="text-sm text-gray-600">Issue it under Conversion on the MLS file number screen, then enter it here.</p>',
+            input: 'text', inputPlaceholder: 'e.g. CON-COM-2026-0001', showCancelButton: true,
+            confirmButtonText: 'Record', confirmButtonColor: '#0d9488',
+            preConfirm: (v) => (v || '').trim() || (Swal.showValidationMessage('Enter the file number'), false),
+        });
+        if (!res.isConfirmed) return;
+        const r = await fetch('{{ url('special-assignment/land-records') }}/' + btn.dataset.id + '/new-file-number', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ new_file_number: res.value }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.success) { await Swal.fire({ icon: 'success', title: 'Recorded', text: d.message }); location.reload(); }
+        else Swal.fire({ icon: 'error', title: 'Not recorded', text: d.message || (d.errors ? Object.values(d.errors)[0][0] : 'Failed') });
+    });
+</script>
 
 <style>
     .spas-hero { background: radial-gradient(120% 140% at 0% 0%, #4d5106 0%, #2f3204 45%, #1f2937 100%); }

@@ -115,6 +115,86 @@ class WorkflowEngine
         return array_values(array_diff($tasks, $doneTaskKeys));
     }
 
+    /**
+     * The process as a pipeline: the steps already taken (from the movement log),
+     * the step the file is at, then the expected way on to the end. The way on
+     * takes the forward answer at each decision and the sub-type's route, and
+     * lists the other answers so the officer sees where else the file could go.
+     * With no history and no current step it is the plain route from the start.
+     *
+     * @param  iterable<object>  $movements  CadastralCaseMovement rows, oldest first
+     * @return list<array{key:?string, label:string, desk:string, state:string, outcome:?string, by:?string, at:mixed, options:list<string>}>
+     */
+    public function pipeline(string $workflow, ?string $subType = null, iterable $movements = [], ?string $current = null, ?string $closedAs = null): array
+    {
+        $def = $this->definition;
+        $out = [];
+
+        foreach ($movements as $m) {
+            if ($m->from_step === null) {   // registration
+                $out[] = ['key' => null, 'label' => 'Registered', 'desk' => $def->deskShort($m->from_desk ?: 'registry'), 'state' => 'done',
+                    'outcome' => null, 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
+                continue;
+            }
+            if (!$def->hasStep($workflow, $m->from_step)) {
+                continue;
+            }
+            $s = $def->step($workflow, $m->from_step);
+            $out[] = ['key' => $m->from_step, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk']), 'state' => 'done',
+                'outcome' => $s['outcomes'][$m->outcome]['label'] ?? null, 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
+        }
+
+        if ($closedAs) {
+            $out[] = ['key' => null, 'label' => $closedAs === 'returned' ? 'Sent back to source' : 'Completed', 'desk' => '',
+                'state' => 'end', 'outcome' => null, 'by' => null, 'at' => null, 'options' => []];
+
+            return $out;
+        }
+
+        // The way on, from the current step (or the start).
+        $key = $current ?? $def->startStep($workflow);
+        $seen = [];
+        while ($key && $def->hasStep($workflow, $key) && !isset($seen[$key]) && count($seen) < 60) {
+            $seen[$key] = true;
+            $s = $def->step($workflow, $key);
+            $options = [];
+            $next = null;
+
+            if (isset($s['outcomes'])) {
+                foreach ($s['outcomes'] as $o) {
+                    $options[] = $o['label'];
+                }
+                // The forward answer: the first one that is not a refusal.
+                foreach ($s['outcomes'] as $o) {
+                    if (empty($o['reason'])) {
+                        $next = $o['next'];
+                        break;
+                    }
+                }
+            } elseif (isset($s['routes'])) {
+                foreach ($s['routes'] as $sub => $to) {
+                    $options[] = ($def->subTypes($workflow)[$sub] ?? $sub) . ': ' . $def->deskShort($def->step($workflow, $to)['desk']);
+                }
+                $next = $s['routes'][$subType ?? ''] ?? reset($s['routes']);
+            } else {
+                $next = $s['next'] ?? null;
+            }
+
+            $out[] = ['key' => $key, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk']),
+                'state' => $key === $current ? 'current' : 'next', 'outcome' => null, 'by' => null, 'at' => null,
+                'options' => count($options) > 1 ? $options : []];
+
+            if (isset($s['end'])) {
+                $out[] = ['key' => null, 'label' => $s['end'] === 'returned' ? 'Sent back to source' : 'Completed', 'desk' => '',
+                    'state' => 'next', 'outcome' => null, 'by' => null, 'at' => null, 'options' => []];
+                break;
+            }
+            $key = $next;
+        }
+
+        return $out;
+    }
+
     /** Phase progress for a stage tracker: [phase => done|current|waiting]. */
     public function phaseProgress(string $workflow, string $currentStep, bool $closed = false): array
     {

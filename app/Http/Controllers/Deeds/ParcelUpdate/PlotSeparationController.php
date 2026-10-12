@@ -270,7 +270,7 @@ class PlotSeparationController extends Controller
             'updated_by'     => Auth::id(),
         ]);
 
-        return response()->json(['success' => true, 'message' => 'KAMMA status updated.']);
+        return response()->json(['success' => true, 'message' => 'KAMMA/Physical Planning status updated.']);
     }
 
     public function findByFileNo(string $fileNo): JsonResponse

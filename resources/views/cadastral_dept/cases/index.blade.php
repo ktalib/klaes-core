@@ -4,8 +4,10 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Cadastral Files', 'PageDescription' => 'Every main file received by the Cadastral Department'])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
+
+    @include('cadastral_dept.partials._stat_cards')
 
     <form method="GET" class="flex flex-wrap items-end gap-3 mb-4">
       <div>
@@ -66,5 +68,6 @@
       <div class="mt-4">{{ $cases->links() }}</div>
     @endif
   </div>
+  @include('admin.footer')
 </div>
 @endsection

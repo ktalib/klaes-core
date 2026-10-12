@@ -888,6 +888,19 @@ class LegalSearchService
      * successor therefore also carries its OWN decommission info, so the timeline can render
      * that generation's "File Decommissioning" row alongside the grandchild's commissioning.
      */
+    /**
+     * The file's lineage on its own, without running a full search: whether it was
+     * retired and into what (recursively), and which files were retired into it.
+     * Same shape as search()['lineage']. Used by the LAAS Portal.
+     */
+    public function lineageFor(string $fileNo): array
+    {
+        $conn = DB::connection('sqlsrv');
+        $fileNo = trim($fileNo);
+
+        return $this->enrichLineageWithCommissioning($conn, $this->resolveFileLineage($conn, $fileNo), $fileNo);
+    }
+
     private function enrichLineageWithCommissioning($conn, array $lineage, ?string $rootFileNo = null): array
     {
         $lineage['previous_files'] = [];
@@ -1102,13 +1115,20 @@ class LegalSearchService
                 }
 
                 // Files that were superseded INTO the searched file (its predecessors).
+                // successor_file_no is a CSV list when one mother retires into several
+                // children (batch subdivision), so an equality match missed those mothers:
+                // LIKE narrows the candidates, the exact per-item match below decides.
                 if ($hasSuccessor) {
                     $preds = $conn->table('decommissioned_files')
-                        ->whereRaw('UPPER(LTRIM(RTRIM(successor_file_no))) = ?', [$needle])
-                        ->pluck('file_no')->all();
-                    foreach ($preds as $p) {
-                        $p = trim((string) $p);
-                        if ($p !== '') {
+                        ->where('successor_file_no', 'like', '%' . $needle . '%')
+                        ->get(['file_no', 'successor_file_no']);
+                    foreach ($preds as $pred) {
+                        $successors = array_map(
+                            fn ($s) => strtoupper(trim($s)),
+                            explode(',', (string) $pred->successor_file_no)
+                        );
+                        $p = trim((string) $pred->file_no);
+                        if ($p !== '' && in_array($needle, $successors, true)) {
                             $prev[strtoupper($p)] = $p;
                         }
                     }

@@ -72,6 +72,40 @@ class SpaRecordPurgeService
         ];
     }
 
+    /**
+     * The Change of Purpose this record raised on settling its bill, if any.
+     *
+     * Only one SPAS itself created (source = SPAS) — one already in progress
+     * that SPAS merely linked to belongs to whoever raised it. And never once
+     * commissioned: by then the MLS screen has issued the new file number and
+     * linked it to the old file in the registry, which a SPAS delete must not
+     * leave pointing at nothing.
+     *
+     * @return array{remove: ?object, keep: ?object, reason: ?string}
+     */
+    private function changeOfPurpose(SpaApplication $app): array
+    {
+        $none = ['remove' => null, 'keep' => null, 'reason' => null];
+        if (! SpaNewFileService::supported() || ! $app->cop_application_id) {
+            return $none;
+        }
+        $cop = DB::connection('sqlsrv')->table('change_of_purpose_applications')
+            ->where('id', $app->cop_application_id)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->first();
+        if (! $cop) {
+            return $none;
+        }
+        if (strtolower((string) $cop->source_module) !== SpaNewFileService::SOURCE) {
+            return ['remove' => null, 'keep' => $cop, 'reason' => 'not raised by SPAS'];
+        }
+        if ($cop->status === 'commissioned') {
+            return ['remove' => null, 'keep' => $cop, 'reason' => 'already commissioned'.($app->new_file_number ? " to {$app->new_file_number}" : '').' — the new file number stays in the registry'];
+        }
+
+        return ['remove' => $cop, 'keep' => null, 'reason' => null];
+    }
+
     /** Human counts for the confirm dialog. */
     public function summary(SpaApplication $app): array
     {
@@ -95,11 +129,18 @@ class SpaRecordPurgeService
             }
         }
 
+        $cop = $this->changeOfPurpose($app);
+        if ($cop['remove']) {
+            $counts[] = ['label' => 'Change of Purpose raised by SPAS', 'count' => 1];
+        }
+
         return [
             'reference' => $app->spa_id ?: $app->file_number,
             'owner'     => $app->owner_name,
             'counts'    => $counts,
             'photos'    => count($this->photoPaths($rows)),
+            // Shown in the dialog so nobody expects it gone.
+            'kept'      => $cop['keep'] ? ['Change of Purpose for ' . $cop['keep']->file_no . ' is kept: ' . $cop['reason'] . '.'] : [],
         ];
     }
 
@@ -108,6 +149,7 @@ class SpaRecordPurgeService
     {
         $rows   = $this->collect($app);
         $photos = $this->photoPaths($rows);
+        $cop    = $this->changeOfPurpose($app);
         $ref    = $app->spa_id ?: ($app->file_number ?: 'id-'.$app->id);
 
         // 1. Export every row and every photo (with its folder path kept).
@@ -125,6 +167,7 @@ class SpaRecordPurgeService
             'reference'   => $ref,
             'photo_paths' => $photos,
             'rows'        => $rows,
+            'change_of_purpose' => ['removed' => $cop['remove'], 'kept' => $cop['keep'], 'reason' => $cop['reason']],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         // The export must exist before anything is removed.
@@ -134,11 +177,19 @@ class SpaRecordPurgeService
 
         // 2. Delete, children first, all or nothing.
         $deleted = [];
-        DB::connection('sqlsrv')->transaction(function () use ($rows, &$deleted) {
+        DB::connection('sqlsrv')->transaction(function () use ($rows, $cop, $user, &$deleted) {
             foreach ($rows as $table => $set) {
                 if ($set->isNotEmpty()) {
                     $deleted[$table] = DB::connection('sqlsrv')->table($table)->whereIn('id', $set->pluck('id'))->delete();
                 }
+            }
+            // The Change of Purpose is marked deleted, as its own screen does it —
+            // it lives in the shared register, not in the SPAS workspace.
+            if ($cop['remove']) {
+                $deleted['change_of_purpose_applications'] = DB::connection('sqlsrv')->table('change_of_purpose_applications')
+                    ->where('id', $cop['remove']->id)
+                    ->update(['is_deleted' => 1, 'deleted_by' => $user->id ?? null, 'deleted_at' => now(),
+                        'remarks' => trim(($cop['remove']->remarks ?? '') . "\nRemoved with its SPAS record (master delete) on " . now()->toDateTimeString())]);
             }
         });
 

@@ -7,9 +7,11 @@
       'cadastral-dept.charting.index' => ['Charting', 'map'],
       'cadastral-dept.field-jackets.index' => ['Field Jackets', 'briefcase'],
       'cadastral-dept.bills.index' => ['P&D Bills', 'receipt'],
-      'cadastral-dept.map' => ['Workflow Map', 'git-branch'],
+      // Workflow Map hidden for now (user, 2026-10-11); the page still opens by URL.
   ];
 @endphp
+{{-- Header shortcuts hidden for now (user, 2026-10-12); the sidebar desks are the way in. Change false to true to show them again. --}}
+@if (false)
 <div class="flex flex-wrap items-center gap-2 mb-6">
   @foreach ($cdTabs as $cdRoute => [$cdLabel, $cdIcon])
     <a href="{{ route($cdRoute) }}"
@@ -18,6 +20,9 @@
     </a>
   @endforeach
 </div>
+@endif
+
+@include('cadastral_dept.partials._confirm')
 
 @if (session('success'))
   <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>

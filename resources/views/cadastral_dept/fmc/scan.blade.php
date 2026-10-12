@@ -20,11 +20,13 @@
     </div>
 
     @include('cadastral_dept.fmc._log_form')
+    @include('cadastral_dept.partials._confirm')
 
     <details class="rounded-xl border border-gray-200 bg-white p-4">
       <summary class="text-sm font-semibold text-gray-700 cursor-pointer">Movement log ({{ count($timeline) }})</summary>
       <div class="mt-3">@include('cadastral_dept.fmc._timeline')</div>
     </details>
   </div>
+  @include('admin.footer')
 </div>
 @endsection

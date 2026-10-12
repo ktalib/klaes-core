@@ -2,13 +2,17 @@
 
 @section('content')
 <div class="flex-1 overflow-auto bg-gray-50" x-data="cdDesk()">
-  @include('admin.header', ['PageTitle' => $deskInfo['label'], 'PageDescription' => $deskInfo['short'] . ': files at this desk'])
+  {{-- Titled as the sidebar names the page (e.g. Charting, Intake Queue, D Cad). --}}
+  @include('admin.header', ['PageTitle' => $pageTitle, 'PageDescription' => ($pageGroup !== $pageTitle ? $pageGroup . ' · ' : '') . $deskInfo['label']])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     {{-- Filters, and Registry's Register button --}}
+    @include('cadastral_dept.partials._stat_cards')
+
     <form method="GET" class="flex flex-wrap items-center gap-2 mb-6">
+      @if ($queueKey)<input type="hidden" name="queue" value="{{ $queueKey }}">@endif
       <input type="text" name="q" value="{{ $term }}" placeholder="File no., ref or title"
              class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-64">
       <select name="workflow" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -19,7 +23,7 @@
       </select>
       <button class="px-3 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">Filter</button>
       @if ($term !== '' || $filterWorkflow)
-        <a href="{{ route('cadastral-dept.desks.show', $desk) }}" class="text-sm text-gray-600 hover:underline">Clear</a>
+        <a href="{{ route('cadastral-dept.desks.show', array_filter(['desk' => $desk, 'queue' => $queueKey])) }}" class="text-sm text-gray-600 hover:underline">Clear</a>
       @endif
       @if ($desk === 'registry')
         <a href="{{ route('cadastral-dept.cases.create') }}" class="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold">
@@ -28,153 +32,205 @@
       @endif
     </form>
 
+    {{-- One table: files at this desk, any out with another department that this desk takes back,
+         then the open files this desk has sent on (view only, status says where they are). --}}
     @php
-      // Files at this desk, one group per step, so "Recommend or not recommend"
-      // and the other jobs at the same desk are listed apart.
-      $groups = [];
-      foreach ($here as $case) {
-          $groups[$case->workflow . '|' . $case->current_step][] = $case;
-      }
-      $sections = [];
-      foreach ($groups as $rows) {
-          $sections[] = [$rows[0]->stepLabel(), collect($rows), true, $def->workflows()[$rows[0]->workflow]['short']];
-      }
-      if (! $sections) {
-          $sections[] = ['At this desk', collect(), true, null];
-      }
-      if ($away->isNotEmpty()) {
-          $sections[] = ['Out with other departments: record when they come back', $away, true, null];
-      }
-      if ($frozen->isNotEmpty()) {
-          $sections[] = ['With other desks (view only)', $frozen, false, null];
-      }
+      $cdRows = $here->concat($away)->concat($sent);
+      $cdSentIds = $sent->pluck('id')->flip();
     @endphp
-
-    @foreach ($sections as [$title, $rows, $actionable, $wfShort])
-      <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3 {{ $loop->first ? '' : 'mt-8' }}">
-        {{ $title }} @if ($wfShort)<span class="normal-case font-semibold text-gray-400">· {{ $wfShort }}</span>@endif ({{ $rows->count() }})
-      </h3>
-      <div class="rounded-xl border border-gray-200 bg-white">
-        <table class="min-w-full text-sm">
-          <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
-            <tr>
-              <th class="px-4 py-2">S/N</th><th class="px-4 py-2">Ref</th><th class="px-4 py-2">File No.</th><th class="px-4 py-2">Title</th>
-              <th class="px-4 py-2">Type</th><th class="px-4 py-2">{{ $actionable ? 'Note' : 'Now with' }}</th>
-              <th class="px-4 py-2">Since</th><th class="px-4 py-2 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            @forelse ($rows as $case)
-              @php
-                $m = $menus[$case->id] ?? null;
-                $back = $actionable ? $case->sentBack() : null;
-              @endphp
-              <tr class="{{ $actionable ? 'hover:bg-gray-50' : 'bg-gray-50 text-gray-500' }}">
-                <td class="px-4 py-2 text-gray-500">{{ $loop->iteration }}</td>
-                <td class="px-4 py-2 font-mono whitespace-nowrap">
-                  {{ $case->case_ref }}
-                  @if ($case->duplicate_flag)
-                    <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-900" title="{{ $case->duplicate_note }}">Duplicate?</span>
-                  @endif
-                </td>
-                <td class="px-4 py-2 font-mono">{{ $case->file_number }}</td>
-                <td class="px-4 py-2">{{ $case->file_title }}</td>
-                <td class="px-4 py-2 whitespace-nowrap">{!! $def->wfChip($case->workflow) !!} <span class="text-xs text-gray-500">{{ $case->fileTypeLabel() }}</span></td>
-                <td class="px-4 py-2">
-                  @if (! $actionable)
-                    <span class="inline-flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i> {{ $case->deskShort() }}: {{ $case->stepLabel() }}</span>
-                  @elseif ($back)
-                    <span class="inline-block rounded bg-red-50 border border-red-200 px-2 py-1 text-xs text-red-800">
-                      Sent back by {{ $back['desk'] }}@if ($back['reason']): “{{ $back['reason'] }}”@endif
-                    </span>
-                  @elseif ($title === 'Out with other departments: record when they come back')
-                    <span class="text-xs text-gray-600">{{ $case->stepLabel() }}</span>
-                  @else
-                    <span class="text-xs text-gray-400">—</span>
-                  @endif
-                </td>
-                <td class="px-4 py-2 text-gray-500 whitespace-nowrap">{{ optional($case->updated_at)->diffForHumans() }}</td>
-                <td class="px-4 py-2 text-right">
-                  @if (! $actionable)
-                    @include('cadastral_dept.partials._row_actions', ['items' => $case->rowActions()])
-                  @else
-                    <div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false">
-                      <button type="button" @click="open = !open" title="Actions" aria-label="Actions"
-                              class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
-                        <i data-lucide="more-vertical" class="w-5 h-5"></i>
+    <div class="rounded-xl border border-gray-200 bg-white">
+      <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+          <tr>
+            <th class="px-4 py-2">S/N</th><th class="px-4 py-2">Ref</th><th class="px-4 py-2">File No.</th><th class="px-4 py-2">Title</th>
+            <th class="px-4 py-2">Type</th><th class="px-4 py-2">Status</th>
+            <th class="px-4 py-2">Date created</th><th class="px-4 py-2">Created by</th><th class="px-4 py-2">Last moved</th>
+            <th class="px-4 py-2 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @forelse ($cdRows as $case)
+            @php
+              $m = $menus[$case->id] ?? null;
+              $back = $case->sentBack();
+              $isSent = isset($cdSentIds[$case->id]);
+              $isAway = ! $isSent && $case->current_desk !== $desk;
+              $back = $isSent ? null : $back;
+            @endphp
+            <tr class="{{ $isSent ? 'bg-gray-50 text-gray-600' : 'hover:bg-gray-50' }} align-top">
+              <td class="px-4 py-2 text-gray-500">{{ $loop->iteration }}</td>
+              <td class="px-4 py-2 font-mono whitespace-nowrap">
+                {{ $case->case_ref }}
+                @if ($case->duplicate_flag)
+                  <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-900" title="{{ $case->duplicate_note }}">Duplicate?</span>
+                @endif
+              </td>
+              <td class="px-4 py-2 font-mono">{{ $case->file_number }}</td>
+              <td class="px-4 py-2">{{ $case->file_title }}</td>
+              <td class="px-4 py-2 whitespace-nowrap">{!! $def->wfChip($case->workflow) !!} <span class="text-xs text-gray-500">{{ $case->fileTypeLabel() }}</span></td>
+              <td class="px-4 py-2">
+                @if ($isSent)
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800">Sent to {{ $case->deskShort() }}</span>
+                @elseif ($isAway)
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">With {{ $case->deskShort() }}</span>
+                @elseif ($back)
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800">Sent back by {{ $back['desk'] }}</span>
+                @elseif ($m && $m['tasks_open'])
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-900">{{ $m['tasks_open'] }} task(s) open</span>
+                @elseif ($m && $m['failing'])
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-900" title="{{ implode('; ', $m['failing']) }}">Not ready</span>
+                @else
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800">Ready to send</span>
+                @endif
+                <div class="text-xs text-gray-500 mt-0.5">{{ $isSent ? 'Now: ' : '' }}{{ $case->stepLabel() }}</div>
+                @if (! $isAway && $back && $back['reason'])
+                  <div class="text-xs text-red-700 mt-0.5">“{{ $back['reason'] }}”</div>
+                @endif
+              </td>
+              <td class="px-4 py-2 text-gray-600 whitespace-nowrap">{{ optional($case->created_at)->format('d M Y H:i') }}</td>
+              <td class="px-4 py-2 text-gray-600">{{ optional($case->receiver)->name ?: '—' }}</td>
+              <td class="px-4 py-2 text-gray-500 whitespace-nowrap">{{ optional($case->updated_at)->diffForHumans() }}</td>
+              <td class="px-4 py-2 text-right">
+                <div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false">
+                  <button type="button" @click="open = !open" title="Actions" aria-label="Actions"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                  </button>
+                  <div x-show="open" x-cloak class="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
+                    <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
+                    @if ($fmcInstalled && $case->fmc)
+                      <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
+                    @endif
+                    @if ($isSent)
+                      <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">With {{ $case->deskShort() }}: actions are on their desk.</div>
+                    @endif
+                    @if ($m && $m['question'] && ! $m['decision'])
+                      <div class="px-3 pt-2 pb-1 text-xs font-bold text-gray-500 border-t border-gray-100">{{ $m['question'] }}</div>
+                    @endif
+                    @if ($m && $m['custody'])
+                      {{-- Registry: Attach Land File / Detach Correspondence, then Send to Deeds appears. --}}
+                      @php
+                        $cdCustLabel = $m['custody'] === 'detach' ? 'Detach Correspondence' : 'Attach Land File';
+                        $cdCorr = $case->shadow_fileno ?: $case->correspondence_fileno;
+                      @endphp
+                      <form method="POST" action="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}" class="border-t border-gray-100"
+                            data-confirm-title="{{ $cdCustLabel }}?"
+                            data-confirm="{{ $m['custody'] === 'detach' ? 'Detach correspondence file ' . $cdCorr . ' from ' . $case->file_number . ' and archive it.' : 'Attach correspondence file ' . $cdCorr . ' to land file ' . $case->file_number . '.' }}">
+                        @csrf
+                        <input type="hidden" name="action" value="{{ $m['custody'] }}">
+                        <button class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
+                          <span class="inline-flex items-center gap-2"><i data-lucide="{{ $m['custody'] === 'detach' ? 'unlink' : 'link' }}" class="w-4 h-4"></i> {{ $cdCustLabel }}</span>
+                          <span class="block text-xs text-gray-500">{{ $m['tasks_open'] ? 'Then finish ' . $m['tasks_open'] . ' more task(s)' : ($m['custody'] === 'detach' ? 'Then Send to Deeds' : 'Then send on') }}</span>
+                        </button>
+                      </form>
+                    @elseif ($m && $m['tasks_open'])
+                      <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-yellow-800 hover:bg-yellow-50">
+                        Finish {{ $m['tasks_open'] }} task(s) first
+                      </a>
+                    @elseif ($m && $m['failing'])
+                      <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-yellow-800 hover:bg-yellow-50">
+                        Not ready: {{ implode('; ', $m['failing']) }}
+                      </a>
+                    @elseif ($m && $m['decision'])
+                      {{-- One item for the decision; its pop-up offers the answers. --}}
+                      <button type="button"
+                              @click="open = false; ask(@js([
+                                  'url' => route('cadastral-dept.cases.move.save', $case->id),
+                                  'ref' => $case->case_ref, 'file' => $case->file_number,
+                                  'label' => $m['decision'], 'question' => $m['question'],
+                                  'choices' => array_map(fn ($a) => [
+                                      'outcome' => $a['outcome'], 'label' => $a['label'], 'to' => $a['to'],
+                                      'reason' => (bool) $a['reason'], 'danger' => $a['reason'] || $a['ends'] === 'returned',
+                                  ], $m['actions']),
+                              ]))"
+                              class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50 border-t border-gray-100">
+                        <span class="inline-flex items-center gap-2"><i data-lucide="check-square" class="w-4 h-4"></i> {{ $m['decision'] }}</span>
+                        <span class="block text-xs text-gray-500">{{ collect($m['actions'])->pluck('label')->implode(' or ') }}</span>
                       </button>
-                      <div x-show="open" x-cloak class="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
-                        <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="folder-open" class="w-4 h-4 text-gray-500"></i> Open file</a>
-                        @if ($fmcInstalled && $case->fmc)
-                          <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
-                        @endif
-                        @if ($m && $m['question'])
-                          <div class="px-3 pt-2 pb-1 text-xs font-bold text-gray-500 border-t border-gray-100">{{ $m['question'] }}</div>
-                        @endif
-                        @if ($m && $m['tasks_open'])
-                          <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-yellow-800 hover:bg-yellow-50">
-                            Finish {{ $m['tasks_open'] }} task(s) first
-                          </a>
-                        @elseif ($m && $m['failing'])
-                          <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-yellow-800 hover:bg-yellow-50">
-                            Not ready: {{ implode('; ', $m['failing']) }}
-                          </a>
-                        @elseif ($m)
-                          @foreach ($m['actions'] as $a)
-                            <button type="button"
-                                    @click="open = false; ask(@js([
-                                        'url' => route('cadastral-dept.cases.move.save', $case->id),
-                                        'ref' => $case->case_ref, 'file' => $case->file_number,
-                                        'outcome' => $a['outcome'], 'label' => $a['label'],
-                                        'question' => $m['question'], 'reason' => $a['reason'], 'to' => $a['to'],
-                                        'danger' => $a['reason'] || $a['ends'] === 'returned',
-                                    ]))"
-                                    class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 {{ $a['reason'] || $a['ends'] === 'returned' ? 'text-red-700' : 'text-blue-700' }}">
-                              {{ $a['label'] }}
-                            </button>
-                          @endforeach
-                        @endif
-                      </div>
-                    </div>
-                  @endif
-                </td>
-              </tr>
-            @empty
-              <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">No files waiting here.</td></tr>
-            @endforelse
-          </tbody>
-        </table>
-      </div>
-    @endforeach
+                    @elseif ($m)
+                      @foreach ($m['actions'] as $a)
+                        <button type="button"
+                                @click="open = false; ask(@js([
+                                    'url' => route('cadastral-dept.cases.move.save', $case->id),
+                                    'ref' => $case->case_ref, 'file' => $case->file_number,
+                                    'outcome' => $a['outcome'], 'label' => $a['label'],
+                                    'question' => $m['question'], 'reason' => $a['reason'], 'to' => $a['to'],
+                                    'danger' => $a['reason'] || $a['ends'] === 'returned',
+                                ]))"
+                                class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 {{ $a['reason'] || $a['ends'] === 'returned' ? 'text-red-700' : 'text-blue-700' }}">
+                          {{ $a['label'] }}
+                          @unless (str_contains($a['label'], $a['to']))
+                            <span class="block text-xs text-gray-500">Send to {{ $a['to'] }}</span>
+                          @endunless
+                        </button>
+                      @endforeach
+                    @endif
+                    @php $cdDel = $case->masterDeleteJs(); @endphp
+                    @if ($cdDel)
+                      <button type="button" onclick="{{ $cdDel }}" @click="open = false"
+                              class="flex w-full items-center gap-2 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 border-t border-gray-100">
+                        <i data-lucide="shield-alert" class="w-4 h-4"></i> Master Delete
+                      </button>
+                    @endif
+                  </div>
+                </div>
+              </td>
+            </tr>
+          @empty
+            <tr><td colspan="10" class="px-4 py-6 text-center text-gray-400">No files here.</td></tr>
+          @endforelse
+        </tbody>
+      </table>
+    </div>
+    @if ($sentTotal > $sent->count() && $sent->isNotEmpty())
+      <p class="mt-2 text-xs text-gray-500">Showing the latest {{ $sentLimit }} of {{ number_format($sentTotal) }} files sent on. Search by file number to find an older one.</p>
+    @endif
   </div>
 
-  {{-- Confirmation pop-up for every action; a refusal needs its reason here. --}}
+  {{-- Confirmation pop-up for every action. A decision lists its answers to pick from;
+       an answer that sends the file back needs its reason here. --}}
   <div x-show="modal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4" @keydown.escape.window="modal = null">
     <form method="POST" :action="modal && modal.url" class="w-full max-w-md rounded-xl bg-white shadow-xl p-5 space-y-4" @click.outside="modal = null">
       @csrf
-      <input type="hidden" name="outcome" :value="modal && modal.outcome">
+      <input type="hidden" name="outcome" :value="cur() && cur().outcome">
       <div>
         <div class="text-xs font-bold uppercase text-gray-500" x-text="modal && (modal.ref + ' · ' + modal.file)"></div>
-        <div class="text-sm text-gray-600 mt-1" x-show="modal && modal.question" x-text="modal && modal.question"></div>
         <div class="text-lg font-bold text-gray-800 mt-1" x-text="modal && modal.label"></div>
-        <div class="text-sm text-gray-600 mt-1" x-show="modal && modal.to">Sends the file to <strong x-text="modal && modal.to"></strong>.</div>
+        <div class="text-sm text-gray-600 mt-1" x-show="modal && modal.question" x-text="modal && modal.question"></div>
       </div>
+      <template x-if="modal && modal.choices">
+        <div class="space-y-2">
+          <template x-for="(c, i) in modal.choices" :key="c.outcome">
+            <label class="flex items-start gap-3 rounded-lg border px-3 py-2 cursor-pointer"
+                   :class="pick === i ? (c.danger ? 'border-red-400 bg-red-50' : 'border-blue-400 bg-blue-50') : 'border-gray-200'">
+              <input type="radio" name="cd_pick" class="mt-1" :value="i" x-model.number="pick">
+              <span>
+                <span class="block text-sm font-semibold" :class="c.danger ? 'text-red-700' : 'text-gray-800'" x-text="c.label"></span>
+                <span class="block text-xs text-gray-500" x-text="'Send to ' + c.to"></span>
+              </span>
+            </label>
+          </template>
+        </div>
+      </template>
+      <div class="text-sm text-gray-600" x-show="modal && ! modal.choices && modal.to">Send the file to <strong x-text="modal && modal.to"></strong>.</div>
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-1">
-          <span x-text="modal && modal.reason ? 'Reason' : 'Remarks (optional)'"></span>
-          <span class="text-red-600" x-show="modal && modal.reason">*</span>
+          <span x-text="cur() && cur().reason ? 'Reason' : 'Remarks (optional)'"></span>
+          <span class="text-red-600" x-show="cur() && cur().reason">*</span>
         </label>
         <textarea name="remarks" rows="3" x-model="remarks" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  :placeholder="modal && modal.reason ? 'Say why. The desk that receives the file sees this.' : ''"></textarea>
+                  :placeholder="cur() && cur().reason ? 'Say why. The desk that receives the file sees this.' : ''"></textarea>
       </div>
       <div class="flex justify-end gap-2">
         <button type="button" @click="modal = null" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
-        <button type="submit" :disabled="modal && modal.reason && remarks.trim() === ''"
-                :class="modal && modal.danger ? 'bg-red-600' : 'bg-blue-600'"
-                class="px-4 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50">Confirm</button>
+        <button type="submit" :disabled="! cur() || (cur().reason && remarks.trim() === '')"
+                :class="cur() && cur().danger ? 'bg-red-600' : 'bg-blue-600'"
+                class="px-4 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50"
+                x-text="cur() ? cur().label : 'Choose one'"></button>
       </div>
     </form>
   </div>
+  @include('admin.footer')
 </div>
 @endsection
 
@@ -182,8 +238,10 @@
 <script>
   function cdDesk() {
     return {
-      modal: null, remarks: '',
-      ask(m) { this.remarks = ''; this.modal = m; },
+      modal: null, remarks: '', pick: null,
+      ask(m) { this.remarks = ''; this.pick = null; this.modal = m; },
+      // The answer being confirmed: the one picked for a decision, else the single action.
+      cur() { return !this.modal ? null : (this.modal.choices ? this.modal.choices[this.pick] || null : this.modal); },
     };
   }
 </script>

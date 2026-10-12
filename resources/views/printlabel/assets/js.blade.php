@@ -45,6 +45,11 @@
                 registryOverrideMode: false,
                 registryOverrideNumbers: [],
                 registryOverrideInput: '',
+                // Manual override only: split the loaded files serially into
+                // sub groups, each with its own rack/shelf.
+                overrideSubGroupEnabled: false,
+                overrideSubGroupCount: 2,
+                overrideSubGroups: [],
                 rackPrimary: 'A',
                 rackSecondary: '',
                 shelfNumber: '1',
@@ -539,6 +544,257 @@
                 }
 
                 updateRegistryOverrideSummary();
+                if (!active) {
+                    resetOverrideSubGroups();
+                }
+            }
+
+            // ---- Manual override sub groups ----
+            const MIN_OVERRIDE_SUB_GROUPS = 2;
+
+            function isOverrideSubGroupMode() {
+                return Boolean(state.registryOverrideMode)
+                    && Boolean(state.overrideSubGroupEnabled)
+                    && Array.isArray(state.overrideSubGroups)
+                    && state.overrideSubGroups.length >= MIN_OVERRIDE_SUB_GROUPS;
+            }
+
+            function buildOverrideSubGroupLabel(group) {
+                return `${(group.rackPrimary || '').toUpperCase().trim()}${(group.rackSecondary || '').toUpperCase().trim()}${(group.shelfNumber || '').toString().trim()}`;
+            }
+
+            function setPrimaryRackControlsDisabled(disabled) {
+                ['rackPrimarySelect', 'rackSecondarySelect', 'shelfNumberSelect'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (!el) {
+                        return;
+                    }
+                    el.disabled = Boolean(disabled);
+                    el.classList.toggle('opacity-50', Boolean(disabled));
+                    el.classList.toggle('cursor-not-allowed', Boolean(disabled));
+                });
+            }
+
+            // Write each file's shelf label from its sub group (or the main
+            // rack/shelf when sub groups are off) so the list shows it.
+            function applyOverrideShelfLabels() {
+                if (!state.registryOverrideMode) {
+                    return;
+                }
+                const mainLabel = (state.fullLabel || updateFullLabelDisplay() || '').toString().trim().toUpperCase();
+                const groupByFileId = new Map();
+                if (isOverrideSubGroupMode()) {
+                    state.overrideSubGroups.forEach((group) => {
+                        group.fileIds.forEach((id) => groupByFileId.set(String(id), group));
+                    });
+                }
+                state.availableFiles.forEach((file) => {
+                    const group = groupByFileId.get(String(file.id));
+                    const label = group ? group.fullLabel : mainLabel;
+                    if (!label) {
+                        return;
+                    }
+                    file.shelf_label = label;
+                    file.shelf_full_label = label;
+                    file.shelf_location = label;
+                    file.shelf_value = label;
+                    file.override_sub_group = group ? group.index : null;
+                });
+            }
+
+            function updateOverrideSubGroupSummary(message) {
+                const el = document.getElementById('overrideSubGroupSummary');
+                if (!el) {
+                    return;
+                }
+                if (message) {
+                    el.innerHTML = message;
+                    return;
+                }
+                if (!state.availableFiles.length) {
+                    el.innerHTML = 'Click <strong>Load Records</strong> to count the files and divide them.';
+                    return;
+                }
+                if (!isOverrideSubGroupMode()) {
+                    el.textContent = '';
+                    return;
+                }
+                const total = state.availableFiles.length;
+                const sizes = state.overrideSubGroups.map((group) => group.count);
+                el.textContent = `${total} file${total === 1 ? '' : 's'} divided into ${state.overrideSubGroups.length} sub groups (${sizes.join(' / ')}).`;
+            }
+
+            // Divide the loaded files serially into N sub groups, keeping any
+            // shelf/rack already chosen for a sub group of the same index.
+            function computeOverrideSubGroups() {
+                const panel = document.getElementById('overrideSubGroupPanel');
+                const hide = (message) => {
+                    state.overrideSubGroups = [];
+                    if (panel) {
+                        panel.classList.add('hidden');
+                    }
+                    setPrimaryRackControlsDisabled(false);
+                    applyOverrideShelfLabels();
+                    updateOverrideSubGroupSummary(message);
+                };
+
+                if (!state.registryOverrideMode || !state.overrideSubGroupEnabled) {
+                    hide();
+                    return;
+                }
+
+                const files = state.availableFiles.slice();
+                const total = files.length;
+                if (total === 0) {
+                    hide();
+                    return;
+                }
+                if (total < MIN_OVERRIDE_SUB_GROUPS) {
+                    hide(`Only ${total} file loaded — at least ${MIN_OVERRIDE_SUB_GROUPS} are needed to divide into sub groups.`);
+                    return;
+                }
+
+                let count = parseInt(state.overrideSubGroupCount, 10);
+                if (Number.isNaN(count) || count < MIN_OVERRIDE_SUB_GROUPS) {
+                    count = MIN_OVERRIDE_SUB_GROUPS;
+                }
+                let capped = false;
+                if (count > total) {
+                    count = total;
+                    capped = true;
+                }
+
+                const previous = state.overrideSubGroups || [];
+                const base = Math.floor(total / count);
+                const remainder = total % count;
+                let cursor = 0;
+                const groups = [];
+                for (let i = 0; i < count; i++) {
+                    const size = base + (i < remainder ? 1 : 0);
+                    const slice = files.slice(cursor, cursor + size);
+                    cursor += size;
+                    const prior = previous[i] || {};
+                    const group = {
+                        index: i + 1,
+                        count: slice.length,
+                        fileIds: slice.map((file) => file.id),
+                        firstFile: slice.length ? slice[0].file_number : '',
+                        lastFile: slice.length ? slice[slice.length - 1].file_number : '',
+                        rackPrimary: prior.rackPrimary || state.rackPrimary || 'A',
+                        rackSecondary: prior.rackSecondary !== undefined ? prior.rackSecondary : (state.rackSecondary || ''),
+                        shelfNumber: prior.shelfNumber || String(Math.min(100, (parseInt(state.shelfNumber, 10) || 1) + i)),
+                    };
+                    group.fullLabel = buildOverrideSubGroupLabel(group);
+                    groups.push(group);
+                }
+
+                state.overrideSubGroups = groups;
+                if (panel) {
+                    panel.classList.remove('hidden');
+                }
+                setPrimaryRackControlsDisabled(true);
+                applyOverrideShelfLabels();
+                renderOverrideSubGroupPanel();
+                updateOverrideSubGroupSummary(capped
+                    ? `Only ${total} files loaded — divided into ${count} sub groups (one file each).`
+                    : null);
+            }
+
+            function renderOverrideSubGroupPanel() {
+                const list = document.getElementById('overrideSubGroupList');
+                if (!list) {
+                    return;
+                }
+                const escapeHtml = (value) => String(value === undefined || value === null ? '' : value)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                const rackOptions = (selected, includeNone) => {
+                    let html = includeNone ? `<option value=""${selected ? '' : ' selected'}>None</option>` : '';
+                    for (let c = 65; c <= 90; c++) {
+                        const letter = String.fromCharCode(c);
+                        html += `<option value="${letter}"${selected === letter ? ' selected' : ''}>${letter}</option>`;
+                    }
+                    return html;
+                };
+                const shelfOptions = (selected) => {
+                    let html = '';
+                    for (let i = 1; i <= 100; i++) {
+                        html += `<option value="${i}"${String(selected) === String(i) ? ' selected' : ''}>${i}</option>`;
+                    }
+                    return html;
+                };
+                const cls = 'mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200';
+
+                list.innerHTML = state.overrideSubGroups.map((group) => {
+                    const range = group.firstFile
+                        ? escapeHtml(group.firstFile) + (group.lastFile && group.lastFile !== group.firstFile ? ` → ${escapeHtml(group.lastFile)}` : '')
+                        : '—';
+                    return `
+                        <div class="p-4 grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
+                            <div class="md:col-span-5">
+                                <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">Sub Group ${group.index}</span>
+                                <p class="mt-1 text-sm font-medium text-slate-800">${range}</p>
+                                <p class="text-xs text-slate-500">${group.count} file${group.count === 1 ? '' : 's'}</p>
+                            </div>
+                            <div class="md:col-span-2"><span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Rack</span>
+                                <select data-osg-index="${group.index}" data-osg-field="rackPrimary" class="${cls}">${rackOptions(group.rackPrimary, false)}</select></div>
+                            <div class="md:col-span-2"><span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Backup Rack</span>
+                                <select data-osg-index="${group.index}" data-osg-field="rackSecondary" class="${cls}">${rackOptions(group.rackSecondary, true)}</select></div>
+                            <div class="md:col-span-2"><span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Shelf</span>
+                                <select data-osg-index="${group.index}" data-osg-field="shelfNumber" class="${cls}">${shelfOptions(group.shelfNumber)}</select></div>
+                            <div class="md:col-span-1"><span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Label</span>
+                                <div class="mt-1 rounded-md border border-gray-300 bg-slate-50 px-2 py-1.5 text-sm font-semibold text-slate-700" data-osg-label="${group.index}">${escapeHtml(group.fullLabel)}</div></div>
+                        </div>`;
+                }).join('');
+
+                const meta = document.getElementById('overrideSubGroupPanelMeta');
+                if (meta) {
+                    const n = state.overrideSubGroups.length;
+                    meta.textContent = `${n} sub group${n === 1 ? '' : 's'}`;
+                }
+
+                list.querySelectorAll('select[data-osg-index]').forEach((select) => {
+                    select.addEventListener('change', function () {
+                        const group = state.overrideSubGroups[parseInt(this.dataset.osgIndex, 10) - 1];
+                        if (!group) {
+                            return;
+                        }
+                        const value = this.value || '';
+                        group[this.dataset.osgField] = this.dataset.osgField === 'shelfNumber' ? value : value.toUpperCase();
+                        group.fullLabel = buildOverrideSubGroupLabel(group);
+                        const labelEl = list.querySelector(`[data-osg-label="${group.index}"]`);
+                        if (labelEl) {
+                            labelEl.textContent = group.fullLabel;
+                        }
+                        applyOverrideShelfLabels();
+                        resetPreparedState();
+                        renderFileList();
+                        updateCounts();
+                    });
+                });
+            }
+
+            function resetOverrideSubGroups() {
+                state.overrideSubGroupEnabled = false;
+                state.overrideSubGroupCount = MIN_OVERRIDE_SUB_GROUPS;
+                state.overrideSubGroups = [];
+                const toggle = document.getElementById('overrideSubGroupToggle');
+                if (toggle) {
+                    toggle.checked = false;
+                }
+                const countInput = document.getElementById('overrideSubGroupCountInput');
+                if (countInput) {
+                    countInput.value = MIN_OVERRIDE_SUB_GROUPS;
+                }
+                const controls = document.getElementById('overrideSubGroupControls');
+                if (controls) {
+                    controls.classList.add('hidden');
+                }
+                const panel = document.getElementById('overrideSubGroupPanel');
+                if (panel) {
+                    panel.classList.add('hidden');
+                }
+                setPrimaryRackControlsDisabled(false);
+                updateOverrideSubGroupSummary();
             }
 
             function formatYearSuggestionMessage(hints) {
@@ -729,6 +985,9 @@
                     rangeKey: state.rangeKey,
                     selectedTemplate: state.selectedTemplate,
                     orientation: state.orientation,
+                    overrideSubGroups: isOverrideSubGroupMode()
+                        ? state.overrideSubGroups.map((group) => `${group.index}:${group.fullLabel}:${group.fileIds.join(',')}`)
+                        : null,
                 });
             }
 
@@ -1207,6 +1466,7 @@
                         searchInput.value = '';
                     }
 
+                    computeOverrideSubGroups();
                     renderFileList();
                     updateCounts();
                     updateSelectAllCheckbox();
@@ -1987,6 +2247,23 @@
                     if (!payload.records.length) {
                         throw new Error('No grouping records available to create a batch.');
                     }
+
+                    if (isManualOverride && isOverrideSubGroupMode()) {
+                        const payloadIds = new Set(payload.records.map((record) => String(record.id)));
+                        const subGroups = state.overrideSubGroups
+                            .map((group) => ({
+                                record_ids: group.fileIds.filter((id) => payloadIds.has(String(id))).map(Number),
+                                full_label: group.fullLabel,
+                                rack_primary: group.rackPrimary,
+                                rack_secondary: group.rackSecondary || null,
+                                shelf: parseInt(group.shelfNumber, 10),
+                            }))
+                            .filter((group) => group.record_ids.length);
+                        if (subGroups.length < MIN_OVERRIDE_SUB_GROUPS) {
+                            throw new Error(`At least ${MIN_OVERRIDE_SUB_GROUPS} sub groups must have selected files.`);
+                        }
+                        payload.sub_groups = subGroups;
+                    }
                 } else {
                     payload.batch_size = selectedRecords.length;
                     payload.file_ids = selectedRecords.map((record) => Number(record.id));
@@ -2435,8 +2712,12 @@
                         const metaBadge = file.batch_no
                             ? `<span class="text-xs text-gray-500">Batch: ${file.batch_no}</span>`
                             : '';
+                        const subGroupBadge = isOverrideSubGroupMode() && file.override_sub_group
+                            ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Sub Group ${file.override_sub_group}</span>`
+                            : '';
 
                         const detailBadges = [
+                            subGroupBadge,
                             trackingBadge,
                             awaitingBadge,
                             indexingBadge,
@@ -3567,6 +3848,41 @@
                     state.registryOverrideInput = this.value;
                     state.registryOverrideNumbers = parseOverrideNumbers(this.value);
                     updateRegistryOverrideSummary();
+                });
+            }
+
+            const overrideSubGroupToggle = document.getElementById('overrideSubGroupToggle');
+            if (overrideSubGroupToggle) {
+                overrideSubGroupToggle.addEventListener('change', function () {
+                    state.overrideSubGroupEnabled = this.checked;
+                    const controls = document.getElementById('overrideSubGroupControls');
+                    if (controls) {
+                        controls.classList.toggle('hidden', !this.checked);
+                    }
+                    resetPreparedState();
+                    computeOverrideSubGroups();
+                    renderFileList();
+                    updateCounts();
+                });
+            }
+
+            const overrideSubGroupCountInput = document.getElementById('overrideSubGroupCountInput');
+            if (overrideSubGroupCountInput) {
+                let overrideSubGroupCountTimer = null;
+                overrideSubGroupCountInput.addEventListener('input', function () {
+                    clearTimeout(overrideSubGroupCountTimer);
+                    overrideSubGroupCountTimer = setTimeout(() => {
+                        let value = parseInt(this.value, 10);
+                        if (Number.isNaN(value) || value < MIN_OVERRIDE_SUB_GROUPS) {
+                            value = MIN_OVERRIDE_SUB_GROUPS;
+                            this.value = MIN_OVERRIDE_SUB_GROUPS;
+                        }
+                        state.overrideSubGroupCount = value;
+                        resetPreparedState();
+                        computeOverrideSubGroups();
+                        renderFileList();
+                        updateCounts();
+                    }, 400);
                 });
             }
 

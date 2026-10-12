@@ -7,6 +7,7 @@ use App\Http\Controllers\CadastralDept\FieldJacketController;
 use App\Http\Controllers\CadastralDept\FmcController;
 use App\Http\Controllers\CadastralDept\PndBillController;
 use App\Http\Controllers\CadastralDept\WorkflowController;
+use App\Http\Controllers\CadastralDept\YesNoFormController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -45,11 +46,18 @@ Route::middleware(['auth', 'XSS'])->prefix('cadastral-dept')->name('cadastral-de
     Route::post('/cases/{case}/tasks', [CaseController::class, 'completeTask'])->whereNumber('case')->name('cases.tasks.mark-done');
     Route::post('/cases/{case}/move', [CaseController::class, 'advance'])->whereNumber('case')->name('cases.move.save');
     Route::post('/cases/{case}/sub-type', [CaseController::class, 'setSubType'])->whereNumber('case')->name('cases.sub-type.update');
+    // Master Delete (Supper Admin, typed confirmation): clears a file and its workflow rows.
+    Route::delete('/cases/{case}/master-destroy', [CaseController::class, 'masterDestroy'])->whereNumber('case')->name('cases.master-destroy');
 
     // Create Correspondence File at AD Cad Report (matches an existing one first).
     Route::post('/cases/{case}/correspondence', [CaseController::class, 'createCorrespondence'])->whereNumber('case')->name('cases.correspondence.store');
     // Registry: detach / attach the correspondence file (history kept).
     Route::post('/cases/{case}/correspondence/custody', [CaseController::class, 'correspondenceCustody'])->whereNumber('case')->name('cases.correspondence.custody.save');
+
+    // Yes/No form ("Report on Application") at AD Cad Report, done with Land 12.
+    Route::get('/cases/{case}/yes-no', [YesNoFormController::class, 'show'])->whereNumber('case')->name('cases.yes-no.show');
+    Route::post('/cases/{case}/yes-no', [YesNoFormController::class, 'save'])->whereNumber('case')->name('cases.yes-no.save');
+    Route::get('/cases/{case}/yes-no/print', [YesNoFormController::class, 'print'])->whereNumber('case')->name('cases.yes-no.print');
 
     // Charting card at each charting step, and the charting tables.
     Route::get('/cases/{case}/charting/create', [ChartingController::class, 'create'])->whereNumber('case')->name('cases.charting.create');

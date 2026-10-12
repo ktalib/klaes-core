@@ -102,11 +102,19 @@ class FmcController extends Controller
     {
         $url = route('cadastral-dept.fmc.scan', $fmc->qr_token);
 
+        // The QR code holds the file's tracking ID, or its file number when it has none
+        // (user, 2026-10-12). The scan page still opens from the link on the card's page.
+        $tracking = trim((string) optional($fmc->case)->tracking_id);
+        $qrLabel = $tracking !== '' ? 'Tracking ID' : 'File No.';
+        $qrValue = $tracking !== '' ? $tracking : $fmc->file_number;
+
         return [
             'def' => $def,
             'fmc' => $fmc,
             'scanUrl' => $url,
-            'qr' => $qr->dataUri($url, 160),
+            'qr' => $qr->dataUri($qrValue, 160),
+            'qrLabel' => $qrLabel,
+            'qrValue' => $qrValue,
             'timeline' => $this->cards->timeline($fmc),
             'loggedIn' => $this->cards->loggedIn($fmc),
         ];

@@ -9,6 +9,7 @@ use App\Models\CadastralDept\CadastralCase;
 use App\Services\Cadastral\AreaCalculator;
 use App\Services\Cadastral\CadastralBillCalculator;
 use App\Services\Cadastral\CadastralSettings;
+use App\Services\CadastralDept\CaseWorkflow;
 use App\Services\CadastralDept\PndBills;
 use App\Services\CadastralDept\WorkflowDefinition;
 use Illuminate\Http\JsonResponse;
@@ -43,7 +44,22 @@ class PndBillController extends Controller
         $cases = CadastralCase::query()->whereIn('file_number', $rows->pluck('file_number')->unique())
             ->orderBy('id')->get()->keyBy('file_number');
 
-        return view('cadastral_dept.bills.index', compact('def', 'rows', 'cases', 'term', 'status'));
+        // Summary cards over the workflow's bills; Issued / Cancelled filter the list.
+        $mine = CadastralBill::query()->whereIn('file_number', CadastralCase::query()->select('file_number'));
+        $link = fn (?string $s) => route('cadastral-dept.bills.index', array_filter(['status' => $s]));
+        $awaiting = CaseWorkflow::installed()
+            ? CadastralCase::query()->open()->where('current_step', 'pnd_billing')->get()
+                ->filter(fn ($c) => !in_array(PndBills::TASK, $c->doneTaskKeys($c->current_step), true))->count()
+            : 0;
+        $cdCards = [
+            ['label' => 'Bills issued', 'value' => number_format((clone $mine)->where('status', 'Issued')->count()), 'hint' => 'live bills', 'colour' => 'green', 'url' => $link('Issued'), 'active' => $status === 'Issued'],
+            ['label' => 'Total issued', 'value' => '₦' . number_format((float) (clone $mine)->where('status', 'Issued')->sum('grand_total'), 2), 'hint' => 'filled in as Survey Fees on Deeds Bill Balance', 'colour' => 'blue'],
+            ['label' => 'Cancelled', 'value' => number_format((clone $mine)->where('status', 'Cancelled')->count()), 'hint' => 'replaced or withdrawn', 'colour' => 'gray', 'url' => $link('Cancelled'), 'active' => $status === 'Cancelled'],
+            ['label' => 'Waiting for a bill', 'value' => number_format($awaiting), 'hint' => 'files at the billing step', 'colour' => 'yellow',
+                'url' => route('cadastral-dept.desks.show', ['desk' => 'ad_pnd', 'queue' => 'bill'])],
+        ];
+
+        return view('cadastral_dept.bills.index', compact('def', 'rows', 'cases', 'term', 'status', 'cdCards'));
     }
 
     public function show(int $case, WorkflowDefinition $def, CadastralSettings $settings, CadastralBillCalculator $calculator)

@@ -203,6 +203,11 @@ class LaasProfileController extends Controller
                 'verification_attempts'        => 0,
             ])->save();
 
+            // A verified phone of their own settles a contact-pending flag.
+            if ($applicant->hasPendingContact()) {
+                $applicant->forceFill(LaasApplicant::contactSettledAttributes($applicant->contact_flag_reason))->save();
+            }
+
             return $this->propagatePhone($applicant, $newPhone);
         });
 
@@ -256,6 +261,12 @@ class LaasProfileController extends Controller
             'password'             => Hash::make($request->input('password')),
             'must_change_password' => false,
         ])->save();
+
+        // Opened without a phone of their own (system SYS- number): ask for it now.
+        if ($wasTemporary && $applicant->hasPendingContact()) {
+            return redirect()->route('laas.profile.show')
+                ->with('status', 'Your password has been set. Please add your own phone number below, so we can send you updates on your files.');
+        }
 
         if ($wasTemporary) {
             return redirect()->route('laas.dashboard')

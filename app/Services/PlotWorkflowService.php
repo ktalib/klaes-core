@@ -241,7 +241,36 @@ class PlotWorkflowService
             ]);
         }
 
+        // LAAS Portal: badge the retired files on their holders' accounts. After the
+        // caller's commit (commissioning wraps this in its own transaction), and
+        // best-effort; laas:reconcile catches anything missed.
+        if (!empty($summary['archived'])) {
+            self::refreshLaasLineage($summary['archived']);
+        }
+
         return $summary;
+    }
+
+    /**
+     * Re-read the LAAS Portal lifecycle of these files once the current sqlsrv
+     * transaction commits (immediately when none is open). Public so the undo
+     * paths (re-grant correction, subdivision undo, restore) can call it too.
+     */
+    public static function refreshLaasLineage(array $fileNumbers): void
+    {
+        $run = function () use ($fileNumbers) {
+            try {
+                app(\App\Services\Laas\LaasLineageService::class)->refresh($fileNumbers);
+            } catch (\Throwable $e) {
+                Log::warning('LAAS lineage refresh skipped', ['files' => $fileNumbers, 'error' => $e->getMessage()]);
+            }
+        };
+
+        try {
+            DB::connection('sqlsrv')->afterCommit($run);
+        } catch (\Throwable $e) {
+            $run();
+        }
     }
 
     /**

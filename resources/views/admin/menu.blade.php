@@ -53,7 +53,12 @@
     @include('admin.menu.partials.modules.dciv')
     @include('admin.menu.partials.modules.physical_planning')
     @include('admin.menu.partials.modules.survey')
+    {{-- Cadastral menu hidden for now at the user's request (2026-10-11) while its layout is redone. Change false to true to show it again. --}}
+    @if(false)
     @include('admin.menu.partials.modules.cadastral')
+    @endif
+    {{-- New Cadastral layout (the user's proposed sidebar, 2026-10-11), switched on for everyone 2026-10-12. The old layout above stays off. --}}
+    @include('admin.menu.partials.modules.cadastral_workflow')
     @include('admin.menu.partials.modules.prs_management')
     @include('admin.menu.partials.modules.gis')
     @include('admin.menu.partials.modules.sectional_titling')

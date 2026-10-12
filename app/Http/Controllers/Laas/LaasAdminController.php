@@ -282,15 +282,20 @@ class LaasAdminController extends Controller
     public function applicants(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
+        $contact = $request->query('contact') === 'pending' ? 'pending' : null;
 
         $applicants = LaasApplicant::query()
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($inner) use ($search) {
                     $inner->where('name', 'like', "%{$search}%")
+                          ->orWhere('username', 'like', "%{$search}%")
                           ->orWhere('phone', 'like', "%{$search}%")
-                          ->orWhere('email', 'like', "%{$search}%");
+                          ->orWhere('email', 'like', "%{$search}%")
+                          ->orWhereIn('id', LaasApplication::where('file_number', 'like', "%{$search}%")
+                              ->whereNotNull('laas_applicant_id')->select('laas_applicant_id'));
                 });
             })
+            ->when($contact === 'pending', fn ($q) => $q->where('contact_status', LaasApplicant::CONTACT_PENDING))
             ->orderByDesc('id')
             ->paginate(25)
             ->withQueryString();
@@ -313,11 +318,24 @@ class LaasAdminController extends Controller
             ->pluck('total', 'laas_applicant_id')
             ->toArray());
 
+        // Each account's file numbers (its current files, oldest first).
+        $fileNumbers = LaasApplication::whereIn('laas_applicant_id', $ids)->current()
+            ->whereNotNull('file_number')->where('file_number', '<>', '')
+            ->orderBy('id')
+            ->get(['laas_applicant_id', 'file_number'])
+            ->groupBy('laas_applicant_id')
+            ->map(fn ($rows) => $rows->pluck('file_number')->all())
+            ->all();
+
         return view('laas_admin.applicants', [
+            'fileNumbers'  => $fileNumbers,
             'applicants'   => $applicants,
             'totals'       => $totals,
             'inRegistry'   => $inRegistry,
             'search'       => $search,
+            'contact'      => $contact,
+            'pendingContacts' => LaasApplicant::where('contact_status', LaasApplicant::CONTACT_PENDING)->count(),
+            'pendingTransfers' => \App\Models\Laas\LaasTransferCandidate::where('status', 'pending')->count(),
             'unreadAlerts' => LaasStageNotification::where('is_read', false)->count(),
         ]);
     }

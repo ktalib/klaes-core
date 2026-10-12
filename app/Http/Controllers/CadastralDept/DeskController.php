@@ -5,7 +5,9 @@ namespace App\Http\Controllers\CadastralDept;
 use App\Http\Controllers\Controller;
 use App\Models\CadastralDept\CadastralCase;
 use App\Services\CadastralDept\CaseWorkflow;
+use App\Services\CadastralDept\CorrespondenceCustody;
 use App\Services\CadastralDept\DeedsDispatchChecks;
+use App\Services\CadastralDept\DeskQueues;
 use App\Services\CadastralDept\FileMovementCards;
 use App\Services\CadastralDept\WorkflowDefinition;
 use App\Services\CadastralDept\WorkflowEngine;
@@ -14,6 +16,9 @@ use Illuminate\Http\Request;
 
 class DeskController extends Controller
 {
+    /** Rows of "sent on" files shown on a desk page. */
+    private const SENT_LIMIT = 200;
+
     /**
      * A desk's listing. Each row carries an action menu with only what the file
      * can do at its current step (client brief: actions switch on at the right
@@ -21,7 +26,8 @@ class DeskController extends Controller
      *
      * External desks have no listing of their own: files out with another
      * department are listed under the Cadastral desk that receives them back.
-     * Registry also sees every other open file, frozen (view only).
+     * One table per page: files at the desk, those out with another department,
+     * then (view only) the open files this desk has already sent on.
      */
     public function show(Request $request, string $desk, WorkflowEngine $engine)
     {
@@ -30,6 +36,11 @@ class DeskController extends Controller
 
         $wfFilter = $def->has((string) $request->query('workflow')) ? (string) $request->query('workflow') : null;
         $term = trim((string) $request->query('q', ''));
+        $queueKey = (string) $request->query('queue', '');
+        $queue = $queueKey !== '' ? $def->queue($desk, $queueKey) : null;
+        if (!$queue) {
+            $queueKey = '';
+        }
         $filter = function ($q) use ($wfFilter, $term) {
             return $q->when($wfFilter, fn ($w) => $w->where('workflow', $wfFilter))
                 ->when($term !== '', fn ($w) => $w->where(fn ($x) => $x->where('file_number', 'like', "%{$term}%")
@@ -38,10 +49,11 @@ class DeskController extends Controller
         };
 
         $installed = CaseWorkflow::installed();
-        $here = $away = $frozen = collect();
+        $here = $away = $sent = collect();
+        $cards = [];
 
         if ($installed) {
-            $here = $filter(CadastralCase::query()->open()->with(['tasks', 'latestMovement'])->where('current_desk', $desk))
+            $here = $filter(CadastralCase::query()->open()->with(['tasks', 'latestMovement', 'receiver'])->where('current_desk', $desk))
                 ->orderBy('updated_at')->get();
 
             $recorded = [];
@@ -53,7 +65,7 @@ class DeskController extends Controller
                 }
             }
             if ($recorded) {
-                $away = $filter(CadastralCase::query()->open()->with(['tasks', 'latestMovement']))
+                $away = $filter(CadastralCase::query()->open()->with(['tasks', 'latestMovement', 'receiver']))
                     ->where(function ($q) use ($recorded) {
                         foreach ($recorded as $wf => $steps) {
                             $q->orWhere(fn ($w) => $w->where('workflow', $wf)->whereIn('current_step', $steps));
@@ -62,11 +74,38 @@ class DeskController extends Controller
                     ->orderBy('updated_at')->get();
             }
 
-            if ($desk === 'registry') {
-                $frozen = $filter(CadastralCase::query()->open())
-                    ->where('current_desk', '!=', 'registry')
-                    ->whereNotIn('id', $away->pluck('id'))
-                    ->orderByDesc('updated_at')->limit(200)->get();
+            // Summary cards: the whole desk, before any sidebar list narrows it.
+            $open = $here->filter(fn ($c) => $engine->missingTasks($c->workflow, $c->current_step, $c->doneTaskKeys()) !== []);
+            $base = route('cadastral-dept.desks.show', $desk);
+            $cards = [
+                ['label' => 'At this desk', 'value' => $here->count(), 'hint' => 'open files waiting here', 'colour' => 'blue', 'url' => $base, 'active' => !$queue],
+                ['label' => 'Tasks still open', 'value' => $open->count(), 'hint' => 'finish the tasks before sending', 'colour' => 'yellow'],
+                ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
+                ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
+            ];
+            if ($recorded) {   // only desks that record another department's return
+                $cards[] = ['label' => 'Out with other departments', 'value' => $away->count(), 'hint' => 'record when they come back', 'colour' => 'purple'];
+            }
+
+            // Open files this desk sent on (Registry: every file it registered), shown with
+            // where they are now. Newest first, capped; search finds older ones.
+            $sentQuery = $filter(CadastralCase::query()->open()->with(['receiver']))
+                ->where('current_desk', '!=', $desk)
+                ->whereNotIn('id', $away->pluck('id'))
+                ->whereHas('movements', fn ($m) => $m->where('from_desk', $desk));
+            $sentTotal = (clone $sentQuery)->count();
+            $sent = $sentQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+            $cards[] = ['label' => 'Sent on', 'value' => $sentTotal, 'hint' => 'still open at another desk', 'colour' => 'gray'];
+
+            // A sidebar list narrows the inbox to the files where its action is due.
+            if ($queue) {
+                $queues = app(DeskQueues::class);
+                $here = $here->filter(fn ($c) => $queues->matches($c, $queue))->values();
+                $away = $away->filter(fn ($c) => $queues->matches($c, $queue))->values();
+                // A list with no rule (Registry's Intake Queue) is the whole desk, so keep them.
+                if (array_intersect_key($queue, array_flip(['steps', 'tasks', 'to', 'at', 'ready']))) {
+                    $sent = collect();
+                }
             }
         }
 
@@ -82,12 +121,34 @@ class DeskController extends Controller
             'installed' => $installed,
             'here' => $here,
             'away' => $away,
-            'frozen' => $frozen,
+            'sent' => $sent,
+            'sentTotal' => $sentTotal ?? 0,
+            'sentLimit' => self::SENT_LIMIT,
             'menus' => $menus,
             'fmcInstalled' => FileMovementCards::installed(),
             'filterWorkflow' => $wfFilter,
             'term' => $term,
+            'queueKey' => $queueKey,
+            'queueLabel' => $queue['label'] ?? null,
+            // Header as the sidebar names it: the list opened, or the desk's whole-inbox
+            // entry (Intake Queue, All files at ...), or the desk itself (D Cad).
+            'pageTitle' => $queue['label'] ?? $this->sidebarTitle($def, $desk),
+            'pageGroup' => $def->queues()[$desk]['group'] ?? $def->desk($desk)['short'],
+            'cdCards' => $cards,
         ]);
+    }
+
+    /** The sidebar's name for a desk's whole inbox: its rule-less entry, else the desk group. */
+    private function sidebarTitle(WorkflowDefinition $def, string $desk): string
+    {
+        $q = $def->queues()[$desk] ?? null;
+        foreach ((array) ($q['entries'] ?? []) as $entry) {
+            if (!array_intersect(['steps', 'tasks', 'to', 'at', 'ready'], array_keys($entry))) {
+                return $entry['label'];
+            }
+        }
+
+        return $q['group'] ?? $def->desk($desk)['short'];
     }
 
     /**
@@ -100,7 +161,15 @@ class DeskController extends Controller
     {
         $def = $engine->definition();
         $step = $def->step($case->workflow, $case->current_step);
-        $open = count($engine->missingTasks($case->workflow, $case->current_step, $case->doneTaskKeys()));
+        $missing = $engine->missingTasks($case->workflow, $case->current_step, $case->doneTaskKeys());
+
+        // Registry's correspondence task is done from the menu: Attach Land File / Detach Correspondence.
+        $custody = null;
+        if (CorrespondenceCustody::installed()) {
+            $custody = in_array('correspondence_detached', $missing, true) ? 'detach'
+                : (in_array('correspondence_attached', $missing, true) ? 'attach' : null);
+        }
+        $open = count($missing) - ($custody ? 1 : 0);
 
         try {
             $actions = $engine->actions($case->workflow, $case->current_step, $case->sub_type);
@@ -117,8 +186,13 @@ class DeskController extends Controller
         unset($a);
 
         // Checks (Send to Deeds): failing ones are listed instead of the action.
-        $failing = $open ? [] : app(DeedsDispatchChecks::class)->failing($case);
+        $failing = ($open || $custody) ? [] : app(DeedsDispatchChecks::class)->failing($case);
 
-        return ['tasks_open' => $open, 'actions' => $failing ? [] : $actions, 'failing' => $failing, 'question' => $step['question'] ?? null];
+        // A decision (a question with several answers) is one menu item, e.g. "Recommendation",
+        // whose pop-up offers the answers.
+        $decision = !empty($step['question']) && count($actions) > 1 ? ($step['menu_label'] ?? $step['label']) : null;
+
+        return ['tasks_open' => $open, 'custody' => $custody, 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
+            'question' => $step['question'] ?? null, 'decision' => $decision];
     }
 }

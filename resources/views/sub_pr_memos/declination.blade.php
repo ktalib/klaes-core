@@ -251,7 +251,7 @@
                                 @if ($declineReasons->road_reservation_selected)
                                 <div class="mb-6">
                                     <p class="font-bold">{{ $reasonCount++ }}. Adequate Access Road/Road Reservation</p>
-                                    <p class="ml-4">• Condition: The property/site must have an adequate access road or comply with the minimum road reservation standards as stipulated in the Kano Urban Planning and Development Authority (KAMMA) guidelines.</p>
+                                    <p class="ml-4">• Condition: The property/site must have an adequate access road or comply with the minimum road reservation standards as stipulated in the Kano Urban Planning and Development Authority (KAMMA/Physical Planning) guidelines.</p>
                                     <p class="ml-4">• Findings:</p>
                                     <div class="ml-8">
                                         @if (!empty($declineReasons->right_of_way_details))

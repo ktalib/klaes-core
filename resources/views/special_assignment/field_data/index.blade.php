@@ -1316,6 +1316,7 @@ $(document).ready(function () {
             html: `<div class="text-left text-sm">
                      <p class="mb-2">This permanently removes the land record${info.owner ? ' of <b>' + esc(info.owner) + '</b>' : ''} and everything linked to it in SPAS:</p>
                      <ul class="list-disc pl-6 mb-3">${list || '<li>No inspections, notices, bills or other linked items</li>'}</ul>
+                     ${(info.kept || []).map(k => `<p class="mb-2 text-amber-700">${esc(k)}</p>`).join('')}
                      <p class="mb-2 text-gray-600">A copy is saved to the server's audit folder first. Phones that already synced this record will still show their own copy.</p>
                      <p>Type <b>${esc(info.reference)}</b> to confirm:</p>
                    </div>`,

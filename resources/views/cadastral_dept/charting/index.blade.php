@@ -4,8 +4,10 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Charting', 'PageDescription' => 'Every charting card, by charting number'])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
+
+    @include('cadastral_dept.partials._stat_cards')
 
     <div class="flex flex-wrap items-center gap-2 mb-4">
       @foreach (\App\Http\Controllers\CadastralDept\ChartingController::TABLES as $key => [$label])
@@ -44,7 +46,7 @@
                 if (auth()->user()->canDo('Cad - Records', 'print')) {
                     $items[] = ['Print card', 'printer', route('cadastral-dept.charting.print', $card->id), true];
                 }
-                $items[] = ['Open file', 'folder-open', route('cadastral-dept.cases.show', $card->cadastral_case_id)];
+                $items[] = ['View', 'eye', route('cadastral-dept.cases.show', $card->cadastral_case_id)];
               @endphp
               <tr class="hover:bg-gray-50">
                 <td class="px-3 py-2 text-gray-500">{{ $rows->firstItem() + $loop->index }}</td>
@@ -72,5 +74,6 @@
       <div class="mt-4">{{ $rows->links() }}</div>
     @endif
   </div>
+  @include('admin.footer')
 </div>
 @endsection

@@ -92,7 +92,8 @@ class LaasWorkflowService
     public function advance(LaasApplication $application, string $stage, array $meta = []): bool
     {
         try {
-            if (!$application->canAdvanceTo($stage)) {
+            // A retired or transferred file is history: its stage stays put.
+            if ($application->isReadOnly() || !$application->canAdvanceTo($stage)) {
                 return false;
             }
 
@@ -144,7 +145,10 @@ class LaasWorkflowService
             return null;
         }
 
+        // The file's current row: after an ownership transfer the old holder's
+        // copy (transferred_out) must not pick up the new holder's progress.
         return LaasApplication::where('file_number', $fileNumber)
+            ->current()
             ->orderByDesc('id')
             ->first();
     }

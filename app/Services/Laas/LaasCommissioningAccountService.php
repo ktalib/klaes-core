@@ -55,9 +55,10 @@ class LaasCommissioningAccountService
      *                         nobody is texted, and the temporary passwords come
      *                         back in the report for the office to hand over.
      *         phone_confirmed the officer cleared the shared-number warning.
-     *         require_phone   false lets a file with no usable phone still get an
-     *                         account (backfill); the default skips it, since the
-     *                         applicant could never be told how to sign in.
+     *         require_phone   true skips a file with no usable phone. The default
+     *                         (false, decided 2026-10-12) gives it an account with
+     *                         a system email and SYS- phone, flagged
+     *                         contact_status = pending_update for staff to complete.
      * @return array<int,array<string,mixed>>  One entry per account touched.
      */
     public function provisionForFiles(array $fileNumbers, array $options = []): array
@@ -67,7 +68,7 @@ class LaasCommissioningAccountService
         }
 
         $sendSms = ($options['send_sms'] ?? true) && config('laas.commissioning_accounts.sms', true);
-        $requirePhone = $options['require_phone'] ?? true;
+        $requirePhone = $options['require_phone'] ?? false;
 
         try {
             $rows = $this->commissioningRows($fileNumbers);
@@ -183,6 +184,44 @@ class LaasCommissioningAccountService
     }
 
     /**
+     * Put these files on a KNOWN account (the rebuild's lineage rule: a Change
+     * of Purpose / re-grant / subdivision output for the same holder joins the
+     * parent's account). No SMS. Returns the applications created or kept.
+     *
+     * @return array<int,LaasApplication>
+     */
+    public function provisionOntoAccount(LaasApplicant $applicant, array $fileNumbers): array
+    {
+        $rows = $this->commissioningRows($fileNumbers);
+
+        return DB::connection('sqlsrv')->transaction(function () use ($applicant, $rows) {
+            $applications = [];
+            foreach ($rows as $row) {
+                if ($application = $this->applicationFor($applicant, $row)) {
+                    $applications[] = $application;
+                }
+            }
+
+            return $applications;
+        });
+    }
+
+    /**
+     * The same account rule, for callers outside commissioning (an approved
+     * ownership transfer, the rebuild). Must run inside a sqlsrv transaction.
+     *
+     * @return array{0:LaasApplicant,1:?string,2:bool}
+     */
+    public function findOrCreateAccount(string $name, ?string $phone, ?string $email): array
+    {
+        return $this->findOrCreateApplicant([
+            'name'  => trim($name),
+            'phone' => LaasApplicant::normalizePhone((string) $phone),
+            'email' => $this->cleanEmail($email),
+        ]);
+    }
+
+    /**
      * @return array{0:LaasApplicant,1:?string,2:bool} applicant, temporary
      *         password (only for a new account), whether it was created.
      */
@@ -210,6 +249,20 @@ class LaasCommissioningAccountService
         $username = $this->uniqueUsername($group['name']);
         $tempPassword = $this->temporaryPassword();
 
+        // Missing contacts get system values and a flag for staff to complete
+        // (decided 2026-10-12). A shared number is kept but flagged too: it is
+        // probably an agent's, and the holder's own number is still owed.
+        $flags = [];
+        if (!$phone) {
+            $flags[] = 'no_phone';
+        } elseif ($this->phones->describe($phone)['shared'] ?? false) {
+            $flags[] = 'shared_phone';
+        }
+        if (!$email) {
+            $flags[] = 'no_email';
+        }
+        $pending = in_array('no_phone', $flags, true) || in_array('shared_phone', $flags, true);
+
         $applicant = LaasApplicant::create([
             'name'                 => $group['name'] !== '' ? mb_strtoupper($group['name']) : 'APPLICANT',
             'username'             => $username,
@@ -219,7 +272,15 @@ class LaasCommissioningAccountService
             'must_change_password' => true,
             'status'               => 'active',
             'account_origin'       => LaasApplicant::ORIGIN_COMMISSIONING,
+            'contact_status'       => $pending ? LaasApplicant::CONTACT_PENDING : LaasApplicant::CONTACT_OK,
+            'contact_flagged_at'   => $pending ? now() : null,
+            'contact_flag_reason'  => $flags ? implode(',', $flags) : null,
         ]);
+
+        if (!$phone) {
+            // Needs the id, so it is set once the row exists.
+            $applicant->forceFill(['phone' => LaasApplicant::systemPhoneFor((int) $applicant->id)])->save();
+        }
 
         return [$applicant, $tempPassword, true];
     }
@@ -229,7 +290,7 @@ class LaasCommissioningAccountService
     {
         $fileNumber = (string) $row->full_file_number;
 
-        $existing = LaasApplication::where('file_number', $fileNumber)->orderByDesc('id')->first();
+        $existing = LaasApplication::where('file_number', $fileNumber)->current()->orderByDesc('id')->first();
         if ($existing) {
             // Already on a portal account (a portal-filed application, or an
             // earlier run). Never move a file between two people's accounts here.
@@ -245,7 +306,7 @@ class LaasCommissioningAccountService
             'reference_no'           => LaasApplication::nextReference(),
             'laas_applicant_id'      => $applicant->id,
             'applicant_name'         => $row->file_name ?: $applicant->name,
-            'applicant_phone'        => $applicant->phone ?: null,
+            'applicant_phone'        => $applicant->textablePhone(),
             'applicant_email'        => $applicant->email,
             'applicant_type'         => $row->customer_type ?? null,
             'land_use'               => $row->land_use ?? null,
@@ -264,6 +325,12 @@ class LaasCommissioningAccountService
             'fileno_assigned_at'     => $commissionedAt,
             'submitted_at'           => $commissionedAt,
             'completed_at'           => $progress['stage'] === LaasApplication::STAGE_ROFO_SIGNED ? now() : null,
+            'lifecycle_status'       => app(LaasLineageService::class)->isRetired($fileNumber)
+                ? LaasApplication::LIFECYCLE_RETIRED
+                : LaasApplication::LIFECYCLE_ACTIVE,
+            'lifecycle_changed_at'   => now(),
+            'entity_id'              => $this->entityIdFor($fileNumber),
+            'holder_source'          => 'mls_file_no',
         ]);
 
         $registry = strtoupper((string) ($row->system_sub_type ?? '')) === 'OSS' ? 'OSS' : 'Land';
@@ -397,6 +464,12 @@ class LaasCommissioningAccountService
     {
         $delivered = null;
 
+        if (!$applicant->textablePhone()) {
+            $this->stampSms($applications, null, LaasApplicationEvent::SMS_SKIPPED, null);
+
+            return;
+        }
+
         try {
             $delivered = $this->sms->sendFirstAccepted((string) $applicant->phone, $messages);
         } catch (\Throwable $e) {
@@ -450,7 +523,7 @@ class LaasCommissioningAccountService
      *
      * @return array<int,string>
      */
-    private function loginMessages(LaasApplicant $applicant, ?string $tempPassword, array $fileNumbers, bool $created): array
+    public function loginMessages(LaasApplicant $applicant, ?string $tempPassword, array $fileNumbers, bool $created): array
     {
         $url = rtrim((string) config('app.url'), '/') . '/laas/login';
         $files = count($fileNumbers) === 1
@@ -501,7 +574,7 @@ class LaasCommissioningAccountService
     }
 
     /** Readable, no look-alike characters: Kx7m-4821. */
-    private function temporaryPassword(): string
+    public function temporaryPassword(): string
     {
         $letters = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
         $word = '';
@@ -510,6 +583,22 @@ class LaasCommissioningAccountService
         }
 
         return $word . '-' . random_int(1000, 9999);
+    }
+
+    /** customers_staging.entity_id: traceability only, one per file. */
+    private function entityIdFor(string $fileNumber): ?int
+    {
+        try {
+            $id = DB::connection('sqlsrv')->table('customers_staging')
+                ->where('file_number', $fileNumber)
+                ->whereNotNull('entity_id')
+                ->orderByDesc('id')
+                ->value('entity_id');
+
+            return $id ? (int) $id : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function cleanEmail($email): ?string

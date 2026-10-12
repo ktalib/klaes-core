@@ -186,13 +186,21 @@ class LaasApplicationController extends Controller
         $application = $this->findOwned($reference);
         $type = $application->land_type ?: SroFormSchema::TYPE_RESIDENTIAL;
 
+        // A transferred file shows its old holder nothing after the transfer.
+        $until = $application->isTransferredOut() ? $application->visible_until : null;
+
         return view('laas.application', [
             'application' => $application,
+            'lineage'     => app(\App\Services\Laas\LaasLineageService::class)->forApplication($application),
             'events'      => $application->events()
                                 ->where('visible_to_applicant', true)
+                                ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
                                 ->orderBy('id')
                                 ->get(),
-            'documents'   => $application->documents()->orderBy('id')->get(),
+            'documents'   => $application->documents()
+                                ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
+                                ->orderBy('id')
+                                ->get(),
             'sections'    => SroFormSchema::sections($type),
             'answers'     => (array) ($application->form_data ?? []),
             'typeLabel'   => SroFormSchema::typeLabel($type),
@@ -250,6 +258,8 @@ class LaasApplicationController extends Controller
     public function uploadDocument(Request $request, string $reference)
     {
         $application = $this->findOwned($reference);
+
+        abort_if($application->isReadOnly(), 403, 'This file is read-only.');
 
         $request->validate([
             'doc_type' => ['required', 'string', 'in:' . implode(',', array_keys(self::DOC_TYPES))],

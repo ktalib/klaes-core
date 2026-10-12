@@ -1285,7 +1285,7 @@
                         if (document.getElementById('roadReservationCheck').checked) {
                             hasReasons = true;
                             reasonText += reasonCount + ". Road Reservation Issues\n";
-                            reasonText += "• Condition: The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA guidelines.\n";
+                            reasonText += "• Condition: The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA/Physical Planning guidelines.\n";
                             reasonText += "• Findings:\n";
                             
                             if (document.getElementById('rightOfWayCheck').checked) {
@@ -1648,7 +1648,7 @@
             
             if (roadReservationSelected) {
                 reasonText += reasonCount + ". Road Reservation Issues\n";
-                reasonText += "• Condition: The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA guidelines.\n";
+                reasonText += "• Condition: The property/site must have an adequate access road or comply with minimum road reservation standards as stipulated in KAMMA/Physical Planning guidelines.\n";
                 reasonText += "• Findings:\n";
                 
                 if (roadReservationIssues) {

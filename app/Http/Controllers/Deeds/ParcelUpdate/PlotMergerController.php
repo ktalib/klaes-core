@@ -572,7 +572,7 @@ class PlotMergerController extends Controller
             'updated_by' => Auth::id(),
         ]);
 
-        return response()->json(['success' => true, 'message' => 'KAMMA status updated.']);
+        return response()->json(['success' => true, 'message' => 'KAMMA/Physical Planning status updated.']);
     }
 
     public function approvedList(Request $request): JsonResponse

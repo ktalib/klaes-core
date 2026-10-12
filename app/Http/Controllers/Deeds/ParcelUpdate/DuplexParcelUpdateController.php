@@ -815,7 +815,7 @@ class DuplexParcelUpdateController extends Controller
             'updated_by'     => Auth::id(),
         ]);
 
-        return response()->json(['success' => true, 'message' => 'KAMMA status updated.']);
+        return response()->json(['success' => true, 'message' => 'KAMMA/Physical Planning status updated.']);
     }
 
     /** One approval for the whole duplex, by the authority the single workflows use. */

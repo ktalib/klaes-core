@@ -4,8 +4,10 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'P&D Bills', 'PageDescription' => 'Fees, Plan and Description bills for files in the Cadastral Department workflow'])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
+
+    @include('cadastral_dept.partials._stat_cards')
 
     <form method="GET" class="flex flex-wrap items-center gap-2 mb-4">
       <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -39,7 +41,7 @@
               }
               if ($cdCase) {
                   $items[] = ['Open bill page', 'receipt', route('cadastral-dept.cases.bill.show', $cdCase->id)];
-                  $items[] = ['Open file', 'folder-open', route('cadastral-dept.cases.show', $cdCase->id)];
+                  $items[] = ['View', 'eye', route('cadastral-dept.cases.show', $cdCase->id)];
               }
             @endphp
             <tr class="hover:bg-gray-50">
@@ -64,5 +66,6 @@
     </div>
     <div class="mt-4">{{ $rows->links() }}</div>
   </div>
+  @include('admin.footer')
 </div>
 @endsection

@@ -41,6 +41,19 @@ class LaasApplication extends Model
     /** Raised for the applicant when a Land or OSS officer commissioned the file. */
     public const ORIGIN_COMMISSIONING = 'commissioning';
 
+    // ---- Lifecycle (the FILE, not the application stage) ------------------
+    // See docs/plans/LAAS_PORTAL_REBUILD_PLAN.md. A cache for listings; the
+    // truth is decommissioned_files, read by LaasLineageService.
+
+    /** The holder's live file. NULL reads as active (rows from before the column). */
+    public const LIFECYCLE_ACTIVE = 'active';
+
+    /** Retired by a parcel update (subdivision, merger, CoP, re-grant, ...). Read-only. */
+    public const LIFECYCLE_RETIRED = 'retired';
+
+    /** Moved to a new holder's account; this holder keeps history up to visible_until. */
+    public const LIFECYCLE_TRANSFERRED_OUT = 'transferred_out';
+
     /**
      * The main line, in order. Position in this array IS the stage's rank;
      * `rejected` is deliberately absent because it is not a point on the line.
@@ -109,6 +122,13 @@ class LaasApplication extends Model
         'fileno_assigned_at',
         'submitted_at',
         'completed_at',
+        'lifecycle_status',
+        'lifecycle_changed_at',
+        'transferred_from_application_id',
+        'transferred_to_application_id',
+        'visible_until',
+        'entity_id',
+        'holder_source',
     ];
 
     protected $casts = [
@@ -119,7 +139,37 @@ class LaasApplication extends Model
         'fileno_assigned_at'   => 'datetime',
         'submitted_at'         => 'datetime',
         'completed_at'         => 'datetime',
+        'lifecycle_changed_at' => 'datetime',
+        'visible_until'        => 'datetime',
     ];
+
+    /**
+     * The file's current portal entry: everything except the old holder's copy
+     * of a transferred file. At most one row per file number matches.
+     */
+    public function scopeCurrent($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('lifecycle_status')
+                ->orWhere('lifecycle_status', '<>', self::LIFECYCLE_TRANSFERRED_OUT);
+        });
+    }
+
+    public function isRetired(): bool
+    {
+        return $this->lifecycle_status === self::LIFECYCLE_RETIRED;
+    }
+
+    public function isTransferredOut(): bool
+    {
+        return $this->lifecycle_status === self::LIFECYCLE_TRANSFERRED_OUT;
+    }
+
+    /** Retired and transferred files are history: no stage moves, no edits. */
+    public function isReadOnly(): bool
+    {
+        return $this->isRetired() || $this->isTransferredOut();
+    }
 
     public function applicant()
     {

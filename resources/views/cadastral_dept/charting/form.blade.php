@@ -20,11 +20,11 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Charting Card', 'PageDescription' => $case->case_ref . ' · ' . $stageLabel])
 
-  <div class="p-6 max-w-5xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     <form method="POST" action="{{ route('cadastral-dept.cases.charting.store', $case->id) }}" class="space-y-5"
-          x-data="cdChart(@js($cdInit))">
+          x-data="cdChart(@js($cdInit))" data-confirm-title="Save the charting card?" data-confirm="The card is saved for {{ $case->file_number }} and the charting task is ticked.">
       @csrf
 
       <div class="rounded-xl border border-gray-200 bg-white p-5">
@@ -212,6 +212,7 @@
       </div>
     </form>
   </div>
+  @include('admin.footer')
 </div>
 
 @include('components.global-fileno-modal')

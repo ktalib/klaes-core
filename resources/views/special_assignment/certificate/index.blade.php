@@ -97,7 +97,8 @@
                                 data-owner="{{ $a->owner_name }}"
                                 data-land-use="{{ $a->land_use_type }}"
                                 data-existing-use="{{ $a->existing_use }}"
-                                data-approved="{{ $a->has_approved_memo ? '1' : '0' }}">
+                                data-approved="{{ $a->has_approved_memo ? '1' : '0' }}"
+                                data-new-file="{{ $a->new_file_number ?? '' }}">
                                 {{ $a->file_number }} – {{ $a->owner_name }}{{ $a->has_approved_memo ? '' : '  (no approved memo)' }}
                             </option>
                         @endforeach
@@ -118,7 +119,7 @@
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)] bg-white">
                         <option value="">Select new file number…</option>
                     </select>
-                    <p class="text-[11px] text-gray-400 mt-1">The file number assigned after the change of purpose.</p>
+                    <p id="cert-new-file-hint" class="text-[11px] text-gray-400 mt-1">The file number assigned after the change of purpose.</p>
                 </div>
                 {{-- The two land uses sit side by side: the change of purpose IS
                      the move from one to the other, so they read as a pair. --}}
@@ -237,10 +238,31 @@ $(document).ready(function () {
         document.getElementById('cert-app-warning')
             .classList.toggle('hidden', !this.value || opt.dataset.approved === '1');
 
+        // The record's own new file number (from its Change of Purpose or New
+        // Conversion) is taken by default and locked — not picked from the pool.
+        setNewFileFromRecord(opt.dataset.newFile || '');
+
         // Changing the application changes From Use, so a purpose picked
         // earlier may now clash with it.
         checkPurposeChanged();
     });
+
+    const newFileSel  = document.getElementById('cert-new-file');
+    const newFileHint = document.getElementById('cert-new-file-hint');
+    let lockedNewFile = '';
+    function setNewFileFromRecord(number) {
+        lockedNewFile = number;
+        if (number && ![...newFileSel.options].some((o) => o.value === number)) {
+            newFileSel.add(new Option(number, number), 1);
+        }
+        if (number) newFileSel.value = number;
+        newFileSel.classList.toggle('bg-gray-50', !!number);
+        newFileHint.textContent = number
+            ? 'Issued for this record (Change of Purpose / New Conversion) — taken by default.'
+            : 'The file number assigned after the change of purpose.';
+    }
+    // Locked: a pick from the pool cannot replace the record's own number.
+    newFileSel.addEventListener('change', () => { if (lockedNewFile) newFileSel.value = lockedNewFile; });
 
     // A change of purpose that does not change the purpose is not a change of
     // purpose. Flagged as soon as it is chosen rather than on submit, so the

@@ -45,7 +45,7 @@
                 <span class="flex items-center gap-2"><i data-lucide="map-pin" class="h-4 w-4"></i> Cadastral</span>
             </button>
             <button data-tab="physical_planning" class="tab-btn px-5 py-2 text-sm font-medium rounded-md text-gray-500 transition-all">
-                <span class="flex items-center gap-2"><i data-lucide="layout" class="h-4 w-4"></i> Physical Planning / KAMMA</span>
+                <span class="flex items-center gap-2"><i data-lucide="layout" class="h-4 w-4"></i> KAMMA/Physical Planning</span>
             </button>
             <button data-tab="survey" class="tab-btn px-5 py-2 text-sm font-medium rounded-md text-gray-500 transition-all">
                 <span class="flex items-center gap-2"><i data-lucide="compass" class="h-4 w-4"></i> Survey</span>
@@ -74,7 +74,7 @@
         {{-- Physical Planning Tab --}}
         <div id="tab-physical_planning" class="tab-content hidden">
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">Physical Planning / KAMMA Referrals</h2></div>
+                <div class="px-5 py-4 border-b border-gray-100"><h2 class="text-sm font-semibold text-gray-700">KAMMA/Physical Planning Referrals</h2></div>
                 <div class="p-4">
                     <table id="table-physical_planning" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
@@ -141,7 +141,7 @@
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
                         <option value="">Select…</option>
                         <option value="cadastral">Cadastral</option>
-                        <option value="physical_planning">Physical Planning / KAMMA</option>
+                        <option value="physical_planning">KAMMA/Physical Planning</option>
                         <option value="survey">Survey</option>
                     </select>
                 </div>

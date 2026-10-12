@@ -4,7 +4,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Register File', 'PageDescription' => 'Cadastral Registry: register a main file. It goes straight to D Cad.'])
 
-  <div class="p-6 max-w-4xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     @php
@@ -13,14 +13,17 @@
       ])->values();
       $cdFileTypes = collect($def->fileTypes())->map(fn ($t, $k) => [
           'key' => $k, 'label' => $t['label'], 'workflows' => $t['workflows'], 'asks' => ! empty($t['asks_sub_type']),
+          'tenure' => $t['tenure'] ?? null,
       ])->values();
       $cdSubTypes = $def->subTypes('direct');
+      $cdTenures = $def->subTypes('verification');
       $cdOld = old();
     @endphp
 
     <form method="POST" action="{{ route('cadastral-dept.cases.store') }}" class="space-y-5"
           x-data="cdIntake(@js($cdWorkflows), @js($cdFileTypes), @js($cdOld), '{{ route('cadastral-dept.lookup.file') }}')"
-          @submit="if (!canSubmit()) { $event.preventDefault(); }">
+          @submit="if (!canSubmit()) { $event.preventDefault(); }"
+          data-confirm-title="Register this file?" data-confirm="The file is registered and sent to the first desk.">
       @csrf
 
       {{-- 1. Application type --}}
@@ -38,6 +41,26 @@
         </div>
       </section>
 
+      {{-- The route the file will take, for the type picked (Direct: by Resettlement / Direct). --}}
+      @php
+        $cdEngine = app(\App\Services\CadastralDept\WorkflowEngine::class);
+        $cdPipes = [];
+        foreach ($def->workflows() as $cdK => $cdW) {
+            foreach (($cdW['sub_types'] ?? null) && empty($cdW['asks_sub_type']) ? array_keys($cdW['sub_types']) : [null] as $cdSub) {
+                $cdPipes[$cdK . '|' . $cdSub] = [$cdK, $cdSub, $cdW, $cdEngine->pipeline($cdK, $cdSub)];
+            }
+        }
+      @endphp
+      @foreach ($cdPipes as $cdKey => [$cdK, $cdSub, $cdW, $cdPipe])
+        <section class="rounded-xl border border-gray-200 bg-white px-5 py-4" x-cloak
+                 x-show="workflow === @js($cdK) @if ($cdSub) && (subType || @js($cdW['default_sub_type'] ?? '')) === @js($cdSub) @endif">
+          <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">
+            Process · {{ $cdW['label'] }}@if ($cdSub) ({{ $cdW['sub_types'][$cdSub] }})@endif
+          </h3>
+          @include('cadastral_dept.partials._pipeline', ['pipeline' => $cdPipe, 'c' => $cdW['colour']])
+        </section>
+      @endforeach
+
       {{-- 2. File type, and OP's sub-type --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">2 · File type</h3>
@@ -45,26 +68,39 @@
           <template x-for="t in typesFor()" :key="t.key">
             <label class="cursor-pointer px-3 py-2 rounded-lg border text-sm font-semibold"
                    :class="fileType === t.key ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
-              <input type="radio" name="file_type" class="sr-only" :value="t.key" x-model="fileType">
+              <input type="radio" name="file_type" class="sr-only" :value="t.key" x-model="fileType" @change="onFileType()">
               <span x-text="t.label"></span>
             </label>
           </template>
         </div>
 
         <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3" x-show="asksSubType()" x-cloak>
-          <div class="text-sm font-semibold text-blue-900 mb-2">OP file: Resettlement or Direct Allocation? <span class="text-red-600">*</span></div>
+          <div class="text-sm font-semibold text-blue-900 mb-2">OP file: Resettlement or Direct? <span class="text-red-600">*</span></div>
           <div class="flex flex-wrap gap-4 text-sm">
             @foreach ($cdSubTypes as $k => $label)
               <label class="inline-flex items-center gap-2">
-                <input type="radio" name="sub_type" value="{{ $k }}" x-model="subType"> {{ $label }}
+                <input type="radio" name="sub_type" value="{{ $k }}" x-model="subType" :disabled="!asksSubType()"> {{ $label }}
               </label>
             @endforeach
           </div>
-          <p class="text-xs text-blue-800 mt-2">Resettlement goes to the Compensation Unit; Direct Allocation goes straight to Director Land.</p>
+          <p class="text-xs text-blue-800 mt-2">Resettlement goes to the Compensation Unit; Direct goes straight to Director Land.</p>
         </div>
         <p class="mt-3 text-xs text-gray-500" x-show="workflow === 'direct' && fileType && !asksSubType()" x-cloak>
-          Not an OP file, so it takes the Direct Allocation route (straight to Director Land after charting).
+          Not an OP file, so it takes the Direct route (straight to Director Land after charting).
         </p>
+
+        {{-- Verification: Statutory or Customary, preselected from the file type, always required. --}}
+        <div class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3" x-show="workflow === 'verification' && fileType" x-cloak>
+          <div class="text-sm font-semibold text-green-900 mb-2">Statutory or Customary? <span class="text-red-600">*</span></div>
+          <div class="flex flex-wrap gap-4 text-sm">
+            @foreach ($cdTenures as $k => $label)
+              <label class="inline-flex items-center gap-2">
+                <input type="radio" name="sub_type" value="{{ $k }}" x-model="subType" :disabled="workflow !== 'verification'"> {{ $label }}
+              </label>
+            @endforeach
+          </div>
+          <p class="text-xs text-green-800 mt-2">Picked from the file type where it is clear; change it if this file is the other kind.</p>
+        </div>
       </section>
 
       {{-- 3. The file: from the global selector only, never typed --}}
@@ -75,6 +111,9 @@
           Pick the main file. Its correspondence file is found and matched to it; a file without one cannot be verified.
         </p>
 
+        {{-- Two halves (user, 2026-10-12): the picker on the left, the picked file's brief details on the right. --}}
+        <div class="grid gap-5 md:grid-cols-2 items-start">
+        <div>
         <div class="flex gap-2">
           <input type="text" :value="fileNumber" disabled placeholder="No file selected"
                  class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono bg-gray-100 text-gray-700">
@@ -104,17 +143,22 @@
             </template>
           </div>
         </div>
+        </div>
 
-        <div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-4" x-show="result && result.file">
-          <div class="grid gap-x-6 gap-y-1 text-sm md:grid-cols-2">
+        <div>
+        <div class="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-400" x-show="!(result && result.file)">
+          The selected file's details show here.
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4" x-show="result && result.file">
+          <div class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
             <div><span class="text-gray-500">File No.</span> <span class="font-mono font-semibold" x-text="result && result.file && result.file.file_number"></span></div>
             <div><span class="text-gray-500">Record</span> <span x-text="result && result.file && result.file.registry_label"></span></div>
-            <div class="md:col-span-2"><span class="text-gray-500">Title</span> <span x-text="(result && result.file && result.file.title) || '—'"></span></div>
+            <div class="sm:col-span-2"><span class="text-gray-500">Title</span> <span x-text="(result && result.file && result.file.title) || '—'"></span></div>
             <div><span class="text-gray-500">Plot No.</span> <span x-text="(result && result.file && result.file.plot) || '—'"></span></div>
             <div><span class="text-gray-500">District</span> <span x-text="(result && result.file && result.file.district) || '—'"></span></div>
             <div><span class="text-gray-500">LGA</span> <span x-text="(result && result.file && result.file.lga) || '—'"></span></div>
             <div><span class="text-gray-500">Location</span> <span x-text="(result && result.file && result.file.location) || '—'"></span></div>
-            <div class="md:col-span-2" x-show="result && result.file && result.file.other_numbers.length">
+            <div class="sm:col-span-2" x-show="result && result.file && result.file.other_numbers.length">
               <span class="text-gray-500">Also numbered</span> <span class="font-mono" x-text="result && result.file && result.file.other_numbers.join(', ')"></span>
             </div>
           </div>
@@ -132,6 +176,8 @@
                    ? 'Match found: correspondence file ' + (result.correspondence.fileno || 'linked')
                    : 'No correspondence file found for this file.'"></div>
         </div>
+        </div>
+        </div>
       </section>
 
       {{-- 4. Where it came from --}}
@@ -146,6 +192,11 @@
                 <option value="{{ $k }}">{{ $src['label'] }}</option>
               @endforeach
             </select>
+            <div class="mt-2" x-show="fileSource === 'other'" x-cloak>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">Specify <span class="text-red-600">*</span></label>
+              <input type="text" name="file_source_other" x-model="fileSourceOther" maxlength="100" :disabled="fileSource !== 'other'" :required="fileSource === 'other'"
+                     placeholder="Where did the file come from?" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            </div>
             <p class="text-xs text-gray-500 mt-1">"Not recommended" sends the file back here.</p>
           </div>
           <div>
@@ -169,6 +220,7 @@
       </div>
     </form>
   </div>
+  @include('admin.footer')
 </div>
 
 @include('components.global-fileno-modal')
@@ -181,7 +233,7 @@
     return {
       workflows, fileTypes, lookupUrl,
       workflow: old.workflow || '', fileType: old.file_type || '', subType: old.sub_type || '',
-      fileSource: old.file_source || '',
+      fileSource: old.file_source || '', fileSourceOther: old.file_source_other || '',
       fileNumber: old.file_number || '', fileIndexingId: old.file_indexing_id || '',
       fileSystem: old.file_system || '', trackingId: old.tracking_id || '',
       result: null, loading: false,
@@ -197,7 +249,17 @@
       },
       onWorkflow() {
         if (!this.typesFor().some(t => t.key === this.fileType)) this.fileType = '';
-        if (!this.asksSubType()) this.subType = '';
+        this.subType = '';
+        this.onFileType();
+      },
+      // Verification: preselect Statutory / Customary from the file type (DCIV / LPCC can be either).
+      onFileType() {
+        if (this.workflow === 'verification') {
+          const t = this.fileTypes.find(t => t.key === this.fileType);
+          this.subType = (t && t.tenure) || '';
+        } else if (!this.asksSubType()) {
+          this.subType = '';
+        }
       },
       pickFile() {
         GlobalFileNoModal.open({
@@ -230,10 +292,12 @@
       missing() {
         if (!this.workflow) return 'Choose the application type.';
         if (!this.fileType) return 'Choose the file type.';
-        if (this.asksSubType() && !this.subType) return 'Choose Resettlement or Direct Allocation.';
+        if (this.asksSubType() && !this.subType) return 'Choose Resettlement or Direct.';
+        if (this.workflow === 'verification' && !this.subType) return 'Choose Statutory or Customary.';
         if (!this.result || this.result.status !== 'ok') return 'Select a file that can be registered.';
         if (this.workflow === 'verification' && !(this.result.correspondence && this.result.correspondence.exists)) return 'Verification needs a correspondence file.';
         if (!this.fileSource) return 'Choose where the file came from.';
+        if (this.fileSource === 'other' && !this.fileSourceOther.trim()) return 'Specify where the file came from.';
         return '';
       },
       canSubmit() { return this.missing() === ''; },

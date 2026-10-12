@@ -10,7 +10,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CONRAVENTION SHEET – {{ $cert->cert_number }}</title>
+    <title>CONTRAVENTION SHEET – {{ $cert->cert_number }}</title>
     <style>
         /* A4 Page Setup */
         @page {
@@ -194,6 +194,16 @@
             font-weight: bold;
         }
 
+        .cert-no .spa-ref { margin-left: 14px; color: #666; }
+
+        /* Single sign-off: Name / Rank, Sign / Date, for the Hon. Commissioner. */
+        .sign-off { margin-bottom: 60px; padding: 0 4px; }
+        .sign-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 60px; row-gap: 22px; }
+        .sign-field { display: flex; align-items: flex-end; font-size: 13px; font-weight: bold; }
+        .sign-field span { flex-shrink: 0; width: 52px; }
+        .sign-field i { flex-grow: 1; border-bottom: 1px solid #000; height: 16px; }
+        .sign-for { margin-top: 18px; font-size: 13px; font-weight: bold; }
+
         /* Footer Section */
         .footer-section {
             display: flex;
@@ -268,7 +278,7 @@
                  the holder keeps, so it has to say which department issued it,
                  not only which Ministry. --}}
             <h2 class="dept-line">Department of Special Assignment</h2>
-            <h3>CONRAVENTION SHEET</h3>
+            <h3>CONTRAVENTION SHEET</h3>
         </div>
 
         <div class="header-marks">
@@ -279,60 +289,58 @@
         </div>
     </div>
 
-    <p class="cert-no">Sheet No: <strong>{{ $cert->cert_number }}</strong></p>
+    <p class="cert-no">Sheet No.: <strong>{{ $cert->cert_number }}</strong>
+        @if(optional($cert->application)->spa_id)<span class="spa-ref">SPAS ID: {{ $cert->application->spa_id }}</span>@endif
+    </p>
 
+    {{-- Wording as on the Department's updated sheet (2026-10-12). --}}
     <p class="declaration-text">
-        The Application for change of purpose has been approved for the conversion of Land use from
-        <strong>{{ $cert->from_use ?? '—' }}</strong> to <strong>{{ $cert->to_use ?? '—' }}</strong> with the details below;
+        The application for contravention has been approved by the Hon. Commissioner for the conversion of land use from
+        <strong>{{ strtoupper($cert->from_use ?? '—') }}</strong> purpose to <strong>{{ ucwords(strtolower($cert->to_use ?? '—')) }}</strong> land use
+        with the following details below;
     </p>
 
     <div class="details-section">
         <div class="detail-row">
-            <span class="detail-label">SPAS ID:</span>
-            <div class="detail-value-line">{{ optional($cert->application)->spa_id ?? '' }}</div>
-        </div>
-
-        <div class="detail-row">
-            <span class="detail-label">New File No:</span>
+            <span class="detail-label">New File No.:</span>
             <div class="detail-value-line">{{ $cert->new_file_number ?: ($cert->file_number ?? '') }}</div>
         </div>
 
         <div class="detail-row">
-            <span class="detail-label">Old File No:</span>
+            <span class="detail-label">Old File No.:</span>
             <div class="detail-value-line">{{ $cert->file_number ?? '' }}</div>
         </div>
 
         <div class="detail-row">
-            <span class="detail-label">Approved Land Use<br>(Current):</span>
-            <div class="detail-value-line">{{ $cert->to_use ?? '' }}</div>
+            <span class="detail-label">Approved Land Use (Current):</span>
+            <div class="detail-value-line">{{ $cert->to_use ? ucwords(strtolower($cert->to_use)) . ' Land Use' : '' }}</div>
         </div>
 
         <div class="detail-row">
-            <span class="detail-label">Approved Land Use (Old):</span>
-            <div class="detail-value-line">{{ $cert->from_use ?? '' }}</div>
+            <span class="detail-label">Approved Old Land Use:</span>
+            <div class="detail-value-line">{{ $cert->from_use ? strtoupper($cert->from_use) . ' Purpose' : '' }}</div>
         </div>
 
         <div class="detail-row">
-            <span class="detail-label">File Title:</span>
+            <span class="detail-label">File Name:</span>
             <div class="detail-value-line">{{ $cert->holder_name ?? '' }}</div>
         </div>
 
         <div class="detail-row">
-            <span class="detail-label">Date of Issue:</span>
+            <span class="detail-label">Date Issued:</span>
             <div class="detail-value-line">{{ $cert->issue_date?->format('d F Y') ?? '' }}</div>
         </div>
     </div>
 
-    <div class="signature-section">
-        <div class="sig-block">
-            <div class="sig-line"></div>
-            <div class="sig-title">Permanent Secretary</div>
+    {{-- One signatory, for the Hon. Commissioner (updated sheet). --}}
+    <div class="sign-off">
+        <div class="sign-grid">
+            <div class="sign-field"><span>Name:</span><i></i></div>
+            <div class="sign-field"><span>Rank:</span><i></i></div>
+            <div class="sign-field"><span>Sign:</span><i></i></div>
+            <div class="sign-field"><span>Date:</span><i></i></div>
         </div>
-
-        <div class="sig-block">
-            <div class="sig-line"></div>
-            <div class="sig-title">Honorable Commissioner</div>
-        </div>
+        <div class="sign-for">For: Hon. Commissioner</div>
     </div>
 
     <div class="footer-section">

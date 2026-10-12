@@ -1190,6 +1190,19 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/{id}/assign-file-number', 'assignFileNumber')->name('assign-file-number')->where('id', '[0-9]+');
         });
 
+    // LAAS Portal — accounts and ownership transfers (docs/plans/LAAS_PORTAL_REBUILD_PLAN.md).
+    Route::prefix('laas-admin')->name('laas-admin.')
+        ->controller(\App\Http\Controllers\Laas\LaasAccountsController::class)
+        ->group(function () {
+            Route::get('/applicants/{id}', 'profile')->name('applicants.show')->where('id', '[0-9]+');
+            Route::post('/applicants/{id}/contact', 'updateContact')->name('applicants.contact')->where('id', '[0-9]+');
+            Route::post('/applicants/{id}/slip', 'slip')->name('applicants.slip')->where('id', '[0-9]+');
+            Route::post('/applicants/{id}/merge', 'merge')->name('applicants.merge')->where('id', '[0-9]+');
+            Route::get('/transfers', 'transfers')->name('transfers');
+            Route::post('/transfers/{id}/approve', 'approveTransfer')->name('transfers.approve')->where('id', '[0-9]+');
+            Route::post('/transfers/{id}/dismiss', 'dismissTransfer')->name('transfers.dismiss')->where('id', '[0-9]+');
+        });
+
     // Lands 12 - Request for Survey Report
     Route::prefix('survey-report')->name('survey-report.')->group(function () {
         Route::get('/', [SurveyReportController::class, 'index'])->name('index');

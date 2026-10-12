@@ -992,7 +992,7 @@
                 title: 'KAMMA / Physical Planning',
                 html: `<div class="text-left space-y-3">
                     <label class="block text-xs font-bold text-slate-600">Land Value</label><input id="cop-knupda-value" type="number" step="0.01" class="swal2-input !m-0 !w-full" value="${data.land_value || ''}">
-                    <label class="block text-xs font-bold text-slate-600">KAMMA Fee</label><input id="cop-knupda-fee" type="number" step="0.01" class="swal2-input !m-0 !w-full" value="${data.knupda_fee || ''}">
+                    <label class="block text-xs font-bold text-slate-600">KAMMA/Physical Planning Fee</label><input id="cop-knupda-fee" type="number" step="0.01" class="swal2-input !m-0 !w-full" value="${data.knupda_fee || ''}">
                     <label class="block text-xs font-bold text-slate-600">Decision</label><select id="cop-knupda-status" class="swal2-input !m-0 !w-full"><option value="Pending">Pending</option><option value="Approved">Approved</option><option value="Declined">Declined</option></select>
                     <label class="block text-xs font-bold text-slate-600">Remarks</label><textarea id="cop-knupda-remarks" class="swal2-textarea !m-0 !w-full">${data.knupda_remarks || ''}</textarea>
                 </div>`,

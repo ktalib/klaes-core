@@ -4,7 +4,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Charting Card ' . $card->charting_no, 'PageDescription' => $case->case_ref . ' · ' . $card->stageLabel() . ' · version ' . $card->version])
 
-  <div class="p-6 max-w-5xl mx-auto space-y-6">
+  <div class="p-6 space-y-6">
     @include('cadastral_dept.partials._nav')
 
     <div class="flex flex-wrap items-center gap-2">
@@ -72,5 +72,6 @@
       </div>
     @endif
   </div>
+  @include('admin.footer')
 </div>
 @endsection

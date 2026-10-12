@@ -26,6 +26,9 @@ class ParcelUpdateSource
 {
     public const DEEDS = 'deeds';
     public const LAND  = 'land';
+    // Raised by Special Assignment (SPAS) after a contravention bill is settled —
+    // never from a request, so normalise() never returns it.
+    public const SPAS  = 'spas';
 
     /** The source to stamp on a record being captured now. */
     public static function fromRequest(Request $request): string
@@ -53,6 +56,7 @@ class ParcelUpdateSource
         return match (strtolower(trim((string) $source))) {
             self::LAND  => 'Land',
             self::DEEDS => 'Deeds',
+            self::SPAS  => 'SPAS',
             default     => '—',
         };
     }
@@ -63,6 +67,7 @@ class ParcelUpdateSource
         return match (strtolower(trim((string) $source))) {
             self::LAND  => 'bg-emerald-50 text-emerald-700 border-emerald-200',
             self::DEEDS => 'bg-indigo-50 text-indigo-700 border-indigo-200',
+            self::SPAS  => 'bg-yellow-50 text-yellow-700 border-yellow-300',
             default     => 'bg-slate-50 text-slate-400 border-slate-200',
         };
     }

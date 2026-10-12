@@ -542,6 +542,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post  ('/field-data/{id}/update',  [\App\Http\Controllers\SpecialAssignmentController::class, 'updateFieldData'])->name('field-data.update');
         Route::delete('/field-data/{id}',         [\App\Http\Controllers\SpecialAssignmentController::class, 'deleteFieldData'])->name('field-data.delete');
         // Master delete: a record and everything linked to it (Super Admin, exported first).
+        // New Conversion: record the file number issued by hand on the MLS screen.
+        Route::post  ('/land-records/{id}/new-file-number', [\App\Http\Controllers\SpecialAssignmentController::class, 'recordNewFileNumber'])->name('land-records.new-file-number');
         Route::get   ('/land-records/{id}/master-delete', [\App\Http\Controllers\SpecialAssignmentController::class, 'masterDeleteSummary'])->name('land-records.master-delete.summary');
         Route::post  ('/land-records/{id}/master-delete', [\App\Http\Controllers\SpecialAssignmentController::class, 'masterDelete'])->name('land-records.master-delete');
         Route::post('/notice/store',             [\App\Http\Controllers\SpecialAssignmentController::class, 'storeNotice'])->name('notice.store');

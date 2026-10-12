@@ -4,7 +4,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => 'Cadastral Department', 'PageDescription' => 'Files in the department, desk by desk'])
 
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     {{-- Open files per application type --}}
@@ -58,5 +58,6 @@
       </table>
     </div>
   </div>
+  @include('admin.footer')
 </div>
 @endsection

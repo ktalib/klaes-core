@@ -295,7 +295,7 @@
         </article>
         <article class="pillar">
           <span class="module-logo module-logo--metro"><img src="{{ asset('assets/logo/KLAES-METRO.jpeg') }}" alt="KLAES-METRO"></span>
-          <div><h3>KLAES-METRO</h3><p>The urban engine for KAMMA.</p></div>
+          <div><h3>KLAES-METRO</h3><p>The urban engine for KAMMA/Physical Planning.</p></div>
         </article>
         <article class="pillar">
           <span class="module-logo module-logo--control"><img src="{{ asset('assets/logo/KLAES-CONTROL.jpeg') }}" alt="KLAES-CONTROL"></span>

@@ -5,7 +5,12 @@
 @endsection
 
 @section('content')
-@php use App\Models\Laas\LaasApplication; @endphp
+@php
+    use App\Models\Laas\LaasApplication;
+
+    // RES / CON-RES / RES-RC → "Residential": the app's one land-use vocabulary.
+    $landUses = new \App\Services\Prs\Support\LandUseNormalizer();
+@endphp
 
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header', [
@@ -74,32 +79,33 @@
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr class="text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                                <th class="px-4 py-3 w-12">S/N</th>
                                 <th class="px-4 py-3">Reference</th>
-                                <th class="px-4 py-3">Applicant</th>
-                                <th class="px-4 py-3">Land use / location</th>
                                 <th class="px-4 py-3">File Number</th>
+                                <th class="px-4 py-3">Applicant</th>
+                                <th class="px-4 py-3">Land Use</th>
+                                <th class="px-4 py-3">Location</th>
                                 <th class="px-4 py-3">Stage</th>
                                 <th class="px-4 py-3">Submitted</th>
-                                <th class="px-4 py-3">Age</th>
                                 <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse($applications as $application)
-                                @php
-                                    $days = $application->submitted_at ? $application->submitted_at->diffInDays(now()) : null;
-                                @endphp
                                 <tr class="hover:bg-slate-50">
+                                    <td class="px-4 py-3 text-slate-500">{{ $applications->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 font-mono font-semibold text-slate-900">{{ $application->reference_no }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-700">{{ $application->file_number ?: '—' }}</td>
                                     <td class="px-4 py-3">
                                         <p class="font-medium text-slate-900">{{ $application->applicant_name }}</p>
                                         <p class="text-xs text-slate-500">{{ $application->applicant_phone }}</p>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <p class="text-slate-900">{{ $application->land_use }}</p>
-                                        <p class="max-w-xs truncate text-xs text-slate-500">{{ $application->location }}</p>
+                                    <td class="px-4 py-3 text-slate-900">
+                                        {{ $application->land_use ? $landUses->normalize($application->land_use) : '—' }}
                                     </td>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-700">{{ $application->file_number ?: '—' }}</td>
+                                    <td class="px-4 py-3">
+                                        <p class="max-w-xs truncate text-xs text-slate-700" title="{{ $application->location }}">{{ $application->location ?: '—' }}</p>
+                                    </td>
                                     <td class="px-4 py-3">
                                         <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold
                                             @if($application->stage === LaasApplication::STAGE_REJECTED) bg-red-100 text-red-700
@@ -110,9 +116,6 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-xs text-slate-500">{{ $application->submitted_at?->format('j M Y') ?: '—' }}</td>
-                                    <td class="px-4 py-3 text-xs {{ $days !== null && $days > 30 ? 'font-bold text-red-600' : 'text-slate-500' }}">
-                                        {{ $days !== null ? $days . 'd' : '—' }}
-                                    </td>
                                     <td class="px-4 py-3 text-right">
                                         <a href="{{ route('laas-admin.show', $application->id) }}"
                                            class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">
@@ -122,7 +125,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-12 text-center text-slate-500">No applications match this filter.</td>
+                                    <td colspan="9"class="px-4 py-12 text-center text-slate-500">No applications match this filter.</td>
                                 </tr>
                             @endforelse
                         </tbody>

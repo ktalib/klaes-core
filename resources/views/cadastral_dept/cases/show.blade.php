@@ -11,7 +11,7 @@
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', ['PageTitle' => $case->case_ref, 'PageDescription' => $wf['label'] . ' · ' . $case->file_number])
 
-  <div class="p-6 max-w-6xl mx-auto">
+  <div class="p-6">
     @include('cadastral_dept.partials._nav')
 
     {{-- Header --}}
@@ -20,11 +20,18 @@
         <div class="flex items-center gap-2">{!! $def->wfChip($case->workflow) !!} {!! $def->statusChip($case->status) !!}</div>
         <div class="text-2xl font-black text-gray-800 font-mono mt-2">{{ $case->file_number }}</div>
         <div class="text-sm text-gray-600">{{ $case->file_title }}</div>
+        @php $cdDel = $case->masterDeleteJs(route('cadastral-dept.cases.index')); @endphp
+        @if ($cdDel)
+          <button type="button" onclick="{{ $cdDel }}"
+                  class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50">
+            <i data-lucide="shield-alert" class="w-4 h-4"></i> Master Delete
+          </button>
+        @endif
       </div>
       <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <dt class="text-gray-500">File type</dt><dd>{{ $case->fileTypeLabel() }}</dd>
         @if ($wf['sub_types'] ?? null)
-          <dt class="text-gray-500">Route</dt><dd>{{ $wf['sub_types'][$case->sub_type] ?? 'Not set' }}</dd>
+          <dt class="text-gray-500">{{ $wf['sub_type_label'] ?? 'Route' }}</dt><dd>{{ $wf['sub_types'][$case->sub_type] ?? 'Not set' }}</dd>
         @endif
         <dt class="text-gray-500">Came from</dt><dd>{{ $case->fileSourceLabel() }}</dd>
         <dt class="text-gray-500">Plot No.</dt><dd>{{ $case->plot_no ?? null ?: '—' }}</dd>
@@ -57,6 +64,17 @@
           Phase {{ $phase }} · {{ $wf['phases'][$phase] }}
         </div>
       @endforeach
+    </div>
+
+    {{-- The process, step by step: done, where it is now, and the way on. --}}
+    <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 mb-6">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500">Process · {{ $wf['label'] }}@if ($case->sub_type && isset($wf['sub_types'][$case->sub_type])) ({{ $wf['sub_types'][$case->sub_type] }})@endif</h3>
+        @if ($case->isOpen())
+          <span class="text-xs font-semibold text-{{ $c }}-800">Now: {{ $step['label'] }}</span>
+        @endif
+      </div>
+      @include('cadastral_dept.partials._pipeline', ['pipeline' => $pipeline, 'c' => $c])
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">
@@ -96,7 +114,7 @@
                     @elseif (in_array($key, ['correspondence_detached', 'correspondence_attached'], true) && $custodyInstalled && ! isset($done[$key]))
                       @php $cdCustodyAction = $key === 'correspondence_detached' ? 'detach' : 'attach'; @endphp
                       <form method="POST" action="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}" class="flex items-center gap-2"
-                            onsubmit="return confirm(@js(ucfirst($cdCustodyAction) . ' correspondence file ' . ($case->shadow_fileno ?: $case->correspondence_fileno) . '?'))">
+                            data-confirm-title="{{ ucfirst($cdCustodyAction) }} correspondence file?" data-confirm="{{ ucfirst($cdCustodyAction) }} correspondence file {{ $case->shadow_fileno ?: $case->correspondence_fileno }} for {{ $case->file_number }}.">
                         @csrf
                         <input type="hidden" name="action" value="{{ $cdCustodyAction }}">
                         <input type="text" name="note" maxlength="1000" placeholder="{{ $cdCustodyAction === 'detach' ? 'Archived where? (optional)' : 'Note (optional)' }}" class="w-44 border border-gray-300 rounded-md px-2 py-1 text-xs">
@@ -129,11 +147,32 @@
                           <span class="text-xs text-gray-500">Commission the field jacket first</span>
                         @endif
                       </span>
+                    @elseif ($key === 'land12' && $yesNoInstalled)
+                      {{-- Land 12 has no screen here: the tick stays manual, once the Yes/No form is complete. --}}
+                      <span class="flex items-center gap-2">
+                        @if (isset($done[$key]))
+                          <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @elseif ($yesNoForm)
+                          <span class="text-xs {{ $yesNoForm->isComplete() ? 'text-green-700' : 'text-yellow-700' }}">Yes/No form {{ $yesNoForm->isComplete() ? 'complete' : 'incomplete' }}</span>
+                        @endif
+                        <a href="{{ route('cadastral-dept.cases.yes-no.show', $case->id) }}"
+                           class="px-3 py-1 rounded-md {{ $yesNoForm?->isComplete() ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">
+                          {{ $yesNoForm ? 'Open Yes/No form' : 'Fill in Yes/No form' }}
+                        </a>
+                        @if (! isset($done[$key]) && $yesNoForm?->isComplete())
+                          <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
+                                data-confirm-title="Mark Land 12 done?" data-confirm="The Yes/No form is then locked and cannot be changed.">
+                            @csrf
+                            <input type="hidden" name="task" value="{{ $key }}">
+                            <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
+                          </form>
+                        @endif
+                      </span>
                     @elseif (isset($done[$key]))
                       <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
                     @elseif ($key === 'correspondence_created')
                       <form method="POST" action="{{ route('cadastral-dept.cases.correspondence.store', $case->id) }}"
-                            onsubmit="return confirm('Create the correspondence file for {{ $case->file_number }}? If it already has one, it is matched instead.')">
+                            data-confirm-title="Create the correspondence file?" data-confirm="For {{ $case->file_number }}. If it already has one, it is matched instead.">
                         @csrf
                         <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Create Correspondence File</button>
                       </form>
@@ -145,7 +184,8 @@
                         <span class="text-xs text-gray-500">FMC tables not installed</span>
                       @endif
                     @else
-                      <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}">
+                      <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
+                            data-confirm-title="Mark done?" data-confirm="{{ $label }}: ticked as done for {{ $case->case_ref }}.">
                         @csrf
                         <input type="hidden" name="task" value="{{ $key }}">
                         <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
@@ -171,7 +211,7 @@
             @endif
 
             @if ($needsSubType)
-              <form method="POST" action="{{ route('cadastral-dept.cases.sub-type.update', $case->id) }}" class="mt-4 rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-wrap items-center gap-2">
+              <form method="POST" action="{{ route('cadastral-dept.cases.sub-type.update', $case->id) }}" data-confirm-title="Set the sub-type?" data-confirm="It decides where {{ $case->case_ref }} goes next, and cannot be changed once the file is routed on it." class="mt-4 rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-wrap items-center gap-2">
                 @csrf
                 <span class="text-sm text-yellow-900 font-semibold">Set the sub-type: it decides where the file goes next.</span>
                 <select name="sub_type" class="border border-gray-300 rounded-lg px-2 py-1 text-sm">
@@ -202,8 +242,13 @@
                     @endphp
                     <button name="outcome" value="{{ $a['outcome'] }}" @disabled(! $allDone)
                             @if ($a['reason']) :disabled="{{ $allDone ? 'false' : 'true' }} || remarks.trim() === ''" title="Write the reason first" @endif
-                            class="px-4 py-2 rounded-lg {{ $btn }} text-white text-sm font-semibold disabled:opacity-50">
+                            data-confirm="{{ $a['label'] }}: {{ $case->case_ref }} ({{ $case->file_number }}) goes to {{ $a['to'] }}."
+                            data-confirm-title="{{ $a['label'] }}?" @if ($btn === 'bg-red-600') data-confirm-danger @endif
+                            class="px-4 py-2 rounded-lg {{ $btn }} text-white text-sm font-semibold disabled:opacity-50 text-left">
                       {{ $a['label'] }}
+                      @unless (str_contains($a['label'], $a['to']))
+                        <span class="block text-xs font-normal opacity-80">to {{ $a['to'] }}</span>
+                      @endunless
                     </button>
                   @endforeach
                 </div>
@@ -307,8 +352,16 @@
       {{-- Movement history --}}
       <div>
         <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Movement history</h3>
+        {{-- Oldest first, starting with the registry the file came from (user, 2026-10-12), as on the File Movement Card. --}}
         <ol class="relative border-l border-gray-200 ml-2 space-y-4">
-          @foreach ($case->movements->reverse() as $m)
+          <li class="ml-4">
+            <div class="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-gray-400 border border-white"></div>
+            <div class="text-xs text-gray-500">{{ optional($case->received_at ?? $case->created_at)->format('d M Y H:i') }} · {{ optional($case->receiver)->name }}</div>
+            <div class="text-sm text-gray-800">
+              {{ $case->file_source === 'other' ? $case->fileSourceLabel() : $case->fileSourceLabel() . ' Registry' }} &rarr; Received at Cadastral Registry
+            </div>
+          </li>
+          @foreach ($case->movements as $m)
             <li class="ml-4">
               <div class="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-{{ $c }}-400 border border-white"></div>
               <div class="text-xs text-gray-500">{{ $m->acted_at->format('d M Y H:i') }} · {{ optional($m->actor)->name }}</div>
@@ -333,11 +386,12 @@
       </div>
     </div>
   </div>
+  @include('admin.footer')
 </div>
 
 @if ($jacketDue)
   <div id="cd-fj-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-    <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}" class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
+    <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}" data-confirm-title="Commission the field jacket?" data-confirm="A field jacket and job number are created for {{ $case->file_number }} and given to the chosen surveyor." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
       @csrf
       <div>
         <div class="text-xs font-bold uppercase text-gray-500">{{ $case->case_ref }} · {{ $case->file_number }}</div>
@@ -372,7 +426,7 @@
 
 @if ($itsDefault !== null && $case->isOpen() && isset($tasks['its']))
   <div id="cd-its-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-    <form method="POST" action="{{ route('cadastral-dept.cases.its.store', $case->id) }}" class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
+    <form method="POST" action="{{ route('cadastral-dept.cases.its.store', $case->id) }}" data-confirm-title="Issue the I to S?" data-confirm="The Instruction to Survey is numbered and issued to the surveyor." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
       @csrf
       <div>
         <div class="text-xs font-bold uppercase text-gray-500">{{ $fieldJacket->field_jacket_no }} · job {{ $fieldJacket->job->job_number }}</div>
@@ -409,7 +463,7 @@
     ];
   @endphp
   <div id="cd-fmc-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-    <form method="POST" action="{{ route('cadastral-dept.cases.fmc.store', $case->id) }}" class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
+    <form method="POST" action="{{ route('cadastral-dept.cases.fmc.store', $case->id) }}" data-confirm-title="Commission the FMC?" data-confirm="A File Movement Card is created for {{ $case->file_number }}." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
       @csrf
       <div>
         <div class="text-xs font-bold uppercase text-gray-500">{{ $case->case_ref }} · {{ $case->file_number }}</div>

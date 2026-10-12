@@ -38,6 +38,28 @@
             </div>
         @endif
     </div>
+
+    @if($application->isTransferredOut())
+        <div class="mt-5 flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--brand-tint)] px-5 py-4 text-sm text-[var(--ink)]">
+            <i data-lucide="arrow-right-left" class="mt-0.5 h-5 w-5 flex-shrink-0"></i>
+            <p>
+                <strong>Transferred to a new holder</strong>
+                @if($application->visible_until) on {{ $application->visible_until->format('M j, Y') }}@endif.
+                You can see this file's history up to that date. It is kept here read-only.
+            </p>
+        </div>
+    @elseif($lineage['retired'])
+        <div class="mt-5 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+            <i data-lucide="archive" class="mt-0.5 h-5 w-5 flex-shrink-0"></i>
+            <p>
+                <strong>Retired{{ $lineage['retired_on'] ? ' on ' . $lineage['retired_on'] : '' }}</strong>{{ $lineage['event'] ? ': ' . $lineage['event'] : '' }}.
+                @if(!empty($lineage['successors']))
+                    This file became {{ collect($lineage['successors'])->take(5)->pluck('file_number')->implode(', ') }}{{ count($lineage['successors']) > 5 ? ' and ' . (count($lineage['successors']) - 5) . ' more' : '' }}.
+                @endif
+                It stays here as part of your history and is read-only.
+            </p>
+        </div>
+    @endif
 </div>
 
 <div class="grid gap-6 lg:grid-cols-3">
@@ -51,6 +73,8 @@
     </div>
 
     <div class="space-y-6 lg:col-span-2">
+
+        @include('laas.partials.lineage', ['lineage' => $lineage])
 
         <!-- Timeline -->
         <div class="rounded-2xl border border-[var(--border)] bg-[var(--surface-card)] dark:border-[var(--border)] dark:bg-[var(--surface-card)]">
@@ -142,6 +166,9 @@
                 </ul>
             @endif
 
+            @if($application->isReadOnly())
+                <p class="text-sm text-[var(--ink-soft)] dark:text-[var(--ink-soft)]">This file is read-only, so no new documents can be added.</p>
+            @else
             <form method="POST" action="{{ route('laas.application.documents.upload', $application->reference_no) }}"
                   enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
                 @csrf
@@ -163,6 +190,7 @@
                     <i data-lucide="upload" class="mr-1.5 inline h-4 w-4"></i> Upload
                 </button>
             </form>
+            @endif
         </div>
 
         <!-- Submitted details -->

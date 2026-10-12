@@ -727,7 +727,7 @@ class SpecialAssignmentController extends Controller
         }
 
         $PageTitle       = 'Special Assignment – Other Departments';
-        $PageDescription = 'Cadastral, Physical Planning/KAMMA, and Survey department records.';
+        $PageDescription = 'Cadastral, KAMMA/Physical Planning, and Survey department records.';
         $stats = [
             'total'     => SpaDepartmentReferral::count(),
             'pending'   => SpaDepartmentReferral::where('status', 'pending')->count(),
@@ -824,8 +824,15 @@ class SpecialAssignmentController extends Controller
         $approvedAppIds = SpaMemo::where('commissioner_decision', 'approved')->pluck('spa_application_id')->filter();
         $approvedFiles  = SpaApplication::whereIn('id', $approvedAppIds)->pluck('file_number')->filter()->unique();
 
+        // The new file number a settled contravention was given (Change of
+        // Purpose or New Conversion) comes with the record, so the sheet takes it
+        // by default instead of the officer picking from the pool.
+        if (\App\Services\SpaNewFileService::supported()) {
+            app(\App\Services\SpaNewFileService::class)->syncAll();
+        }
         $certApplications = SpaApplication::orderBy('file_number')
-            ->get(['id', 'file_number', 'owner_name', 'land_use_type', 'existing_use'])
+            ->get(array_merge(['id', 'file_number', 'owner_name', 'land_use_type', 'existing_use'],
+                \App\Services\SpaNewFileService::supported() ? ['new_file_number'] : []))
             ->map(function ($a) use ($approvedAppIds, $approvedFiles) {
                 // Matched by id OR by file number, the same way issueCertificate
                 // does: re-adding a file to SPAS gives it a new application id,
@@ -857,15 +864,17 @@ class SpecialAssignmentController extends Controller
                                    'forwarded_at'  => $m->forwarded_at?->format('d/m/Y') ?? '—',
                                    'decision'      => $m->commissioner_decision,
                                    'decided_at'    => $m->decided_at?->format('d/m/Y') ?? '—',
-                                   // A memo is printable at every stage: pending
-                                   // ones are what gets carried to the
-                                   // Commissioner for signing in the first place.
+                                   // Print only once approved (2026-10-12); until
+                                   // then the button shows, disabled, and says why.
                                    'action'        => '<div class="flex items-center gap-2">'
                                        .($m->commissioner_decision === 'pending'
                                            ? '<button data-id="'.$m->id.'" data-memo="'.e($m->memo_no).'" class="btn-decide text-xs px-3 py-1 rounded bg-[rgb(186,191,12)] text-white">Approve</button>'
                                            : '<span class="text-xs text-gray-400">'.ucfirst($m->commissioner_decision).'</span>')
-                                       .'<a href="'.route('special-assignment.memo.print', $m->id).'" target="_blank" '
-                                       .'class="text-xs px-3 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">Print</a>'
+                                       .($m->commissioner_decision === 'approved'
+                                           ? '<a href="'.route('special-assignment.memo.print', $m->id).'" target="_blank" '
+                                             .'class="text-xs px-3 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">Print</a>'
+                                           : '<button type="button" disabled aria-disabled="true" title="Print is available once the memo is approved" '
+                                             .'class="text-xs px-3 py-1 rounded border border-gray-100 text-gray-300 bg-gray-50 cursor-not-allowed">Print</button>')
                                        .'</div>',
                                ];
                            });
@@ -1288,6 +1297,10 @@ class SpecialAssignmentController extends Controller
             'memos'    => SpaMemo::with('application')->where('commissioner_decision', 'pending')->orderBy('forwarded_at')->take(6)->get(),
             'bills'    => \App\Models\SpaBill::with('application')->whereIn('status', ['unpaid', 'partial'])->orderBy('created_at')->take(6)->get(),
             'inspect'  => $apps->filter(fn ($a) => ($summary['positions'][$a->id] ?? null) === 'field')->take(6),
+            // Settled, handed on, still without the new number.
+            'newfile'  => \App\Services\SpaNewFileService::supported()
+                ? $apps->filter(fn ($a) => $a->new_file_route && ! $a->new_file_number)->take(6)
+                : collect(),
         ];
 
         $byLga = $apps->groupBy(fn ($a) => strtoupper(trim((string) $a->lga)) ?: 'NOT SET')
@@ -1301,6 +1314,40 @@ class SpecialAssignmentController extends Controller
         $PageDescription = 'The SPAS workflow at a glance, and what needs attention.';
 
         return view('special_assignment.dashboard.index', compact('PageTitle', 'PageDescription', 'summary', 'stats', 'attention', 'byLga', 'recent', 'positions'));
+    }
+
+    /**
+     * Record the new file number issued by hand for a New Conversion (manual for
+     * now: the officer issues it on the MLS screen). A Change of Purpose record
+     * gets its number automatically when commissioned, so it is refused here.
+     */
+    public function recordNewFileNumber(Request $request, int $id, \App\Services\SpaNewFileService $newFile)
+    {
+        if (! \App\Services\SpaNewFileService::supported()) {
+            return response()->json(['success' => false, 'message' => 'Run migration 2026_10_12_090000 first.'], 422);
+        }
+        $data = $request->validate(['new_file_number' => 'required|string|max:255']);
+        $number = strtoupper(trim($data['new_file_number']));
+        $app = SpaApplication::findOrFail($id);
+
+        if ($app->new_file_route !== \App\Services\SpaNewFileService::NEW_CONVERSION) {
+            return response()->json(['success' => false, 'message' => $app->new_file_route
+                ? 'This record goes through Change of Purpose — its number comes when the Change of Purpose is commissioned on the MLS screen.'
+                : 'This record is not waiting for a new file number yet (its bill is not settled).'], 422);
+        }
+        if ($app->new_file_number) {
+            return response()->json(['success' => false, 'message' => "This record already has {$app->new_file_number}."], 422);
+        }
+        if (SpaApplication::where('new_file_number', $number)->where('id', '!=', $app->id)->exists()) {
+            return response()->json(['success' => false, 'message' => "{$number} is already recorded on another SPAS record."], 422);
+        }
+
+        $newFile->record($app, $number);
+        app(\App\Services\AuditService::class)->logAction('SPAS New File Number', 'SpaApplication', $app->id,
+            ['new_file_number' => $number, 'route' => 'new_conversion'], null,
+            "New Conversion file number {$number} recorded for " . ($app->spa_id ?: $app->file_number) . '.');
+
+        return response()->json(['success' => true, 'message' => "{$number} recorded for " . ($app->spa_id ?: $app->file_number) . '.']);
     }
 
     /** Workflow stages for the given records — painted by public/js/spas-pipeline.js. */
@@ -1976,6 +2023,8 @@ class SpecialAssignmentController extends Controller
     {
         $paid = (float) \App\Models\SpaPayment::where('spa_bill_id', $bill->id)->sum('amount_paid');
         $bill->update(['status' => $paid <= 0 ? 'unpaid' : ($paid >= (float) $bill->amount ? 'paid' : 'partial')]);
+        // Taking an item off can leave the bill fully paid: settled, so hand it on.
+        app(\App\Services\SpaNewFileService::class)->onBillChanged($bill, auth()->id());
     }
 
     /**
@@ -2068,6 +2117,10 @@ class SpecialAssignmentController extends Controller
         });
 
         $bill->refresh();
+
+        // Settled: hand the record on for its new file number (Change of Purpose
+        // or New Conversion). After the payment's transaction, and never throws.
+        app(\App\Services\SpaNewFileService::class)->onBillChanged($bill, auth()->id());
 
         return response()->json([
             'success'     => true,

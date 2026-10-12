@@ -5,7 +5,6 @@ namespace App\Services\CadastralDept;
 use App\Models\CadastralDept\CadastralCase;
 use App\Services\Cadastral\CadastralRegistryLookup;
 use App\Services\Cadastral\CorrespondenceFiles;
-use App\Services\Cadastral\ReceiptHolds;
 use App\Support\LgaNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -32,7 +31,6 @@ class IntakeLookup
 
     public function __construct(
         private CadastralRegistryLookup $lookup,
-        private ReceiptHolds $holds,
         private WorkflowDefinition $def
     ) {
     }
@@ -183,8 +181,8 @@ class IntakeLookup
 
     /**
      * Flag, never refuse: earlier closed cases, earlier intake receipts in the
-     * old Cadastral Module, and the duplicate register / same-plot check the
-     * old intake already uses.
+     * old Cadastral Module, and the duplicate register. The same-plot check was
+     * removed from this form (user, 2026-10-12).
      *
      * @return array{flag:bool, note:?string}
      */
@@ -210,9 +208,9 @@ class IntakeLookup
             }
         }
 
-        $findings = $this->holds->findings($number);
-        if ($findings['flag']) {
-            $notes[] = $findings['note'];
+        $duplicates = $this->lookup->duplicates($number);
+        if ($duplicates->isNotEmpty()) {
+            $notes[] = $duplicates->count() . ' entry(ies) in the duplicate register.';
         }
 
         return ['flag' => $notes !== [], 'note' => $notes ? implode(' ', $notes) : null];

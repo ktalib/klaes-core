@@ -12,12 +12,13 @@
         @page { size: A4 portrait; margin: 12mm; }
         body { font-family: "Times New Roman", Georgia, serif; font-size: 12px; color: #000; margin: 0; }
         .sheet { max-width: 190mm; margin: 0 auto; }
-        .head { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
-        .head .titles { flex: 1; text-align: center; }
-        .head h1 { font-size: 15px; margin: 0; letter-spacing: .06em; text-transform: uppercase; }
+        .head { text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+        .head .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .head .logo { height: 18mm; width: auto; display: block; flex: none; }
+        .head h1 { font-size: 13px; margin: 0; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
         .head h2 { font-size: 12px; margin: 2px 0 0; font-weight: normal; }
-        .head .qr { text-align: center; font-size: 8px; }
-        .head .qr img { width: 30mm; height: 30mm; display: block; }
+        .qr { text-align: center; font-size: 7px; margin-top: 4px; }
+        .qr img { width: 22mm; height: 22mm; display: block; margin: 0 auto; }
         table { width: 100%; border-collapse: collapse; }
         .fields td { padding: 4px 6px; vertical-align: top; }
         .fields .label { width: 18%; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #333; }
@@ -39,12 +40,15 @@
     </div>
 
     <div class="head">
-        <div class="titles">
+        {{-- [logo] ministry name [logo] on the first line; card title and the QR code under it (user, 2026-10-12). --}}
+        <div class="title-row">
+            <img class="logo" src="{{ asset('assets/logo/ministry1.jpg') }}" alt="Kano State">
             <h1>Kano State Ministry of Land and Physical Planning</h1>
-            <h2>Cadastral Department · File Movement Card</h2>
+            <img class="logo" src="{{ asset('assets/logo/ministry2.png') }}" alt="Ministry of Land and Physical Planning">
         </div>
+        <h2>File Movement Card · Cadastral Department</h2>
         @if ($qr)
-            <div class="qr"><img src="{{ $qr }}" alt="QR">Scan to log in / out</div>
+            <div class="qr"><img src="{{ $qr }}" alt="QR">{{ $qrLabel }}: {{ $qrValue }}</div>
         @endif
     </div>
 

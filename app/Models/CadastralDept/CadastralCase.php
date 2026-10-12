@@ -97,7 +97,7 @@ class CadastralCase extends Model
      */
     public function rowActions(): array
     {
-        $items = [['Open file', 'folder-open', route('cadastral-dept.cases.show', $this->id)]];
+        $items = [['View', 'eye', route('cadastral-dept.cases.show', $this->id)]];
         $user = auth()->user();
 
         if (\App\Services\CadastralDept\FileMovementCards::installed() && ($fmc = $this->fmc)) {
@@ -113,14 +113,26 @@ class CadastralCase extends Model
         if ($bill = \App\Services\CadastralDept\PndBills::liveBill((string) $this->file_number)) {
             $items[] = ['P&D bill ' . $bill->bill_ref, 'receipt', route('cadastral-dept.cases.bill.show', $this->id)];
         }
-        if ($this->isOpen()) {
-            // The desk holding the file, where its workflow actions are.
-            $def = new WorkflowDefinition();
-            $desk = $def->actingDesk($this->workflow, $this->current_step);
-            $items[] = ['Go to ' . $def->deskShort($desk) . ' desk', 'inbox', route('cadastral-dept.desks.show', $desk)];
+        if ($js = $this->masterDeleteJs()) {
+            $items[] = ['Master Delete', 'shield-alert', null, false, $js];
+        }
+        return $items;
+    }
+
+    /**
+     * The click handler for Master Delete, or null when the user may not run one
+     * (Supper Admin only; the endpoint checks the same). $after: where to go once done.
+     */
+    public function masterDeleteJs(?string $after = null): ?string
+    {
+        if ((auth()->user()->assign_role ?? null) !== 'Supper Admin') {
+            return null;
         }
 
-        return $items;
+        // Raw JS: the views print it with {{ }} into onclick, which escapes it once.
+        return 'cdMasterDelete(' . json_encode(route('cadastral-dept.cases.master-destroy', $this->id)) . ', '
+            . json_encode($this->case_ref) . ', ' . json_encode((string) $this->file_number) . ', '
+            . json_encode($after) . ')';
     }
 
     /** Short form of the desk holding the file (D Cad, DD Cad, ...). */
@@ -136,7 +148,9 @@ class CadastralCase extends Model
 
     public function fileSourceLabel(): string
     {
-        return (new WorkflowDefinition())->fileSources()[$this->file_source]['label'] ?? (string) $this->file_source;
+        $label = (new WorkflowDefinition())->fileSources()[$this->file_source]['label'] ?? (string) $this->file_source;
+
+        return $this->file_source === 'other' && $this->file_source_other ? "{$label}: {$this->file_source_other}" : $label;
     }
 
     /**

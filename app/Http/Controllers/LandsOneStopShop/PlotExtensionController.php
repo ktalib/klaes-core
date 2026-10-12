@@ -262,7 +262,7 @@ class PlotExtensionController extends Controller
             'knupda_remarks' => $request->input('knupda_remarks'),
             'updated_by' => Auth::id(),
         ]);
-        return response()->json(['success' => true, 'message' => 'KAMMA status updated.']);
+        return response()->json(['success' => true, 'message' => 'KAMMA/Physical Planning status updated.']);
     }
 
     private function rules(): array

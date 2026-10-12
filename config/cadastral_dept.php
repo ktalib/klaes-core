@@ -38,7 +38,7 @@
 $p1Review = fn (string $notRecommended) => [
     'dc_review' => [
         'phase' => 1, 'desk' => 'director_cadastral', 'label' => 'Recommend or not recommend',
-        'question' => 'Recommend this file?',
+        'question' => 'Recommend this file?', 'menu_label' => 'Recommendation',
         'outcomes' => [
             'recommended' => ['label' => 'Recommend', 'next' => 'ddc_review'],
             'not_recommended' => ['label' => $notRecommended, 'next' => 'registry_return', 'reason' => true],
@@ -47,7 +47,7 @@ $p1Review = fn (string $notRecommended) => [
     // DD Cad's refusal goes back to D Cad with the reason, and D Cad decides again.
     'ddc_review' => [
         'phase' => 1, 'desk' => 'deputy_director_cadastral', 'label' => 'Recommend or not recommend',
-        'question' => 'Recommend this file?',
+        'question' => 'Recommend this file?', 'menu_label' => 'Recommendation',
         'outcomes' => [
             'recommended' => ['label' => 'Recommend', 'next' => 'info_commission'],
             'not_recommended' => ['label' => $notRecommended . ' (back to D Cad)', 'next' => 'dc_review', 'reason' => true],
@@ -100,7 +100,7 @@ $landRoundTrip = fn (string $afterDdc) => [
 $compensation = fn (string $afterDsg) => [
     'compensation_check' => [
         'phase' => 3, 'desk' => 'compensation_unit', 'label' => 'Government acquisition check',
-        'question' => 'Land falls on Government acquisition?',
+        'question' => 'Land falls on Government acquisition?', 'menu_label' => 'Acquisition check',
         'external' => true, 'recorded_by' => 'director_cadastral',
         'outcomes' => [
             'no' => ['label' => 'No: send to DSG', 'next' => 'dsg_review'],
@@ -153,7 +153,7 @@ return [
 
         'compensation_unit' => ['label' => 'Compensation Unit (Survey Dept)', 'short' => 'Compensation', 'internal' => false],
         'dsg' => ['label' => 'Deputy Director Survey (DSG)', 'short' => 'DSG', 'internal' => false],
-        'kamma' => ['label' => 'KAMMA', 'short' => 'KAMMA', 'internal' => false],
+        'kamma' => ['label' => 'KAMMA/Physical Planning', 'short' => 'KAMMA/Physical Planning', 'internal' => false],
         'physical_planning' => ['label' => 'Physical Planning Department', 'short' => 'Physical Planning', 'internal' => false],
         'permanent_secretary' => ['label' => 'Permanent Secretary', 'short' => 'PS', 'internal' => false],
         'director_land' => ['label' => 'Director Land (Land Dept)', 'short' => 'Land', 'internal' => false],
@@ -161,17 +161,60 @@ return [
     ],
 
     /*
+    | Sidebar lists per desk (user's proposed sidebar, 2026-10-11). Each entry
+    | opens the desk's inbox filtered to the files where that action is due now.
+    | A file matches when ANY of its rules holds:
+    |   steps: its current step is one of these
+    |   tasks: its current step has one of these tasks still open
+    |   to:    its row menu can send it to one of these desks
+    |   at:    it is out with one of these desks (this desk records the return)
+    |   ready: every task of its step is done, so it can be sent on
+    | An entry with no rule lists every file at the desk. `group` is the
+    | sidebar heading for the desk.
+    */
+    'queues' => [
+        // Registry is one link too (user, 2026-10-12): Attach Land File, Detach Correspondence
+        // and Send to Deeds are row-menu actions on the files that need them, not sidebar lists.
+        'registry' => ['group' => 'Registry', 'entries' => []],
+        // D Cad and DD Cad are one link each (user, 2026-10-11): the table's Status column
+        // shows what each file needs, and the row menu groups a decision into one item.
+        'director_cadastral' => ['group' => 'D Cad', 'entries' => []],
+        'deputy_director_cadastral' => ['group' => 'DD Cad', 'entries' => []],
+        'ad_information' => ['group' => 'Cadastral Information', 'entries' => [
+            // 'all' => ['label' => 'All files at AD Cad Info'],   // hidden from the sidebar for now (user, 2026-10-12)
+            'fmc' => ['label' => 'Commission FMC', 'tasks' => ['fmc_commissioned']],
+            'first_charting' => ['label' => '1st Charting', 'tasks' => ['chart_first']],
+            // 'send' => ['label' => 'Send to Report', 'to' => ['ad_report']],   // hidden from the sidebar for now (user, 2026-10-12)
+        ]],
+        'ad_report' => ['group' => 'Cadastral Report', 'entries' => [
+            'all' => ['label' => 'All files at AD Cad Report'],
+            'charting' => ['label' => 'Charting', 'tasks' => ['charted', 'chart_second', 'charting_checked']],
+            'correspondence' => ['label' => 'Commission Correspondence File', 'tasks' => ['correspondence_created']],
+            'send' => ['label' => 'Send', 'ready' => true],
+        ]],
+        'ad_pnd' => ['group' => 'Plans & Descriptions', 'entries' => [
+            'all' => ['label' => 'All files at AD P&D'],
+            'field_jacket' => ['label' => 'Commission Field Jacket', 'tasks' => ['field_jacket']],
+            'its' => ['label' => 'Assign to Surveyor (I to S)', 'tasks' => ['its']],
+            'bill' => ['label' => 'Fees, Plan & Description', 'tasks' => ['bill_generated']],
+            'send' => ['label' => 'Send', 'ready' => true],
+        ]],
+        'ad_cadastral' => ['group' => 'AD Cad', 'entries' => []],
+    ],
+
+    /*
     | File types offered at intake, per application type. Verification can be on
-    | any file type. Only OP asks for a sub-type; every other Direct file is
-    | Direct Allocation (user's answer, 2026-10-10).
+    | any file type. Under Direct Allocation only OP asks for a sub-type; every other
+    | Direct file takes the Direct route (user's answer, 2026-10-10). `tenure`
+    | preselects Statutory / Customary when the file is registered for Verification.
     */
     'file_types' => [
-        'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification']],
-        'quarry' => ['label' => 'Quarry File', 'workflows' => ['conversion', 'verification']],
-        'sit' => ['label' => 'SIT File', 'workflows' => ['conversion', 'verification']],
-        'gkn' => ['label' => 'GKN File', 'workflows' => ['direct', 'verification']],
-        'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification']],
-        'op' => ['label' => 'OP File', 'workflows' => ['direct', 'verification'], 'asks_sub_type' => true],
+        'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary'],
+        'quarry' => ['label' => 'Quarry File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary'],
+        'sit' => ['label' => 'SIT File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary'],
+        'gkn' => ['label' => 'GKN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory'],
+        'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory'],
+        'op' => ['label' => 'OP File', 'workflows' => ['direct', 'verification'], 'asks_sub_type' => true, 'tenure' => 'statutory'],
         'dciv' => ['label' => 'DCIV File', 'workflows' => ['conversion', 'direct', 'verification']],
         'lpcc' => ['label' => 'LPCC File', 'workflows' => ['conversion', 'direct', 'verification']],
     ],
@@ -193,9 +236,9 @@ return [
 
     'workflows' => [
 
-        /* ------------------------- 1. Conversion (Customary) ------------------------- */
+        /* ------------------------- 1. Conversion ------------------------- */
         'conversion' => [
-            'label' => 'Conversion (Customary)',
+            'label' => 'Conversion',
             'short' => 'Conversion',
             'applies_to' => 'Conversion, Quarry, SIT, and DCIV/LPCC files under Conversion',
             'colour' => 'yellow',
@@ -225,14 +268,14 @@ return [
             ] + $compensation('dc_buffer') + [
                 'dc_buffer' => [
                     'phase' => 3, 'desk' => 'director_cadastral', 'label' => 'Route for Planning Advice (buffer on GIS)',
-                    'question' => 'Within the 10 km buffer from the town centre?',
+                    'question' => 'Within the 10 km buffer from the town centre?', 'menu_label' => 'Planning Advice route',
                     'outcomes' => [
-                        'inside_10km' => ['label' => 'Yes: send to KAMMA', 'next' => 'kamma_advice'],
+                        'inside_10km' => ['label' => 'Yes: send to KAMMA/Physical Planning', 'next' => 'kamma_advice'],
                         'outside_10km' => ['label' => 'No: send to Physical Planning', 'next' => 'ppd_advice'],
                     ],
                 ],
                 'kamma_advice' => [
-                    'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA)',
+                    'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA/Physical Planning)',
                     'external' => true, 'recorded_by' => 'director_cadastral',
                     'next' => 'perm_sec_review',
                 ],
@@ -263,16 +306,18 @@ return [
             ] + $billingTail,
         ],
 
-        /* ------------------------- 2. Direct (Statutory) ------------------------- */
+        /* ------------------------- 2. Direct Allocation ------------------------- */
+        // Client's list (2026-10-11): Direct Allocation, split into Resettlement and Direct.
         'direct' => [
-            'label' => 'Direct (Statutory)',
+            'label' => 'Direct Allocation',
             'short' => 'Direct',
-            'applies_to' => 'GKN, Misc KN, OP, and DCIV/LPCC files under Direct',
+            'applies_to' => 'GKN, Misc KN, OP, and DCIV/LPCC files: Resettlement or Direct',
             'colour' => 'blue',
-            // OP files choose; every other Direct file is Direct Allocation.
+            // OP files choose; every other file takes the Direct route.
+            'sub_type_label' => 'Route',
             'sub_types' => [
                 'resettlement' => 'Resettlement',
-                'direct_allocation' => 'Direct Allocation',
+                'direct_allocation' => 'Direct',
             ],
             'default_sub_type' => 'direct_allocation',
             'phases' => [
@@ -329,8 +374,16 @@ return [
         'verification' => [
             'label' => 'Verification',
             'short' => 'Verification',
-            'applies_to' => 'Any file type that already has a correspondence file',
+            'applies_to' => 'Statutory or Customary: any file type that already has a correspondence file',
             'colour' => 'green',
+            // Client's list (2026-10-11): Verification is Statutory or Customary. Asked for every
+            // file at intake (preselected from the file type); the route is the same for both.
+            'asks_sub_type' => true,
+            'sub_type_label' => 'Right of occupancy',
+            'sub_types' => [
+                'statutory' => 'Statutory',
+                'customary' => 'Customary',
+            ],
             'phases' => [
                 1 => 'Initial Reception & Recommendation',
                 2 => 'Charting Verification',

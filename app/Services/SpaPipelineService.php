@@ -29,7 +29,8 @@ class SpaPipelineService
 {
     // Response before 2nd Serve: a reply within 14 days makes the 2nd Serve unnecessary.
     // No "Record" step: every SPAS record has been captured, so it is always done.
-    public const STAGES = ['field', 'contravention', 'response', 'second', 'payment', 'memo', 'decision', 'certificate'];
+    // New File No. follows the settled bill: Change of Purpose or New Conversion.
+    public const STAGES = ['field', 'contravention', 'response', 'second', 'payment', 'newfile', 'memo', 'decision', 'certificate'];
 
     public function __construct(private ?SpaBillingService $billing = null)
     {
@@ -123,6 +124,14 @@ class SpaPipelineService
 
         $db   = DB::connection('sqlsrv');
         $apps = SpaApplication::whereIn('id', $ids)->get()->keyBy('id');
+
+        // A Change of Purpose commissioned on the MLS screen since the last look
+        // carries the new number; bring it onto the record before reporting.
+        if (SpaNewFileService::supported()) {
+            $newFile = app(SpaNewFileService::class);
+            $apps->filter(fn ($a) => $a->new_file_route === SpaNewFileService::COP && ! $a->new_file_number)
+                ->each(fn ($a) => $newFile->sync($a));
+        }
 
         $visits = $db->table('spa_field_data')->whereIn('spa_application_id', $ids)
             ->selectRaw('spa_application_id, COUNT(*) AS n, MAX(inspection_date) AS last_date')
@@ -226,6 +235,17 @@ class SpaPipelineService
             $st['payment'] = $s('progress', 'Part paid '.$ngn($paid).' of '.$ngn($billed));
         } else {
             $st['payment'] = $s('pending', 'Unpaid '.$ngn($billed));
+        }
+
+        if (! empty($app->new_file_number)) {
+            $st['newfile'] = $s('done', $app->new_file_number
+                . ($app->new_file_route === SpaNewFileService::NEW_CONVERSION ? ' · New Conversion' : ' · Change of Purpose'));
+        } elseif (($app->new_file_route ?? null) === SpaNewFileService::COP) {
+            $st['newfile'] = $s('progress', 'Change of Purpose ready to commission');
+        } elseif (($app->new_file_route ?? null) === SpaNewFileService::NEW_CONVERSION) {
+            $st['newfile'] = $s('progress', 'Awaiting New Conversion file no.');
+        } else {
+            $st['newfile'] = $s($contravenes ? 'pending' : 'na', $contravenes ? 'After the bill is settled' : 'No contravention');
         }
 
         $st['memo'] = $memo

@@ -32,8 +32,20 @@
         </a>
     </div>
 @else
+    @php
+        $groups = [
+            ['title' => null, 'rows' => $applications->reject->isReadOnly()],
+            ['title' => 'Past files', 'rows' => $applications->filter->isReadOnly()],
+        ];
+    @endphp
+    @foreach($groups as $group)
+    @continue($group['rows']->isEmpty())
+    @if($group['title'])
+        <h2 class="mb-1 mt-10 text-sm font-extrabold uppercase tracking-widest text-[var(--ink-soft)]">{{ $group['title'] }}</h2>
+        <p class="mb-4 text-sm text-[var(--ink-soft)]">Files retired by a parcel update or transferred to a new holder. They are kept here, read-only, as part of your history.</p>
+    @endif
     <div class="grid gap-4 md:grid-cols-2">
-        @foreach($applications as $application)
+        @foreach($group['rows'] as $application)
             @php $isDraft = $application->stage === LaasApplication::STAGE_DRAFT; @endphp
 
             <a href="{{ $isDraft ? route('laas.apply.form') : route('laas.application.show', $application->reference_no) }}"
@@ -48,7 +60,12 @@
                         </p>
                     </div>
 
-                    @if($isDraft)
+                    @if($application->isTransferredOut())
+                        <span class="flex-shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                              style="border-color: var(--border); color: var(--ink-soft);">Transferred</span>
+                    @elseif($application->isRetired())
+                        <span class="flex-shrink-0 rounded-full border border-amber-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">Retired</span>
+                    @elseif($isDraft)
                         <span class="flex-shrink-0 rounded-full bg-[var(--brand-tint)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[var(--ink-soft)] dark:bg-[var(--brand-tint)] dark:text-[var(--ink-soft)]">Draft</span>
                     @elseif($application->stage === LaasApplication::STAGE_REJECTED)
                         <span class="flex-shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
@@ -80,5 +97,6 @@
             </a>
         @endforeach
     </div>
+    @endforeach
 @endif
 @endsection
