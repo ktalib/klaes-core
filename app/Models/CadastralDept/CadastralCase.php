@@ -110,7 +110,9 @@ class CadastralCase extends Model
             && ($jacket = \App\Models\CadastralDept\CadastralFieldJacket::query()->where('cadastral_case_id', $this->id)->first(['id', 'field_jacket_no']))) {
             $items[] = ['Field Jacket ' . $jacket->field_jacket_no, 'briefcase', route('cadastral-dept.field-jackets.show', $jacket->id)];
         }
-        if ($bill = \App\Services\CadastralDept\PndBills::liveBill((string) $this->file_number)) {
+        // No P&D bill on a Verification file for now (user, 2026-10-12); a bill found under the same
+        // file number belongs to the file's Conversion / Direct case.
+        if ($this->workflow !== 'verification' && ($bill = \App\Services\CadastralDept\PndBills::liveBill((string) $this->file_number))) {
             $items[] = ['P&D bill ' . $bill->bill_ref, 'receipt', route('cadastral-dept.cases.bill.show', $this->id)];
         }
         if ($js = $this->masterDeleteJs()) {
