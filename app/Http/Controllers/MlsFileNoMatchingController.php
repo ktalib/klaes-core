@@ -20,7 +20,7 @@ class MlsFileNoMatchingController extends Controller
      */
     public function index(Request $request)
     {
-        $PageTitle = 'Create Correspondence File';
+        $PageTitle = 'Commission/Match Correspondence File';
         $PageDescription = 'Manage Cadastral Shadow Files (CSF)';
 
         $districts = District::where('is_active', 1)->orderBy('name')->get();

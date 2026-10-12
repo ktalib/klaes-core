@@ -56,7 +56,7 @@ class WorkflowEngine
         // it came back, and where it goes from there.
         $label = !empty($s['external'])
             ? $this->definition->deskShort($s['desk']) . ' done: ' . ($nextDesk === $this->definition->actingDesk($workflow, $step)
-                ? 'received back'
+                ? 'sent back to ' . $this->definition->deskShort($nextDesk)   // e.g. "DSG done: sent back to D Cad" (user, 2026-10-12)
                 : 'now with ' . $this->definition->deskShort($nextDesk))
             : 'Send to ' . $this->definition->deskShort($nextDesk);
 

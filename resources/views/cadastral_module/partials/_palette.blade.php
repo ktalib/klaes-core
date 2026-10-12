@@ -29,6 +29,34 @@
         border-color: var(--primary-dark);
     }
 
+    /* Form cards (Register a Survey Job, Add a Surveyor, …). The shared Survey CSS styles
+       .card-header only inside dashboard cards, so these ran as one plain line, and the
+       buttons sat on the card's edge (user, 2026-10-12). */
+    .cadastral-proto .form-container > .card-header {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 18px 24px;
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-200);
+    }
+    .cadastral-proto .form-container > .card-header strong {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+        color: var(--gray-900);
+    }
+    .cadastral-proto .form-container > .card-header .helper-text {
+        font-size: 13px;
+        color: var(--gray-500);
+    }
+    .cadastral-proto .form-container > .form-actions {
+        margin-top: 0;
+        padding: 16px 24px;
+        justify-content: flex-end;
+    }
+
     /* The "4.1 · Cadastral Registry" unit strips were removed: the page header
        already names the page. Hidden here too, in case one comes back. */
     .cadastral-proto .unit-tag {

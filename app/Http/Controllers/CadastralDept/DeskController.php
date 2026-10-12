@@ -49,7 +49,7 @@ class DeskController extends Controller
         };
 
         $installed = CaseWorkflow::installed();
-        $here = $away = $sent = collect();
+        $here = $away = $sent = $closed = collect();
         $cards = [];
 
         if ($installed) {
@@ -97,6 +97,15 @@ class DeskController extends Controller
             $sent = $sentQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
             $cards[] = ['label' => 'Sent on', 'value' => $sentTotal, 'hint' => 'still open at another desk', 'colour' => 'gray'];
 
+            // Finished files this desk handled (Registry: every file), read only and view only
+            // (user, 2026-10-12). Newest first, capped like the sent list.
+            $closedQuery = $filter(CadastralCase::query()->where('status', '!=', CadastralCase::STATUS_IN_PROGRESS)->with(['receiver']))
+                ->where(fn ($q) => $q->where('current_desk', $desk)
+                    ->orWhereHas('movements', fn ($m) => $m->where('from_desk', $desk)));
+            $closedTotal = (clone $closedQuery)->count();
+            $closed = $closedQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+            $cards[] = ['label' => 'Finished', 'value' => $closedTotal, 'hint' => 'completed or returned, view only', 'colour' => 'gray'];
+
             // A sidebar list narrows the inbox to the files where its action is due.
             if ($queue) {
                 $queues = app(DeskQueues::class);
@@ -104,7 +113,7 @@ class DeskController extends Controller
                 $away = $away->filter(fn ($c) => $queues->matches($c, $queue))->values();
                 // A list with no rule (Registry's Intake Queue) is the whole desk, so keep them.
                 if (array_intersect_key($queue, array_flip(['steps', 'tasks', 'to', 'at', 'ready']))) {
-                    $sent = collect();
+                    $sent = $closed = collect();
                 }
             }
         }
@@ -122,6 +131,7 @@ class DeskController extends Controller
             'here' => $here,
             'away' => $away,
             'sent' => $sent,
+            'closed' => $closed,
             'sentTotal' => $sentTotal ?? 0,
             'sentLimit' => self::SENT_LIMIT,
             'menus' => $menus,

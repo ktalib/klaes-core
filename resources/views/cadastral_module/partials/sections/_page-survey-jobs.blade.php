@@ -1,7 +1,8 @@
 @include('cadastral_module.partials._flash')
 
 
-@if ($formatUnconfirmed)
+{{-- Hidden for now: the user accepts the KN/CAD/{year}/{serial} format and will confirm it later (2026-10-12). --}}
+@if (false && $formatUnconfirmed)
     <div class="caveat">
         <i class="fas fa-triangle-exclamation"></i>
         <div>

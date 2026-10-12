@@ -86,7 +86,12 @@ class YesNoFormController extends Controller
 
         $case = CadastralCase::findOrFail($case);
 
-        return $this->attempt(fn () => $this->forms->save($case, $data, auth()->id()), 'Yes/No form saved.');
+        // Back to the File Movement Card after saving (user, 2026-10-12); the file page when it has none yet.
+        $back = $case->fmc
+            ? route('cadastral-dept.cases.fmc.show', $case->id)
+            : route('cadastral-dept.cases.show', $case->id);
+
+        return $this->attempt(fn () => $this->forms->save($case, $data, auth()->id()), "{$case->case_ref}: Yes/No form saved.", $back);
     }
 
     /** The official print, its blanks filled; the QR opens the file's page in KLAES. */

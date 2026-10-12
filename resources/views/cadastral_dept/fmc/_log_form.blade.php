@@ -13,7 +13,7 @@
       </button>
     </form>
   @else
-    <div class="text-sm text-gray-600 mb-3">Not logged in to any unit. Log it in where it is now.</div>
+    <div class="text-sm text-gray-600 mb-3">Manual override - create log</div>
     <form method="POST" action="{{ route('cadastral-dept.fmc.log.save', $fmc->qr_token) }}" class="space-y-3"
           x-data="{ unit: @js(old('unit_key', '')), other: @js(old('unit_other', '')), reason: @js(old('reason', '')) }"
           data-confirm-title="Log the file in?" data-confirm="{{ $fmc->fmc_no }} is logged in to the chosen unit.">

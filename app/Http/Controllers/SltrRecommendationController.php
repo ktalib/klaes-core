@@ -215,18 +215,20 @@ class SltrRecommendationController extends Controller
     }
 
     /**
-     * An indexed plot size wins over whatever was posted.
+     * The posted plot size wins; the indexed size only fills a blank one.
      *
-     * The form locks the field when the file's indexing carries a size, but a
-     * disabled input is only a hint - the server re-reads the indexing so a
-     * record can never disagree with the file it was keyed from. Files indexed
-     * without a size keep what the officer typed.
+     * The form prefills the field from the file's indexing but leaves it
+     * editable, so an officer's correction is kept.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function resolvePlotSize(array $data): array
     {
+        if (isset($data['plot_size']) && $data['plot_size'] !== '' && (float) $data['plot_size'] > 0) {
+            return $data;
+        }
+
         $indexed = \App\Support\SltrPlotSize::fromIndexing($data['sltr_number'] ?? null);
 
         if ($indexed !== null) {
@@ -238,8 +240,8 @@ class SltrRecommendationController extends Controller
 
     /**
      * Plot size (m²) is required — the ground rent amount is rate x plot size.
-     * A file whose indexing carries a size is exempt: resolvePlotSize() fills it
-     * from the indexing on save whatever was posted.
+     * A file whose indexing carries a size is exempt: resolvePlotSize() fills a
+     * blank one from the indexing on save.
      */
     private function plotSizeRule(?string $sltrNumber): string
     {
@@ -249,8 +251,7 @@ class SltrRecommendationController extends Controller
     }
 
     /**
-     * The indexed plot size (m²) for a file number, for the form to prefill and
-     * lock. plot_size is null when the file has no usable indexed size.
+     * The indexed plot size (m²) for a file number, for the form to prefill. plot_size is null when the file has no usable indexed size.
      */
     public function plotSize(Request $request)
     {

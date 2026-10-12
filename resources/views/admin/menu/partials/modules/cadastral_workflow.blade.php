@@ -1,5 +1,8 @@
 <!-- 16. Cadastral -->
-{{-- NEW LAYOUT, ENABLED FOR EVERYONE 2026-10-12 (built 2026-10-11): the user's proposed sidebar in
+{{-- NEW LAYOUT, ENABLED FOR EVERYONE 2026-10-12 (built 2026-10-11), restructured to the user's corrected
+     list (WhatsApp image, 2026-10-12): a. Dashboard  b. Registry  c. D CAD  d. DD CAD  e. Cadastral Information
+     f. Cadastral Report  g. Plans & Descriptions  h. Other Departments  i. GIS  j. File Digital Library
+     k. Digital Archive. Earlier notes: the user's proposed sidebar in
      docs/plans/CADASTRAL_SIDEBAR_CURRENT.md. cadastral.blade.php is the previous layout, kept as it
      was and switched off in admin/menu.blade.php.
 
@@ -89,203 +92,124 @@
         </a>
       @endif
 
-      {{-- The desks (user's proposed sidebar, docs/plans/CADASTRAL_SIDEBAR_CURRENT.md, 2026-10-11), each on its
-           own in the Cadastral menu; the "Cadastral Department" group around them was removed (user, 2026-10-12).
-           One group per desk; each entry opens the desk's inbox filtered to the files where that action
-           is due (config cadastral_dept.queues). The actions themselves stay in each row's menu. --}}
-      {{-- Also shown to legacy index-card users, who see only their entry under Cadastral Report. --}}
-      @if(($cadModule || $cadLegacyIc) && $cadQueues)
-          @foreach ($cadQueues as $cadDeskKey => $cadQ)
-            @php
-              $cadDeskOn = request()->routeIs('cadastral-dept.desks.show') && request()->route('desk') === $cadDeskKey;
-              $cadDeskCount = $cadQueueCounts[$cadDeskKey]['_all'] ?? 0;
-              // Old-module screens kept in the new layout, under the desk that uses them (user-approved 2026-10-11).
-              $cadExtras = [];
-              if ($cadModule && $cadDeskKey === 'ad_report') {
-                  // The old "Commission Correspondence File (Match MLSFileNo)" page, back by request (2026-10-12).
-                  $cadExtras[] = ['Create Correspondence File (Match MLSFileNo)', route('mls-file-no-matching.index'), 'check', request()->routeIs('mls-file-no-matching.index')];
-                  $cadExtras[] = ['Index Cards for File Movement', route('cadastral-module.index-cards.index'), 'id-card', request()->routeIs('cadastral-module.index-cards.*')];
-              }
-              if ($cadModule && $cadDeskKey === 'ad_pnd') {
-                  $cadExtras[] = ['Surveyors', route('cadastral-module.surveyors.index'), 'users', request()->routeIs('cadastral-module.surveyors.*')];
-              }
-              $cadLegacyHere = $cadLegacyIc && $cadDeskKey === 'ad_report';
-            @endphp
-            @if (! $cadModule && ! $cadLegacyHere)
-              {{-- Desks are for Cad - Records; a legacy index-card user sees only Cadastral Report. --}}
-            @elseif (empty($cadQ['entries']) && ! $cadExtras && ! $cadLegacyHere)
-              {{-- A desk with no lists is a single link to its inbox. --}}
-              <a href="{{ route('cadastral-dept.desks.show', $cadDeskKey) }}"
-                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $cadDeskOn ? 'active' : '' }}">
-                <i data-lucide="inbox" class="h-4 w-4 text-rose-500"></i>
-                <span>{{ $cadQ['group'] }}</span>{!! $cadBadge($cadDeskCount, 'Files at ' . $cadQ['group']) !!}
-              </a>
-            @else
-              <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="cadastralDept-{{ $cadDeskKey }}">
-                <div class="flex items-center gap-2">
-                  <i data-lucide="inbox" class="h-4 w-4 text-rose-500"></i>
-                  <span>{{ $cadQ['group'] }}</span>
-                  {!! str_replace('ml-auto', 'ml-1', $cadBadge($cadDeskCount, 'Files at ' . $cadQ['group'])) !!}
-                </div>
-                <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="cadastralDept-{{ $cadDeskKey }}"></i>
-              </div>
-              <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-{{ $cadDeskKey }}">
-                @foreach ($cadModule ? $cadQ['entries'] : [] as $cadQKey => $cadEntry)
-                  @php
-                    // A list with no rules is the whole inbox, so it also lights with no ?queue=.
-                    $cadIsAll = ! array_intersect(['steps', 'tasks', 'to', 'at', 'ready'], array_keys($cadEntry));
-                    $cadOn = $cadDeskOn && (request('queue') === $cadQKey || ($cadIsAll && ! request('queue')));
-                  @endphp
-                  <a href="{{ route('cadastral-dept.desks.show', $cadIsAll ? ['desk' => $cadDeskKey] : ['desk' => $cadDeskKey, 'queue' => $cadQKey]) }}"
-                    class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $cadOn ? 'active' : '' }}">
-                    <i data-lucide="{{ $cadIsAll ? 'list' : 'corner-down-right' }}" class="h-3.5 w-3.5 text-rose-400"></i>
-                    <span>{{ $cadEntry['label'] }}</span>{!! $cadBadge($cadQueueCounts[$cadDeskKey][$cadQKey] ?? 0, $cadEntry['label']) !!}
-                  </a>
-                @endforeach
+      {{-- b–k: the user's corrected sidebar (WhatsApp image, 2026-10-12). Desk entries open the desk's
+           inbox, or one of its lists (config cadastral_dept.queues); the actions stay in each row's menu. --}}
+      @php
+        $cadDeskOn = fn (string $desk, ?string $queue = null) => request()->routeIs('cadastral-dept.desks.show')
+            && request()->route('desk') === $desk && ($queue === null ? ! request('queue') : request('queue') === $queue);
+        $cadDeskUrl = fn (string $desk, ?string $queue = null) => route('cadastral-dept.desks.show', $queue === null ? $desk : ['desk' => $desk, 'queue' => $queue]);
+        $cadCount = fn (string $desk, ?string $queue = null) => $cadQueueCounts[$desk][$queue ?? '_all'] ?? 0;
+        $cadLabel = fn (string $desk, string $queue, string $fallback) => $cadQueues[$desk]['entries'][$queue]['label'] ?? $fallback;
+        // One sidebar link. $sub: an entry inside a group (smaller icon).
+        $cadLink = function (string $label, string $url, string $icon, bool $on, string $badge = '', bool $sub = true) {
+            $size = $sub ? 'h-3.5 w-3.5 text-rose-400' : 'h-4 w-4 text-rose-500';
+            return '<a href="' . e($url) . '" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 ' . ($on ? 'active' : '') . '">'
+                . '<i data-lucide="' . e($icon) . '" class="' . $size . '"></i><span>' . e($label) . '</span>' . $badge . '</a>';
+        };
+        // A collapsible group header; its entries go in the matching data-content div.
+        $cadGroup = function (string $key, string $label, string $icon, bool $sub = false) {
+            $size = $sub ? 'h-3.5 w-3.5' : 'h-4 w-4';
+            return '<div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="' . e($key) . '">'
+                . '<div class="flex items-center gap-2"><i data-lucide="' . e($icon) . '" class="' . $size . ' text-rose-500"></i><span>' . e($label) . '</span></div>'
+                . '<i data-lucide="chevron-right" class="' . $size . ' transition-transform duration-200" data-chevron="' . e($key) . '"></i></div>';
+        };
+      @endphp
 
-                @foreach ($cadExtras as [$cadXLabel, $cadXUrl, $cadXIcon, $cadXOn])
-                  <a href="{{ $cadXUrl }}"
-                    class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $cadXOn ? 'active' : '' }}">
-                    <i data-lucide="{{ $cadXIcon }}" class="h-3.5 w-3.5 text-rose-400"></i>
-                    <span>{{ $cadXLabel }}</span>
-                  </a>
-                @endforeach
+      {{-- b. Registry: Intake Queue, Cadastral Print File Label (open to everyone who sees this menu) --}}
+      {!! $cadGroup('cadastralDept-registry', 'Registry', 'inbox') !!}
+      <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-registry">
+        @if($cadModule)
+          {!! $cadLink('Intake Queue', $cadDeskUrl('registry'), 'list', $cadDeskOn('registry'), $cadBadge($cadCount('registry'), 'Files at Registry')) !!}
+        @endif
+        {!! $cadLink('Cadastral Print File Label', route('cadastral_printlabel.index'), 'printer', request()->routeIs('cadastral_printlabel.index')) !!}
+      </div>
 
-                {{-- Property Index Cards Assistant (Legacy Records): 1. Table  2. Scans --}}
-                @if ($cadLegacyHere)
-                  <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="propertyIndexCards-cadastral">
-                    <div class="flex items-center gap-2">
-                      <i data-lucide="book-open" class="h-3.5 w-3.5 text-rose-400"></i>
-                      <span>Property Index Cards Assistant (Legacy Records)</span>
-                    </div>
-                    <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="propertyIndexCards-cadastral"></i>
-                  </div>
-                  <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="propertyIndexCards-cadastral">
-                    <a href="{{ route('property_index_card.index') }}"
-                      class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('property_index_card.index') ? 'active' : '' }}">
-                      <i data-lucide="table" class="h-3.5 w-3.5 text-rose-400"></i>
-                      <span>Table</span>
-                    </a>
-                    <a href="{{ route('cadastral.index-cards.index') }}"
-                      class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral.index-cards.index') ? 'active' : '' }}">
-                      <i data-lucide="scan-line" class="h-3.5 w-3.5 text-rose-400"></i>
-                      <span>Scans</span>
-                    </a>
-                  </div>
-                @endif
-              </div>
-            @endif
+      @if($cadModule)
+        {{-- c. D CAD  d. DD CAD --}}
+        {!! $cadLink('D CAD', $cadDeskUrl('director_cadastral'), 'inbox', $cadDeskOn('director_cadastral'), $cadBadge($cadCount('director_cadastral'), 'Files at D Cad'), false) !!}
+        {!! $cadLink('DD CAD', $cadDeskUrl('deputy_director_cadastral'), 'inbox', $cadDeskOn('deputy_director_cadastral'), $cadBadge($cadCount('deputy_director_cadastral'), 'Files at DD Cad'), false) !!}
+
+        {{-- e. Cadastral Information --}}
+        {!! $cadGroup('cadastralDept-ad_information', 'Cadastral Information', 'inbox') !!}
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_information">
+          @foreach (['fmc' => ['File Movement Card (FMC)', 'id-card'], 'first_charting' => ['1st Charting (Direct Allocation Files)', 'map']] as $cadQKey => [$cadQLabel, $cadQIcon])
+            {!! $cadLink($cadLabel('ad_information', $cadQKey, $cadQLabel), $cadDeskUrl('ad_information', $cadQKey), $cadQIcon, $cadDeskOn('ad_information', $cadQKey), $cadBadge($cadCount('ad_information', $cadQKey), $cadQLabel)) !!}
           @endforeach
-      @endif
-
-      {{-- Entries on their own (2026-10-12, user): Print File Label, as the old layout had it
-           (open to everyone who sees this menu), then Title Status Update and Cadastral to Land
-           (Land 12), which were under "Other Departments" (group removed). --}}
-      @if(! $cadModule && $hasRole('Match Existing FileNo (MLSFileNo) '))
-        {{-- Matching-only users cannot see Cadastral Report, where this page sits for everyone else. --}}
-        <a href="{{ route('mls-file-no-matching.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('mls-file-no-matching.index') ? 'active' : '' }}">
-          <i data-lucide="check" class="h-4 w-4 text-rose-500"></i>
-          <span>Create Correspondence File (Match MLSFileNo)</span>
-        </a>
-      @endif
-      <a href="{{ route('cadastral_printlabel.index') }}"
-        class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral_printlabel.index') ? 'active' : '' }}">
-        <i data-lucide="printer" class="h-4 w-4 text-rose-500"></i>
-        <span>Cadastral Print File Label</span>
-      </a>
-      <a href="{{ route('title-status.index') }}?url=cadastral"
-        class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('title-status.index') && request('url') === 'cadastral' ? 'active' : '' }}">
-        <i data-lucide="badge-check" class="h-4 w-4 text-rose-500"></i>
-        <span>Title Status Update</span>
-      </a>
-      <a href="{{ route('survey-report.index') }}?url=cadastral"
-        class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-report.index') && request()->query('url') === 'cadastral' ? 'active' : '' }}">
-        <i data-lucide="file-text" class="h-4 w-4 text-rose-500"></i>
-        <span>Cadastral to Land (Land 12)</span>
-      </a>
-
-      {{-- Records: the legacy Survey Cadastral Attributions list, restored 2026-10-10. --}}
-      @if($hasRole('Cad - Records'))
-        <a href="{{ route('survey_cadastral.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey_cadastral.index') ? 'active' : '' }}">
-          <i data-lucide="clipboard" class="h-4 w-4 text-rose-500"></i>
-          <span>Records</span>
-        </a>
-      @endif
-
-      {{-- f. GIS --}}
-      @if($cadExtract)
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="cadastral-gis">
-          <div class="flex items-center gap-2">
-            <i data-lucide="map-pinned" class="h-4 w-4 text-rose-500"></i>
-            <span>GIS</span>
-          </div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="cadastral-gis"></i>
         </div>
+      @endif
+
+      {{-- f. Cadastral Report (also shown to legacy index-card users, who see only Property Index Cards) --}}
+      @if($cadModule || $cadLegacyIc)
+        {!! $cadGroup('cadastralDept-ad_report', 'Cadastral Report', 'inbox') !!}
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_report">
+          @if($cadModule)
+            {!! $cadLink($cadLabel('ad_report', 'all', 'All Reports'), $cadDeskUrl('ad_report'), 'list', $cadDeskOn('ad_report') || $cadDeskOn('ad_report', 'all'), $cadBadge($cadCount('ad_report'), 'Files at AD Cad Report')) !!}
+
+            {!! $cadGroup('cadastralDept-ad_report-charting', 'Charting', 'map', true) !!}
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_report-charting">
+              @foreach (['charting_first' => '1st Charting (Conversion Files)', 'charting_second' => '2nd Charting (Direct Allocation Files)'] as $cadQKey => $cadQLabel)
+                {!! $cadLink($cadLabel('ad_report', $cadQKey, $cadQLabel), $cadDeskUrl('ad_report', $cadQKey), 'corner-down-right', $cadDeskOn('ad_report', $cadQKey), $cadBadge($cadCount('ad_report', $cadQKey), $cadQLabel)) !!}
+              @endforeach
+            </div>
+          @endif
+          @if($cadModule || $hasRole('Match Existing FileNo (MLSFileNo) '))
+            {{-- The old "Commission Correspondence File (Match MLSFileNo)" page. --}}
+            {!! $cadLink('Commission/Match Correspondence File', route('mls-file-no-matching.index'), 'check', request()->routeIs('mls-file-no-matching.index')) !!}
+          @endif
+          {!! $cadLink('Property Index Cards (Legacy Records)', route('property_index_card.index'), 'book-open', request()->routeIs('property_index_card.index')) !!}
+        </div>
+      @elseif($hasRole('Match Existing FileNo (MLSFileNo) '))
+        {{-- Matching-only users see just this page. --}}
+        {!! $cadLink('Commission/Match Correspondence File', route('mls-file-no-matching.index'), 'check', request()->routeIs('mls-file-no-matching.index'), '', false) !!}
+      @endif
+
+      @if($cadModule)
+        {{-- g. Plans & Descriptions --}}
+        {!! $cadGroup('cadastralDept-ad_pnd', 'Plans & Descriptions', 'inbox') !!}
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_pnd">
+          {!! $cadLink($cadLabel('ad_pnd', 'all', 'All Files at P&D'), $cadDeskUrl('ad_pnd'), 'list', $cadDeskOn('ad_pnd') || $cadDeskOn('ad_pnd', 'all'), $cadBadge($cadCount('ad_pnd'), 'Files at AD P&D')) !!}
+          {!! $cadLink('Jobs', route('cadastral-module.survey-jobs.index'), 'briefcase', request()->routeIs('cadastral-module.survey-jobs.*')) !!}
+          {!! $cadLink('Surveyors', route('cadastral-module.surveyors.index'), 'users', request()->routeIs('cadastral-module.surveyors.*')) !!}
+          @foreach (['its' => ['Assign to Surveyor (I to S)', 'send'], 'bill' => ['Fees, Plan and Description', 'receipt']] as $cadQKey => [$cadQLabel, $cadQIcon])
+            {!! $cadLink($cadLabel('ad_pnd', $cadQKey, $cadQLabel), $cadDeskUrl('ad_pnd', $cadQKey), $cadQIcon, $cadDeskOn('ad_pnd', $cadQKey), $cadBadge($cadCount('ad_pnd', $cadQKey), $cadQLabel)) !!}
+          @endforeach
+        </div>
+      @endif
+
+      @if($cadModule)
+        {{-- h. Verification ▸ Logs (user's sidebar update, 2026-10-12): every Verification file, with its status. --}}
+        {!! $cadGroup('cadastral-verification', 'Verification', 'shield-check') !!}
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-verification">
+          {!! $cadLink('Logs', route('cadastral-dept.cases.index', ['workflow' => 'verification']), 'scroll-text', request()->routeIs('cadastral-dept.cases.index') && request('workflow') === 'verification') !!}
+        </div>
+      @endif
+
+      {{-- i. Other Departments (back by the corrected sidebar, 2026-10-12) --}}
+      {!! $cadGroup('cadastral-other-departments', 'Other Departments', 'building-2') !!}
+      <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-departments">
+        {!! $cadLink('Title Status Update', route('title-status.index') . '?url=cadastral', 'badge-check', request()->routeIs('title-status.index') && request('url') === 'cadastral') !!}
+        {!! $cadLink('Cadastral to Land (Land 12)', route('survey-report.index') . '?url=cadastral', 'file-text', request()->routeIs('survey-report.index') && request()->query('url') === 'cadastral') !!}
+      </div>
+
+      {{-- j. GIS --}}
+      @if($cadExtract)
+        {!! $cadGroup('cadastral-gis', 'GIS', 'map-pinned') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-gis">
           {{-- ?url= only decides which sidebar lights the entry. --}}
-          <a href="{{ route('survey_plan_extraction.index') }}?url=cadastral"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey_plan_extraction.index') && request()->query('url') === 'cadastral' ? 'active' : '' }}">
-            <i data-lucide="sparkles" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>Survey Plan Extraction</span>
-          </a>
+          {!! $cadLink('Survey Plan Extraction', route('survey_plan_extraction.index') . '?url=cadastral', 'sparkles', request()->routeIs('survey_plan_extraction.index') && request()->query('url') === 'cadastral') !!}
         </div>
       @endif
 
-      {{-- h. Digital Archive --}}
       @if($cadArchive)
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="digitalArchive-cadastral">
-          <div class="flex items-center gap-2">
-            <i data-lucide="archive" class="h-4 w-4 text-rose-500"></i>
-            <span>Digital Archive</span>
-          </div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="digitalArchive-cadastral"></i>
-        </div>
+        {{-- k. File Digital Library – Doc-WARE (the client's "Digital Registry"), on its own again --}}
+        {!! $cadLink('File Digital Library – Doc-WARE', route('filearchive.index', ['url' => 'cadastral']), 'library', request()->routeIs('filearchive.index') && request('url') === 'cadastral', '', false) !!}
 
+        {{-- l. Digital Archive --}}
+        {!! $cadGroup('digitalArchive-cadastral', 'Digital Archive', 'archive') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="digitalArchive-cadastral">
-          {{-- File Digital Library – Doc-WARE (the client's "Digital Registry"), under Digital Archive per the user 2026-10-11. --}}
-          <a href="{{ route('filearchive.index', ['url' => 'cadastral']) }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'cadastral' ? 'active' : '' }}">
-            <i data-lucide="library" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>File Digital Library – Doc-WARE</span>
-          </a>
-          <a href="{{ route('file-tracker.dashboard', ['url' => 'cadastral']) }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-tracker.dashboard') && request('url') === 'cadastral' ? 'active' : '' }}">
-            <i data-lucide="bar-chart-2" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>File Tracker Dashboard</span>
-          </a>
-          <a href="{{ route('track-file-archive.index', ['url' => 'cadastral']) }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('track-file-archive.index') && request('url') === 'cadastral' ? 'active' : '' }}">
-            <i data-lucide="archive" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>File Tracker (Archive)</span>
-          </a>
-          {{-- Scoped to Cadastral registry files. --}}
-          <a href="{{ route('create-file-tracker.quick-search', ['url' => 'cadastral']) }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.quick-search') && request('url') === 'cadastral' ? 'active' : '' }}">
-            <i data-lucide="search" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>Quick Search</span>
-          </a>
-          <a href="{{ route('create-file-tracker.index', ['url' => 'cadastral']) }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.index') && request('url') === 'cadastral' ? 'active' : '' }}">
-            <i data-lucide="file-plus" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>Log a File</span>
-          </a>
-          <a href="#"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
-            <i data-lucide="refresh-cw" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>DMS Update</span>
-          </a>
+          {!! $cadLink('File Tracker Dashboard', route('file-tracker.dashboard', ['url' => 'cadastral']), 'bar-chart-2', request()->routeIs('file-tracker.dashboard') && request('url') === 'cadastral') !!}
+          {!! $cadLink('File Tracker (Archive)', route('track-file-archive.index', ['url' => 'cadastral']), 'archive', request()->routeIs('track-file-archive.index') && request('url') === 'cadastral') !!}
         </div>
-      @endif
-
-      {{-- i. Reports --}}
-      @if($cadModule)
-        <a href="{{ route('cadastral-module.analytics') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-module.analytics') ? 'active' : '' }}">
-          <i data-lucide="file-bar-chart" class="h-4 w-4 text-rose-500"></i>
-          <span>Reports</span>{!! $cadNew !!}
-        </a>
       @endif
     </div>
   </div>

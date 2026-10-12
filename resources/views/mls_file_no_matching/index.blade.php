@@ -26,7 +26,7 @@
         <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Create Correspondence File</h1>
+                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Match Correspondence File</h1>
                     <p class="text-slate-500 text-sm mt-1">Manage and match existing MLPP file numbers.</p>
                 </div>
                 <div class="flex items-center gap-3 w-full md:w-auto">
@@ -44,8 +44,15 @@
                         class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 whitespace-nowrap"
                     >
                         <i data-lucide="plus-circle" class="h-5 w-5"></i>
-                        <span>Create Correspondence File</span>
+                        <span>Match Correspondence File</span>
                     </button>
+                    {{-- Opens the Cadastral Report list of files waiting for their correspondence file
+                         (the sidebar's old "Commission Correspondence File" entry), user 2026-10-12. --}}
+                    <a href="{{ route('cadastral-dept.desks.show', ['desk' => 'ad_report', 'queue' => 'correspondence']) }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-green-700 text-white font-bold rounded-xl hover:bg-green-800 transition-all shadow-lg whitespace-nowrap">
+                        <i data-lucide="file-plus" class="h-5 w-5"></i>
+                        <span>Commission Correspondence File</span>
+                    </a>
                 </div>
             </div>
 

@@ -35,8 +35,9 @@
     {{-- One table: files at this desk, any out with another department that this desk takes back,
          then the open files this desk has sent on (view only, status says where they are). --}}
     @php
-      $cdRows = $here->concat($away)->concat($sent);
+      $cdRows = $here->concat($away)->concat($sent)->concat($closed);
       $cdSentIds = $sent->pluck('id')->flip();
+      $cdClosedIds = $closed->pluck('id')->flip();
     @endphp
     <div class="rounded-xl border border-gray-200 bg-white">
       <table class="min-w-full text-sm">
@@ -53,7 +54,9 @@
             @php
               $m = $menus[$case->id] ?? null;
               $back = $case->sentBack();
-              $isSent = isset($cdSentIds[$case->id]);
+              // Finished files show like sent ones: read only, View (and FMC) only.
+              $isClosed = isset($cdClosedIds[$case->id]);
+              $isSent = isset($cdSentIds[$case->id]) || $isClosed;
               $isAway = ! $isSent && $case->current_desk !== $desk;
               $back = $isSent ? null : $back;
             @endphp
@@ -69,7 +72,9 @@
               <td class="px-4 py-2">{{ $case->file_title }}</td>
               <td class="px-4 py-2 whitespace-nowrap">{!! $def->wfChip($case->workflow) !!} <span class="text-xs text-gray-500">{{ $case->fileTypeLabel() }}</span></td>
               <td class="px-4 py-2">
-                @if ($isSent)
+                @if ($isClosed)
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800">{{ $case->status === 'returned' ? 'Returned' : 'Completed' }}</span>
+                @elseif ($isSent)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800">Sent to {{ $case->deskShort() }}</span>
                 @elseif ($isAway)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">With {{ $case->deskShort() }}</span>
@@ -82,7 +87,7 @@
                 @else
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800">Ready to send</span>
                 @endif
-                <div class="text-xs text-gray-500 mt-0.5">{{ $isSent ? 'Now: ' : '' }}{{ $case->stepLabel() }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ $isClosed ? 'Closed ' . optional($case->closed_at)->format('d M Y') : (($isSent ? 'Now: ' : '') . $case->stepLabel()) }}</div>
                 @if (! $isAway && $back && $back['reason'])
                   <div class="text-xs text-red-700 mt-0.5">“{{ $back['reason'] }}”</div>
                 @endif
@@ -101,7 +106,9 @@
                     @if ($fmcInstalled && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
-                    @if ($isSent)
+                    @if ($isClosed)
+                      <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">{{ $case->status === 'returned' ? 'Returned' : 'Completed' }}: view only.</div>
+                    @elseif ($isSent)
                       <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">With {{ $case->deskShort() }}: actions are on their desk.</div>
                     @endif
                     @if ($m && $m['question'] && ! $m['decision'])
@@ -165,7 +172,7 @@
                         </button>
                       @endforeach
                     @endif
-                    @php $cdDel = $case->masterDeleteJs(); @endphp
+                    @php $cdDel = $isClosed ? null : $case->masterDeleteJs(); @endphp
                     @if ($cdDel)
                       <button type="button" onclick="{{ $cdDel }}" @click="open = false"
                               class="flex w-full items-center gap-2 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 border-t border-gray-100">

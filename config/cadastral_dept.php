@@ -38,7 +38,7 @@
 $p1Review = fn (string $notRecommended) => [
     'dc_review' => [
         'phase' => 1, 'desk' => 'director_cadastral', 'label' => 'Recommend or not recommend',
-        'question' => 'Recommend this file?', 'menu_label' => 'Recommendation',
+        'question' => 'Recommend this file?', 'menu_label' => 'Recommend',
         'outcomes' => [
             'recommended' => ['label' => 'Recommend', 'next' => 'ddc_review'],
             'not_recommended' => ['label' => $notRecommended, 'next' => 'registry_return', 'reason' => true],
@@ -47,7 +47,7 @@ $p1Review = fn (string $notRecommended) => [
     // DD Cad's refusal goes back to D Cad with the reason, and D Cad decides again.
     'ddc_review' => [
         'phase' => 1, 'desk' => 'deputy_director_cadastral', 'label' => 'Recommend or not recommend',
-        'question' => 'Recommend this file?', 'menu_label' => 'Recommendation',
+        'question' => 'Recommend this file?', 'menu_label' => 'Recommend',
         'outcomes' => [
             'recommended' => ['label' => 'Recommend', 'next' => 'info_commission'],
             'not_recommended' => ['label' => $notRecommended . ' (back to D Cad)', 'next' => 'dc_review', 'reason' => true],
@@ -153,7 +153,7 @@ return [
 
         'compensation_unit' => ['label' => 'Compensation Unit (Survey Dept)', 'short' => 'Compensation', 'internal' => false],
         'dsg' => ['label' => 'Deputy Director Survey (DSG)', 'short' => 'DSG', 'internal' => false],
-        'kamma' => ['label' => 'KAMMA/Physical Planning', 'short' => 'KAMMA/Physical Planning', 'internal' => false],
+        'kamma' => ['label' => 'KAMMA/Physical Planning', 'short' => 'KAMMA', 'internal' => false],
         'physical_planning' => ['label' => 'Physical Planning Department', 'short' => 'Physical Planning', 'internal' => false],
         'permanent_secretary' => ['label' => 'Permanent Secretary', 'short' => 'PS', 'internal' => false],
         'director_land' => ['label' => 'Director Land (Land Dept)', 'short' => 'Land', 'internal' => false],
@@ -182,21 +182,24 @@ return [
         'deputy_director_cadastral' => ['group' => 'DD Cad', 'entries' => []],
         'ad_information' => ['group' => 'Cadastral Information', 'entries' => [
             // 'all' => ['label' => 'All files at AD Cad Info'],   // hidden from the sidebar for now (user, 2026-10-12)
-            'fmc' => ['label' => 'Commission FMC', 'tasks' => ['fmc_commissioned']],
-            'first_charting' => ['label' => '1st Charting', 'tasks' => ['chart_first']],
+            'fmc' => ['label' => 'File Movement Card (FMC)', 'tasks' => ['fmc_commissioned']],
+            'first_charting' => ['label' => '1st Charting (Direct Allocation Files)', 'tasks' => ['chart_first']],
             // 'send' => ['label' => 'Send to Report', 'to' => ['ad_report']],   // hidden from the sidebar for now (user, 2026-10-12)
         ]],
         'ad_report' => ['group' => 'Cadastral Report', 'entries' => [
-            'all' => ['label' => 'All files at AD Cad Report'],
+            'all' => ['label' => 'All Reports'],
+            // Charting split in two (user's corrected sidebar, 2026-10-12).
+            'charting_first' => ['label' => '1st Charting (Conversion Files)', 'tasks' => ['charted']],
+            'charting_second' => ['label' => '2nd Charting (Direct Allocation Files)', 'tasks' => ['chart_second']],
             'charting' => ['label' => 'Charting', 'tasks' => ['charted', 'chart_second', 'charting_checked']],
             'correspondence' => ['label' => 'Commission Correspondence File', 'tasks' => ['correspondence_created']],
             'send' => ['label' => 'Send', 'ready' => true],
         ]],
         'ad_pnd' => ['group' => 'Plans & Descriptions', 'entries' => [
-            'all' => ['label' => 'All files at AD P&D'],
+            'all' => ['label' => 'All Files at P&D'],
             'field_jacket' => ['label' => 'Commission Field Jacket', 'tasks' => ['field_jacket']],
             'its' => ['label' => 'Assign to Surveyor (I to S)', 'tasks' => ['its']],
-            'bill' => ['label' => 'Fees, Plan & Description', 'tasks' => ['bill_generated']],
+            'bill' => ['label' => 'Fees, Plan and Description', 'tasks' => ['bill_generated']],
             'send' => ['label' => 'Send', 'ready' => true],
         ]],
         'ad_cadastral' => ['group' => 'AD Cad', 'entries' => []],
@@ -270,7 +273,7 @@ return [
                     'phase' => 3, 'desk' => 'director_cadastral', 'label' => 'Route for Planning Advice (buffer on GIS)',
                     'question' => 'Within the 10 km buffer from the town centre?', 'menu_label' => 'Planning Advice route',
                     'outcomes' => [
-                        'inside_10km' => ['label' => 'Yes: send to KAMMA/Physical Planning', 'next' => 'kamma_advice'],
+                        'inside_10km' => ['label' => 'Yes: send to KAMMA', 'next' => 'kamma_advice'],
                         'outside_10km' => ['label' => 'No: send to Physical Planning', 'next' => 'ppd_advice'],
                     ],
                 ],

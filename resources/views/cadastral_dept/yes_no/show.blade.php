@@ -6,6 +6,9 @@
 @php
   $F = \App\Models\CadastralDept\CadastralYesNoForm::class;
   $v = fn (string $c) => old($c, $form?->{$c});
+  // The reference lines are filled from the file (refs(): the file number on the line its type says,
+  // e.g. R. of O. No. for an ordinary file); a line holding the file number is locked (user, 2026-10-12).
+  $fileRef = fn (string $prefix) => \App\Services\CadastralDept\YesNoForms::withoutPrefix($case->file_number, $prefix);
   $areaValue = old('area_applied_ha', $form?->area_applied_ha);
   $areaPrefilled = ($areaValue === null || $areaValue === '') && $area['ha'] !== null;
   if ($areaPrefilled) {
@@ -39,7 +42,7 @@
       @endif
       @canDo('Cad - Records', 'print')
         <a href="{{ route('cadastral-dept.cases.yes-no.print', $case->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">
-          <i data-lucide="printer" class="w-4 h-4"></i> Print the official form
+          <i data-lucide="printer" class="w-4 h-4"></i> Generate Yes/No Form
         </a>
       @endcanDo
     </div>
@@ -57,7 +60,7 @@
     @if (! $installed)
       <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
         <strong>Not installed yet.</strong> The Yes/No form table (migration <code>2026_10_11_090000_create_cadastral_dept_yes_no_forms</code>) has not been created.
-        The official form still prints, with the file references and area filled and the questions blank.
+        The Yes/No form can still be generated, with the file references and area filled and the questions blank.
       </div>
     @elseif (! $editable)
       <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
@@ -71,10 +74,10 @@
       @csrf
       <fieldset @disabled(! $editable) class="divide-y divide-gray-100">
         <div class="p-5 grid gap-4 sm:grid-cols-4">
-          <div><label class="{{ $label }}">R. of O. No. LKN/</label><input type="text" name="lkn_no" maxlength="100" value="{{ $v('lkn_no') }}" placeholder="{{ $refs['lkn'] }}" class="{{ $input }}"></div>
-          <div><label class="{{ $label }}">SLTR/</label><input type="text" name="sltr_no" maxlength="100" value="{{ $v('sltr_no') }}" placeholder="{{ $refs['sltr'] }}" class="{{ $input }}"></div>
-          <div><label class="{{ $label }}">Government Item No. GKN/</label><input type="text" name="govt_item_no" maxlength="100" value="{{ $v('govt_item_no') }}" placeholder="{{ $refs['gkn'] }}" class="{{ $input }}"></div>
-          <div><label class="{{ $label }}">SIT/</label><input type="text" name="sit_no" maxlength="100" value="{{ $v('sit_no') }}" placeholder="{{ $refs['sit'] }}" class="{{ $input }}"></div>
+          <div><label class="{{ $label }}">R. of O. No. LKN/</label>@php $cdRef = old('lkn_no', $refs['lkn']); $cdLock = $cdRef !== null && $cdRef === $fileRef('LKN'); @endphp<input type="text" name="lkn_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
+          <div><label class="{{ $label }}">SLTR/</label>@php $cdRef = old('sltr_no', $refs['sltr']); $cdLock = $cdRef !== null && $cdRef === $fileRef('SLTR'); @endphp<input type="text" name="sltr_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
+          <div><label class="{{ $label }}">Government Item No. GKN/</label>@php $cdRef = old('govt_item_no', $refs['gkn']); $cdLock = $cdRef !== null && $cdRef === $fileRef('GKN'); @endphp<input type="text" name="govt_item_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
+          <div><label class="{{ $label }}">SIT/</label>@php $cdRef = old('sit_no', $refs['sit']); $cdLock = $cdRef !== null && $cdRef === $fileRef('SIT'); @endphp<input type="text" name="sit_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
           <p class="sm:col-span-4 text-xs text-gray-500">A blank line prints the file number on the line its file type says (shown greyed in the box).</p>
         </div>
 

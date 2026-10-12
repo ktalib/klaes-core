@@ -715,13 +715,13 @@
                                 class="mt-2 w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition focus:bg-white text-sm font-medium hidden">
                         </div>
                         {{-- The rate above is per unit; what is owed is rate x plot size.
-                             Prefilled and locked when the file's indexing has a size. --}}
+                             Prefilled from the file's indexing when it has a size, still editable. --}}
                         <div>
                             <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Plot Size (m²) <span class="text-red-500">*</span></label>
                             <input type="number" step="0.01" min="0.01" id="f-plot_size" oninput="updateGroundRentAmount()"
                                 class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition focus:bg-white text-sm font-medium"
                                 placeholder="e.g. 450">
-                            <p id="plot-size-source" class="mt-1 text-[11px] text-slate-500 hidden">From file indexing</p>
+                            <p id="plot-size-source" class="mt-1 text-[11px] text-slate-500 hidden">From file indexing (editable)</p>
                             <p id="ground-rent-amount" class="mt-1 text-xs font-semibold text-teal-700"></p>
                         </div>
                         <div>
@@ -842,7 +842,7 @@ function sltrOpenFileSelector() {
             // Check for duplicate file number
             sltrCheckDuplicateFileNumber(fileNo);
 
-            // Plot size from the file's indexing, locked when present
+            // Plot size from the file's indexing, prefilled when present
             loadIndexedPlotSize(fileNo);
 
             // Backfill from fileNumber table record (file_name only)
@@ -911,7 +911,7 @@ function sltrClearFileNumber() {
     sltrHideDuplicateWarning();
     // A size that came from the cleared file's indexing goes with it.
     const ps = document.getElementById('f-plot_size');
-    if (ps && ps.disabled) ps.value = '';
+    if (ps && ps.dataset.indexed === '1') ps.value = '';
     setPlotSizeLock(null);
 }
 
@@ -1155,26 +1155,27 @@ function updateGroundRentAmount() {
     out.textContent = `Ground rent amount: ₦${ngn(rate)} × ${ngn(size)} m²${unit === 'ha' ? ' (÷ 10,000)' : ''} = ₦${ngn(rate * qty)}`;
 }
 
-// Locked (and greyed) when the size came from the file's indexing; the server
-// re-reads the indexing on save, so the lock is a hint, not the guard.
-function setPlotSizeLock(sqm) {
+// Prefills the size from the file's indexing but leaves it editable (the user
+// asked for it not to be locked). keepTyped leaves a value already in the box,
+// e.g. the stored size when editing a record.
+function setPlotSizeLock(sqm, keepTyped) {
     const el = document.getElementById('f-plot_size');
     const tag = document.getElementById('plot-size-source');
     if (!el) return;
-    const locked = sqm !== null && sqm !== undefined;
-    if (locked) el.value = sqm;
-    el.disabled = locked;
-    el.style.backgroundColor = locked ? '#e2e8f0' : '';
-    el.style.color = locked ? '#64748b' : '';
-    el.style.cursor = locked ? 'not-allowed' : '';
-    if (tag) tag.classList.toggle('hidden', !locked);
+    const indexed = sqm !== null && sqm !== undefined;
+    const fill = indexed && !(keepTyped && el.value !== '');
+    if (fill) el.value = sqm;
+    el.disabled = false;
+    el.style.backgroundColor = el.style.color = el.style.cursor = '';
+    el.dataset.indexed = fill ? '1' : '';
+    if (tag) tag.classList.toggle('hidden', !fill);
     updateGroundRentAmount();
 }
 
-function loadIndexedPlotSize(fileNo) {
+function loadIndexedPlotSize(fileNo, keepTyped) {
     if (!fileNo) { setPlotSizeLock(null); return; }
     $.getJSON('{{ route("sltr-recommendations.plot-size") }}', { file_number: fileNo })
-        .done(res => setPlotSizeLock(res && res.plot_size !== null ? res.plot_size : null))
+        .done(res => setPlotSizeLock(res && res.plot_size !== null ? res.plot_size : null, keepTyped))
         .fail(() => setPlotSizeLock(null));
 }
 function syncLandUseText() {
@@ -1422,9 +1423,9 @@ function openEditModal(id, data) {
     document.getElementById('f-sltr_number-display').value = storedFileNo;
     if (storedFileNo) document.getElementById('f-sltr-clear-btn').classList.remove('hidden');
     else document.getElementById('f-sltr-clear-btn').classList.add('hidden');
-    // Unlock first (the stored size stays in the box), then lock if indexed.
+    // Keep the stored size; prefill from indexing only if none was stored.
     setPlotSizeLock(null);
-    loadIndexedPlotSize(storedFileNo);
+    loadIndexedPlotSize(storedFileNo, true);
 
     // For edit, we set the hidden assembled fields directly and show them in previews.
     // The builder sub-fields will show "Other" fallback with the stored value.
@@ -1578,12 +1579,12 @@ document.getElementById('rec-form').addEventListener('submit', async function(e)
     }
 
     // ── Plot size ───────────────────────────────────────────────────
-    // Required: the ground rent amount is rate x plot size. A size locked from
-    // the file's indexing is already filled, so this only stops a blank one.
+    // Required: the ground rent amount is rate x plot size. A size from the
+    // file's indexing is already filled, so this only stops a blank one.
     const plotSizeEl = document.getElementById('f-plot_size');
     if (plotSizeEl && !(parseFloat(plotSizeEl.value) > 0)) {
         Swal.fire({ icon: 'warning', title: 'Plot Size Required', text: 'Enter the plot size in square metres before saving.' });
-        if (!plotSizeEl.disabled) plotSizeEl.focus();
+        plotSizeEl.focus();
         return;
     }
 

@@ -182,7 +182,7 @@ class YesNoForms
     }
 
     /** "LKN/123" on a form that already prints "LKN/" would read LKN/LKN/123. */
-    private static function withoutPrefix(?string $value, string $prefix): ?string
+    public static function withoutPrefix(?string $value, string $prefix): ?string
     {
         $value = trim((string) $value);
         if ($value === '') {

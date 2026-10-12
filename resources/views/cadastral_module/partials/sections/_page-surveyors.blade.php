@@ -25,16 +25,37 @@
     $sv = fn (string $field, $default = '') => old($field, $editing->{$field} ?? $default);
 @endphp
 
+{{-- Add / Edit a Surveyor opens in a modal (user, 2026-10-12). It opens by itself when editing
+     (?edit=) or when a save came back with errors. --}}
+<div x-data="{ open: @js((bool) $editing || $errors->any()) }">
+@canDo('Cad - Records', 'create')
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        @if ($editing)
+            <a href="{{ route('cadastral-module.surveyors.index') }}" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add a Surveyor</a>
+        @else
+            <button type="button" class="btn btn-primary" @click="open = true"><i class="fas fa-user-plus"></i> Add a Surveyor</button>
+        @endif
+    </div>
+@endcanDo
 @canDo('Cad - Records', $editing ? 'edit' : 'create')
+  <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-40 p-6"
+       @keydown.escape.window="{{ $editing ? "window.location = '" . route('cadastral-module.surveyors.index') . "'" : 'open = false' }}">
     <form method="POST"
           action="{{ $editing ? route('cadastral-module.surveyors.update', $editing) : route('cadastral-module.surveyors.store') }}"
-          class="form-container" style="margin-bottom:22px;">
+          class="form-container w-full" style="max-width:960px;margin:24px auto;">
         @csrf
         @if ($editing)
             @method('PUT')
             <input type="hidden" name="from_edit" value="1" />
         @endif
-        <div class="card-header">
+        <div class="card-header" style="position:relative;padding-right:56px;">
+            @if ($editing)
+                <a href="{{ route('cadastral-module.surveyors.index') }}" title="Close" aria-label="Close"
+                   style="position:absolute;top:14px;right:18px;font-size:22px;line-height:1;color:var(--gray-500);">&times;</a>
+            @else
+                <button type="button" @click="open = false" title="Close" aria-label="Close"
+                        style="position:absolute;top:14px;right:18px;font-size:22px;line-height:1;color:var(--gray-500);background:none;border:0;cursor:pointer;">&times;</button>
+            @endif
             <strong>{{ $editing ? 'Edit ' . $editing->full_name : 'Add a Surveyor' }}</strong>
             <span class="helper-text" style="margin:0;">
                 Only a current licence may receive an Instruction to Surveyor — the issue screen refuses otherwise.
@@ -101,11 +122,14 @@
                 <a class="btn btn-secondary" href="{{ route('cadastral-module.surveyors.index') }}">Cancel</a>
                 <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Save Changes</button>
             @else
+                <button type="button" class="btn btn-secondary" @click="open = false">Cancel</button>
                 <button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add to the Directory</button>
             @endif
         </div>
     </form>
+  </div>
 @endcanDo
+</div>
 
 <form method="GET" class="table-toolbar">
     <div class="left">
@@ -193,7 +217,7 @@
                     <tr>
                         <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-users" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
-                            The directory is empty. Add a surveyor using the form above.
+                            The directory is empty. Add one with the Add a Surveyor button.
                         </td>
                     </tr>
                 @endforelse
