@@ -1,0 +1,110 @@
+{
+    "reset_at": "2026-10-13T11:31:50+01:00",
+    "reason": "User asked to reset their tests (memo SPAS\/2026\/0001 for SPAS-2026-0002; payment on SPAS-BILL-2026-014 for SPAS-2026-0010).",
+    "spa_memos": [
+        {
+            "id": "13",
+            "spa_application_id": "90",
+            "memo_no": "SPAS\/2026\/0001",
+            "prepared_by": "1",
+            "forwarded_to": "Honourable Commissioner",
+            "forwarded_at": "2026-10-13 11:01:20",
+            "commissioner_decision": "approved",
+            "commissioner_notes": null,
+            "decided_at": "2026-10-13 11:01:32",
+            "created_by": "Klaes Admin",
+            "created_at": "2026-10-13 11:01:20",
+            "updated_at": "2026-10-13 11:01:32"
+        }
+    ],
+    "spa_applications_before": [
+        {
+            "id": "90",
+            "file_number": "SPAS-2026-0002",
+            "tracking_id": null,
+            "file_indexing_id": null,
+            "is_indexed": "0",
+            "owner_name": "HIGHFLYER ACADAMY",
+            "phone": "08023337848",
+            "location": "LAMIDO CR, NASARAWA",
+            "district": "LAMIDO CR",
+            "lga": "NASARAWA",
+            "land_use_type": "RESIDENTIAL",
+            "existing_use": "COMMERCIAL",
+            "proposed_use": "RESIDENTIAL",
+            "photos": null,
+            "scenario": null,
+            "status": "approved",
+            "created_by": "MUAZZAM JIBRIN GARBA",
+            "created_at": "2026-10-08 12:25:46",
+            "updated_at": "2026-10-13 11:01:32",
+            "land_title_type": "customary",
+            "client_uuid": "207375b5-dd87-4baa-842a-5d0bc654580e",
+            "spa_id": "SPAS-2026-0002",
+            "sticker_number": null,
+            "new_file_route": "new_conversion",
+            "cop_application_id": null,
+            "new_file_number": null,
+            "new_file_at": null
+        }
+    ],
+    "spa_bills_before": [
+        {
+            "id": "39",
+            "spa_application_id": "98",
+            "bill_type": "Contravention",
+            "description": "Contravention: approved use \"RESIDENTIAL\" differs from prevailing use \"COMMERCIAL\". Composed of: Application Form Fee (10,000.00), Processing Fee (20,000.00), Contravention Fee (80,000.00).",
+            "amount": "110000.00",
+            "reference_id": "SPAS-BILL-2026-014",
+            "due_date": "2026-11-08",
+            "status": "paid",
+            "created_by": "system",
+            "created_at": "2026-10-09 13:34:55",
+            "updated_at": "2026-10-13 06:16:32",
+            "source": "contravention"
+        }
+    ],
+    "spa_payments": [
+        {
+            "id": "25",
+            "spa_bill_id": "39",
+            "spa_application_id": "98",
+            "amount_paid": "110000.00",
+            "receipt_number": null,
+            "payment_date": "2026-10-13",
+            "payment_method": "bank_transfer",
+            "recorded_by": "Klaes Admin",
+            "created_at": "2026-10-13 06:16:32",
+            "updated_at": "2026-10-13 06:16:32"
+        }
+    ],
+    "spa_payment_lines": [
+        {
+            "id": "64",
+            "spa_payment_id": "25",
+            "spa_bill_line_id": "91",
+            "name": "Application Form Fee",
+            "amount_paid": "10000.00",
+            "created_at": "2026-10-13 06:16:32",
+            "updated_at": "2026-10-13 06:16:32"
+        },
+        {
+            "id": "65",
+            "spa_payment_id": "25",
+            "spa_bill_line_id": "92",
+            "name": "Processing Fee",
+            "amount_paid": "20000.00",
+            "created_at": "2026-10-13 06:16:32",
+            "updated_at": "2026-10-13 06:16:32"
+        },
+        {
+            "id": "66",
+            "spa_payment_id": "25",
+            "spa_bill_line_id": "93",
+            "name": "Contravention Fee",
+            "amount_paid": "80000.00",
+            "created_at": "2026-10-13 06:16:32",
+            "updated_at": "2026-10-13 06:16:32"
+        }
+    ]
+}

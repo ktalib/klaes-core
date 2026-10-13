@@ -60,7 +60,8 @@ window.secretariatFileLog = function (config) {
 
     const blankManual = () => ({
         open: false, entry_type: 'file', file_number: '', file_title: '',
-        sender: '', sender_type: '', sender_mda: '', document_kind: '', reference: '', from_office: '', notes: '',
+        sender: '', sender_type: '', sender_mda: '', sender_dept: '', document_kind: '',
+        from_department: '', to_department: '', to_office: '', reference: '', from_office: '', notes: '',
         indexQ: '', indexOpen: false, related_file_number: '',
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', from_other: '',
@@ -107,9 +108,10 @@ window.secretariatFileLog = function (config) {
         listsLoading: false,
         lists: { pending: [], held: [], sent: [] },
         heldView: 'files',
+        // Held at my office: the files held here, and what this office has sent out.
         heldViews: [
             { key: 'files', label: 'Files' },
-            { key: 'memo', label: 'Memo' },
+            { key: 'outgoing', label: 'Outgoing' },
         ],
         scan: blankScan(),
         scanFocused: false,
@@ -140,7 +142,7 @@ window.secretariatFileLog = function (config) {
         registerTabs: [
             { key: 'pending', label: 'Pending receipt', badge: 'bg-yellow-100 text-yellow-800' },
             { key: 'held', label: 'Held at my office', badge: 'bg-green-100 text-green-800' },
-            { key: 'sent', label: 'Outgoing', badge: 'bg-gray-100 text-gray-700' },
+            { key: 'memo', label: 'Memo', badge: 'bg-blue-100 text-blue-700' },
         ],
 
         init() {
@@ -259,7 +261,9 @@ window.secretariatFileLog = function (config) {
                 const data = await this.request(this.urls.lists + '?' + new URLSearchParams({ office: this.office, days: this.days }));
                 const pending = (data.pending || []).map(r => ({ ...r, bucket: 'pending' }));
                 const held = (data.held || []).map(r => ({ ...r, bucket: 'held' }));
-                this.lists = { pending, held, sent: data.sent || [] };
+                // Memo: the letters, memos and other non-files at this office, waiting or held.
+                const memo = [...pending, ...held].filter(r => r.file_type === 'NON_FILE');
+                this.lists = { pending, held, sent: data.sent || [], memo };
             } catch (e) {
                 this.notify('error', e.message);
             } finally {
@@ -285,14 +289,37 @@ window.secretariatFileLog = function (config) {
             ];
         },
 
-        // Held at my office splits into files and memos (letters, memos, other non-files).
+        // Held at my office: Files (memos have their own tab) and Outgoing.
         heldViewRows(view) {
-            const memo = (r) => r.file_type === 'NON_FILE';
-            return (this.lists.held || []).filter(r => view === 'memo' ? memo(r) : !memo(r));
+            if (view === 'outgoing') return this.lists.sent || [];
+            return (this.lists.held || []).filter(r => r.file_type !== 'NON_FILE');
+        },
+
+        // What the table shows: 'pending', 'held', 'sent' (Held → Outgoing) or 'memo'.
+        view() {
+            if (this.tab === 'held') return this.heldView === 'outgoing' ? 'sent' : 'held';
+            return this.tab;
+        },
+
+        tabCount(key) {
+            return key === 'held' ? this.heldViewRows('files').length : (this.lists[key] || []).length;
+        },
+
+        // Dashboard cards: Outgoing / In Transit open Held → Outgoing.
+        openCard(card) {
+            if (!card.tab) return;
+            if (card.tab === 'sent') { this.tab = 'held'; this.heldView = 'outgoing'; return; }
+            this.tab = card.tab;
+            if (card.tab === 'held') this.heldView = 'files';
+        },
+        cardActive(card) {
+            return !!card.tab && card.tab === this.view();
         },
 
         visibleRows() {
-            const rows = this.tab === 'held' ? this.heldViewRows(this.heldView) : (this.lists[this.tab] || []);
+            const view = this.view();
+            const rows = view === 'held' ? this.heldViewRows('files')
+                : (view === 'sent' ? this.heldViewRows('outgoing') : (this.lists[view] || []));
             const f = this.filter.trim().toLowerCase();
             if (!f) return rows;
             return rows.filter(r => [r.file_number, r.file_title, r.tracking_id, r.log_id, r.from, r.to, r.purpose, r.reference]
@@ -488,7 +515,7 @@ window.secretariatFileLog = function (config) {
 
         // Which register a row belongs to; the Memo tab mixes waiting and held ones.
         rowBucket(row) {
-            return row.bucket || this.tab;
+            return row.bucket || this.view();
         },
 
         docKindLabel(kind) {
@@ -500,6 +527,22 @@ window.secretariatFileLog = function (config) {
         senderTypeChanged() {
             this.manual.sender = '';
             this.manual.sender_mda = '';
+            this.manual.sender_dept = '';
+        },
+
+        // KLAES departments, as the offices table groups them.
+        departments() {
+            return this.officeGroups().map(g => g.department);
+        },
+        // Offices other than mine, narrowed to one department when one is chosen.
+        officesIn(dept) {
+            return this.offices.filter(o => o.office_code !== this.office && (!dept || (o.department || 'Other') === dept));
+        },
+        // An Internal sender's department is usually where it was received from too.
+        pickSenderDept() {
+            this.manual.sender = '';
+            const d = this.manual.sender_dept;
+            if (d && d !== 'other' && !this.manual.from_department && !this.manual.from_office) this.manual.from_department = d;
         },
 
         senderLabel(type, name) {
@@ -1093,6 +1136,7 @@ window.secretariatFileLog = function (config) {
                 if (!m.document_kind) return false;
                 if (m.sender_type === 'Other' && !m.sender.trim()) return false;
                 if (m.sender_type === 'External' && !chosen(m.sender_mda, m.sender)) return false;
+                if (m.sender_type === 'Internal' && !chosen(m.sender_dept, m.sender)) return false;
                 return m.file_title.trim() !== '';
             }
             return m.file_number.trim() !== '';
@@ -1113,9 +1157,11 @@ window.secretariatFileLog = function (config) {
                 document_kind: m.entry_type === 'non_file' ? m.document_kind : null,
                 sender_type: m.entry_type === 'non_file' ? (m.sender_type || null) : null,
                 // External: the listed MDA, or the one typed under Other.
-                sender: m.entry_type === 'non_file' && m.sender_type === 'External'
-                    ? (listed(m.sender_mda) || typed(m.sender_mda, m.sender))
-                    : m.sender,
+                // External: the listed MDA; Internal: the department; either may be typed under Other.
+                sender: m.entry_type !== 'non_file' ? null
+                    : (m.sender_type === 'External' ? (listed(m.sender_mda) || typed(m.sender_mda, m.sender))
+                        : (m.sender_type === 'Internal' ? (listed(m.sender_dept) || typed(m.sender_dept, m.sender)) : m.sender)),
+                from_department: m.from_department || null,
                 reference: m.reference,
                 from_office: listed(m.from_office),
                 notes: m.notes,
@@ -1124,10 +1170,14 @@ window.secretariatFileLog = function (config) {
                 // In Send mode the file is logged at this office first, then the
                 // send form opens so it can go straight on to the next office.
                 const sending = this.mode === 'out';
+                const toOffice = m.to_office;
                 this.manual = blankManual();
                 this.profile.match = { file_number: data.tracker.file_number, file_title: data.tracker.file_title, tracker: { id: data.tracker.id } };
                 this.loadProfile({ tracker_id: data.tracker.id, file_number: data.tracker.file_number || '' }).then(() => {
-                    if (sending && this.heldHere()) this.startSendFromProfile();
+                    if (sending && this.heldHere()) {
+                        this.startSendFromProfile();
+                        if (toOffice) this.send.to_office = toOffice;
+                    }
                 });
             });
         },

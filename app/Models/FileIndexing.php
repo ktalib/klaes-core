@@ -25,6 +25,8 @@ class FileIndexing extends Model
         'tracking_id',
         'st_fillno',
         'serial_no',
+        // DCIV commissioning's free-text Serial No (not serial_no above).
+        'dciv_serial_no',
         'batch_no',
         'st_batch_no',
         'shelf_location',

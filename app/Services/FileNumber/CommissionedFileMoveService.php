@@ -54,11 +54,12 @@ class CommissionedFileMoveService
     /**
      * Never rewritten:
      *  - deprecated_records: the archive this move writes to; the old number belongs there.
-     *  - grouping (awaiting_fileno, mls_fileno, tracking_id): the register. The old
-     *    number's row stays as it is; the new number's row is mapped by mapNewGroupingRow().
+     *  - grouping: the register. Every column of the old number's row stays as it is
+     *    (it also holds suffixed copies such as cadastral_tracking_id = TRK-...-0001);
+     *    the new number's row is mapped by mapNewGroupingRow().
      */
-    private const EXCLUDED_TABLES = ['deprecated_records'];
-    private const EXCLUDED_COLUMNS = ['grouping.awaiting_fileno', 'grouping.mls_fileno', 'grouping.tracking_id'];
+    private const EXCLUDED_TABLES = ['deprecated_records', 'grouping'];
+    private const EXCLUDED_COLUMNS = [];
 
     public function __construct(private MlsSerialAllocationService $allocator)
     {
@@ -86,6 +87,8 @@ class CommissionedFileMoveService
             // The tracking ID the file will take: the new number's own grouping row.
             'new_tracking_id' => $this->groupingRow($newFileNo)->tracking_id ?? null,
             'has_grouping_row' => $this->groupingRow($newFileNo) !== null,
+            // Why the move would be refused at the grouping step, shown before confirming.
+            'grouping_problem' => $this->groupingProblem($newFileNo),
             'footprint' => $this->footprint($oldFileNo),
         ];
     }
@@ -124,6 +127,11 @@ class CommissionedFileMoveService
             // The new number's own grouping row supplies the tracking ID.
             $newTracking = $this->mapNewGroupingRow($newFileNo);
 
+            // The file's tracker rows as they were, for the tracking log below.
+            $trackersBefore = $db->table('file_tracker')
+                ->where('file_number', $oldFileNo)
+                ->get(['id', 'file_number', 'tracking_id', 'movement_log', 'notes', 'current_office_code']);
+
             // Snapshot the indexing row before its number changes.
             $indexing = $db->table('file_indexings')
                 ->where('file_number', $oldFileNo)
@@ -145,11 +153,14 @@ class CommissionedFileMoveService
                 }
             }
 
-            // The tracking ID follows the new number.
+            // The tracking ID follows the new number. The file tracker stores it with a
+            // sequence suffix (TRK-XXXXXXXX-XXXXX-0003), so the suffix is kept and only
+            // the tracking ID in front of it is replaced.
             foreach ($trackingFootprint as $hit) {
                 $n = $db->update(
-                    "update [{$hit['table']}] set [{$hit['column']}] = ? where [{$hit['column']}] = ?",
-                    [$newTracking, $oldTracking]
+                    "update [{$hit['table']}] set [{$hit['column']}] = ? + substring([{$hit['column']}], ?, 4000)
+                     where [{$hit['column']}] = ? or [{$hit['column']}] like ?",
+                    [$newTracking, mb_strlen($oldTracking) + 1, $oldTracking, $this->escapeLike($oldTracking) . '-%']
                 );
                 if ($n > 0) {
                     $updated[] = ['table' => $hit['table'], 'column' => $hit['column'], 'rows' => $n];
@@ -162,6 +173,13 @@ class CommissionedFileMoveService
                     $db->table($table)->where($column, $newFileNo)->update(['tracking_id' => $newTracking]);
                 }
             }
+
+            // The old number becomes the file's related file number, which is what the
+            // commissioning sheet prints under "Related FileNo/Old FileNo".
+            $this->addRelatedFileNumber($newFileNo, $oldFileNo);
+
+            // Record the change on the file's tracking.
+            $this->logOnTrackers($trackersBefore, $oldFileNo, $newFileNo, $oldTracking, $newTracking, $userId, $movedBy);
 
             // The register row must have moved; anything less is not a move.
             if (!$db->table('mls_file_no')->where('full_file_number', $newFileNo)->where('is_deleted', 0)->exists()) {
@@ -288,6 +306,94 @@ class CommissionedFileMoveService
             || $db->table('deprecated_records')->where('file_number', $fileNo)->exists();
     }
 
+    // ---- related file number / tracking log -----------------------------------
+
+    /**
+     * Add $oldFileNo to the related_fileno list on fileNumber and file_indexings for
+     * $newFileNo, keeping whatever related numbers the file already had. Stored as a
+     * JSON array, the form the other workflows write.
+     */
+    public function addRelatedFileNumber(string $newFileNo, string $oldFileNo): void
+    {
+        $db = DB::connection('sqlsrv');
+
+        foreach (['fileNumber' => 'mlsfNo', 'file_indexings' => 'file_number'] as $table => $column) {
+            foreach ($db->table($table)->where($column, $newFileNo)->get(['id', 'related_fileno']) as $row) {
+                $list = $this->parseList($row->related_fileno);
+                if (in_array(strtoupper($oldFileNo), array_map('strtoupper', $list), true)) {
+                    continue;
+                }
+                $list[] = $oldFileNo;
+                $db->table($table)->where('id', $row->id)->update(['related_fileno' => json_encode(array_values($list))]);
+            }
+        }
+    }
+
+    /** A related_fileno value as a list: JSON array, or a comma-separated string. */
+    private function parseList($value): array
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return [];
+        }
+        $decoded = json_decode($value, true);
+        $items = is_array($decoded) ? $decoded : explode(',', $value);
+
+        return array_values(array_filter(array_map(fn ($v) => trim((string) $v), $items), fn ($v) => $v !== ''));
+    }
+
+    /**
+     * Note the move on each of the file's trackers: a line on the tracker's notes, and
+     * a row in file_movement_log_edits (the tracker change log) with the file number
+     * and tracking ID before and after. The movement log itself is not touched — its
+     * entries are office movements, and this is not one.
+     */
+    public function logOnTrackers($trackersBefore, string $oldFileNo, string $newFileNo, string $oldTracking, string $newTracking, ?int $userId, string $movedBy): void
+    {
+        $db = DB::connection('sqlsrv');
+        $stamp = now();
+
+        foreach ($trackersBefore as $t) {
+            $after = $db->table('file_tracker')->where('id', $t->id)->first(['file_number', 'tracking_id', 'notes']);
+            if (!$after) {
+                continue;
+            }
+
+            $line = "[{$stamp->format('Y-m-d H:i')}] File number moved from {$oldFileNo} to {$newFileNo} (physical duplicate); "
+                . 'tracking ID ' . ($oldTracking ?: '-') . " → {$newTracking} by {$movedBy}.";
+            $notes = trim((string) $after->notes);
+            $db->table('file_tracker')->where('id', $t->id)->update([
+                'notes' => $notes === '' ? $line : $notes . "\n" . $line,
+                'updated_at' => $stamp,
+            ]);
+
+            $log = json_decode((string) $t->movement_log, true);
+            $log = is_array($log) ? array_values($log) : [];
+            $index = max(count($log) - 1, 0);
+            $entry = $log[$index] ?? [];
+
+            $db->table('file_movement_log_edits')->insert([
+                'file_tracker_id' => $t->id,
+                'tracking_id' => $after->tracking_id,
+                'file_number' => $newFileNo,
+                'entry_index' => $index,
+                'log_id' => $entry['log_id'] ?? null,
+                'office_code' => $entry['office_code'] ?? ($t->current_office_code ?? null),
+                'changed_fields' => json_encode(['file_number', 'tracking_id']),
+                'before_entry' => json_encode($entry),
+                'after_entry' => json_encode($entry),
+                'tracker_before' => json_encode(['file_number' => $oldFileNo, 'tracking_id' => $t->tracking_id]),
+                'tracker_after' => json_encode(['file_number' => $newFileNo, 'tracking_id' => $after->tracking_id]),
+                'reason' => "Move Commissioned File: {$oldFileNo} → {$newFileNo} (physical duplicate)",
+                'edited_by' => $userId ?? 0,
+                'edited_by_name' => mb_substr($movedBy, 0, 150),
+                'ip_address' => request()->ip(),
+                'user_agent' => mb_substr((string) request()->userAgent(), 0, 500),
+                'created_at' => $stamp,
+            ]);
+        }
+    }
+
     // ---- grouping / tracking ID -----------------------------------------------
 
     private function groupingRow(string $fileNo, bool $lock = false): ?object
@@ -305,16 +411,27 @@ class CommissionedFileMoveService
      * mapping = 1) and return its tracking ID. A row without one gets one in the
      * register's own format, as GroupingFileNumberService does.
      */
-    private function mapNewGroupingRow(string $newFileNo): string
+    /** Null when the new number's grouping row can be taken; otherwise why not. */
+    private function groupingProblem(string $newFileNo, ?object $row = null, bool $looked = false): ?string
     {
-        $row = $this->groupingRow($newFileNo, true);
+        $row = $looked ? $row : $this->groupingRow($newFileNo);
         if (!$row) {
-            throw new InvalidArgumentException("{$newFileNo} has no row in the grouping register, so it has no tracking ID to take. Nothing was changed.");
+            return "{$newFileNo} has no row in the grouping register, so it has no tracking ID to take.";
         }
 
         $mappedTo = trim((string) ($row->mls_fileno ?? ''));
         if ((int) ($row->mapping ?? 0) === 1 && $mappedTo !== '' && strcasecmp($mappedTo, $newFileNo) !== 0) {
-            throw new InvalidArgumentException("The grouping row for {$newFileNo} is already mapped to {$mappedTo}. Nothing was changed.");
+            return "The grouping row for {$newFileNo} is already marked as mapped (to \"{$mappedTo}\"). Have the register checked first.";
+        }
+
+        return null;
+    }
+
+    private function mapNewGroupingRow(string $newFileNo): string
+    {
+        $row = $this->groupingRow($newFileNo, true);
+        if ($problem = $this->groupingProblem($newFileNo, $row, true)) {
+            throw new InvalidArgumentException($problem . ' Nothing was changed.');
         }
 
         $tracking = trim((string) ($row->tracking_id ?? ''));
@@ -358,7 +475,11 @@ class CommissionedFileMoveService
                 continue;
             }
             try {
-                $n = (int) $db->selectOne("select count(*) n from [{$col->t}] with (nolock) where [{$col->c}] = ?", [$trackingId])->n;
+                // Exact, or with the tracker's sequence suffix (TRK-...-0003).
+                $n = (int) $db->selectOne(
+                    "select count(*) n from [{$col->t}] with (nolock) where [{$col->c}] = ? or [{$col->c}] like ?",
+                    [$trackingId, $this->escapeLike($trackingId) . '-%']
+                )->n;
             } catch (\Throwable $e) {
                 Log::warning('Move Commissioned File: tracking probe failed', ['column' => "{$col->t}.{$col->c}", 'error' => $e->getMessage()]);
                 continue;

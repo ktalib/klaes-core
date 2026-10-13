@@ -271,6 +271,7 @@ class SecretariatFileLogController extends Controller
             'from_office_other'       => 'nullable|string|max:255',
             'file_title'   => 'nullable|string|max:255',
             'from_office'  => 'nullable|string|max:50',
+            'from_department' => 'nullable|string|max:255',
             // "Not a regular File/Mail": Mail or File (required for a new one, checked
             // in the service), and where it came from.
             'document_kind' => 'nullable|in:' . implode(',', array_keys(SecretariatFileLogService::DOCUMENT_KINDS)),

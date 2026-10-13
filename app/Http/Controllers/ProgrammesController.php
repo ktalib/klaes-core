@@ -3289,7 +3289,9 @@ class ProgrammesController extends Controller
         $item  = 'flex items-center gap-2 w-full text-left px-3 py-2 text-xs hover:bg-gray-50 whitespace-nowrap';
         $items = [];
 
-        if ($bill->status !== 'paid') {
+        // Generate Bill prints the BILL (what is owed); payments are recorded on
+        // Special Assignment – Payments (2026-10-13).
+        {
             $items[] = '<button type="button" data-id="'.$bill->id.'" data-app="'.(int) $bill->spa_application_id.'" class="btn-pay '.$item.' font-semibold" style="color:#8c9008">'
                 .'<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Generate Bill</button>';
         }
@@ -3297,7 +3299,7 @@ class ProgrammesController extends Controller
         $latest = $bill->payments->sortByDesc('id')->first();
         if ($latest) {
             $items[] = '<a href="'.route('special-assignment.bills.receipt', $latest->id).'" target="_blank" rel="noopener" class="'.$item.' text-gray-700">'
-                .'<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>Receipt</a>';
+                .'<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>Payment Receipt</a>';
         }
 
         // Send to Change of Purpose: by the officer, once the bill is settled
@@ -3507,6 +3509,9 @@ class ProgrammesController extends Controller
                                    . '<div class="action-dropdown hidden absolute right-0 top-full z-50 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">'
                                    . $actionItems
                                    . '<button class="btn-view-bill w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50" data-id="'.$b->id.'">View Payments</button>'
+                                   . (($last = $b->payments->sortByDesc('id')->first())
+                                       ? '<a href="'.route('special-assignment.bills.receipt', $last->id).'" target="_blank" rel="noopener" class="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">Payment Receipt</a>'
+                                       : '')
                                    . '</div></div>';
 
                                return [

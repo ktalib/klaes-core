@@ -2150,6 +2150,14 @@ class SpecialAssignmentController extends Controller
     }
 
     /** Printable receipt for one payment, itemised as it was collected. */
+    /** The printed BILL (what is owed) — Generate Bill on the Bills page. */
+    public function printBill(int $id)
+    {
+        $bill = \App\Models\SpaBill::with(['application', 'lines'])->findOrFail($id);
+
+        return view('special_assignment.bills.bill', compact('bill'));
+    }
+
     public function printBillReceipt(int $id)
     {
         $payment = \App\Models\SpaPayment::with(['lines', 'bill.application', 'bill.lines'])->findOrFail($id);

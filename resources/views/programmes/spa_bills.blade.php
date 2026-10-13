@@ -152,14 +152,7 @@
             @csrf
             <div id="pay-pipeline" class="hidden rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3"></div>
             <input type="hidden" name="spa_bill_id" id="pay-bill-id">
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Payment Date <span class="text-red-500">*</span></label>
-                    <input type="date" name="payment_date" required
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
-            </div>
+            {{-- The BILL: what is owed. Payments are recorded on Special Assignment – Payments. --}}
 
             {{-- Bill items --}}
             <div class="border border-gray-200 rounded-xl overflow-hidden">
@@ -170,15 +163,14 @@
                             <th class="px-3 py-2 text-right w-28">Billed (₦)</th>
                             <th class="px-3 py-2 text-right w-28">Paid (₦)</th>
                             <th class="px-3 py-2 text-right w-28">Balance (₦)</th>
-                            <th class="px-3 py-2 text-right w-36">Paying Now (₦)</th>
                         </tr>
                     </thead>
                     <tbody id="pay-lines">
-                        <tr><td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr>
+                        <tr><td colspan="4" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr>
                     </tbody>
                     <tfoot class="bg-gray-50">
                         <tr>
-                            <td colspan="4" class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total Paying Now</td>
+                            <td colspan="3" class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Bill Total</td>
                             <td class="px-3 py-2 text-right font-bold text-gray-800" id="pay-total">₦0.00</td>
                         </tr>
                     </tfoot>
@@ -190,17 +182,6 @@
                 <p id="pay-balance-note" class="text-xs text-gray-500"></p>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
-                    <select name="payment_method"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="bank_transfer">Bank Transfer</option>
-                        <option value="pos">POS</option>
-                        <option value="cheque">Cheque</option>
-                    </select>
-                </div>
-            </div>
             <div class="flex justify-end gap-3 pt-2">
                 <button type="button" class="pay-close px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
                 <button type="submit" class="px-5 py-2 text-sm text-white bg-[rgb(186,191,12)] rounded-lg hover:opacity-90">GENERATE BILL</button>
@@ -428,7 +409,7 @@ $(document).ready(function () {
     const money      = n => '₦' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     async function loadPaySheet(billId) {
-        payLines.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr>';
+        payLines.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr>';
         payTotalEl.textContent = money(0);
         payNote.textContent = '';
         renderAddable(billId, []);
@@ -438,7 +419,7 @@ $(document).ready(function () {
         const data = await res.json().catch(() => ({}));
 
         if (!data.success) {
-            payLines.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-xs text-red-500">Could not load this bill.</td></tr>';
+            payLines.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-xs text-red-500">Could not load this bill.</td></tr>';
             return;
         }
 
@@ -457,11 +438,7 @@ $(document).ready(function () {
                 <td class="px-3 py-2">${esc(b.reference_id || 'Bill')} <span class="text-xs text-gray-400">(not itemised)</span></td>
                 <td class="px-3 py-2 text-right">${Number(b.amount).toFixed(2)}</td>
                 <td class="px-3 py-2 text-right">${Number(b.total_paid).toFixed(2)}</td>
-                <td class="px-3 py-2 text-right">${Number(b.balance).toFixed(2)}</td>
-                <td class="px-3 py-2 text-right">
-                    <input type="number" name="amount_paid" min="0" step="0.01" value="${Number(b.balance).toFixed(2)}"
-                        class="pay-amount w-32 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right outline-none focus:border-[rgb(186,191,12)]">
-                </td></tr>`;
+                <td class="px-3 py-2 text-right">${Number(b.balance).toFixed(2)}</td></tr>`;
         } else {
             payLines.innerHTML = data.lines.map(l => `<tr class="border-t border-gray-100" data-line-id="${l.id}">
                 <td class="px-3 py-2">${esc(l.name)}${l.removable
@@ -469,12 +446,7 @@ $(document).ready(function () {
                     : ''}</td>
                 <td class="px-3 py-2 text-right text-gray-600">${Number(l.amount).toFixed(2)}</td>
                 <td class="px-3 py-2 text-right text-gray-500">${Number(l.paid).toFixed(2)}</td>
-                <td class="px-3 py-2 text-right font-medium ${l.outstanding > 0 ? 'text-gray-800' : 'text-green-600'}">${Number(l.outstanding).toFixed(2)}</td>
-                <td class="px-3 py-2 text-right">
-                    <input type="number" min="0" step="0.01" data-outstanding="${l.outstanding}"
-                        value="${Number(l.outstanding).toFixed(2)}"
-                        class="pay-amount w-32 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right outline-none focus:border-[rgb(186,191,12)]">
-                </td></tr>`).join('');
+                <td class="px-3 py-2 text-right font-medium ${l.outstanding > 0 ? 'text-gray-800' : 'text-green-600'}">${Number(l.outstanding).toFixed(2)}</td></tr>`).join('');
         }
 
         renderAddable(billId, data.addable || []);
@@ -482,7 +454,7 @@ $(document).ready(function () {
         payNote.innerHTML = `Bill total ${money(b.amount)} · already paid ${money(b.total_paid)} · <strong>outstanding ${money(b.balance)}</strong>`
             + (b.unallocated > 0 ? `<br><span class="text-amber-600">${money(b.unallocated)} of earlier payments was recorded against the bill as a whole, not against items.</span>` : '');
 
-        recalcPayTotal();
+        payTotalEl.textContent = money(b.amount);
     }
 
     // Buttons for the "add when needed" items not yet on this bill, each at its
@@ -535,61 +507,14 @@ $(document).ready(function () {
         changeBillItem(REMOVE_ITEM_URL.replace('__ID__', document.getElementById('pay-bill-id').value), { line_id: Number(btn.dataset.lineId) });
     });
 
-    function recalcPayTotal() {
-        let total = 0;
-        payLines.querySelectorAll('.pay-amount').forEach(i => { total += parseFloat(i.value) || 0; });
-        payTotalEl.textContent = money(total);
-    }
 
-    payLines.addEventListener('input', e => {
-        if (!e.target.classList.contains('pay-amount')) return;
-        // Never let an item collect more than it still owes: the server rejects
-        // it anyway, and correcting it here says why without a round trip.
-        const max = parseFloat(e.target.dataset.outstanding);
-        if (!isNaN(max) && (parseFloat(e.target.value) || 0) > max) e.target.value = max.toFixed(2);
-        recalcPayTotal();
-    });
-
-    // Record payment
-    document.getElementById('form-pay').addEventListener('submit', async function(e) {
+    // Generate Bill: print the BILL for what is owed. Nothing is recorded —
+    // payments are taken on Special Assignment – Payments.
+    const BILL_PRINT = '{{ route("special-assignment.bills.print", ["id" => "__ID__"]) }}';
+    document.getElementById('form-pay').addEventListener('submit', function (e) {
         e.preventDefault();
-        const btn = this.querySelector('[type=submit]');
-
-        // What was collected against each item. The server sums these itself —
-        // it does not take a total from here — so the receipt's lines and its
-        // total can never disagree.
-        const lines = [];
-        payLines.querySelectorAll('tr[data-line-id]').forEach(tr => {
-            const amount = parseFloat(tr.querySelector('.pay-amount').value) || 0;
-            if (amount > 0) lines.push({ id: Number(tr.dataset.lineId), amount_paid: amount });
-        });
-
-        const payload = { ...Object.fromEntries(new FormData(this)), lines };
-
-        if (!lines.length && !(parseFloat(payload.amount_paid) > 0)) {
-            Swal.fire({ icon:'warning', title:'Nothing to record', text:'Enter an amount against at least one bill item.' });
-            return;
-        }
-
-        btn.disabled = true; btn.textContent = 'Saving…';
-        const res  = await fetch(PAY_STORE, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        const data = await res.json().catch(() => ({}));
-        if (data.success) {
-            modalPay.classList.add('hidden'); modalPay.classList.remove('flex');
-            this.reset(); table.ajax.reload();
-            Swal.fire({
-                icon: 'success',
-                title: 'Recorded',
-                text: data.message,
-                showCancelButton: true,
-                confirmButtonText: 'Print Receipt',
-                cancelButtonText: 'Close',
-                confirmButtonColor: 'rgb(186,191,12)',
-            }).then(r => { if (r.isConfirmed) window.open(data.receipt_url, '_blank'); });
-        } else {
-            Swal.fire({ icon:'error', title:'Error', text:data.message||'Save failed.' });
-        }
-        btn.disabled=false; btn.textContent='GENERATE BILL';
+        window.open(BILL_PRINT.replace('__ID__', document.getElementById('pay-bill-id').value), '_blank');
+        modalPay.classList.add('hidden'); modalPay.classList.remove('flex');
     });
 });
 </script>

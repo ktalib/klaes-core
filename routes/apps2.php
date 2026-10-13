@@ -579,6 +579,7 @@ Route::middleware(['auth'])->group(function () {
         // "Add when needed" tariff items (a Penalty Fee), added to one bill at the tariff amount.
         Route::post('/bills/{id}/add-item',         [\App\Http\Controllers\SpecialAssignmentController::class, 'addBillItem'])->name('bills.add-item');
         Route::post('/bills/{id}/remove-item',      [\App\Http\Controllers\SpecialAssignmentController::class, 'removeBillItem'])->name('bills.remove-item');
+        Route::get ('/bills/{id}/print',            [\App\Http\Controllers\SpecialAssignmentController::class, 'printBill'])->name('bills.print');
         Route::get ('/bills/receipt/{id}',          [\App\Http\Controllers\SpecialAssignmentController::class, 'printBillReceipt'])->name('bills.receipt');
 
         // The contravention tariff is edited on System Admin -> Configurable

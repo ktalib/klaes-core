@@ -5640,8 +5640,8 @@
                     Swal.fire('Cannot move', data.message || 'This file cannot be moved.', 'warning');
                     return;
                 }
-                if (!data.data.has_grouping_row) {
-                    Swal.fire('Cannot move', data.data.new_file_number + ' has no row in the grouping register yet, so it has no tracking ID. Extend the register first.', 'warning');
+                if (data.data.grouping_problem) {
+                    Swal.fire('Cannot move', data.data.grouping_problem, 'warning');
                     return;
                 }
                 confirmMove(data.data);

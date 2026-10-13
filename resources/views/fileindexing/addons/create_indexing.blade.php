@@ -239,6 +239,11 @@
                                         <option value="">Select Registry</option>
                                         @if(isset($registries))
                                             @foreach($registries as $registry)
+                                                {{-- DCIV files are commissioned from DCIV File Number Commissioning, not indexed here.
+                                                     Kept only for a loaded record that is already in DCIV Registry. --}}
+                                                @if(strcasecmp(trim($registry->name), 'DCIV Registry') === 0 && !(isset($record) && strcasecmp(trim((string) $record->general_registry), 'DCIV Registry') === 0))
+                                                    @continue
+                                                @endif
                                                 <option value="{{ $registry->name }}" {{ (isset($record) && $record->general_registry == $registry->name) ? 'selected' : '' }}>
                                                     {{ $registry->name }}
                                                 </option>

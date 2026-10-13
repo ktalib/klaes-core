@@ -130,6 +130,9 @@ class SecretariatFileLogService
             if (($data['sender_type'] ?? null) === 'Other' && !$this->clean($data['sender'] ?? null)) {
                 throw new RuntimeException('Specify the sender.');
             }
+            if (($data['sender_type'] ?? null) === 'Internal' && !$this->clean($data['sender'] ?? null)) {
+                throw new RuntimeException('Choose the department that sent it, or choose Other and specify it.');
+            }
             if (($data['sender_type'] ?? null) === 'External') {
                 if (!$this->clean($data['sender'] ?? null)) {
                     throw new RuntimeException('Choose the MDA that sent it, or choose Other and specify it.');
@@ -588,6 +591,7 @@ class SecretariatFileLogService
             // document never stands in for that file's own tracker.
             'related_file_number' => $entryType === self::ENTRY_NON_FILE ? $this->clean($data['related_file_number'] ?? null) : null,
             'received_via' => $this->clean($data['received_via'] ?? null),
+            'from_department' => $this->clean($data['from_department'] ?? null),
             'logged_at'    => $office['code'],
         ], fn ($v) => $v !== null)]);
 
@@ -1181,7 +1185,9 @@ class SecretariatFileLogService
 
     private function composeNotes(array $data, ?string $fromName): ?string
     {
-        $fromName = $this->clean($data['from_office_other'] ?? null) ?: $fromName;
+        // An office beats a department alone; a typed "Other" beats both.
+        $fromName = $this->clean($data['from_office_other'] ?? null) ?: $fromName
+            ?: ($this->clean($data['from_department'] ?? null) ? $this->clean($data['from_department']) . ' (department)' : null);
         $parts = array_filter([
             $fromName ? "From: {$fromName}" : null,
             $this->senderNote($data),

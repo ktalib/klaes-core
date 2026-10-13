@@ -62,26 +62,41 @@
 {{-- Record Payment Modal --}}
 @if(!$isReport)
 <div id="modal-record-payment" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h3 class="text-base font-semibold text-gray-800">Record Payment</h3>
+            <div>
+                <h3 class="text-base font-semibold text-gray-800">Record Payment</h3>
+                <p id="pay-meta" class="text-xs text-gray-500 mt-0.5">—</p>
+            </div>
             <button class="modal-close text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
         </div>
+        {{-- Item by item (2026-10-13): what was paid against each bill item. The
+             server sums the items itself, so the receipt and its total agree. --}}
         <form id="form-record-payment" class="p-6 space-y-4">
             @csrf
             <input type="hidden" name="spa_bill_id" id="pay-bill-id">
-            {{-- Bill context (read-only) --}}
-            <div class="px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800 space-y-0.5">
-                <div><span class="font-medium">File No:</span> <span id="pay-file-no">—</span></div>
-                <div><span class="font-medium">Bill Type:</span> <span id="pay-bill-type">—</span></div>
-                <div><span class="font-medium">Outstanding Balance:</span> ₦<span id="pay-balance">—</span></div>
+            <div class="border border-gray-200 rounded-xl overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Bill Item</th>
+                            <th class="px-3 py-2 text-right w-24">Billed (₦)</th>
+                            <th class="px-3 py-2 text-right w-24">Paid (₦)</th>
+                            <th class="px-3 py-2 text-right w-24">Balance (₦)</th>
+                            <th class="px-3 py-2 text-right w-36">Paying Now (₦)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pay-lines"><tr><td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr></tbody>
+                    <tfoot class="bg-gray-50">
+                        <tr>
+                            <td colspan="4" class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Total Paying Now</td>
+                            <td class="px-3 py-2 text-right font-bold text-gray-800" id="pay-total">₦0.00</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Amount Paid (₦) <span class="text-red-500">*</span></label>
-                    <input type="number" name="amount_paid" id="pay-amount" required min="0.01" step="0.01"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                </div>
+            <p id="pay-note" class="text-xs text-gray-500"></p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Payment Date <span class="text-red-500">*</span></label>
                     <input type="date" name="payment_date" required
@@ -96,10 +111,10 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Payment Method</label>
                     <select name="payment_method"
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[rgb(186,191,12)]">
-                        <option value="cash">Cash</option>
                         <option value="bank_transfer">Bank Transfer</option>
                         <option value="pos">POS</option>
                         <option value="cheque">Cheque</option>
+                        <option value="cash">Cash</option>
                     </select>
                 </div>
             </div>
@@ -154,17 +169,52 @@ $(document).ready(function () {
     @if(!$isReport)
     const modal = document.getElementById('modal-record-payment');
 
-    // ── Open modal from action row ─────────────────────────────────────────
-    $(document).on('click', '.btn-record-payment', function() {
+    const SHEET_URL = '{{ route("special-assignment.bills.sheet", ["id" => "__ID__"]) }}';
+    const payLines = document.getElementById('pay-lines');
+    const payTotal = document.getElementById('pay-total');
+    const money = (n) => '₦' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const recalc = () => { let t = 0; payLines.querySelectorAll('.pay-amount').forEach((i) => { t += parseFloat(i.value) || 0; }); payTotal.textContent = money(t); };
+
+    // ── Open: load the bill's items ────────────────────────────────────────
+    $(document).on('click', '.btn-record-payment', async function () {
         $('.action-dropdown').addClass('hidden');
-        const btn = this;
-        document.getElementById('pay-bill-id').value      = btn.dataset.id;
-        document.getElementById('pay-file-no').textContent   = btn.dataset.file   || '—';
-        document.getElementById('pay-bill-type').textContent = btn.dataset.type   || '—';
-        document.getElementById('pay-balance').textContent   = btn.dataset.balance|| '—';
-        document.getElementById('pay-amount').value = '';
+        const id = this.dataset.id;
+        document.getElementById('pay-bill-id').value = id;
+        document.getElementById('form-record-payment').reset();
+        document.getElementById('pay-bill-id').value = id;
+        payLines.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-xs text-gray-400">Loading…</td></tr>';
+        payTotal.textContent = money(0);
         modal.classList.remove('hidden'); modal.classList.add('flex');
         lucide.createIcons();
+
+        const data = await fetch(SHEET_URL.replace('__ID__', id), { headers: { 'Accept': 'application/json' } }).then((r) => r.json()).catch(() => ({}));
+        if (!data.success) { payLines.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-xs text-red-500">Could not load this bill.</td></tr>'; return; }
+        const b = data.bill;
+        document.getElementById('pay-meta').textContent = [b.reference_id, b.file_number, b.owner_name].filter(Boolean).join(' · ');
+        payLines.innerHTML = data.lines.length
+            ? data.lines.map((l) => `<tr class="border-t border-gray-100" data-line-id="${l.id}">
+                <td class="px-3 py-2">${esc(l.name)}</td>
+                <td class="px-3 py-2 text-right text-gray-600">${Number(l.amount).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right text-gray-500">${Number(l.paid).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right font-medium ${l.outstanding > 0 ? 'text-gray-800' : 'text-green-600'}">${Number(l.outstanding).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right"><input type="number" min="0" step="0.01" data-outstanding="${l.outstanding}" value="${Number(l.outstanding).toFixed(2)}"
+                    class="pay-amount w-32 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right outline-none focus:border-[rgb(186,191,12)]"></td></tr>`).join('')
+            // A bill raised before itemised tariffs: one amount against the whole bill.
+            : `<tr><td class="px-3 py-2">${esc(b.reference_id || 'Bill')} <span class="text-xs text-gray-400">(not itemised)</span></td>
+                <td class="px-3 py-2 text-right">${Number(b.amount).toFixed(2)}</td><td class="px-3 py-2 text-right">${Number(b.total_paid).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right">${Number(b.balance).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right"><input type="number" name="amount_paid" min="0" step="0.01" value="${Number(b.balance).toFixed(2)}"
+                    class="pay-amount w-32 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right outline-none focus:border-[rgb(186,191,12)]"></td></tr>`;
+        document.getElementById('pay-note').innerHTML = `Bill total ${money(b.amount)} · already paid ${money(b.total_paid)} · <strong>outstanding ${money(b.balance)}</strong>`;
+        recalc();
+    });
+    payLines.addEventListener('input', (e) => {
+        if (!e.target.classList.contains('pay-amount')) return;
+        // An item cannot collect more than it still owes (the server refuses it too).
+        const max = parseFloat(e.target.dataset.outstanding);
+        if (!isNaN(max) && (parseFloat(e.target.value) || 0) > max) e.target.value = max.toFixed(2);
+        recalc();
     });
 
     // ── Close modal ────────────────────────────────────────────────────────
@@ -172,18 +222,29 @@ $(document).ready(function () {
         modal.classList.add('hidden'); modal.classList.remove('flex');
     }));
 
-    // ── Save payment ───────────────────────────────────────────────────────
+    // ── Save payment → Payment Receipt ─────────────────────────────────────
     document.getElementById('form-record-payment').addEventListener('submit', async function(e) {
         e.preventDefault();
+        const lines = [];
+        payLines.querySelectorAll('tr[data-line-id]').forEach((tr) => {
+            const amount = parseFloat(tr.querySelector('.pay-amount').value) || 0;
+            if (amount > 0) lines.push({ id: Number(tr.dataset.lineId), amount_paid: amount });
+        });
+        const payload = { ...Object.fromEntries(new FormData(this)), lines };
+        if (!lines.length && !(parseFloat(payload.amount_paid) > 0)) {
+            return Swal.fire({ icon: 'warning', title: 'Nothing to record', text: 'Enter an amount against at least one bill item.' });
+        }
         const btn = this.querySelector('[type=submit]');
         btn.disabled = true; btn.textContent = 'Saving…';
         try {
-            const res  = await fetch(PAY_STORE, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Content-Type':'application/json'}, body: JSON.stringify(Object.fromEntries(new FormData(this))) });
+            const res  = await fetch(PAY_STORE, { method:'POST', headers:{'X-CSRF-TOKEN':CSRF,'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload) });
             const data = await res.json();
             if (data.success) {
                 modal.classList.add('hidden'); modal.classList.remove('flex');
                 this.reset(); table.ajax.reload();
-                Swal.fire({ icon:'success', title:'Recorded', text:data.message, timer:2000, showConfirmButton:false });
+                Swal.fire({ icon: 'success', title: 'Recorded', text: data.message, showCancelButton: true,
+                    confirmButtonText: 'Print Payment Receipt', cancelButtonText: 'Close', confirmButtonColor: 'rgb(186,191,12)' })
+                    .then((r) => { if (r.isConfirmed) window.open(data.receipt_url, '_blank'); });
             } else {
                 Swal.fire({ icon:'error', title:'Error', text:data.message||'Save failed.' });
             }

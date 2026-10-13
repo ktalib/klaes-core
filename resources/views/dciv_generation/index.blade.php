@@ -261,7 +261,7 @@
                                             <!-- Serial No: free-text attribute, not the file-number serial; no validation -->
                                             <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Serial No</label>
-                                                <input type="text" x-model="formData.serial_no" placeholder="Enter Serial No" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
+                                                <input type="text" x-model="formData.dciv_serial_no" placeholder="Enter Serial No" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
                                             </div>
 
                                             <!-- Location Details -->
@@ -635,7 +635,7 @@
 
                                             <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Serial No</label>
-                                                <input type="text" x-model="formData.serial_no" :disabled="viewMode" placeholder="Enter Serial No" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50">
+                                                <input type="text" x-model="formData.dciv_serial_no" :disabled="viewMode" placeholder="Enter Serial No" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50">
                                             </div>
 
                                             <!-- Location Details -->
@@ -1080,7 +1080,7 @@ $(document).ready(function() {
             { data: 'file_number', name: 'full_file_number', orderable: true },
             { data: 'related_fileno', name: 'related_fileno', orderable: false, searchable: false, className: 'text-center' },
             { data: 'file_name', name: 'file_name', orderable: true, className: 'font-medium text-slate-700 whitespace-nowrap' },
-            { data: 'serial_no', name: 'serial_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
+            { data: 'dciv_serial_no', name: 'dciv_serial_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
             { data: 'tp_no', name: 'tp_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
             { data: 'plot_no', name: 'plot_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
             { data: 'lga', name: 'lga', orderable: true, className: 'text-xs font-bold text-slate-600 whitespace-nowrap' },
