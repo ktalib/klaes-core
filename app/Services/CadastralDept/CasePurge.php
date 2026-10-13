@@ -8,8 +8,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Master Delete of a Cadastral Department file: the case and every row the
  * workflow made for it (movements, tasks, FMC and its log, charting cards and
- * beacons, field jacket, its reassignments and survey job, correspondence
- * custody, Yes/No form).
+ * beacons, field jacket and its reassignments, correspondence custody, Yes/No
+ * form). The survey job is not deleted: it was registered before it was attached
+ * (user, 2026-10-12), so its file, surveyor and I to S are cleared and it waits to
+ * be attached again; its own survey location stays.
  *
  * Records the case only reads, or that belong to the file rather than the case,
  * are kept: the file number and its indexing, the correspondence file (shadow
@@ -71,7 +73,19 @@ class CasePurge
         }
         $del('cadastral_field_jackets', 'cadastral_case_id', $id);
         if ($schema->hasTable('cadastral_survey_jobs') && $schema->hasColumn('cadastral_survey_jobs', 'cadastral_case_id')) {
-            $del('cadastral_survey_jobs', 'cadastral_case_id', $id);   // made by the field jacket
+            $detached = $db->table('cadastral_survey_jobs')->where('cadastral_case_id', $id)->update([
+                'cadastral_case_id' => null, 'field_jacket_no' => null, 'cadastral_index_card_id' => null,
+                'file_number' => null, 'file_title' => null,
+                'cadastral_surveyor_id' => null, 'surveyor_name' => null, 'firm_name' => null,
+                'its_number' => null, 'its_issued_at' => null, 'its_recipient' => null, 'its_issued_by' => null,
+                'its_issued_by_user_id' => null, 'its_officer_post' => null, 'its_instructions' => null,
+                'its_signature_path' => null, 'its_signature_method' => null, 'its_signature_verified_at' => null, 'its_signature_approved_by' => null,
+                'status' => 'Draft', 'issued_at' => null, 'submitted_at' => null, 'accepted_at' => null,
+                'updated_at' => now(),
+            ]);
+            if ($detached) {
+                $counts['cadastral_survey_jobs (detached, back to the surveyor)'] = $detached;
+            }
         }
 
         $del('cadastral_correspondence_custody', 'cadastral_case_id', $id);

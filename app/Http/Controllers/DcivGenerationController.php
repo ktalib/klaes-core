@@ -134,14 +134,15 @@ class DcivGenerationController extends Controller
             1 => 'full_file_number',
             2 => 'related_fileno',
             3 => 'file_name',
-            4 => 'tp_no',
-            5 => 'plot_no',
-            6 => 'lga',
-            7 => 'location',
-            8 => 'created_by_name',
-            9 => 'commissioning_time',
-            10 => 'record_created_at',
-            11 => 'source_table',
+            4 => 'serial_no',
+            5 => 'tp_no',
+            6 => 'plot_no',
+            7 => 'lga',
+            8 => 'location',
+            9 => 'created_by_name',
+            10 => 'commissioning_time',
+            11 => 'record_created_at',
+            12 => 'source_table',
         ];
         
         $orderColumn = $columns[$orderColumnIndex] ?? 'record_created_at';
@@ -159,6 +160,7 @@ class DcivGenerationController extends Controller
         // Part 2 as an INDEXED FILE instead.
         $dcivSql = "
             SELECT d.id, d.full_file_number, d.related_fileno, d.file_name,
+                   CAST(d.serial_no AS NVARCHAR(4000)) as serial_no,
                    d.plot_no, d.tp_no, d.location, d.lga, d.created_by,
                    ISNULL(CONCAT(u.first_name, ' ', u.last_name), 'System') as created_by_name,
                    d.commissioning_time,
@@ -189,7 +191,9 @@ class DcivGenerationController extends Controller
         // files imported/migrated into dciv_file_no still display correctly as INDEXED FILE here.
         $fiSql = "
             SELECT fi.id, fi.file_number as full_file_number, fi.related_fileno,
-                   fi.file_title as file_name, fi.plot_number as plot_no, fi.tp_no,
+                   fi.file_title as file_name,
+                   CAST(NULL AS NVARCHAR(4000)) as serial_no,
+                   fi.plot_number as plot_no, fi.tp_no,
                    fi.location, fi.lga, NULL as created_by,
                    ISNULL(fi.created_by, 'System') as created_by_name,
                    CONVERT(VARCHAR(8), fi.created_at, 108) as commissioning_time,
@@ -215,8 +219,8 @@ class DcivGenerationController extends Controller
         $searchWhere = '';
 
         if ($search) {
-            $searchWhere = " WHERE (full_file_number LIKE ? OR file_name LIKE ? OR location LIKE ? OR plot_no LIKE ? OR lga LIKE ? OR created_by_name LIKE ?)";
-            $bindings = array_fill(0, 6, "%{$search}%");
+            $searchWhere = " WHERE (full_file_number LIKE ? OR file_name LIKE ? OR location LIKE ? OR plot_no LIKE ? OR lga LIKE ? OR created_by_name LIKE ? OR serial_no LIKE ?)";
+            $bindings = array_fill(0, 7, "%{$search}%");
 
             $filteredRecords = $conn->select(
                 "SELECT COUNT(*) as cnt FROM ({$combinedSql}) as t {$searchWhere}",
@@ -433,6 +437,8 @@ class DcivGenerationController extends Controller
                 'file_number' => $fileNumberHtml,
                 'related_fileno' => $relatedHtml,
                 'file_name' => strtoupper(Str::limit($record->file_name ?? '', 30)) ?: '—',
+                // Shown exactly as entered, no case change.
+                'serial_no' => e($record->serial_no ?? '') ?: '—',
                 'tp_no' => strtoupper($record->tp_no ?? '') ?: '—',
                 'plot_no' => strtoupper($record->plot_no ?? '') ?: '—',
                 'lga' => strtoupper($record->lga ?? '') ?: '—',
@@ -779,6 +785,8 @@ class DcivGenerationController extends Controller
                 'purpose_id' => $validated['purpose_id'] ?? null,
                 'related_fileno' => !empty($relatedFileNumbers) ? json_encode($relatedFileNumbers) : null,
                 'dciv_reason' => $dcivReason,
+                // Free-text attribute (not the file-number serial); deliberately unvalidated.
+                'serial_no' => $request->input('serial_no'),
             ]);
 
             // Persist the related-file links to dciv_link (general) + master_dciv_links,
@@ -966,6 +974,7 @@ class DcivGenerationController extends Controller
             'land_use_id' => null,
             'purpose_id' => null,
             'dciv_reason' => $record->dciv_reason ?? null,
+            'serial_no' => null,
             'tracking_id' => $record->tracking_id,
             'commissioning_date' => optional($record->created_at)->format('Y-m-d'),
             'commissioning_time' => optional($record->created_at)->format('H:i:s'),
@@ -1038,6 +1047,8 @@ class DcivGenerationController extends Controller
                 'land_use_id' => $validated['land_use_id'] ?? $record->land_use_id,
                 'purpose_id' => $validated['purpose_id'] ?? $record->purpose_id,
                 'dciv_reason' => $validated['reason'] ?? $record->dciv_reason,
+                // Free-text attribute (not the file-number serial); deliberately unvalidated.
+                'serial_no' => $request->has('serial_no') ? $request->input('serial_no') : $record->serial_no,
             ]);
 
             // Sync with file_indexings

@@ -155,18 +155,64 @@
 
       <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500">Sheet and plan references</h3>
-        <div class="grid gap-3 sm:grid-cols-4">
+        {{-- Metric: Sheet No. picked from the metric_sheets lookup, searchable, with one "Other" that asks to
+             specify (user, 2026-10-12); Imperial stays typed. --}}
+        <div class="grid gap-3 sm:grid-cols-4"
+             x-data="{ sheetType: @js(old('sheet_type', $seed->sheet_type ?? '')), sheetNo: @js(old('sheet_no', $seed->sheet_no ?? '')),
+                       sheets: @js($metricSheets ?? []), term: '', open: false, other: @js(old('sheet_other') === '1'),
+                       init() { if (this.sheetType === 'metric' && this.sheetNo && this.sheets.length && !this.sheets.some(s => s.label === this.sheetNo)) this.other = true; },
+                       matches() { const t = this.term.trim().toUpperCase();
+                                   return (t ? this.sheets.filter(s => s.label.toUpperCase().includes(t)) : this.sheets).slice(0, 50); } }">
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">Sheet</label>
-            <select name="sheet_type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <select name="sheet_type" x-model="sheetType" @change="sheetNo = ''; other = false" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
               <option value="">—</option>
               @foreach (['metric' => 'Metric', 'imperial' => 'Imperial'] as $k => $l)
                 <option value="{{ $k }}" @selected(old('sheet_type', $seed->sheet_type ?? '') === $k)>{{ $l }}</option>
               @endforeach
             </select>
           </div>
-          <div><label class="block text-sm font-semibold text-gray-700 mb-1">Sheet No. / Index</label>
-            <input type="text" name="sheet_no" maxlength="50" value="{{ old('sheet_no', $seed->sheet_no ?? '') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase"></div>
+          <div class="relative" @click.outside="open = false" @keydown.escape="open = false">
+            <label class="block text-sm font-semibold text-gray-700 mb-1" x-text="sheetType === 'metric' ? 'Metric Sheet No. (Index)' : 'Sheet No. / Index'">Sheet No. / Index</label>
+            <template x-if="sheetType === 'metric' && sheets.length">
+              <div>
+                <template x-if="!other"><input type="hidden" name="sheet_no" :value="sheetNo"></template>
+                <template x-if="other"><input type="hidden" name="sheet_other" value="1"></template>
+                <button type="button" @click="open = !open; $nextTick(() => $refs.sheetSearch && $refs.sheetSearch.focus())"
+                        class="w-full flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-left">
+                  <span class="truncate" :class="sheetNo || other ? 'text-gray-800' : 'text-gray-400'" x-text="other ? 'Other (not in the list)' : (sheetNo || 'Choose a sheet')"></span>
+                  <span class="text-gray-400 flex-shrink-0">&#9662;</span>
+                </button>
+                <div x-show="open" x-cloak class="absolute z-30 mt-1 w-80 max-w-[90vw] rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <div class="p-2 border-b border-gray-100">
+                    <input type="text" x-ref="sheetSearch" x-model="term" placeholder="Type the index (P-10) or sheet no."
+                           class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm">
+                  </div>
+                  <div class="max-h-64 overflow-auto">
+                    <button type="button" x-show="sheetNo || other" @click="sheetNo = ''; other = false; open = false" class="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50">Clear</button>
+                    <template x-for="s in matches()" :key="s.index">
+                      <button type="button" @click="sheetNo = s.label; other = false; open = false; term = ''"
+                              class="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50" :class="!other && sheetNo === s.label ? 'bg-blue-50 font-semibold' : ''">
+                        <span class="font-mono" x-text="s.index"></span> <span class="text-gray-600" x-text="'· ' + s.no"></span>
+                      </button>
+                    </template>
+                    <div class="px-3 py-2 text-sm text-gray-500" x-show="!matches().length">No sheet matches.</div>
+                  </div>
+                  <button type="button" @click="other = true; sheetNo = ''; open = false; term = ''; $nextTick(() => $refs.sheetOther && $refs.sheetOther.focus())"
+                          class="w-full text-left px-3 py-2 text-sm font-semibold text-blue-700 border-t border-gray-100 hover:bg-blue-50">Other (not in the list)</button>
+                  <div class="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100" x-text="sheets.length + ' metric sheets at 1:2000; type to narrow.'"></div>
+                </div>
+                <div class="mt-2" x-show="other">
+                  <label class="block text-xs font-semibold text-gray-600 mb-1">Specify <span class="text-red-600">*</span></label>
+                  <input type="text" name="sheet_no" x-ref="sheetOther" x-model="sheetNo" maxlength="50" :disabled="!other" :required="other"
+                         placeholder="The sheet no. / index as written" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase">
+                </div>
+              </div>
+            </template>
+            <template x-if="!(sheetType === 'metric' && sheets.length)">
+              <input type="text" name="sheet_no" maxlength="50" x-model="sheetNo" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase">
+            </template>
+          </div>
           <div><label class="block text-sm font-semibold text-gray-700 mb-1">Layout name / No.</label>
             <input type="text" name="layout" maxlength="150" value="{{ old('layout', $seed->layout ?? '') }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></div>
           <div><label class="block text-sm font-semibold text-gray-700 mb-1">Approved plan / TP No.</label>

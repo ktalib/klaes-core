@@ -542,6 +542,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post  ('/field-data/{id}/update',  [\App\Http\Controllers\SpecialAssignmentController::class, 'updateFieldData'])->name('field-data.update');
         Route::delete('/field-data/{id}',         [\App\Http\Controllers\SpecialAssignmentController::class, 'deleteFieldData'])->name('field-data.delete');
         // Master delete: a record and everything linked to it (Super Admin, exported first).
+        // Send a settled record to Change of Purpose (the card on the Bills table).
+        Route::post  ('/land-records/{id}/send-to-change-of-purpose', [\App\Http\Controllers\SpecialAssignmentController::class, 'sendToChangeOfPurpose'])->name('land-records.send-to-cop');
         // New Conversion: record the file number issued by hand on the MLS screen.
         Route::post  ('/land-records/{id}/new-file-number', [\App\Http\Controllers\SpecialAssignmentController::class, 'recordNewFileNumber'])->name('land-records.new-file-number');
         Route::get   ('/land-records/{id}/master-delete', [\App\Http\Controllers\SpecialAssignmentController::class, 'masterDeleteSummary'])->name('land-records.master-delete.summary');
@@ -549,6 +551,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/notice/store',             [\App\Http\Controllers\SpecialAssignmentController::class, 'storeNotice'])->name('notice.store');
         // The printable notice (First Serve / Second Serve reminder letter).
         Route::get('/notice/{id}/print', [\App\Http\Controllers\SpecialAssignmentController::class, 'printNotice'])->name('notice.print');
+        // Batch print of selected 1st Serve notices (?ids[]=…), one per sheet.
+        Route::get('/notice/print-batch', [\App\Http\Controllers\SpecialAssignmentController::class, 'printNoticeBatch'])->name('notice.print-batch');
         // The allottee's response to a First Serve (form, save, print filled / ?blank=1).
         Route::get ('/notice/{id}/response',       [\App\Http\Controllers\SpecialAssignmentController::class, 'noticeResponse'])->name('notice.response');
         Route::post('/notice/{id}/response',       [\App\Http\Controllers\SpecialAssignmentController::class, 'saveNoticeResponse'])->name('notice.response.save');

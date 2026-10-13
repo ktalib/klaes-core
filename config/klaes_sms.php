@@ -445,6 +445,48 @@ return [
         ],
 
         /* ---------------------------------------------------------------- */
+        /* Special Assignment (SPAS)                                        */
+        /* ---------------------------------------------------------------- */
+
+        /*
+         | The contravention notices. default_enabled is TRUE, unlike the rest:
+         | these went out unconditionally before they were listed here, and
+         | listing them must not silence them. The shipped wording is the
+         | Ministry's statutory text (SpaNotice::FIRST/SECOND_SERVE_SMS).
+         */
+        SmsSetting::KEY_SPA_FIRST_SERVE => [
+            // To a member of the public -- goes out as KANOMLPP.
+            'sender' => 'department',
+            'group' => 'Special Assignment',
+            'label' => 'SPAS 1st Serve (contravention notice)',
+            'audience' => 'applicant',
+            'recipient' => 'The property owner, on the phone captured on the SPAS land record, when a contravention is found.',
+            'default_enabled' => true,
+            'tokens' => ['Name', 'FileNo'],
+            'sample' => [
+                'Name' => 'GANE MILLERS COMPANY',
+                'FileNo' => 'SPAS-2026-0001',
+            ],
+            'template' => \App\Models\SpaNotice::FIRST_SERVE_SMS,
+        ],
+
+        SmsSetting::KEY_SPA_SECOND_SERVE => [
+            // To a member of the public -- goes out as KANOMLPP.
+            'sender' => 'department',
+            'group' => 'Special Assignment',
+            'label' => 'SPAS 2nd Serve (no response after 14 days)',
+            'audience' => 'applicant',
+            'recipient' => 'The property owner, 14 days after the 1st Serve SMS when there was no response (daily at 08:00, or issued by hand).',
+            'default_enabled' => true,
+            'tokens' => ['Name', 'FileNo'],
+            'sample' => [
+                'Name' => 'GANE MILLERS COMPANY',
+                'FileNo' => 'SPAS-2026-0001',
+            ],
+            'template' => \App\Models\SpaNotice::SECOND_SERVE_SMS,
+        ],
+
+        /* ---------------------------------------------------------------- */
         /* Account security                                                 */
         /* ---------------------------------------------------------------- */
 

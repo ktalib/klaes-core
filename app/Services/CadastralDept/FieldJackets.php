@@ -72,6 +72,20 @@ class FieldJackets
         return CadastralSurveyor::query()->where('is_active', true)->orderBy('full_name')->get();
     }
 
+    /**
+     * Jobs registered and not yet attached to a file (user, 2026-10-12): what Assign
+     * to Surveyor (I to S) offers to attach, with a surveyor.
+     */
+    public function waitingJobs()
+    {
+        return CadastralSurveyJob::query()
+            ->where(fn ($w) => $w->whereNull('file_number')->orWhere('file_number', ''))
+            ->whereNull('cadastral_case_id')
+            ->where('status', 'Draft')
+            ->orderBy('job_number')
+            ->get();
+    }
+
     /** The starting text of the instruction, which the officer edits. */
     public function defaultInstructions(CadastralFieldJacket $jacket): string
     {
@@ -85,13 +99,21 @@ class FieldJackets
             . ", under survey job {$jacket->job->job_number} and field jacket {$jacket->field_jacket_no}.";
     }
 
-    /** Commission the jacket: job + jacket + first assignment, and tick the task. */
+    /**
+     * Attach a registered job and a surveyor to the file (user, 2026-10-12): the job
+     * takes the file's number and title and the surveyor, and the field jacket is
+     * commissioned on it. The job keeps its own survey location. Ticks the task.
+     */
     public function commission(CadastralCase $case, array $input, ?int $userId): CadastralFieldJacket
     {
         $this->assertInstalled();
+        $jobId = (int) ($input['cadastral_survey_job_id'] ?? 0);
+        if (!$jobId) {
+            throw WorkflowGuardException::because('Choose the survey job to attach.');
+        }
         $surveyor = $this->activeSurveyor($input['cadastral_surveyor_id'] ?? null);
 
-        return DB::connection(self::CONN)->transaction(function () use ($case, $input, $userId, $surveyor) {
+        return DB::connection(self::CONN)->transaction(function () use ($case, $input, $userId, $jobId, $surveyor) {
             $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
             if (!$this->due($case, self::TASK_JACKET)) {
                 throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the field jacket is commissioned.");
@@ -100,24 +122,28 @@ class FieldJackets
                 throw WorkflowGuardException::because("{$case->case_ref} already has its field jacket.");
             }
 
+            $job = CadastralSurveyJob::query()->lockForUpdate()->find($jobId);
+            if (!$job) {
+                throw WorkflowGuardException::because('That survey job no longer exists.');
+            }
+            if (trim((string) $job->file_number) !== '' || $job->cadastral_case_id) {
+                throw WorkflowGuardException::because("{$job->job_number} is already attached to " . ($job->file_number ?: 'another file') . '.');
+            }
+            if ($job->status !== 'Draft') {
+                throw WorkflowGuardException::because("{$job->job_number} is {$job->status} and cannot be attached.");
+            }
             $now = now();
             $jacketNo = $this->nextNo($now->year);
-            $job = CadastralSurveyJob::create([
-                'job_number' => $this->numbers->nextJobNumber(),
+            $scope = Normalise::text($input['job_scope'] ?? null);
+            $job->update([
                 'cadastral_case_id' => $case->id,
                 'field_jacket_no' => $jacketNo,
                 'file_number' => $case->file_number,
                 'file_title' => $case->file_title,
-                'prop_plot' => $case->plot_no,
-                'prop_district' => $case->district,
-                'prop_lga' => $case->lga,
-                'prop_state' => 'Kano',
                 'cadastral_surveyor_id' => $surveyor->id,
                 'surveyor_name' => $surveyor->full_name,
                 'firm_name' => $surveyor->firm_name,
-                'job_scope' => Normalise::text($input['job_scope'] ?? null) ?: null,
-                'status' => 'Draft',
-            ]);
+            ] + ($scope !== '' ? ['job_scope' => $scope] : []));
 
             $jacket = CadastralFieldJacket::create([
                 'cadastral_case_id' => $case->id,
@@ -139,7 +165,7 @@ class FieldJackets
 
             $this->audit->logAction('Cadastral Field Jacket Commissioned', 'CadastralFieldJacket', $jacket->id, null,
                 ['field_jacket_no' => $jacketNo, 'job_number' => $job->job_number, 'surveyor' => $surveyor->full_name],
-                "{$jacketNo} / {$job->job_number} for {$case->case_ref}, surveyor {$surveyor->full_name}");
+                "Job {$job->job_number} attached to {$case->case_ref} ({$case->file_number}) on field jacket {$jacketNo}, surveyor {$surveyor->full_name}");
 
             return $jacket;
         });

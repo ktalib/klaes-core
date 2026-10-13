@@ -128,6 +128,8 @@ class MlsSerialAllocationService
         $absorb($db->table('file_indexings')->where('file_number', 'like', $stem . '%')->pluck('file_number'));
         $absorb($db->table('pra')->where('mlsFNo', 'like', $stem . '%')->pluck('mlsFNo'));
         $absorb($db->table('PropID_Master')->where('mlsFNo', 'like', $stem . '%')->pluck('mlsFNo'));
+        // A number archived by Move Commissioned File is still on a physical folder.
+        $absorb($db->table('deprecated_records')->where('file_number', 'like', $stem . '%')->pluck('file_number'));
 
         $freed = $this->serialsFreedByMasterDelete($landUse, $year);
 
@@ -313,7 +315,9 @@ class MlsSerialAllocationService
 
         return count($this->takenInFileIndexings([$fileNumber])) === 0
             && !$this->occupies($db->table('pra'), 'mlsFNo', $fileNumber)->exists()
-            && !$this->occupies($db->table('PropID_Master'), 'mlsFNo', $fileNumber)->exists();
+            && !$this->occupies($db->table('PropID_Master'), 'mlsFNo', $fileNumber)->exists()
+            // Archived by Move Commissioned File: the number is still on a physical folder.
+            && !$this->occupies($db->table('deprecated_records'), 'file_number', $fileNumber)->exists();
     }
 
     /**

@@ -25,6 +25,12 @@ class BulkSmsNigeriaService
      */
     public function send(string $phone, string $message): bool
     {
+        // No real SMS from scripts, tinker or tests — see SmsConsoleGuard.
+        if ($refusal = \App\Support\SmsConsoleGuard::refusal()) {
+            \Illuminate\Support\Facades\Log::info('BulkSmsNigeriaService: send refused outside the web app', ['phone' => $phone, 'reason' => $refusal]);
+            return false;
+        }
+
         $apiToken = config('services.bulksmsnigeria.api_token');
         $sender   = config('services.bulksmsnigeria.sender', 'KANGIS');
         $sandbox  = (bool) config('services.bulksmsnigeria.sandbox', false);

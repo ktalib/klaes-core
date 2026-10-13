@@ -49,6 +49,15 @@ class SmsSetting extends Model
     public const KEY_CAVEAT_AUTO_LIFTED = 'caveat_auto_lifted';
 
     /*
+     | Special Assignment (SPAS) contravention notices. Sent by SpaNoticeService
+     | and spa:trigger-second-service, not by KlaesSmsDispatcher -- the notice
+     | row records its own sms_sent. Here so the wording, the switch and the
+     | sender are managed on the same page as every other message.
+     */
+    public const KEY_SPA_FIRST_SERVE = 'spa_first_serve';
+    public const KEY_SPA_SECOND_SERVE = 'spa_second_serve';
+
+    /*
      | Staff attendance. These two are dispatched by StaffAttendanceSmsService,
      | not by KlaesSmsDispatcher -- it keeps its own once-a-day claim and its own
      | shift-end rule. They appear here only so one page controls every message.

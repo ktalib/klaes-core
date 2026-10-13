@@ -51,6 +51,9 @@ Route::prefix('/mls-fileno')->middleware(['auth'])->group(function () {
     Route::post('/commissioning-checklist', [\App\Http\Controllers\CommissioningChecklistController::class, 'check'])->name('mls-fileno.commissioning-checklist');
     // Action menu: put a commissioned file on Applications (No Change of Ownership).
     Route::post('/send-to-oss-applications', [\App\Http\Controllers\OssApplicationSendController::class, 'fromMlpp'])->name('mls-fileno.send-to-oss-applications');
+    // Action menu (Supper Admin): Move Commissioned File — physical duplicate to the next serial.
+    Route::get('/commissioned-file-move/preview', [\App\Http\Controllers\CommissionedFileMoveController::class, 'preview'])->name('mls-fileno.commissioned-file-move.preview');
+    Route::post('/commissioned-file-move', [\App\Http\Controllers\CommissionedFileMoveController::class, 'move'])->name('mls-fileno.commissioned-file-move');
 
     // These MUST be last because they use route parameters
     Route::get('/{id}', [MlsFileNoController::class, 'show'])->name('mls-fileno.show');

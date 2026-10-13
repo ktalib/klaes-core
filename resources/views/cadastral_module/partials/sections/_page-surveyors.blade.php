@@ -153,6 +153,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Name</th>
                     <th>SURCON No.</th>
                     <th>Firm</th>
@@ -167,6 +168,7 @@
             <tbody>
                 @forelse ($surveyors as $surveyor)
                     <tr>
+                        <td>{{ $surveyors->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $surveyor->full_name }}</strong></td>
                         <td>{{ $surveyor->surcon_number ?: '—' }}</td>
                         <td>{{ $surveyor->firm_name ?: '—' }}</td>
@@ -181,41 +183,58 @@
                         <td>{{ optional($surveyor->licence_expires_on)->format('d M Y') ?: '—' }}</td>
                         <td>{{ $surveyor->jobs_count }}</td>
                         <td>
-                            <div class="action-icons">
-                                @canDo('Cad - Records', 'edit')
-                                    <a href="{{ route('cadastral-module.surveyors.index', ['edit' => $surveyor->id]) }}" title="Edit">
-                                        <i class="fas fa-pen"></i>
-                                    </a>
-                                @endcanDo
-                                <form method="POST" action="{{ route('cadastral-module.surveyors.update', $surveyor) }}" style="display:inline">
-                                    @csrf @method('PUT')
-                                    <input type="hidden" name="full_name" value="{{ $surveyor->full_name }}" />
-                                    <input type="hidden" name="surcon_number" value="{{ $surveyor->surcon_number }}" />
-                                    <input type="hidden" name="firm_name" value="{{ $surveyor->firm_name }}" />
-                                    <input type="hidden" name="licence_status"
-                                           value="{{ $surveyor->licence_status === 'Active' ? 'Suspended' : 'Active' }}" />
-                                    <input type="hidden" name="is_active" value="{{ $surveyor->is_active ? 1 : 0 }}" />
-                                    <button type="submit" title="{{ $surveyor->licence_status === 'Active' ? 'Suspend' : 'Reinstate' }}">
-                                        <i class="fas fa-{{ $surveyor->licence_status === 'Active' ? 'ban' : 'rotate-left' }}"></i>
-                                    </button>
-                                </form>
-
-                                @if ($surveyor->jobs_count === 0)
-                                    @canDo('Cad - Records', 'delete')
-                                        <form method="POST" action="{{ route('cadastral-module.surveyors.destroy', $surveyor) }}"
-                                              style="display:inline"
-                                              onsubmit="return confirm('Remove {{ $surveyor->full_name }} from the directory?');">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" title="Remove"><i class="fas fa-trash"></i></button>
-                                        </form>
+                            {{-- One three-dots menu (app standard). --}}
+                            @php
+                              $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
+                            @endphp
+                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                     :style="'top:' + top + 'px; left:' + left + 'px'"
+                                     class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    @if ($surveyor->jobs_count)
+                                        <a href="{{ route('cadastral-module.survey-jobs.index', ['q' => $surveyor->full_name]) }}" class="{{ $svItem }}">
+                                            <i data-lucide="list" class="w-4 h-4 text-gray-500"></i> View jobs ({{ $surveyor->jobs_count }})
+                                        </a>
+                                    @endif
+                                    @canDo('Cad - Records', 'edit')
+                                        <a href="{{ route('cadastral-module.surveyors.index', ['edit' => $surveyor->id]) }}" class="{{ $svItem }}">
+                                            <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
+                                        </a>
                                     @endcanDo
-                                @endif
+                                    <form method="POST" action="{{ route('cadastral-module.surveyors.update', $surveyor) }}">
+                                        @csrf @method('PUT')
+                                        <input type="hidden" name="full_name" value="{{ $surveyor->full_name }}" />
+                                        <input type="hidden" name="surcon_number" value="{{ $surveyor->surcon_number }}" />
+                                        <input type="hidden" name="firm_name" value="{{ $surveyor->firm_name }}" />
+                                        <input type="hidden" name="licence_status"
+                                               value="{{ $surveyor->licence_status === 'Active' ? 'Suspended' : 'Active' }}" />
+                                        <input type="hidden" name="is_active" value="{{ $surveyor->is_active ? 1 : 0 }}" />
+                                        <button type="submit" class="{{ $svItem }}">
+                                            <i data-lucide="{{ $surveyor->licence_status === 'Active' ? 'ban' : 'rotate-ccw' }}" class="w-4 h-4 text-gray-500"></i>
+                                            {{ $surveyor->licence_status === 'Active' ? 'Suspend' : 'Reinstate' }}
+                                        </button>
+                                    </form>
+                                    @if ($surveyor->jobs_count === 0)
+                                        @canDo('Cad - Records', 'delete')
+                                            <form method="POST" action="{{ route('cadastral-module.surveyors.destroy', $surveyor) }}"
+                                                  onsubmit="return confirm('Remove {{ $surveyor->full_name }} from the directory?');">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove</button>
+                                            </form>
+                                        @endcanDo
+                                    @endif
+                                </div>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="10" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-users" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             The directory is empty. Add one with the Add a Surveyor button.
                         </td>

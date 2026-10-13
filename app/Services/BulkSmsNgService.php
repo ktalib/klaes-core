@@ -136,6 +136,13 @@ class BulkSmsNgService
         $this->lastCode   = null;
         $this->lastReason = null;
 
+        // No real SMS from scripts, tinker or tests — see SmsConsoleGuard.
+        if ($refusal = \App\Support\SmsConsoleGuard::refusal()) {
+            $this->lastReason = $refusal;
+            Log::info('BulkSmsNgService: send refused outside the web app', ['phone' => $phone, 'reason' => $refusal]);
+            return false;
+        }
+
         $email    = config('services.bulk_sms_ng.email');
         $password = config('services.bulk_sms_ng.password');
 

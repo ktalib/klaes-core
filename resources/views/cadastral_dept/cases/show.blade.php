@@ -33,6 +33,9 @@
         @if ($wf['sub_types'] ?? null)
           <dt class="text-gray-500">{{ $wf['sub_type_label'] ?? 'Route' }}</dt><dd>{{ $wf['sub_types'][$case->sub_type] ?? 'Not set' }}</dd>
         @endif
+        @if ($wf['asks_allocation_route'] ?? null)
+          <dt class="text-gray-500">Resettlement / Direct</dt><dd>{{ $def->subTypes($wf['asks_allocation_route'])[$case->allocation_route ?? ''] ?? 'Not set' }}</dd>
+        @endif
         <dt class="text-gray-500">Came from</dt><dd>{{ $case->fileSourceLabel() }}</dd>
         <dt class="text-gray-500">Plot No.</dt><dd>{{ $case->plot_no ?? null ?: '—' }}</dd>
         <dt class="text-gray-500">District</dt><dd>{{ $case->district ?? null ?: '—' }}</dd>
@@ -113,13 +116,13 @@
                       </span>
                     @elseif (in_array($key, ['correspondence_detached', 'correspondence_attached'], true) && $custodyInstalled && ! isset($done[$key]))
                       @php $cdCustodyAction = $key === 'correspondence_detached' ? 'detach' : 'attach'; @endphp
-                      <form method="POST" action="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}" class="flex items-center gap-2"
-                            data-confirm-title="{{ ucfirst($cdCustodyAction) }} correspondence file?" data-confirm="{{ ucfirst($cdCustodyAction) }} correspondence file {{ $case->shadow_fileno ?: $case->correspondence_fileno }} for {{ $case->file_number }}.">
-                        @csrf
-                        <input type="hidden" name="action" value="{{ $cdCustodyAction }}">
-                        <input type="text" name="note" maxlength="1000" placeholder="{{ $cdCustodyAction === 'detach' ? 'Archived where? (optional)' : 'Note (optional)' }}" class="w-44 border border-gray-300 rounded-md px-2 py-1 text-xs">
-                        <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">{{ $cdCustodyAction === 'detach' ? 'Detach correspondence file' : 'Attach correspondence file' }}</button>
-                      </form>
+                      {{-- Opens the side-by-side preview (partials/_custody_preview); the note is asked there. --}}
+                      <button type="button" class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold"
+                              data-custody-open="{{ $cdCustodyAction }}" data-url="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}"
+                              data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-title="{{ $case->file_title }}"
+                              data-corr="{{ $case->correspondence_fileno }}" data-csf="{{ $case->shadow_fileno }}">
+                        {{ $cdCustodyAction === 'detach' ? 'Detach correspondence file' : 'Attach correspondence file' }}
+                      </button>
                     @elseif ($key === 'bill_generated')
                       <span class="flex items-center gap-2">
                         @if (isset($done[$key]))
@@ -127,7 +130,7 @@
                         @endif
                         <a href="{{ route('cadastral-dept.cases.bill.show', $case->id) }}"
                            class="px-3 py-1 rounded-md {{ isset($done[$key]) ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">
-                          {{ isset($done[$key]) ? 'Open bill' : 'Make the Fees P&D bill' }}
+                          {{ isset($done[$key]) ? 'Open bill' : 'Generate Fees P&D bill' }}
                         </a>
                       </span>
                     @elseif (in_array($key, ['field_jacket', 'its'], true) && $jacketsInstalled)
@@ -138,13 +141,15 @@
                             <a href="{{ route('cadastral-dept.field-jackets.show', $fieldJacket->id) }}" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 text-xs font-semibold">Open jacket</a>
                           @endif
                         @elseif ($key === 'field_jacket')
-                          <button type="button" onclick="document.getElementById('cd-fj-modal').classList.remove('hidden')"
-                                  class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission field jacket</button>
+                          <button type="button" class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold"
+                                  data-attach-job data-url="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
+                                  data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-plot="{{ $case->plot_no }}"
+                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}">Attach survey job</button>
                         @elseif ($fieldJacket)
                           <button type="button" onclick="document.getElementById('cd-its-modal').classList.remove('hidden')"
                                   class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Issue I to S</button>
                         @else
-                          <span class="text-xs text-gray-500">Commission the field jacket first</span>
+                          <span class="text-xs text-gray-500">Attach the survey job first</span>
                         @endif
                       </span>
                     @elseif ($key === 'land12' && $yesNoInstalled)
@@ -390,38 +395,7 @@
 </div>
 
 @if ($jacketDue)
-  <div id="cd-fj-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-    <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}" data-confirm-title="Commission the field jacket?" data-confirm="A field jacket and job number are created for {{ $case->file_number }} and given to the chosen surveyor." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
-      @csrf
-      <div>
-        <div class="text-xs font-bold uppercase text-gray-500">{{ $case->case_ref }} · {{ $case->file_number }}</div>
-        <div class="text-lg font-bold text-gray-800">Commission Field Jacket</div>
-        <p class="text-xs text-gray-500 mt-1">This registers the survey job and attaches the surveyor. The jacket and job numbers are given on saving; the surveyor can later be changed only by a reassignment, with a reason.</p>
-      </div>
-      <dl class="grid grid-cols-2 gap-2 text-sm rounded-lg bg-gray-50 p-3">
-        <div><dt class="text-xs text-gray-500">Plot No.</dt><dd>{{ $case->plot_no ?: '—' }}</dd></div>
-        <div><dt class="text-xs text-gray-500">District</dt><dd>{{ $case->district ?: '—' }}</dd></div>
-        <div><dt class="text-xs text-gray-500">LGA</dt><dd>{{ $case->lga ?: '—' }}</dd></div>
-        <div><dt class="text-xs text-gray-500">Location</dt><dd>{{ $case->location ?: '—' }}</dd></div>
-      </dl>
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Surveyor</label>
-        @include('cadastral_dept.field_jackets._surveyor_select')
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Scope of the job (optional)</label>
-        <textarea name="job_scope" rows="2" maxlength="4000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">{{ old('job_scope') }}</textarea>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Remarks (optional)</label>
-        <input type="text" name="remarks" value="{{ old('remarks') }}" maxlength="2000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div class="flex justify-end gap-2">
-        <button type="button" onclick="document.getElementById('cd-fj-modal').classList.add('hidden')" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
-        <button @disabled($surveyors->isEmpty()) class="px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold disabled:opacity-50">Commission field jacket</button>
-      </div>
-    </form>
-  </div>
+  @include('cadastral_dept.field_jackets._attach_job_modal')
 @endif
 
 @if ($itsDefault !== null && $case->isOpen() && isset($tasks['its']))
@@ -497,5 +471,8 @@
       </div>
     </form>
   </div>
+@endif
+@if ($custodyInstalled)
+  @include('cadastral_dept.partials._custody_preview')
 @endif
 @endsection

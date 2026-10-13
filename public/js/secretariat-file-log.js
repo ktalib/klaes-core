@@ -60,7 +60,7 @@ window.secretariatFileLog = function (config) {
 
     const blankManual = () => ({
         open: false, entry_type: 'file', file_number: '', file_title: '',
-        sender: '', reference: '', from_office: '', notes: '',
+        sender: '', sender_type: '', sender_mda: '', document_kind: '', reference: '', from_office: '', notes: '',
         indexQ: '', indexOpen: false, related_file_number: '',
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', from_other: '',
@@ -90,6 +90,9 @@ window.secretariatFileLog = function (config) {
         canEditLogs: !!config.canEditLogs,
         requestPurposes: config.requestPurposes || [],
         officers: config.officers || [],
+        userId: config.userId || null,
+        userName: config.userName || '',
+        externalSenders: config.externalSenders || [],
         myOffice: config.myOffice || null,
         nice,
         office: '',
@@ -103,6 +106,11 @@ window.secretariatFileLog = function (config) {
         filter: '',
         listsLoading: false,
         lists: { pending: [], held: [], sent: [] },
+        heldView: 'files',
+        heldViews: [
+            { key: 'files', label: 'Files' },
+            { key: 'memo', label: 'Memo' },
+        ],
         scan: blankScan(),
         scanFocused: false,
         send: blankSend(),
@@ -122,8 +130,13 @@ window.secretariatFileLog = function (config) {
         entryTypes: [
             { value: 'file', icon: 'folder-check', label: 'Indexed file', hint: 'No tracking sheet or QR, but the file is indexed.' },
             { value: 'unindexed', icon: 'folder-x', label: 'Not indexed', hint: 'A file number that has not been indexed yet.' },
-            { value: 'non_file', icon: 'mail', label: 'Not a regular file', hint: 'A letter, memo or other document — not a file folder.' },
+            { value: 'non_file', icon: 'mail', label: 'Not a regular File/Mail', hint: 'A letter, memo or other document — not a file folder.' },
         ],
+        documentKinds: [
+            { value: 'mail', icon: 'mail', label: 'Mail' },
+            { value: 'file', icon: 'folder', label: 'File' },
+        ],
+        senderTypes: ['Internal', 'External', 'Other'],
         registerTabs: [
             { key: 'pending', label: 'Pending receipt', badge: 'bg-yellow-100 text-yellow-800' },
             { key: 'held', label: 'Held at my office', badge: 'bg-green-100 text-green-800' },
@@ -244,7 +257,9 @@ window.secretariatFileLog = function (config) {
             this.listsLoading = true;
             try {
                 const data = await this.request(this.urls.lists + '?' + new URLSearchParams({ office: this.office, days: this.days }));
-                this.lists = { pending: data.pending || [], held: data.held || [], sent: data.sent || [] };
+                const pending = (data.pending || []).map(r => ({ ...r, bucket: 'pending' }));
+                const held = (data.held || []).map(r => ({ ...r, bucket: 'held' }));
+                this.lists = { pending, held, sent: data.sent || [] };
             } catch (e) {
                 this.notify('error', e.message);
             } finally {
@@ -270,17 +285,23 @@ window.secretariatFileLog = function (config) {
             ];
         },
 
+        // Held at my office splits into files and memos (letters, memos, other non-files).
+        heldViewRows(view) {
+            const memo = (r) => r.file_type === 'NON_FILE';
+            return (this.lists.held || []).filter(r => view === 'memo' ? memo(r) : !memo(r));
+        },
+
         visibleRows() {
-            const rows = this.lists[this.tab] || [];
+            const rows = this.tab === 'held' ? this.heldViewRows(this.heldView) : (this.lists[this.tab] || []);
             const f = this.filter.trim().toLowerCase();
             if (!f) return rows;
-            return rows.filter(r => [r.file_number, r.file_title, r.tracking_id, r.from, r.to, r.purpose, r.reference]
+            return rows.filter(r => [r.file_number, r.file_title, r.tracking_id, r.log_id, r.from, r.to, r.purpose, r.reference]
                 .some(v => v && String(v).toLowerCase().includes(f)));
         },
 
         fmt(value) {
-            if (!value) return '—';
-            const d = new Date(String(value).replace(' ', 'T'));
+            if (!value && value !== 0) return '—';
+            const d = typeof value === 'number' ? new Date(value) : new Date(String(value).replace(' ', 'T'));
             if (isNaN(d.getTime())) return value;
             return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
                 d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -461,7 +482,41 @@ window.secretariatFileLog = function (config) {
 
         heldHere() {
             const t = this.profile.data && this.profile.data.tracker;
-            return !!(t && t.current_code === this.office && t.last_status === 'active');
+            // A legacy hand-over to this office (logged before File Movement) counts as held.
+            return !!(t && ((t.current_code === this.office && t.last_status === 'active') || t.legacy_held_at === this.office));
+        },
+
+        // Which register a row belongs to; the Memo tab mixes waiting and held ones.
+        rowBucket(row) {
+            return row.bucket || this.tab;
+        },
+
+        docKindLabel(kind) {
+            const k = this.documentKinds.find(i => i.value === kind);
+            return k ? k.label : '';
+        },
+
+        // A new sender type starts with nothing chosen or typed.
+        senderTypeChanged() {
+            this.manual.sender = '';
+            this.manual.sender_mda = '';
+        },
+
+        senderLabel(type, name) {
+            return [type && type !== 'Other' ? type : '', nice(name) || ''].filter(Boolean).join(' — ');
+        },
+
+        // Date and time stamps for the file overview: first logged, and the latest movement.
+        profileStamps() {
+            const d = this.profile.data;
+            if (!d || !d.tracker) return [];
+            const out = [];
+            if (d.tracker.created_at) out.push({ label: 'First logged', value: this.fmt(d.tracker.created_at) });
+            const events = this.historyEvents().filter(e => e.ts !== null && e.ts !== undefined && isFinite(e.ts));
+            const last = events.length ? events[events.length - 1] : null;
+            if (last) out.push({ label: 'Last movement', value: this.fmt(last.ts), note: last.label });
+            else if (d.tracker.last_at) out.push({ label: 'Last movement', value: this.fmt(d.tracker.last_at) });
+            return out;
         },
 
         canReceive() {
@@ -499,11 +554,12 @@ window.secretariatFileLog = function (config) {
             const d = this.profile.data;
             if (!d) return [];
             const b = [];
-            if (d.file.non_file) b.push({ label: 'Not a regular file', cls: 'bg-blue-100 text-blue-700' });
+            if (d.file.non_file) b.push({ label: 'Not a regular File/Mail' + (this.docKindLabel(d.file.document_kind) ? ' · ' + this.docKindLabel(d.file.document_kind) : ''), cls: 'bg-blue-100 text-blue-700' });
             else b.push(d.file.indexed ? { label: 'Indexed', cls: 'bg-green-100 text-green-700' } : { label: 'Not indexed', cls: 'bg-orange-100 text-orange-700' });
             if (d.tracker && d.tracker.request_type === 'SUBMITTED') b.push({ label: 'Submitted Request', cls: 'bg-purple-100 text-purple-700' });
             if (d.file.decommissioned) b.push({ label: 'Decommissioned' + (d.file.successor ? ' → ' + d.file.successor : ''), cls: 'bg-red-100 text-red-700' });
             if (this.heldHere()) b.push({ label: 'Held at your office', cls: 'bg-emerald-100 text-emerald-700' });
+            if (d.tracker && d.tracker.legacy_held_at === this.office) b.push({ label: 'Legacy log', cls: 'bg-gray-100 text-gray-700' });
             else if (d.tracker && d.tracker.last_status === 'pending_acceptance') b.push({ label: 'In transit', cls: 'bg-yellow-100 text-yellow-800' });
             return b;
         },
@@ -527,7 +583,8 @@ window.secretariatFileLog = function (config) {
                 { label: 'Shelf location', value: f.shelf_location },
                 { label: 'Batch no.', value: f.batch_no },
                 { label: 'Title status', value: nice(f.title_status) },
-                { label: 'Sender', value: nice(f.sender) },
+                { label: 'Document type', value: this.docKindLabel(f.document_kind) },
+                { label: 'Sender', value: this.senderLabel(f.sender_type, f.sender) },
                 { label: 'Reference', value: f.reference },
                 { label: 'Logged by', value: nice(t.created_by) },
             ];
@@ -695,6 +752,7 @@ window.secretariatFileLog = function (config) {
                     officer: this.qsOfficer(e) !== '-' ? this.qsOfficer(e) : '',
                     purpose: purposeOf(e),
                     delay: e.delay_reason || '',
+                    logId: e.log_id || '',
                     notes: e.notes || '',
                 };
 
@@ -705,6 +763,12 @@ window.secretariatFileLog = function (config) {
                 }
                 if (base.key === 'transit') {
                     const ts = created(e) ?? outTs;
+                    const t = this.profile.data && this.profile.data.tracker;
+                    if (latest && t && t.legacy_held_at && t.legacy_held_at === (e.receiving_office_code || e.office_code)) {
+                        events.push({ ...common, ...GREEN, label: 'Held (legacy log)', timeLabel: 'Sent', time: stamp(ts), ts, primary: true,
+                            notes: 'Logged before File Movement and never received; counted as held at this office.' + (common.notes ? ' ' + common.notes : '') });
+                        return;
+                    }
                     events.push(latest
                         ? { ...common, ...AMBER, label: 'In transit', timeLabel: 'Sent', time: stamp(ts), ts, primary: true, notes: 'Awaiting receipt at this office.' + (common.notes ? ' ' + common.notes : '') }
                         : { ...common, ...GREY, label: 'Not received', timeLabel: 'Sent', time: stamp(ts), ts, primary: true });
@@ -833,7 +897,9 @@ window.secretariatFileLog = function (config) {
             const hintPurpose = lower(hint.purpose) === 'received' ? '' : String(hint.purpose || '').trim();
             const hintOfficer = String(hint.officer || '').trim();
             const pickedPurpose = this.requestPurposes.find(p => hintPurpose && lower(p.name) === lower(hintPurpose));
-            const pickedOfficer = this.officers.find(o => hintOfficer && lower(o.name) === lower(hintOfficer));
+            // Receiving: the logged-in user is the receiving officer by default.
+            const pickedOfficer = this.officers.find(o => String(o.id) === String(this.userId))
+                || this.officers.find(o => hintOfficer && lower(o.name) === lower(hintOfficer));
             const field = 'width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:14px;margin-top:4px;';
             const label = 'display:block;font-size:12px;font-weight:600;color:#4b5563;margin-top:12px;';
             let html = '<div style="text-align:left">';
@@ -938,6 +1004,21 @@ window.secretariatFileLog = function (config) {
         // ── Manual ────────────────────────────────────────────────────────
         openManual() {
             this.manual = { ...blankManual(), open: true };
+            if (this.mode === 'in') this.selfAsOfficer(this.manual);
+        },
+
+        // On Receive the person logged in is the one receiving the file. Someone
+        // outside the officer list (non-MLPP staff) goes in by name.
+        selfAsOfficer(state) {
+            const me = this.officers.find(o => String(o.id) === String(this.userId));
+            if (me) {
+                state.receiving_officer_id = me.id;
+                state.officerFilter = nice(me.name);
+            } else {
+                state.receiving_officer_id = 'other';
+                state.officer_other = this.userName;
+                state.officerFilter = this.userName;
+            }
         },
 
         // Indexed files: a searchable dropdown of file_indexings (no selector modal).
@@ -982,6 +1063,9 @@ window.secretariatFileLog = function (config) {
             if (this.manual.entry_type === 'file') this.manual.file_title = '';
             if (this.manual.entry_type !== 'non_file') {
                 this.manual.sender = '';
+                this.manual.sender_type = '';
+                this.manual.sender_mda = '';
+                this.manual.document_kind = '';
                 this.manual.reference = '';
             }
         },
@@ -1005,7 +1089,12 @@ window.secretariatFileLog = function (config) {
             const m = this.manual;
             if (!chosen(m.receiving_officer_id, m.officer_other) || !chosen(m.request_purpose_id, m.purpose_other)) return false;
             if (m.from_office === 'other' && !m.from_other.trim()) return false;
-            if (m.entry_type === 'non_file') return m.file_title.trim() !== '';
+            if (m.entry_type === 'non_file') {
+                if (!m.document_kind) return false;
+                if (m.sender_type === 'Other' && !m.sender.trim()) return false;
+                if (m.sender_type === 'External' && !chosen(m.sender_mda, m.sender)) return false;
+                return m.file_title.trim() !== '';
+            }
             return m.file_number.trim() !== '';
         },
 
@@ -1021,7 +1110,12 @@ window.secretariatFileLog = function (config) {
                 request_purpose_other: typed(m.request_purpose_id, m.purpose_other),
                 from_office_other: typed(m.from_office, m.from_other),
                 file_title: m.file_title,
-                sender: m.sender,
+                document_kind: m.entry_type === 'non_file' ? m.document_kind : null,
+                sender_type: m.entry_type === 'non_file' ? (m.sender_type || null) : null,
+                // External: the listed MDA, or the one typed under Other.
+                sender: m.entry_type === 'non_file' && m.sender_type === 'External'
+                    ? (listed(m.sender_mda) || typed(m.sender_mda, m.sender))
+                    : m.sender,
                 reference: m.reference,
                 from_office: listed(m.from_office),
                 notes: m.notes,
@@ -1162,7 +1256,8 @@ window.secretariatFileLog = function (config) {
                 this.notify('info', label + ' is already in the batch.');
                 return;
             }
-            const heldHere = via === 'held' || !!(t && t.office_code === this.office && String(t.status || '').toLowerCase() === 'active');
+            const heldHere = via === 'held' || !!(t && t.office_code === this.office && String(t.status || '').toLowerCase() === 'active')
+                || this.lists.held.some(r => String(r.id) === String(trackerId));   // includes legacy hand-overs
             if (this.mode === 'in' && heldHere) {
                 this.notify('info', label + ' is already held at your office.');
                 return;

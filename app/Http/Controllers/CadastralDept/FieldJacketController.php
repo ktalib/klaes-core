@@ -60,21 +60,21 @@ class FieldJacketController extends Controller
     public function store(Request $request, int $case)
     {
         $data = $request->validate([
+            'cadastral_survey_job_id' => 'required|integer',
             'cadastral_surveyor_id' => 'required|integer',
-            'job_scope' => 'nullable|string|max:4000',
             'remarks' => 'nullable|string|max:2000',
-        ], ['cadastral_surveyor_id.required' => 'Choose the surveyor.']);
+        ], [
+            'cadastral_survey_job_id.required' => 'Choose the survey job to attach.',
+            'cadastral_surveyor_id.required' => 'Choose the surveyor.',
+        ]);
         $case = CadastralCase::findOrFail($case);
 
         return $this->attempt(function () use ($case, $data) {
             $jacket = $this->jackets->commission($case, $data, auth()->id());
-            $msg = "Field jacket {$jacket->field_jacket_no} commissioned with job {$jacket->job->job_number}, surveyor {$jacket->job->surveyor_name}.";
-            if (app(CadastralSettings::class)->jobNumberFormat()['is_placeholder']) {
-                $msg .= ' The job-number format is still the unconfirmed placeholder.';
-            }
 
-            return $msg;
-        }, 'Field jacket commissioned.');
+            return "Job {$jacket->job->job_number} ({$jacket->job->surveyor_name}) attached to {$case->file_number}"
+                . " on field jacket {$jacket->field_jacket_no}. Next: issue the I to S.";
+        }, 'Survey job attached.');
     }
 
     public function issueIts(Request $request, int $case)

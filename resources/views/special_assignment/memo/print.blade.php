@@ -103,7 +103,7 @@
             text-decoration: underline;
         }
 
-        p.body-text { font-size: 13px; line-height: 1.75; text-align: justify; margin: 0 0 10px; }
+        p.body-text { font-size: 13px; line-height: 1.55; text-align: justify; margin: 0 0 8px; }
 
         table.details {
             width: 100%;
@@ -129,14 +129,14 @@
         .property-summary table.details { width: 70%; margin: 0; table-layout: fixed; }
         .property-summary table.details th { width: 34%; }
         .property-summary table.details td { overflow-wrap: anywhere; }
-        .property-summary table.details th, .property-summary table.details td { padding: 6px; }
+        .property-summary table.details th, .property-summary table.details td { padding: 4px 6px; }
         .property-photo { width: 30%; margin: 0; border: 1px solid #cfcfcf; display: flex; flex-direction: column; justify-content: center; text-align: center; }
-        .property-photo img { display: block; width: 100%; height: 44mm; object-fit: contain; }
+        .property-photo img { display: block; width: 100%; height: 34mm; object-fit: contain; }
         .property-photo figcaption { font-size: 10px; padding: 5px; }
         .media-placeholder { color: #666; font-size: 12px; padding: 12px; text-align: center; }
         .map-section { margin-top: 12px; border: 1px solid #cfcfcf; break-inside: avoid; }
         .map-section h4 { margin: 0; padding: 6px 10px; font-size: 11px; text-transform: uppercase; }
-        #memo-map { height: 30mm; background: #f4f4f0; }
+        #memo-map { height: 22mm; background: #f4f4f0; }
         .property-summary, .decision-block, .sign-row { break-inside: avoid; }
         .decision-block {
             margin-top: 16px;
@@ -176,19 +176,21 @@
         .toolbar .btn-close { background: #6b7280; }
 
         /* The three signing sections of the updated memo. */
-        .sig-sections { margin-top: 5mm; font-size: 12.5px; break-inside: avoid; }
+        /* Room to sign: each line is a writing line, not a hairline (2026-10-13). */
+        .sig-sections { margin-top: 4mm; font-size: 12.5px; break-inside: avoid; }
         .sig-prep { display: flex; justify-content: space-between; gap: 24px; }
-        .sig-col { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+        .sig-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
         .sig-counter { flex: 0 0 46%; }
         .sig-field { display: flex; align-items: flex-end; gap: 6px; }
         .sig-field span { flex-shrink: 0; font-weight: bold; }
         .sig-field span.gap { margin-left: 12px; }
-        .sig-field i { flex: 1; border-bottom: 1px solid #000; height: 14px; }
+        .sig-field i { flex: 1; border-bottom: 1px solid #000; height: 8mm; }
+        .sig-office .sig-field i { height: 10mm; }
         .sig-field i.short { flex: 0 0 22%; }
         .sig-role { text-align: right; font-weight: bold; }
-        .sig-office { margin-top: 4mm; }
+        .sig-office { margin-top: 6mm; }
         .sig-office h4 { margin: 0 0 4px; text-align: center; font-size: 12.5px; text-transform: uppercase; text-decoration: underline; }
-        .sig-office p { margin: 0 0 8px; }
+        .sig-office p { margin: 0; }
         .sig-decided { margin: 8px 0 0; display: flex; gap: 10px; align-items: center; }
 
         @media print {

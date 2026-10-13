@@ -3284,20 +3284,59 @@ class ProgrammesController extends Controller
      */
     private function spaBillActions(\App\Models\SpaBill $bill): string
     {
-        $buttons = [];
+        // A ⋮ menu (2026-10-13), opened over the page by spa_bills.blade.php so
+        // the table never clips it. Item handlers are bound to the document.
+        $item  = 'flex items-center gap-2 w-full text-left px-3 py-2 text-xs hover:bg-gray-50 whitespace-nowrap';
+        $items = [];
 
         if ($bill->status !== 'paid') {
-            $buttons[] = '<button data-id="'.$bill->id.'" data-app="'.(int) $bill->spa_application_id.'" class="btn-pay text-xs px-3 py-1 rounded bg-[rgb(186,191,12)] text-white" style="white-space:nowrap">Generate Bill</button>';
+            $items[] = '<button type="button" data-id="'.$bill->id.'" data-app="'.(int) $bill->spa_application_id.'" class="btn-pay '.$item.' font-semibold" style="color:#8c9008">'
+                .'<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Generate Bill</button>';
         }
 
         $latest = $bill->payments->sortByDesc('id')->first();
-
         if ($latest) {
-            $buttons[] = '<a href="'.route('special-assignment.bills.receipt', $latest->id).'" target="_blank" '
-                .'class="text-xs px-3 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50">Receipt</a>';
+            $items[] = '<a href="'.route('special-assignment.bills.receipt', $latest->id).'" target="_blank" rel="noopener" class="'.$item.' text-gray-700">'
+                .'<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>Receipt</a>';
         }
 
-        return $buttons ? '<div class="flex items-center gap-2">'.implode('', $buttons).'</div>' : '—';
+        // Send to Change of Purpose: by the officer, once the bill is settled
+        // (it no longer happens on its own). Opens the card that takes the old
+        // file number.
+        $app = $bill->application;
+        if ($app && \App\Services\SpaNewFileService::supported()) {
+            $newFile = app(\App\Services\SpaNewFileService::class);
+            $icon = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
+            if ($app->new_file_route) {
+                $items[] = '<span class="'.$item.' text-gray-400 cursor-default" title="Already sent to Change of Purpose">'.$icon.'Sent to Change of Purpose ✓</span>';
+            } elseif ($bill->status === 'paid' && $newFile->settled($app)) {
+                $items[] = '<button type="button" class="btn-send-cop '.$item.' font-semibold" style="color:#0d9488" '
+                    .'data-send=\''.e(json_encode([
+                        'id'            => $app->id,
+                        'spa_id'        => $app->spa_id,
+                        'owner'         => $app->owner_name,
+                        'file_number'   => $newFile->hasFileNumber($app) ? $app->file_number : '',
+                        'approved_use'  => $app->proposed_use,
+                        'prevailing'    => $app->existing_use,
+                        'location'      => $app->location,
+                        'type'          => $newFile->defaultType($app),
+                        'bill'          => $bill->reference_id,
+                    ])).'\'>'.$icon.'Send to Change of Purpose</button>';
+            } else {
+                $items[] = '<span class="'.$item.' text-gray-400 cursor-default" title="The bill must be fully paid first">'.$icon.'Send to Change of Purpose</span>';
+            }
+        }
+
+        if (! $items) {
+            return '—';
+        }
+
+        return '<div class="relative inline-block">'
+            .'<button type="button" class="btn-bill-menu p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="Actions">'
+            .'<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>'
+            .'</button>'
+            .'<div class="bill-menu hidden w-56 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden py-1">'.implode('', $items).'</div>'
+            .'</div>';
     }
 
     /**

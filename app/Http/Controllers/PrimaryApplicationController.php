@@ -566,6 +566,9 @@ class PrimaryApplicationController extends Controller
                 ?? null;
             $paymentStatus = $paymentDate ? 'Paid' : 'Pending';
 
+            // Same basis as the displayed bill (the ?landuse= the form was opened with).
+            $initialBill = \App\Services\StInitialBillSchedule::forLandUse($validated['land_use'] ?? null);
+
             $documentsJson = !empty($documentPayload)
                 ? json_encode($documentPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 : null;
@@ -639,9 +642,11 @@ class PrimaryApplicationController extends Controller
                 'ownership' => $ownershipTypeValue,
                 'ownership_type_others_text' => $ownershipTypeOther,
                 'mixed_type' => $mixedTypeJson,
-                'application_fee' => $validated['application_fee'] ?? null,
-                'processing_fee' => $validated['processing_fee'] ?? null,
-                'site_plan_fee' => $validated['site_plan_fee'] ?? null,
+                // Bill is recomputed from the schedule, never taken from the posted
+                // (display-formatted, draft-restorable) inputs.
+                'application_fee' => number_format($initialBill['application_fee'], 2, '.', ''),
+                'processing_fee' => number_format($initialBill['processing_fee'], 2, '.', ''),
+                'site_plan_fee' => number_format($initialBill['site_plan_fee'], 2, '.', ''),
                 'application_fee_payment_date' => $request->input('application_fee_payment_date') ?? null,
                 'application_fee_receipt_number' => $request->input('application_fee_receipt_number') ?? null,
                 'processing_fee_payment_date' => $request->input('processing_fee_payment_date') ?? null,

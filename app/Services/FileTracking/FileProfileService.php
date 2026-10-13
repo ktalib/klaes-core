@@ -50,6 +50,8 @@ class FileProfileService
 
         $meta = $tracker ? json_decode((string) $tracker->module_meta, true) : null;
         $meta = is_array($meta) ? ($meta['secretariat'] ?? []) : [];
+        $lastEntry = $tracker ? collect($tracker->movement_log ?: [])->last() : null;
+        $lastEntry = is_array($lastEntry) ? $lastEntry : null;
 
         $passport = null;
         $passportPath = null;
@@ -81,6 +83,8 @@ class FileProfileService
                 'title_status'    => $indexing->title_status ?? null,
                 'decommissioned'  => !empty($indexing->is_decommissioned),
                 'successor'       => $indexing->successor_file_no ?? null,
+                'document_kind'   => $meta['document_kind'] ?? null,
+                'sender_type'     => $meta['sender_type'] ?? null,
                 'sender'          => $meta['sender'] ?? null,
                 'reference'       => $meta['reference'] ?? null,
                 'passport_url'    => $passport,
@@ -96,7 +100,11 @@ class FileProfileService
                 'holder'         => $tracker->current_holder,
                 'created_by'     => $tracker->created_by_name,
                 'created_at'     => optional($tracker->created_at)->toDateTimeString(),
-                'last_status'    => strtolower((string) (collect($tracker->movement_log ?: [])->last()['status'] ?? '')),
+                'last_status'    => strtolower((string) ($lastEntry['status'] ?? '')),
+                'last_at'        => $lastEntry['accepted_at'] ?? $lastEntry['timestamp'] ?? null,
+                // The office a legacy hand-over sits at; it counts as held there.
+                'legacy_held_at' => SecretariatFileLogService::isLegacyHandOver($lastEntry)
+                    ? ($lastEntry['receiving_office_code'] ?? $lastEntry['office_code'] ?? null) : null,
             ] : null,
             'history' => $this->history($tracker, $fileNumber),
             'edms'    => $indexing ? $this->edms($indexing, $passportPath) : ['total' => 0, 'pages' => []],

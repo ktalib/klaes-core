@@ -314,6 +314,7 @@ function dcivGenerator(config) {
             land_use_id: '',
             purpose_id: '',
             reason: '',
+            serial_no: '',
             relatedFiles: [{ file_number: '', secondary_title: '', is_found: false }]
         },
         locationEntries: [],
@@ -571,6 +572,7 @@ function dcivGenerator(config) {
                     this.formData.land_use_id = rec.land_use_id;
                     this.formData.purpose_id = rec.purpose_id;
                     this.formData.reason = rec.dciv_reason || '';
+                    this.formData.serial_no = rec.serial_no || '';
                     this.formData.tracking_id = rec.tracking_id || '';
                     this.formData.date_created = this.formatDateForInput(rec.commissioning_date || rec.created_at);
                     this.formData.time_created = this.formatTimeForInput(rec.commissioning_time || rec.formatted_time);
@@ -642,6 +644,7 @@ function dcivGenerator(config) {
                     this.formData.land_use_id = rec.land_use_id;
                     this.formData.purpose_id = rec.purpose_id;
                     this.formData.reason = rec.dciv_reason || '';
+                    this.formData.serial_no = rec.serial_no || '';
                     this.formData.tracking_id = rec.tracking_id || '';
                     this.formData.date_created = this.formatDateForInput(rec.commissioning_date || rec.created_at);
                     this.formData.time_created = this.formatTimeForInput(rec.commissioning_time || rec.formatted_time);
@@ -706,7 +709,8 @@ function dcivGenerator(config) {
                         custom_district: this.formData.custom_district,
                         lga_id: this.formData.lga_id,
                         location: this.location,
-                        reason: this.formData.reason
+                        reason: this.formData.reason,
+                        serial_no: this.formData.serial_no
                     })
                 });
 
@@ -998,6 +1002,7 @@ function dcivGenerator(config) {
                 land_use_id: '',
                 purpose_id: '',
                 reason: '',
+                serial_no: '',
                 relatedFiles: [{ file_number: '', secondary_title: '', is_found: false }]
             };
             this.serialMode = 'manual';

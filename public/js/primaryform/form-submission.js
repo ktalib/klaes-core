@@ -752,7 +752,9 @@ const FormSubmission = {
         const totalAmount = document.getElementById('totalAmount')?.textContent || '0';
         
         data.total_fees = totalFees.replace(/[^\d.]/g, '');
-        data.processing_fee = processingFee.replace(/[^\d.]/g, '');
+        // Not sent as processing_fee: appending it duplicated the real field and
+        // PHP kept this one ('0' when #processingFee is absent).
+        data.summary_processing_fee = processingFee.replace(/[^\d.]/g, '');
         data.total_amount = totalAmount.replace(/[^\d.]/g, '');
         
         // Get generated addresses

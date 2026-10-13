@@ -16,6 +16,10 @@
      * on both, so the maps are built over the union rather than one of them.
      */
     $jsiRows    = collect($pendingRecords)->concat(collect($approvedRecords));
+
+    // ?view=initiate shows only the Initiate Change tab (approved + commissioned).
+    // The Special Assignment sidebar opens the register this way (2026-10-13).
+    $initiateOnly = request()->query('view') === 'initiate';
     $jsiCleared = \App\Support\MasterJsiGate::clearedMap('change_of_purpose', $jsiRows);
 @endphp
 
@@ -154,7 +158,7 @@
             </div>
 
             {{-- -- Tabs -- --}}
-            <div class="bg-slate-100 rounded-2xl p-1 inline-flex gap-1">
+            <div class="bg-slate-100 rounded-2xl p-1 inline-flex gap-1" @if($initiateOnly) style="display:none" @endif>
                 <button class="cop-tab-btn active px-5 py-2 rounded-xl text-sm font-semibold text-slate-600 transition" onclick="copSwitchTab('applications', this)">
                     <i data-lucide="file-text" class="w-4 h-4 inline-block mr-1 -mt-0.5"></i>
                     Applications <span class="ml-1 bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{{ $pendingRecords->count() }}</span>
@@ -168,7 +172,7 @@
             {{-- ============================================
                  TAB 1 - APPLICATIONS
                  ============================================ --}}
-            <div id="cop-tab-applications" class="cop-tab-panel active">
+            <div id="cop-tab-applications" class="cop-tab-panel {{ $initiateOnly ? '' : 'active' }}">
                 <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                     <div class="overflow-x-auto">
                         <table id="cop-pending-table" class="w-full text-sm" style="min-width:1000px">
@@ -349,7 +353,7 @@
             {{-- ============================================
                  TAB 2 - INITIATE CHANGE OF PURPOSE
                  ============================================ --}}
-            <div id="cop-tab-initiate" class="cop-tab-panel">
+            <div id="cop-tab-initiate" class="cop-tab-panel {{ $initiateOnly ? 'active' : '' }}">
                 <div class="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
                     <i data-lucide="info" class="w-4 h-4 inline-block mr-1 -mt-0.5"></i>
                     These applications have been <strong>approved</strong>. Use the <strong>Commission</strong> action to update the file number across all related records.

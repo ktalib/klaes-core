@@ -114,6 +114,64 @@ class IntakeLookup
         return $out;
     }
 
+    /**
+     * Number prefixes each application type lists at intake (user, 2026-10-12):
+     * Conversion lists the indexed CON- files, Direct Allocation the indexed
+     * RES- / COM- / IND- / AG- files. Verification lists any indexed file that
+     * has a correspondence file, since it cannot be verified without one.
+     */
+    private const LIST_PREFIXES = [
+        'conversion' => ['CON-'],
+        'direct' => ['RES-', 'COM-', 'IND-', 'AG-'],
+    ];
+
+    /**
+     * The intake dropdown: up to $limit live indexed files for the application
+     * type, matching what was typed. READ ONLY.
+     *
+     * @return array<int, array{id:int, file_number:string, title:?string, plot:?string, district:?string, lga:?string, tracking_id:?string}>
+     */
+    public function options(string $workflow, string $term, int $limit = 30): array
+    {
+        if (!isset(self::LIST_PREFIXES[$workflow]) && $workflow !== 'verification') {
+            return [];
+        }
+
+        $q = DB::connection('sqlsrv')->table('file_indexings')
+            ->select(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'tracking_id'])
+            ->whereNotNull('file_number')
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->where(fn ($w) => $w->whereNull('is_decommissioned')->orWhere('is_decommissioned', 0));
+
+        if ($workflow === 'verification') {
+            $q->where(fn ($w) => $w->where('is_corresponding_file', 1)
+                ->orWhere(fn ($x) => $x->whereNotNull('corresponding_fileno')->where('corresponding_fileno', '!=', '')));
+        } else {
+            $q->where(function ($w) use ($workflow) {
+                foreach (self::LIST_PREFIXES[$workflow] as $prefix) {
+                    $w->orWhere('file_number', 'like', $prefix . '%');
+                }
+            });
+        }
+
+        $term = trim($term);
+        if ($term !== '') {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+            $q->where(fn ($w) => $w->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like));
+        }
+
+        return $q->orderBy('file_number')->limit($limit)->get()
+            ->map(fn ($r) => [
+                'id' => (int) $r->id,
+                'file_number' => trim((string) $r->file_number),
+                'title' => $r->file_title ?: null,
+                'plot' => $r->plot_number ?: null,
+                'district' => $r->district ?: null,
+                'lga' => $this->lga($r->lga),
+                'tracking_id' => $r->tracking_id ?: null,
+            ])->all();
+    }
+
     /** A live fileNumber row for the number, when the file is commissioned but not indexed. */
     private function commissioned(string $number): ?array
     {

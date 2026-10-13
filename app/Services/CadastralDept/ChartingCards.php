@@ -202,6 +202,22 @@ class ChartingCards
             'remarks' => Normalise::text($in['remarks'] ?? null) ?: null,
         ];
 
+        // A Metric sheet comes from the metric_sheets lookup, kept in its own spelling. "Other"
+        // keeps what was specified (still matched to the list, in case it is one of them).
+        if ($v['sheet_type'] === 'metric' && MetricSheets::installed()) {
+            $other = ($in['sheet_other'] ?? '') === '1';
+            if ($other && $v['sheet_no'] === null) {
+                throw WorkflowGuardException::because('Specify the sheet: Other was chosen.');
+            }
+            if ($v['sheet_no'] !== null) {
+                $known = app(MetricSheets::class)->canonical($in['sheet_no'] ?? null);
+                if ($known === null && !$other) {
+                    throw WorkflowGuardException::because('Pick the Metric sheet from the list, or choose Other and specify it.');
+                }
+                $v['sheet_no'] = $known ?? $v['sheet_no'];
+            }
+        }
+
         if ($stage === 'check') {
             $v['matches_record'] = $bool('matches_record');
             if ($v['matches_record'] === null) {

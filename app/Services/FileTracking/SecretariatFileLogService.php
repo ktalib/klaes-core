@@ -33,6 +33,12 @@ class SecretariatFileLogService
     public const ENTRY_UNINDEXED = 'unindexed';  // file number exists, not indexed
     public const ENTRY_NON_FILE = 'non_file';    // letter, memo, not a regular file
 
+    /** What a "Not a regular File/Mail" entry is; the user must choose one. */
+    public const DOCUMENT_KINDS = ['mail' => 'Mail', 'file' => 'File'];
+
+    /** Where a "Not a regular File/Mail" entry came from. "Other" needs the sender typed. */
+    public const SENDER_TYPES = ['Internal', 'External', 'Other'];
+
     /** @return array{code:string,name:string,department:?string} */
     public function office(string $code): array
     {
@@ -116,6 +122,21 @@ class SecretariatFileLogService
         if ($entryType === self::ENTRY_NON_FILE && !$this->clean($data['file_title'] ?? null)) {
             throw new RuntimeException('Give the document a title or subject.');
         }
+        // Only a new entry carries these; receiving an existing tracker never asks.
+        if ($entryType === self::ENTRY_NON_FILE && empty($data['tracker_id'])) {
+            if (!isset(self::DOCUMENT_KINDS[$data['document_kind'] ?? ''])) {
+                throw new RuntimeException('Choose whether this is Mail or a File.');
+            }
+            if (($data['sender_type'] ?? null) === 'Other' && !$this->clean($data['sender'] ?? null)) {
+                throw new RuntimeException('Specify the sender.');
+            }
+            if (($data['sender_type'] ?? null) === 'External') {
+                if (!$this->clean($data['sender'] ?? null)) {
+                    throw new RuntimeException('Choose the MDA that sent it, or choose Other and specify it.');
+                }
+                $data['sender'] = $this->listedExternalSender($data['sender']);
+            }
+        }
         if (($data['received_via'] ?? null) === 'manual') {
             // Both gaps are reported at once, so the page asks for them together.
             $needs = [];
@@ -147,7 +168,9 @@ class SecretariatFileLogService
 
             // log_out_date is not a "left the office" signal: Log a File stamps it at
             // creation on the destination entry. Status alone says where the file is.
-            if ($last && $lastStatus === 'active' && $lastOffice === $office['code']) {
+            // A legacy hand-over to my office already counts as held here.
+            if ($last && $lastOffice === $office['code']
+                && ($lastStatus === 'active' || self::isLegacyHandOver($last))) {
                 return ['tracker' => $tracker, 'action' => 'already_here'];
             }
 
@@ -257,13 +280,28 @@ class SecretariatFileLogService
             $lastStatus = strtolower((string) ($last['status'] ?? ''));
             $lastOffice = $last['receiving_office_code'] ?? $last['office_code'] ?? null;
 
-            // Only the office that is holding the file can send it on.
-            if (!$last || $lastStatus !== 'active' || $lastOffice !== $office['code']) {
+            // Only the office that is holding the file can send it on. A legacy
+            // hand-over to my office counts as held (see isLegacyHandOver).
+            $legacy = $last && $lastOffice === $office['code'] && self::isLegacyHandOver($last);
+            if (!$last || ($lastStatus !== 'active' && !$legacy) || $lastOffice !== $office['code']) {
                 throw new RuntimeException("This file is not currently held at {$office['name']}. Receive it first.");
             }
 
             $now = now();
             $userName = $this->userName($user);
+
+            // It was never received here: mark the stay as held under the legacy
+            // rule rather than inventing a log-in time.
+            if ($legacy) {
+                $log[count($log) - 1] = array_merge($last, [
+                    'status'            => 'active',
+                    'accepted_by'       => $user->id,
+                    'accepted_by_name'  => $userName,
+                    'accepted_at'       => $now->toIso8601String(),
+                    'acceptance_source' => 'legacy_held',
+                ]);
+                $tracker->movement_log = $log;
+            }
 
             $tracker->completeCurrentMovement($now->format('H:i'), $this->clean($notes) ?: ('Sent to ' . $to['name']));
 
@@ -350,7 +388,16 @@ class SecretariatFileLogService
             }
             $prev = count($log) > 1 ? $log[count($log) - 2] : null;
 
-            if ($status === 'pending_acceptance') {
+            if ($status === 'pending_acceptance' && self::isLegacyHandOver($last)) {
+                // Logged before File Movement and never received: the office has it.
+                $held[] = $this->row($tracker, $last, [
+                    'from' => $prev['office_name'] ?? $tracker->origin_office_name,
+                    'to' => $last['receiving_office_name'] ?? $last['office_name'] ?? $office['name'],
+                    'to_officer' => $last['receiving_officer_name'] ?? null,
+                    'since' => $last['timestamp'] ?? null,
+                    'legacy' => true,
+                ]);
+            } elseif ($status === 'pending_acceptance') {
                 $pending[] = $this->row($tracker, $last, [
                     'from' => $last['sent_from_office_name'] ?? ($prev['office_name'] ?? $tracker->origin_office_name),
                     'to' => $last['receiving_office_name'] ?? $last['office_name'] ?? $office['name'],
@@ -402,6 +449,32 @@ class SecretariatFileLogService
         }
 
         return compact('pending', 'held', 'sent');
+    }
+
+    /**
+     * A hand-over made before File Movement existed: still pending acceptance,
+     * not sent from this page (forward() stamps sent_from_office_code), and dated
+     * before file_movement.legacy_pending_before. Its office treats it as held.
+     */
+    public static function isLegacyHandOver(?array $entry): bool
+    {
+        if (!$entry || strtolower((string) ($entry['status'] ?? '')) !== 'pending_acceptance'
+            || !empty($entry['sent_from_office_code'])) {
+            return false;
+        }
+        $cutoff = config('file_movement.legacy_pending_before');
+        if (!$cutoff) {
+            return false;
+        }
+        $stamp = $entry['timestamp'] ?? $entry['created_at'] ?? null;
+        if (!$stamp) {
+            return true;   // entries without a timestamp predate this page
+        }
+        try {
+            return \Illuminate\Support\Carbon::parse($stamp)->lt(\Illuminate\Support\Carbon::parse($cutoff));
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /** @return array<string,int> upper-cased file number => newest live tracker id */
@@ -506,6 +579,9 @@ class SecretariatFileLogService
         $tracker->module_meta = json_encode(['secretariat' => array_filter([
             'entry_type'   => $entryType,
             'not_indexed'  => $entryType === self::ENTRY_UNINDEXED ? true : null,
+            'document_kind' => $entryType === self::ENTRY_NON_FILE ? ($data['document_kind'] ?? null) : null,
+            'sender_type'  => $entryType === self::ENTRY_NON_FILE && in_array($data['sender_type'] ?? null, self::SENDER_TYPES, true)
+                ? $data['sender_type'] : null,
             'sender'       => $this->clean($data['sender'] ?? null),
             'reference'    => $this->clean($data['reference'] ?? null),
             // The file a letter/memo relates to. Kept here, not in file_number, so the
@@ -596,8 +672,13 @@ class SecretariatFileLogService
             'file_type'   => $tracker->file_type,
             'request_type' => strtoupper(trim((string) $tracker->file_request_type)) ?: null,
             'not_indexed' => !empty($meta['not_indexed']),
+            'document_kind' => $meta['document_kind'] ?? null,
+            'sender_type' => $meta['sender_type'] ?? null,
+            'sender'      => $meta['sender'] ?? null,
             'reference'   => $meta['reference'] ?? null,
             'related_file_number' => $meta['related_file_number'] ?? null,
+            // The entry's own id; unique within its tracker (tracking_id is unique overall).
+            'log_id'      => $entry['log_id'] ?? null,
             // 'received' is the internal tag on a receipt entry, not a purpose.
             'purpose'     => (($entry['purpose'] ?? null) && strtolower($entry['purpose']) !== 'received')
                 ? $entry['purpose']
@@ -1103,7 +1184,7 @@ class SecretariatFileLogService
         $fromName = $this->clean($data['from_office_other'] ?? null) ?: $fromName;
         $parts = array_filter([
             $fromName ? "From: {$fromName}" : null,
-            $this->clean($data['sender'] ?? null) ? 'Sender: ' . $this->clean($data['sender']) : null,
+            $this->senderNote($data),
             $this->clean($data['reference'] ?? null) ? 'Ref: ' . $this->clean($data['reference']) : null,
             ($data['entry_type'] ?? null) === self::ENTRY_NON_FILE && $this->clean($data['related_file_number'] ?? null)
                 ? 'File: ' . $this->clean($data['related_file_number']) : null,
@@ -1111,6 +1192,40 @@ class SecretariatFileLogService
         ]);
 
         return $parts ? implode(' | ', $parts) : null;
+    }
+
+    /** Active Kano State MDAs (kano_mdas), in display order: the External sender list. */
+    public function externalSenders(): array
+    {
+        return DB::connection('sqlsrv')->table('kano_mdas')->where('is_active', 1)
+            ->orderBy('sort_order')->orderBy('name')->pluck('name')->all();
+    }
+
+    /**
+     * An External sender typed under "Other" that is really a listed MDA (any
+     * case or spacing) is saved as the listed name, so one MDA has one spelling.
+     */
+    private function listedExternalSender(string $sender): string
+    {
+        $key = fn ($v) => mb_strtolower(preg_replace('/\s+/', ' ', trim((string) $v)));
+        $sender = preg_replace('/\s+/', ' ', trim($sender));
+        foreach ($this->externalSenders() as $mda) {
+            if ($key($mda) === $key($sender)) {
+                return $mda;
+            }
+        }
+
+        return mb_substr($sender, 0, 255);
+    }
+
+    /** "Sender: External — Kano State Water Board"; the type alone, or the name alone. */
+    private function senderNote(array $data): ?string
+    {
+        $type = in_array($data['sender_type'] ?? null, self::SENDER_TYPES, true) && $data['sender_type'] !== 'Other'
+            ? $data['sender_type'] : null;
+        $sender = implode(' — ', array_filter([$type, $this->clean($data['sender'] ?? null)]));
+
+        return $sender !== '' ? 'Sender: ' . $sender : null;
     }
 
     private function officeOrNull(string $code): ?array

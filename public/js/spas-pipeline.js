@@ -33,7 +33,7 @@
     // out of order always amber, rejected always red — read across the strip.
     var HUE = {
         record: '#64748b', field: '#0891b2', contravention: '#dc2626', second: '#ea580c',
-        response: '#2563eb', payment: '#16a34a', newfile: '#0d9488', memo: '#7c3aed', decision: '#9333ea',
+        response: '#2563eb', payment: '#16a34a', newfile: '#0d9488', memo: '#7c3aed', decision: '#b8860b',
         certificate: '#db2777'
     };
 
@@ -46,7 +46,8 @@
         payment: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
         newfile: '<path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/><path d="M8 15h8M8 18h5"/>',
         memo: '<path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/>',
-        decision: '<path d="M14 4l6 6-8 8H6v-6l8-8z"/><path d="M4 21h16"/>',
+        // Balance scale: the Commissioner weighs it — approve or reject.
+        decision: '<path d="M12 3v18"/><path d="M7 21h10"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>',
         certificate: '<circle cx="12" cy="9" r="5"/><path d="M9 13.5L8 21l4-2 4 2-1-7.5"/>'
     };
 

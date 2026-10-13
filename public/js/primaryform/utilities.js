@@ -138,11 +138,19 @@ function hideLoading() {
 
 // Function to format currency input
 function formatCurrency(input) {
-    let value = input.value.replace(/[^\d]/g, '');
-    if (value) {
-        value = parseInt(value).toLocaleString();
-        input.value = '₦' + value;
+    // Readonly amounts (initial bill) are server-computed; never reformat them.
+    if (input.readOnly || input.classList.contains('fee-input')) {
+        return;
     }
+    // Keep the decimal point: stripping it turned 10,000.00 into 1,000,000.
+    const cleaned = input.value.replace(/[^\d.]/g, '');
+    if (!cleaned) {
+        return;
+    }
+    const [whole, ...rest] = cleaned.split('.');
+    const decimals = rest.join('');
+    const grouped = (parseInt(whole || '0', 10) || 0).toLocaleString('en-US');
+    input.value = '₦' + grouped + (cleaned.includes('.') ? '.' + decimals.slice(0, 2) : '');
 }
 
 // Function to handle file input changes

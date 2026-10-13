@@ -106,8 +106,13 @@ class SpaNoticeService
         // send on an instance, so a shared one would report stale state.
         $sms = new BulkSmsNgService();
 
+        // Switched off on SMS Management: not sent, and the notice says why.
+        if (! SpaNotice::smsEnabled($type)) {
+            return ['sent' => false, 'code' => null, 'reason' => 'switched off in SMS Management'];
+        }
+
         try {
-            $sent = $sms->send($phone, SpaNotice::smsBody($type));
+            $sent = $sms->send($phone, SpaNotice::smsBody($type, ['Name' => $name, 'FileNo' => (string) $fileNo]), SpaNotice::smsSender($type));
 
             if (! $sent) {
                 Log::warning('SPAS: notice SMS not sent', [

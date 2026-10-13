@@ -48,7 +48,7 @@
                 <p class="text-xs text-gray-400 mt-1">1st &amp; 2nd serve</p>
             </div>
             <div class="bg-white rounded-xl border border-gray-200 p-4">
-                <p class="text-xs text-gray-500 mb-1">Change of Purpose Sheets Issued</p>
+                <p class="text-xs text-gray-500 mb-1">Contravention Sheets Issued</p>
                 <p id="stat-certs" class="text-2xl font-bold text-green-600">—</p>
                 <p class="text-xs text-gray-400 mt-1">Total issued</p>
             </div>

@@ -28,7 +28,9 @@ class DcivFileNo extends Model
         'purpose_id',
         'is_deleted',
         'related_fileno',
-        'dciv_reason'
+        'dciv_reason',
+        // Free-text attribute, not the serial_number in the file number
+        'serial_no'
     ];
 
     protected $casts = [

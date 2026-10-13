@@ -294,9 +294,10 @@ return [
                 ],
             ] + $landRoundTrip('pnd_instruction') + [
                 'pnd_instruction' => [
-                    'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Commission Field Jacket, issue I to S',
+                    'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Attach the survey job and surveyor, issue I to S',
                     'tasks' => [
-                        'field_jacket' => 'Field jacket commissioned (job and surveyor attached)',
+                        // Jobs are registered first, with no file or surveyor (user, 2026-10-12).
+                        'field_jacket' => 'Survey job and surveyor attached (field jacket commissioned)',
                         'its' => 'Instruction to Survey (I to S) issued',
                     ],
                     'next' => 'field_survey',
@@ -316,7 +317,9 @@ return [
             'short' => 'Direct',
             'applies_to' => 'GKN, Misc KN, OP, and DCIV/LPCC files: Resettlement or Direct',
             'colour' => 'blue',
-            // OP files choose; every other file takes the Direct route.
+            // Every Direct Allocation file chooses Resettlement or Direct at intake, not
+            // only OP files (user, 2026-10-12).
+            'asks_sub_type' => true,
             'sub_type_label' => 'Route',
             'sub_types' => [
                 'resettlement' => 'Resettlement',
@@ -387,6 +390,9 @@ return [
                 'statutory' => 'Statutory',
                 'customary' => 'Customary',
             ],
+            // Also Resettlement or Direct (user, 2026-10-12), using Direct Allocation's
+            // sub-types; stored in allocation_route. The route is the same for both.
+            'asks_allocation_route' => 'direct',
             'phases' => [
                 1 => 'Initial Reception & Recommendation',
                 2 => 'Charting Verification',

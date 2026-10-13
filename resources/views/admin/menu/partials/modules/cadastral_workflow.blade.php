@@ -211,6 +211,11 @@
           {!! $cadLink('File Tracker (Archive)', route('track-file-archive.index', ['url' => 'cadastral']), 'archive', request()->routeIs('track-file-archive.index') && request('url') === 'cadastral') !!}
         </div>
       @endif
+
+      {{-- m. Reports, after Digital Archive (user, 2026-10-13): the module's report page, as in the previous layout --}}
+      @if($cadModule)
+        {!! $cadLink('Reports', route('cadastral-module.analytics'), 'file-bar-chart', request()->routeIs('cadastral-module.analytics'), '', false) !!}
+      @endif
     </div>
   </div>
 @endif

@@ -1,0 +1,133 @@
+{
+    "deleted_at": "2026-10-12T19:48:49+01:00",
+    "deleted_by": {
+        "id": 2,
+        "name": "System Admin"
+    },
+    "reference": "SPAS-2026-0011",
+    "photo_paths": [],
+    "rows": {
+        "spa_payment_lines": [],
+        "spa_payments": [],
+        "spa_bill_lines": [
+            {
+                "id": "46",
+                "spa_bill_id": "24",
+                "spa_bill_item_id": "1",
+                "name": "Application Form Fee",
+                "amount": "10000.00",
+                "created_at": "2026-10-08 10:44:19",
+                "updated_at": "2026-10-08 10:44:19"
+            },
+            {
+                "id": "47",
+                "spa_bill_id": "24",
+                "spa_bill_item_id": "2",
+                "name": "Processing Fee",
+                "amount": "20000.00",
+                "created_at": "2026-10-08 10:44:19",
+                "updated_at": "2026-10-08 10:44:19"
+            },
+            {
+                "id": "48",
+                "spa_bill_id": "24",
+                "spa_bill_item_id": "3",
+                "name": "Contravention Fee",
+                "amount": "80000.00",
+                "created_at": "2026-10-08 10:44:19",
+                "updated_at": "2026-10-08 10:44:19"
+            }
+        ],
+        "spa_bills": [
+            {
+                "id": "24",
+                "spa_application_id": "86",
+                "bill_type": "Contravention",
+                "description": "Contravention: approved use \"RESIDENTIAL\" differs from prevailing use \"COMMERCIAL\". Composed of: Application Form Fee (10,000.00), Processing Fee (20,000.00), Contravention Fee (80,000.00).",
+                "amount": "110000.00",
+                "reference_id": "SPAS-BILL-2026-002",
+                "due_date": "2026-11-07",
+                "status": "unpaid",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:44:19",
+                "updated_at": "2026-10-08 10:44:19",
+                "source": "contravention"
+            }
+        ],
+        "spa_notice_responses": [],
+        "spa_notices": [
+            {
+                "id": "65",
+                "spa_application_id": "86",
+                "file_number": "CON-RES-2012-10",
+                "notice_type": "first",
+                "recipient_name": "SALIHU USMAN KHAN",
+                "phone": "090",
+                "served_by": null,
+                "served_date": "2026-10-08",
+                "scheduled_date": null,
+                "sms_sent": "0",
+                "sms_sent_at": null,
+                "status": "served",
+                "created_by": "system:spa-backfill",
+                "created_at": "2026-10-08 13:33:35",
+                "updated_at": "2026-10-08 13:33:35"
+            }
+        ],
+        "spa_department_referrals": [],
+        "spa_certificates": [],
+        "spa_memos": [
+            {
+                "id": "8",
+                "spa_application_id": "86",
+                "memo_no": "SPAS/2026/0001",
+                "prepared_by": "1",
+                "forwarded_to": "Honourable Commissioner",
+                "forwarded_at": "2026-10-12 11:33:48",
+                "commissioner_decision": "pending",
+                "commissioner_notes": null,
+                "decided_at": null,
+                "created_by": "Klaes Admin",
+                "created_at": "2026-10-12 11:33:48",
+                "updated_at": "2026-10-12 11:33:48"
+            }
+        ],
+        "spa_field_data": [],
+        "spa_applications": [
+            {
+                "id": "86",
+                "file_number": "CON-RES-2012-10",
+                "tracking_id": "TRK-EPOI9QW1-4WHK1",
+                "file_indexing_id": "43122",
+                "is_indexed": "1",
+                "owner_name": "SALIHU USMAN KHAN",
+                "phone": "090",
+                "location": "11, MARIRI, Kumbotso",
+                "district": "MARIRI",
+                "lga": "Kumbotso",
+                "land_use_type": "RESIDENTIAL",
+                "existing_use": "COMMERCIAL",
+                "proposed_use": "RESIDENTIAL",
+                "photos": null,
+                "scenario": null,
+                "status": "memo_stage",
+                "created_by": "System Admin",
+                "created_at": "2026-10-08 10:44:19",
+                "updated_at": "2026-10-12 11:33:48",
+                "land_title_type": "statutory",
+                "client_uuid": "3aeba5c4-43a6-4a24-a936-72032d5b3763",
+                "spa_id": "SPAS-2026-0011",
+                "sticker_number": null,
+                "new_file_route": null,
+                "cop_application_id": null,
+                "new_file_number": null,
+                "new_file_at": null
+            }
+        ]
+    },
+    "change_of_purpose": {
+        "removed": null,
+        "kept": null,
+        "reason": null
+    }
+}

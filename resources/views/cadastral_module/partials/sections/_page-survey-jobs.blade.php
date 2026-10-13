@@ -34,96 +34,42 @@
     </div>
 </div>
 
+{{-- A job is its scope and the survey's location (user, 2026-10-12). The surveyor and the file are
+     attached at Assign to Surveyor (I to S), where the I to S is issued. --}}
 @canDo('Cad - Records', 'create')
-    @include('cadastral_module.partials._wizard')
-
     @php
-        // Values the file supplies, rendered before the picker locks them.
-        $jobValues = ($picked['status'] ?? null) === 'ok' ? $picked['values'] : [];
-        $jobModel  = (object) array_merge(['prop_state' => 'Kano'], array_filter(
-            \App\Services\Cadastral\CadastralRegistryLookup::lockedInput($jobValues, ['prop_house', 'prop_plot', 'prop_street', 'prop_district', 'prop_lga', 'prop_state']),
-            fn ($v) => $v !== null
-        ));
+        $jobModel = (object) ['prop_state' => old('prop_state', 'Kano')];
     @endphp
-
-    <form method="POST" action="{{ route('cadastral-module.survey-jobs.store') }}" class="form-container" style="margin-bottom:22px;"
-          data-wizard data-wizard-errors="{{ json_encode($errors->keys()) }}" novalidate>
+    <form method="POST" action="{{ route('cadastral-module.survey-jobs.store') }}" class="form-container" style="margin-bottom:22px;">
         @csrf
         <div class="card-header">
             <strong><i data-lucide="hard-hat" style="width:16px;height:16px;vertical-align:-3px;"></i> Register a Survey Job</strong>
             <span class="helper-text" style="margin:0;">
-                The number is allocated now, not at issue — a job with no number cannot be referred to on paper.
+                The job number is allocated now. The surveyor and the file are attached at Assign to Surveyor (I to S).
             </span>
         </div>
-
-        <div class="form-stepper" data-wizard-header></div>
-
         <div class="form-body">
-            <section class="form-step" data-step data-title="Select File" data-icon="folder-search"
-                     data-subtitle="Any indexed file. A job can come before the file reaches Cadastral intake; its number is written onto the file's index card when there is one.">
-                <div class="form-grid">
-                    @include('cadastral_module.partials._file_picker', [
-                        'scope'   => 'indexed',
-                        'hidden'  => ['file_indexing_id'],
-                        'initial' => $picked ?? null,
-                    ])
-                </div>
-            </section>
-
-            <section class="form-step" data-step data-title="Job Details" data-icon="clipboard-list"
-                     data-subtitle="Who is instructed, and to do what.">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>File Title</label>
-                        <input type="text" name="file_title" value="{{ old('file_title', $jobValues['file_title'] ?? '') }}" maxlength="500" />
-                    </div>
-                    <div class="form-group">
-                        <label>Surveyor</label>
-                        <select name="cadastral_surveyor_id">
-                            <option value="">— assign later —</option>
-                            @foreach ($surveyors as $surveyor)
-                                <option value="{{ $surveyor->id }}" @selected(old('cadastral_surveyor_id')==$surveyor->id)>
-                                    {{ $surveyor->display_name }}
-                                    @unless ($surveyor->canReceiveInstruction()) (licence {{ $surveyor->licence_status }}) @endunless
-                                </option>
-                            @endforeach
-                        </select>
-                        @if ($surveyors->isEmpty())
-                            <div class="helper-text">
-                                The directory is empty.
-                                <a href="{{ route('cadastral-module.surveyors.index') }}">Add a surveyor first</a>.
-                            </div>
-                        @endif
-                    </div>
-                    <div class="form-group" style="grid-column:1/-1;">
-                        <label>Job Scope</label>
-                        <textarea name="job_scope" rows="3" maxlength="8000"
-                                  placeholder="What the surveyor is being instructed to do">{{ old('job_scope') }}</textarea>
-                    </div>
-                </div>
-            </section>
-
-            <section class="form-step" data-step data-title="Job Location" data-icon="map-pin"
-                     data-subtitle="Greyed fields come from the file. Complete any it leaves blank.">
-                {{-- The job's location is the address builder, not a free-text field. --}}
-                @include('cadastral_module.partials._address_builder', [
-                    'prefix' => 'prop_',
-                    'mode'   => 'property',
-                    'model'  => $jobModel,
-                    'legend' => 'Job Location',
-                ])
-            </section>
-
-            <section class="form-step" data-step data-review data-title="Review & Register" data-icon="clipboard-check"
-                     data-subtitle="Check the job, then register it. A job number is allocated on save.">
-                <div data-wizard-summary></div>
-            </section>
+            <div class="form-group">
+                <label>Job No.</label>
+                <input type="text" value="{{ $nextJobNumber ?? '' }}" readonly tabindex="-1"
+                       style="font-family:monospace;font-weight:700;background:#f9fafb;max-width:260px;" />
+                <span class="helper-text">Preview of the next number. It is confirmed when you save; if another job is registered first, the next number is used.</span>
+            </div>
+            {{-- Where the survey takes place (not the file's location). --}}
+            @include('cadastral_module.partials._address_builder', [
+                'prefix' => 'prop_',
+                'mode'   => 'property',
+                'model'  => $jobModel,
+                'legend' => 'Survey Location',
+            ])
+            <div class="form-group">
+                <label>Job Scope</label>
+                <textarea name="job_scope" rows="3" maxlength="8000"
+                          placeholder="What the survey is for">{{ old('job_scope') }}</textarea>
+            </div>
         </div>
-
-        <div class="form-actions" data-wizard-nav>
-            <button type="button" class="btn btn-outline" data-wizard-back><i data-lucide="arrow-left"></i> Back</button>
-            <button type="button" class="btn btn-primary" data-wizard-next>Next <i data-lucide="arrow-right"></i></button>
-            <button type="submit" class="btn btn-primary" data-wizard-submit><i data-lucide="plus"></i> Register &amp; Allocate a Number</button>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><i data-lucide="plus"></i> Register &amp; Allocate a Number</button>
         </div>
     </form>
 @endcanDo
@@ -180,7 +126,12 @@
                             @endif
                         </td>
                         <td>
-                            {{ $job->file_number }}
+                            @if ($job->file_number)
+                                {{ $job->file_number }}
+                            @else
+                                <span class="status-badge pending"><span class="dot"></span>Not attached yet</span>
+                                <div class="helper-text" style="margin:0;font-size:11px;">Attached at Assign to Surveyor (I to S)</div>
+                            @endif
                             @if ($job->indexCard)
                                 <div class="helper-text" style="margin:0;font-size:11px;">
                                     <a href="{{ route('cadastral-module.index-cards.show', $job->indexCard) }}">{{ $job->indexCard->card_ref }}</a>
@@ -192,7 +143,7 @@
                         </td>
                         <td>{{ $job->prop_plot ?: '—' }}</td>
                         <td>{{ $job->property_location ?: '—' }}</td>
-                        <td>{{ $job->surveyor_name ?: '—' }}</td>
+                        <td>{{ $job->surveyor_name ?: ($job->file_number ? '—' : 'At I to S') }}</td>
                         <td>{{ $job->firm_name ?: '—' }}</td>
                         <td>{{ $job->its_number ?: '—' }}</td>
                         <td>{{ optional($job->its_issued_at)->format('d M Y') ?: '—' }}</td>

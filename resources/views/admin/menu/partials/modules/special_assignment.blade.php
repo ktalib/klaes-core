@@ -1,6 +1,8 @@
     <!-- 18. Special Assignment -->
     @php
-        $spaActive      = request()->routeIs('special-assignment.*');
+        // The register opened from here (?view=initiate) counts as this module.
+        $spaCopActive   = request()->is('change-of-purpose') && request()->query('view') === 'initiate';
+        $spaActive      = request()->routeIs('special-assignment.*') || $spaCopActive;
         $spaFieldActive = request()->routeIs('special-assignment.field-data');
         $spaBillsActive = (request()->is('programmes/bills') || request()->is('programmes/payments')) && request()->query('url') === 'spa';
         $spaNoticeActive = request()->routeIs('special-assignment.notice');
@@ -116,6 +118,14 @@
         </a>
         @endif
 
+        <!-- f. Contravention Sheet (the certificate) -->
+        @if($hasRole('Special Assignment - Certificate') || $hasRole('Supper Admin'))
+        <a href="{{ route('special-assignment.certificate') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('special-assignment.certificate') ? 'active' : '' }}">
+          <i data-lucide="file-badge" class="h-4 w-4 text-[rgb(186,191,12)]"></i>
+          <span>Contravention Sheet</span>
+        </a>
+        @endif
+
         <!-- g. Other Departments (collapsible) -->
         @if($hasRole('Special Assignment - Other Departments') || $hasRole('Supper Admin'))
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md {{ $spaOtherActive ? 'active' : '' }}" data-section="sa-other-departments">
@@ -141,13 +151,11 @@
         </div>
         @endif
 
-        <!-- h. Certificate -->
-        @if($hasRole('Special Assignment - Certificate') || $hasRole('Supper Admin'))
-        <a href="{{ route('special-assignment.certificate') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('special-assignment.certificate') ? 'active' : '' }}">
-          <i data-lucide="file-badge" class="h-4 w-4 text-[rgb(186,191,12)]"></i>
-          <span>Change of Purpose Sheet</span>
+        <!-- Change of Purpose: the Parcel Update register, Initiate Change tab only -->
+        <a href="{{ route('change-of-purpose.index', ['view' => 'initiate']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $spaCopActive ? 'active' : '' }}">
+          <i data-lucide="repeat" class="h-4 w-4 text-[rgb(186,191,12)]"></i>
+          <span>Change of Purpose</span>
         </a>
-        @endif
 
         <!-- i. Report -->
         @if($hasRole('Special Assignment - Report') || $hasRole('Supper Admin'))

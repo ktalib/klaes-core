@@ -40,6 +40,7 @@ class SecretariatFileLogController extends Controller
             // Same lists the main Log a File page offers when sending a file on.
             'requestPurposes' => \App\Models\RequestPurpose::active()->orderBy('name')->get(['id', 'name']),
             'officers'        => $this->log->receivingOfficers(),
+            'externalSenders' => $this->log->externalSenders(),
             // Only a super admin may choose an office; everyone else is fixed to the
             // office their Rank/Department maps to (config/file_movement.php).
             'canChooseOffice' => $user->isSuperAdmin(),
@@ -270,6 +271,10 @@ class SecretariatFileLogController extends Controller
             'from_office_other'       => 'nullable|string|max:255',
             'file_title'   => 'nullable|string|max:255',
             'from_office'  => 'nullable|string|max:50',
+            // "Not a regular File/Mail": Mail or File (required for a new one, checked
+            // in the service), and where it came from.
+            'document_kind' => 'nullable|in:' . implode(',', array_keys(SecretariatFileLogService::DOCUMENT_KINDS)),
+            'sender_type'  => 'nullable|in:' . implode(',', SecretariatFileLogService::SENDER_TYPES),
             'sender'       => 'nullable|string|max:255',
             'reference'    => 'nullable|string|max:255',
             'notes'        => 'nullable|string|max:1000',
@@ -300,7 +305,7 @@ class SecretariatFileLogController extends Controller
         return response()->json([
             'success' => true,
             'action'  => $result['action'],
-            'message' => $messages[$result['action']] ?? 'Done.',
+            'message' => ($messages[$result['action']] ?? 'Done.') . ' Tracking ID: ' . $result['tracker']->tracking_id,
             'tracker' => $result['tracker']->only(['id', 'tracking_id', 'file_number', 'file_title', 'current_office_name']),
         ]);
     }

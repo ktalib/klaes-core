@@ -99,48 +99,52 @@ class SurveyJobController extends Controller
             'stats'             => $stats,
             'surveyors'         => $surveyors,
             'formatUnconfirmed' => $this->numbers->formatIsPlaceholder(),
+            'nextJobNumber'     => $this->numbers->previewJobNumber(),
         ]);
     }
 
     /**
      * Register a job and allocate its number in one transaction.
      *
-     * The number is allocated at creation rather than at issue: a job with no
-     * number cannot be referred to on paper, and the registry works on paper.
+     * A job is its scope and the survey's location (user, 2026-10-12); the
+     * surveyor and the file are both attached later, at Assign to Surveyor
+     * (I to S). The number is allocated now rather than at issue: a job with no
+     * number cannot be referred to on paper.
      */
     public function store(Request $r)
     {
-        $file = $this->requireIndexedFile($r->input('file_indexing_id'));
+        $data = $this->jobDetails($r);
 
-        $this->lockFromFile($r, self::FILE_FIELDS, $this->latestRegisteredReceipt($file['file_number']), $file['id'], [
-            'file_number' => $file['file_number'],
-        ]);
-
-        $data = $this->validated($r);
-
-        [$job, $synced] = DB::connection('sqlsrv')->transaction(function () use ($data) {
+        $job = DB::connection('sqlsrv')->transaction(function () use ($data) {
             $data['job_number'] = $this->numbers->nextJobNumber();
+            $data['status'] = 'Draft';
 
-            $this->snapshotSurveyor($data);
-
-            $job = CadastralSurveyJob::create($data);
-
-            return [$job, $this->syncCard($job)];
+            return CadastralSurveyJob::create($data);
         });
 
         $this->log('CADASTRAL_SURVEY_JOB_CREATED', $job);
 
-        $warning = $this->numbers->formatIsPlaceholder()
-            ? ' The job-number format is still the unconfirmed placeholder — confirm it with the Surveyor-General before issuing in bulk.'
-            : '';
+        return back()->with('success', "Survey job {$job->job_number} registered. "
+            . 'Attach it to a file and a surveyor at Assign to Surveyor (I to S).');
+    }
 
-        return back()->with('success', "Survey job {$job->job_number} registered for {$job->file_number}.{$synced}{$warning}");
+    /** A job before I to S: its scope and the survey's location (the address builder). */
+    private function jobDetails(Request $r): array
+    {
+        $data = CadastralAddress::normalise(
+            $r->validate(['job_scope' => 'nullable|string|max:8000'] + $this->addressRules($r, 'prop_'), $this->addressMessages('prop_')),
+            'prop_'
+        );
+        $data['job_scope'] = trim((string) ($data['job_scope'] ?? '')) ?: null;
+
+        return $data;
     }
 
     public function edit(CadastralSurveyJob $surveyJob)
     {
-        // The file is fixed; the picker shows it locked, as update() re-reads it.
-        $indexingId = $this->indexingIdFor($surveyJob->file_number);
+        // The file is fixed; the picker shows it locked, as update() re-reads it. A job not yet
+        // attached to a file has none.
+        $indexingId = $surveyJob->file_number ? $this->indexingIdFor($surveyJob->file_number) : null;
 
         return view('cadastral_module.information.survey_job_register', [
             'picked'            => $indexingId ? $this->lookup->resolveFile(['file_indexing_id' => $indexingId, 'scope' => 'indexed']) : null,
@@ -154,6 +158,13 @@ class SurveyJobController extends Controller
     {
         if (in_array($surveyJob->status, ['Accepted', 'Cancelled'], true)) {
             return back()->with('error', "{$surveyJob->job_number} is {$surveyJob->status} and can no longer be edited.");
+        }
+
+        // Not attached yet: its scope and survey location; the surveyor and file come at I to S.
+        if (! $surveyJob->file_number) {
+            $surveyJob->update($this->jobDetails($r));
+
+            return back()->with('success', "{$surveyJob->job_number} updated.");
         }
 
         // The file number is the job's own; what its file supplies is re-read.
@@ -195,6 +206,10 @@ class SurveyJobController extends Controller
         ], [
             'its_instructions.required' => 'The instruction text is required.',
         ]);
+
+        if (! $surveyJob->file_number) {
+            return back()->with('error', "{$surveyJob->job_number} is not attached to a file yet. Attach it at Assign to Surveyor (I to S), where the I to S is issued.");
+        }
 
         if ($surveyJob->hasInstruction()) {
             return back()->with('error',
@@ -307,6 +322,10 @@ class SurveyJobController extends Controller
      */
     private function syncCard(CadastralSurveyJob $job): string
     {
+        if (! $job->file_number) {
+            return '';   // not attached to a file yet
+        }
+
         $card = $job->cadastral_index_card_id
             ? CadastralIndexCard::find($job->cadastral_index_card_id)
             : CadastralIndexCard::where('file_number', $job->file_number)->first();
@@ -356,7 +375,7 @@ class SurveyJobController extends Controller
                 $job->id,
                 null,
                 ['job_number' => $job->job_number, 'its_number' => $job->its_number, 'status' => $job->status],
-                "{$job->job_number} ({$job->file_number})"
+                "{$job->job_number} (" . ($job->file_number ?: 'no file yet') . ")"
             );
         } catch (\Throwable $e) {
             Log::warning('Cadastral survey job audit failed: ' . $e->getMessage(), ['job_id' => $job->id]);

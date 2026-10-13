@@ -49,6 +49,15 @@
             </button>
         </div>
 
+        {{-- Batch print bar: shows once a served 1st Serve is ticked. --}}
+        <div id="fs-batch-bar" class="hidden fixed bottom-5 left-1/2 transform -translate-x-1/2 z-50 bg-white border border-yellow-300 shadow-2xl rounded-2xl px-4 py-3 flex flex-wrap items-center gap-3">
+            <span class="text-sm font-bold text-gray-800"><span id="fs-batch-count">0</span> selected</span>
+            <button type="button" id="fs-batch-print" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white" style="background:rgb(186,191,12)">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i> Generate 1st Serve notices
+            </button>
+            <button type="button" id="fs-batch-clear" class="text-xs font-semibold text-gray-500 hover:text-gray-700">Clear</button>
+        </div>
+
         {{-- First Serve Table --}}
         <div id="tab-first-serve" class="tab-content">
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -57,7 +66,7 @@
                     @include('special_assignment.partials.table_case')
                     <table id="first-serve-table" class="spas-table w-full text-sm" style="width:100%">
                         <thead><tr class="text-left text-xs text-gray-500 uppercase">
-                            <th class="px-3 py-2">#</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
+                            <th class="px-3 py-2 whitespace-nowrap"><input type="checkbox" class="fs-batch-all mr-2 align-middle" title="Select every served notice on this page"> #</th><th class="px-3 py-2">SPAS ID</th><th class="px-3 py-2">File No</th>
                             <th class="px-3 py-2">Recipient</th><th class="px-3 py-2">Phone</th>
                             <th class="px-3 py-2">Date Served</th><th class="px-3 py-2">SMS</th>
                             <th class="px-3 py-2">Days Ago</th><th class="px-3 py-2">Status</th>
@@ -187,8 +196,12 @@ $(document).ready(function () {
     });
 
     // ── DataTables ──────────────────────────────────────────────────────────
+    // Batch print: a served row has a notice to print; one not yet served cannot be picked.
+    const fsPicked = new Set();
     const firstCols = [
-        { data:'DT_RowIndex', orderable:false, searchable:false }, { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
+        { data:'DT_RowIndex', orderable:false, searchable:false, render: (d, t, row) => row.notice_id
+            ? `<span style="white-space:nowrap"><input type="checkbox" class="fs-batch-check mr-2 align-middle" value="${row.notice_id}" data-ref="${$('<div>').text(row.spa_id || row.file_number || '').html()}" ${fsPicked.has(String(row.notice_id)) ? 'checked' : ''}>${d}</span>`
+            : `<span style="white-space:nowrap"><input type="checkbox" disabled class="mr-2 align-middle opacity-40 cursor-not-allowed" title="Not served yet — nothing to print">${d}</span>` }, { data:'spa_id', render: d => `<span style="white-space:nowrap;font-weight:600">${d||'—'}</span>` }, { data:'file_number', render: d => `<span style="white-space:nowrap">${d||'—'}</span>` },
         { data:'recipient' }, { data:'phone' }, { data:'served_date' }, { data:'sms_sent' },
         { data:'days_ago', render: d => d != null ? `<span class="px-2 py-0.5 rounded-full text-xs ${d>=14?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}" style="white-space:nowrap">${d}d ago</span>` : '—' },
         // served = green; pending (owed but not yet out) = amber; a record with no
@@ -205,6 +218,43 @@ $(document).ready(function () {
         { data:'status', render: d => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${d==='served'?'bg-green-100 text-green-700':(d==='responded'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700')}">${d||'—'}</span>` },
         { data:'action', orderable:false, searchable:false },
     ];
+
+    // ── Batch print of 1st Serve notices (sticky footer bar) ────────────────
+    const fsBar = document.getElementById('fs-batch-bar');
+    function fsRefresh() {
+        document.getElementById('fs-batch-count').textContent = fsPicked.size;
+        fsBar.classList.toggle('hidden', fsPicked.size === 0);
+        const boxes = [...document.querySelectorAll('#first-serve-table .fs-batch-check')];
+        const on = boxes.filter((b) => b.checked).length;
+        document.querySelectorAll('.fs-batch-all').forEach((all) => {
+            all.checked = boxes.length > 0 && on === boxes.length;
+            all.indeterminate = on > 0 && on < boxes.length;
+            all.disabled = boxes.length === 0;
+        });
+    }
+    $(document).on('change', '#first-serve-table .fs-batch-check', function () {
+        this.checked ? fsPicked.add(this.value) : fsPicked.delete(this.value);
+        fsRefresh();
+    });
+    $(document).on('change', '.fs-batch-all', function () {
+        document.querySelectorAll('#first-serve-table .fs-batch-check').forEach((b) => {
+            b.checked = this.checked;
+            this.checked ? fsPicked.add(b.value) : fsPicked.delete(b.value);
+        });
+        fsRefresh();
+    });
+    document.getElementById('fs-batch-clear').addEventListener('click', () => {
+        fsPicked.clear();
+        document.querySelectorAll('#first-serve-table .fs-batch-check').forEach((b) => { b.checked = false; });
+        fsRefresh();
+    });
+    document.getElementById('fs-batch-print').addEventListener('click', () => {
+        if (!fsPicked.size) return;
+        const qs = [...fsPicked].map((id) => 'ids[]=' + encodeURIComponent(id)).join('&');
+        window.open('{{ route('special-assignment.notice.print-batch') }}?' + qs, '_blank', 'noopener');
+    });
+    // Ticks survive paging and searching: a page's boxes are re-ticked from the set.
+    $('#first-serve-table').on('draw.dt', fsRefresh);
 
     const firstTable  = $('#first-serve-table').DataTable({ processing:true, serverSide:true, ajax:{ url: window.location.href, data: d=>({...d, ajax:1, type:'first'}) }, columns: firstCols });
     const secondTable = $('#second-serve-table').DataTable({ processing:true, serverSide:true, ajax:{ url: window.location.href, data: d=>({...d, ajax:1, type:'second'}) }, columns: secondCols });

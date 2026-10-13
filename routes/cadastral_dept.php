@@ -40,6 +40,7 @@ Route::middleware(['auth', 'XSS'])->prefix('cadastral-dept')->name('cadastral-de
     Route::get('/cases', [CaseController::class, 'index'])->name('cases.index');
     Route::get('/cases/create', [CaseController::class, 'create'])->name('cases.create');
     Route::get('/lookup/file', [CaseController::class, 'lookupFile'])->name('lookup.file');
+    Route::get('/lookup/files', [CaseController::class, 'lookupFiles'])->name('lookup.files');
     Route::post('/cases', [CaseController::class, 'store'])->name('cases.store');
     Route::get('/cases/{case}', [CaseController::class, 'show'])->whereNumber('case')->name('cases.show');
 

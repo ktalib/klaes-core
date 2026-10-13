@@ -13,7 +13,7 @@
         'payment'       => ['Payment',       '#16a34a'],
         'newfile'       => ['New File No.',  '#0d9488'],
         'memo'          => ['Memo',          '#7c3aed'],
-        'decision'      => ['Decision',      '#9333ea'],
+        'decision'      => ['Decision',      '#b8860b'],
         'certificate'   => ['Certificate',   '#db2777'],
         'complete'      => ['Complete',      '#059669'],
         'cleared'       => ['No contravention', '#94a3b8'],
@@ -126,8 +126,8 @@
                         ['2nd Serve issued', $stats['second_issued'], '#f59e0b'],
                         ['Responses received', $stats['responses'], '#2563eb'],
                         ['Memos awaiting Commissioner', $stats['memo_pending'], '#7c3aed'],
-                        ['Memos approved / rejected', $stats['memo_approved'].' / '.$stats['memo_rejected'], '#9333ea'],
-                        ['Change of Purpose sheets issued', $stats['certificates'], '#db2777'],
+                        ['Memos approved / rejected', $stats['memo_approved'].' / '.$stats['memo_rejected'], '#b8860b'],
+                        ['Contravention sheets issued', $stats['certificates'], '#db2777'],
                     ] as [$label, $n, $hue])
                     <div class="flex items-center justify-between text-sm">
                         <span class="flex items-center gap-2 text-gray-600"><span class="w-2.5 h-2.5 rounded-full" style="background: {{ $hue }}"></span>{{ $label }}</span>
@@ -199,7 +199,7 @@
 
                 {{-- Settled bills handed on for a new file number. --}}
                 <div class="rounded-xl border border-gray-100 p-3" style="background:linear-gradient(180deg, #0d94880d, #fff 60%)">
-                    <a href="{{ route('change-of-purpose.index') }}" class="flex items-center justify-between text-xs font-bold uppercase tracking-wide" style="color:#0d9488">
+                    <a href="{{ route('change-of-purpose.index', ['view' => 'initiate']) }}" class="flex items-center justify-between text-xs font-bold uppercase tracking-wide" style="color:#0d9488">
                         <span>New file no.</span><span class="px-2 py-0.5 rounded-full text-white" style="background:#0d9488">{{ $attention['newfile']->count() }}</span>
                     </a>
                     <div class="mt-2 divide-y divide-gray-100">

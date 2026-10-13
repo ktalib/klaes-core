@@ -245,7 +245,9 @@ class SpaPipelineService
         } elseif (($app->new_file_route ?? null) === SpaNewFileService::NEW_CONVERSION) {
             $st['newfile'] = $s('progress', 'Awaiting New Conversion file no.');
         } else {
-            $st['newfile'] = $s($contravenes ? 'pending' : 'na', $contravenes ? 'After the bill is settled' : 'No contravention');
+            $settled = $bills->count() && $bills->every(fn ($b) => $b->status === 'paid');
+            $st['newfile'] = $s($contravenes ? 'pending' : 'na', ! $contravenes ? 'No contravention'
+                : ($settled ? 'Send to Change of Purpose (Bills)' : 'After the bill is settled'));
         }
 
         $st['memo'] = $memo

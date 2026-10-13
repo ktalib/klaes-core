@@ -1,0 +1,57 @@
+{
+    "deleted_at": "2026-10-12T19:49:43+01:00",
+    "deleted_by": {
+        "id": 2,
+        "name": "System Admin"
+    },
+    "reference": "SPAS-2026-0012",
+    "photo_paths": [],
+    "rows": {
+        "spa_payment_lines": [],
+        "spa_payments": [],
+        "spa_bill_lines": [],
+        "spa_bills": [],
+        "spa_notice_responses": [],
+        "spa_notices": [],
+        "spa_department_referrals": [],
+        "spa_certificates": [],
+        "spa_memos": [],
+        "spa_field_data": [],
+        "spa_applications": [
+            {
+                "id": "88",
+                "file_number": "AG-2021-1",
+                "tracking_id": "TRK-QKA6DP9F-7U59H",
+                "file_indexing_id": "82937",
+                "is_indexed": "1",
+                "owner_name": "BIAMSA FARMS",
+                "phone": "08037085238",
+                "location": "PIECE OF LAND, RUMFAR YALWA TOWN, BUNKURE",
+                "district": "RUMFAR YALWA TOWN",
+                "lga": "BUNKURE",
+                "land_use_type": "AGRICULTURAL",
+                "existing_use": "AGRICULTURAL",
+                "proposed_use": "AGRICULTURAL",
+                "photos": null,
+                "scenario": null,
+                "status": "in_progress",
+                "created_by": "SALISU DANSHEHU IBRAHIM",
+                "created_at": "2026-10-08 10:56:27",
+                "updated_at": "2026-10-08 10:56:31",
+                "land_title_type": "statutory",
+                "client_uuid": "65326191-f036-43ac-b36d-5fec03a4f062",
+                "spa_id": "SPAS-2026-0012",
+                "sticker_number": null,
+                "new_file_route": null,
+                "cop_application_id": null,
+                "new_file_number": null,
+                "new_file_at": null
+            }
+        ]
+    },
+    "change_of_purpose": {
+        "removed": null,
+        "kept": null,
+        "reason": null
+    }
+}

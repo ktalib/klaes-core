@@ -79,8 +79,8 @@ class CaseController extends Controller
     }
 
     /**
-     * The intake form's file check: called after the global selector returns a
-     * number. GET with a verb-free name, so the permission layer infers view.
+     * The intake form's file check: called after a file is picked from the list.
+     * GET with a verb-free name, so the permission layer infers view.
      */
     public function lookupFile(Request $request, IntakeLookup $lookup): JsonResponse
     {
@@ -89,6 +89,15 @@ class CaseController extends Controller
             'tab' => mb_substr((string) $request->query('tab', ''), 0, 20),
             'file_indexing_id' => (int) $request->query('file_indexing_id', 0),
         ]));
+    }
+
+    /** The intake form's file dropdown: indexed files for the application type, filtered by what was typed. */
+    public function lookupFiles(Request $request, IntakeLookup $lookup): JsonResponse
+    {
+        return response()->json($lookup->options(
+            mb_substr((string) $request->query('workflow', ''), 0, 20),
+            mb_substr((string) $request->query('q', ''), 0, 100)
+        ));
     }
 
     /**
@@ -101,6 +110,7 @@ class CaseController extends Controller
             'workflow' => 'required|string|max:20',
             'file_type' => 'required|string|max:20',
             'sub_type' => 'nullable|string|max:30',
+            'allocation_route' => 'nullable|string|max:30',
             'file_source' => 'required|string|max:20',
             'file_source_other' => 'nullable|required_if:file_source,other|string|max:100',
             'file_number' => 'required|string|max:100',
@@ -110,7 +120,7 @@ class CaseController extends Controller
             'received_at' => 'nullable|date',
             'remarks' => 'nullable|string|max:2000',
         ], [
-            'file_number.required' => 'Pick the file with the file number selector.',
+            'file_number.required' => 'Pick the file from the list.',
             'file_type.required' => 'Choose the file type.',
             'file_source.required' => 'Choose where the file came from.',
             'file_source_other.required_if' => 'Specify where the file came from.',
@@ -137,6 +147,7 @@ class CaseController extends Controller
                 'workflow' => $data['workflow'],
                 'file_type' => $data['file_type'],
                 'sub_type' => $data['sub_type'] ?? null,
+                'allocation_route' => $data['allocation_route'] ?? null,
                 'file_source' => $data['file_source'],
                 'file_source_other' => $data['file_source_other'] ?? null,
                 'file_number' => $file['file_number'],
@@ -217,6 +228,7 @@ class CaseController extends Controller
             'fieldJacket' => $fieldJacket,
             'jacketDue' => $jacketDue,
             'surveyors' => $jacketDue ? $jackets->surveyors() : collect(),
+            'waitingJobs' => $jacketDue ? $jackets->waitingJobs() : collect(),
             'itsDefault' => $fieldJacket && !$fieldJacket->job->its_number ? $jackets->defaultInstructions($fieldJacket) : null,
             'yesNoInstalled' => YesNoForms::installed(),
             'yesNoForm' => app(YesNoForms::class)->forCase($case),

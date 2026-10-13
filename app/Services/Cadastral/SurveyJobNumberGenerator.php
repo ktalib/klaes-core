@@ -38,6 +38,16 @@ class SurveyJobNumberGenerator
         );
     }
 
+    /**
+     * The number the next registered job should get, for display on the form.
+     * Not reserved: the real one is allocated on save, so it can differ if
+     * someone else registers a job first.
+     */
+    public function previewJobNumber(): string
+    {
+        return $this->nextJobNumber();
+    }
+
     /** Next Instruction to Surveyor number, e.g. "ITS/2026/0001". */
     public function nextItsNumber(): string
     {

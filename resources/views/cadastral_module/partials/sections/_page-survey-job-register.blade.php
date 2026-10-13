@@ -3,7 +3,7 @@
 
 <div class="page-header">
     <div>
-        <strong>{{ $job->job_number }}</strong> · {{ $job->file_number }}
+        <strong>{{ $job->job_number }}</strong> · {{ $job->file_number ?: 'No file attached yet' }}
         <span class="status-badge {{ $job->status_badge }}"><span class="dot"></span>{{ $job->status }}</span>
         @if ($job->field_jacket_no)
             · Field jacket <strong>{{ $job->field_jacket_no }}</strong>
@@ -36,6 +36,32 @@
     </div>
 @endif
 
+@if (! $job->file_number)
+    {{-- Not attached yet (user, 2026-10-12): its scope and the survey's location. The surveyor and
+         the file are attached at Assign to Surveyor (I to S). --}}
+    <form method="POST" action="{{ route('cadastral-module.survey-jobs.update', $job) }}" class="form-container">
+        @csrf @method('PUT')
+        <div class="card-header">
+            <strong>Job Details</strong>
+            <span class="helper-text" style="margin:0;">Not attached yet. The surveyor and the file are attached at Assign to Surveyor (I to S).</span>
+        </div>
+        <div class="form-body">
+            <div class="form-group">
+                <label>Job Scope</label>
+                <textarea name="job_scope" rows="3" maxlength="8000">{{ old('job_scope', $job->job_scope) }}</textarea>
+            </div>
+            @include('cadastral_module.partials._address_builder', [
+                'prefix' => 'prop_',
+                'mode'   => 'property',
+                'model'  => $job,
+                'legend' => 'Survey Location',
+            ])
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save Job</button>
+        </div>
+    </form>
+@else
 @include('cadastral_module.partials._wizard')
 
 @php
@@ -144,6 +170,7 @@
         <button type="submit" class="btn btn-primary" data-wizard-submit><i data-lucide="save"></i> Save Job</button>
     </div>
 </form>
+@endif
 
 {{-- The Instruction to Surveyor --}}
 <div class="form-container" style="margin-top:22px;">
@@ -169,6 +196,13 @@
             <div style="padding:12px 0;white-space:pre-wrap;">{{ $job->its_instructions }}</div>
             <div class="helper-text">
                 An issued instruction is not edited. If it is wrong, cancel the job and register a new one.
+            </div>
+        </div>
+    @elseif (! $job->file_number)
+        <div class="form-body">
+            <div class="caveat">
+                <i class="fas fa-circle-info"></i>
+                <div>The instruction is issued at Assign to Surveyor (I to S), once the job is attached to a file and a surveyor.</div>
             </div>
         </div>
     @elseif ($job->field_jacket_no)

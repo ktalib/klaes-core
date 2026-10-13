@@ -2321,6 +2321,13 @@
                                         <i data-lucide="arrow-right-left" class="w-4 h-4 text-blue-500"></i>
                                         <span class="font-medium">Move to OSS File Commissioning</span>
                                     </button>
+
+                                    <!-- This number is also on another physical folder: move this file to the next serial -->
+                                    <button onclick="moveCommissionedFile(event, ${row.id}, '${row.type || ''}')"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50 flex items-center space-x-3">
+                                        <i data-lucide="copy" class="w-4 h-4 text-rose-500"></i>
+                                        <span class="font-medium">Move Commissioned File</span>
+                                    </button>
                                     ` : ''}
                                     @endif
 
@@ -3831,7 +3838,6 @@
             formData.delete('old_fileno');
             formData.delete('old_fileno_title');
         }
-
         // Handle Direct Allocation (is_allocated check)
         if (alpineData && alpineData.applicationType === 'new' && alpineData.allocationId) {
             formData.set('allocation_id', alpineData.allocationId);
@@ -5526,6 +5532,121 @@
         });
 
         editRecord(id, type);
+    }
+
+    // "Move Commissioned File" (Supper Admin). This file's number is also on another
+    // PHYSICAL folder, so this record moves to the next available number of its own
+    // prefix (CON-RES stays CON-RES). The file number changes everywhere it is stored,
+    // and the tracking ID changes to the one the new number has in the grouping
+    // register. The old number is archived in deprecated_records.
+    // See App\Services\FileNumber\CommissionedFileMoveService.
+    function moveCommissionedFile(event, id, type) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        document.querySelectorAll('.action-dropdown-menu').forEach(d => {
+            d.classList.add('hidden');
+            d.classList.remove('show');
+        });
+
+        const row = $('#mlsfTable').DataTable().rows().data().toArray()
+            .find(r => String(r.id) === String(id) && String(r.type || '') === String(type || ''));
+        const fileNo = row ? (row.mlsfNo || '').toString().trim() : '';
+        if (!fileNo) {
+            Swal.fire('File not found', 'Refresh the list and try again.', 'warning');
+            return;
+        }
+
+        const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        const confirmMove = (preview, notice) => Swal.fire({
+            icon: 'question',
+            title: 'Move Commissioned File?',
+            html:
+                (notice ? '<p style="font-size:12px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-bottom:10px;">' + esc(notice) + '</p>' : '')
+                + '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 14px;">'
+                + '<span style="font-family:monospace;font-weight:700;color:#64748b;text-decoration:line-through;">' + esc(preview.old_file_number) + '</span>'
+                + '<span style="color:#94a3b8;">&rarr;</span>'
+                + '<span style="font-family:monospace;font-weight:800;font-size:16px;color:#e11d48;background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;padding:4px 10px;">' + esc(preview.new_file_number) + '</span>'
+                + '</div>'
+                + '<p style="font-size:12px;color:#475569;text-align:left;margin-bottom:6px;">'
+                + 'Use this when <strong>' + esc(preview.old_file_number) + '</strong> is also on another <strong>physical</strong> folder. '
+                + 'This file moves to the next available number above. <strong>Only the file number and its tracking ID change</strong>, in every record that holds them '
+                + '(file number, indexing, customer, entity, transactions, property ID, tracking, OSS, LAAS and history).'
+                + '</p>'
+                + '<p style="font-size:12px;color:#475569;text-align:left;margin-bottom:6px;">'
+                + 'Tracking ID: <span style="font-family:monospace;color:#64748b;text-decoration:line-through;">' + esc(preview.tracking_id || '—') + '</span> &rarr; '
+                + '<strong style="font-family:monospace;color:#e11d48;">' + esc(preview.new_tracking_id || 'new ID') + '</strong>'
+                + ' <span style="color:#94a3b8;">(from the grouping register for ' + esc(preview.new_file_number) + ')</span>'
+                + '</p>'
+                + '<p style="font-size:12px;color:#64748b;text-align:left;">'
+                + 'The old number is recorded in the deprecated records and will not be issued again.'
+                + '</p>',
+            width: 560,
+            showCancelButton: true,
+            confirmButtonText: 'Move to ' + preview.new_file_number,
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+            reverseButtons: true,
+            showLoaderOnConfirm: true,
+            allowOutsideClick: () => !Swal.isLoading(),
+            preConfirm: () => fetch('{{ route("mls-fileno.commissioned-file-move", [], false) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ file_number: preview.old_file_number, new_file_number: preview.new_file_number })
+            }).then(r => r.json().then(data => ({ status: r.status, data })))
+              .catch(() => ({ status: 0, data: { message: 'Network error. Nothing was changed.' } }))
+        }).then(result => {
+            if (!result.isConfirmed || !result.value) return;
+            const { status, data } = result.value;
+
+            // Someone took the number while the card was open: show the new one and ask again.
+            if (status === 409 && data.stale && data.new_file_number) {
+                confirmMove(Object.assign({}, preview, { new_file_number: data.new_file_number }),
+                    preview.new_file_number + ' was just taken. The next available number is now ' + data.new_file_number + '.');
+                return;
+            }
+            if (!data.success) {
+                Swal.fire('Not moved', data.message || 'Could not move the file. Nothing was changed.', 'error');
+                return;
+            }
+
+            const r = data.data || {};
+            Swal.fire({
+                icon: 'success',
+                title: 'File moved',
+                html: '<span style="font-family:monospace;">' + esc(r.old_file_number) + '</span> &rarr; '
+                    + '<strong style="font-family:monospace;">' + esc(r.new_file_number) + '</strong>'
+                    + '<p style="font-size:12px;color:#64748b;margin-top:6px;">Tracking ID <strong style="font-family:monospace;">' + esc(r.new_tracking_id) + '</strong></p>'
+                    + '<p style="font-size:12px;color:#64748b;margin-top:8px;">' + esc(r.rows) + ' record(s) updated. Print a new label for the folder.</p>',
+            });
+            $('#mlsfTable').DataTable().ajax.reload(null, false);
+        });
+
+        Swal.fire({ title: 'Preparing move…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        fetch('{{ route("mls-fileno.commissioned-file-move.preview", [], false) }}?file_number=' + encodeURIComponent(fileNo), {
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    Swal.fire('Cannot move', data.message || 'This file cannot be moved.', 'warning');
+                    return;
+                }
+                if (!data.data.has_grouping_row) {
+                    Swal.fire('Cannot move', data.data.new_file_number + ' has no row in the grouping register yet, so it has no tracking ID. Extend the register first.', 'warning');
+                    return;
+                }
+                confirmMove(data.data);
+            })
+            .catch(() => Swal.fire('Cannot move', 'Could not reach the server. Try again.', 'error'));
     }
 
     function editRecord(id, type) {

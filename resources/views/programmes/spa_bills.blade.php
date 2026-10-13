@@ -82,6 +82,63 @@
     been settled — so each item gets its own field, and the total is the sum of
     them (computed again on the server, which is the figure that is stored).
 --}}
+{{-- Send to Change of Purpose: the officer confirms the record and picks the old file number. --}}
+<div id="modal-send-cop" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-xl mx-4 max-h-[92vh] overflow-y-auto">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div>
+                <h3 class="text-base font-semibold text-gray-800">Send to Change of Purpose</h3>
+                <p id="sc-meta" class="text-xs text-gray-500 mt-0.5">—</p>
+            </div>
+            <button type="button" class="sc-close text-gray-400 hover:text-gray-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+        </div>
+        <form id="form-send-cop" class="p-6 space-y-4">
+            <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-3 grid grid-cols-2 gap-3 text-sm">
+                <div><p class="text-xs text-gray-500">Owner</p><p id="sc-owner" class="font-medium text-gray-800">—</p></div>
+                <div><p class="text-xs text-gray-500">Location</p><p id="sc-location" class="font-medium text-gray-800">—</p></div>
+                <div><p class="text-xs text-gray-500">Approved land use</p><p id="sc-approved" class="font-medium text-gray-800">—</p></div>
+                <div>
+                    <p class="text-xs text-gray-500">New purpose (prevailing land use)</p>
+                    <p id="sc-prevailing" class="font-semibold" style="color:#0d9488">—</p>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Type <span class="text-red-500">*</span></label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-start gap-2 rounded-lg border border-gray-200 p-2.5 cursor-pointer">
+                        <input type="radio" name="type" value="change_of_purpose" class="mt-0.5">
+                        <span class="text-sm font-semibold text-gray-800">Change of Purpose</span>
+                    </label>
+                    <label class="flex items-start gap-2 rounded-lg border border-gray-200 p-2.5 cursor-pointer">
+                        <input type="radio" name="type" value="conversion" class="mt-0.5">
+                        <span class="text-sm font-semibold text-gray-800">Conversion</span>
+                    </label>
+                </div>
+            </div>
+
+            {{-- Hidden for a Conversion: it takes no old file number. --}}
+            <div id="sc-old-block">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Old File Number <span id="sc-old-req" class="text-red-500">*</span></label>
+                <div class="flex gap-2">
+                    <input type="text" name="old_file_no" id="sc-old" readonly placeholder="Select the old file number"
+                        class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 font-mono">
+                    <button type="button" id="sc-pick" class="px-3 py-2 rounded-lg text-sm font-semibold text-white" style="background:rgb(186,191,12)">Select</button>
+                    <button type="button" id="sc-clear-old" class="px-3 py-2 rounded-lg text-sm text-gray-600 border border-gray-200">Clear</button>
+                </div>
+                <p id="sc-old-hint" class="text-[11px] text-gray-400 mt-1"></p>
+            </div>
+
+            <p class="text-xs text-gray-500">It goes into the Change of Purpose register already <b>approved</b>, source <b>SPAS</b>, ready to commission the new file number.</p>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" class="sc-close px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">Cancel</button>
+                <button type="submit" id="sc-submit" class="px-4 py-2 rounded-lg text-sm font-semibold text-white" style="background:#0d9488">Send to Change of Purpose</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="modal-pay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -183,7 +240,78 @@
     .dataTables_wrapper .dataTables_length select { border:1px solid #e5e7eb; border-radius:.5rem; padding:.25rem .5rem; }
 </style>
 
+@include('components.global-fileno-modal')
+<script src="{{ asset('js/global-fileno-modal.js') }}?v={{ @filemtime(public_path('js/global-fileno-modal.js')) }}"></script>
 <script src="{{ asset('js/spas-pipeline.js') }}?v={{ @filemtime(public_path('js/spas-pipeline.js')) }}"></script>
+<script>
+// ── Send to Change of Purpose ──────────────────────────────────────────────
+$(function () {
+    const modal = document.getElementById('modal-send-cop');
+    const form  = document.getElementById('form-send-cop');
+    const old   = document.getElementById('sc-old');
+    let rec = null;
+    const show = (on) => { modal.classList.toggle('hidden', !on); modal.classList.toggle('flex', on); };
+
+    // Old file no.: required for a Change of Purpose of a record that has one;
+    // optional for a Conversion and for a record captured without a file number.
+    function needsOld() {
+        const type = form.querySelector('input[name=type]:checked')?.value;
+        return type === 'change_of_purpose' && !!rec.file_number;
+    }
+    const isConversion = () => form.querySelector('input[name=type]:checked')?.value === 'conversion';
+    function refreshOld() {
+        const need = needsOld();
+        document.getElementById('sc-old-block').classList.toggle('hidden', isConversion());
+        document.getElementById('sc-old-req').classList.toggle('hidden', !need);
+        document.getElementById('sc-old-hint').textContent = !rec.file_number
+            ? 'Recorded without a file number — the new purpose is its prevailing land use.'
+            : 'The file whose purpose changes.';
+    }
+
+    $(document).on('click', '.btn-send-cop', function () {
+        rec = JSON.parse(this.dataset.send || '{}');
+        document.getElementById('sc-meta').textContent = [rec.spa_id, rec.bill ? 'Bill ' + rec.bill : null].filter(Boolean).join(' · ');
+        document.getElementById('sc-owner').textContent      = rec.owner || '—';
+        document.getElementById('sc-location').textContent   = rec.location || '—';
+        document.getElementById('sc-approved').textContent   = rec.approved_use || '—';
+        document.getElementById('sc-prevailing').textContent = rec.prevailing || '—';
+        old.value = rec.file_number || '';
+        form.querySelectorAll('input[name=type]').forEach((r) => { r.checked = r.value === rec.type; });
+        refreshOld();
+        show(true);
+    });
+    form.addEventListener('change', (e) => { if (e.target.name === 'type') refreshOld(); });
+    document.querySelectorAll('.sc-close').forEach((b) => b.addEventListener('click', () => show(false)));
+    document.getElementById('sc-clear-old').addEventListener('click', () => { old.value = ''; });
+    // File numbers come from the global selector, never typed.
+    document.getElementById('sc-pick').addEventListener('click', () => {
+        GlobalFileNoModal.open({ callback: (data) => { if (data && data.fileNumber) old.value = data.fileNumber; } });
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const type = form.querySelector('input[name=type]:checked')?.value;
+        if (!type) return Swal.fire({ icon: 'warning', title: 'Choose a type', text: 'Change of Purpose or Conversion.' });
+        if (needsOld() && !old.value.trim()) return Swal.fire({ icon: 'warning', title: 'Old file number', text: 'Select the old file number for a Change of Purpose.' });
+        const btn = document.getElementById('sc-submit'); btn.disabled = true;
+        try {
+            const r = await fetch('{{ url('special-assignment/land-records') }}/' + rec.id + '/send-to-change-of-purpose', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                // A Conversion sends no old file number, even one prefilled.
+                body: JSON.stringify({ type, old_file_no: type === 'conversion' ? null : (old.value.trim() || null) }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.success) throw new Error(d.message || (d.errors ? Object.values(d.errors)[0][0] : 'Not sent'));
+            show(false);
+            Swal.fire({ icon: 'success', title: 'Sent', text: d.message });
+            $.fn.DataTable.tables({ api: true }).ajax.reload(null, false);
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Not sent', text: err.message });
+        } finally { btn.disabled = false; }
+    });
+});
+</script>
 <script>
 const CSRF      = '{{ csrf_token() }}';
 const BILLS_URL = window.location.href;
@@ -249,7 +377,38 @@ $(document).ready(function () {
 
     // Pay button — the form is built from the bill's own items, so it has to be
     // loaded before the modal is any use.
-    $('#spa-bills-table').on('click', '.btn-pay', function () {
+    // ── Row ⋮ menu ─────────────────────────────────────────────────────────
+    // Opened FIXED and lifted to <body> so the table's scroll box never clips
+    // it (the last rows especially); its items are bound to the document.
+    function closeBillMenus() {
+        document.querySelectorAll('.bill-menu.is-open').forEach((m) => {
+            m.classList.add('hidden'); m.classList.remove('is-open');
+            if (m._home) m._home.appendChild(m);
+        });
+    }
+    $(document).on('click', '.btn-bill-menu', function (e) {
+        e.stopPropagation();
+        const menu = this.parentElement.querySelector('.bill-menu') || this._menu;
+        const wasOpen = menu && menu.classList.contains('is-open');
+        closeBillMenus();
+        if (!menu || wasOpen) return;
+        this._menu = menu; menu._home = this.parentElement;
+        document.body.appendChild(menu);
+        menu.classList.remove('hidden'); menu.classList.add('is-open');
+        Object.assign(menu.style, { position: 'fixed', zIndex: 2000 });
+        const r = this.getBoundingClientRect(), h = menu.offsetHeight, w = menu.offsetWidth;
+        const top = (window.innerHeight - r.bottom < h + 8 && r.top > h + 8) ? r.top - h - 4 : r.bottom + 4;
+        menu.style.top  = Math.max(8, top) + 'px';
+        menu.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+    });
+    $(document).on('click', (e) => { if (!e.target.closest('.bill-menu')) closeBillMenus(); });
+    $(document).on('click', '.bill-menu a, .bill-menu button', () => closeBillMenus());
+    window.addEventListener('scroll', (e) => { if (!e.target.closest || !e.target.closest('.bill-menu')) closeBillMenus(); }, true);
+    window.addEventListener('resize', closeBillMenus);
+    $('#spa-bills-table').on('preDraw.dt', closeBillMenus);
+
+    // Bound to the document, not the table: the menu is lifted out of it.
+    $(document).on('click', '.btn-pay', function () {
         const id = $(this).data('id');
         document.getElementById('pay-bill-id').value = id;
         window.SpasPipeline && SpasPipeline.mount(document.getElementById('pay-pipeline'), $(this).data('app'), { current: 'payment', force: true });

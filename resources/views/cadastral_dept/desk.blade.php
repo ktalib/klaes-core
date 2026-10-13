@@ -114,22 +114,41 @@
                     @if ($m && $m['question'] && ! $m['decision'])
                       <div class="px-3 pt-2 pb-1 text-xs font-bold text-gray-500 border-t border-gray-100">{{ $m['question'] }}</div>
                     @endif
+                    @if ($m && ($m['attach_job'] || $m['issue_its']))
+                      {{-- Assign to Surveyor (I to S): attach the surveyor's job, then issue the I to S. --}}
+                      <div class="border-t border-gray-100">
+                        @if ($m['attach_job'])
+                          <button type="button" class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50"
+                                  data-attach-job data-url="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
+                                  data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-plot="{{ $case->plot_no }}"
+                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}">
+                            <span class="inline-flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> Attach Survey Job</span>
+                            <span class="block text-xs text-gray-500">Pick the job and the surveyor; then issue the I to S</span>
+                          </button>
+                        @else
+                          <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
+                            <span class="inline-flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Issue I to S</span>
+                            <span class="block text-xs text-gray-500">On the file page</span>
+                          </a>
+                        @endif
+                      </div>
+                    @endif
                     @if ($m && $m['custody'])
                       {{-- Registry: Attach Land File / Detach Correspondence, then Send to Deeds appears. --}}
                       @php
                         $cdCustLabel = $m['custody'] === 'detach' ? 'Detach Correspondence' : 'Attach Land File';
                         $cdCorr = $case->shadow_fileno ?: $case->correspondence_fileno;
                       @endphp
-                      <form method="POST" action="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}" class="border-t border-gray-100"
-                            data-confirm-title="{{ $cdCustLabel }}?"
-                            data-confirm="{{ $m['custody'] === 'detach' ? 'Detach correspondence file ' . $cdCorr . ' from ' . $case->file_number . ' and archive it.' : 'Attach correspondence file ' . $cdCorr . ' to land file ' . $case->file_number . '.' }}">
-                        @csrf
-                        <input type="hidden" name="action" value="{{ $m['custody'] }}">
-                        <button class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
+                      {{-- Opens the side-by-side preview (partials/_custody_preview), which submits. --}}
+                      <div class="border-t border-gray-100">
+                        <button type="button" class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50"
+                                data-custody-open="{{ $m['custody'] }}" data-url="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}"
+                                data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-title="{{ $case->file_title }}"
+                                data-corr="{{ $case->correspondence_fileno }}" data-csf="{{ $case->shadow_fileno }}">
                           <span class="inline-flex items-center gap-2"><i data-lucide="{{ $m['custody'] === 'detach' ? 'unlink' : 'link' }}" class="w-4 h-4"></i> {{ $cdCustLabel }}</span>
                           <span class="block text-xs text-gray-500">{{ $m['tasks_open'] ? 'Then finish ' . $m['tasks_open'] . ' more task(s)' : ($m['custody'] === 'detach' ? 'Then Send to Deeds' : 'Then send on') }}</span>
                         </button>
-                      </form>
+                      </div>
                     @elseif ($m && $m['tasks_open'])
                       <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-yellow-800 hover:bg-yellow-50">
                         Finish {{ $m['tasks_open'] }} task(s) first
@@ -239,6 +258,10 @@
   </div>
   @include('admin.footer')
 </div>
+@include('cadastral_dept.partials._custody_preview')
+@if ($waitingJobs !== null)
+  @include('cadastral_dept.field_jackets._attach_job_modal')
+@endif
 @endsection
 
 @push('scripts')

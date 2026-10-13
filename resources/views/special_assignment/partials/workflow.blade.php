@@ -23,13 +23,13 @@
                             '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'],
         'payment'       => ['Payment',       'Bill settled',                 '#16a34a', '#4ade80', route('programmes.bills').'?url=spa',
                             '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>'],
-        'newfile'       => ['New File No.',  'Change of Purpose / New Conversion', '#0d9488', '#2dd4bf', route('change-of-purpose.index'),
+        'newfile'       => ['New File No.',  'Change of Purpose / New Conversion', '#0d9488', '#2dd4bf', route('change-of-purpose.index', ['view' => 'initiate']),
                             '<path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/><path d="M8 15h8M8 18h5"/>'],
         'memo'          => ['Memo',          'Forward to Commissioner',      '#7c3aed', '#a78bfa', route('special-assignment.memo'),
                             '<path d="M4 4h16v16H4z"/><path d="m4 6 8 6 8-6"/>'],
-        'decision'      => ['Decision',      'Approve or reject',            '#9333ea', '#c084fc', route('special-assignment.memo'),
-                            '<path d="m14 13-7.5 7.5a2.1 2.1 0 0 1-3-3L11 10"/><path d="m16 16 6-6M8 8l6-6M9 7l8 8M21 11l-8-8"/>'],
-        'certificate'   => ['Certificate',   'Change of Purpose sheet',      '#db2777', '#f472b6', route('special-assignment.certificate'),
+        'decision'      => ['Decision',      'Approve or reject',            '#b8860b', '#facc15', route('special-assignment.memo'),
+                            '<path d="M12 3v18"/><path d="M7 21h10"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>'],
+        'certificate'   => ['Certificate',   'Contravention sheet',      '#db2777', '#f472b6', route('special-assignment.certificate'),
                             '<circle cx="12" cy="8" r="6"/><path d="M15.5 12.9 17 22l-5-3-5 3 1.5-9.1"/>'],
     ];
 @endphp
@@ -43,7 +43,7 @@
             </span>
             <div>
                 <div class="text-sm font-bold text-gray-800 leading-tight">SPAS Workflow</div>
-                <div class="text-xs text-gray-500">From land record to Change of Purpose sheet</div>
+                <div class="text-xs text-gray-500">From land record to Contravention sheet</div>
             </div>
         </div>
         @if($wfCounts)

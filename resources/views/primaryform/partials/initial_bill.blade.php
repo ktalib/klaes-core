@@ -14,45 +14,20 @@
 
 <div class="bg-gray-50 p-4 rounded-md mb-6">
   <h3 class="font-medium text-center mb-4">
-    {{ request()->query('landuse') === 'Mixed' ? 'MIXED INITIAL BILL (Residential + Commercial)' : 'INITIAL BILL' }}
+    {{ \App\Services\StInitialBillSchedule::isMixed(request()->query('landuse')) ?'MIXED INITIAL BILL (Residential + Commercial)' : 'INITIAL BILL' }}
   </h3>
   
   @php
+      // Schedule lives in StInitialBillSchedule; the store recomputes from it too.
       $landUse = request()->query('landuse');
-
-      if ($landUse === 'Mixed') {
-          // Residential fees
-          $residentialApplicationFee = '10000.00';
-          $residentialProcessingFee  = '20000.00';
-          $residentialSitePlanFee    = '10000.00';
-          // Commercial fees
-          $commercialApplicationFee = '20000.00';
-          $commercialProcessingFee  = '50000.00';
-          $commercialSitePlanFee    = '10000.00';
-
-          // Aggregate Mixed fees (Residential + Commercial)
-          $applicationFee = floatval($residentialApplicationFee) + floatval($commercialApplicationFee);
-          $processingFee  = floatval($residentialProcessingFee)  + floatval($commercialProcessingFee);
-          $sitePlanFee    = floatval($residentialSitePlanFee)    + floatval($commercialSitePlanFee);
-
-          // Mixed total from aggregated fees
-          $totalFee = $applicationFee + $processingFee + $sitePlanFee;
-      } else {
-          // Single land use (Commercial/Industrial => commercial rates; else residential)
-          if ($landUse === 'Commercial' || $landUse === 'Industrial') {
-              $applicationFee = '20000.00';
-              $processingFee  = '50000.00';
-              $sitePlanFee    = '10000.00';
-          } else {
-              $applicationFee = '10000.00';
-              $processingFee  = '20000.00';
-              $sitePlanFee    = '10000.00';
-          }
-          $totalFee = floatval($applicationFee) + floatval($processingFee) + floatval($sitePlanFee);
-      }
+      $initialBill = \App\Services\StInitialBillSchedule::forLandUse($landUse);
+      $applicationFee = $initialBill['application_fee'];
+      $processingFee  = $initialBill['processing_fee'];
+      $sitePlanFee    = $initialBill['site_plan_fee'];
+      $totalFee = $applicationFee + $processingFee + $sitePlanFee;
   @endphp
 
-  @if ($landUse === 'Mixed')
+  @if (\App\Services\StInitialBillSchedule::isMixed($landUse))
     <h4 class="font-medium text-center mb-2"> </h4>
     
     <!-- Application Fee -->

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CadastralDept\CadastralCase;
 use App\Services\CadastralDept\CaseWorkflow;
 use App\Services\CadastralDept\CorrespondenceCustody;
+use App\Services\CadastralDept\FieldJackets;
 use App\Services\CadastralDept\DeedsDispatchChecks;
 use App\Services\CadastralDept\DeskQueues;
 use App\Services\CadastralDept\FileMovementCards;
@@ -122,6 +123,8 @@ class DeskController extends Controller
         foreach ($here->concat($away) as $case) {
             $menus[$case->id] = $this->menu($engine, $case);
         }
+        // Assign to Surveyor (I to S): the jobs waiting for a file, for the Attach Survey Job pop-up.
+        $attachDue = collect($menus)->contains(fn ($m) => $m['attach_job']);
 
         return view('cadastral_dept.desk', [
             'def' => $def,
@@ -136,6 +139,8 @@ class DeskController extends Controller
             'sentLimit' => self::SENT_LIMIT,
             'menus' => $menus,
             'fmcInstalled' => FileMovementCards::installed(),
+            'waitingJobs' => $attachDue ? app(FieldJackets::class)->waitingJobs() : null,
+            'surveyors' => $attachDue ? app(FieldJackets::class)->surveyors() : collect(),
             'filterWorkflow' => $wfFilter,
             'term' => $term,
             'queueKey' => $queueKey,
@@ -181,6 +186,11 @@ class DeskController extends Controller
         }
         $open = count($missing) - ($custody ? 1 : 0);
 
+        // Assign to Surveyor (I to S): attach the surveyor's job, then issue the I to S (user, 2026-10-12).
+        $jackets = FieldJackets::installed();
+        $attachJob = $jackets && in_array(FieldJackets::TASK_JACKET, $missing, true);
+        $issueIts = $jackets && !$attachJob && in_array(FieldJackets::TASK_ITS, $missing, true);
+
         try {
             $actions = $engine->actions($case->workflow, $case->current_step, $case->sub_type);
         } catch (WorkflowGuardException $e) {
@@ -202,7 +212,7 @@ class DeskController extends Controller
         // whose pop-up offers the answers.
         $decision = !empty($step['question']) && count($actions) > 1 ? ($step['menu_label'] ?? $step['label']) : null;
 
-        return ['tasks_open' => $open, 'custody' => $custody, 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
+        return ['tasks_open' => $open, 'custody' => $custody, 'attach_job' => $attachJob, 'issue_its' => $issueIts, 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
             'question' => $step['question'] ?? null, 'decision' => $decision];
     }
 }

@@ -158,6 +158,7 @@
                                     <div class="text-[8px] font-bold text-slate-300 normal-case tracking-normal mt-0.5">dciv_link &middot; file_indexing_links</div>
                                 </th>
                                 <th class="px-6 py-4 whitespace-nowrap">File Title</th>
+                                <th class="px-6 py-4 text-center whitespace-nowrap">Serial No</th>
                                 <th class="px-6 py-4 text-center whitespace-nowrap">TP No</th>
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Plot No</th>
                                 <th class="px-6 py-4 whitespace-nowrap">LGA</th>
@@ -255,6 +256,12 @@
                                              <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Reason why the file is under investigation <span class="text-red-500 ">*</span></label>
                                                 <input type="text" x-model="formData.reason" placeholder="Enter Reason" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
+                                            </div>
+
+                                            <!-- Serial No: free-text attribute, not the file-number serial; no validation -->
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Serial No</label>
+                                                <input type="text" x-model="formData.serial_no" placeholder="Enter Serial No" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
                                             </div>
 
                                             <!-- Location Details -->
@@ -624,6 +631,11 @@
                                             <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Reason why the file is under investigation</label>
                                                 <input type="text" x-model="formData.reason" :disabled="viewMode" placeholder="Enter Reason" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50">
+                                            </div>
+
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Serial No</label>
+                                                <input type="text" x-model="formData.serial_no" :disabled="viewMode" placeholder="Enter Serial No" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50">
                                             </div>
 
                                             <!-- Location Details -->
@@ -1062,12 +1074,13 @@ $(document).ready(function() {
             type: 'GET'
         },
         pageLength: 20,
-        order: [[10, 'desc']],
+        order: [[11, 'desc']],
         columns: [
             { data: null, name: 'sn', orderable: false, searchable: false, className: 'text-center font-bold text-slate-400 text-xs whitespace-nowrap', render: function(data, type, row, meta) { return meta.row + meta.settings._iDisplayStart + 1; } },
             { data: 'file_number', name: 'full_file_number', orderable: true },
             { data: 'related_fileno', name: 'related_fileno', orderable: false, searchable: false, className: 'text-center' },
             { data: 'file_name', name: 'file_name', orderable: true, className: 'font-medium text-slate-700 whitespace-nowrap' },
+            { data: 'serial_no', name: 'serial_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
             { data: 'tp_no', name: 'tp_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
             { data: 'plot_no', name: 'plot_no', orderable: true, className: 'text-center font-mono text-xs whitespace-nowrap' },
             { data: 'lga', name: 'lga', orderable: true, className: 'text-xs font-bold text-slate-600 whitespace-nowrap' },

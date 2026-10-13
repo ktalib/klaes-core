@@ -87,6 +87,15 @@ class CaseWorkflow
             $subType = $def->defaultSubType($workflow);
         }
 
+        // Verification: Resettlement or Direct as well, from Direct Allocation's sub-types.
+        $allocationRoute = null;
+        if ($routesFrom = $def->workflow($workflow)['asks_allocation_route'] ?? null) {
+            $allocationRoute = ($data['allocation_route'] ?? '') ?: null;
+            if (!$allocationRoute || !isset($def->subTypes($routesFrom)[$allocationRoute])) {
+                throw WorkflowGuardException::because('Choose whether this ' . $def->workflow($workflow)['label'] . ' file is ' . implode(' or ', $def->subTypes($routesFrom)) . '.');
+            }
+        }
+
         if (!isset($def->fileSources()[$data['file_source'] ?? ''])) {
             throw WorkflowGuardException::because('Choose where the file came from.');
         }
@@ -102,7 +111,7 @@ class CaseWorkflow
             throw WorkflowGuardException::because('Pick the file with the file number selector.');
         }
 
-        return DB::connection(self::CONN)->transaction(function () use ($data, $def, $workflow, $subType, $fileNumber, $userId, $sourceOther) {
+        return DB::connection(self::CONN)->transaction(function () use ($data, $def, $workflow, $subType, $fileNumber, $userId, $sourceOther, $allocationRoute) {
             $open = CadastralCase::query()->open()
                 ->where('file_number', $fileNumber)
                 ->lockForUpdate()
@@ -121,6 +130,7 @@ class CaseWorkflow
                 'file_type' => $data['file_type'],
                 'file_source' => $data['file_source'],
                 'file_source_other' => $sourceOther,
+            ] + ($allocationRoute !== null ? ['allocation_route' => $allocationRoute] : []) + [
                 'file_number' => $fileNumber,
                 'file_indexing_id' => $data['file_indexing_id'] ?? null,
                 'file_system' => $data['file_system'] ?? null,
@@ -267,13 +277,13 @@ class CaseWorkflow
         });
     }
 
-    /** An OP file's sub-type. Changeable only until the file has been routed on it. */
+    /** A Direct Allocation file's sub-type. Changeable only until the file has been routed on it. */
     public function setSubType(CadastralCase $case, string $subType, ?int $userId): string
     {
         $this->assertOpen($case);
         $def = $this->def();
-        if (empty($def->fileTypes()[$case->file_type]['asks_sub_type'])) {
-            throw WorkflowGuardException::because('Only an OP file chooses between Resettlement and Direct.');
+        if (empty($def->fileTypes()[$case->file_type]['asks_sub_type']) && empty($def->workflow($case->workflow)['asks_sub_type'])) {
+            throw WorkflowGuardException::because('This file does not choose a sub-type.');
         }
         if (!isset($def->subTypes($case->workflow)[$subType])) {
             throw WorkflowGuardException::because('That sub-type does not belong to this application type.');

@@ -74,6 +74,7 @@ class ChartingController extends Controller
             'suggestions' => $due['stage'] === 'check' ? [] : $this->cards->suggestions($case),
             'reasons' => ChartingCards::NOT_CHARTED_REASONS,
             'fmc' => \App\Services\CadastralDept\FileMovementCards::installed() ? $case->fmc : null,
+            'metricSheets' => app(\App\Services\CadastralDept\MetricSheets::class)->all(),
         ]);
     }
 
@@ -94,7 +95,8 @@ class ChartingController extends Controller
             'match_note' => 'nullable|string|max:1000',
             'description' => 'nullable|string|max:4000',
             'sheet_type' => 'nullable|in:metric,imperial',
-            'sheet_no' => 'nullable|string|max:50',
+            'sheet_no' => 'nullable|required_if:sheet_other,1|string|max:50',
+            'sheet_other' => 'nullable|in:0,1',
             'layout' => 'nullable|string|max:150',
             'plan_no' => 'nullable|string|max:100',
             'remarks' => 'nullable|string|max:4000',
@@ -103,6 +105,8 @@ class ChartingController extends Controller
             'beacons.*.easting' => 'nullable|string|max:30',
             'beacons.*.northing' => 'nullable|string|max:30',
             'beacons.*.remarks' => 'nullable|string|max:255',
+        ], [
+            'sheet_no.required_if' => 'Specify the sheet: Other was chosen.',
         ]);
 
         try {

@@ -59,4 +59,14 @@ return [
         // CSU, ALL, Public Enlightenment, Revenue: no office in `offices` yet.
     ],
 
+    /*
+    | Legacy hand-overs. A file sent to an office before this moment by anything
+    | other than File Movement (Log a File, imports) was never received here, but
+    | the office already has it. Such files are listed under "Held at my office",
+    | not "Pending receipt", and can be sent on without receiving them first.
+    | Hand-overs made after this moment wait for receipt as usual. Display only:
+    | no stored log entry is changed until the file is sent on.
+    */
+    'legacy_pending_before' => '2026-10-13T04:37:00+01:00',
+
 ];

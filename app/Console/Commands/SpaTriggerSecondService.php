@@ -151,7 +151,11 @@ class SpaTriggerSecondService extends Command
                 $smsSent = false;
 
                 try {
-                    $smsSent = $sms->send($first->phone, SpaNotice::smsBody('second'));
+                    // Wording, switch and sender from SMS Management (KANOMLPP).
+                    $smsSent = SpaNotice::smsEnabled('second')
+                        && $sms->send($first->phone,
+                            SpaNotice::smsBody('second', ['Name' => (string) $first->recipient_name, 'FileNo' => (string) $first->file_number]),
+                            SpaNotice::smsSender('second'));
                 } catch (\Throwable $e) {
                     Log::warning('SPAS auto-second-serve SMS failed', [
                         'phone' => $first->phone,

@@ -21,7 +21,7 @@
     @endphp
 
     <form method="POST" action="{{ route('cadastral-dept.cases.store') }}" class="space-y-5"
-          x-data="cdIntake(@js($cdWorkflows), @js($cdFileTypes), @js($cdOld), '{{ route('cadastral-dept.lookup.file') }}')"
+          x-data="cdIntake(@js($cdWorkflows), @js($cdFileTypes), @js($cdOld), '{{ route('cadastral-dept.lookup.file') }}', '{{ route('cadastral-dept.lookup.files') }}')"
           @submit="if (!canSubmit()) { $event.preventDefault(); }"
           data-confirm-title="Register this file?" data-confirm="The file is registered and sent to the first desk.">
       @csrf
@@ -46,7 +46,9 @@
         $cdEngine = app(\App\Services\CadastralDept\WorkflowEngine::class);
         $cdPipes = [];
         foreach ($def->workflows() as $cdK => $cdW) {
-            foreach (($cdW['sub_types'] ?? null) && empty($cdW['asks_sub_type']) ? array_keys($cdW['sub_types']) : [null] as $cdSub) {
+            // One preview per sub-type where the sub-type changes the route (Direct: Resettlement / Direct).
+            $cdRoutes = collect($cdW['steps'])->contains(fn ($s) => ($s['route_by'] ?? null) === 'sub_type');
+            foreach (($cdW['sub_types'] ?? null) && $cdRoutes ? array_keys($cdW['sub_types']) : [null] as $cdSub) {
                 $cdPipes[$cdK . '|' . $cdSub] = [$cdK, $cdSub, $cdW, $cdEngine->pipeline($cdK, $cdSub)];
             }
         }
@@ -61,7 +63,7 @@
         </section>
       @endforeach
 
-      {{-- 2. File type, and OP's sub-type --}}
+      {{-- 2. File type, and Direct Allocation's sub-type --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">2 · File type</h3>
         <div class="flex flex-wrap gap-2">
@@ -75,7 +77,7 @@
         </div>
 
         <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3" x-show="asksSubType()" x-cloak>
-          <div class="text-sm font-semibold text-blue-900 mb-2">OP file: Resettlement or Direct? <span class="text-red-600">*</span></div>
+          <div class="text-sm font-semibold text-blue-900 mb-2">Resettlement or Direct? <span class="text-red-600">*</span></div>
           <div class="flex flex-wrap gap-4 text-sm">
             @foreach ($cdSubTypes as $k => $label)
               <label class="inline-flex items-center gap-2">
@@ -85,9 +87,6 @@
           </div>
           <p class="text-xs text-blue-800 mt-2">Resettlement goes to the Compensation Unit; Direct goes straight to Director Land.</p>
         </div>
-        <p class="mt-3 text-xs text-gray-500" x-show="workflow === 'direct' && fileType && !asksSubType()" x-cloak>
-          Not an OP file, so it takes the Direct route (straight to Director Land after charting).
-        </p>
 
         {{-- Verification: Statutory or Customary, preselected from the file type, always required. --}}
         <div class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3" x-show="workflow === 'verification' && fileType" x-cloak>
@@ -100,10 +99,20 @@
             @endforeach
           </div>
           <p class="text-xs text-green-800 mt-2">Picked from the file type where it is clear; change it if this file is the other kind.</p>
+
+          {{-- And Resettlement or Direct (user, 2026-10-12). --}}
+          <div class="text-sm font-semibold text-green-900 mt-4 mb-2">Resettlement or Direct? <span class="text-red-600">*</span></div>
+          <div class="flex flex-wrap gap-4 text-sm">
+            @foreach ($cdSubTypes as $k => $label)
+              <label class="inline-flex items-center gap-2">
+                <input type="radio" name="allocation_route" value="{{ $k }}" x-model="allocationRoute" :disabled="workflow !== 'verification'"> {{ $label }}
+              </label>
+            @endforeach
+          </div>
         </div>
       </section>
 
-      {{-- 3. The file: from the global selector only, never typed --}}
+      {{-- 3. The file: picked from the indexed files for the application type, never typed (user, 2026-10-12) --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1"
             x-text="workflow === 'verification' ? '3 · Search the correspondence file' : '3 · File'"></h3>
@@ -114,12 +123,30 @@
         {{-- Two halves (user, 2026-10-12): the picker on the left, the picked file's brief details on the right. --}}
         <div class="grid gap-5 md:grid-cols-2 items-start">
         <div>
-        <div class="flex gap-2">
-          <input type="text" :value="fileNumber" disabled placeholder="No file selected"
-                 class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono bg-gray-100 text-gray-700">
-          <button type="button" @click="pickFile()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold inline-flex items-center gap-2">
-            <i data-lucide="folder-search" class="w-4 h-4"></i> Select File Number
+        <label class="block text-sm font-semibold text-gray-700 mb-1" x-text="listLabel()"></label>
+        <div class="relative" @click.outside="listOpen = false" @keydown.escape="listOpen = false">
+          <button type="button" @click="toggleList()"
+                  class="w-full flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-left">
+            <span class="font-mono truncate" :class="fileNumber ? 'text-gray-800' : 'text-gray-400'" x-text="fileNumber || 'Choose a file'"></span>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
           </button>
+          <div x-show="listOpen" x-cloak class="absolute z-30 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+            <div class="p-2 border-b border-gray-100">
+              <input type="text" x-ref="listSearch" x-model="listTerm" @input.debounce.300ms="loadList()"
+                     placeholder="Type the file number or title" class="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm">
+            </div>
+            <div class="max-h-72 overflow-auto">
+              <div class="px-3 py-2 text-sm text-gray-500" x-show="listLoading">Loading…</div>
+              <div class="px-3 py-2 text-sm text-gray-500" x-show="!listLoading && !listRows.length">No indexed file matches.</div>
+              <template x-for="r in listRows" :key="r.id">
+                <button type="button" @click="pickRow(r)" class="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50">
+                  <span class="font-mono font-semibold" x-text="r.file_number"></span>
+                  <span class="block text-xs text-gray-500 truncate" x-text="[r.title, r.plot ? 'Plot ' + r.plot : '', r.district, r.lga].filter(Boolean).join(' · ')"></span>
+                </button>
+              </template>
+            </div>
+            <div class="px-3 py-1.5 text-xs text-gray-400 border-t border-gray-100" x-show="listRows.length >= 30">Showing the first 30; type to narrow.</div>
+          </div>
         </div>
         <input type="hidden" name="file_number" :value="fileNumber">
         <input type="hidden" name="file_indexing_id" :value="fileIndexingId">
@@ -223,16 +250,17 @@
   @include('admin.footer')
 </div>
 
-@include('components.global-fileno-modal')
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/global-fileno-modal.js') }}"></script>
 <script>
-  function cdIntake(workflows, fileTypes, old, lookupUrl) {
+  function cdIntake(workflows, fileTypes, old, lookupUrl, listUrl) {
+    old = old || {};
     return {
-      workflows, fileTypes, lookupUrl,
+      workflows, fileTypes, lookupUrl, listUrl,
+      listOpen: false, listTerm: '', listRows: [], listLoading: false, listFor: null,
       workflow: old.workflow || '', fileType: old.file_type || '', subType: old.sub_type || '',
+      allocationRoute: old.allocation_route || '',
       fileSource: old.file_source || '', fileSourceOther: old.file_source_other || '',
       fileNumber: old.file_number || '', fileIndexingId: old.file_indexing_id || '',
       fileSystem: old.file_system || '', trackingId: old.tracking_id || '',
@@ -243,14 +271,42 @@
         if (this.fileNumber) this.lookup({ file_number: this.fileNumber, tab: this.fileSystem, file_indexing_id: this.fileIndexingId });
       },
       typesFor() { return this.fileTypes.filter(t => t.workflows.includes(this.workflow)); },
-      asksSubType() {
-        const t = this.fileTypes.find(t => t.key === this.fileType);
-        return this.workflow === 'direct' && t && t.asks;
-      },
+      // Every Direct Allocation file chooses Resettlement or Direct (user, 2026-10-12).
+      asksSubType() { return this.workflow === 'direct' && !!this.fileType; },
       onWorkflow() {
         if (!this.typesFor().some(t => t.key === this.fileType)) this.fileType = '';
-        this.subType = '';
+        this.subType = ''; this.allocationRoute = '';
         this.onFileType();
+        // Each type lists different files, so the previous pick goes.
+        this.fileNumber = ''; this.fileIndexingId = ''; this.trackingId = ''; this.fileSystem = '';
+        this.result = null; this.listRows = []; this.listTerm = ''; this.listFor = null; this.listOpen = false;
+      },
+      listLabel() {
+        return { conversion: 'Indexed Conversion file (CON-)', direct: 'Indexed Direct Allocation file (RES- / COM- / IND- / AG-)',
+                 verification: 'Indexed file with a correspondence file' }[this.workflow] || 'File';
+      },
+      toggleList() {
+        this.listOpen = !this.listOpen;
+        if (!this.listOpen) return;
+        if (this.listFor !== this.workflow) this.loadList();
+        this.$nextTick(() => this.$refs.listSearch && this.$refs.listSearch.focus());
+      },
+      async loadList() {
+        this.listLoading = true; this.listFor = this.workflow;
+        try {
+          const res = await fetch(this.listUrl + '?' + new URLSearchParams({ workflow: this.workflow, q: this.listTerm }), { headers: { 'Accept': 'application/json' } });
+          this.listRows = await res.json();
+        } catch (e) {
+          this.listRows = [];
+        }
+        this.listLoading = false;
+      },
+      pickRow(r) {
+        this.listOpen = false;
+        this.fileSystem = '';
+        this.trackingId = r.tracking_id || '';
+        this.fileIndexingId = r.id;
+        this.lookup({ file_number: r.file_number, file_indexing_id: r.id });
       },
       // Verification: preselect Statutory / Customary from the file type (DCIV / LPCC can be either).
       onFileType() {
@@ -260,16 +316,6 @@
         } else if (!this.asksSubType()) {
           this.subType = '';
         }
-      },
-      pickFile() {
-        GlobalFileNoModal.open({
-          callback: (data) => {
-            this.fileSystem = data.system || data.tab || '';
-            this.trackingId = data.tracking_id || '';
-            this.fileIndexingId = '';
-            this.lookup({ file_number: data.fileNumber || '', tab: this.fileSystem });
-          }
-        });
       },
       choose(id) { this.lookup({ file_number: this.fileNumber, tab: this.fileSystem, file_indexing_id: id }); },
       async lookup(q) {
@@ -294,6 +340,7 @@
         if (!this.fileType) return 'Choose the file type.';
         if (this.asksSubType() && !this.subType) return 'Choose Resettlement or Direct.';
         if (this.workflow === 'verification' && !this.subType) return 'Choose Statutory or Customary.';
+        if (this.workflow === 'verification' && !this.allocationRoute) return 'Choose Resettlement or Direct.';
         if (!this.result || this.result.status !== 'ok') return 'Select a file that can be registered.';
         if (this.workflow === 'verification' && !(this.result.correspondence && this.result.correspondence.exists)) return 'Verification needs a correspondence file.';
         if (!this.fileSource) return 'Choose where the file came from.';

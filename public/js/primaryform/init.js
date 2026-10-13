@@ -66,7 +66,9 @@ function initializeFormHandlers() {
             !fieldName ||
             fieldName.includes('payment_date') ||
             fieldName.includes('receipt') ||
-            input.classList.contains('initial-bill-date')
+            input.classList.contains('initial-bill-date') ||
+            input.readOnly ||
+            input.classList.contains('fee-input')
         ) {
             return;
         }

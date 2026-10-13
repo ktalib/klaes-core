@@ -583,6 +583,8 @@ class SpecialAssignmentController extends Controller
 
                                    return [
                                        'DT_RowIndex' => $request->input('start', 0) + $i + 1,
+                                       // The 1st Serve to print, once served (batch print).
+                                       'notice_id'   => $served ? $notice->id : null,
                                        'spa_id'      => $a->spa_id ?? '—',
                                        'file_number' => $a->file_shown ?: '—',
                                        'recipient'   => $recipient,
@@ -803,8 +805,8 @@ class SpecialAssignmentController extends Controller
             ]);
         }
 
-        $PageTitle       = 'Special Assignment – Change of Purpose Sheet';
-        $PageDescription = 'Issue and track Change of Purpose Sheets.';
+        $PageTitle       = 'Special Assignment – Contravention Sheet';
+        $PageDescription = 'Issue and track Contravention Sheets.';
         $stats = [
             'total'     => SpaCertificate::count(),
             'issued'    => SpaCertificate::where('status', 'issued')->count(),
@@ -1350,6 +1352,29 @@ class SpecialAssignmentController extends Controller
         return response()->json(['success' => true, 'message' => "{$number} recorded for " . ($app->spa_id ?: $app->file_number) . '.']);
     }
 
+    /** Send a settled record to Change of Purpose, from the card on the Bills table. */
+    public function sendToChangeOfPurpose(Request $request, int $id, \App\Services\SpaNewFileService $newFile)
+    {
+        $data = $request->validate([
+            'type'        => 'required|in:change_of_purpose,conversion',
+            'old_file_no' => 'nullable|string|max:255',
+        ]);
+        $app = SpaApplication::findOrFail($id);
+
+        try {
+            $cop = $newFile->sendToChangeOfPurpose($app, $data['old_file_no'] ?? null, $data['type'], auth()->id());
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        app(\App\Services\AuditService::class)->logAction('SPAS Sent to Change of Purpose', 'SpaApplication', $app->id,
+            ['cop_id' => $cop->id, 'type' => $data['type'], 'old_file_no' => $cop->file_no], null,
+            ($app->spa_id ?: $app->file_number) . ' sent to Change of Purpose' . ($cop->file_no ? " ({$cop->file_no})" : ' (no old file number)') . '.');
+
+        return response()->json(['success' => true, 'cop_id' => $cop->id,
+            'message' => ($app->spa_id ?: $app->file_number) . ' sent to Change of Purpose — approved and ready to commission.']);
+    }
+
     /** Workflow stages for the given records — painted by public/js/spas-pipeline.js. */
     public function pipelineStatus(Request $request, \App\Services\SpaPipelineService $pipeline)
     {
@@ -1725,7 +1750,7 @@ class SpecialAssignmentController extends Controller
 
         $app->update(['status' => 'certificate_issued']);
 
-        return response()->json(['success' => true, 'cert_number' => $cert->cert_number, 'message' => "Change of Purpose Sheet {$cert->cert_number} issued."]);
+        return response()->json(['success' => true, 'cert_number' => $cert->cert_number, 'message' => "Contravention Sheet {$cert->cert_number} issued."]);
     }
 
     public function printCertificate(int $id)
@@ -2023,8 +2048,6 @@ class SpecialAssignmentController extends Controller
     {
         $paid = (float) \App\Models\SpaPayment::where('spa_bill_id', $bill->id)->sum('amount_paid');
         $bill->update(['status' => $paid <= 0 ? 'unpaid' : ($paid >= (float) $bill->amount ? 'paid' : 'partial')]);
-        // Taking an item off can leave the bill fully paid: settled, so hand it on.
-        app(\App\Services\SpaNewFileService::class)->onBillChanged($bill, auth()->id());
     }
 
     /**
@@ -2117,10 +2140,6 @@ class SpecialAssignmentController extends Controller
         });
 
         $bill->refresh();
-
-        // Settled: hand the record on for its new file number (Change of Purpose
-        // or New Conversion). After the payment's transaction, and never throws.
-        app(\App\Services\SpaNewFileService::class)->onBillChanged($bill, auth()->id());
 
         return response()->json([
             'success'     => true,
@@ -2302,6 +2321,24 @@ class SpecialAssignmentController extends Controller
     }
 
     /** The printable notice letter for one First or Second Serve. */
+    /**
+     * Batch print: the selected 1st Serve notices in one document, one per
+     * sheet, in the order they were picked. Anything that is not a 1st Serve
+     * is left out and counted.
+     */
+    public function printNoticeBatch(Request $request)
+    {
+        $ids = collect((array) $request->input('ids', []))->map(fn ($id) => (int) $id)->filter()->unique()->take(500)->values();
+        abort_if($ids->isEmpty(), 422, 'Select at least one notice to print.');
+
+        $found   = SpaNotice::with('application')->whereIn('id', $ids)->where('notice_type', 'first')->get()->keyBy('id');
+        $notices = $ids->map(fn ($id) => $found->get($id))->filter()->values();
+        $skipped = $ids->count() - $notices->count();
+        abort_if($notices->isEmpty(), 404, 'None of the selected items is a 1st Serve notice.');
+
+        return view('special_assignment.notice.print_batch', compact('notices', 'skipped'));
+    }
+
     public function printNotice(int $id)
     {
         $notice = SpaNotice::with('application')->findOrFail($id);

@@ -26,6 +26,14 @@
     foreach ($billLines->reject(fn ($l) => $l->spa_bill_item_id && $tariff->contains('id', $l->spa_bill_item_id)) as $line) {
         $rows->push(['name' => $line->display_name, 'billed' => (float) $line->amount, 'paid' => $paidFor($line)]);
     }
+    // Penalty Fee and Survey Fee are left off the printed bill for now
+    // (2026-10-12), and so is what was paid against them — the printed total is
+    // the sum of the rows shown. Stored records are unchanged.
+    $hiddenFee = fn ($name) => in_array(mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $name)), 'UTF-8'), ['penalty fee', 'penalty fees', 'survey fee', 'survey fees'], true);
+    $rows = $rows->reject(fn ($r) => $hiddenFee($r['name']))->values();
+    $hiddenLines = $billLines->filter(fn ($l) => $hiddenFee($l->display_name));
+    $thisPaid  = max(0, $thisPaid - $hiddenLines->sum(fn ($l) => $paidFor($l)));
+    $billTotal = max(0, $billTotal - (float) $hiddenLines->sum('amount'));
     $balance   = max(0, $billTotal - $priorPaid - $thisPaid);
     $fileRef   = ($app->file_number ?? null) ?: ($app->spa_id ?? null);
     $qrRenderer = new \BaconQrCode\Renderer\ImageRenderer(
@@ -39,7 +47,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bill – {{ $payment->receipt_number ?: $bill?->reference_id }}</title>
+    <title>Payment Receipt – {{ $payment->receipt_number ?: $bill?->reference_id }}</title>
     <style>
         @page { size: A4; margin: 0; }
 
@@ -179,7 +187,7 @@
 <body>
 
 <div class="toolbar">
-    <button onclick="window.print()">Print Bill</button>
+    <button onclick="window.print()">Print Receipt</button>
     <button class="btn-close" onclick="window.close()">Close</button>
 </div>
 
@@ -193,7 +201,7 @@
             <h1>Kano State Government</h1>
             <h2>Ministry of Land &amp; Physical Planning</h2>
             <h2 class="dept-line">Department of Special Assignment</h2>
-            <h3>Bill</h3>
+            <h3>Payment Receipt</h3>
         </div>
         <div class="header-marks">
             <img class="bill-qr" src="data:image/svg+xml;base64,{{ base64_encode($qrSvg) }}" alt="QR code to open this bill">

@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * SPAS → a new file number, once the contravention bill is settled.
+ * SPAS → a new file number, once the contravention bill is settled — sent by an
+ * officer from the Bills table (Send to Change of Purpose), never on its own.
  *
  *   Change of Purpose   an existing title (Direct Allocation, or an existing
  *                       Conversion): a Change of Purpose record is created,
@@ -65,82 +66,116 @@ class SpaNewFileService
         return $bills->isNotEmpty() && $bills->every(fn ($b) => $b->status === 'paid');
     }
 
-    /** Called whenever a bill may have become paid. */
-    public function onBillChanged(?SpaBill $bill, ?int $actorId = null): void
+    /** Types the officer picks on the Send to Change of Purpose card. */
+    public const TYPE_COP        = 'change_of_purpose';   // existing title: old file no. required
+    public const TYPE_CONVERSION = 'conversion';          // conversion: old file no. optional
+
+    /** Whether the record carries a real file number (not just its SPAS ID). */
+    public function hasFileNumber(SpaApplication $app): bool
     {
-        if (! $bill || $bill->status !== 'paid' || ! $bill->spa_application_id) {
-            return;
+        $file = trim((string) $app->file_number);
+
+        return $file !== '' && $file !== trim((string) $app->spa_id);
+    }
+
+    /** The type the card starts on: Conversion for a CON- file or a record with no file number. */
+    public function defaultType(SpaApplication $app): string
+    {
+        return ! $this->hasFileNumber($app) || preg_match('/^CON\b|^CON-/i', trim((string) $app->file_number))
+            ? self::TYPE_CONVERSION : self::TYPE_COP;
+    }
+
+    /** Why this record cannot be sent yet, or null when it can. */
+    public function sendBlocker(SpaApplication $app): ?string
+    {
+        if (! self::supported()) {
+            return 'Run migration 2026_10_12_090000 first.';
         }
-        $app = SpaApplication::find($bill->spa_application_id);
-        if ($app) {
-            $this->handOff($app, $actorId);
+        if ($app->new_file_route) {
+            return 'This record has already been sent to Change of Purpose.';
         }
+        if (! $this->settled($app)) {
+            return 'The bill must be fully paid before the record can be sent to Change of Purpose.';
+        }
+
+        return null;
     }
 
     /**
-     * Hand a settled record on. Once only: a record already routed is left as it is.
+     * Send a settled record to the Change of Purpose register — by an officer,
+     * from the Send to Change of Purpose card (2026-10-13; it used to happen on
+     * its own when the bill was settled).
      *
-     * @return string|null the route taken now, or null when nothing was done
+     * The Change of Purpose is created APPROVED, its approvals bypassed, with
+     * source SPAS and the PREVAILING land use as the new purpose. The old file
+     * number comes from the card: required for a Change of Purpose of an
+     * existing title, optional for a Conversion and for a record captured
+     * without a file number.
+     *
+     * @throws \InvalidArgumentException with a message for the officer
      */
-    public function handOff(SpaApplication $app, ?int $actorId = null): ?string
+    public function sendToChangeOfPurpose(SpaApplication $app, ?string $oldFileNo, string $type, ?int $actorId = null): ChangeOfPurposeApplication
     {
-        try {
-            if (! self::supported() || $app->new_file_route || ! $this->settled($app)) {
-                return null;
-            }
-
-            $route = $this->routeFor($app);
-            $changes = ['new_file_route' => $route];
-
-            if ($route === self::COP) {
-                $changes['cop_application_id'] = $this->changeOfPurposeFor($app, $actorId)->id;
-            }
-
-            $app->forceFill($changes)->save();
-            Log::info('SPAS record handed on for a new file number', ['application' => $app->id, 'route' => $route] + $changes);
-
-            return $route;
-        } catch (\Throwable $e) {
-            Log::warning('SPAS new-file hand-off failed', ['application' => $app->id, 'error' => $e->getMessage()]);
-
-            return null;
+        if ($blocker = $this->sendBlocker($app)) {
+            throw new \InvalidArgumentException($blocker);
         }
+        if (! in_array($type, [self::TYPE_COP, self::TYPE_CONVERSION], true)) {
+            throw new \InvalidArgumentException('Choose Change of Purpose or Conversion.');
+        }
+
+        $old = strtoupper(trim((string) $oldFileNo));
+        if ($old === '' && $type === self::TYPE_COP && $this->hasFileNumber($app)) {
+            throw new \InvalidArgumentException('Select the old file number for a Change of Purpose.');
+        }
+        if (trim((string) $app->existing_use) === '') {
+            throw new \InvalidArgumentException('The record has no prevailing land use, so there is no new purpose to apply.');
+        }
+
+        return \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($app, $old, $type, $actorId) {
+            $cop = $this->changeOfPurposeFor($app, $old, $type, $actorId);
+            $app->forceFill(['new_file_route' => self::COP, 'cop_application_id' => $cop->id])->save();
+            Log::info('SPAS record sent to Change of Purpose', ['application' => $app->id, 'cop' => $cop->id, 'type' => $type, 'old_file_no' => $old, 'by' => $actorId]);
+
+            return $cop;
+        });
     }
 
     /**
      * The Change of Purpose for this record: one already in progress for the
-     * file is reused (a file may carry only one live application), otherwise a
-     * new one is created, approved.
+     * same old file is reused (a file may carry only one live application),
+     * otherwise a new one is created, approved.
      */
-    private function changeOfPurposeFor(SpaApplication $app, ?int $actorId): ChangeOfPurposeApplication
+    private function changeOfPurposeFor(SpaApplication $app, string $old, string $type, ?int $actorId): ChangeOfPurposeApplication
     {
-        $file = trim((string) $app->file_number);
+        if ($old !== '') {
+            $live = ChangeOfPurposeApplication::query()
+                ->where('file_no', $old)
+                ->whereIn('status', [
+                    ChangeOfPurposeApplication::STATUS_PENDING,
+                    ChangeOfPurposeApplication::STATUS_PROCESSING,
+                    ChangeOfPurposeApplication::STATUS_APPROVED,
+                ])
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->orderByDesc('id')
+                ->first();
 
-        $live = ChangeOfPurposeApplication::query()
-            ->where('file_no', $file)
-            ->whereIn('status', [
-                ChangeOfPurposeApplication::STATUS_PENDING,
-                ChangeOfPurposeApplication::STATUS_PROCESSING,
-                ChangeOfPurposeApplication::STATUS_APPROVED,
-            ])
-            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
-            ->orderByDesc('id')
-            ->first();
-
-        if ($live) {
-            return $live;
+            if ($live) {
+                return $live;
+            }
         }
 
+        // The new purpose is the PREVAILING land use — what the property is used for.
         $newUse = strtoupper(trim((string) $app->existing_use));
         $bill   = SpaBill::where('spa_application_id', $app->id)->orderBy('id')->value('reference_id');
 
         return ChangeOfPurposeApplication::create([
             'applicant_name'      => $app->owner_name ?: '—',
-            'file_no'             => $file,
-            // What it is approved for, and what it is used for now — the new purpose.
+            // '' rather than null when there is no old file: the commissioning
+            // picker's details lookup takes a string.
+            'file_no'             => $old,
             'land_use'            => ucwords(strtolower(trim((string) $app->proposed_use))) ?: null,
             'purpose'             => self::PURPOSE_CODES[$newUse] ?? mb_substr($newUse, 0, 50),
-            'new_purpose'         => $newUse ?: null,
+            'new_purpose'         => $newUse,
             'location'            => $app->location,
             'district'            => $app->district,
             'lga'                 => $app->lga,
@@ -150,10 +185,12 @@ class SpaNewFileService
             'source_module'       => self::SOURCE,
             'plot_count'          => 1,
             'captured_by'         => $actorId,
-            'remarks'             => 'Raised by SPAS ' . ($app->spa_id ?: '#' . $app->id)
+            'remarks'             => 'Sent by SPAS ' . ($app->spa_id ?: '#' . $app->id)
+                . ' (' . ($type === self::TYPE_CONVERSION ? 'Conversion' : 'Change of Purpose') . ')'
                 . ($bill ? " after bill {$bill} was settled" : '')
-                . ' — contravention: approved ' . $app->proposed_use . ', in use as ' . $app->existing_use
-                . '. Approvals bypassed (SPAS).',
+                . ' — contravention: approved ' . ($app->proposed_use ?: '—') . ', in use as ' . $app->existing_use
+                . ($old === '' ? '. No old file number.' : '.')
+                . ' Approvals bypassed (SPAS).',
         ]);
     }
 
