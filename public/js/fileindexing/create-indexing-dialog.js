@@ -1175,7 +1175,10 @@
         if (hasExistingOccupancyPermit && occupancyPermitDetailsContainerEdit) {
             occupancyPermitDetailsContainerEdit.classList.remove('hidden');
             const occupancyPermitFieldMap = {
+                'occupancy-permit-op-source': record.occupancy_permit_op_source,
+                'occupancy-permit-op-source-other': record.occupancy_permit_op_source_other,
                 'occupancy-permit-op-type': record.occupancy_permit_op_type,
+                'occupancy-permit-op-type-other': record.occupancy_permit_op_type_other,
                 'occupancy-permit-op-category': record.occupancy_permit_op_category,
                 'occupancy-permit-op-serial-number': record.occupancy_permit_op_serial_number,
                 'occupancy-permit-date': record.occupancy_permit_date,
@@ -1209,6 +1212,18 @@
             }
             if (typeof window.applyOccupancyPermitLgaRules === 'function') {
                 window.applyOccupancyPermitLgaRules();
+            }
+            // After the field map: the box must be enabled to show its stored value, and
+            // the rule only empties it when Source is not Other.
+            if (typeof window.applyOccupancyPermitSourceOtherRules === 'function') {
+                window.applyOccupancyPermitSourceOtherRules();
+                [
+                    ['occupancy-permit-op-source-other', record.occupancy_permit_op_source_other],
+                    ['occupancy-permit-op-type-other', record.occupancy_permit_op_type_other],
+                ].forEach(([id, stored]) => {
+                    const otherBox = document.getElementById(id);
+                    if (otherBox && !otherBox.disabled) otherBox.value = stored || '';
+                });
             }
         }
 
@@ -5167,10 +5182,11 @@
         // Some conversion and direct-allocation files hold permits granted by an LGA rather
         // than by the Kano State Government. An LGA registers nothing in the state deeds
         // registry, so such a permit has no serial, page, volume, deeds date or deeds time —
-        // only which Local Government granted it. Selecting either LGA OP Type therefore swaps the
+        // only which Local Government granted it. Selecting Source = LGA therefore swaps the
         // read-only KANO STATE GOVERNMENT grantor for a picker of the 44 authorities and fixes
-        // the registration particulars at 0/0/0 with the dates left blank.
-        const opTypeSelect = document.getElementById('occupancy-permit-op-type');
+        // the registration particulars at 0/0/0 with the dates left blank. (LGA was an OP Type
+        // until 2026-10-15; it is a Source now.)
+        const opSourceSelect = document.getElementById('occupancy-permit-op-source');
         const opLgaGrantorSelect = document.getElementById('occupancy-permit-lga-grantor');
         const opGrantorInput = document.getElementById('occupancy-permit-grantor');
         const opLgaNote = document.getElementById('occupancy-permit-lga-note');
@@ -5183,12 +5199,8 @@
         //
         // A letter issued by a Local Government is NOT here: that is a Plot Allocation
         // Letter with Type 'LGA', captured on the transaction card, not a kind of permit.
-        const LGA_OP_TYPES = ['LGA'];
-
         function isOccupancyPermitLgaType() {
-            // Tolerant of the "OP " prefix the sibling screens put on their stored values.
-            const normalized = String(opTypeSelect?.value || '').trim().toUpperCase().replace(/^OP\s+/, '');
-            return LGA_OP_TYPES.includes(normalized);
+            return String(opSourceSelect?.value || '').trim().toUpperCase() === 'LGA';
         }
 
         function isOldOccupancyPermitCategory() {
@@ -5276,11 +5288,35 @@
             }
         }
 
+        // Source "Other" and Type "Other" each reveal one required "specify" box; any
+        // other choice hides, disables and empties it.
+        const opTypeSelect = document.getElementById('occupancy-permit-op-type');
+        const OP_OTHER_PAIRS = [
+            [opSourceSelect, document.getElementById('occupancy-permit-op-source-other')],
+            [opTypeSelect, document.getElementById('occupancy-permit-op-type-other')],
+        ];
+        function applyOccupancyPermitSourceOtherRules() {
+            OP_OTHER_PAIRS.forEach(([select, input]) => {
+                if (!input) return;
+                const isOther = (select?.value || '') === 'Other';
+                input.classList.toggle('hidden', !isOther);
+                input.disabled = !isOther;
+                input.required = isOther;
+                if (!isOther) input.value = '';
+            });
+        }
+        window.applyOccupancyPermitSourceOtherRules = applyOccupancyPermitSourceOtherRules;
+
+        if (opSourceSelect) {
+            opSourceSelect.addEventListener('change', applyOccupancyPermitLgaRules);
+            opSourceSelect.addEventListener('change', applyOccupancyPermitSourceOtherRules);
+        }
         if (opTypeSelect) {
-            opTypeSelect.addEventListener('change', applyOccupancyPermitLgaRules);
+            opTypeSelect.addEventListener('change', applyOccupancyPermitSourceOtherRules);
+        }
+        applyOccupancyPermitSourceOtherRules();
         if (opCategorySelect) {
             opCategorySelect.addEventListener('change', applyOccupancyPermitCategoryRules);
-        }
         }
         if (opLgaGrantorSelect) {
             opLgaGrantorSelect.addEventListener('change', function () {
@@ -5289,7 +5325,7 @@
         }
         // Reachable from the record-load and clear paths, which sit outside this closure.
         window.applyOccupancyPermitLgaRules = applyOccupancyPermitLgaRules;
-        // Runs once so a record loaded with an LGA OP Type opens in the right shape.
+        // Runs once so a record loaded with Source = LGA opens in the right shape.
         applyOccupancyPermitLgaRules();
 
         // Occupancy Permit Page No always mirrors Serial No (Page No is read-only).
@@ -5861,7 +5897,10 @@
 
     function clearOccupancyPermitFields() {
         const occupancyPermitFields = [
+            'occupancy-permit-op-source',
+            'occupancy-permit-op-source-other',
             'occupancy-permit-op-type',
+            'occupancy-permit-op-type-other',
             'occupancy-permit-op-category',
             'occupancy-permit-op-serial-number',
             'occupancy-permit-date',
@@ -5895,6 +5934,9 @@
         }
         if (typeof window.applyOccupancyPermitLgaRules === 'function') {
             window.applyOccupancyPermitLgaRules();
+        }
+        if (typeof window.applyOccupancyPermitSourceOtherRules === 'function') {
+            window.applyOccupancyPermitSourceOtherRules();
         }
 
         // Instrument type is locked to Occupancy Permit
@@ -6506,7 +6548,10 @@
             rofo_status: document.getElementById('rofo-status')?.value || 'Active',
             has_occupancy_permit: document.getElementById('has-occupancy-permit-toggle')?.checked || false,
             occupancy_permit_instrument_type: document.getElementById('occupancy-permit-instrument-type')?.value || '',
+            occupancy_permit_op_source: document.getElementById('occupancy-permit-op-source')?.value || '',
+            occupancy_permit_op_source_other: document.getElementById('occupancy-permit-op-source-other')?.value || '',
             occupancy_permit_op_type: document.getElementById('occupancy-permit-op-type')?.value || '',
+            occupancy_permit_op_type_other: document.getElementById('occupancy-permit-op-type-other')?.value || '',
             occupancy_permit_op_category: document.getElementById('occupancy-permit-op-category')?.value || '',
             occupancy_permit_op_serial_number: document.getElementById('occupancy-permit-op-serial-number')?.value || '',
             occupancy_permit_date: document.getElementById('occupancy-permit-date')?.value || '',
@@ -6803,6 +6848,56 @@
         }
 
         if (document.getElementById('has-occupancy-permit-toggle')?.checked) {
+            // Source (Ministry / KANGIS / LGA) is required, and an LGA permit must name
+            // which Local Government issued it.
+            const opSourceInput = document.getElementById('occupancy-permit-op-source');
+            const opSource = (opSourceInput?.value || '').trim();
+            if (!['Ministry', 'KANGIS', 'LGA', 'Other'].includes(opSource)) {
+                showSelectionError('Please select the Source of the Occupancy Permit (Ministry, KANGIS, LGA or Other).', opSourceInput);
+                return;
+            }
+            if (opSource === 'Other') {
+                const opSourceOtherInput = document.getElementById('occupancy-permit-op-source-other');
+                const specified = (opSourceOtherInput?.value || '').replace(/\s+/g, ' ').trim();
+                if (specified === '') {
+                    showSelectionError('Source is Other: please specify the Source of the Occupancy Permit.', opSourceOtherInput);
+                    return;
+                }
+                // A listed option typed in by hand is that option, not a new one.
+                const listed = ['Ministry', 'KANGIS', 'LGA'].find((o) => o.toLowerCase() === specified.toLowerCase());
+                if (listed) {
+                    showSelectionError(`"${listed}" is already in the Source list; select it instead of Other.`, opSourceOtherInput);
+                    return;
+                }
+            }
+
+            // OP Type stays optional, but "Other" must say what it is.
+            if ((document.getElementById('occupancy-permit-op-type')?.value || '') === 'Other') {
+                const opTypeOtherInput = document.getElementById('occupancy-permit-op-type-other');
+                const specifiedType = (opTypeOtherInput?.value || '').replace(/\s+/g, ' ').trim();
+                const bareType = specifiedType.replace(/^OP\s+/i, '').toLowerCase();
+                const listedType = ['Resettlement', 'Direct Allocation'].find((o) => o.toLowerCase() === bareType);
+                if (specifiedType === '') {
+                    showSelectionError('OP Type is Other: please specify the OP Type.', opTypeOtherInput);
+                    return;
+                }
+                if (listedType) {
+                    showSelectionError(`"${listedType}" is already in the OP Type list; select it instead of Other.`, opTypeOtherInput);
+                    return;
+                }
+                if (bareType === 'lga') {
+                    showSelectionError('LGA is a Source, not an OP Type: set Source to LGA instead.', opTypeOtherInput);
+                    return;
+                }
+            }
+            if (opSource === 'LGA') {
+                const opLgaGrantorInput = document.getElementById('occupancy-permit-lga-grantor');
+                if ((opLgaGrantorInput?.value || '').trim() === '') {
+                    showSelectionError('Source is LGA: please select the Local Government that issued the Occupancy Permit (Grantor).', opLgaGrantorInput);
+                    return;
+                }
+            }
+
             const serialInput = document.getElementById('occupancy-permit-op-serial-number');
             if (!/^[1-9][0-9]*$/.test((serialInput?.value || '').trim())) {
                 alert('OP Serial Number is required and must contain positive digits without leading zeros.');

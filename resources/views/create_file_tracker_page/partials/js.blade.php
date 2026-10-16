@@ -4375,6 +4375,13 @@
         const priorMovementLog = Array.isArray(tracker.prior_movements) ? tracker.prior_movements : [];
         const priorEntries = priorMovementLog.map(convertMovementLogEntry);
 
+        // "File Commissioning" lines for a file moved to a new number (Move Commissioned
+        // File), server-built in the commissioning line's shape. Display-only: kept out of
+        // logEntries so they never decide the file's status or current office.
+        const recommissioningEntries = (Array.isArray(tracker.recommissioning_lines) ? tracker.recommissioning_lines : [])
+            .map(convertMovementLogEntry)
+            .map(e => Object.assign(e, { isRecommissioned: true }));
+
         const assignedOfficeSource = (() => {
             const relation = tracker.assigned_office && typeof tracker.assigned_office === 'object' && !Array.isArray(tracker.assigned_office)
                 ? tracker.assigned_office
@@ -4520,6 +4527,7 @@
             } : null,
             logEntries: convertedEntries,
             priorLogEntries: priorEntries,
+            recommissioningEntries: recommissioningEntries,
             notes: tracker.notes,
             createdAt: tracker.created_at,
             dateCreated: tracker.date_created ?? tracker.dateCreated ?? null,
@@ -7772,8 +7780,8 @@
                             ];
 
                             const purposeConfig = {
-                                recommendation: { label: 'DGIS Recommendation', icon: '👤', color: 'indigo' },
-                                approval: { label: 'DG KANGIS Approval', icon: '✅', color: 'emerald' },
+                                recommendation: { label: 'KANGIS File Request Recommendation', icon: '👤', color: 'indigo' },
+                                approval: { label: 'KANGIS File Request Approval', icon: '✅', color: 'emerald' },
                             };
 
                             const approvalHtml = approvalEntries.length ? `
@@ -8369,13 +8377,29 @@
             const lbl = (resolveStatusDisplay(e, (e.status || '')).label || '').toLowerCase();
             return lbl === 'log-in' || lbl === 'completed';
         });
-        const printSortedMovements = [...printMovements].sort((a, b) => movementChronoValue(a) - movementChronoValue(b));
+        // Re-commissioning lines (Move Commissioned File) take their place in the timeline
+        // by date, but never decide the departure row or the logged-in state. One that
+        // predates this tracker's own movements belongs among the earlier cycles (the file
+        // was re-tracked after the move); a later one goes among this tracker's rows.
+        const ownStart = printMovements.length
+            ? Math.min(...printMovements.map(movementChronoValue))
+            : Number.POSITIVE_INFINITY;
+        const recommissioned = tracker.recommissioningEntries || [];
+        const printPriorEntries = [...(tracker.priorLogEntries || [])];
+        recommissioned.filter(e => movementChronoValue(e) < ownStart).forEach(line => {
+            const at = movementChronoValue(line);
+            const idx = printPriorEntries.findIndex(p => movementChronoValue(p) > at);
+            if (idx === -1) printPriorEntries.push(line); else printPriorEntries.splice(idx, 0, line);
+        });
+        const printSortedMovements = [...printMovements, ...recommissioned.filter(e => movementChronoValue(e) >= ownStart)]
+            .sort((a, b) => movementChronoValue(a) - movementChronoValue(b));
         const printIsOutState = (e) => {
+            if (e.isRecommissioned) return false;
             const lbl = resolveStatusDisplay(e, (e.status || 'completed').toLowerCase()).label || '';
             return lbl !== 'Log-in' && lbl !== 'Completed' && lbl !== 'Cancelled' && lbl !== 'Rejected';
         };
         const printPrimaryDeparture = printSortedMovements.find(printIsOutState)
-            || printSortedMovements.find(e => Boolean(e.logOutDate))
+            || printSortedMovements.find(e => !e.isRecommissioned && Boolean(e.logOutDate))
             || null;
         const timelineCellForPrintFrozen = printFileLoggedBackIn
             ? (tracker.deadline ? 'Returned' : '-')
@@ -8425,6 +8449,13 @@
                         .info-value.data-value { font-weight: 700; color: #111; }
                         .info-value.placeholder { font-weight: 400; color: #9ca3af; }
                         .table-section { grid-column: 1 / -1; }
+                        /* The Movement History may run onto the next page: kept whole, a few
+                           tall rows pushed the entire table off page 1. It splits between rows
+                           only, and the column headings repeat on the continuation page. */
+                        .section.table-section { page-break-inside: auto; break-inside: auto; }
+                        .table-section thead { display: table-header-group; }
+                        .table-section tr { page-break-inside: avoid; break-inside: avoid; }
+                        .table-section .section-title { page-break-after: avoid; break-after: avoid; }
                         table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
                         table th { background: #f3f4f6; border: 1px solid #d1d5db; padding: 0.35rem; text-align: left; font-weight: bold; color: #1f2937; }
                         table td { border: 1px solid #e5e7eb; padding: 0.35rem; vertical-align: top; }
@@ -8680,7 +8711,7 @@
                                             + '<td>-</td>'
                                             + '</tr>';
                                     })()}
-                                    ${(tracker.priorLogEntries && tracker.priorLogEntries.length > 0) ? tracker.priorLogEntries.map(entry => {
+                                    ${printPriorEntries.length > 0 ? printPriorEntries.map(entry => {
                                         // Prior tracking cycles for the same file — shown read-only so the
                                         // printed sheet reads as one continuous timeline.
                                         const formatDateTime = (value) => {

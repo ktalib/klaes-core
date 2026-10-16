@@ -1517,6 +1517,14 @@ async function searchFile() {
       // not raise). Only when the file's status allows a request (can_send_fr).
       lastFileSearch = d;
 
+      // A land file is usually kept inside its KANGIS file, so the request is worded
+      // as going to the KANGIS Registry. The Registry (Origin) stays the land file's own.
+      const kangisFiles = Array.isArray(d.kangis_files) ? d.kangis_files : [];
+      if (kangisFiles.length && d.next_action === 'Send File Search Request to SCB Monitor') {
+        d.next_action = 'Send Request to KANGIS Registry';
+      }
+      const fsOriginRegistry = d.origin_registry;
+
       // Any located outcome (Archive, Pool Office, Refer-to-Registry, Pending/blind,
       // incl. their Found / Not-Found variants) warrants a physical check — some files
       // were missing from the start of the digitization exercise. The only case it does
@@ -1565,7 +1573,7 @@ async function searchFile() {
         // Origin Registry selector (mirrors Create File Tracker). The chosen registry's
         // short code is carried via the option's data attribute and shown live below.
         const regOpts = REGISTRIES.map(r =>
-          `<option value="${esc(r.name)}" data-code="${esc(r.registry_code || '')}"${d.origin_registry && r.name === d.origin_registry ? ' selected' : ''}>${esc(r.name)}</option>`
+          `<option value="${esc(r.name)}" data-code="${esc(r.registry_code || '')}"${fsOriginRegistry && r.name === fsOriginRegistry ? ' selected' : ''}>${esc(r.name)}</option>`
         ).join('');
         // Requester cascade options (Department → Office → Officer; mirrors Quick Search).
         const fieldSelCss = 'width:100%;height:42px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:0 12px;font-size:13px;color:var(--text);';
@@ -1583,8 +1591,7 @@ async function searchFile() {
                   ${regOpts}
                 </select>
                 <span id="fsRegistryCode" style="flex-shrink:0;min-width:54px;text-align:center;font-size:12px;font-weight:800;color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary);border-radius:10px;padding:9px 8px;">—</span>
-              </div>
-            </div>
+              </div>            </div>
             <div>
               <label style="${fieldLblCss}"><i class="fas fa-building" style="margin-right:5px;color:var(--primary);"></i>Requester Office (Departments) <span style="color:#ef4444;">*</span></label>
               <select id="fsDept" onchange="onFsDeptChange()" style="${fieldSelCss}">
@@ -1709,6 +1716,37 @@ async function searchFile() {
             <div id="fileMovementTimeline"></div>
           </div>
         </details>` : '';
+
+      // KANGIS file(s) this land file is kept inside. Opening one loads its movement
+      // log (same /track endpoint), so a KANGIS file that is out shows who has it.
+      const jsArg = s => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      // Works both ways: a land file shows its KANGIS file, a KANGIS file its land file.
+      const landFiles = Array.isArray(d.land_files) ? d.land_files : [];
+      const linkedPanel = (files, title, rgb, hex, idPrefix) => files.map((k, i) => {
+        const km = LOC_STATUS_META[k.status] || { label: k.status, color: '#6b7185', icon: 'fa-file' };
+        const where = k.is_in_transit
+          ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
+          : `${esc(k.current_location || k.registry || '—')}${k.rack_shelf && !String(k.current_location || '').includes(k.rack_shelf) ? ` — Shelf/Rack ${esc(k.rack_shelf)}` : ''}`;
+        return `
+        <details style="margin-bottom:12px;background:rgba(${rgb},.10);border:1px solid rgba(${rgb},.40);border-radius:12px;" ontoggle="toggleMovementTimeline('${esc(jsArg(k.file_number))}', this, '${esc(jsArg(k.registry || ''))}', '${esc(jsArg(k.rack_shelf))}', '${idPrefix}${i}')">
+          <summary style="cursor:pointer;list-style:none;padding:10px 12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <span style="font-size:12px;font-weight:800;color:${hex};"><i class="fas fa-folder-tree" style="margin-right:5px;"></i>${title}</span>
+              <span style="white-space:nowrap;font-size:10px;font-weight:700;color:${km.color};background:${km.color}1a;border:1px solid ${km.color}55;padding:3px 8px;border-radius:30px;"><i class="fas ${km.icon}" style="margin-right:3px;"></i>${esc(km.label)}</span>
+            </div>
+            <div style="margin-top:4px;font-size:14px;font-weight:800;color:var(--text);">${esc(k.file_number)}${k.file_title ? ` <span style="font-size:12px;font-weight:600;color:var(--text);opacity:.85;">— ${esc(k.file_title)}</span>` : ''}</div>
+            <div style="margin-top:3px;font-size:11px;color:var(--text);opacity:.8;">${where}</div>
+            <div style="margin-top:4px;font-size:11px;font-weight:700;color:var(--primary);"><i class="fas fa-stream" style="margin-right:4px;"></i>Tap to view its movement log</div>
+          </summary>
+          <div style="padding:0 12px 10px;"><div id="${idPrefix}${i}"></div></div>
+        </details>`;
+      }).join('');
+      const kangisPanel = linkedPanel(kangisFiles, 'KANGIS file', '234,88,12', '#ea580c', 'kangisTimeline')
+        + linkedPanel(landFiles, 'Land file', '37,99,235', '#2563eb', 'landTimeline');
+      // A linked file has its own panel, so it is not repeated as a related chip.
+      const linkedNos = [...kangisFiles, ...landFiles].map(k => String(k.file_number).toUpperCase());
+      const relatedChips = (Array.isArray(d.related_files) ? d.related_files : [])
+        .filter(f => !linkedNos.includes(String(f.file_number).toUpperCase()));
 
       // Mobile File Search is a read-only locator. But if this file has an OPEN
       // File Request waiting on this SCB Monitor, offer a Found/Not-Found shortcut.
@@ -1917,10 +1955,10 @@ async function searchFile() {
           <div style="background:var(--surface-2);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;">
             <div>
               <div style="font-size:15px;font-weight:800;">${esc(d.file_number)}</div>
-              ${Array.isArray(d.related_files) && d.related_files.length ? `
+              ${relatedChips.length ? `
               <div style="margin-top:5px;font-size:11px;line-height:1.55;color:var(--muted);">
-                <span style="font-weight:800;color:var(--primary);">Related file${d.related_files.length === 1 ? '' : 's'}:</span>
-                ${d.related_files.map(f => `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 6px;border:1px solid #c4b5fd;background:#f5f3ff;border-radius:20px;color:#5b21b6;font-weight:700;">${esc(f.file_number)}${f.file_title ? ` <span style="font-weight:500;">— ${esc(f.file_title)}</span>` : ''}</span>`).join('')}
+                <span style="font-weight:800;color:var(--primary);">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
+                ${relatedChips.map(f => `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 6px;border:1px solid #c4b5fd;background:#f5f3ff;border-radius:20px;color:#5b21b6;font-weight:700;">${esc(f.file_number)}${f.file_title ? ` <span style="font-weight:500;">— ${esc(f.file_title)}</span>` : ''}</span>`).join('')}
               </div>` : ''}
               <div style="font-size:12px;font-weight:600;color:var(--text);opacity:.82;margin-top:3px;">${esc(d.file_title||'—')}</div>
             </div>
@@ -1937,6 +1975,7 @@ async function searchFile() {
             </div>
           </div>
           <div style="padding:12px 16px;">
+            ${kangisPanel}
             ${Number(d.dciv_status) === 1 ? `
             <div style="margin-bottom:12px;background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;padding:10px 12px;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1993,7 +2032,7 @@ async function searchFile() {
       // When the file's origin registry was auto-detected and the Send form is shown,
       // sync the pre-selected Registry (Origin): set its code, theme its colour, enable
       // Send and load the digital copy from that registry. Otherwise load the default lib.
-      if (d.origin_registry && document.getElementById('fsRegistry')) {
+      if (fsOriginRegistry && document.getElementById('fsRegistry')) {
         onFsRegistryChange();
       } else {
         loadFsDigital(d.file_number);
@@ -2008,8 +2047,12 @@ async function searchFile() {
   btn.disabled = false; btn.innerHTML = blind ? '<i class="fas fa-paper-plane"></i>' : '<i class="fas fa-search"></i>';
 }
 
-async function toggleMovementTimeline(fileNumber, detailsEl, originRegistry, rackShelf) {
-  const container = document.getElementById('fileMovementTimeline');
+// Workflow Approvals section under the movement timeline — hidden for now.
+const SHOW_WORKFLOW_APPROVALS = false;
+
+// containerId: the related KANGIS file panels render their own timeline.
+async function toggleMovementTimeline(fileNumber, detailsEl, originRegistry, rackShelf, containerId) {
+  const container = document.getElementById(containerId || 'fileMovementTimeline');
   if (!container) return;
   if (!detailsEl) return;
 
@@ -2081,9 +2124,9 @@ async function toggleMovementTimeline(fileNumber, detailsEl, originRegistry, rac
           ${priorLogs.length ? `<div style="margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2);font-size:12px;color:var(--muted);">Tracking cycles for this file.</div>` : ''}
           <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
             ${inArchiveHomeRow}
-            ${movementLogs.length ? movementLogs.map((entry) => renderMovementRow(entry, trackerMeta)).join('') : `<div style="padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2);font-size:13px;color:var(--muted);">No physical movement entries found. Approval steps may still be present below.</div>`}
+            ${movementLogs.length ? movementLogs.map((entry) => renderMovementRow(entry, trackerMeta)).join('') : `<div style="padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2);font-size:13px;color:var(--muted);">No physical movement entries found.</div>`}
           </div>
-          ${approvalLogs.length ? `
+          ${(SHOW_WORKFLOW_APPROVALS && approvalLogs.length) ? `
             <div style="margin-top:16px;font-size:13px;font-weight:700;color:var(--text);">Workflow approvals</div>
             <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
               ${approvalLogs.map((entry) => renderApprovalRow(entry)).join('')}
@@ -3254,6 +3297,14 @@ function frRequesterDetails(fr) {
 // Slim list row used by SCB Monitors: collapsed it is just the file number, who
 // asked and when. Tapping it opens the details AND the Found / Not Found / delete
 // actions, so the queue stays one thin line per request.
+// "KANGIS file …" — the land file is shelved in its KANGIS file, so that
+// is the folder the SCB Monitor looks for.
+function frKangisLine(fr) {
+  const nos = Array.isArray(fr.kangis_file_numbers) ? fr.kangis_file_numbers : [];
+  if (!nos.length) return '';
+  return `<div style="font-size:10.5px;font-weight:700;color:#ea580c;margin-top:2px;"><i class="fas fa-folder-tree" style="margin-right:4px;"></i>KANGIS file ${nos.map(n => esc(n)).join(' / ')}</div>`;
+}
+
 function frListRow(fr, histIds) {
   const mix  = histIds.has(fr.id)
     ? `<span title="Also in FSR History" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:6px;vertical-align:middle;"></span>` : '';
@@ -3269,6 +3320,7 @@ function frListRow(fr, histIds) {
           <div style="flex:1;min-width:0;">
             <div style="font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${mix}${esc(fr.file_number)}</div>
             ${title ? `<div style="font-size:10px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(title)}</div>` : ''}
+            ${frKangisLine(fr)}
           </div>
           <i class="fas fa-chevron-down fr-row-chev" style="flex:0 0 auto;font-size:10px;color:var(--faint);"></i>
         </summary>
@@ -3310,6 +3362,7 @@ function renderFileRequests() {
             <span style="font-size:10px;font-weight:700;color:var(--primary);background:var(--primary-soft);padding:3px 9px;border-radius:30px;">${esc(fr.request_no)}</span>
           </div>
           <div style="font-size:12px;color:var(--text);margin-top:4px;">${esc(fr.file_title||'—')}</div>
+          ${frKangisLine(fr)}
           <div style="margin-top:6px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:30px;background:${fr.is_dfr ? '#e5e7eb' : (fr.is_blind ? '#fee2e2' : '#e0f2fe')};color:${fr.is_dfr ? '#374151' : (fr.is_blind ? '#b91c1c' : '#0369a1')};"><i class="fas ${fr.is_dfr ? 'fa-file-lines' : (fr.is_blind ? 'fa-eye-slash' : 'fa-folder-open')}"></i> ${esc(fr.request_type || 'Open Request')}</span>${fr.is_ofs ? `<span style="margin-left:5px;display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:30px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;"><i class="fas fa-crown"></i> OFS${fr.ofs_rank ? ' · '+esc(fr.ofs_rank) : ''}</span>` : ''}</div>
           ${fr.current_location ? (
             String(fr.current_location).trim().toLowerCase() === 'not indexed'

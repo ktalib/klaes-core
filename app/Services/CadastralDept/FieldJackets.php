@@ -15,14 +15,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Field Jacket, job, surveyor and I to S at AD P&D (client brief, 2026-10-10).
+ * Field Jacket, I to S, job and surveyor (client brief 2026-10-10, reshaped by the workflow
+ * update transcript of 2026-10-16).
  *
- * Commissioning the jacket registers the survey job in the old module's
- * cadastral_survey_jobs (its numbering, its I to S columns), so the old Survey
- * Jobs screen lists it; jacket, job and surveyor are linked. The surveyor is
- * then locked: changing it is a reassignment, with a reason, kept in the
- * jacket's history. Issuing the job's Instruction to Surveyor is the I to S.
- * Each of the two ticks its own task, so neither is ticked by hand.
+ * AD P&D commissions a plain field jacket (number and file details; no job, no surveyor) and
+ * issues a plain I to S, the instruction to AD Cad Info to attach a job and a surveyor. AD Cad
+ * Info then attaches a job from the Job Book (cadastral_survey_jobs; the job takes the file's
+ * location) and a surveyor, and issues the job's Instruction to Surveyor before the file goes
+ * to Survey. The surveyor is then locked: changing it is a reassignment, with a reason, kept
+ * in the jacket's history. Each action ticks its own task, so none is ticked by hand.
  *
  * Formats are defaults until the client confirms (plan Q9): jacket FJ-YYYY-NNNNN,
  * job and I to S numbers from the old module's settings.
@@ -31,8 +32,12 @@ class FieldJackets
 {
     private const CONN = 'sqlsrv';
 
+    /** P&D: the plain field jacket and the plain I to S (transcript, 2026-10-16). */
     public const TASK_JACKET = 'field_jacket';
     public const TASK_ITS = 'its';
+    /** AD Cad Info: the job and surveyor, and the job's Instruction to Surveyor. */
+    public const TASK_JOB = 'job_attached';
+    public const TASK_JOB_ITS = 'job_its';
     /** The external step that ends when the surveyor's work comes back. */
     public const FIELD_STEP = 'field_survey';
 
@@ -52,7 +57,7 @@ class FieldJackets
         }
     }
 
-    /** Whether the case's current step has the given task (field_jacket or its). */
+    /** Whether the case's current step has the given task (field_jacket, its, job_attached, job_its). */
     public function due(CadastralCase $case, string $task): bool
     {
         return $case->isOpen()
@@ -86,7 +91,7 @@ class FieldJackets
             ->get();
     }
 
-    /** The starting text of the instruction, which the officer edits. */
+    /** The starting text of the job's Instruction to Surveyor, which AD Cad Info edits. */
     public function defaultInstructions(CadastralFieldJacket $jacket): string
     {
         $where = implode(', ', array_filter([
@@ -96,15 +101,94 @@ class FieldJackets
         return "You are hereby instructed to carry out the survey of the property"
             . ($where ? " at {$where}" : '')
             . ", file {$jacket->file_number}" . ($jacket->file_title ? " ({$jacket->file_title})" : '')
-            . ", under survey job {$jacket->job->job_number} and field jacket {$jacket->field_jacket_no}.";
+            . ($jacket->job ? ", under survey job {$jacket->job->job_number}" : '')
+            . " and field jacket {$jacket->field_jacket_no}.";
+    }
+
+    /** The starting text of P&D's plain I to S: AD Cad Info is to attach a job and a surveyor. */
+    public function defaultPndInstruction(CadastralFieldJacket $jacket): string
+    {
+        return "AD Cadastral Information: attach a survey job (Job Book) and a surveyor to field jacket {$jacket->field_jacket_no}"
+            . " for file {$jacket->file_number}" . ($jacket->file_title ? " ({$jacket->file_title})" : '')
+            . ", and issue the Instruction to Surveyor.";
     }
 
     /**
-     * Attach a registered job and a surveyor to the file (user, 2026-10-12): the job
-     * takes the file's number and title and the surveyor, and the field jacket is
-     * commissioned on it. The job keeps its own survey location. Ticks the task.
+     * P&D commissions a plain field jacket on the file (transcript, 2026-10-16): its number and
+     * the file's details, no job and no surveyor. Ticks the task.
      */
     public function commission(CadastralCase $case, array $input, ?int $userId): CadastralFieldJacket
+    {
+        $this->assertInstalled();
+
+        return DB::connection(self::CONN)->transaction(function () use ($case, $input, $userId) {
+            $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
+            if (!$this->due($case, self::TASK_JACKET)) {
+                throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the field jacket is commissioned.");
+            }
+            if (CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->exists()) {
+                throw WorkflowGuardException::because("{$case->case_ref} already has its field jacket.");
+            }
+            $now = now();
+            $jacketNo = $this->nextNo($now->year);
+
+            $jacket = CadastralFieldJacket::create([
+                'cadastral_case_id' => $case->id,
+                'field_jacket_no' => $jacketNo,
+                'file_number' => $case->file_number,
+                'file_title' => $case->file_title,
+                'plot_no' => $case->plot_no,
+                'district' => $case->district,
+                'lga' => $case->lga,
+                'location' => $case->location,
+                'remarks' => Normalise::text($input['remarks'] ?? null) ?: null,
+                'commissioned_by' => $userId,
+                'commissioned_at' => $now,
+            ]);
+            $this->tick($case, self::TASK_JACKET, $jacketNo, $userId);
+
+            $this->audit->logAction('Cadastral Field Jacket Commissioned', 'CadastralFieldJacket', $jacket->id, null,
+                ['field_jacket_no' => $jacketNo], "Field jacket {$jacketNo} commissioned for {$case->case_ref} ({$case->file_number})");
+
+            return $jacket;
+        });
+    }
+
+    /**
+     * P&D's plain I to S (transcript, 2026-10-16): an instruction to AD Cad Info to attach a job
+     * and a surveyor to the jacket. Kept as the task's note; no number, nothing attached.
+     */
+    public function issueIts(CadastralCase $case, array $input, ?int $userId): string
+    {
+        $this->assertInstalled();
+        $text = Normalise::text($input['its_instructions'] ?? null);
+        if ($text === '') {
+            throw WorkflowGuardException::because('Write the instruction text.');
+        }
+
+        return DB::connection(self::CONN)->transaction(function () use ($case, $text, $userId) {
+            $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
+            if (!$this->due($case, self::TASK_ITS)) {
+                throw WorkflowGuardException::because("{$case->case_ref} is not at the step where P&D issues the I to S.");
+            }
+            $jacket = CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->first();
+            if (!$jacket) {
+                throw WorkflowGuardException::because('Commission the field jacket first; the I to S is issued on it.');
+            }
+            $this->tick($case, self::TASK_ITS, mb_substr($text, 0, 1000), $userId);
+            $this->audit->logAction('Cadastral P&D I to S Issued', 'CadastralFieldJacket', $jacket->id, null,
+                ['instruction' => $text], "P&D I to S issued on {$jacket->field_jacket_no} for {$case->case_ref}");
+
+            return "I to S issued on {$jacket->field_jacket_no}. Send the file to AD Cad Info to attach the job and surveyor.";
+        });
+    }
+
+    /**
+     * AD Cad Info attaches a registered job (Job Book) and a surveyor to the field jacket
+     * (transcript, 2026-10-16). The job takes the file's number, title and location: a job
+     * has no location of its own. Ticks the task.
+     */
+    public function attachJob(CadastralCase $case, array $input, ?int $userId): CadastralFieldJacket
     {
         $this->assertInstalled();
         $jobId = (int) ($input['cadastral_survey_job_id'] ?? 0);
@@ -115,11 +199,15 @@ class FieldJackets
 
         return DB::connection(self::CONN)->transaction(function () use ($case, $input, $userId, $jobId, $surveyor) {
             $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
-            if (!$this->due($case, self::TASK_JACKET)) {
-                throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the field jacket is commissioned.");
+            if (!$this->due($case, self::TASK_JOB)) {
+                throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the job and surveyor are attached.");
             }
-            if (CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->exists()) {
-                throw WorkflowGuardException::because("{$case->case_ref} already has its field jacket.");
+            $jacket = CadastralFieldJacket::query()->lockForUpdate()->where('cadastral_case_id', $case->id)->first();
+            if (!$jacket) {
+                throw WorkflowGuardException::because("{$case->case_ref} has no field jacket. P&D commissions it first.");
+            }
+            if ($jacket->cadastral_survey_job_id) {
+                throw WorkflowGuardException::because("{$jacket->field_jacket_no} already has its job.");
             }
 
             $job = CadastralSurveyJob::query()->lockForUpdate()->find($jobId);
@@ -132,42 +220,30 @@ class FieldJackets
             if ($job->status !== 'Draft') {
                 throw WorkflowGuardException::because("{$job->job_number} is {$job->status} and cannot be attached.");
             }
-            $now = now();
-            $jacketNo = $this->nextNo($now->year);
             $scope = Normalise::text($input['job_scope'] ?? null);
             $job->update([
                 'cadastral_case_id' => $case->id,
-                'field_jacket_no' => $jacketNo,
+                'field_jacket_no' => $jacket->field_jacket_no,
                 'file_number' => $case->file_number,
                 'file_title' => $case->file_title,
+                // The job's location is the file's (it prints on the Instruction to Surveyor).
+                'prop_plot' => $case->plot_no,
+                'prop_district' => $case->district,
+                'prop_lga' => $case->lga,
                 'cadastral_surveyor_id' => $surveyor->id,
                 'surveyor_name' => $surveyor->full_name,
                 'firm_name' => $surveyor->firm_name,
             ] + ($scope !== '' ? ['job_scope' => $scope] : []));
 
-            $jacket = CadastralFieldJacket::create([
-                'cadastral_case_id' => $case->id,
-                'field_jacket_no' => $jacketNo,
-                'cadastral_survey_job_id' => $job->id,
-                'cadastral_surveyor_id' => $surveyor->id,
-                'file_number' => $case->file_number,
-                'file_title' => $case->file_title,
-                'plot_no' => $case->plot_no,
-                'district' => $case->district,
-                'lga' => $case->lga,
-                'location' => $case->location,
-                'remarks' => Normalise::text($input['remarks'] ?? null) ?: null,
-                'commissioned_by' => $userId,
-                'commissioned_at' => $now,
-            ]);
+            $jacket->update(['cadastral_survey_job_id' => $job->id, 'cadastral_surveyor_id' => $surveyor->id]);
             $this->assign($jacket, $surveyor, null, $userId);
-            $this->tick($case, self::TASK_JACKET, $jacketNo . ' · ' . $job->job_number, $userId);
+            $this->tick($case, self::TASK_JOB, $job->job_number . ' · ' . $surveyor->full_name, $userId);
 
-            $this->audit->logAction('Cadastral Field Jacket Commissioned', 'CadastralFieldJacket', $jacket->id, null,
-                ['field_jacket_no' => $jacketNo, 'job_number' => $job->job_number, 'surveyor' => $surveyor->full_name],
-                "Job {$job->job_number} attached to {$case->case_ref} ({$case->file_number}) on field jacket {$jacketNo}, surveyor {$surveyor->full_name}");
+            $this->audit->logAction('Cadastral Job Attached', 'CadastralFieldJacket', $jacket->id, null,
+                ['job_number' => $job->job_number, 'surveyor' => $surveyor->full_name],
+                "Job {$job->job_number} and surveyor {$surveyor->full_name} attached to {$jacket->field_jacket_no} ({$case->case_ref})");
 
-            return $jacket;
+            return $jacket->fresh(['job']);
         });
     }
 
@@ -218,8 +294,8 @@ class FieldJackets
         });
     }
 
-    /** Issue the job's Instruction to Surveyor (the I to S) and tick the task. */
-    public function issueIts(CadastralCase $case, array $input, ?int $userId): CadastralSurveyJob
+    /** AD Cad Info issues the job's Instruction to Surveyor and ticks the task (transcript, 2026-10-16). */
+    public function issueJobIts(CadastralCase $case, array $input, ?int $userId): CadastralSurveyJob
     {
         $this->assertInstalled();
         $instructions = trim((string) ($input['its_instructions'] ?? ''));
@@ -233,12 +309,12 @@ class FieldJackets
 
         return DB::connection(self::CONN)->transaction(function () use ($case, $instructions, $post, $userId) {
             $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
-            if (!$this->due($case, self::TASK_ITS)) {
-                throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the I to S is issued.");
+            if (!$this->due($case, self::TASK_JOB_ITS)) {
+                throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the Instruction to Surveyor is issued.");
             }
             $jacket = CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->first();
-            if (!$jacket) {
-                throw WorkflowGuardException::because('Commission the field jacket first; the I to S is issued on its job.');
+            if (!$jacket || !$jacket->cadastral_survey_job_id) {
+                throw WorkflowGuardException::because('Attach the job and the surveyor first; the instruction is issued on the job.');
             }
             $job = CadastralSurveyJob::query()->lockForUpdate()->findOrFail($jacket->cadastral_survey_job_id);
             if ($job->its_number) {
@@ -261,7 +337,7 @@ class FieldJackets
                 'status' => 'Issued',
                 'issued_at' => now(),
             ]);
-            $this->tick($case, self::TASK_ITS, $job->its_number, $userId);
+            $this->tick($case, self::TASK_JOB_ITS, $job->its_number, $userId);
 
             $this->audit->logAction('Cadastral I to S Issued', 'CadastralSurveyJob', $job->id, null,
                 ['its_number' => $job->its_number, 'job_number' => $job->job_number, 'surveyor' => $surveyor->full_name],

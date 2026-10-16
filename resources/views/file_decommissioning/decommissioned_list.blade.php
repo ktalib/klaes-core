@@ -29,7 +29,9 @@
                 </div> --}}
 
                 <!-- Quick Decommission Toggle -->
-                <div class="px-6 pt-6">
+                {{-- Opened from the Cadastral sidebar (?url=cadastral) the list is view only: the
+                     toggle is hidden (kept in the page for the script), so the form never opens. --}}
+                <div class="px-6 pt-6" @if(request('url') === 'cadastral') style="display:none" @endif>
                     <button id="toggleQuickDecommission" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <i data-lucide="plus-circle" class="w-4 h-4 mr-2"></i>
                         Show Quick Decommission

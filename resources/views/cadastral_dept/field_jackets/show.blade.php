@@ -1,9 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
-@php $job = $jacket->job; $case = $jacket->case; @endphp
+@php
+  // No job until AD Cad Info attaches one (transcript, 2026-10-16).
+  $job = $jacket->job ?? (new \App\Models\Cadastral\CadastralSurveyJob())->forceFill(['status' => 'No job yet']);
+  $case = $jacket->case;
+@endphp
 <div class="flex-1 overflow-auto bg-gray-50">
-  @include('admin.header', ['PageTitle' => 'Field Jacket ' . $jacket->field_jacket_no, 'PageDescription' => $case->case_ref . ' · survey job ' . $job->job_number])
+  @include('admin.header', ['PageTitle' => 'Field Jacket ' . $jacket->field_jacket_no, 'PageDescription' => $case->case_ref . ' · survey job ' . ($job->job_number ?: 'not attached yet')])
 
   <div class="p-6 space-y-6">
     @include('cadastral_dept.partials._nav')
@@ -12,7 +16,7 @@
       <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700">
         <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to {{ $case->case_ref }}
       </a>
-      @canDo('Cad - Records', 'print')
+      @cadCan('print')
         <a href="{{ route('cadastral-dept.field-jackets.print', $jacket->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">
           <i data-lucide="printer" class="w-4 h-4"></i> Print jacket cover
         </a>
@@ -21,7 +25,7 @@
             <i data-lucide="file-text" class="w-4 h-4"></i> Print I to S
           </a>
         @endif
-      @endcanDo
+      @endcadCan
       <span class="ml-auto">@include('cadastral_dept.field_jackets._status', ['cdStatus' => $job->status])</span>
     </div>
 
@@ -76,7 +80,7 @@
     </div>
 
     @if ($canReassign)
-      @canDo('Cad - Records', 'edit')
+      @cadCan('edit')
         <form method="POST" action="{{ route('cadastral-dept.field-jackets.reassign.update', $jacket->id) }}"
               class="rounded-xl border border-gray-200 bg-white p-5 space-y-3"
               data-confirm-title="Reassign the surveyor?" data-confirm="{{ $jacket->field_jacket_no }} and job {{ $job->job_number }} go to the chosen surveyor.">
@@ -89,7 +93,7 @@
           <textarea name="reason" rows="2" required maxlength="1000" placeholder="Reason for the reassignment (required)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">{{ old('reason') }}</textarea>
           <div class="flex justify-end"><button class="px-4 py-2 rounded-lg bg-yellow-600 text-white text-sm font-semibold">Reassign</button></div>
         </form>
-      @endcanDo
+      @endcadCan
     @endif
   </div>
   @include('admin.footer')

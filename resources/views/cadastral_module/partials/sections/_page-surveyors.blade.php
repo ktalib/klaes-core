@@ -28,7 +28,7 @@
 {{-- Add / Edit a Surveyor opens in a modal (user, 2026-10-12). It opens by itself when editing
      (?edit=) or when a save came back with errors. --}}
 <div x-data="{ open: @js((bool) $editing || $errors->any()) }">
-@canDo('Cad - Records', 'create')
+@cadCan('create', 'ad_information')
     <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
         @if ($editing)
             <a href="{{ route('cadastral-module.surveyors.index') }}" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add a Surveyor</a>
@@ -36,8 +36,8 @@
             <button type="button" class="btn btn-primary" @click="open = true"><i class="fas fa-user-plus"></i> Add a Surveyor</button>
         @endif
     </div>
-@endcanDo
-@canDo('Cad - Records', $editing ? 'edit' : 'create')
+@endcadCan
+@cadCan($editing ? 'edit' : 'create', 'ad_information')
   <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-40 p-6"
        @keydown.escape.window="{{ $editing ? "window.location = '" . route('cadastral-module.surveyors.index') . "'" : 'open = false' }}">
     <form method="POST"
@@ -128,7 +128,7 @@
         </div>
     </form>
   </div>
-@endcanDo
+@endcadCan
 </div>
 
 <form method="GET" class="table-toolbar">
@@ -201,11 +201,11 @@
                                             <i data-lucide="list" class="w-4 h-4 text-gray-500"></i> View jobs ({{ $surveyor->jobs_count }})
                                         </a>
                                     @endif
-                                    @canDo('Cad - Records', 'edit')
+                                    @cadCan('edit', 'ad_information')
                                         <a href="{{ route('cadastral-module.surveyors.index', ['edit' => $surveyor->id]) }}" class="{{ $svItem }}">
                                             <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                         </a>
-                                    @endcanDo
+                                    @endcadCan
                                     <form method="POST" action="{{ route('cadastral-module.surveyors.update', $surveyor) }}">
                                         @csrf @method('PUT')
                                         <input type="hidden" name="full_name" value="{{ $surveyor->full_name }}" />

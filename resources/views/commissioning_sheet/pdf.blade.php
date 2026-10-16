@@ -261,6 +261,14 @@
             font-size: 3.6mm;
         }
 
+        /* "... (Duplicate FileNo):" is too long for one line at a legible size; it
+           wraps onto a second line inside the same label column instead. */
+        .label--wrap {
+            font-size: 3.3mm;
+            line-height: 1.15;
+            white-space: normal;
+        }
+
         .value-line {
             border-bottom: 0.3mm solid #444444;
             min-height: 7mm;
@@ -452,14 +460,24 @@
                 @php
                     $oldFileNumberLine = trim((string) ($data['old_file_number'] ?? ''));
                     $relatedFileNumberLine = $isSt ? '' : trim((string) ($data['related_file_number'] ?? ''));
-                    $relatedOrOldLines = array_values(array_filter([$oldFileNumberLine, $relatedFileNumberLine], fn ($v) => $v !== ''));
+                    // Label => number. On a Re-Issuance of FileNo the old number is the
+                    // duplicate it replaces, so that line says so (user, 2026-10-16).
+                    $relatedOrOldLines = [];
+                    if ($oldFileNumberLine !== '') {
+                        $relatedOrOldLines[] = [!empty($data['is_duplicate']) ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:', $oldFileNumberLine];
+                    }
+                    if ($relatedFileNumberLine !== '') {
+                        // With no old number, the duplicate is the related one (where the
+                        // Re-Issuance duplicate selector puts it).
+                        $relatedOrOldLines[] = [!empty($data['is_duplicate']) && $oldFileNumberLine === '' ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:', $relatedFileNumberLine];
+                    }
                     if (empty($relatedOrOldLines)) {
-                        $relatedOrOldLines = [''];
+                        $relatedOrOldLines = [['Related FileNo/Old FileNo:', '']];
                     }
                 @endphp
-                @foreach($relatedOrOldLines as $relatedOrOldLine)
+                @foreach($relatedOrOldLines as [$relatedOrOldLabel, $relatedOrOldLine])
                 <div class="row">
-                    <div class="label label--wide">Related FileNo/Old FileNo:</div>
+                    <div class="label label--wide {{ strlen($relatedOrOldLabel) > 30 ? 'label--wrap' : '' }}">{{ $relatedOrOldLabel }}</div>
                     <div class="value-line">{{ $relatedOrOldLine }}</div>
                 </div>
                 @endforeach

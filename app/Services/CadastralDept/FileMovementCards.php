@@ -276,6 +276,9 @@ class FileMovementCards
                 'event' => match (true) {
                     $m->outcome === 'registered' => 'From Registry (registered)',
                     $m->outcome === 'close' => 'Closed at ' . $this->def->deskShort($m->from_desk),
+                    // Head-of-unit approval (HeadApproval): within the unit.
+                    $m->outcome === HeadApproval::TO_HEAD => 'Sent to the ' . ($this->def->desks()[$m->from_desk]['head'] ?? $this->def->deskShort($m->from_desk)) . ' for approval',
+                    $m->outcome === HeadApproval::RETURNED => 'Returned to staff by the ' . ($this->def->desks()[$m->from_desk]['head'] ?? $this->def->deskShort($m->from_desk)),
                     default => 'From ' . $this->def->deskShort($m->from_desk) . ($m->outcome !== 'forward' ? ' (' . str_replace('_', ' ', $m->outcome) . ')' : ''),
                 },
                 'reason' => $m->remarks,

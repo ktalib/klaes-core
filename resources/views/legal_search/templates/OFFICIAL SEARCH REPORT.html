@@ -45,6 +45,13 @@
       z-index: 0;
     }
 
+    /* Requesting Body watermark — below FOR OFFICE USE ONLY, in blue so it reads apart. */
+    .watermark.watermark-body {
+      top: 72%;
+      color: rgba(29, 78, 216, 0.12);
+      text-transform: uppercase;
+    }
+
     header {
       width: 100%;
       border-bottom: 2px solid #000;
@@ -348,6 +355,8 @@
 <body>
   <div class="page">
     <div class="watermark">FOR OFFICE USE ONLY</div>
+    <!-- Unpaid (Official) search: the Requesting Body from the TTC token, e.g. EFCC. -->
+    <div id="wm-body" class="watermark watermark-body" style="display:none;"></div>
 
     <div class="main-content">
       <header>
@@ -395,6 +404,35 @@
           <td><strong id="report-plot-description">-</strong></td>
           <td class="bold-lbl-right">TP No:</td>
           <td><strong id="report-tpno">-</strong></td>
+        </tr>
+      </table>
+
+      <!-- Requester Details from the Transaction Token Control (TTC) token. -->
+      <div class="section-label">Requester Details</div>
+      <table class="prop-details">
+        <tr>
+          <td class="bold-lbl-left">Client Name:</td>
+          <td><strong id="report-client-name">-</strong></td>
+          <td class="bold-lbl-right">Client Address:</td>
+          <td><strong id="report-client-address">-</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Search Type:</td>
+          <td><strong id="report-search-type">-</strong></td>
+          <td class="bold-lbl-right">Token No:</td>
+          <td><strong id="report-ttc-token">-</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Receipt No:</td>
+          <td><strong id="report-ttc-receipt">-</strong></td>
+          <td class="bold-lbl-right">Amount Paid:</td>
+          <td><strong id="report-ttc-amount">-</strong></td>
+        </tr>
+        <tr>
+          <td class="bold-lbl-left">Date Paid:</td>
+          <td><strong id="report-ttc-date-paid">-</strong></td>
+          <td class="bold-lbl-right"></td>
+          <td></td>
         </tr>
       </table>
 
@@ -523,6 +561,22 @@
           setText('report-plot-no', d.plot_no);
           setText('report-plot-description', d.plot_description);
           setText('report-tpno', d.tpno);
+          // Requester Details from the TTC token. A token with a Requesting Body is an
+          // Official (unpaid) search and carries that body as a watermark.
+          const rq = d.requester || {};
+          setText('report-client-name', d.client_name);
+          setText('report-client-address', d.client_address);
+          setText('report-search-type', rq.search_type
+            ? (rq.requesting_body ? rq.search_type + ' (' + rq.requesting_body + ')' : rq.search_type) : null);
+          setText('report-ttc-token', rq.token);
+          setText('report-ttc-receipt', rq.receipt_number);
+          setText('report-ttc-amount', rq.amount_paid ? '\u20A6' + rq.amount_paid : null);
+          setText('report-ttc-date-paid', rq.date_paid);
+          const wmBody = document.getElementById('wm-body');
+          if (wmBody) {
+            wmBody.textContent = rq.watermark || '';
+            wmBody.style.display = rq.watermark ? 'block' : 'none';
+          }
           setText('report-generated-by', d.generated_by);
           setText('report-full-name', d.full_name);
 

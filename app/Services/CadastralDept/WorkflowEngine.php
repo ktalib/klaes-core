@@ -140,6 +140,14 @@ class WorkflowEngine
                 continue;
             }
             $s = $def->step($workflow, $m->from_step);
+            // Head-of-unit approval stays on the step: show it as its own entry (HeadApproval).
+            if ($m->outcome === HeadApproval::TO_HEAD || $m->outcome === HeadApproval::RETURNED) {
+                $head = $def->desks()[$s['desk']]['head'] ?? $def->deskShort($s['desk']);
+                $out[] = ['key' => $m->from_step, 'label' => $m->outcome === HeadApproval::TO_HEAD ? "Sent to the {$head} for approval" : "Returned to staff by the {$head}",
+                    'desk' => $m->outcome === HeadApproval::TO_HEAD ? $head : $def->deskShort($s['desk']), 'state' => 'done',
+                    'outcome' => null, 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
+                continue;
+            }
             $out[] = ['key' => $m->from_step, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk']), 'state' => 'done',
                 'outcome' => $s['outcomes'][$m->outcome]['label'] ?? null, 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
         }

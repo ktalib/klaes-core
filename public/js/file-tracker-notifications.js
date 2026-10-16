@@ -183,6 +183,19 @@
     `;
   }
 
+  // A same-site path the notification opens (raw.open_path, e.g. a Cadastral file page).
+  // Only a path on this site counts; anything else is ignored.
+  function openPathOf(item) {
+    const path = item?.data?.raw?.open_path;
+    return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') ? path : '';
+  }
+
+  function buildOpenLink(item) {
+    const path = openPathOf(item);
+    if (!path) return '';
+    return `<a href="${escapeHtml(path)}" class="text-[11px] font-semibold text-violet-600 hover:underline" data-notification-open data-notification-id="${item.id}">Open file</a>`;
+  }
+
   function buildCloseButton(item, subtle = false) {
     if (!item?.id) {
       return '';
@@ -350,6 +363,7 @@
                 <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                   ${createdLabel ? `<span>${escapeHtml(createdLabel)}</span>` : ''}
                   ${office ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">${escapeHtml(office)}</span>` : ''}
+                  ${buildOpenLink(item)}
                   ${
                     !item.isRead && !primaryActions
                       ? `<button type="button" class="text-[11px] font-semibold text-violet-600 hover:underline" data-notification-close data-notification-id="${item.id}">Mark as read</button>`
@@ -698,7 +712,7 @@
       toast.addEventListener('click', (e) => {
         if (!e.target.closest('.toast-bar-action') && !e.target.closest('.toast-dismiss')) {
           markNotificationRead(item.id).catch(() => {});
-          window.location.href = '/notifications';
+          window.location.href = openPathOf(item) || '/notifications';
         }
       });
 
@@ -852,6 +866,14 @@
     }
 
     root.addEventListener('click', async (event) => {
+      // "Open file": mark it read and let the link navigate.
+      const openLink = event.target.closest('[data-notification-open]');
+      if (openLink) {
+        const openId = Number(openLink.dataset.notificationId || '');
+        if (openId) markNotificationRead(openId).catch(() => {});
+        return;
+      }
+
       const closeButton = event.target.closest('[data-notification-close]');
       if (closeButton) {
         event.preventDefault();

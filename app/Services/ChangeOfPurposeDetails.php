@@ -26,6 +26,41 @@ class ChangeOfPurposeDetails
         return $result;
     }
 
+    /**
+     * The file's current purpose (e.g. HIGH DENSITY, COMMERCIAL (SHOPS)). Commissioning's
+     * purposes row is the specific answer; indexing mostly holds only the land use
+     * (RESIDENTIAL), so it is the fallback. Null when neither records one.
+     */
+    public static function currentPurpose(string $fileNo): ?string
+    {
+        $fileNo = strtoupper(trim($fileNo));
+        if ($fileNo === '') return null;
+
+        $db = DB::connection('sqlsrv');
+        $name = $db->table('mls_file_no as m')
+            ->join('purposes as p', 'p.id', '=', 'm.purpose_id')
+            ->where('m.full_file_number', $fileNo)
+            ->orderByDesc('m.id')
+            ->value('p.name');
+
+        if (trim((string) $name) === '') {
+            $name = $db->table('file_indexings')
+                ->where('file_number', $fileNo)
+                ->orderByDesc('id')
+                ->value('land_use_type');
+        }
+
+        $name = trim((string) $name);
+        return $name !== '' ? $name : null;
+    }
+
+    /** Purpose names compared case- and whitespace-insensitively. */
+    public static function samePurpose(?string $a, ?string $b): bool
+    {
+        $norm = fn ($v) => preg_replace('/\s+/', ' ', strtoupper(trim((string) $v)));
+        return $norm($a) !== '' && $norm($a) === $norm($b);
+    }
+
     public static function fillBlanks(array $values, array $fallback): array
     {
         foreach ($fallback as $key => $value) {

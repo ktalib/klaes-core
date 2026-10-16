@@ -120,6 +120,11 @@ class AppServiceProvider extends ServiceProvider
             return auth()->check() && auth()->user()->canDo($module, $action);
         });
 
+        // Cadastral Department: Cad - Records or any Cadastral desk role (2026-10-15).
+        Blade::if('cadCan', function (string $action = 'view', ?string $desk = null) {
+            return \App\Services\CadastralDept\DeskAccess::can(auth()->user(), $action, $desk);
+        });
+
         Blade::if('canAnyDo', function (string $module, $actions) {
             if (!auth()->check()) {
                 return false;

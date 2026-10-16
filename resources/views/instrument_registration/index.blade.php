@@ -1443,6 +1443,19 @@ function _gbmFetchSerialPreview() {
                     + '<span style="font-size:11px;color:#6b7280;margin-left:6px;">(' + count + ' instruments)</span>';
             });
             previewContent.innerHTML = parts.join('<span style="margin:0 12px;color:#d1d5db;">|</span>');
+
+            // Clash guard: a blocked register refuses these numbers on submit,
+            // so say so here; a warning means the volume is nearly full.
+            var notes = results.map(function(r) {
+                if (r.data.blocked) {
+                    return '<div style="margin-top:6px;font-size:12px;color:#b91c1c;font-weight:600;"><i class="fas fa-ban"></i> ' + _gbmEsc(r.data.block_message) + '</div>';
+                }
+                if (r.data.warning) {
+                    return '<div style="margin-top:6px;font-size:12px;color:#b45309;"><i class="fas fa-exclamation-triangle"></i> ' + _gbmEsc(r.data.warning) + '</div>';
+                }
+                return '';
+            }).join('');
+            if (notes) previewContent.innerHTML = '<div>' + previewContent.innerHTML + notes + '</div>';
         })
         .catch(function() {
             previewContent.innerHTML = '<span style="color:#dc2626;font-size:12px;"><i class="fas fa-exclamation-circle"></i> Preview unavailable</span>';

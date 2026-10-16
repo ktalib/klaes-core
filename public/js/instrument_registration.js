@@ -598,6 +598,29 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// Register clash guard: the server reports `blocked` when the next number is
+// already held (registration will be refused) and `warning` when the volume is
+// about to roll into an occupied one. Shown once per type and message per page.
+var _registerGuardShown = {};
+function notifyRegisterGuard(data, instrumentType) {
+  if (!data || (!data.blocked && !data.warning)) return;
+  var text = data.blocked ? data.block_message : data.warning;
+  var key = (instrumentType || '') + '|' + text;
+  if (_registerGuardShown[key]) return;
+  _registerGuardShown[key] = true;
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      icon: data.blocked ? 'error' : 'warning',
+      title: data.blocked ? 'Registration Paused' : 'Volume Almost Full',
+      text: text,
+      confirmButtonColor: data.blocked ? '#ef4444' : '#f59e0b'
+    });
+  } else {
+    alert(text);
+  }
+}
+window.notifyRegisterGuard = notifyRegisterGuard;
+
 // Fetch next available serial number
 function fetchNextSerialNumber(instrumentType = null) {
   // Create headers
@@ -665,6 +688,8 @@ function fetchNextSerialNumber(instrumentType = null) {
       // Store the data globally for later use
       window.nextSerialData = data;
       nextSerialData = data;
+
+      notifyRegisterGuard(data, instrumentType);
 
       return data;
     })

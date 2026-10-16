@@ -25,6 +25,7 @@
             profile: @js(route('secretariat-file-log.profile')),
             deleteLog: @js(route('secretariat-file-log.delete-log')),
             editLog: @js(route('secretariat-file-log.edit-log')),
+            editDetails: @js(route('secretariat-file-log.edit-details')),
             deleteTracker: @js(route('secretariat-file-log.delete-tracker')),
             {{-- Relative on purpose: the sheet builder runs in a same-origin frame. --}}
             trackingPage: @js(route('create-file-tracker.index', [], false)),
@@ -42,6 +43,8 @@
         officers: @js($officers),
         userName: @js(trim((auth()->user()->first_name ?? '') . ' ' . (auth()->user()->last_name ?? '')) ?: (auth()->user()->name ?? '')),
         externalSenders: @js($externalSenders ?? []),
+        officerRanks: @js($officerRanks ?? []),
+        lgas: @js($lgas ?? []),
      })">
 
     @include('admin.header')
@@ -135,6 +138,9 @@
                                 </div>
                             </div>
                             <p class="text-xs text-gray-500 mt-2" x-text="card.hint"></p>
+                            <p class="text-xs mt-1 font-semibold text-gray-600" x-show="!listsLoading">
+                                <span x-text="'Files ' + card.files"></span><span class="text-gray-300"> · </span><span x-text="'Mails ' + card.memo"></span>
+                            </p>
                         </button>
                     </template>
                 </div>
@@ -341,7 +347,7 @@
                                         <th class="px-3 py-2 text-left" x-show="mode === 'in'">Now at</th>
                                         <th class="px-3 py-2 text-left" x-show="mode === 'out'">Send to (office) *</th>
                                         <th class="px-3 py-2 text-left" x-show="mode === 'out'">Receiving officer *</th>
-                                        <th class="px-3 py-2 text-left" x-show="mode === 'out'">Request purpose *</th>
+                                        <th class="px-3 py-2 text-left" x-show="mode === 'out'">Request purpose</th>
                                         <th class="px-3 py-2 text-left">Status</th>
                                         <th class="px-3 py-2"></th>
                                     </tr>
@@ -382,7 +388,7 @@
                                             </td>
                                             <td class="px-3 py-2" x-show="mode === 'out'">
                                                 <select x-model="item.request_purpose_id" :disabled="item.state === 'done' || batch.running"
-                                                        class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.request_purpose_id || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:10rem">
+                                                        class="w-full border border-gray-300 rounded-lg text-sm px-2 py-1.5 bg-white" style="min-width:10rem">
                                                     <option value="">— Select purpose —</option>
                                                     <template x-for="p in requestPurposes" :key="'bip-' + p.id">
                                                         <option :value="String(p.id)" x-text="nice(p.name)"></option>
@@ -428,7 +434,7 @@
                             </div>
                         </div>
                         <p x-show="mode === 'out' && batchPending().length && !batchReady() && !batch.running" class="text-xs text-red-600 text-right">
-                            Every file needs an office, a receiving officer and a request purpose. Use Apply to all if they are the same.
+                            Every file needs an office and a receiving officer. Use Apply to all if they are the same.
                         </p>
                     </div>
                 </div>
@@ -457,7 +463,7 @@
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <h2 class="text-xl font-bold text-gray-900" x-text="profileHeading()"></h2>
                                     <template x-for="b in profileBadges()" :key="b.label">
-                                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold" :class="b.cls" x-text="b.label"></span>
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold" :class="b.cls || ''" :style="b.style || ''" x-text="b.label"></span>
                                     </template>
                                 </div>
                                 <p class="text-gray-600 mt-0.5" x-text="profileTitle()"></p>
@@ -493,6 +499,12 @@
 
                             {{-- Actions --}}
                             <div class="flex lg:flex-col gap-2 flex-shrink-0">
+                                {{-- Close first, in red (inline: the Tailwind v2 CDN may lack the shade). --}}
+                                <button type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm"
+                                        style="background:#dc2626;color:#fff;border:1px solid #dc2626;" @click="closeProfile()">
+                                    <i data-lucide="x" class="w-4 h-4"></i> Close
+                                </button>
+                                <div x-show="sentFromHere()" class="px-3 py-2 text-xs rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-200">Sent from your office — in transit</div>
                                 <button type="button" x-show="canReceive()" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm disabled:opacity-50"
                                         :disabled="busy" @click="receiveProfile()">
                                     <i data-lucide="log-in" class="w-4 h-4"></i> Receive file
@@ -507,8 +519,10 @@
                                     <i data-lucide="printer" class="w-4 h-4"></i>
                                     <span x-text="sheetBusy ? 'Preparing…' : 'Tracking sheet'"></span>
                                 </button>
-                                <button type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50" @click="closeProfile()">
-                                    <i data-lucide="x" class="w-4 h-4"></i> Close
+                                <button type="button" x-show="canEditDetails()" :disabled="busy" @click="editDetails()"
+                                        title="Correct the title / subject, type, reference and related file number"
+                                        class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-indigo-700 border border-indigo-200 bg-indigo-50 rounded-lg hover:bg-indigo-100 disabled:opacity-50">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i> Edit details
                                 </button>
                             </div>
                         </div>
@@ -571,7 +585,7 @@
                                        :class="send.officer_other.trim() ? 'border-gray-300' : 'border-red-300'">
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose *</label>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose</label>
                                 <select x-model="send.request_purpose_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
                                     <option value="">— Select the reason this file is being sent —</option>
                                     <template x-for="p in requestPurposes" :key="'rp-' + p.id">
@@ -766,11 +780,12 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <template x-for="opt in entryTypes" :key="opt.value">
                                 <label class="border-2 rounded-xl p-4 cursor-pointer flex gap-3 items-start transition"
-                                       :class="manual.entry_type === opt.value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'">
-                                    <input type="radio" class="mt-1" :value="opt.value" x-model="manual.entry_type" @change="manualTypeChanged()">
+                                       :style="entryCardStyle(opt, manual.entry_type === opt.value)">
+                                    <input type="radio" class="mt-1" :value="opt.value" x-model="manual.entry_type" @change="manualTypeChanged()"
+                                           :style="'accent-color:' + opt.solid">
                                     <div>
-                                        <div class="font-semibold text-sm text-gray-800 flex items-center gap-1.5">
-                                            <i :data-lucide="opt.icon" class="w-4 h-4 text-indigo-500"></i><span x-text="opt.label"></span>
+                                        <div class="font-semibold text-sm flex items-center gap-1.5" :style="'color:' + opt.text">
+                                            <span class="inline-flex" :style="'color:' + opt.solid"><i :data-lucide="opt.icon" class="w-4 h-4"></i></span><span x-text="opt.label"></span>
                                         </div>
                                         <div class="text-xs text-gray-500 mt-0.5" x-text="opt.hint"></div>
                                     </div>
@@ -778,19 +793,32 @@
                             </template>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div x-show="manual.entry_type === 'non_file'" class="md:col-span-2">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Is it Mail or a File? *</label>
+                        {{-- Not indexed and Not a regular Mail/Letter/Memo/File: the document, then Sender, then Receiving. --}}
+                        <div class="rounded-xl" :class="manual.entry_type !== 'file' ? 'border p-4' : ''"
+                             :style="manual.entry_type !== 'file' ? 'border-color:#bfdbfe;background:#eff6ff;' : ''">
+                            <div x-show="manual.entry_type !== 'file'" class="flex items-center gap-2 mb-3">
+                                <span class="inline-flex" style="color:#1e40af"><i data-lucide="file-text" class="w-4 h-4"></i></span>
+                                <h3 class="text-sm font-bold" style="color:#1e40af">Document</h3>
+                                <span class="text-xs text-gray-500">— what it is and how it is identified</span>
+                            </div>
+                        <div class="grid grid-cols-1 gap-4" :class="manual.entry_type === 'non_file' ? 'md:grid-cols-3' : 'md:grid-cols-2'">
+                            <div x-show="manual.entry_type === 'non_file'" class="md:col-span-3">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">What is it? *</label>
                                 <div class="flex flex-wrap gap-2">
                                     <template x-for="k in documentKinds" :key="'dk-' + k.value">
-                                        <label class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer text-sm font-semibold transition"
-                                               :class="manual.document_kind === k.value ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-gray-200 text-gray-700 hover:border-gray-300'">
-                                            <input type="radio" name="sfl-document-kind" :value="k.value" x-model="manual.document_kind">
-                                            <i :data-lucide="k.icon" class="w-4 h-4 text-indigo-500"></i><span x-text="k.label"></span>
+                                        <label class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer text-sm font-semibold transition shadow-sm"
+                                               :style="kindPillStyle(k, manual.document_kind === k.value)">
+                                            <input type="radio" name="sfl-document-kind" :value="k.value" x-model="manual.document_kind"
+                                                   @change="manual.kind_other = ''">
+                                            <i :data-lucide="k.icon" class="w-4 h-4"></i><span x-text="k.label"></span>
                                         </label>
                                     </template>
                                 </div>
-                                <p x-show="!manual.document_kind" class="mt-1 text-xs text-red-600">Choose Mail or File.</p>
+                                <p x-show="!manual.document_kind" class="mt-1 text-xs text-red-600">Choose Mail, Letter, Memo, File or Other.</p>
+                                <input type="text" x-show="manual.document_kind === 'other'" x-model="manual.kind_other" maxlength="100"
+                                       placeholder="Specify what it is *"
+                                       class="mt-2 md:w-1/2 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                       :class="manual.kind_other.trim() ? 'border-gray-300' : 'border-red-300'">
                             </div>
                             <div x-show="manual.entry_type === 'file'" class="relative" @click.outside="manual.indexOpen = false">
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">File number *</label>
@@ -809,11 +837,14 @@
                                 <div x-show="manual.indexOpen" x-transition.opacity
                                      class="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
                                     <div x-show="indexed.loading" class="px-3 py-3 text-sm text-gray-400">Searching…</div>
-                                    <template x-for="f in indexed.items" :key="'ix-' + f.id">
+                                    <template x-for="f in indexed.items" :key="'ix-' + (f.key || f.id)">
                                         <button type="button" class="w-full text-left px-3 py-2 hover:bg-indigo-50 flex items-center justify-between gap-3"
                                                 :class="manual.file_number === f.file_number ? 'bg-indigo-50' : ''"
                                                 @mousedown.prevent="pickIndexed(f)">
-                                            <span class="text-sm font-semibold text-gray-800 whitespace-nowrap" x-text="f.file_number"></span>
+                                            <span class="text-sm font-semibold text-gray-800 whitespace-nowrap">
+                                                <span x-text="f.file_number"></span>
+                                                <span x-show="f.temporary" class="ml-1 px-1.5 rounded text-xs font-semibold" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;">Temporary</span>
+                                            </span>
                                             <span class="text-xs text-gray-500 truncate text-right" x-text="nice(f.file_title)"></span>
                                         </button>
                                     </template>
@@ -845,151 +876,218 @@
                                        :class="manual.entry_type === 'file' ? 'bg-gray-50 text-gray-700 cursor-not-allowed' : 'bg-white'">
                             </div>
                             <div x-show="manual.entry_type === 'non_file'">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Sender</label>
-                                <select x-model="manual.sender_type" @change="senderTypeChanged()" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                    <option value="">— Select sender —</option>
-                                    <template x-for="s in senderTypes" :key="'st-' + s">
-                                        <option :value="s" x-text="s"></option>
-                                    </template>
-                                </select>
-                                {{-- Internal: the department it came from (offices.department), or Other typed by hand. --}}
-                                <select x-show="manual.sender_type === 'Internal'" x-model="manual.sender_dept" @change="pickSenderDept()"
-                                        class="mt-1 w-full border rounded-lg text-sm px-2 py-2 bg-white"
-                                        :class="manual.sender_dept ? 'border-gray-300' : 'border-red-300'">
-                                    <option value="">— Select the department * —</option>
-                                    <template x-for="d in departments()" :key="'sd-' + d">
-                                        <option :value="d" x-text="d"></option>
-                                    </template>
-                                    <option value="other">Other (not listed)…</option>
-                                </select>
-                                <input type="text" x-show="manual.sender_type === 'Internal' && manual.sender_dept === 'other'" x-model="manual.sender" maxlength="255"
-                                       placeholder="Specify the department *"
-                                       class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                       :class="manual.sender.trim() ? 'border-gray-300' : 'border-red-300'">
-                                {{-- External: a Kano State MDA (kano_mdas), or Other typed by hand. --}}
-                                <select x-show="manual.sender_type === 'External'" x-model="manual.sender_mda" @change="manual.sender = ''"
-                                        class="mt-1 w-full border rounded-lg text-sm px-2 py-2 bg-white"
-                                        :class="manual.sender_mda ? 'border-gray-300' : 'border-red-300'">
-                                    <option value="">— Select the MDA * —</option>
-                                    <template x-for="mda in externalSenders" :key="'mda-' + mda">
-                                        <option :value="mda" x-text="mda"></option>
-                                    </template>
-                                    <option value="other">Other (not listed)…</option>
-                                </select>
-                                <input type="text" x-show="manual.sender_type === 'External' && manual.sender_mda === 'other'" x-model="manual.sender" maxlength="255"
-                                       placeholder="Specify the MDA or organisation *"
-                                       class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                       :class="manual.sender.trim() ? 'border-gray-300' : 'border-red-300'">
-                                <input type="text" x-show="manual.sender_type === 'Other'" x-model="manual.sender" maxlength="255"
-                                       placeholder="Specify the sender *"
-                                       class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                       :class="manual.sender_type === 'Other' && !manual.sender.trim() ? 'border-red-300' : 'border-gray-300'">
-                            </div>
-                            <div x-show="manual.entry_type === 'non_file'">
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">Reference no.</label>
-                                <input type="text" x-model="manual.reference" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                <input type="text" x-model="manual.reference" class="w-full border border-gray-300 bg-white rounded-lg px-3 py-2 text-sm">
                             </div>
-                            <div class="relative" @click.outside="manual.officerOpen = false">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer *
-                                    <span x-show="mode === 'in'" class="font-normal text-gray-400">(you — receiving)</span></label>
-                                <input type="text" x-show="mode === 'in'" :value="userName" readonly
-                                       title="On Receive, the receiving officer is the logged-in user"
-                                       class="w-full border border-green-400 bg-gray-50 text-gray-700 rounded-lg text-sm px-3 py-2 cursor-not-allowed">
-                                <div class="relative" x-show="mode !== 'in'">
-                                    <input type="text" x-ref="manualOfficerInput" x-model="manual.officerFilter"
-                                           @focus="manual.officerOpen = true" @input="manual.receiving_officer_id = ''; manual.officerOpen = true"
-                                           @keydown.escape="manual.officerOpen = false"
-                                           placeholder="— Select officer —" autocomplete="off"
-                                           class="w-full border rounded-lg text-sm pl-3 pr-8 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                           :class="manual.receiving_officer_id ? 'border-green-400' : 'border-gray-300'">
-                                    <button type="button" tabindex="-1" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400"
-                                            @click="manual.officerOpen = !manual.officerOpen; $refs.manualOfficerInput.focus()">
-                                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
-                                    </button>
+                        </div>
+                        </div>
+
+                        <div class="rounded-xl" :class="manual.entry_type !== 'file' ? 'border p-4' : ''"
+                             :style="manual.entry_type !== 'file' ? 'border-color:#e2e8f0;background:#f8fafc;' : ''">
+                            <div x-show="manual.entry_type !== 'file'" class="flex items-center gap-2 mb-3">
+                                <span class="inline-flex" style="color:#334155"><i data-lucide="user-round" class="w-4 h-4"></i></span>
+                                <h3 class="text-sm font-bold" style="color:#334155">Sender</h3>
+                                <span class="text-xs text-gray-500">— who sent it and where it came from</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div x-show="manual.entry_type === 'non_file'">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Sender</label>
+                                    <select x-model="manual.sender_type" @change="senderTypeChanged()" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                        <option value="">— Select sender —</option>
+                                        <template x-for="s in senderTypes" :key="'st-' + s">
+                                            <option :value="s" x-text="s"></option>
+                                        </template>
+                                    </select>
+                                    {{-- Internal: the department it came from (offices.department), or Other typed by hand. --}}
+                                    <select x-show="manual.sender_type === 'Internal'" x-model="manual.sender_dept" @change="pickSenderDept(); manual.sender_person = ''; manual.sender_name = ''"
+                                            class="mt-1 w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.sender_dept ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="">— Select the department * —</option>
+                                        <template x-for="d in departments()" :key="'sd-' + d">
+                                            <option :value="d" x-text="d"></option>
+                                        </template>
+                                        <option value="other">Other (not listed)…</option>
+                                    </select>
+                                    <input type="text" x-show="manual.sender_type === 'Internal' && manual.sender_dept === 'other'" x-model="manual.sender" maxlength="255"
+                                           placeholder="Specify the department *"
+                                           class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.sender.trim() ? 'border-gray-300' : 'border-red-300'">
+                                    {{-- External: a Kano State MDA (kano_mdas), or Other typed by hand. --}}
+                                    <select x-show="manual.sender_type === 'External'" x-model="manual.sender_mda" @change="manual.sender = ''; manual.sender_lga = ''"
+                                            class="mt-1 w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.sender_mda ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="">— Select the MDA * —</option>
+                                        <option value="lga">LGA (Local Government)…</option>
+                                        <template x-for="mda in externalSenders" :key="'mda-' + mda">
+                                            <option :value="mda" x-text="mda"></option>
+                                        </template>
+                                        <option value="other">Other (not listed)…</option>
+                                    </select>
+                                    {{-- LGA: one of Kano's LGAs (lgas table). --}}
+                                    <select x-show="manual.sender_type === 'External' && manual.sender_mda === 'lga'" x-model="manual.sender_lga"
+                                            class="mt-1 w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.sender_lga ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="">— Select the LGA * —</option>
+                                        <template x-for="l in lgas" :key="'lga-' + l">
+                                            <option :value="l" x-text="l"></option>
+                                        </template>
+                                    </select>
+                                    <input type="text" x-show="manual.sender_type === 'External' && manual.sender_mda === 'other'" x-model="manual.sender" maxlength="255"
+                                           placeholder="Specify the MDA or organisation *"
+                                           class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.sender.trim() ? 'border-gray-300' : 'border-red-300'">
+                                    <input type="text" x-show="manual.sender_type === 'Other'" x-model="manual.sender" maxlength="255"
+                                           placeholder="Specify the sender *"
+                                           class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.sender_type === 'Other' && !manual.sender.trim() ? 'border-red-300' : 'border-gray-300'">
                                 </div>
-                                <div x-show="manual.officerOpen && mode !== 'in'" x-transition.opacity
-                                     class="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                                    <template x-for="group in manualOfficerGroups()" :key="'mog-' + group.label">
-                                        <div>
-                                            <div class="px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-400 bg-gray-50 sticky top-0" x-text="group.label"></div>
-                                            <template x-for="o in group.items" :key="'mof-' + o.id">
-                                                <button type="button" class="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2"
-                                                        :class="String(manual.receiving_officer_id) === String(o.id) ? 'bg-indigo-50 font-semibold' : ''"
-                                                        @mousedown.prevent="pickManualOfficer(o)">
-                                                    <span class="truncate" x-text="nice(o.name)"></span>
-                                                    <span class="text-xs text-gray-400 flex-shrink-0" x-text="o.rank || ''"></span>
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </template>
-                                    <div x-show="!manualOfficerGroups().length" class="px-3 py-3 text-sm text-gray-400">No officer matches.</div>
-                                    <button type="button" class="w-full text-left px-3 py-2 text-sm border-t border-gray-100 hover:bg-amber-50 flex items-center gap-2 text-amber-800"
-                                            :class="manual.receiving_officer_id === 'other' ? 'bg-amber-50 font-semibold' : ''"
-                                            @mousedown.prevent="manual.receiving_officer_id = 'other'; manual.officerFilter = 'Other (not listed)'; manual.officerOpen = false">
-                                        <i data-lucide="user-plus" class="w-4 h-4"></i> Other (not listed)…
-                                    </button>
+                                {{-- Sender name: Internal picks a staff member (or Other, typed); External / Other type it. --}}
+                                <div x-show="manual.entry_type === 'non_file' && manual.sender_type">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Sender name *</label>
+                                    <select x-show="manual.sender_type === 'Internal'" x-model="manual.sender_person" @change="pickSenderPerson()"
+                                            class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.sender_person ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="">— Select the sender —</option>
+                                        <template x-for="o in senderPeople()" :key="'sp-' + o.id">
+                                            <option :value="String(o.id)" x-text="nice(o.name) + (o.rank ? ' — ' + o.rank : '') + (o.username ? ' (' + o.username + ')' : '')"></option>
+                                        </template>
+                                        <option value="other">Other (specify)…</option>
+                                    </select>
+                                    <input type="text" x-show="manual.sender_type !== 'Internal' || manual.sender_person === 'other'" x-model="manual.sender_name" maxlength="255"
+                                           :placeholder="manual.sender_type === 'Internal' ? 'Specify the sender\'s name *' : 'Sender\'s name *'"
+                                           class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="(manual.sender_type === 'Internal' ? 'mt-1 ' : '') + (manual.sender_name.trim() ? 'border-gray-300' : 'border-red-300')">
                                 </div>
-                                <input type="text" x-show="mode !== 'in' && manual.receiving_officer_id === 'other'" x-model="manual.officer_other" placeholder="Specify the receiving officer's name *"
-                                       class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                       :class="manual.officer_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                                <div x-show="manual.entry_type === 'non_file' && manual.sender_type">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Sender rank</label>
+                                    <select x-model="manual.sender_rank" @change="manual.sender_rank_other = ''" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                        <option value="">— Select the rank —</option>
+                                        <template x-for="r in officerRanks" :key="'rk-' + r">
+                                            <option :value="r" x-text="r"></option>
+                                        </template>
+                                        <option value="other">Other (specify)…</option>
+                                    </select>
+                                    <input type="text" x-show="manual.sender_rank === 'other'" x-model="manual.sender_rank_other" maxlength="100"
+                                           placeholder="Specify the rank *"
+                                           class="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.sender_rank_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                                </div>
+                                {{-- Hidden for an Internal sender (the sender's department above is used) and an External one (the MDA / LGA says where it came from). --}}
+                                <div x-show="!senderGivesDepartment() && !senderIsExternal()">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Received from (department) *</label>
+                                    <select x-model="manual.from_department" @change="fromDepartmentChanged()"
+                                            class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.from_department ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="">— Select the department —</option>
+                                        <template x-for="d in departments()" :key="'fd-' + d">
+                                            <option :value="d" x-text="d"></option>
+                                        </template>
+                                        <option value="other">Other (Specify)…</option>
+                                    </select>
+                                </div>
+                                <div x-show="!senderIsExternal()">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1"><span x-text="senderGivesDepartment() ? 'Sender’s department' : 'Received from (office)'"></span> *</label>
+                                    <select x-model="manual.from_office" class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.from_office ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="" x-text="manual.from_department ? '— Select the office —' : '— Select the department first —'"></option>
+                                        <template x-for="o in officesIn(manual.from_department)" :key="'from-' + o.office_code">
+                                            <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                        </template>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <input type="text" x-show="manual.from_office === 'other'" x-model="manual.from_other" placeholder="Specify where the file came from *"
+                                           class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.from_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose *</label>
-                                <select x-model="manual.request_purpose_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                    <option value="">— Select the reason this file was brought —</option>
-                                    <template x-for="p in requestPurposes" :key="'mrp-' + p.id">
-                                        <option :value="p.id" x-text="nice(p.name)"></option>
-                                    </template>
-                                    <option value="other">Other</option>
-                                </select>
-                                <input type="text" x-show="manual.request_purpose_id === 'other'" x-model="manual.purpose_other" placeholder="Specify the reason this file was brought *"
-                                       class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                       :class="manual.purpose_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                        </div>
+
+                        <div class="rounded-xl" :class="manual.entry_type !== 'file' ? 'border p-4' : ''"
+                             :style="manual.entry_type !== 'file' ? 'border-color:#bbf7d0;background:#f0fdf4;' : ''">
+                            <div x-show="manual.entry_type !== 'file'" class="flex items-center gap-2 mb-3">
+                                <span class="inline-flex" style="color:#166534"><i data-lucide="inbox" class="w-4 h-4"></i></span>
+                                <h3 class="text-sm font-bold" style="color:#166534">Receiving</h3>
+                                <span class="text-xs text-gray-500">— who takes it here, why, and where it goes next</span>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Received from (department)</label>
-                                <select x-model="manual.from_department" @change="manual.from_office = ''; manual.from_other = ''" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                    <option value="">— Any department / unknown —</option>
-                                    <template x-for="d in departments()" :key="'fd-' + d">
-                                        <option :value="d" x-text="d"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Received from (office)</label>
-                                <select x-model="manual.from_office" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2">
-                                    <option value="">— Not from a KLAES office / unknown —</option>
-                                    <template x-for="o in officesIn(manual.from_department)" :key="'from-' + o.office_code">
-                                        <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
-                                    </template>
-                                    <option value="other">Other</option>
-                                </select>
-                                <input type="text" x-show="manual.from_office === 'other'" x-model="manual.from_other" placeholder="Specify where the file came from *"
-                                       class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                       :class="manual.from_other.trim() ? 'border-gray-300' : 'border-red-300'">
-                            </div>
-                            {{-- Send: where it is going. Carried into the send form that opens after the log. --}}
-                            <div x-show="mode === 'out'">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Sending to (department)</label>
-                                <select x-model="manual.to_department" @change="manual.to_office = ''" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                    <option value="">— Any department —</option>
-                                    <template x-for="d in departments()" :key="'td-' + d">
-                                        <option :value="d" x-text="d"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div x-show="mode === 'out'">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Sending to (office)</label>
-                                <select x-model="manual.to_office" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                    <option value="">— Choose in the send form —</option>
-                                    <template x-for="o in officesIn(manual.to_department)" :key="'to-' + o.office_code">
-                                        <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
-                                <textarea x-model="manual.notes" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {{-- Send: the office it goes to. Pre-filled from the receiving officer's office; the item is logged here and sent on in one step. --}}
+                                <div x-show="mode === 'out'">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Send to (office) *</label>
+                                    <select x-model="manual.send_to_office" class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
+                                            :class="manual.send_to_office ? 'border-gray-300' : 'border-red-300'">
+                                        <option value="">— Select the office —</option>
+                                        <template x-for="group in officeGroups()" :key="'mst-' + group.department">
+                                            <optgroup :label="group.department">
+                                                <template x-for="o in group.items.filter(i => i.office_code !== office)" :key="'msto-' + o.office_code">
+                                                    <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                                </template>
+                                            </optgroup>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="relative" @click.outside="manual.officerOpen = false">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer *
+                                        <span x-show="mode === 'in'" class="font-normal text-gray-400">(you — receiving)</span>
+                                    <span x-show="mode === 'out'" class="font-normal text-gray-400">(at the office it is sent to)</span></label>
+                                    <input type="text" x-show="mode === 'in'" :value="userName" readonly
+                                           title="On Receive, the receiving officer is the logged-in user"
+                                           class="w-full border border-green-400 bg-gray-50 text-gray-700 rounded-lg text-sm px-3 py-2 cursor-not-allowed">
+                                    <div class="relative" x-show="mode !== 'in'">
+                                        <input type="text" x-ref="manualOfficerInput" x-model="manual.officerFilter"
+                                               @focus="manual.officerOpen = true" @input="manual.receiving_officer_id = ''; manual.officerOpen = true"
+                                               @keydown.escape="manual.officerOpen = false"
+                                               placeholder="— Select officer —" autocomplete="off"
+                                               class="w-full border rounded-lg text-sm pl-3 pr-8 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                               :class="manual.receiving_officer_id ? 'border-green-400' : 'border-gray-300'">
+                                        <button type="button" tabindex="-1" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400"
+                                                @click="manual.officerOpen = !manual.officerOpen; $refs.manualOfficerInput.focus()">
+                                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                    <div x-show="manual.officerOpen && mode !== 'in'" x-transition.opacity
+                                         class="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                                        <template x-for="group in manualOfficerGroups()" :key="'mog-' + group.label">
+                                            <div>
+                                                <div class="px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-400 bg-gray-50 sticky top-0" x-text="group.label"></div>
+                                                <template x-for="o in group.items" :key="'mof-' + o.id">
+                                                    <button type="button" class="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2"
+                                                            :class="String(manual.receiving_officer_id) === String(o.id) ? 'bg-indigo-50 font-semibold' : ''"
+                                                            @mousedown.prevent="pickManualOfficer(o)">
+                                                        <span class="truncate" x-text="nice(o.name)"></span>
+                                                        <span class="text-xs text-gray-400 flex-shrink-0" x-text="o.rank || ''"></span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div x-show="!manualOfficerGroups().length" class="px-3 py-3 text-sm text-gray-400">No officer matches.</div>
+                                        <button type="button" class="w-full text-left px-3 py-2 text-sm border-t border-gray-100 hover:bg-amber-50 flex items-center gap-2 text-amber-800"
+                                                :class="manual.receiving_officer_id === 'other' ? 'bg-amber-50 font-semibold' : ''"
+                                                @mousedown.prevent="manual.receiving_officer_id = 'other'; manual.officerFilter = 'Other (not listed)'; manual.officerOpen = false">
+                                            <i data-lucide="user-plus" class="w-4 h-4"></i> Other (not listed)…
+                                        </button>
+                                    </div>
+                                    <input type="text" x-show="mode !== 'in' && manual.receiving_officer_id === 'other'" x-model="manual.officer_other" placeholder="Specify the receiving officer's name *"
+                                           class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.officer_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose
+                                        <span x-show="manual.entry_type === 'non_file'" class="font-normal text-gray-400">(optional)</span></label>
+                                    <select x-model="manual.request_purpose_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                        <option value="">— Select the reason this file was brought —</option>
+                                        <template x-for="p in requestPurposes" :key="'mrp-' + p.id">
+                                            <option :value="p.id" x-text="nice(p.name)"></option>
+                                        </template>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <input type="text" x-show="manual.request_purpose_id === 'other'" x-model="manual.purpose_other" placeholder="Specify the reason this file was brought *"
+                                           class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manual.purpose_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
+                                    <textarea x-model="manual.notes" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+                                </div>
                             </div>
                         </div>
 
@@ -1010,7 +1108,7 @@
                     <div class="px-5 pt-3 border-b border-gray-100 flex flex-wrap items-end justify-between gap-3">
                         <nav class="flex gap-5 text-sm">
                             <template x-for="t in registerTabs" :key="t.key">
-                                <button type="button" class="pb-3 border-b-2 border-transparent text-gray-500" :class="tab === t.key && 'sfl-tab-active'" @click="tab = t.key">
+                                <button type="button" class="pb-3 border-b-2 border-transparent text-gray-500" :class="tab === t.key && 'sfl-tab-active'" @click="tab = t.key; memoFilter = ''">
                                     <span x-text="t.label"></span>
                                     <span class="ml-1 px-1.5 rounded text-xs" :class="t.badge" x-text="tabCount(t.key)"></span>
                                 </button>
@@ -1021,26 +1119,80 @@
                                 <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-2 top-2"></i>
                                 <input type="text" x-model="filter" placeholder="Filter…" class="border border-gray-300 rounded-lg pl-8 pr-2 py-1.5 text-sm w-52">
                             </div>
-                            <select x-show="view() === 'sent'" x-model.number="days" @change="loadLists()" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                            <select x-show="tab === 'memo'" x-model="memoFilter" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" title="Filter by type">
+                                <option value="" x-text="'All types (' + memoCount('') + ')'"></option>
+                                <template x-for="k in documentKinds" :key="'mf-' + k.value">
+                                    <option :value="k.value" x-text="k.label + ' (' + memoCount(k.value) + ')'"></option>
+                                </template>
+                            </select>
+                            {{-- Date range: filters every tab by the row's date; on Outgoing it replaces Last N days. --}}
+                            <div class="flex items-center gap-1 border border-gray-300 rounded-lg px-2 py-1 bg-white" title="Date range">
+                                <i data-lucide="calendar" class="w-4 h-4 text-gray-400"></i>
+                                <input type="date" x-model="dateFrom" :max="dateTo || null" @change="onDateRangeChange()" aria-label="From date"
+                                       class="text-sm border-0 p-0 focus:ring-0 text-gray-700" style="width:8.5rem">
+                                <span class="text-gray-400 text-xs">to</span>
+                                <input type="date" x-model="dateTo" :min="dateFrom || null" @change="onDateRangeChange()" aria-label="To date"
+                                       class="text-sm border-0 p-0 focus:ring-0 text-gray-700" style="width:8.5rem">
+                                <button type="button" x-show="dateFrom || dateTo" @click="clearDateRange()" title="Clear date range" aria-label="Clear date range"
+                                        class="text-gray-400 hover:text-red-500 px-0.5">&times;</button>
+                            </div>
+                            <select x-show="view() === 'sent' && !dateFrom && !dateTo" x-model.number="days" @change="loadLists()" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
                                 <option value="1">Today</option>
                                 <option value="7">Last 7 days</option>
                                 <option value="30">Last 30 days</option>
                                 <option value="90">Last 90 days</option>
                             </select>
+                            <div class="relative" @click.outside="exportOpen = false" @keydown.escape.window="exportOpen = false">
+                                <button type="button" @click="exportOpen = !exportOpen" :disabled="listsLoading || !visibleRows().length"
+                                        title="Export the rows shown (this tab, sub-tab, filter and date range)" aria-haspopup="true" :aria-expanded="exportOpen ? 'true' : 'false'"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg disabled:opacity-50"
+                                        style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">
+                                    <i data-lucide="download" class="w-4 h-4"></i> Export <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <div x-show="exportOpen" x-cloak x-transition.opacity
+                                     class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1" style="z-index:60">
+                                    <button type="button" @click="exportRows('csv')" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-green-600"></i> Excel (CSV)
+                                    </button>
+                                    <button type="button" @click="exportRows('pdf')" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                        <i data-lucide="file-text" class="w-4 h-4 text-red-600"></i> PDF
+                                    </button>
+                                </div>
+                            </div>
                             <button type="button" class="p-2 text-gray-500 hover:text-indigo-600 rounded-lg hover:bg-gray-50" title="Refresh" @click="loadLists()">
                                 <span class="inline-flex" :class="listsLoading && 'animate-spin'"><i data-lucide="refresh-cw" class="w-4 h-4"></i></span>
+                            </button>
+                            <button type="button" @click="toggleAutoRefresh()" :aria-pressed="autoRefresh ? 'true' : 'false'"
+                                    :title="(autoRefresh ? 'Auto refresh is on (every ' + autoRefreshSeconds + 's). Click to turn off.' : 'Turn on auto refresh (every ' + autoRefreshSeconds + 's)')
+                                            + (lastRefreshed ? ' Last refreshed ' + lastRefreshed.toLocaleTimeString() + '.' : '')"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border"
+                                    :class="autoRefresh ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'">
+                                <span class="inline-block w-2 h-2 rounded-full" :class="autoRefresh ? 'bg-green-300 animate-pulse' : 'bg-gray-300'"></span>
+                                <span x-text="autoRefresh ? 'Auto: On' : 'Auto: Off'"></span>
                             </button>
                         </div>
                     </div>
 
-                    {{-- Held at my office: the files held here, and Outgoing (sent from this office) --}}
-                    <div x-show="tab === 'held'" class="px-5 py-2 border-b border-gray-100 bg-gray-50 flex gap-2 text-xs">
-                        <template x-for="v in heldViews" :key="'hv-' + v.key">
+                    {{-- Incoming: waiting for receipt (Receive) and held here (Send). Outgoing: sent from this office. --}}
+                    <div class="px-5 py-2 border-b border-gray-100 bg-gray-50 flex gap-2 text-xs">
+                        <template x-for="v in subTabs" :key="'sv-' + v.key">
                             <button type="button" class="px-3 py-1 rounded-full border font-semibold"
-                                    :class="heldView === v.key ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-600 hover:border-indigo-300'"
-                                    @click="heldView = v.key">
+                                    :class="sub === v.key ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-600 hover:border-indigo-300'"
+                                    @click="sub = v.key">
                                 <span x-text="v.label"></span>
-                                <span class="ml-1" x-text="heldViewRows(v.key).length"></span>
+                                <span class="ml-1" x-text="subCount(tab, v.key)"></span>
+                            </button>
+                        </template>
+                    </div>
+
+                    {{-- Incoming, split: Yet to Receive (awaiting receipt) and Received (held here). --}}
+                    <div x-show="sub === 'incoming'" class="px-5 pt-2 border-b border-gray-100 flex gap-5 text-sm">
+                        <template x-for="iv in incomingViews" :key="'iv-' + iv.key">
+                            <button type="button" class="pb-2 border-b-2 border-transparent text-gray-500" :class="incomingView === iv.key && 'sfl-tab-active'"
+                                    @click="incomingView = iv.key">
+                                <span x-text="iv.label"></span>
+                                <span class="ml-1 px-1.5 rounded text-xs" :class="iv.key === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
+                                      x-text="incomingCount(tab, iv.key)"></span>
                             </button>
                         </template>
                     </div>
@@ -1054,28 +1206,29 @@
                                     <th class="px-5 py-3 text-left">File Title</th>
                                     <th class="px-5 py-3 text-left">From</th>
                                     <th class="px-5 py-3 text-left">To</th>
-                                    <th class="px-5 py-3 text-left" x-text="view() === 'sent' ? 'Sent' : (view() === 'held' ? 'Received' : (view() === 'memo' ? 'Date' : 'Sent at'))"></th>
+                                    <th class="px-5 py-3 text-left" x-text="view() === 'sent' ? 'Sent' : 'Date'"></th>
                                     <th class="px-5 py-3 text-left">Purpose / Notes</th>
                                     <th class="px-5 py-3 text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <template x-for="(row, idx) in visibleRows()" :key="view() + '-' + row.id">
+                                <template x-for="(row, idx) in pagedRows()" :key="view() + '-' + row.id">
                                     <tr class="border-t border-gray-100 hover:bg-indigo-50 cursor-pointer" @click="openRow(row)">
-                                        <td class="px-5 py-3 text-gray-500" x-text="idx + 1"></td>
+                                        <td class="px-5 py-3 text-gray-500" x-text="pageOffset() + idx + 1"></td>
                                         <td class="px-5 py-3 whitespace-nowrap">
                                             <div class="font-semibold text-gray-800" x-text="row.file_number || row.related_file_number || '—'"></div>
                                             <div class="text-xs mt-0.5 space-x-1">
-                                                <span x-show="row.file_type === 'NON_FILE'" class="px-1.5 rounded bg-blue-100 text-blue-700"
-                                                      x-text="'Not a regular File/Mail' + (docKindLabel(row.document_kind) ? ' · ' + docKindLabel(row.document_kind) : '')"></span>
-                                                <span x-show="tab === 'memo'" class="px-1.5 rounded" :class="row.bucket === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
-                                                      x-text="row.bucket === 'pending' ? 'Pending receipt' : 'Held here'"></span>
+                                                <span x-show="row.file_type === 'NON_FILE' && row.document_kind" class="px-1.5 rounded font-semibold"
+                                                      :style="kindStyle(row.document_kind)" x-text="kindText(row.document_kind, row.mail_type)"></span>
+                                                <span x-show="view() === 'incoming'" class="px-1.5 rounded" :class="row.bucket === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
+                                                      x-text="row.bucket === 'pending' ? 'Awaiting receipt' : 'Held here'"></span>
                                                 <span x-show="row.legacy" class="px-1.5 rounded bg-gray-100 text-gray-700" title="Logged before File Movement and never received here; counted as held">Legacy log</span>
                                                 <span x-show="row.not_indexed" class="px-1.5 rounded bg-orange-100 text-orange-700">Not indexed</span>
                                                 <span x-show="row.request_type === 'SUBMITTED'" class="px-1.5 rounded bg-purple-100 text-purple-700">Submitted Request</span>
                                             </div>
-                                            <div class="text-xs font-mono text-gray-400 mt-0.5" title="Tracking ID (the file's trail) · Log ID (this movement)">
-                                                <span x-text="row.tracking_id || ''"></span><span x-show="row.log_id" x-text="' · ' + row.log_id"></span>
+                                            {{-- Files shows the log ID alone; the other tabs show the tracking ID too. --}}
+                                            <div class="text-xs font-mono text-gray-400 mt-0.5" :title="tab === 'held' ? 'Log ID (this movement)' : 'Tracking ID (the file\'s trail) · Log ID (this movement)'">
+                                                <span x-show="tab !== 'held'" x-text="row.tracking_id || ''"></span><span x-show="row.log_id" x-text="(tab !== 'held' && row.tracking_id ? ' · ' : '') + row.log_id"></span>
                                             </div>
                                         </td>
                                         <td class="px-5 py-3 text-gray-700" x-text="nice(row.file_title) || '—'"></td>
@@ -1084,9 +1237,10 @@
                                             <span x-show="!row.from" class="text-gray-400">—</span>
                                         </td>
                                         <td class="px-5 py-3">
-                                            <span x-show="row.to" class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#ccfbf1;color:#115e59;border:1px solid #99f6e4;" x-text="nice(row.to)"></span>
-                                            <span x-show="!row.to" class="text-gray-400">—</span>
-                                            <div x-show="row.to_officer" class="mt-0.5 text-xs text-gray-400" x-text="nice(row.to_officer)"></div>
+                                            {{-- To: the receiving office on top, the officer under it (either alone when only one is known). --}}
+                                            <div x-show="row.to_officer && row.to" class="mb-0.5 text-xs font-semibold text-gray-600" x-text="nice(row.to)"></div>
+                                            <span x-show="row.to_officer || row.to" class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#ccfbf1;color:#115e59;border:1px solid #99f6e4;" x-text="nice(row.to_officer || row.to)"></span>
+                                            <span x-show="!row.to_officer && !row.to" class="text-gray-400">—</span>
                                         </td>
                                         <td class="px-5 py-3 text-gray-500 whitespace-nowrap" x-text="fmt(row.since)"></td>
                                         <td class="px-5 py-3 text-gray-600">
@@ -1125,6 +1279,37 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    {{-- Pagination over the rows this tab, sub-tab, filter and date range show. --}}
+                    <div x-show="visibleRows().length" class="px-5 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+                        <div class="flex items-center gap-2">
+                            <span x-text="'Showing ' + (pageOffset() + 1) + '–' + Math.min(pageOffset() + perPage, visibleRows().length) + ' of ' + visibleRows().length"></span>
+                            <span class="text-gray-300">·</span>
+                            <label class="flex items-center gap-1">
+                                <span>Per page</span>
+                                <select x-model.number="perPage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+                                    <template x-for="n in perPageOptions" :key="'pp-' + n">
+                                        <option :value="n" x-text="n" :selected="n === perPage"></option>
+                                    </template>
+                                </select>
+                            </label>
+                        </div>
+                        <nav x-show="pageCount() > 1" class="flex items-center gap-1" aria-label="Pagination">
+                            <button type="button" @click="goToPage(currentPage() - 1)" :disabled="currentPage() === 1"
+                                    class="px-2.5 py-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Previous page">&lsaquo; Prev</button>
+                            <template x-for="(n, i) in pageNumbers()" :key="'pg-' + i + '-' + n">
+                                <span>
+                                    <span x-show="n === null" class="px-1 text-gray-400">…</span>
+                                    <button type="button" x-show="n !== null" @click="goToPage(n)" x-text="n"
+                                            :aria-current="n === currentPage() ? 'page' : null"
+                                            class="min-w-[2rem] px-2 py-1 rounded-lg border"
+                                            :class="n === currentPage() ? 'bg-indigo-600 border-indigo-600 text-white font-semibold' : 'border-gray-300 bg-white hover:bg-gray-50'"></button>
+                                </span>
+                            </template>
+                            <button type="button" @click="goToPage(currentPage() + 1)" :disabled="currentPage() === pageCount()"
+                                    class="px-2.5 py-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Next page">Next &rsaquo;</button>
+                        </nav>
                     </div>
                 </div>
             </div>

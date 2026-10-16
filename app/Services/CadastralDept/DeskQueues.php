@@ -65,6 +65,14 @@ class DeskQueues
             }
         }
 
+        // Approval: files the unit's staff sent to the head, waiting there (HeadApproval).
+        if (!empty($rules['awaiting_head'])) {
+            $hasRule = true;
+            if (app(HeadApproval::class)->awaiting($case)) {
+                return true;
+            }
+        }
+
         if (!empty($rules['ready'])) {
             $hasRule = true;
             if ($open() === []) {
@@ -91,7 +99,7 @@ class DeskQueues
             }
         }
 
-        return CadastralCase::query()->open()->with('tasks')
+        return CadastralCase::query()->open()->with(['tasks', 'latestMovement'])
             ->where(function ($q) use ($desk, $recorded) {
                 $q->where('current_desk', $desk);
                 foreach ($recorded as $wf => $steps) {

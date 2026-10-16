@@ -34,18 +34,16 @@
     </div>
 </div>
 
-{{-- A job is its scope and the survey's location (user, 2026-10-12). The surveyor and the file are
-     attached at Assign to Surveyor (I to S), where the I to S is issued. --}}
-@canDo('Cad - Records', 'create')
-    @php
-        $jobModel = (object) ['prop_state' => old('prop_state', 'Kano')];
-    @endphp
+{{-- The Job Book (AD Cad Info, transcript 2026-10-16): a job is its number and scope. It has no
+     location of its own: at Assign to Surveyor (I to S) it is attached, with a surveyor, to a
+     file's field jacket and takes the file's location. --}}
+@cadCan('create', 'ad_information')
     <form method="POST" action="{{ route('cadastral-module.survey-jobs.store') }}" class="form-container" style="margin-bottom:22px;">
         @csrf
         <div class="card-header">
             <strong><i data-lucide="hard-hat" style="width:16px;height:16px;vertical-align:-3px;"></i> Register a Survey Job</strong>
             <span class="helper-text" style="margin:0;">
-                The job number is allocated now. The surveyor and the file are attached at Assign to Surveyor (I to S).
+                The job number is allocated now. The file, its location and the surveyor are attached at Assign to Surveyor (I to S).
             </span>
         </div>
         <div class="form-body">
@@ -55,13 +53,6 @@
                        style="font-family:monospace;font-weight:700;background:#f9fafb;max-width:260px;" />
                 <span class="helper-text">Preview of the next number. It is confirmed when you save; if another job is registered first, the next number is used.</span>
             </div>
-            {{-- Where the survey takes place (not the file's location). --}}
-            @include('cadastral_module.partials._address_builder', [
-                'prefix' => 'prop_',
-                'mode'   => 'property',
-                'model'  => $jobModel,
-                'legend' => 'Survey Location',
-            ])
             <div class="form-group">
                 <label>Job Scope</label>
                 <textarea name="job_scope" rows="3" maxlength="8000"
@@ -72,7 +63,7 @@
             <button type="submit" class="btn btn-primary"><i data-lucide="plus"></i> Register &amp; Allocate a Number</button>
         </div>
     </form>
-@endcanDo
+@endcadCan
 
 <form method="GET" class="table-toolbar">
     <div class="left">
@@ -169,18 +160,18 @@
                                         <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Open
                                     </a>
                                     @if ($job->hasInstruction())
-                                        @canDo('Cad - Records', 'print')
+                                        @cadCan('print', 'ad_information')
                                             <a href="{{ route('cadastral-module.survey-jobs.its.print', $job) }}" target="_blank" class="{{ $sjItem }}">
                                                 <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print the instruction
                                             </a>
-                                        @endcanDo
+                                        @endcadCan
                                     @endif
                                     @if ($job->cadastral_case_id)
                                         <a href="{{ route('cadastral-dept.cases.show', $job->cadastral_case_id) }}" class="{{ $sjItem }}">
                                             <i data-lucide="folder-open" class="w-4 h-4 text-gray-500"></i> Open Cadastral Dept file
                                         </a>
                                     @endif
-                                    @canDo('Cad - Records', 'edit')
+                                    @cadCan('edit', 'ad_information')
                                         @if ($job->status === 'Issued' || $job->status === 'In Field')
                                             <form method="POST" action="{{ route('cadastral-module.survey-jobs.mark-submitted', $job) }}">
                                                 @csrf
@@ -192,7 +183,7 @@
                                                 <button type="submit" class="{{ $sjItem }}"><i data-lucide="check" class="w-4 h-4 text-gray-500"></i> Accept</button>
                                             </form>
                                         @endif
-                                    @endcanDo
+                                    @endcadCan
                                 </div>
                             </div>
                         </td>

@@ -372,6 +372,12 @@
                 deedsDate: '',
                 deedsTime: '',
                 opType: '',
+                // Ministry / KANGIS / LGA: who issued an Occupancy Permit (pra.op_source).
+                opSource: '',
+                // The "specify" text when opSource is Other (pra.op_source_other).
+                opSourceOther: '',
+                // The "specify" text when an OP's Type is Other (pra.op_type_other).
+                opTypeOther: '',
                 // The one visible Type answer; copied into opType / cofoType /
                 // instrumentSubtype by applyInstrumentCatalogRules().
                 typeValue: '',
@@ -435,6 +441,9 @@
                 'deedsDate',
                 'deedsTime',
                 'opType',
+                'opSource',
+                'opSourceOther',
+                'opTypeOther',
                 'typeValue',
                 'instrumentSubtype',
                 'instrumentCategory',
@@ -567,6 +576,11 @@
          * tomorrow is picked up here without a second edit.
          */
         isLgaType() {
+            // On a permit, LGA is the Source, not a Type (2026-10-15).
+            if (this.typeColumn() === 'opType') {
+                return normalizeText(this.state.opSource).toUpperCase() === 'LGA';
+            }
+
             const value = normalizeText(this.state.typeValue);
             if (!value) return false;
 
@@ -584,6 +598,55 @@
          */
         isLgaOpType() {
             return this.typeColumn() === 'opType' && this.isLgaType();
+        }
+
+        /**
+         * Source "Other" and an OP's Type "Other" each reveal one required "specify"
+         * box; any other choice hides, disables and empties it, so a stale answer cannot
+         * ride along on the save. A listed option typed in by hand (any case) is
+         * flagged as that option.
+         */
+        applySourceOtherRules() {
+            const isOpType = this.typeColumn() === 'opType';
+            [
+                {
+                    name: 'op_source_other', key: 'opSourceOther',
+                    isOther: normalizeText(this.state.opSource) === 'Other',
+                    check: (typed) => {
+                        const listed = ['Ministry', 'KANGIS', 'LGA'].find((o) => o.toLowerCase() === typed);
+                        return listed ? `"${listed}" is already in the Source list; select it instead of Other.` : '';
+                    },
+                },
+                {
+                    name: 'op_type_other', key: 'opTypeOther',
+                    isOther: isOpType && normalizeText(this.state.typeValue) === 'Other',
+                    check: (typed) => {
+                        const bare = typed.replace(/^op\s+/, '');
+                        const listed = ['Resettlement', 'Direct Allocation'].find((o) => o.toLowerCase() === bare);
+                        if (listed) return `"${listed}" is already in the OP Type list; select it instead of Other.`;
+                        return bare === 'lga' ? 'LGA is a Source, not an OP Type: set Source to LGA instead.' : '';
+                    },
+                },
+            ].forEach(({ name, key, isOther, check }) => {
+                const input = this.form?.querySelector(`[name="${name}"]`);
+                if (!input) return;
+
+                input.classList.toggle('hidden', !isOther);
+                input.disabled = !isOther;
+                input.required = isOther;
+
+                if (!isOther && normalizeText(this.state[key]) !== '') {
+                    this.setState(key, '', { silent: true });
+                    this.syncModelElement(key, '');
+                }
+
+                if (!input.dataset.listedCheckBound) {
+                    input.dataset.listedCheckBound = '1';
+                    input.addEventListener('input', () => {
+                        input.setCustomValidity(check(input.value.replace(/\s+/g, ' ').trim().toLowerCase()));
+                    });
+                }
+            });
         }
 
         /** The 44 authority names, read off the picker so this file holds no second copy. */
@@ -774,7 +837,12 @@
          */
         applyInstrumentCatalogRules() {
             const entry = this.catalogEntry();
-            const types = (entry && entry.types) || [];
+            // LGA is offered as a permit's Source, not its Type (2026-10-15).
+            // An OP's Type also offers "Other", which asks for a "specify" box.
+            const isOpType = this.typeColumn() === 'opType';
+            const types = ((entry && entry.types) || []).filter((o) => !(
+                isOpType && String(o.label).trim().toUpperCase() === 'LGA'
+            )).concat(isOpType && entry ? [{ value: 'Other', label: 'Other' }] : []);
             const categories = (entry && entry.categories) || [];
 
             if (this.instrumentTypeGroup) {
@@ -962,13 +1030,16 @@
                     this.updateTripartiteControls();
                     break;
                 case 'opType':
+                case 'opSource':
                     this.syncModelElement(key, value);
+                    this.applySourceOtherRules();
                     this.applyLgaOpTypeRules();
                     break;
                 case 'typeValue':
                 case 'instrumentCategory':
                     this.syncModelElement(key, value);
                     this.applyInstrumentCatalogRules();
+                    this.applySourceOtherRules();
                     // The permit rules read opType, which the line above has just set.
                     this.applyLgaOpTypeRules();
                     break;
@@ -1000,6 +1071,8 @@
                 case 'deedsDate':
                 case 'deedsTime':
                 case 'opSerialNumber':
+                case 'opSourceOther':
+                case 'opTypeOther':
                 case 'period':
                 case 'periodUnit':
                     this.syncModelElement(key, value);
@@ -1419,9 +1492,16 @@
                 opSerialInput.pattern = '[1-9][0-9]*';
                 opSerialInput.maxLength = 100;
             }
+            const opSourceInput = this.form?.querySelector('[name="op_source"]');
+            if (opSourceInput) {
+                opSourceInput.required = isOpTransaction;
+            }
             if (!isOpTransaction) {
                 this.setState('opType', '', { silent: true });
                 this.syncModelElement('opType', '');
+                this.setState('opSource', '', { silent: true });
+                this.syncModelElement('opSource', '');
+                this.applySourceOtherRules();
                 this.setState('typeValue', '', { silent: true });
                 this.syncModelElement('typeValue', '');
                 this.setState('opSerialNumber', '', { silent: true });
@@ -1431,6 +1511,7 @@
             // Runs for both branches: applies the LGA rules when the row is an LGA permit and
             // undoes the 0/0/0 stamp when the type has just moved away from one.
             this.applyInstrumentCatalogRules();
+            this.applySourceOtherRules();
             this.applyLgaOpTypeRules();
 
             if (this.cofoFieldsWrapper) {
@@ -2503,7 +2584,23 @@
                 }
             });
             this.prefillFormFromRecord(normalized);
-            this.setState('typeValue', first(record.type_value, record.op_type, record.cofo_type, record.instrument_subtype));
+            // A permit saved with Type LGA (before 2026-10-15) reopens as Source = LGA with
+            // a blank Type; saving it moves the value over.
+            let loadedTypeValue = first(record.type_value, record.op_type, record.cofo_type, record.instrument_subtype);
+            let loadedOpSource = first(record.op_source);
+            if (this.typeColumn() === 'opType'
+                && String(loadedTypeValue).trim().toUpperCase().replace(/^OP\s+/, '') === 'LGA') {
+                loadedOpSource = loadedOpSource || 'LGA';
+                loadedTypeValue = '';
+            }
+            this.setState('opSource', loadedOpSource);
+            // After opSource: the box is only enabled (and kept) once Source is Other.
+            this.setState('opSourceOther', first(record.op_source_other));
+            this.syncModelElement('opSourceOther', first(record.op_source_other));
+            this.setState('typeValue', loadedTypeValue);
+            // After typeValue: the box is only enabled (and kept) once Type is Other.
+            this.setState('opTypeOther', first(record.op_type_other));
+            this.syncModelElement('opTypeOther', first(record.op_type_other));
             this.setState('instrumentCategory', record.instrument_category || '');
             // Instrument rules set default parties; the saved record takes precedence on edit.
             for (const key of ['firstParty', 'secondParty', 'thirdParty', 'fourthParty']) {
@@ -2562,6 +2659,9 @@
                 'deeds_date': 'deedsDate',
                 'deeds_time': 'deedsTime',
                 'op_type': 'opType',
+                'op_source': 'opSource',
+                'op_source_other': 'opSourceOther',
+                'op_type_other': 'opTypeOther',
                 'instrument_subtype': 'instrumentSubtype',
                 'instrument_category': 'instrumentCategory',
                 'op_serial_number': 'opSerialNumber',

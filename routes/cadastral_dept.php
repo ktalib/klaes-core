@@ -8,6 +8,7 @@ use App\Http\Controllers\CadastralDept\FmcController;
 use App\Http\Controllers\CadastralDept\PndBillController;
 use App\Http\Controllers\CadastralDept\WorkflowController;
 use App\Http\Controllers\CadastralDept\YesNoFormController;
+use App\Http\Controllers\CadastralDept\VerificationReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,6 +21,9 @@ use Illuminate\Support\Facades\Route;
 |
 | Prefix "cadastral-dept", kept apart from the legacy cadastral.* screens.
 | config/module_permissions.php maps it to Cad - Records.
+| Desk roles (2026-10-15): the cadastral.desk middleware (CadastralDeskAccess) lets a
+| desk page and every write through only for that desk's role or Cad - Records
+| (config cadastral_dept.desk_roles).
 |
 | Route names drive the permission action inference: "store" reads as create;
 | "mark", "save" and "update" read as edit. Read-only pages stay on GET.
@@ -28,7 +32,7 @@ use Illuminate\Support\Facades\Route;
 | auth()->user()->assignedRoleNames().
 */
 
-Route::middleware(['auth', 'XSS'])->prefix('cadastral-dept')->name('cadastral-dept.')->group(function () {
+Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->name('cadastral-dept.')->group(function () {
 
     Route::get('/', [WorkflowController::class, 'index'])->name('index');
     Route::get('/workflow-map', [WorkflowController::class, 'map'])->name('map');
@@ -41,8 +45,12 @@ Route::middleware(['auth', 'XSS'])->prefix('cadastral-dept')->name('cadastral-de
     Route::get('/cases/create', [CaseController::class, 'create'])->name('cases.create');
     Route::get('/lookup/file', [CaseController::class, 'lookupFile'])->name('lookup.file');
     Route::get('/lookup/files', [CaseController::class, 'lookupFiles'])->name('lookup.files');
+    // Register File, Verification: the File Status checks for the picked file, before it is registered.
+    Route::get('/lookup/file-status', [CaseController::class, 'lookupFileStatus'])->name('lookup.file-status');
     Route::post('/cases', [CaseController::class, 'store'])->name('cases.store');
     Route::get('/cases/{case}', [CaseController::class, 'show'])->whereNumber('case')->name('cases.show');
+    // Verification: which File Status lists the file is on. Loaded after the page, it can be slow.
+    Route::get('/cases/{case}/file-status', [CaseController::class, 'fileStatus'])->whereNumber('case')->name('cases.file-status');
 
     Route::post('/cases/{case}/tasks', [CaseController::class, 'completeTask'])->whereNumber('case')->name('cases.tasks.mark-done');
     Route::post('/cases/{case}/move', [CaseController::class, 'advance'])->whereNumber('case')->name('cases.move.save');
@@ -59,6 +67,10 @@ Route::middleware(['auth', 'XSS'])->prefix('cadastral-dept')->name('cadastral-de
     Route::get('/cases/{case}/yes-no', [YesNoFormController::class, 'show'])->whereNumber('case')->name('cases.yes-no.show');
     Route::post('/cases/{case}/yes-no', [YesNoFormController::class, 'save'])->whereNumber('case')->name('cases.yes-no.save');
     Route::get('/cases/{case}/yes-no/print', [YesNoFormController::class, 'print'])->whereNumber('case')->name('cases.yes-no.print');
+    // Cadastral Verification Report Sheet (client DOCX, 2026-10-15), Verification files.
+    Route::get('/cases/{case}/verification-report', [VerificationReportController::class, 'show'])->whereNumber('case')->name('cases.verification-report.show');
+    Route::post('/cases/{case}/verification-report', [VerificationReportController::class, 'save'])->whereNumber('case')->name('cases.verification-report.save');
+    Route::get('/cases/{case}/verification-report/print', [VerificationReportController::class, 'print'])->whereNumber('case')->name('cases.verification-report.print');
 
     // Charting card at each charting step, and the charting tables.
     Route::get('/cases/{case}/charting/create', [ChartingController::class, 'create'])->whereNumber('case')->name('cases.charting.create');
@@ -70,6 +82,9 @@ Route::middleware(['auth', 'XSS'])->prefix('cadastral-dept')->name('cadastral-de
     // Field Jacket at AD P&D: commissioning registers the survey job; the job's I to S is issued from it.
     Route::post('/cases/{case}/field-jacket', [FieldJacketController::class, 'store'])->whereNumber('case')->name('cases.field-jacket.store');
     Route::post('/cases/{case}/its', [FieldJacketController::class, 'issueIts'])->whereNumber('case')->name('cases.its.store');
+    // AD Cad Info (transcript, 2026-10-16): attach the Job Book job and surveyor, then issue the job's instruction.
+    Route::post('/cases/{case}/job', [FieldJacketController::class, 'attachJob'])->whereNumber('case')->name('cases.job.store');
+    Route::post('/cases/{case}/job-its', [FieldJacketController::class, 'issueJobIts'])->whereNumber('case')->name('cases.job-its.store');
     Route::get('/field-jackets', [FieldJacketController::class, 'index'])->name('field-jackets.index');
     Route::get('/field-jackets/{jacket}', [FieldJacketController::class, 'show'])->whereNumber('jacket')->name('field-jackets.show');
     Route::post('/field-jackets/{jacket}/reassign', [FieldJacketController::class, 'reassign'])->whereNumber('jacket')->name('field-jackets.reassign.update');

@@ -26,6 +26,10 @@ use Throwable;
  *                             LegalSearchService skip prop_id expansion entirely, so
  *                             these harm nobody until they are filled.
  *
+ *   --population=lookup       NULL prop_id, but PropID_Master already holds an id for
+ *                             that file number. COPIED, never minted: minting would
+ *                             give one parcel a second identity. Run before "nulls".
+ *
  * Duplicates run first. That is the ordering principle this whole remediation has used:
  * fix what is actively wrong before activating what is dormant.
  *
@@ -43,7 +47,7 @@ use Throwable;
 class MintMissingPropIds extends Command
 {
     protected $signature = 'propid:mint
-        {--population=duplicates : duplicates|nulls|child-adopted}
+        {--population=duplicates : duplicates|nulls|child-adopted|lookup}
         {--batch=500 : Maximum rows to change in this run.}
         {--registry= : Restrict to one registry, e.g. KANGIS. Scopes the NULL population.}
         {--with-pages : Only files that have scanned pages — the ones staff actually see.}
@@ -81,8 +85,8 @@ class MintMissingPropIds extends Command
         $population = $this->option('population');
         $batch = max(1, (int) $this->option('batch'));
 
-        if (!in_array($population, ['duplicates', 'nulls', 'child-adopted'], true)) {
-            $this->error('--population must be duplicates, nulls or child-adopted.');
+        if (!in_array($population, ['duplicates', 'nulls', 'child-adopted', 'lookup'], true)) {
+            $this->error('--population must be duplicates, nulls, child-adopted or lookup.');
 
             return self::FAILURE;
         }
@@ -103,6 +107,7 @@ class MintMissingPropIds extends Command
         $targets = match ($population) {
             'duplicates' => $this->duplicateTargets($conn, $batch),
             'child-adopted' => $this->childAdoptedTargets($conn, $batch),
+            'lookup' => $this->lookupTargets($conn, $batch, $registry, (bool) $this->option('with-pages')),
             default => $this->nullTargets($conn, $batch, $registry, (bool) $this->option('with-pages')),
         };
 
@@ -123,8 +128,11 @@ class MintMissingPropIds extends Command
 
         foreach ($targets['rows'] as $row) {
             try {
+                $copied = isset($row->lookup_prop_id);
+
                 if (!$apply) {
-                    $log[] = [$row->id, $row->file_number ?: $row->temp_file_no, $row->prop_id ?? '', '(new)', 'WOULD MINT'];
+                    $log[] = [$row->id, $row->file_number ?: $row->temp_file_no, $row->prop_id ?? '',
+                              $copied ? $row->lookup_prop_id : '(new)', $copied ? 'WOULD COPY' : 'WOULD MINT'];
                     $minted++;
                     continue;
                 }
@@ -136,7 +144,7 @@ class MintMissingPropIds extends Command
                 // temp_file_no, because the main file was never found. The allocator
                 // rejects those unless the temp number is passed explicitly with
                 // allow_temp_only, which is what the first batch's 6 errors were.
-                $new = $allocator->allocateOrRetrievePropId(
+                $new = $copied ? $row->lookup_prop_id : $allocator->allocateOrRetrievePropId(
                     $row->file_number ?: null,
                     null,
                     null,
@@ -167,7 +175,7 @@ class MintMissingPropIds extends Command
                     $q->update(['prop_id' => $new]);
                 });
 
-                $log[] = [$row->id, $row->file_number ?: $row->temp_file_no, $row->prop_id ?? '', $new, 'MINTED'];
+                $log[] = [$row->id, $row->file_number ?: $row->temp_file_no, $row->prop_id ?? '', $new, $copied ? 'COPIED' : 'MINTED'];
                 $minted++;
             } catch (Throwable $e) {
                 $errors++;
@@ -354,7 +362,10 @@ class MintMissingPropIds extends Command
     private function nullTargets($conn, int $batch, string $registry = '', bool $withPages = false): array
     {
         $opTot = $this->loadOpTotFileNumbers($conn);
-        $skipped = ['exempt (OP/ToT or ST) — must adopt, not mint' => 0];
+        $skipped = [
+            'exempt (OP/ToT or ST) — must adopt, not mint' => 0,
+            'already in PropID_Master — use lookup' => 0,
+        ];
 
         // A row with no file_number is still mintable when it has a temp number, so
         // the filter requires ONE of the two rather than file_number specifically.
@@ -375,8 +386,11 @@ class MintMissingPropIds extends Command
             ->when($withPages, fn ($q) => $q->whereExists(fn ($e) => $e->selectRaw(1)
                 ->from('pagetypings')->whereColumn('pagetypings.file_indexing_id', 'file_indexings.id')))
             ->orderBy('id')
-            ->limit($batch * 2)
             ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'plot_number']);
+
+        // A number PropID_Master already knows has an identity; minting would give the
+        // parcel a second one. Those belong to --population=lookup (or a human).
+        $known = $this->masterIdsFor($conn, $rows->map(fn ($r) => $this->normKey($r))->all());
 
         // THE EXEMPTIONS APPLY HERE TOO.
         // An OP/ToT partner and an ST mother are SUPPOSED to share an existing prop_id,
@@ -397,10 +411,136 @@ class MintMissingPropIds extends Command
                 continue;
             }
 
+            if (isset($known[$this->normKey($row)])) {
+                $skipped['already in PropID_Master — use lookup']++;
+                continue;
+            }
+
             $kept[] = $row;
         }
 
         return ['rows' => $kept, 'skipped' => $skipped];
+    }
+
+    /**
+     * Files with no prop_id whose number PropID_Master already holds an id for.
+     *
+     * The id is COPIED, never minted. A row is skipped (left NULL for a human) when:
+     *   - the number maps to several different ids and the primary column does not
+     *     settle it, or
+     *   - another file number already holds that id in file_indexings, unless either
+     *     side is OP/ToT or ST, where sharing is the rule.
+     */
+    private function lookupTargets($conn, int $batch, string $registry = '', bool $withPages = false): array
+    {
+        $opTot = $this->loadOpTotFileNumbers($conn);
+        $skipped = [
+            'not in PropID_Master — needs minting' => 0,
+            'several ids in PropID_Master' => 0,
+            'id already held by another file' => 0,
+        ];
+
+        $rows = $conn->table('file_indexings')
+            ->where(fn ($q) => $q->whereNull('prop_id')->orWhere('prop_id', ''))
+            ->when($registry !== '', fn ($q) => $q->where('registry', 'like', '%' . $registry . '%'))
+            ->when($withPages, fn ($q) => $q->whereExists(fn ($e) => $e->selectRaw(1)
+                ->from('pagetypings')->whereColumn('pagetypings.file_indexing_id', 'file_indexings.id')))
+            ->orderBy('id')
+            ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'plot_number']);
+
+        $master = $this->masterIdsFor($conn, $rows->map(fn ($r) => $this->normKey($r))->all());
+
+        // Who already holds each candidate id, by normalised file number.
+        $candidateIds = [];
+        foreach ($master as $ids) {
+            foreach ($ids['all'] as $id => $_) {
+                $candidateIds[$id] = true;
+            }
+        }
+
+        $holders = [];
+        foreach (array_chunk(array_map('strval', array_keys($candidateIds)), 1000) as $chunk) {
+            $conn->table('file_indexings')->whereIn('prop_id', $chunk)
+                ->get(['prop_id', 'file_number'])
+                ->each(function ($h) use (&$holders) {
+                    $holders[(string) $h->prop_id][strtoupper(trim((string) $h->file_number))] = true;
+                });
+        }
+
+        $isExempt = fn (string $fn) => $fn !== '' && (isset($opTot[$fn]) || str_starts_with($fn, 'ST-'));
+        $kept = [];
+
+        foreach ($rows as $row) {
+            if (count($kept) >= $batch) {
+                break;
+            }
+
+            $key = $this->normKey($row);
+
+            if (!isset($master[$key])) {
+                $skipped['not in PropID_Master — needs minting']++;
+                continue;
+            }
+
+            $ids = count($master[$key]['all']) === 1 ? $master[$key]['all'] : $master[$key]['primary'];
+
+            if (count($ids) !== 1) {
+                $skipped['several ids in PropID_Master']++;
+                continue;
+            }
+
+            $id = (string) array_key_first($ids);
+            $others = array_diff_key($holders[$id] ?? [], [$key => true]);
+
+            if (!empty($others) && !$isExempt($key)
+                && !array_filter(array_keys($others), fn ($fn) => $isExempt((string) $fn))) {
+                $skipped['id already held by another file']++;
+                continue;
+            }
+
+            // Later rows in this run must see this one as a holder too.
+            $holders[$id][$key] = true;
+            $row->lookup_prop_id = $id;
+            $kept[] = $row;
+        }
+
+        return ['rows' => $kept, 'skipped' => $skipped];
+    }
+
+    /** The allocator's normalisation (trim + upper) of a row's number. */
+    private function normKey(object $row): string
+    {
+        return strtoupper(trim((string) ($row->file_number ?: $row->temp_file_no)));
+    }
+
+    /**
+     * normalised number => ['all' => [prop_id => true], 'primary' => [prop_id => true]]
+     * for every number PropID_Master holds under any alias column.
+     */
+    private function masterIdsFor($conn, array $keys): array
+    {
+        $keys = array_values(array_unique(array_filter($keys, fn ($k) => $k !== '')));
+        $map = [];
+
+        foreach (self::MASTER_ALIAS_COLUMNS as $col) {
+            foreach (array_chunk($keys, 1000) as $chunk) {
+                $conn->table('PropID_Master')->whereIn($col, $chunk)
+                    ->whereNotNull('prop_id')
+                    ->get([$col . ' as k', 'prop_id'])
+                    ->each(function ($m) use (&$map, $col) {
+                        $map[$m->k]['all'][(string) $m->prop_id] = true;
+                        if ($col === 'primary_file_number_norm') {
+                            $map[$m->k]['primary'][(string) $m->prop_id] = true;
+                        }
+                    });
+            }
+        }
+
+        foreach ($map as $k => $v) {
+            $map[$k] += ['primary' => []];
+        }
+
+        return $map;
     }
 
     /** A full before-image of every non-null prop_id. The only safety net here. */

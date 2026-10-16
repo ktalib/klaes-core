@@ -88,6 +88,30 @@
             </div>
             @endif
         
+            @if(!$showPageTypeMore)
+            {{-- Source tabs: narrow Pending / In Progress / Completed to files holding
+                 pages from one source. Badge = files with at least one such page. --}}
+            @php
+              // Two tabs: Scanned Files (default) and Module Uploads. Must match state.source below.
+              $sourceTabs = \App\Services\Edms\ScanSource::TABS;
+              $sourceIcons = ['scanned' => 'scan-line', 'uploads' => 'blocks'];
+              $defaultSource = \App\Services\Edms\ScanSource::SCANNED;
+            @endphp
+            <nav class="mb-4 flex flex-wrap gap-2" aria-label="Document source" id="pagetyping-source-tabs">
+              @foreach($sourceTabs as $sourceKey => $sourceLabel)
+                @php $sourceCount = $sourceCounts[$sourceKey] ?? null; $isDefaultSource = $sourceKey === $defaultSource; @endphp
+                <button type="button" data-source="{{ $sourceKey }}" aria-pressed="{{ $isDefaultSource ? 'true' : 'false' }}"
+                  class="source-tab inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors {{ $isDefaultSource ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' }}">
+                  <i data-lucide="{{ $sourceIcons[$sourceKey] ?? 'folder' }}" class="h-4 w-4"></i>
+                  {{ $sourceLabel }}
+                  @if($sourceCount !== null)
+                    <span class="source-tab-count rounded-full px-2 text-xs {{ $isDefaultSource ? 'bg-white text-blue-700' : 'bg-gray-100 text-gray-600' }}">{{ number_format($sourceCount) }}</span>
+                  @endif
+                </button>
+              @endforeach
+            </nav>
+            @endif
+
             <!-- Tabs -->
             <div class="tabs">
               @if($showPageTypeMore)
@@ -544,6 +568,7 @@
         // Application state
         let state = {
           activeTab: 'pending', // Will change to 'typing' when file is selected
+          source: 'scanned', // Source tab: scanned (default) or uploads (every module source)
           selectedFile: null,
           selectedFileData: null,
           pageTypeMoreMode: false,
@@ -3591,7 +3616,7 @@
           const search = state.pagination.pending.search;
           const registry = state.pagination.pending.registry;
           try {
-            const response = await fetch(`{{ route("pagetyping.api.files") }}?status=pending&page=${page}&limit=${state.pagination.pending.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}`);
+            const response = await fetch(`{{ route("pagetyping.api.files") }}?status=pending&page=${page}&limit=${state.pagination.pending.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}&source=${encodeURIComponent(state.source || '')}`);
             const data = await response.json();
             
             if (data.success) {
@@ -3686,7 +3711,7 @@
           const search = state.pagination.inProgress.search;
           const registry = state.pagination.inProgress.registry;
           try {
-            const response = await fetch(`{{ route("pagetyping.api.files") }}?status=in_progress&page=${page}&limit=${state.pagination.inProgress.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}`);
+            const response = await fetch(`{{ route("pagetyping.api.files") }}?status=in_progress&page=${page}&limit=${state.pagination.inProgress.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}&source=${encodeURIComponent(state.source || '')}`);
             const data = await response.json();
             
             if (data.success) {
@@ -3784,7 +3809,7 @@
           const search = state.pagination.completed.search;
           const registry = state.pagination.completed.registry;
           try {
-            const response = await fetch(`{{ route("pagetyping.api.files") }}?status=completed&page=${page}&limit=${state.pagination.completed.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}`);
+            const response = await fetch(`{{ route("pagetyping.api.files") }}?status=completed&page=${page}&limit=${state.pagination.completed.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}&source=${encodeURIComponent(state.source || '')}`);
             const data = await response.json();
             
             if (data.success) {
@@ -6456,6 +6481,30 @@
 
         // Filtering and Searching
         function setupFiltering() {
+          // Source tabs reload all three status lists from page 1.
+          document.querySelectorAll('#pagetyping-source-tabs .source-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+              state.source = btn.dataset.source || '';
+              document.querySelectorAll('#pagetyping-source-tabs .source-tab').forEach(other => {
+                const active = other === btn;
+                other.setAttribute('aria-pressed', active ? 'true' : 'false');
+                ['bg-blue-600', 'border-blue-600', 'text-white'].forEach(c => other.classList.toggle(c, active));
+                ['bg-white', 'border-gray-300', 'text-gray-700', 'hover:bg-gray-50'].forEach(c => other.classList.toggle(c, !active));
+                const badge = other.querySelector('.source-tab-count');
+                if (badge) {
+                  ['bg-white', 'text-blue-700'].forEach(c => badge.classList.toggle(c, active));
+                  ['bg-gray-100', 'text-gray-600'].forEach(c => badge.classList.toggle(c, !active));
+                }
+              });
+              ['pending', 'inProgress', 'completed'].forEach(key => {
+                if (state.pagination[key]) state.pagination[key].currentPage = 1;
+              });
+              renderPendingFiles(1);
+              renderInProgressFiles(1);
+              renderCompletedFilesTable(1);
+            });
+          });
+
           const filters = [
             { id: 'pending-search', tab: 'pending', field: 'search' },
             { id: 'pending-registry-filter', tab: 'pending', field: 'registry' },

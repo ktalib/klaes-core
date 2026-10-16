@@ -4,17 +4,6 @@
 <div class="cad-viz">
     @include('cadastral_module.partials._unit_nav', ['unit' => 'registry'])
 
-    @if ($jobFormatUnconfirmed)
-        <div class="caveat">
-            <i class="fas fa-triangle-exclamation"></i>
-            <div>
-                <strong>Survey job numbers are being issued in an unconfirmed format.</strong>
-                <code>{{ app(\App\Services\Cadastral\CadastralSettings::class)->jobNumberFormat()['format'] }}</code> is a KLAES-local
-                placeholder — nobody here knows the pattern SURCON mandates. Confirm it with the
-                Surveyor-General's office before issuing in bulk.
-            </div>
-        </div>
-    @endif
 
     <div class="cad-actions">
         @canDo('Cad - Records', 'create')

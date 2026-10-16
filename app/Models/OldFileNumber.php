@@ -20,6 +20,9 @@ class OldFileNumber extends Model
     public const SOURCE_EDIT       = 'edit';
     public const SOURCE_MANUAL     = 'manual';
     public const SOURCE_IMPORT     = 'import';
+    // Move Commissioned File: the number the file carried before it was moved off a
+    // physical duplicate (App\Services\FileNumber\CommissionedFileMoveService).
+    public const SOURCE_MOVE       = 'physical_duplicate';
 
     protected $fillable = [
         'file_number',

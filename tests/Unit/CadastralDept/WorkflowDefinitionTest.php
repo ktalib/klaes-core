@@ -47,23 +47,25 @@ class WorkflowDefinitionTest extends TestCase
 
     public function test_conversion_main_path_follows_the_doc(): void
     {
-        [$desks, $end] = $this->walk('conversion', ['dc_buffer' => 'inside_10km']);
+        [$desks, $end] = $this->walk('conversion', ['gis_buffer' => 'inside_10km']);
 
+        // Updated workflow doc (2026-10-15): 28 steps.
         $this->assertSame('completed', $end);
         $this->assertSame([
-            'director_cadastral', 'deputy_director_cadastral',                         // phase 1 (Registry registers before the case starts)
-            'ad_information', 'ad_report',                                            // phase 2
-            'compensation_unit', 'dsg', 'director_cadastral', 'kamma',                // phase 3
-            'permanent_secretary', 'director_cadastral', 'ad_information',
-            'registry', 'director_land', 'registry',                                  // phase 4
-            'director_cadastral', 'deputy_director_cadastral', 'ad_pnd',              // phase 5
-            'field_survey', 'ad_pnd', 'ad_cadastral', 'registry',
+            'director_cadastral', 'deputy_director_cadastral', 'ad_information', 'ad_report',   // phase 1 (1-4)
+            'compensation_unit', 'dsg', 'director_cadastral', 'cadastral_gis',                 // phase 2 (5-8)
+            'kamma', 'permanent_secretary', 'director_cadastral',                              // phase 3 (9-11)
+            'ad_information', 'registry', 'director_land', 'registry',                         // phase 4 (12-15)
+            'director_cadastral', 'deputy_director_cadastral', 'ad_pnd', 'ad_information',     // phase 5 (16-20)
+            'field_survey',
+            'ad_information', 'examination_unit', 'ad_drawing', 'surveyor_general',            // phase 6 (21-24)
+            'ad_information', 'ad_pnd', 'ad_information', 'registry',                          // phase 7 (25-28)
         ], $desks);
     }
 
     public function test_conversion_outside_buffer_goes_to_physical_planning(): void
     {
-        [$desks] = $this->walk('conversion', ['dc_buffer' => 'outside_10km']);
+        [$desks] = $this->walk('conversion', ['gis_buffer' => 'outside_10km']);
 
         $this->assertContains('physical_planning', $desks);
         $this->assertNotContains('kamma', $desks);
@@ -80,8 +82,12 @@ class WorkflowDefinitionTest extends TestCase
 
     public function test_dd_cad_refusal_goes_back_to_d_cad_with_a_reason(): void
     {
-        foreach (['conversion', 'direct', 'verification'] as $wf) {
+        // Direct Allocation: DD Cad's refusal returns to Registry (updated workflow doc, 2026-10-15).
+        $this->assertSame('registry_return', $this->engine->nextStep('direct', 'ddc_review', 'not_recommended'));
+        foreach (['conversion', 'verification'] as $wf) {
             $this->assertSame('dc_review', $this->engine->nextStep($wf, 'ddc_review', 'not_recommended'), $wf);
+        }
+        foreach (['conversion', 'direct', 'verification'] as $wf) {
             $this->assertTrue($this->def->outcomeNeedsReason($wf, 'ddc_review', 'not_recommended'), $wf);
             $this->assertTrue($this->def->outcomeNeedsReason($wf, 'dc_review', 'not_recommended'), $wf);
             $this->assertFalse($this->def->outcomeNeedsReason($wf, 'dc_review', 'recommended'), $wf);
@@ -90,10 +96,38 @@ class WorkflowDefinitionTest extends TestCase
 
     public function test_government_acquisition_rejects_the_file(): void
     {
+        // Yes or No, Compensation sends to DSG, DSG to D Cad; D Cad returns a rejected file to
+        // Registry (transcript, 2026-10-16).
         foreach (['conversion' => null, 'direct' => 'resettlement'] as $wf => $sub) {
-            [$desks, $end] = $this->walk($wf, ['compensation_check' => 'yes'], $sub);
+            $this->assertSame('dsg_review', $this->engine->nextStep($wf, 'compensation_check', 'yes'), $wf);
+            $this->assertSame('dsg_review', $this->engine->nextStep($wf, 'compensation_check', 'no'), $wf);
+            $this->assertTrue($this->def->outcomeNeedsReason($wf, 'compensation_check', 'yes'), $wf);
+            [$desks, $end] = $this->walk($wf, ['compensation_check' => 'yes', 'dc_buffer' => 'rejected'], $sub);
             $this->assertSame('returned', $end, $wf);
-            $this->assertSame(['compensation_unit', 'registry'], array_slice($desks, -2), $wf);
+            $this->assertSame(['compensation_unit', 'dsg', 'director_cadastral', 'registry'], array_slice($desks, -4), $wf);
+            $this->assertTrue($this->def->outcomeNeedsReason($wf, 'dc_buffer', 'rejected'), $wf);
+        }
+    }
+
+    public function test_pnd_commissions_the_jacket_and_cad_info_attaches_the_job(): void
+    {
+        // Transcript, 2026-10-16: P&D does a plain field jacket and I to S; AD Cad Info attaches
+        // the Job Book job and the surveyor and issues the job's instruction, then sends to Survey.
+        foreach (['conversion', 'direct'] as $wf) {
+            $this->assertSame(['field_jacket', 'its'], array_keys($this->def->step($wf, 'pnd_instruction')['tasks']), $wf);
+            $this->assertSame('ad_information', $this->def->step($wf, 'info_job_assign')['desk'], $wf);
+            $this->assertSame(['job_attached', 'job_its'], array_keys($this->def->step($wf, 'info_job_assign')['tasks']), $wf);
+            $this->assertSame('field_survey', $this->def->step($wf, 'info_job_assign')['next'], $wf);
+        }
+    }
+
+    public function test_units_have_a_head_and_directors_do_not(): void
+    {
+        $heads = array_keys(array_filter($this->def->desks(), fn ($d) => !empty($d['head'])));
+        $this->assertEqualsCanonicalizing(['registry', 'ad_information', 'ad_report', 'ad_pnd', 'ad_drawing', 'cadastral_gis'], $heads);
+        $this->assertArrayNotHasKey('ad_cadastral', $this->def->desks());
+        foreach ($heads as $desk) {
+            $this->assertNotEmpty($this->def->desks()[$desk]['post'] ?? null, $desk);
         }
     }
 
@@ -118,10 +152,12 @@ class WorkflowDefinitionTest extends TestCase
         $this->assertNotContains('compensation_unit', $allocation);
         // Direct Allocation: Land checks genuineness, then later processes the R of O.
         $this->assertSame(2, count(array_keys($allocation, 'director_land')));
-        // Both end with the survey plan attached and the bill raised.
+        // From D Cad on (step 7), both follow the Conversion sequence to the end.
+        [$conversion] = $this->walk('conversion');
         foreach ([$resettlement, $allocation] as $desks) {
-            $this->assertSame(['ad_pnd', 'ad_cadastral', 'registry'], array_slice($desks, -3));
+            $this->assertSame(array_slice($conversion, 6), array_slice($desks, array_search('cadastral_gis', $desks) - 1));
         }
+        $this->assertSame(array_slice($conversion, 0, 7), array_slice($resettlement, 0, 7));
     }
 
     public function test_direct_cannot_forward_from_report_without_sub_type(): void
@@ -153,7 +189,10 @@ class WorkflowDefinitionTest extends TestCase
         $this->assertSame(['land12', 'correspondence_created'], $this->engine->missingTasks('conversion', 'report_charting', ['charted']));
         $this->assertSame('director_cadastral', $this->def->actingDesk('conversion', 'kamma_advice'));
         $this->assertSame('registry', $this->def->actingDesk('conversion', 'land_processing'));
-        $this->assertSame('ad_pnd', $this->def->actingDesk('conversion', 'field_survey'));
+        $this->assertSame('ad_information', $this->def->actingDesk('conversion', 'field_survey'));
+        $this->assertSame('cadastral_gis', $this->def->actingDesk('conversion', 'gis_buffer'));
+        $this->assertSame('ad_drawing', $this->def->actingDesk('direct', 'survey_examination'));
+        $this->assertSame('ad_information', $this->def->actingDesk('direct', 'sg_signing'));
     }
 
     public function test_validate_catches_a_dangling_next(): void

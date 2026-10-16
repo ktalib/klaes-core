@@ -2714,6 +2714,41 @@
             </div>
 
             <!-- Direct Allocation Modal -->
+            {{-- Land FC > Update File Source: relabels the File Type (Source column and commissioning sheet). --}}
+            <div id="updateFileSourceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-[80]">
+                <div class="relative top-20 mx-auto p-5 border w-[440px] max-w-[92vw] shadow-lg rounded-md bg-white">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900 flex items-center gap-2">
+                            <i data-lucide="tag" class="w-5 h-5 text-violet-600"></i>
+                            Update File Source
+                        </h3>
+                        <button type="button" onclick="closeUpdateFileSource()" class="text-gray-400 hover:text-gray-600" aria-label="Close">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <form onsubmit="submitUpdateFileSource(event)">
+                        <input type="hidden" id="ufsId">
+                        <p class="text-sm text-gray-600 mb-4">File No.: <span id="ufsFileNo" class="font-mono font-semibold text-gray-900">-</span></p>
+                        <label for="ufsFileOption" class="block text-sm font-medium text-gray-700 mb-2">File Type <span class="text-red-500">*</span></label>
+                        <select id="ufsFileOption" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500">
+                            <option value="">Select File Type</option>
+                            @foreach(\App\Http\Controllers\FileNumberController::FILE_SOURCE_TYPES as $ufsValue => $ufsLabel)
+                                <option value="{{ $ufsValue }}">{{ $ufsValue === 'temporary' ? 'Temporary' : $ufsLabel }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-2">Updates the Source shown in this table and on the commissioning sheet.</p>
+                        <p id="ufsError" class="hidden text-sm text-red-600 mt-3"></p>
+                        <div class="flex justify-end gap-3 mt-6">
+                            <button type="button" onclick="closeUpdateFileSource()"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+                            <button type="submit" id="ufsSaveBtn"
+                                    class="px-4 py-2 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">Update</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div id="directAllocationModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-[80]">
                 <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
                     <div class="mt-3">

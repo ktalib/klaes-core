@@ -933,6 +933,7 @@ const executeSearchAjax = (filters, searchData) => {
         // mls_file_no.source — how the file was commissioned ('Direct Allocation',
         // 'OP Direct Allocation', …). Feeds the Root of Title annotation.
         const _apiCommissioningSource = data.file_commissioning_source || null;
+        const _apiCommissioningSourceLabel = data.file_commissioning_source_label || null;
         const _apiTempFileNumber = data.file_temp_number || null;
         // "SEARCHED (LINKED)" combined file number — e.g. "CON-AG-2014-35 (MLKN 2455)" —
         // resolved server-side so it matches the printable report / Pay-Per-Search template.
@@ -965,6 +966,7 @@ const executeSearchAjax = (filters, searchData) => {
           if (_apiCommissionedNumber) r._file_commissioned_number = _apiCommissionedNumber;
           if (_apiCommissioningHolder) r._file_commissioning_holder = _apiCommissioningHolder;
           if (_apiCommissioningSource) r._file_commissioning_source = _apiCommissioningSource;
+          if (_apiCommissioningSourceLabel) r._file_commissioning_source_label = _apiCommissioningSourceLabel;
           if (_apiFileDistrict) r._file_district = _apiFileDistrict;
           if (_apiFileLga) r._file_lga = _apiFileLga;
           if (_apiFileLandUse) r._file_land_use = _apiFileLandUse;
@@ -1026,6 +1028,7 @@ const executeSearchAjax = (filters, searchData) => {
               _file_commissioned_number: data.file_commissioned_number || null,
               _file_commissioning_holder: data.file_commissioning_holder || null,
               _file_commissioning_source: data.file_commissioning_source || null,
+              _file_commissioning_source_label: data.file_commissioning_source_label || null,
               _file_temp_number: data.file_temp_number || null,
               _file_number_display: data.file_number_display || null,
               _file_is_indexed: (data.is_indexed === true),
@@ -2215,6 +2218,35 @@ const executeSearchAjax = (filters, searchData) => {
     return null;
   };
 
+  // A Re-grant is a NEW grant: the term runs from it, not from the replaced file's
+  // grants (COM-2026-103 re-grants COM-1985-118, whose 1985 CofO sits on the same
+  // timeline and made the residual term negative). For a Re-grant file only its OWN
+  // CofO / RofO count; with none, the term commences on the re-grant (commissioning)
+  // date. Every other file keeps the CofO → RofO rule above.
+  const lsCommencementSourceFor = (file, transactions) => {
+    const label = String((file && (file._file_commissioning_source_label || file._file_commissioning_source)) || '').trim().toLowerCase();
+    if (label !== 're-grant') return lsFindCommencementSource(transactions);
+
+    const base = (v) => String(v || '').replace(/\s*\(\s*T\s*\)\s*$/i, '').trim().toUpperCase();
+    const ownNo = base((file && file._file_commissioned_number) || window._currentFileNumber || '');
+    if (!ownNo) return lsFindCommencementSource(transactions);
+    const ownRows = (transactions || []).filter((t) => {
+      if (!t || t._is_commissioning) return false;
+      return [t.lifecycle_file_no, t.file_no, t.fileno, t.file_number, t.mlsFNo]
+        .some((v) => base(v) === ownNo);
+    });
+    const ownGrant = lsFindCommencementSource(ownRows);
+    if (ownGrant) return ownGrant;
+
+    const ts = parseTimelineDateValue((file && file._file_commissioning_date) || '');
+    if (ts === null || ts > Date.now()) return null;
+    const d = new Date(ts);
+    return {
+      date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+      source: 'Re-grant',
+    };
+  };
+
   // "YYYY-MM-DD" → "2nd January, 2002" (matches the printed report).
   const lsFormatCommencementDate = (iso) => {
     if (!iso) return '';
@@ -2318,10 +2350,18 @@ const executeSearchAjax = (filters, searchData) => {
     const sourceBadge = document.getElementById('commencement-date-source-badge');
     if (sourceBadge) {
       const isAutoValue = !!isoDate && isoDate === (dateInput?.dataset.autoValue || '');
-      const sourceLabel = isAutoValue ? (dateInput?.dataset.autoSource || '') : '';
+      let sourceLabel = isAutoValue ? (dateInput?.dataset.autoSource || '') : '';
+      let badgeText = sourceLabel;
+      // A Re-grant file stays labelled Re-grant when an officer sets the date from
+      // the application; "Edited" says the date itself was entered by hand.
+      const isRegrantFile = String((selectedFile && selectedFile._file_commissioning_source_label) || '').trim().toLowerCase() === 're-grant';
+      if (!isAutoValue && isoDate && isRegrantFile) {
+        sourceLabel = 'Re-grant';
+        badgeText = 'Re-grant · Edited';
+      }
       if (sourceLabel) {
-        sourceBadge.textContent = sourceLabel;
-        sourceBadge.className = 'source-badge ' + (sourceLabel === 'CofO' ? 'source-badge-cofo' : 'source-badge-pra');
+        sourceBadge.textContent = badgeText;
+        sourceBadge.className = 'source-badge ' + (sourceLabel === 'CofO' ? 'source-badge-cofo' : (sourceLabel === 'Re-grant' ? 'source-badge-regrant' : 'source-badge-pra'));
         sourceBadge.style.display = 'inline-block';
       } else {
         sourceBadge.textContent = '';
@@ -2560,7 +2600,7 @@ const executeSearchAjax = (filters, searchData) => {
     // Term field. The source badge next to the File Information value is
     // driven by dataset.autoSource in lsRecomputeResidualTerm.
     const commencementInput = document.getElementById('comment-commencement_date-text');
-    const commencementSource = lsFindCommencementSource(getRelatedTransactions(selectedFile) || []);
+    const commencementSource = lsCommencementSourceFor(selectedFile, getRelatedTransactions(selectedFile) || []);
     const grantDate = commencementSource?.date || '';
     if (commencementInput) {
       if (!commencementInput.value || commencementInput.value === commencementInput.dataset.autoValue) {
@@ -2691,6 +2731,19 @@ const executeSearchAjax = (filters, searchData) => {
     lsRecomputeResidualTerm(false);
   });
 
+  // The pencil beside the File Information panel's Commencement Date opens the
+  // Residual Term card (normally shown only when no date could be found) so the
+  // date can be set from the application, e.g. a Re-grant's approval date.
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#edit-commencement-date-btn')) return;
+    const section = document.getElementById('residual-term-section');
+    if (!section) return;
+    section.classList.remove('hidden');
+    section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const dateInput = document.getElementById('comment-commencement_date-text');
+    if (dateInput) setTimeout(() => dateInput.focus(), 300);
+  });
+
   // ── Silent Refresh ──────────────────────────────────────────────────────────
   // Re-fetches server data using the last search payload without hiding the
   // current file detail view. Only the button shows a loading state.
@@ -2739,6 +2792,7 @@ const executeSearchAjax = (filters, searchData) => {
         const _cn = data.file_commissioned_number || null;
         const _ch = data.file_commissioning_holder || null;
         const _cs = data.file_commissioning_source || null;
+        const _csl = data.file_commissioning_source_label || null;
         const _fnd = data.file_number_display || null;
         window._lsFileTempNumber = _tf;
         window._lsLineage = data.lineage || null;
@@ -2765,6 +2819,7 @@ const executeSearchAjax = (filters, searchData) => {
           if (_cn) r._file_commissioned_number = _cn;
           if (_ch) r._file_commissioning_holder = _ch;
           if (_cs) r._file_commissioning_source = _cs;
+          if (_csl) r._file_commissioning_source_label = _csl;
           if (_fnd) r._file_number_display = _fnd;
         });
 
@@ -3902,12 +3957,12 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   const sourceBadgeClass = (label) => {
-    const map = { 'PRA': 'source-badge-pra', 'File History': 'source-badge-fh', 'Deed Registration': 'source-badge-deed', 'CofO': 'source-badge-cofo', 'Related Fileno': 'source-badge-related' };
+    const map = { 'PRA': 'source-badge-pra', 'File History': 'source-badge-fh', 'Deed Registration': 'source-badge-deed', 'CofO': 'source-badge-cofo', 'Related Fileno': 'source-badge-related', 'ST Application': 'source-badge-stapp' };
     return map[label] || '';
   };
 
   const sourceRowTintClass = (label) => {
-    const map = { 'PRA': 'row-tint-pra', 'File History': 'row-tint-fh', 'Deed Registration': 'row-tint-deed', 'CofO': 'row-tint-cofo', 'Related Fileno': 'row-tint-related' };
+    const map = { 'PRA': 'row-tint-pra', 'File History': 'row-tint-fh', 'Deed Registration': 'row-tint-deed', 'CofO': 'row-tint-cofo', 'Related Fileno': 'row-tint-related', 'ST Application': 'row-tint-stapp' };
     return map[label] || '';
   };
 
@@ -4056,8 +4111,17 @@ const executeSearchAjax = (filters, searchData) => {
     // read off the grant that opened the file (RofO/OP grantee, ToT/Deed assignor),
     // which showed LAMASH on RES-2024-2184 while the file is titled SAYYIDI UBA WARU.
     const ownerName = (selectedFile && (selectedFile._file_title || selectedFile.file_title)) || '-';
+    // How the file was commissioned in KLAES, worded as the MLS list's Source column
+    // (Re-grant, Direct Allocation, Conversion, ...). Only files commissioned through
+    // KLAES have one, and only when it was THIS file number that was commissioned.
+    const _sameFile = (a, b) => String(a || '').replace(/\s*\(\s*T\s*\)\s*$/i, '').trim().toUpperCase()
+      === String(b || '').replace(/\s*\(\s*T\s*\)\s*$/i, '').trim().toUpperCase();
+    const commissioningSourceLabel = (commissionedNo && _sameFile(commissionedNo, fileNo))
+      ? (String((selectedFile && selectedFile._file_commissioning_source_label) || '').trim() || null)
+      : null;
     return {
       _is_commissioning: true,
+      _commissioning_source_label: commissioningSourceLabel,
       id: 'commissioning',
       source_table: 'File Commissioning',
       fileno: fileNo,
@@ -5402,6 +5466,12 @@ const executeSearchAjax = (filters, searchData) => {
     const src = String((selectedFile && selectedFile._file_commissioning_source) || '').trim();
     if (src !== '') {
       label = commissioningSourceRoot(src);
+      // A Re-grant is a new grant: the title starts at the re-grant (its File
+      // Commissioning row), not at the replaced file's grants. Mirrors the PHP.
+      const srcLabel = String((selectedFile && selectedFile._file_commissioning_source_label) || '').trim().toLowerCase();
+      if (!label && srcLabel === 're-grant' && commIndex !== -1) {
+        return { index: commIndex, label: 'Re-grant' };
+      }
       if (!label) {
         // Rule 3 — "Other File Commissioning". The route is neither allocation nor OP
         // (a Conversion, Re-grant, Subdivision…), so the title did not start at
@@ -5595,6 +5665,10 @@ const executeSearchAjax = (filters, searchData) => {
         ? ` <span class="ls-root-of-title ls-root-of-title-inline" title="${rootOfTitleText(rootOfTitle.label)}">-RoT</span>` : '';
       const commentsTitle = isRootOfTitleRow
         ? [comments, rootOfTitleText(rootOfTitle.label)].filter(Boolean).join(' — ') : comments;
+      // KLAES-commissioned files: the commissioning route (Re-grant, Direct Allocation, ...)
+      // sits under "File Commissioning", as the MLS list's Source column shows it.
+      const commissioningSourceHtml = (item._is_commissioning && item._commissioning_source_label)
+        ? `<div class="ls-commissioning-source">${String(item._commissioning_source_label).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"})[c])}</div>` : '';
       const alreadyCaveated = hasCaveatOnRow(item);
 
       const row = document.createElement('tr');
@@ -5625,7 +5699,7 @@ const executeSearchAjax = (filters, searchData) => {
         <td class="file-no-col text-xs text-gray-600 whitespace-nowrap${hideFileNoCol ? ' hidden' : ''}">${renderFileNumberSpan(item, 'fileNumber')}</td>
         <td><span class="source-badge ${sourceBadgeClass(item.source_table)}">${item.source_table}</span></td>
         <td class="text-center text-xs ${weightColorClass}" title="${weightTitle}">${weightDisplay}</td>
-        <td>${transType}${rootOfTitleShortHtml}</td>
+        <td>${transType}${rootOfTitleShortHtml}${commissioningSourceHtml}</td>
         <td style="white-space:nowrap;">${party1}</td>
         <td>${party2}</td>
         <td>${party3}</td>

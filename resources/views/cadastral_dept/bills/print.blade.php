@@ -195,9 +195,9 @@
 <body>
 
 <div class="toolbar">
-    @canDo('Cad - Records', 'print')
+    @cadCan('print')
         <button onclick="window.print()">Print</button>
-    @endcanDo
+    @endcadCan
     @if ($case)<a href="{{ route('cadastral-dept.cases.bill.show', $case->id) }}">Back to the Fees P&amp;D bill</a>@endif
     <span>{{ $bill->bill_ref }} · {{ $bill->status }}</span>
     @if ($bill->unconfirmed_rules)

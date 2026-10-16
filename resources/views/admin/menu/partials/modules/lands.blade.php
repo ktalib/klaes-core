@@ -108,7 +108,7 @@
 
           <!-- vii. File Decommissioning -->
           <a href="{{ route('file-decommissioning.decommissioned') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-decommissioning.decommissioned') ? 'active' : '' }}">
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-decommissioning.decommissioned') && request('url') !== 'cadastral' ? 'active' : '' }}">
             <i data-lucide="archive" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>File Decommissioning</span>
           </a>
@@ -249,13 +249,13 @@
           </a>
 
           <!-- ii. RofO -->
-          <a href="{{ route('land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-rofos.index') && request()->query('view') !== 'only' ? 'active' : '' }}">
+          <a href="{{ route('land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-rofos.index') && request()->query('view') !== 'only' && request('url') !== 'cadastral' ? 'active' : '' }}">
             <i data-lucide="file-check" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>RofO</span>
           </a>
 
           <!-- iii. Re-grant Files -->
-          <a href="{{ route('regrant.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') ? 'active' : '' }}">
+          <a href="{{ route('regrant.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') && request('url') !== 'cadastral' ? 'active' : '' }}">
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>Re-grant Files</span>
           </a>
@@ -357,7 +357,7 @@
       <!-- f. Problem Files -->
       @if($hasRole('File History View') || $hasRole('File Search'))
         <a href="{{ route('file-search-db.index') }}"
-          class="sidebar-submodule-header flex items-center gap-2 py-1.5 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-search-db.index') ? 'active' : '' }}">
+          class="sidebar-submodule-header flex items-center gap-2 py-1.5 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('file-search-db.index') && request('url') !== 'cadastral' ? 'active' : '' }}">
           <i data-lucide="table" class="h-4 w-4 text-orange-500"></i>
           <span>Problem Files</span>
         </a>
@@ -480,7 +480,7 @@
 
           <!-- vi. Re-grant Management -->
           {{-- <a href="{{ route('regrant.index') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') ? 'active' : '' }}">
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') && request('url') !== 'cadastral' ? 'active' : '' }}">
             <i data-lucide="refresh-cw" class="h-3.5 w-3.5 text-indigo-400"></i>
             <span>Re-grant</span>
           </a> --}}

@@ -104,6 +104,9 @@ return [
         'FIELD_OFFICER'    => 'Field Officer',
         'AD_PSD'           => 'Assistant Director, Plans and Descriptions',
         'AD_COMP'          => 'Assistant Director, Compensation',
+        // Cadastral Dept workflow desks with no post above (in-app notifications, 2026-10-14).
+        'CAD_REGISTRY'     => 'Cadastral Registry Officer',
+        'AD_CAD'           => 'Assistant Director, Cadastral',
     ],
 
     /*

@@ -35,13 +35,22 @@
                     <th>Owner</th>
                     <th>Memo Status</th>
                     <th>RoFO Status</th>
+                    <th>Security Paper Code</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($units as $unit)
                     <tr>
-                        <td>{{ $unit->fileno ?? 'N/A' }}</td>
+                        <td>
+                            <div>{{ $unit->fileno ?? 'N/A' }}</div>
+                            {{-- Shown on the row, as on Land RofO, rather than only inside the action menu. --}}
+                            @if(!empty($unit->security_paper_code))
+                                <div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:'Courier New', monospace;" title="Security Paper Code">
+                                    {{ $unit->security_paper_code }}
+                                </div>
+                            @endif
+                        </td>
                         <td>
                             <div>{{ $unit->unit_label !== '' ? $unit->unit_label : 'N/A' }}</div>
                             @if(!empty($unit->scheme_no))
@@ -69,6 +78,13 @@
                                 <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">Not Generated</span>
                             @endif
                         </td>
+                        <td>
+                            @if(!empty($unit->security_paper_code))
+                                <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200">{{ $unit->security_paper_code }}</span>
+                            @else
+                                <span class="muted text-xs italic">Unassigned</span>
+                            @endif
+                        </td>
 
 
                         <td class="actions">
@@ -83,11 +99,8 @@
                                     </a>
 
                                     @if($unit->rofo_generated ?? false)
-                                        @if($unit->security_paper_code)
-                                            <span class="dd-item disabled" title="Security code already assigned">
-                                                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
-                                                <span>Code Assigned: {{ $unit->security_paper_code }}</span>
-                                            </span>
+                                        @if(!empty($unit->security_paper_code))
+                                            {{-- The assigned code is shown on the row, not here. --}}
                                             <button type="button" class="dd-item"
                                                 onclick="closeAllDD(); resetSecurityPaperModal('{{ $unit->id }}', @js($unit->fileno), @js($unit->security_paper_code))">
                                                 <i data-lucide="rotate-ccw" class="w-4 h-4 text-red-500"></i>

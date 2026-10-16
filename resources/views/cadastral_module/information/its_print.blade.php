@@ -145,12 +145,6 @@
         Survey Job {{ $job->job_number }} · Instruction {{ $job->its_number }} ·
         Printed {{ now()->format('d M Y H:i') }}
 
-        @if (app(\App\Services\Cadastral\CadastralSettings::class)->jobNumberFormat()['is_placeholder'])
-            <div class="caveat-print">
-                Note for internal use: the job-number format is a KLAES placeholder pending
-                confirmation of the SURCON pattern.
-            </div>
-        @endif
     </div>
 </div>
 </body>

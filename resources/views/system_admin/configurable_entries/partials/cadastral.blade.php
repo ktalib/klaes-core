@@ -326,7 +326,7 @@
     <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">
         <div>
             <div class="iw-card-title"><span class="iw-icon-tile blue"><i data-lucide="users" class="h-5 w-5"></i></span> Officers &amp; Posts</div>
-            <div class="iw-card-sub">Who holds each job post. A report step that names a post can only be completed by a user holding it. One line per person per post; switch a line off to end it &mdash; lines are never deleted.</div>
+            <div class="iw-card-sub">Who holds each job post. A report step that names a post can only be completed by a user holding it. The holders of a Cadastral Dept desk's post (Registry, D Cad, DD Cad, AD Cad Info, AD Cad Report, AD P&amp;D, AD Cad) get its in-app notifications. One line per person per post; switch a line off to end it &mdash; lines are never deleted.</div>
         </div>
         <span class="ce-pill {{ $unfilled->isEmpty() ? 'green' : 'red' }}">{{ count($cadPosts) - $unfilled->count() }} of {{ count($cadPosts) }} posts filled</span>
     </div>

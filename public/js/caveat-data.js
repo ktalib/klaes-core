@@ -236,8 +236,8 @@ function initializeTabs() {
         });
     });
     
-    // Set default active tab
-    setActiveTab('place');
+    // Set default active tab. Read-only (Cadastral > Other Departments) shows the log only.
+    setActiveTab(window.CAVEAT_READ_ONLY ? 'log' : 'place');
 }
 
 // Utility functions

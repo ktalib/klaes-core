@@ -2966,6 +2966,66 @@ class FileNumberController extends Controller
             // an edit stopped at the file-number screens and that page kept showing the
             // values captured at commissioning time.
             $this->propagateToOssApplications($request, $fileNoCandidates, $nameChanged);
+
+            // The recommendation / RofO letter prints the file title as its applicant
+            // name (readonly on the capture form, "Taken from the selected file number"),
+            // so a renamed file must rename its letter too -- RES-2026-3878 kept the
+            // misspelt "REALITY MARK LIMITED" on its RofO after the file was corrected.
+            if ($nameChanged) {
+                $this->propagateNameToRecommendations($request, $fileNoCandidates);
+            }
+        }
+    }
+
+    /**
+     * Rename the applicant on the recommendation letters captured against this file.
+     *
+     * Matched on land_recommendations.file_number only, never old_file_number: for a
+     * subdivision child that column holds the MOTHER's number, so matching it would
+     * rename every sibling plot's letter with this plot's holder.
+     *
+     * @param  array<int, string>  $fileNoCandidates
+     */
+    private function propagateNameToRecommendations(Request $request, array $fileNoCandidates): void
+    {
+        $newName = trim((string) $request->file_name);
+        if ($newName === '') {
+            return;
+        }
+
+        try {
+            $rows = DB::connection('sqlsrv')->table('land_recommendations')
+                ->whereIn('file_number', $fileNoCandidates)
+                ->where(function ($q) {
+                    $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                })
+                ->get(['id', 'file_number', 'applicant_name', 'rofo_status', 'rofo_print_count']);
+
+            $rows = $rows->filter(fn ($r) => trim((string) $r->applicant_name) !== $newName);
+            if ($rows->isEmpty()) {
+                return;
+            }
+
+            DB::connection('sqlsrv')->table('land_recommendations')
+                ->whereIn('id', $rows->pluck('id')->all())
+                ->update(['applicant_name' => $newName, 'updated_at' => now()]);
+
+            // A letter already on paper now disagrees with the record; say which.
+            Log::info('File-number edit renamed recommendation applicant', [
+                'file_numbers' => $fileNoCandidates,
+                'new_name' => $newName,
+                'records' => $rows->map(fn ($r) => [
+                    'id' => (int) $r->id,
+                    'old_name' => $r->applicant_name,
+                    'rofo_status' => $r->rofo_status,
+                    'rofo_print_count' => (int) $r->rofo_print_count,
+                ])->values()->all(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to propagate file-number edit to land_recommendations', [
+                'file_numbers' => $fileNoCandidates,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -3665,6 +3725,105 @@ class FileNumberController extends Controller
             ],
             'lineage' => $lineage,
         ];
+    }
+
+    /**
+     * File types the Land FC "Update File Source" card offers: the Commission New File
+     * Number card's File Type list. Key = mls_file_no.file_option, value = the source label.
+     */
+    public const FILE_SOURCE_TYPES = [
+        'temporary'         => 'Temporary File',
+        'extension'         => 'Extension',
+        'miscellaneous'     => 'Miscellaneous',
+        'change_of_purpose' => 'Change of Purpose',
+        'resettlement'      => 'Resettlement',
+        'regrant'           => 'Re-grant',
+        'reissuance'        => 'Re-Issuance of FileNo',
+        'recertification'   => 'Recertification',
+        'subdivision'       => 'Subdivision',
+        'merger'            => 'Merger',
+        'separation'        => 'Separation',
+        'duplex'            => 'Duplex',
+    ];
+
+    /**
+     * Land FC > Update File Source. Relabels a commissioned file's File Type: sets
+     * file_option (what the listing's Source badge shows) and source (what the
+     * commissioning sheet prints) on its latest mls_file_no row. Labels only: nothing
+     * the type would normally do (retiring a parent, lineage, ...) is triggered.
+     */
+    public function updateFileSource(Request $request, $id)
+    {
+        // Super Admin only for now (user, 2026-10-14).
+        if (!Auth::user() || Auth::user()->assign_role !== 'Supper Admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized action. Only Supper Admin can update a file source.'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'file_option' => 'required|string|in:' . implode(',', array_keys(self::FILE_SOURCE_TYPES)),
+        ], ['file_option.in' => 'Select a file type from the list.']);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $db = DB::connection('sqlsrv');
+        $fn = $db->table('fileNumber')->where('id', $id)
+            ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })
+            ->first(['id', 'mlsfNo', 'SOURCE', 'type']);
+        $fileNo = trim((string) ($fn->mlsfNo ?? ''));
+        if ($fileNo === '') {
+            return response()->json(['success' => false, 'message' => 'File number record not found.'], 404);
+        }
+
+        $mls = $db->table('mls_file_no')->where('full_file_number', $fileNo)
+            ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })
+            ->orderByDesc('id')
+            ->first(['id', 'file_option', 'source']);
+        if (!$mls) {
+            return response()->json([
+                'success' => false,
+                'message' => "{$fileNo} has no commissioning record, so its file source cannot be changed here.",
+            ], 422);
+        }
+
+        $option = $request->input('file_option');
+
+        // The listing keeps a file marked temporary only when fileNumber stamps it as
+        // MLS-commissioned; any other file would drop out of the table altogether.
+        if ($option === 'temporary'
+            && !(in_array($fn->SOURCE, ['MLS_Commissioned', 'MLS_Commissioned_Batch'], true) && $fn->type === 'MlsFileNO')) {
+            return response()->json([
+                'success' => false,
+                'message' => "{$fileNo} is registered in the file number register, so it cannot be marked Temporary: it would disappear from this table.",
+            ], 422);
+        }
+
+        $label = self::FILE_SOURCE_TYPES[$option];
+        $db->table('mls_file_no')->where('id', $mls->id)->update([
+            'file_option' => $option,
+            'source'      => $label,
+            'updated_at'  => now(),
+        ]);
+
+        Log::info('Land FC: file source updated', [
+            'file_number' => $fileNo,
+            'mls_file_no_id' => $mls->id,
+            'from' => ['file_option' => $mls->file_option, 'source' => $mls->source],
+            'to' => ['file_option' => $option, 'source' => $label],
+            'user_id' => Auth::id(),
+        ]);
+
+        $this->forgetFileNumberCaches();
+
+        return response()->json([
+            'success' => true,
+            'message' => "File source for {$fileNo} updated to {$label}.",
+            'file_option' => $option,
+            'source' => $label,
+        ]);
     }
 
     private function forgetFileNumberCaches(): void

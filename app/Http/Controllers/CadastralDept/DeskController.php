@@ -84,6 +84,12 @@ class DeskController extends Controller
                 ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
                 ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
             ];
+            if ($def->desk($desk)['head'] ?? null) {   // a unit: files its staff sent to the head
+                $heads = app(\App\Services\CadastralDept\HeadApproval::class);
+                $cards[] = ['label' => 'With the ' . $def->desk($desk)['head'], 'value' => $here->filter(fn ($c) => $heads->awaiting($c))->count(),
+                    'hint' => 'sent for approval', 'colour' => 'purple',
+                    'url' => route('cadastral-dept.desks.show', ['desk' => $desk, 'queue' => 'approval']), 'active' => $queueKey === 'approval'];
+            }
             if ($recorded) {   // only desks that record another department's return
                 $cards[] = ['label' => 'Out with other departments', 'value' => $away->count(), 'hint' => 'record when they come back', 'colour' => 'purple'];
             }
@@ -113,9 +119,20 @@ class DeskController extends Controller
                 $here = $here->filter(fn ($c) => $queues->matches($c, $queue))->values();
                 $away = $away->filter(fn ($c) => $queues->matches($c, $queue))->values();
                 // A list with no rule (Registry's Intake Queue) is the whole desk, so keep them.
-                if (array_intersect_key($queue, array_flip(['steps', 'tasks', 'to', 'at', 'ready']))) {
+                if (!empty($queue['tasks'])) {
+                    // A task list keeps the files whose task is done, read only, wherever they are
+                    // now and even once completed (user, 2026-10-14). Newest first, capped.
+                    $doneQuery = $filter(CadastralCase::query()->with(['receiver']))
+                        ->whereNotIn('id', $here->concat($away)->pluck('id'))
+                        ->whereHas('tasks', fn ($t) => $t->whereIn('task_key', (array) $queue['tasks']));
+                    $sentTotal = (clone $doneQuery)->count();
+                    $done = $doneQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+                    $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
+                    $sent = $done->filter(fn ($c) => $c->isOpen())->values();
+                } elseif (array_intersect_key($queue, array_flip(['steps', 'to', 'at', 'awaiting_head']))) {
                     $sent = $closed = collect();
                 }
+                // A Send ('ready') list keeps the desk's sent-on and finished files.
             }
         }
 
@@ -124,7 +141,7 @@ class DeskController extends Controller
             $menus[$case->id] = $this->menu($engine, $case);
         }
         // Assign to Surveyor (I to S): the jobs waiting for a file, for the Attach Survey Job pop-up.
-        $attachDue = collect($menus)->contains(fn ($m) => $m['attach_job']);
+        $attachDue = collect($menus)->contains(fn ($m) => $m['jacket'] === 'attach_job');
 
         return view('cadastral_dept.desk', [
             'def' => $def,
@@ -145,6 +162,7 @@ class DeskController extends Controller
             'term' => $term,
             'queueKey' => $queueKey,
             'queueLabel' => $queue['label'] ?? null,
+            'queueKeepsDone' => !empty($queue['tasks']),   // task list: done files stay, read only
             // Header as the sidebar names it: the list opened, or the desk's whole-inbox
             // entry (Intake Queue, All files at ...), or the desk itself (D Cad).
             'pageTitle' => $queue['label'] ?? $this->sidebarTitle($def, $desk),
@@ -158,7 +176,7 @@ class DeskController extends Controller
     {
         $q = $def->queues()[$desk] ?? null;
         foreach ((array) ($q['entries'] ?? []) as $entry) {
-            if (!array_intersect(['steps', 'tasks', 'to', 'at', 'ready'], array_keys($entry))) {
+            if (!array_intersect(['steps', 'tasks', 'to', 'at', 'ready', 'awaiting_head'], array_keys($entry))) {
                 return $entry['label'];
             }
         }
@@ -186,10 +204,18 @@ class DeskController extends Controller
         }
         $open = count($missing) - ($custody ? 1 : 0);
 
-        // Assign to Surveyor (I to S): attach the surveyor's job, then issue the I to S (user, 2026-10-12).
-        $jackets = FieldJackets::installed();
-        $attachJob = $jackets && in_array(FieldJackets::TASK_JACKET, $missing, true);
-        $issueIts = $jackets && !$attachJob && in_array(FieldJackets::TASK_ITS, $missing, true);
+        // Field jacket work, in order (transcript, 2026-10-16): P&D commissions the jacket and
+        // issues the I to S; AD Cad Info attaches the job and surveyor, then issues the instruction.
+        $jacket = null;
+        if (FieldJackets::installed()) {
+            foreach ([FieldJackets::TASK_JACKET => 'commission', FieldJackets::TASK_ITS => 'pnd_its',
+                FieldJackets::TASK_JOB => 'attach_job', FieldJackets::TASK_JOB_ITS => 'job_its'] as $task => $kind) {
+                if (in_array($task, $missing, true)) {
+                    $jacket = $kind;
+                    break;
+                }
+            }
+        }
 
         try {
             $actions = $engine->actions($case->workflow, $case->current_step, $case->sub_type);
@@ -205,14 +231,21 @@ class DeskController extends Controller
         }
         unset($a);
 
-        // Checks (Send to Deeds): failing ones are listed instead of the action.
-        $failing = ($open || $custody) ? [] : app(DeedsDispatchChecks::class)->failing($case);
+        // In a unit, staff send to the head; only the head sends across (HeadApproval).
+        $head = app(\App\Services\CadastralDept\HeadApproval::class)->shape($case, $actions, auth()->user());
+        $actions = $head['actions'];
+
+        // Checks (Send to Deeds): failing ones are listed instead of the action; staff
+        // sending to the head are not held up by them (the head's Send to Deeds is).
+        $failing = ($open || $custody || ($head['required'] && !$head['is_head'])) ? [] : app(DeedsDispatchChecks::class)->failing($case);
 
         // A decision (a question with several answers) is one menu item, e.g. "Recommendation",
         // whose pop-up offers the answers.
         $decision = !empty($step['question']) && count($actions) > 1 ? ($step['menu_label'] ?? $step['label']) : null;
+        // The staff's single "Send to <head>" is not the step's question.
+        $question = $head['required'] && !$head['is_head'] ? null : ($step['question'] ?? null);
 
-        return ['tasks_open' => $open, 'custody' => $custody, 'attach_job' => $attachJob, 'issue_its' => $issueIts, 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
-            'question' => $step['question'] ?? null, 'decision' => $decision];
+        return ['tasks_open' => $open, 'custody' => $custody, 'jacket' => $jacket, 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
+            'question' => $question, 'decision' => $decision, 'head' => $head];
     }
 }

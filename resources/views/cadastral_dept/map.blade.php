@@ -12,8 +12,8 @@
         @foreach ($def->workflows() as $wfKey => $wf)
           <button type="button" @click="wf = '{{ $wfKey }}'"
                   :class="wf === '{{ $wfKey }}' ? 'bg-{{ $wf['colour'] }}-600 text-white border-{{ $wf['colour'] }}-600' : 'bg-white text-gray-700 border-gray-200'"
-                  class="px-4 py-2 rounded-lg border text-sm font-bold">
-            {{ $loop->iteration }}. {{ $wf['label'] }}
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-bold">
+            <i data-lucide="{{ $wf['icon'] ?? 'folder' }}" class="w-4 h-4"></i>{{ $loop->iteration }}. {{ $wf['label'] }}
           </button>
         @endforeach
       </div>
@@ -22,7 +22,7 @@
         @php $c = $wf['colour']; @endphp
         <div x-show="wf === '{{ $wfKey }}'" x-cloak>
           <div class="mb-4 rounded-xl border border-{{ $c }}-200 bg-{{ $c }}-50 px-5 py-4">
-            <div class="font-bold text-{{ $c }}-900">{{ $wf['label'] }}</div>
+            <div class="flex items-center gap-2 font-bold text-{{ $c }}-900"><i data-lucide="{{ $wf['icon'] ?? 'folder' }}" class="w-4 h-4"></i>{{ $wf['label'] }}</div>
             <div class="text-sm text-{{ $c }}-800">Applies to: {{ $wf['applies_to'] }}</div>
             @if (! empty($wf['sub_types']))
               <div class="text-sm text-{{ $c }}-800 mt-1">Sub-types: {{ implode(', ', $wf['sub_types']) }}</div>

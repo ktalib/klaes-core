@@ -68,6 +68,12 @@
                         class="form-select text-xs py-1" data-model="typeValue">
                         <option value="">Select type</option>
                     </select>
+                    {{-- Occupancy Permit only: Type "Other" reveals this required box
+                         (applySourceOtherRules() in public/js/pra/form-controller.js);
+                         saved in pra.op_type_other. --}}
+                    <input id="op_type_other" name="op_type_other" type="text" maxlength="100"
+                        class="form-input text-xs py-1 mt-1 hidden" placeholder="Specify OP type *"
+                        aria-label="Specify OP type" data-model="opTypeOther" autocomplete="off" disabled>
                 </div>
                 <div class="hidden" data-role="instrument-category-group">
                     <label for="instrument_category" class="text-xs">Category</label>
@@ -83,11 +89,26 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 hidden" data-role="op-fields-wrapper">
                 <div>
+                    {{-- Who issued the permit (user, 2026-10-15), saved in pra.op_source. LGA
+                         used to be an OP Type and now lives here only: it turns the Grantor
+                         field into a 44-LGA picker and fixes the registration particulars at
+                         0/0/0 with no date or time — see applyLgaOpTypeRules() in
+                         public/js/pra/form-controller.js. --}}
+                    <label for="op_source" class="text-xs">Source <span class="text-red-500">*</span></label>
+                    <select id="op_source" name="op_source" class="form-select text-xs py-1" data-model="opSource">
+                        <option value="">Select source</option>
+                        <option value="Ministry">Ministry</option>
+                        <option value="KANGIS">KANGIS</option>
+                        <option value="LGA">LGA</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    {{-- Shown, enabled and required only while Source is Other (applySourceOtherRules()
+                         in public/js/pra/form-controller.js); saved in pra.op_source_other. --}}
+                    <input id="op_source_other" name="op_source_other" type="text" maxlength="100"
+                        class="form-input text-xs py-1 mt-1 hidden" placeholder="Specify source *"
+                        aria-label="Specify source" data-model="opSourceOther" autocomplete="off" disabled>
                     {{-- The permit's Type is the shared Type field above; this hidden input is
-                         what actually posts op_type, kept in step by the controller. Picking
-                         LGA there turns the Grantor field into a 44-LGA picker and fixes the
-                         registration particulars at 0/0/0 with no date or time — see
-                         applyLgaOpTypeRules() in public/js/pra/form-controller.js. --}}
+                         what actually posts op_type, kept in step by the controller. --}}
                     <input type="hidden" id="op_type" name="op_type" data-model="opType" value="">
                     <p class="mt-1 text-[11px] text-amber-700 hidden" data-role="op-lga-note">
                         Issued by a Local Government: registration number is fixed at 0/0/0 and the
@@ -306,14 +327,21 @@
                 ? instrumentCatalog.find(function (e) { return needle.indexOf(e.key) !== -1; })
                 : null;
 
+            const isOp = needle.indexOf('occupancy permit') !== -1
+                || needle.indexOf('occupation permit') !== -1
+                || needle === 'op';
+
             return {
-                types: (entry && entry.types) || [],
+                // LGA is a Source on a permit, not a Type (2026-10-15); the row inherits
+                // the primary row's Source.
+                // An OP's Type also offers "Other", which asks for a "specify" box.
+                types: ((entry && entry.types) || []).filter(function (o) {
+                    return !(isOp && String(o.label).trim().toUpperCase() === 'LGA');
+                }).concat(isOp ? [{ value: 'Other', label: 'Other' }] : []),
                 categories: (entry && entry.categories) || [],
                 // Matched the way updateTransactionContext() matches, so the OP Serial
                 // Number appears on an extra row exactly when it appears on the primary.
-                isOp: needle.indexOf('occupancy permit') !== -1
-                    || needle.indexOf('occupation permit') !== -1
-                    || needle === 'op',
+                isOp: isOp,
             };
         }
 
@@ -356,6 +384,7 @@
             const prevType = previous('type_value');
             const prevCategory = previous('instrument_category');
             const prevSerial = previous('op_serial_number');
+            const prevTypeOther = previous('type_other');
 
             let html = '';
 
@@ -368,6 +397,13 @@
                             'class="form-select text-xs py-1">' +
                             catalogOptionsHtml(ctx.types, 'Select type', prevType) +
                         '</select>' +
+                        (ctx.isOp
+                            ? '<input data-field="type_other" name="extra_regs[' + idx + '][type_other]" type="text" maxlength="100" ' +
+                                'class="form-input text-xs py-1 mt-1' + (prevType === 'Other' ? '' : ' hidden') + '" ' +
+                                'placeholder="Specify OP type *" aria-label="Specify OP type" autocomplete="off" ' +
+                                (prevType === 'Other' ? 'required ' : 'disabled ') +
+                                'value="' + escapeHtml(prevType === 'Other' ? prevTypeOther : '') + '">'
+                            : '') +
                     '</div>';
                 }
                 if (ctx.categories.length) {
@@ -398,6 +434,19 @@
             }
 
             holder.innerHTML = html;
+
+            // Type "Other" on this row reveals its own required "specify" box.
+            const rowType = holder.querySelector('[data-field="type_value"]');
+            const rowTypeOther = holder.querySelector('[data-field="type_other"]');
+            if (rowType && rowTypeOther) {
+                rowType.addEventListener('change', function () {
+                    const isOther = rowType.value === 'Other';
+                    rowTypeOther.classList.toggle('hidden', !isOther);
+                    rowTypeOther.disabled = !isOther;
+                    rowTypeOther.required = isOther;
+                    if (!isOther) rowTypeOther.value = '';
+                });
+            }
             // An empty holder is still a child of a space-y-3 row, so it would leave a
             // phantom gap for an instrument that asks none of these three questions.
             holder.classList.toggle('hidden', html === '');

@@ -1211,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!Array.isArray(records) || records.length === 0) {
                 const row = document.createElement('tr');
                 const cell = document.createElement('td');
-                cell.colSpan = 9;
+                cell.colSpan = config.readOnly ? 8 : 9;
                 cell.className = 'px-4 py-10 text-center text-slate-500';
                 cell.textContent = `No ${typeLabels[type].toLowerCase()} found for the supplied filters.`;
                 row.appendChild(cell);
@@ -1265,6 +1265,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     row.appendChild(cell);
                 });
+
+                // View only (Cadastral sidebar): no actions cell, matching the hidden header.
+                if (config.readOnly) {
+                    tableBody.appendChild(row);
+                    return;
+                }
 
                 const actionsCell = document.createElement('td');
                 actionsCell.className = 'px-4 py-3 text-center whitespace-nowrap';

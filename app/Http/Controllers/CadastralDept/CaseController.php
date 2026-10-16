@@ -17,6 +17,7 @@ use App\Services\CadastralDept\DeedsDispatchChecks;
 use App\Services\CadastralDept\FieldJackets;
 use App\Services\CadastralDept\FileMovementCards;
 use App\Services\CadastralDept\IntakeLookup;
+use App\Services\CadastralDept\VerificationFileStatus;
 use App\Services\CadastralDept\WorkflowDefinition;
 use App\Services\CadastralDept\WorkflowEngine;
 use App\Services\CadastralDept\YesNoForms;
@@ -88,6 +89,7 @@ class CaseController extends Controller
             'file_number' => mb_substr((string) $request->query('file_number', ''), 0, 100),
             'tab' => mb_substr((string) $request->query('tab', ''), 0, 20),
             'file_indexing_id' => (int) $request->query('file_indexing_id', 0),
+            'workflow' => mb_substr((string) $request->query('workflow', ''), 0, 20),
         ]));
     }
 
@@ -130,15 +132,13 @@ class CaseController extends Controller
             'file_number' => $data['file_number'],
             'tab' => $data['file_system'] ?? '',
             'file_indexing_id' => (int) ($data['file_indexing_id'] ?? 0),
+            'workflow' => $data['workflow'],
         ]);
         if ($found['status'] !== 'ok') {
             return back()->withInput()->with('error', $found['message'] ?: 'Pick the file again.');
         }
-        if ($data['workflow'] === 'verification' && ! $found['correspondence']['exists']) {
-            return back()->withInput()->with('error',
-                "{$found['file']['file_number']} has no correspondence file, so there is nothing to verify against. "
-                . 'Register it as Conversion or Direct instead.');
-        }
+        // Verification takes any indexed file (user, 2026-10-15); without a correspondence
+        // file the Registry's detach step is simply not needed (CaseWorkflow::advance).
 
         $file = $found['file'];
 
@@ -203,10 +203,18 @@ class CaseController extends Controller
                 : ($a['ends'] === 'returned' ? $case->fileSourceLabel() : 'Deeds / requester');
         }
         unset($a);
+        // In a unit, staff send to the head; the step's real actions are greyed out for them.
+        $headInfo = app(\App\Services\CadastralDept\HeadApproval::class)->shape($case, $actions, auth()->user());
+        $actions = $headInfo['actions'];
 
-        // Field jacket at AD P&D: the surveyor list only when the jacket is due.
+        // P&D: plain field jacket and I to S; AD Cad Info: job, surveyor and the job's instruction.
         $fieldJacket = $jackets->forCase($case);
-        $jacketDue = FieldJackets::installed() && !$fieldJacket && $jackets->due($case, FieldJackets::TASK_JACKET);
+        $doneKeys = $case->doneTaskKeys();
+        $jobDue = FieldJackets::installed() && $fieldJacket && !$fieldJacket->cadastral_survey_job_id && $jackets->due($case, FieldJackets::TASK_JOB);
+        $pndItsDefault = $fieldJacket && $jackets->due($case, FieldJackets::TASK_ITS) && !in_array(FieldJackets::TASK_ITS, $doneKeys, true)
+            ? $jackets->defaultPndInstruction($fieldJacket) : null;
+        $itsDefault = $fieldJacket?->job && !$fieldJacket->job->its_number && $jackets->due($case, FieldJackets::TASK_JOB_ITS)
+            ? $jackets->defaultInstructions($fieldJacket) : null;
 
         return view('cadastral_dept.cases.show', [
             'case' => $case,
@@ -214,6 +222,7 @@ class CaseController extends Controller
             'step' => $def->step($case->workflow, $case->current_step),
             'actingDesk' => $def->actingDesk($case->workflow, $case->current_step),
             'actions' => $actions,
+            'headInfo' => $headInfo,
             'done' => $case->tasks->where('step', $case->current_step)->keyBy('task_key'),
             'progress' => $engine->phaseProgress($case->workflow, $case->current_step, !$case->isOpen()),
             'pipeline' => $engine->pipeline($case->workflow, $case->sub_type, $case->movements,
@@ -226,10 +235,11 @@ class CaseController extends Controller
             'checks' => $case->isOpen() ? $checks->results($case) : [],
             'jacketsInstalled' => FieldJackets::installed(),
             'fieldJacket' => $fieldJacket,
-            'jacketDue' => $jacketDue,
-            'surveyors' => $jacketDue ? $jackets->surveyors() : collect(),
-            'waitingJobs' => $jacketDue ? $jackets->waitingJobs() : collect(),
-            'itsDefault' => $fieldJacket && !$fieldJacket->job->its_number ? $jackets->defaultInstructions($fieldJacket) : null,
+            'jobDue' => $jobDue,
+            'surveyors' => $jobDue ? $jackets->surveyors() : collect(),
+            'waitingJobs' => $jobDue ? $jackets->waitingJobs() : collect(),
+            'pndItsDefault' => $pndItsDefault,
+            'itsDefault' => $itsDefault,
             'yesNoInstalled' => YesNoForms::installed(),
             'yesNoForm' => app(YesNoForms::class)->forCase($case),
             'chartingInstalled' => ChartingCards::installed(),
@@ -237,6 +247,26 @@ class CaseController extends Controller
                 ? CadastralCharting::query()->with('officer')->where('cadastral_case_id', $case->id)->where('is_current', true)->orderBy('id')->get()
                 : collect(),
         ]);
+    }
+
+    /** The Verification file-status panel (read only), fetched by the case page. */
+    public function fileStatus(int $case, VerificationFileStatus $status)
+    {
+        abort_unless(CaseWorkflow::installed(), 404);
+        $case = CadastralCase::findOrFail($case);
+
+        return view('cadastral_dept.cases._file_status', ['rows' => $status->results($case)]);
+    }
+
+    /** The same panel for a file picked on Register File, before there is a case. */
+    public function lookupFileStatus(Request $request, VerificationFileStatus $status)
+    {
+        $data = $request->validate(['file_number' => 'required|string|max:100', 'file_indexing_id' => 'nullable|integer']);
+        $case = new CadastralCase();
+        $case->file_number = $data['file_number'];
+        $case->file_indexing_id = $data['file_indexing_id'] ?? null;
+
+        return view('cadastral_dept.cases._file_status', ['rows' => $status->results($case)]);
     }
 
     public function completeTask(Request $request, int $case, CaseWorkflow $workflow)
@@ -252,7 +282,12 @@ class CaseController extends Controller
         $data = $request->validate(['outcome' => 'required|string|max:30', 'remarks' => 'nullable|string|max:2000']);
         $case = CadastralCase::findOrFail($case);
 
-        return $this->attempt(fn () => $workflow->advance($case, $data['outcome'], $data['remarks'] ?? null, auth()->id()), 'Case moved.');
+        // Head-of-unit approval: staff send to the head; the head can return it (HeadApproval).
+        return $this->attempt(fn () => match ($data['outcome']) {
+            \App\Services\CadastralDept\HeadApproval::TO_HEAD => $workflow->sendToHead($case, $data['remarks'] ?? null, auth()->id()),
+            \App\Services\CadastralDept\HeadApproval::RETURNED => $workflow->returnToStaff($case, $data['remarks'] ?? null, auth()->id()),
+            default => $workflow->advance($case, $data['outcome'], $data['remarks'] ?? null, auth()->id()),
+        }, 'Case moved.');
     }
 
     /** Create (or match) the file's correspondence file at AD Cad Report. */

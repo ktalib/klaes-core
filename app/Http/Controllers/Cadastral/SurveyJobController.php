@@ -128,16 +128,15 @@ class SurveyJobController extends Controller
             . 'Attach it to a file and a surveyor at Assign to Surveyor (I to S).');
     }
 
-    /** A job before I to S: its scope and the survey's location (the address builder). */
+    /**
+     * A job in the Job Book: its scope only. No location of its own (transcript, 2026-10-16):
+     * it takes the file's location when AD Cad Info attaches it to the file's field jacket.
+     */
     private function jobDetails(Request $r): array
     {
-        $data = CadastralAddress::normalise(
-            $r->validate(['job_scope' => 'nullable|string|max:8000'] + $this->addressRules($r, 'prop_'), $this->addressMessages('prop_')),
-            'prop_'
-        );
-        $data['job_scope'] = trim((string) ($data['job_scope'] ?? '')) ?: null;
+        $data = $r->validate(['job_scope' => 'nullable|string|max:8000']);
 
-        return $data;
+        return ['job_scope' => trim((string) ($data['job_scope'] ?? '')) ?: null];
     }
 
     public function edit(CadastralSurveyJob $surveyJob)
@@ -160,7 +159,7 @@ class SurveyJobController extends Controller
             return back()->with('error', "{$surveyJob->job_number} is {$surveyJob->status} and can no longer be edited.");
         }
 
-        // Not attached yet: its scope and survey location; the surveyor and file come at I to S.
+        // Not attached yet: its scope only; the file (and its location) and surveyor come at I to S.
         if (! $surveyJob->file_number) {
             $surveyJob->update($this->jobDetails($r));
 

@@ -131,13 +131,22 @@
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Generated On</th>
                                 <th class="px-6 py-4 whitespace-nowrap">Created By</th>
                                 <th class="px-6 py-4 whitespace-nowrap">Date Created</th>
+                                <th class="px-6 py-4 whitespace-nowrap">Security Paper Code</th>
                                 <th class="px-6 py-4 text-right sticky right-0 bg-slate-50 border-l border-slate-200 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-sm">
                             @forelse($recommendations as $rec)
                             <tr class="hover:bg-slate-50/50 transition">
-                                <td class="px-4 py-2 font-mono font-bold text-slate-900 whitespace-nowrap">{{ $rec->sltr_number ?? '—' }}</td>
+                                <td class="px-4 py-2 font-mono font-bold text-slate-900 whitespace-nowrap">
+                                    <div>{{ $rec->sltr_number ?? '—' }}</div>
+                                    {{-- Shown on the row, as on Land RofO, rather than only inside the action menu. --}}
+                                    @if($rec->sltr_rofo_serial_no)
+                                        <div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:'Courier New', monospace;" title="Security Paper Code">
+                                            {{ $rec->sltr_rofo_serial_no }}
+                                        </div>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-2 text-slate-700 whitespace-nowrap">{{ $rec->applicant_name }}</td>
                                 <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->land_use }}</td>
                                 <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->location }}</td>
@@ -170,6 +179,15 @@
                                      columns back: a recommendation can sit for weeks before its
                                      RofO is issued. --}}
                                 <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->created_at ? $rec->created_at->format('d-m-Y') : '—' }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">
+                                    @if($rec->sltr_rofo_serial_no)
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                                            {{ $rec->sltr_rofo_serial_no }}
+                                        </span>
+                                    @else
+                                        <span class="text-slate-400 italic text-xs">Unassigned</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-2 text-right sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] border-l border-slate-100 z-10 whitespace-nowrap">
                                     <div x-data="{
                                         open: false,
@@ -280,9 +298,10 @@
                                             @endif
                                             <button type="button"
                                                     onclick="openAssignSecurityPaperModal({{ $rec->id }}, '{{ $rec->sltr_number }}', '{{ $rec->sltr_rofo_serial_no }}', '{{ route('sltr-rofos.assign-security-paper', $rec->id) }}')"
-                                                    class="flex w-full items-center px-4 py-2.5 text-sm {{ $rec->sltr_rofo_serial_no ? 'text-emerald-600 font-bold' : 'text-slate-600' }} hover:bg-emerald-50 transition gap-2">
+                                                    class="flex w-full items-center px-4 py-2.5 text-sm text-slate-600 hover:bg-emerald-50 transition gap-2">
                                                 <i data-lucide="hash" class="h-4 w-4"></i>
-                                                {{ $rec->sltr_rofo_serial_no ? 'Code: '.$rec->sltr_rofo_serial_no : 'Enter Security Paper Code' }}
+                                                {{-- The code itself is on the row; assigning over one swaps it. --}}
+                                                {{ $rec->sltr_rofo_serial_no ? 'Change Security Paper Code' : 'Enter Security Paper Code' }}
                                             </button>
                                             {{-- Supper Admin only. A security paper code identifies a
                                                  numbered sheet already issued against this RofO, so
@@ -313,7 +332,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="13" class="px-8 py-12 text-center">
+                                <td colspan="14" class="px-8 py-12 text-center">
                                     <div class="flex flex-col items-center">
                                         <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-4">
                                             <i data-lucide="file-text" class="h-6 w-6"></i>

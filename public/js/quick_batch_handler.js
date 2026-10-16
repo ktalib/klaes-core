@@ -228,6 +228,10 @@ function fetchNextSerialNumberForQuickBatch() {
       // Store the data for later use
       window.nextSerialData = data;
 
+      if (typeof window.notifyRegisterGuard === 'function') {
+        window.notifyRegisterGuard(data, instrumentType);
+      }
+
       // Refresh the table to show updated serial numbers
       populateQuickBatchTable();
 

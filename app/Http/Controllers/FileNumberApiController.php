@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Schema;
@@ -380,6 +381,10 @@ class FileNumberApiController extends Controller
             if ($stName !== null) {
                 $payload['file_name'] = $stName;
             }
+
+            // Land use + purpose for backfill (e.g. Extension). The mother application is
+            // often absent, so fall back to the MLS register row, then the indexing row.
+            $payload = array_merge($payload, $this->resolveLandUseAndPurpose($payload));
 
             if ($isKangisModule && $selectedFileNumber !== '') {
                 // For KN-format numbers, tracking_id comes from file_tracker, not fileNumber table.
@@ -1776,6 +1781,58 @@ class FileNumberApiController extends Controller
         return !empty($parts) ? implode(', ', $parts) : null;
     }
 
+    /**
+     * land_use / purpose_id / purpose_name for a looked-up file. Keeps an existing
+     * land_use; otherwise takes it from mls_file_no, then file_indexings.land_use_type.
+     */
+    private function resolveLandUseAndPurpose(array $payload): array
+    {
+        $out = [
+            'land_use' => $payload['land_use'] ?? null,
+            'purpose_id' => null,
+            'purpose_name' => null,
+        ];
+
+        try {
+            $db = DB::connection('sqlsrv');
+            $mlsfNo = trim((string) ($payload['mlsf_no'] ?? ''));
+
+            if ($mlsfNo !== '') {
+                $mls = $db->table('mls_file_no')
+                    ->where('full_file_number', $mlsfNo)
+                    ->where(function ($q) {
+                        $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                    })
+                    ->orderByDesc('id')
+                    ->first(['land_use', 'purpose_id']);
+
+                if ($mls) {
+                    if (trim((string) $out['land_use']) === '' && trim((string) $mls->land_use) !== '') {
+                        $out['land_use'] = $mls->land_use;
+                    }
+                    if (!empty($mls->purpose_id)) {
+                        $out['purpose_id'] = (int) $mls->purpose_id;
+                        $out['purpose_name'] = $db->table('purposes')->where('id', $mls->purpose_id)->value('name');
+                    }
+                }
+            }
+
+            if (trim((string) $out['land_use']) === '' && !empty($payload['file_indexing_id'])) {
+                $indexed = $db->table('file_indexings')->where('id', $payload['file_indexing_id'])->value('land_use_type');
+                if (trim((string) $indexed) !== '') {
+                    $out['land_use'] = $indexed;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('File number lookup: land use / purpose backfill failed', [
+                'mlsf_no' => $payload['mlsf_no'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $out;
+    }
+
     private function transformFileNumberRecord(array $record): array
     {
         $indexingStatus = $this->resolveIndexingStatus($record);
@@ -2128,6 +2185,7 @@ class FileNumberApiController extends Controller
                     'lga',
                     'plot_number',
                     'tp_no',
+                    'street_name',
                 ]);
 
             // A row with no number in any column is unusable in the dropdown.
@@ -2172,19 +2230,7 @@ class FileNumberApiController extends Controller
                     ?: $r->temp_file_no));
 
                 // Which hidden field the capture form should carry this number in.
-                // The number's own column wins; otherwise the row's registry decides,
-                // since KANGIS rows often keep their number in file_number alone.
-                $registry = strtoupper(trim((string) $r->registry));
-                $system = 'mls';
-                if ($number !== '' && $number === trim((string) $r->kangis_file_no)) {
-                    $system = 'kangis';
-                } elseif ($number !== '' && $number === trim((string) $r->new_kangis_file_no)) {
-                    $system = 'newkangis';
-                } elseif (str_contains($registry, 'NEW KANGIS')) {
-                    $system = 'newkangis';
-                } elseif (str_contains($registry, 'KANGIS')) {
-                    $system = 'kangis';
-                }
+                $system = $this->indexingSystemFor($number, $r);
 
                 $title = trim((string) $r->file_title);
                 $where = trim(implode(', ', array_filter([
@@ -2207,10 +2253,30 @@ class FileNumberApiController extends Controller
                     // be filed in; existing callers simply ignore these two keys.
                     'lga' => trim((string) $r->lga),
                     'district' => trim((string) $r->district),
+                    // GlobalFileNoModal's `record` shape, so a screen that swapped the
+                    // modal for this dropdown keeps its backfill unchanged.
+                    'record' => [
+                        'file_name' => $title,
+                        'plot_no' => trim((string) $r->plot_number),
+                        'street_name' => trim((string) $r->street_name),
+                        'district' => trim((string) $r->district),
+                        'lga' => trim((string) $r->lga),
+                    ],
                 ];
             })
             ->filter(fn ($row) => $row['file_number'] !== '')
             ->values();
+
+            // ?include_temporary=1 - the consent form's dropdown also offers the
+            // temporary "(T)" files, most of which have no file_indexings row of their
+            // own. Page 1 only, ahead of the indexed files; they are few (hundreds).
+            if ($request->boolean('include_temporary') && $page === 1) {
+                $temporary = $this->temporaryFileResults($search, $perPage);
+                $tempNos = $temporary->pluck('id')->map(fn ($n) => strtoupper($n))->all();
+                $results = $temporary
+                    ->concat($results->reject(fn ($r) => in_array(strtoupper($r['id']), $tempNos, true)))
+                    ->values();
+            }
 
             return response()->json([
                 'success' => true,
@@ -2220,6 +2286,247 @@ class FileNumberApiController extends Controller
         } catch (\Throwable $e) {
             return $this->error('Indexing search', $e);
         }
+    }
+
+    /**
+     * Temporary "(T)" files, Select2-shaped like indexingSearch rows. A temporary
+     * number is recorded in mls_file_no (file_option = temporary), on a fileNumber
+     * row (temp_file_no / temp_fileno / an mlsfNo ending "(T)"), on the parent's
+     * file_indexings row (temp_file_no), or - captured through the old modal's
+     * free-text TEMP mode - only on a consent application. Deleted and
+     * decommissioned rows are left out: those files carry their permanent number.
+     */
+    private function temporaryFileResults(string $search, int $limit): \Illuminate\Support\Collection
+    {
+        $db = DB::connection('sqlsrv');
+        $upper = '%' . strtoupper($search) . '%';
+        $normalized = '%' . $this->normalizeSearch($search) . '%';
+
+        // Number (or holder name) LIKE the search, punctuation-insensitively.
+        $matching = function ($query, array $numberCols, ?string $titleCol) use ($search, $upper, $normalized) {
+            if ($search === '') {
+                return $query;
+            }
+            return $query->where(function ($q) use ($numberCols, $titleCol, $upper, $normalized) {
+                foreach ($numberCols as $col) {
+                    $q->orWhereRaw("UPPER({$col}) LIKE ?", [$upper])
+                      ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(UPPER({$col}), '-', ''), '/', ''), ' ', ''), '.', '') LIKE ?", [$normalized]);
+                }
+                if ($titleCol) {
+                    $q->orWhereRaw("UPPER(ISNULL({$titleCol}, '')) LIKE ?", [$upper]);
+                }
+            });
+        };
+        $live = fn ($q, string $flagCol) => $q->where(fn ($w) => $w->whereNull($flagCol)->orWhere($flagCol, 0));
+        $isTemp = fn ($v) => (bool) preg_match('/\(\s*T\s*\)\s*$/i', trim((string) $v));
+
+        $rows = collect();
+
+        $mls = $matching($live($db->table('mls_file_no')->where('file_option', 'temporary'), 'is_deleted'),
+                ['full_file_number'], 'file_name')
+            ->orderByDesc('id')->limit($limit)
+            ->get(['full_file_number', 'file_name', 'plot_no', 'house_no', 'street_name', 'district', 'lga', 'state']);
+        foreach ($mls as $r) {
+            $rows->push([$r->full_file_number, $r->file_name, $r->plot_no, $r->house_no, $r->street_name, $r->district, $r->lga, $r->state]);
+        }
+
+        $fn = $matching(
+                $live($live($db->table('fileNumber'), 'is_deleted'), 'is_decommissioned')
+                    ->where(fn ($q) => $q->whereRaw("ISNULL(temp_file_no, '') <> ''")
+                        ->orWhereRaw("ISNULL(temp_fileno, '') <> ''")
+                        ->orWhere('mlsfNo', 'like', '%(T)%')),
+                ['temp_file_no', 'temp_fileno', 'mlsfNo'], 'FileName')
+            ->orderByDesc('id')->limit($limit)
+            ->get(['mlsfNo', 'temp_file_no', 'temp_fileno', 'FileName', 'plot_no', 'house_no', 'street_name', 'district', 'lga']);
+        foreach ($fn as $r) {
+            $no = collect([$r->temp_file_no, $r->temp_fileno, $r->mlsfNo])->first($isTemp);
+            if ($no) {
+                $rows->push([$no, $r->FileName, $r->plot_no, $r->house_no, $r->street_name, $r->district, $r->lga, null]);
+            }
+        }
+
+        $ix = $matching(
+                $live($db->table('file_indexings')->whereNull('deleted_at'), 'is_decommissioned')
+                    ->whereRaw("ISNULL(temp_file_no, '') <> ''"),
+                ['temp_file_no'], 'file_title')
+            ->orderByDesc('id')->limit($limit)
+            ->get(['temp_file_no', 'file_title', 'plot_number', 'street_name', 'district', 'lga']);
+        foreach ($ix as $r) {
+            $rows->push([$r->temp_file_no, $r->file_title, $r->plot_number, null, $r->street_name, $r->district, $r->lga, null]);
+        }
+
+        $consents = $matching($db->table('consent_applications')->where('file_number', 'like', '%(T)%'),
+                ['file_number'], 'original_holder_name')
+            ->orderByDesc('id')->limit($limit)
+            ->get(['file_number', 'original_holder_name', 'applicant_name']);
+        foreach ($consents as $r) {
+            $rows->push([$r->file_number, $r->original_holder_name ?: $r->applicant_name, null, null, null, null, null, null]);
+        }
+
+        return $rows
+            ->map(function ($r) {
+                [$no, $title, $plot, $house, $street, $district, $lga, $state] = array_map(fn ($v) => trim((string) $v), $r);
+                $where = implode(', ', array_filter([$plot !== '' ? 'Plot ' . $plot : null, $district ?: null, $lga ?: null]));
+                return [
+                    'id' => $no,
+                    'text' => $no,
+                    'file_number' => $no,
+                    'system' => 'mls',
+                    'registry' => 'Temporary',
+                    'file_title' => $title,
+                    'subtitle' => trim(implode(' — ', array_filter([$title ?: null, $where ?: null]))),
+                    'is_temporary' => true,
+                    'lga' => $lga,
+                    'district' => $district,
+                    'record' => [
+                        'file_name' => $title,
+                        'plot_no' => $plot,
+                        'house_no' => $house,
+                        'street_name' => $street,
+                        'district' => $district,
+                        'lga' => $lga,
+                        'state' => $state,
+                    ],
+                ];
+            })
+            ->filter(fn ($r) => $isTemp($r['id']))
+            // First source wins: the registers carry more detail than a consent row.
+            ->unique(fn ($r) => strtoupper($r['id']))
+            ->take($limit)
+            ->values();
+    }
+
+    /**
+     * Select2-shaped file-number search over the Applications for Consent
+     * (/deeds-applications): consent_applications rows plus, for Assignment and
+     * Gift, the ST Assignment memo files. Backs the File Number dropdown for the
+     * consent-gated instruments (Assignment, Gift, Mortgage, Tripartite Mortgage),
+     * which cannot be registered without a consent anyway. Temporary "(T)" files
+     * live only here, never in file_indexings, so indexingSearch cannot find them.
+     *
+     * ?consent_type=Assignment|Gift|Mortgage narrows to that consent; blank = all.
+     */
+    public function consentSearch(Request $request): JsonResponse
+    {
+        try {
+            $search = trim((string) ($request->get('q') ?? $request->get('search') ?? ''));
+            $consentType = trim((string) $request->get('consent_type', ''));
+            $page = (int) max(1, (int) $request->get('page', 1));
+            $perPage = (int) max(1, min((int) $request->get('per_page', 30), 100));
+
+            // Same set /deeds-applications lists (DeedsApplicationController::data).
+            $consents = DB::connection('sqlsrv')
+                ->table('consent_applications')
+                ->where('application_type', 'application_for_censent')
+                ->whereRaw("LTRIM(RTRIM(ISNULL(file_number, ''))) <> ''")
+                ->when($consentType !== '', fn ($q) => $q->where('consent_type', $consentType))
+                ->orderByDesc('created_at')
+                ->get(['file_number', 'consent_type', 'applicant_name', 'party_name']);
+
+            $rows = $consents->map(fn ($c) => [
+                'file_number' => trim((string) $c->file_number),
+                'consent_type' => trim((string) $c->consent_type),
+                'subtitle' => trim(implode(' → ', array_filter([
+                    trim((string) $c->applicant_name) ?: null,
+                    trim((string) $c->party_name) ?: null,
+                ]))),
+            ]);
+
+            // An ST memo stands in for an Assignment / Gift consent (see
+            // InstrumentController::consentGateFailure), never for a Mortgage.
+            if ($consentType === '' || in_array($consentType, ['Assignment', 'Gift'], true)) {
+                $st = (new \App\Services\StAssignmentConsentResolver())->listedFileNumbers()
+                    ->map(fn ($r) => [
+                        'file_number' => $r->file_number,
+                        'consent_type' => \App\Services\StAssignmentConsentResolver::CONSENT_TYPE,
+                        'subtitle' => trim(implode(' — ', array_filter([
+                            $r->holder ?: null,
+                            strcasecmp($r->file_number, $r->mother_file_number) !== 0
+                                ? 'Unit of ' . $r->mother_file_number : null,
+                        ]))),
+                    ]);
+                $rows = $rows->concat($st);
+            }
+
+            // One option per file; a file with several consents shows the latest.
+            $rows = $rows->unique(fn ($r) => strtoupper($r['file_number']))->values();
+
+            if ($search !== '') {
+                $upper = strtoupper($search);
+                $normalized = $this->normalizeSearch($search);
+                $rows = $rows->filter(function ($r) use ($upper, $normalized) {
+                    $no = strtoupper($r['file_number']);
+                    return str_contains($no, $upper)
+                        || ($normalized !== '' && str_contains($this->normalizeSearch($no), $normalized))
+                        || str_contains(strtoupper($r['subtitle']), $upper);
+                })->values();
+            }
+
+            $total = $rows->count();
+            $pageRows = $rows->slice(($page - 1) * $perPage, $perPage)->values();
+
+            // Which hidden field the capture form carries the number in comes from
+            // the file's indexing row, as in indexingSearch; unindexed files
+            // (the temporary ones) default to MLS.
+            $numbers = $pageRows->pluck('file_number')->all();
+            $indexed = collect();
+            if ($numbers) {
+                $indexed = DB::connection('sqlsrv')->table('file_indexings')
+                    ->where(function ($q) use ($numbers) {
+                        foreach (['file_number', 'mls_file_no', 'kangis_file_no', 'new_kangis_file_no'] as $col) {
+                            $q->orWhereIn($col, $numbers);
+                        }
+                    })
+                    ->get(['file_number', 'mls_file_no', 'kangis_file_no', 'new_kangis_file_no', 'registry']);
+            }
+
+            $results = $pageRows->map(fn ($r) => [
+                'id' => $r['file_number'],
+                'text' => $r['file_number'],
+                'file_number' => $r['file_number'],
+                'system' => ($ix = $indexed->first(fn ($i) => in_array(
+                    strtoupper($r['file_number']),
+                    array_map(fn ($v) => strtoupper(trim((string) $v)),
+                        [$i->file_number, $i->mls_file_no, $i->kangis_file_no, $i->new_kangis_file_no]),
+                    true
+                ))) ? $this->indexingSystemFor($r['file_number'], $ix) : 'mls',
+                'registry' => $r['consent_type'],
+                'file_title' => $r['subtitle'],
+                'subtitle' => $r['subtitle'],
+            ])->values();
+
+            return response()->json([
+                'success' => true,
+                'results' => $results,
+                'pagination' => ['more' => $page * $perPage < $total],
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Consent file search', $e);
+        }
+    }
+
+    /**
+     * Which hidden field (mls / kangis / newkangis) the capture form should carry
+     * an indexed file's number in. The number's own column wins; otherwise the
+     * row's registry decides, since KANGIS rows often keep their number in
+     * file_number alone.
+     */
+    private function indexingSystemFor(string $number, object $row): string
+    {
+        $registry = strtoupper(trim((string) ($row->registry ?? '')));
+        if ($number !== '' && $number === trim((string) $row->kangis_file_no)) {
+            return 'kangis';
+        }
+        if ($number !== '' && $number === trim((string) $row->new_kangis_file_no)) {
+            return 'newkangis';
+        }
+        if (str_contains($registry, 'NEW KANGIS')) {
+            return 'newkangis';
+        }
+        if (str_contains($registry, 'KANGIS')) {
+            return 'kangis';
+        }
+        return 'mls';
     }
 
     protected function normalizeSearch(?string $value): string

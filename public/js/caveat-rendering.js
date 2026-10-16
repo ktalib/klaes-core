@@ -166,7 +166,7 @@ function renderCaveatsTable() {
     // Check if caveats data is available
     if (!window.caveats || !Array.isArray(window.caveats)) {
         console.error('Caveats data not available or not an array');
-        tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No caveats data available</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (window.CAVEAT_READ_ONLY ? 9 : 10) + '" class="p-4 text-center text-gray-500">No caveats data available</td></tr>';
         countElement.textContent = '0';
         if (totalCountElement) totalCountElement.textContent = '0';
         return;
@@ -180,24 +180,17 @@ function renderCaveatsTable() {
     tbody.innerHTML = '';
     
     if (filteredCaveats.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-gray-500">No caveats found matching your criteria</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="' + (window.CAVEAT_READ_ONLY ? 9 : 10) + '" class="p-8 text-center text-gray-500">No caveats found matching your criteria</td></tr>';
         return;
     }
     
-    filteredCaveats.forEach(caveat => {
+    filteredCaveats.forEach((caveat, index) => {
         const fileNumber = getFileNumber(caveat);
         const petitionerPhone = getPetitionerPhone(caveat);
         const row = document.createElement('tr');
         row.className = 'hover:bg-gray-50 cursor-pointer';
-        row.innerHTML = `
-            <td class="p-3 text-sm font-medium text-gray-900">${caveat.caveat_number || 'N/A'}</td>
-            <td class="p-3 text-sm text-gray-500">${fileNumber}</td>
-            <td class="p-3 text-sm text-gray-500">${caveat.petitioner || 'N/A'}${petitionerPhone ? `<div class="mt-1 text-xs font-medium text-emerald-700"><i class="fa-solid fa-phone mr-1"></i>${petitionerPhone}</div>` : ''}</td>
-            <td class="p-3 text-sm text-gray-500">${caveat.grantee_name || 'N/A'}</td>
-            <td class="p-3 text-sm text-gray-500">${caveat.encumbrance_type || 'N/A'}</td>
-            <td class="p-3">${getStatusBadge(caveat.status)}</td>
-            <td class="p-3 text-sm text-gray-500">${formatDate(caveat.start_date)}</td>
-            <td class="p-3 text-sm text-gray-500">${caveat.release_date ? formatDate(caveat.release_date) : '-'}</td>
+        // Read-only (Cadastral > Other Departments): no Actions cell.
+        const actionsCell = window.CAVEAT_READ_ONLY ? '' : `
             <td class="p-3 text-sm font-medium">
                 <div class="flex space-x-2">
                     <button class="text-blue-600 hover:text-blue-900 transition-colors" onclick="viewCaveatDetails('${caveat.id}')" title="View caveat details">
@@ -207,7 +200,17 @@ function renderCaveatsTable() {
                         <i class="fa-solid fa-edit mr-1"></i>Edit
                     </button>
                 </div>
-            </td>
+            </td>`;
+        row.innerHTML = `
+            <td class="p-3 text-sm text-gray-500">${index + 1}</td>
+            <td class="p-3 text-sm font-medium text-gray-900">${caveat.caveat_number || 'N/A'}</td>
+            <td class="p-3 text-sm text-gray-500">${fileNumber}</td>
+            <td class="p-3 text-sm text-gray-500">${caveat.petitioner || 'N/A'}${petitionerPhone ? `<div class="mt-1 text-xs font-medium text-emerald-700"><i class="fa-solid fa-phone mr-1"></i>${petitionerPhone}</div>` : ''}</td>
+            <td class="p-3 text-sm text-gray-500">${caveat.grantee_name || 'N/A'}</td>
+            <td class="p-3 text-sm text-gray-500">${caveat.encumbrance_type || 'N/A'}</td>
+            <td class="p-3">${getStatusBadge(caveat.status)}</td>
+            <td class="p-3 text-sm text-gray-500">${formatDate(caveat.start_date)}</td>
+            <td class="p-3 text-sm text-gray-500">${caveat.release_date ? formatDate(caveat.release_date) : '-'}</td>${actionsCell}
         `;
         
         tbody.appendChild(row);

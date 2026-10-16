@@ -48,6 +48,16 @@ class InstrumentRegistrationService
             $next = $this->nextFromVault($vault);
             ['volume' => $volume, 'page' => $page, 'serial' => $serial] = $next;
 
+            // Checked under the vault lock, before anything is written, so a
+            // blocked registration neither saves nor burns a number.
+            if ($clash = $this->registrationNumberClash($vaultName, $next)) {
+                Log::warning("Vault [{$vaultName}] blocked at {$next['formatted']}: already held by deed_registrations #{$clash->id} ({$clash->fileno})", [
+                    'user_id' => Auth::id(),
+                ]);
+
+                throw new \RuntimeException($this->clashBlockMessage($vaultName, $next, $clash));
+            }
+
             $vaultUpdate = [
                 'current_volume' => $volume,
                 'current_page' => $page,
@@ -233,8 +243,11 @@ class InstrumentRegistrationService
         // exists to prevent - and it would have shown a Land Registration
         // preview under the Deeds rules, so the number an officer was promised
         // and the number the capture burned would disagree.
+        $next = $this->nextFromVault($vault);
+
         return array_merge(
-            $this->nextFromVault($vault),
+            $next,
+            $this->clashGuardStatus($vaultName, $next),
             [
                 'deeds_date' => date('d F Y'), // e.g., 12 February 2026
                 'deeds_time' => date('g:i A'), // e.g., 8:22 PM
@@ -491,6 +504,118 @@ class InstrumentRegistrationService
         return "{$prefix}/{$year}/{$random}";
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Clash guard (config instrument_workflow.registration.clash_guard)
+    |--------------------------------------------------------------------------
+    |
+    | A guarded vault refuses to issue a number that a live registration of the
+    | same vault already holds, and warns as its volume nears a volume that is
+    | already occupied. Deed of Assignment needs it because staff once gave a
+    | wrong volume and 1/1/76-4/4/76 were registered and printed while the
+    | register was still in volume 73; the register must stop at volume 76 so
+    | the Registry can decide, rather than print those numbers a second time.
+    */
+
+    public function clashGuarded(string $vaultName): bool
+    {
+        $guarded = (array) config('instrument_workflow.registration.clash_guard.vaults', []);
+
+        foreach ($guarded as $name) {
+            if (strcasecmp(trim((string) $name), trim($vaultName)) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Live registrations of this vault in one volume, optionally at one serial. */
+    private function vaultRegistrationsIn(string $vaultName, int $volume, ?int $serial = null)
+    {
+        $query = DB::connection('sqlsrv')->table('deed_registrations')
+            ->where('volume_no', $volume)
+            ->where(function ($q) {
+                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->select('id', 'fileno', 'instrument_type', 'registration_number', 'serial_no', 'deeds_date', 'data')
+            ->orderByRaw('TRY_CAST(serial_no AS int)');
+
+        if ($serial !== null) {
+            $query->where('serial_no', $serial);
+        }
+
+        return $query->get()->filter(function ($row) use ($vaultName) {
+            $opType = null;
+            if (stripos((string) $row->instrument_type, 'Occupancy Permit') !== false && !empty($row->data)) {
+                $opType = json_decode($row->data)->op_type ?? null;
+            }
+
+            return strcasecmp($this->resolveVaultName((string) $row->instrument_type, $opType), $vaultName) === 0;
+        })->values();
+    }
+
+    /** The registration already holding this number in a guarded vault, or null. */
+    public function registrationNumberClash(string $vaultName, array $next): ?object
+    {
+        if (!$this->clashGuarded($vaultName) || empty($next['volume']) || empty($next['serial'])) {
+            return null;
+        }
+
+        return $this->vaultRegistrationsIn($vaultName, (int) $next['volume'], (int) $next['serial'])->first();
+    }
+
+    public function clashBlockMessage(string $vaultName, array $next, object $clash): string
+    {
+        $held = $this->vaultRegistrationsIn($vaultName, (int) $next['volume']);
+        $range = $held->count() > 1
+            ? $held->first()->registration_number . ' to ' . $held->last()->registration_number
+            : $clash->registration_number;
+        $date = $clash->deeds_date ? date('j M Y', strtotime($clash->deeds_date)) : 'an earlier date';
+
+        return "Registration is paused for {$vaultName}: the next number {$next['formatted']} is already held by "
+            . "file {$clash->fileno} (registered {$date}). Volume {$next['volume']} already contains {$range}. "
+            . 'Contact the Registry administrator to resolve the volume before registering.';
+    }
+
+    /**
+     * Guard state for the preview: blocked when the next number is taken,
+     * warning when the volume is about to roll into an occupied volume.
+     *
+     * @return array{blocked:bool, block_message:?string, warning:?string}
+     */
+    public function clashGuardStatus(string $vaultName, array $next): array
+    {
+        $status = ['blocked' => false, 'block_message' => null, 'warning' => null];
+
+        if (!$this->clashGuarded($vaultName) || empty($next['volume'])) {
+            return $status;
+        }
+
+        if ($clash = $this->registrationNumberClash($vaultName, $next)) {
+            $status['blocked'] = true;
+            $status['block_message'] = $this->clashBlockMessage($vaultName, $next, $clash);
+
+            return $status;
+        }
+
+        // Deeds roll at 300 (see nextFromVault); numbers left including the next one.
+        $left = 300 - (int) $next['serial'] + 1;
+        $warnWithin = (int) config('instrument_workflow.registration.clash_guard.warn_within', 20);
+
+        if ($left <= $warnWithin) {
+            $ahead = $this->vaultRegistrationsIn($vaultName, (int) $next['volume'] + 1);
+            if ($ahead->isNotEmpty()) {
+                $status['warning'] = "Volume {$next['volume']} has {$left} number(s) left. Volume " . ((int) $next['volume'] + 1)
+                    . ' already contains ' . $ahead->first()->registration_number
+                    . ($ahead->count() > 1 ? ' to ' . $ahead->last()->registration_number : '')
+                    . "; {$vaultName} registration will stop when it reaches them. Inform the Registry administrator.";
+            }
+        }
+
+        return $status;
+    }
+
     /**
      * The next number a vault row would issue — pure arithmetic, no writes.
      *
@@ -634,9 +759,12 @@ class InstrumentRegistrationService
             return ['vault' => $vaultName, 'configured' => false];
         }
 
+        $next = $this->nextFromVault($vault);
+
         return array_merge(
             ['vault' => $vaultName, 'configured' => true],
-            $this->nextFromVault($vault)
+            $next,
+            $this->clashGuardStatus($vaultName, $next)
         );
     }
 

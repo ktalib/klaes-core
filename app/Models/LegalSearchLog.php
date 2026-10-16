@@ -21,6 +21,9 @@ class LegalSearchLog extends Model
         'receipt_no',
         'printed',
         'direct_link',
+        'search_source',
+        // Official (TTC with a Requesting Body) or Commercial (General TTC / online).
+        'search_type',
     ];
 
     public function user()

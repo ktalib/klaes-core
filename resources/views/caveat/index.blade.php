@@ -138,7 +138,7 @@
         <!-- Page Header -->
         <div class="space-y-2">
             <h1 class="text-3xl font-bold text-gray-900">Encumbrance Sub Module</h1>
-            <p class="text-gray-600">Data Capture Form for Caveat Placement and Lifting</p>
+            <p class="text-gray-600">{{ !empty($readOnly) ? 'Caveat records (view only)' : 'Data Capture Form for Caveat Placement and Lifting' }}</p>
         </div>
 
         <!-- Stats Cards -->
@@ -191,7 +191,8 @@
 
         <!-- Tabs -->
         <div class="space-y-6">
-            <div class="bg-white border-b border-gray-200 shadow-sm rounded-lg">
+            {{-- Read-only (Cadastral > Other Departments): the tab bar is hidden and the log opens; see initializeTabs --}}
+            <div class="bg-white border-b border-gray-200 shadow-sm rounded-lg" @if(!empty($readOnly)) style="display:none" @endif>
                 <nav class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-8 p-2 sm:p-0" aria-label="Tabs">
                     <button class="tab-trigger group relative min-w-0 flex-1 overflow-hidden bg-white py-4 px-6 text-center text-sm font-medium text-gray-500 hover:text-gray-700 focus:z-10 transition-all duration-200 ease-in-out hover:bg-gray-50 active rounded-lg sm:rounded-none" data-tab="place">
                         <div class="flex flex-col items-center space-y-2">
@@ -811,6 +812,7 @@
                                 <table class="w-full">
                                     <thead>
                                         <tr class="bg-gray-100">
+                                            <th class="p-3 text-left text-sm font-medium">S/N</th>
                                             <th class="p-3 text-left text-sm font-medium">Caveat Number</th>
                                             <th class="p-3 text-left text-sm font-medium">File Number</th>
                                             <th class="p-3 text-left text-sm font-medium">Applicant/Solicitor</th>
@@ -819,7 +821,9 @@
                                             <th class="p-3 text-left text-sm font-medium">Status</th>
                                             <th class="p-3 text-left text-sm font-medium">Start Date</th>
                                             <th class="p-3 text-left text-sm font-medium">Release Date</th>
+                                            @if(empty($readOnly))
                                             <th class="p-3 text-left text-sm font-medium">Actions</th>
+                                            @endif
                                         </tr>
                                     </thead>
                                     <tbody id="caveats-table-body">
@@ -891,6 +895,7 @@
 
         <!-- JavaScript Files - Load in Order -->
         <!-- 1. Core data and state management -->
+        <script>window.CAVEAT_READ_ONLY = {{ !empty($readOnly) ? 'true' : 'false' }};</script>
         <script src="{{ asset('js/caveat-data.js') }}?v={{ @filemtime(public_path('js/caveat-data.js')) }}"></script>
         
         <!-- 2. Rendering functions -->

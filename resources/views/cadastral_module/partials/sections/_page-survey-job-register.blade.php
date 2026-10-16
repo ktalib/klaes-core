@@ -14,11 +14,11 @@
     </div>
     <div style="display:flex;gap:8px;">
         @if ($job->hasInstruction())
-            @canDo('Cad - Records', 'print')
+            @cadCan('print', 'ad_information')
                 <a href="{{ route('cadastral-module.survey-jobs.its.print', $job) }}" target="_blank" class="btn btn-outline btn-sm">
                     <i class="fas fa-print"></i> Print the Instruction
                 </a>
-            @endcanDo
+            @endcadCan
         @endif
         <a href="{{ route('cadastral-module.survey-jobs.index') }}" class="btn btn-outline btn-sm">
             <i class="fas fa-arrow-left"></i> Back to the register
@@ -26,36 +26,21 @@
     </div>
 </div>
 
-@if ($formatUnconfirmed)
-    <div class="caveat">
-        <i class="fas fa-triangle-exclamation"></i>
-        <div>
-            <strong>{{ $job->job_number }} uses the unconfirmed placeholder format.</strong>
-            Confirm the SURCON pattern with the Surveyor-General's office before this goes out.
-        </div>
-    </div>
-@endif
 
 @if (! $job->file_number)
-    {{-- Not attached yet (user, 2026-10-12): its scope and the survey's location. The surveyor and
-         the file are attached at Assign to Surveyor (I to S). --}}
+    {{-- Not attached yet: its scope only. The file (with its location) and the surveyor are attached
+         by AD Cad Info at Assign to Surveyor (I to S) (transcript, 2026-10-16). --}}
     <form method="POST" action="{{ route('cadastral-module.survey-jobs.update', $job) }}" class="form-container">
         @csrf @method('PUT')
         <div class="card-header">
             <strong>Job Details</strong>
-            <span class="helper-text" style="margin:0;">Not attached yet. The surveyor and the file are attached at Assign to Surveyor (I to S).</span>
+            <span class="helper-text" style="margin:0;">Not attached yet. The file, its location and the surveyor are attached at Assign to Surveyor (I to S).</span>
         </div>
         <div class="form-body">
             <div class="form-group">
                 <label>Job Scope</label>
                 <textarea name="job_scope" rows="3" maxlength="8000">{{ old('job_scope', $job->job_scope) }}</textarea>
             </div>
-            @include('cadastral_module.partials._address_builder', [
-                'prefix' => 'prop_',
-                'mode'   => 'property',
-                'model'  => $job,
-                'legend' => 'Survey Location',
-            ])
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save Job</button>

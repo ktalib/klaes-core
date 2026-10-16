@@ -1291,12 +1291,51 @@ function generateAcknowledgementPDF(action, caveatData = null) {
         var footerLeftLogoUrl = '/assets/logo/logo.png';
         var footerRightLogoUrl = '/assets/logo/las.jpg';
 
+        // Grayscale copy of a logo for the black-and-white File Copy. Drawn on a
+        // white canvas so transparent PNG areas stay white; null passes through.
+        function toGrayscale(dataUrl) {
+            if (!dataUrl) return Promise.resolve(null);
+            return new Promise(function(resolve) {
+                var img = new Image();
+                img.onload = function() {
+                    try {
+                        var canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
+                        var ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                        var px = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        var d = px.data;
+                        for (var k = 0; k < d.length; k += 4) {
+                            var g = Math.round(0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2]);
+                            d[k] = d[k + 1] = d[k + 2] = g;
+                        }
+                        ctx.putImageData(px, 0, 0);
+                        resolve(canvas.toDataURL('image/jpeg', 0.92));
+                    } catch (e) {
+                        resolve(null);
+                    }
+                };
+                img.onerror = function() { resolve(null); };
+                img.src = dataUrl;
+            });
+        }
+
         Promise.all([
             loadImage(headerLeftLogoUrl),
             loadImage(headerRightLogoUrl),
             loadImage(footerLeftLogoUrl),
             loadImage(footerRightLogoUrl)
         ]).then(function(logos) {
+            return Promise.all(logos.map(toGrayscale)).then(function(grays) {
+                return { color: logos, gray: grays };
+            });
+        }).then(function(loaded) {
+            var logos = loaded.color;
+            // Grayscale versions; a logo that failed to convert falls back to colour.
+            var grayLogos = loaded.gray.map(function(g, k) { return g || logos[k]; });
             var headerLeftLogo = logos[0];
             var headerRightLogo = logos[1];
             var footerLeftLogo = logos[2];
@@ -1307,12 +1346,27 @@ function generateAcknowledgementPDF(action, caveatData = null) {
             var lineHeight = 8;
             var headerLogoSize = 22;
 
+            // Two copies of the sheet: the Original goes to the applicant,
+            // the File Copy stays on the file. Each copy starts on its own page.
+            // The File Copy is printed in black and white: grayscale logos,
+            // black note and a grey watermark.
+            var copyLabels = ['ORIGINAL', 'FILE COPY'];
+            var FILE_COPY = 'FILE COPY';
+            var pageCopyLabels = {};
+
+            function drawCopy(copyIndex) {
+            if (copyIndex > 0) doc.addPage();
+            var copyStartPage = doc.internal.getNumberOfPages();
+            var mono = copyLabels[copyIndex] === FILE_COPY;
+            var hLeft = mono ? grayLogos[0] : headerLeftLogo;
+            var hRight = mono ? grayLogos[1] : headerRightLogo;
+
             // Header logos (placed at page edges, away from centered text)
-            if (headerLeftLogo) {
-                doc.addImage(headerLeftLogo, 'JPEG', 10, 8, headerLogoSize, headerLogoSize);
+            if (hLeft) {
+                doc.addImage(hLeft, 'JPEG', 10, 8, headerLogoSize, headerLogoSize);
             }
-            if (headerRightLogo) {
-                doc.addImage(headerRightLogo, 'JPEG', 200 - headerLogoSize, 8, headerLogoSize, headerLogoSize);
+            if (hRight) {
+                doc.addImage(hRight, 'JPEG', 200 - headerLogoSize, 8, headerLogoSize, headerLogoSize);
             }
 
             // Header text (centered between logos)
@@ -1454,7 +1508,7 @@ function generateAcknowledgementPDF(action, caveatData = null) {
         }
         var noteText = 'NOTE: CAVEAT WILL BE LIFTED AUTOMATICALLY ON ' + releaseDate.toUpperCase() + ' (AFTER SIX (6) MONTHS EXPIRATION PERIOD)';
         doc.setFont('helvetica', 'bolditalic');
-        doc.setTextColor(255, 0, 0);
+        if (mono) doc.setTextColor(0, 0, 0); else doc.setTextColor(255, 0, 0);
 
         // Keep the note on a SINGLE line so "NOTE:" never gets orphaned.
         // Auto-shrink the font size until the whole sentence fits within the
@@ -1473,7 +1527,15 @@ function generateAcknowledgementPDF(action, caveatData = null) {
         doc.setFontSize(8.5);
         yPosition += lineHeight;
 
+            // Tag every page of this copy (including any overflow page)
+            for (var p = copyStartPage; p <= doc.internal.getNumberOfPages(); p++) {
+                pageCopyLabels[p] = copyLabels[copyIndex];
+            }
+            }
 
+            for (var c = 0; c < copyLabels.length; c++) {
+                drawCopy(c);
+            }
 
         // Add footer information
             var pageCount = doc.internal.getNumberOfPages();
@@ -1481,14 +1543,42 @@ function generateAcknowledgementPDF(action, caveatData = null) {
             for (var i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
 
+                // Copy watermark (ORIGINAL / FILE COPY): large, translucent,
+                // running diagonally across the middle of the page. Red on the
+                // Original, grey on the black-and-white File Copy.
+                var copyLabel = pageCopyLabels[i];
+                var monoPage = copyLabel === FILE_COPY;
+                if (copyLabel) {
+                    var hasGState = typeof doc.GState === 'function' && typeof doc.setGState === 'function';
+                    if (hasGState) doc.setGState(new doc.GState({ opacity: 0.18 }));
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(80);
+                    if (monoPage) doc.setTextColor(0, 0, 0); else doc.setTextColor(220, 38, 38);
+                    // Start point chosen so the rotated text is centred on the page
+                    var wmAngle = 45;
+                    var wmRad = wmAngle * Math.PI / 180;
+                    var wmHalf = doc.getTextWidth(copyLabel) / 2;
+                    var wmCapHalf = 10; // about half the cap height at 80pt, in mm
+                    doc.text(copyLabel,
+                        105 - wmHalf * Math.cos(wmRad) + wmCapHalf * Math.sin(wmRad),
+                        155 + wmHalf * Math.sin(wmRad) + wmCapHalf * Math.cos(wmRad),
+                        { angle: wmAngle });
+                    if (hasGState) doc.setGState(new doc.GState({ opacity: 1 }));
+                    doc.setTextColor(0, 0, 0);
+                }
+
                 // Footer logos
                 var footerLogoWidth = 30;
                 var footerLogoHeight = 15;
-                if (footerLeftLogo) {
-                    doc.addImage(footerLeftLogo, 'JPEG', 10, 280, footerLogoWidth, footerLogoHeight);
+                // Grayscale logos are always JPEG data; the colour right logo
+                // keeps its original PNG handling.
+                var fLeft = monoPage ? grayLogos[2] : footerLeftLogo;
+                var fRight = monoPage ? grayLogos[3] : footerRightLogo;
+                if (fLeft) {
+                    doc.addImage(fLeft, 'JPEG', 10, 280, footerLogoWidth, footerLogoHeight);
                 }
-                if (footerRightLogo) {
-                    doc.addImage(footerRightLogo, 'PNG', 200 - footerLogoWidth, 280, footerLogoWidth, footerLogoHeight);
+                if (fRight) {
+                    doc.addImage(fRight, monoPage && loaded.gray[3] ? 'JPEG' : 'PNG', 200 - footerLogoWidth, 280, footerLogoWidth, footerLogoHeight);
                 }
 
                 // Generated-by line placed just above page number

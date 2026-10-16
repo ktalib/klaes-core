@@ -194,6 +194,10 @@ class ChangeOfPurposeController extends Controller
             ], 422);
         }
 
+        if ($same = $this->sameUseAndPurpose($data['file_no'], $data['purpose'] ?? '', $data['new_purpose'] ?? null)) {
+            return $same;
+        }
+
         $record = ChangeOfPurposeApplication::create($data);
 
         if ($request->hasFile('site_plan')) {
@@ -456,6 +460,12 @@ class ChangeOfPurposeController extends Controller
         }
 
         $data = $validator->validated();
+
+        if (array_key_exists('new_purpose', $data)
+            && ($same = $this->sameUseAndPurpose($data['file_no'] ?? $record->file_no, $record->purpose ?? '', $data['new_purpose']))) {
+            return $same;
+        }
+
         $data['updated_by'] = Auth::id();
         $record->update($data);
 
@@ -566,6 +576,7 @@ class ChangeOfPurposeController extends Controller
                 'address' => $address,
                 'source'  => $from,
                 'property' => \App\Services\ChangeOfPurposeDetails::indexingFields((array) $indexing),
+                'current_purpose' => \App\Services\ChangeOfPurposeDetails::currentPurpose($fileNo),
             ],
         ]);
     }
@@ -873,6 +884,43 @@ class ChangeOfPurposeController extends Controller
     /**
      * Shared validation rules.
      */
+    /**
+     * A Change of Purpose may keep the land use (RESIDENTIAL HIGH DENSITY -> LOW DENSITY)
+     * or keep the purpose name under another land use; it is refused only when both the
+     * land use and the purpose stay the same. Returns the 422 response, or null to proceed.
+     */
+    private function sameUseAndPurpose(string $fileNo, string $newLandUseCode, ?string $newPurpose): ?JsonResponse
+    {
+        $groups = [
+            'RES' => 'RES', 'RESIDENTIAL' => 'RES',
+            'COM' => 'COM', 'COMMERCIAL' => 'COM',
+            'IND' => 'IND', 'INDUSTRIAL' => 'IND',
+            'AGR' => 'AGR', 'AG' => 'AGR', 'AGRIC' => 'AGR', 'AGRICULTURAL' => 'AGR',
+            'MIX' => 'MIX', 'MIXED' => 'MIX',
+        ];
+        $pp = implode('|', array_keys($groups));
+        $file = strtoupper(trim($fileNo));
+        if (!preg_match('/^(?:(?:ST|CON)-)?(' . $pp . ')-/i', $file, $m)) {
+            return null;
+        }
+
+        $currentUse = $groups[strtoupper($m[1])];
+        $newUse = $groups[strtoupper(trim($newLandUseCode))] ?? null;
+        if ($newUse === null || $newUse !== $currentUse) {
+            return null;
+        }
+
+        $currentPurpose = \App\Services\ChangeOfPurposeDetails::currentPurpose($file);
+        if (!\App\Services\ChangeOfPurposeDetails::samePurpose($currentPurpose, $newPurpose)) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'The new land use and purpose (' . strtoupper(trim((string) $newPurpose)) . ') are the same as the current ones.',
+        ], 422);
+    }
+
     private function rules(): array
     {
         return [

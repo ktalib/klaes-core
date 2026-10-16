@@ -20,16 +20,17 @@
   /* Diagonal copy watermark. Sits behind the content and must survive the print
      dialog's "background graphics" default, hence print-color-adjust. */
   .ack-page .ack-watermark {
-    position: absolute; 
-    /* Anchored to a fixed offset from the top of the sheet and stretched full
-       width, rather than centred on the box with top/left:50%. The box is taller
-       than the printable page on the OSS layout, so a 50% anchor pushed the text
-       past the page edge and it printed clipped. */
-    top: 105mm;
+    position: absolute;
+    /* Centred on the sheet: stretched full width for the horizontal centre,
+       top:50% less half its own height for the vertical one. Only the SLTR print
+       includes this copy, and there each .ack-page is a single A4 sheet, so the
+       box centre is the page centre. The fixed top:105mm inherited from the Land
+       copy sat the text about 3cm above the middle. */
+    top: 50%;
     left: 0;
     right: 0;
     text-align: center;
-    transform: rotate(-45deg);
+    transform: translateY(-50%) rotate(-45deg);
     font-size: 52pt;
     font-weight: bold;
     letter-spacing: 3px;
@@ -236,6 +237,28 @@
     border-bottom: 1px solid #000;
   }
 
+  /* Two five-line parties replace one holder + a short witness block, so the
+     line spacing is tighter here to keep each copy on one sheet. */
+  .ack-page .ack-two-party .ack-party + .ack-party {
+    margin-top: 22px;
+  }
+
+  .ack-page .ack-two-party .signature-block-title {
+    margin-bottom: 14px;
+  }
+
+  .ack-page .ack-two-party .form-group {
+    margin-bottom: 22px;
+  }
+
+  .ack-page .ack-two-party .multiline-spacer {
+    margin-top: 0;
+  }
+
+  .ack-page .ack-two-party .form-row {
+    margin-bottom: 0;
+  }
+
   .ack-page .footer {
     position: absolute;
     bottom: 4px;
@@ -339,47 +362,31 @@
        its 210x296mm page card — shadow, padding, overflow:hidden, position:relative.
        Reusing that name turned this section into a second page-sized card and made
        the footer logo anchor to it, so the logo printed clipped. --}}
-  <section class="ack-form-fields">
-
-    <div class="form-group">
-      <span class="form-label">Name</span>
-      <div class="dotted-line short"></div>
-    </div>
-
-    <div class="form-group">
-      <span class="form-label">Address:</span>
-      <div class="dotted-line short"></div>
-    </div>
-
-    <!-- Second Line for Address -->
-    <div class="form-group multiline-spacer">
-      <div class="dotted-line medium"></div>
-    </div>
-
-    <div class="form-group">
-      <span class="form-label">Phone No:</span>
-      <div class="dotted-line medium"></div>
-    </div>
-
-    <!-- Recipient Signature -->
-    <div class="form-row signature-block">
-      <div class="form-group">
-        <span class="form-label">Signature</span>
-        <div class="dotted-line short"></div>
-      </div>
-      <div class="form-group">
-        <span class="form-label">Date</span>
-        <div class="dotted-line short"></div>
-      </div>
-    </div>
-
-    <!-- Witness Signature -->
-    <div class="signature-block">
-      <div class="signature-block-title">Witness</div>
+  {{-- Two parties, same fields each: the original holder, and the authorized person
+       who collects on the holder's behalf (this replaced the Witness block). --}}
+  <section class="ack-form-fields ack-two-party">
+    @foreach (['Original Holder', 'Authorized Person'] as $ackParty)
+    <div class="ack-party">
+      <div class="signature-block-title">{{ $ackParty }}</div>
 
       <div class="form-group">
         <span class="form-label">Name</span>
         <div class="dotted-line short"></div>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Address:</span>
+        <div class="dotted-line short"></div>
+      </div>
+
+      <!-- Second Line for Address -->
+      <div class="form-group multiline-spacer">
+        <div class="dotted-line medium"></div>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Phone No:</span>
+        <div class="dotted-line medium"></div>
       </div>
 
       <div class="form-row">
@@ -393,7 +400,7 @@
         </div>
       </div>
     </div>
-
+    @endforeach
   </section>
 
 </div>

@@ -834,7 +834,22 @@ class LandRecommendationController extends Controller
             'total' => (clone $statsQuery)->count(),
             'pending' => (clone $statsQuery)->where('status', LandRecommendation::STATUS_PENDING)->count(),
             'approved' => (clone $statsQuery)->where('status', LandRecommendation::STATUS_APPROVED)->count(),
-            'total_ground_rent' => (clone $statsQuery)->sum('ground_rent'),
+            // Ground rent is a RATE; what is owed is rate x plot size (area_sqm, m2), over
+            // the approved recommendations. Same sum as the Land RofO page's Ground Rent
+            // card (LandRofoController::index): per m2 (or no unit) is rate x m2, Ha is
+            // rate x m2 / 10,000, an 'Other' unit is not converted. Null when no approved
+            // recommendation has both a rate and a plot size.
+            'total_ground_rent' => (function () use ($statsQuery) {
+                $sum = (clone $statsQuery)->where('status', LandRecommendation::STATUS_APPROVED)->toBase()
+                    ->selectRaw("SUM(CASE WHEN area_sqm IS NOT NULL AND ground_rent IS NOT NULL THEN
+                            CASE WHEN LOWER(LTRIM(RTRIM(ISNULL(ground_rent_unit,'')))) IN ('', 'per square meters') THEN ground_rent * area_sqm
+                                 WHEN LOWER(LTRIM(RTRIM(ground_rent_unit))) = 'ha' THEN ground_rent * area_sqm / 10000.0
+                            END
+                        END) AS total")
+                    ->value('total');
+
+                return $sum === null ? null : (float) $sum;
+            })(),
             'printed' => $this->extantRecommendation($tabScope()->whereExists($printedExists), false)->count(),
             'not_printed' => $this->extantRecommendation($tabScope()->whereNotExists($printedExists), false)->count(),
             // Batches, not batched rows — the badge counts what the tab lists.

@@ -71,6 +71,10 @@
                 status: 'Normal',
                 transactionDate: '',
                 opType: '',
+                // Permit Source (Ministry / KANGIS / LGA / Other) and the two specify boxes.
+                opSource: '',
+                opSourceOther: '',
+                opTypeOther: '',
                 // Old OP / New OP. Asked only for Resettlement and Direct Allocation,
                 // and blank means the question was never put — see showOpCategory().
                 // The one visible Type answer. Copied into opType / cofoType by
@@ -254,6 +258,9 @@
                     otherTransactionType: '',
                     status: 'Normal',
                     transactionDate: '',
+                    opSource: '',
+                    opSourceOther: '',
+                    opTypeOther: '',
                     typeValue: '',
                     instrumentCategory: '',
                     opSerialNumber: '',
@@ -391,6 +398,11 @@
             // spell it differently ('LGA', 'LGA CofO'), and a new LGA option added to the
             // catalogue tomorrow is picked up here without a second edit.
             isLgaType(transaction) {
+                // On an Occupancy Permit, LGA is the Source, not a Type (2026-10-15).
+                if (transaction && this.isOPTransaction(transaction.transactionType)) {
+                    return String(transaction.opSource || '') === 'LGA';
+                }
+
                 const value = String(transaction && transaction.typeValue || '');
                 if (!value) return false;
 
@@ -421,7 +433,49 @@
             },
 
             typeOptionsFor(transaction) {
-                return (this.catalogEntryFor(transaction) || {}).types || [];
+                const types = (this.catalogEntryFor(transaction) || {}).types || [];
+                if (!transaction || !this.isOPTransaction(transaction.transactionType)) return types;
+
+                // A permit's Type: no LGA (that is its Source now), plus Other with a
+                // specify box -- the same list the indexing OP section and PRA card offer.
+                return types
+                    .filter((o) => String(o.label).trim().toUpperCase() !== 'LGA')
+                    .concat([{ value: 'Other', label: 'Other' }]);
+            },
+
+            // Permit Source (pra.op_source); Other asks for op_source_other.
+            opSourceOptions: ['Ministry', 'KANGIS', 'LGA', 'Other'],
+
+            // Source changed: LGA turns the permit rules on (0/0/0, council grantor),
+            // anything else turns them off; Other alone keeps its specify text.
+            handleOpSourceChange(transaction) {
+                if (transaction.opSource !== 'Other') transaction.opSourceOther = '';
+                this.handleOpTypeChange(transaction);
+                this.applyLgaGrantorRules(transaction);
+            },
+
+            // A listed option typed into a specify box is that option, not a new one.
+            // Returns the message to show, or '' when the row's OP answers are complete.
+            opAnswerProblem(t) {
+                const squash = (v) => String(v || '').replace(/\s+/g, ' ').trim();
+                if (!['Ministry', 'KANGIS', 'LGA', 'Other'].includes(t.opSource)) {
+                    return 'Source is required for an Occupancy Permit. Please select Ministry, KANGIS, LGA or Other.';
+                }
+                if (t.opSource === 'Other') {
+                    const typed = squash(t.opSourceOther);
+                    if (!typed) return 'Source is Other: please specify the Source of the Occupancy Permit.';
+                    const listed = ['Ministry', 'KANGIS', 'LGA'].find((o) => o.toLowerCase() === typed.toLowerCase());
+                    if (listed) return listed + ' is already in the Source list; select it instead of Other.';
+                }
+                if (t.typeValue === 'Other') {
+                    const typed = squash(t.opTypeOther);
+                    if (!typed) return 'OP Type is Other: please specify the OP Type.';
+                    const bare = typed.replace(/^op\s+/i, '').toLowerCase();
+                    const listed = ['Resettlement', 'Direct Allocation'].find((o) => o.toLowerCase() === bare);
+                    if (listed) return listed + ' is already in the OP Type list; select it instead of Other.';
+                    if (bare === 'lga') return 'LGA is a Source, not an OP Type: set Source to LGA instead.';
+                }
+                return '';
             },
 
             categoryOptionsFor(transaction) {
@@ -458,6 +512,8 @@
 
                 transaction.opType = column === 'op_type' ? transaction.typeValue : '';
                 transaction.cofoType = column === 'cofo_type' ? transaction.typeValue : '';
+                // The Type specify text belongs to an OP Type of Other alone.
+                if (!(column === 'op_type' && transaction.typeValue === 'Other')) transaction.opTypeOther = '';
 
                 if (column === 'op_type') {
                     // handleOpTypeChange() does the party-1 rules AND the permit's own
@@ -1152,6 +1208,9 @@
 
                 if (!this.isOPTransaction(transaction.transactionType)) {
                     transaction.opSerialNumber = '';
+                    transaction.opSource = '';
+                    transaction.opSourceOther = '';
+                    transaction.opTypeOther = '';
 
                     // opType is cleared by the caller; undo the LGA registration stamp here so a
                     // deed does not inherit 0/0/0 from a permit the row used to be.
@@ -1556,11 +1615,25 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'Validation Error',
-                            text: 'Type is required for an Occupancy Permit. Please select Resettlement, Direct Allocation or LGA.',
+                            text: 'Type is required for an Occupancy Permit. Please select Resettlement, Direct Allocation or Other.',
                             confirmButtonText: 'OK'
                         });
                     } else {
                         alert('Type is required for an Occupancy Permit.');
+                    }
+                    return;
+                }
+
+                // Source required; Other (Source or Type) must say what it is.
+                const opProblem = this.transactions
+                    .filter(t => this.isOPTransaction(t.transactionType))
+                    .map(t => this.opAnswerProblem(t))
+                    .find(Boolean);
+                if (opProblem) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: opProblem, confirmButtonText: 'OK' });
+                    } else {
+                        alert(opProblem);
                     }
                     return;
                 }
@@ -1958,6 +2031,33 @@
                                         </select>
                                     </div>
 
+                                    <!-- Source (Occupancy Permit only) -->
+                                    {{-- Who issued the permit (2026-10-15), saved in pra.op_source. LGA lives
+                                         here, not under Type: it turns on the 0/0/0 stamp and the council
+                                         grantor. "Other" reveals one required specify box (op_source_other). --}}
+                                    <div class="flex-1 min-w-[180px]" x-show="isOPTransaction(transaction.transactionType)" x-cloak>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                                            Source <span class="text-red-500">*</span>
+                                        </label>
+                                        <select x-model="transaction.opSource"
+                                            @change="handleOpSourceChange(transaction)"
+                                            :name="'transactions[' + index + '][op_source]'"
+                                            :class="!transaction.opSource ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
+                                            class="w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors bg-white">
+                                            <option value="">Select source</option>
+                                            <template x-for="option in opSourceOptions" :key="'src-' + option">
+                                                <option :value="option" x-text="option" :selected="transaction.opSource === option"></option>
+                                            </template>
+                                        </select>
+                                        <input type="text" x-show="transaction.opSource === 'Other'" x-cloak
+                                            x-model="transaction.opSourceOther" maxlength="100"
+                                            :required="transaction.opSource === 'Other'" :disabled="transaction.opSource !== 'Other'"
+                                            :name="'transactions[' + index + '][op_source_other]'"
+                                            placeholder="Specify source *" aria-label="Specify source"
+                                            :class="transaction.opSource === 'Other' && !String(transaction.opSourceOther || '').trim() ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
+                                            class="mt-2 w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+
                                     <!-- Type (options come from the instrument) -->
                                     {{-- One field, whatever the instrument. Its options are
                                          InstrumentTypeCatalog's, so the three capture screens
@@ -1991,6 +2091,16 @@
                                                 <option :value="transaction.typeValue" x-text="transaction.typeValue + ' (legacy)'"></option>
                                             </template>
                                         </select>
+                                        {{-- OP Type "Other": one required specify box, saved in pra.op_type_other. --}}
+                                        <input type="text"
+                                            x-show="isOPTransaction(transaction.transactionType) && transaction.typeValue === 'Other'" x-cloak
+                                            x-model="transaction.opTypeOther" maxlength="100"
+                                            :required="isOPTransaction(transaction.transactionType) && transaction.typeValue === 'Other'"
+                                            :disabled="!(isOPTransaction(transaction.transactionType) && transaction.typeValue === 'Other')"
+                                            :name="'transactions[' + index + '][op_type_other]'"
+                                            placeholder="Specify OP type *" aria-label="Specify OP type"
+                                            :class="!String(transaction.opTypeOther || '').trim() ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
+                                            class="mt-2 w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                         <p x-show="isLgaOpType(transaction)" x-cloak class="mt-1 text-[11px] text-amber-700">
                                             Issued by a Local Government: registration number is fixed at 0/0/0 and
                                             the registration date and time are left blank.
@@ -2682,10 +2792,15 @@
                                     // Matches isLgaOpType(), but on the raw record: the payload below
                                     // is what isLgaOpType() will later read, so it cannot ask itself.
                                     // Both LGA kinds count — keep this list in step with LGA_OP_TYPES.
-                                    const isStoredLgaOpType = ['LGA', 'LGA ALLOCATION LETTER'].includes(
+                                    // Before 2026-10-15 LGA was an OP Type; it is a Source now. Such a
+                                    // row reopens as Source = LGA with a blank Type, and saving moves it.
+                                    const isLegacyLgaOpType = ['LGA', 'LGA ALLOCATION LETTER'].includes(
                                         String(record.op_type || record.opType || '')
                                             .trim().toUpperCase().replace(/^OP\s+/, '')
                                     );
+                                    const storedOpSource = record.op_source || record.opSource || (isLegacyLgaOpType ? 'LGA' : '');
+                                    const isStoredLgaOpType = storedOpSource === 'LGA';
+                                    const storedOpType = isLegacyLgaOpType ? '' : (record.op_type || record.opType || '');
 
                                     const transactionPayload = {
                                         id: index + 1,
@@ -2703,10 +2818,13 @@
                                         otherTransactionType: '',
                                         status: record.status || 'Normal',
                                         transactionDate: formattedTransactionDate || '',
-                                        opType: record.op_type || record.opType || '',
+                                        opType: storedOpType,
+                                        opSource: storedOpSource,
+                                        opSourceOther: record.op_source_other || '',
+                                        opTypeOther: record.op_type_other || '',
                                         // The visible Type comes from whichever column this
                                         // instrument stores it in; the catalogue decides which.
-                                        typeValue: record.op_type || record.opType
+                                        typeValue: storedOpType
                                             || record.cofo_type || record.cofoType
                                             || record.instrument_subtype || record.instrumentSubtype || '',
                                         instrumentCategory: record.instrument_category || record.instrumentCategory || '',
@@ -2765,6 +2883,9 @@
                                     otherTransactionType: '',
                                     status: 'Normal',
                                     transactionDate: '',
+                                    opSource: '',
+                                    opSourceOther: '',
+                                    opTypeOther: '',
                                     typeValue: '',
                                     instrumentCategory: '',
                                     opSerialNumber: '',
@@ -3123,6 +3244,11 @@
             instrument_type: t.instrumentType || '',
             status: t.status || 'Normal',
             op_type: t.opType || '',
+            // Permit Source and the two "specify" boxes; pra keeps them (op_source,
+            // op_source_other, op_type_other) and every other table drops them.
+            op_source: t.opSource || '',
+            op_source_other: String(t.opSourceOther || '').replace(/\s+/g, ' ').trim(),
+            op_type_other: String(t.opTypeOther || '').replace(/\s+/g, ' ').trim(),
             // The visible Type, sent under every column name it could belong to. Each
             // destination table is filtered to its own columns, so only the right one
             // lands -- op_type on pra, cofo_type on CofO_staging, instrument_subtype on

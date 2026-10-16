@@ -58,7 +58,10 @@ class SurrenderReleaseController extends Controller
 
         $totalRecords = $icTotal + $praTotal + $fhsTotal;
 
-        return view('surrender_release.index', compact('dailyRecords', 'totalRecords', 'icTotal', 'praTotal', 'fhsTotal'));
+        // Opened from Cadastral > Other Departments: the table only, no Edit.
+        $readOnly = request('url') === 'cadastral';
+
+        return view('surrender_release.index', compact('dailyRecords', 'totalRecords', 'icTotal', 'praTotal', 'fhsTotal', 'readOnly'));
     }
 
     /**

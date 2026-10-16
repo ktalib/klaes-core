@@ -15,6 +15,10 @@
     // record and not part of anyone's daily run. Read once here rather than per
     // row — assignedRoleNames() parses the assign_role list on every call.
     $canResetPrint = auth()->check() && auth()->user()->isSuperAdmin();
+    // Opened from the Cadastral sidebar (?url=cadastral): every RofO, view only. No
+    // Batch Print / Re-issuance, no row actions, no Batches tab. Unlike view=only (OSS)
+    // it does not narrow the list.
+    $rofoReadOnly = request('url') === 'cadastral';
 @endphp
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
@@ -32,6 +36,9 @@
                             <input type="hidden" name="view" value="only">
                         @endif
                         <input type="hidden" name="tab" value="{{ $tab }}">
+                        @if($rofoReadOnly)
+                            <input type="hidden" name="url" value="cadastral">
+                        @endif
                         <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
                         <input type="text"
                                name="search"
@@ -43,7 +50,7 @@
                         class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200 whitespace-nowrap text-sm">
                         <i data-lucide="download" class="h-4 w-4"></i> Consolidated Report
                     </button>
-                    @if(!$ossViewOnly)
+                    @if(!$ossViewOnly && !$rofoReadOnly)
                     <button type="button" onclick="openBatchPrintModal()"
                         class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 whitespace-nowrap text-sm">
                         <i data-lucide="printer" class="h-4 w-4"></i> Batch Print RofO
@@ -173,7 +180,7 @@
                 </div>
             </div>
 
-            @php $tabBaseParams = array_filter(['search' => request('search'), 'view' => $ossViewOnly ? 'only' : null]); @endphp
+            @php $tabBaseParams = array_filter(['search' => request('search'), 'view' => $ossViewOnly ? 'only' : null, 'url' => $rofoReadOnly ? 'cadastral' : null]); @endphp
             <div class="flex items-center gap-2 mb-4 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full sm:w-max">
                 <a href="{{ route('land-rofos.index', $tabBaseParams + ['tab' => 'not_printed']) }}"
                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition {{ $tab === 'not_printed' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100' }}">
@@ -190,7 +197,7 @@
                 {{-- Batches list whole, one row each. On the tabs above a batch is a
                      collapsed row whose children are scattered across the pages behind
                      it, so expanding it there shows only the few that share this page. --}}
-                @if(($rofoBatchCount ?? 0) > 0)
+                @if(($rofoBatchCount ?? 0) > 0 && !$rofoReadOnly)
                 <a href="{{ route('land-rofos.index', $tabBaseParams + ['tab' => 'batches']) }}"
                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition {{ $tab === 'batches' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100' }}">
                     <i data-lucide="layers" class="h-4 w-4"></i>
@@ -294,7 +301,7 @@
                                 </td>
                                 <td class="px-6 py-4 text-slate-500 whitespace-nowrap text-xs">{{ $b->created_at ? \Carbon\Carbon::parse($b->created_at)->format('d/m/Y H:i') : '—' }}</td>
                                 <td class="px-6 py-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
-                                    @if($generated > 0)
+                                    @if($generated > 0 && !$rofoReadOnly)
                                         {{-- Only generated RofOs can be shown here; the counts say how
                                              many either button would actually put on paper.
 
@@ -402,7 +409,7 @@
                                 <th class="px-6 py-4 whitespace-nowrap">Security Paper Code</th>
                                 <th class="px-6 py-4 whitespace-nowrap">Date Generated</th>
                                 <th class="px-6 py-4 whitespace-nowrap text-green-600">Print Date</th>
-                                @if(!$ossViewOnly)
+                                @if(!$ossViewOnly && !$rofoReadOnly)
                                 <th class="px-6 py-4 text-right sticky right-0 bg-slate-50 border-l border-slate-200 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] whitespace-nowrap">Actions</th>
                                 @endif
                             </tr>
@@ -541,7 +548,7 @@
                                 <td class="px-4 py-2 text-xs whitespace-nowrap {{ $printedAt ? 'text-green-700 font-semibold' : 'text-slate-400 italic' }}">
                                     {{ $printedAt ? \Carbon\Carbon::parse($printedAt)->format('Y-m-d h:i A') : 'Not printed' }}
                                 </td>
-                                @if(!$ossViewOnly)
+                                @if(!$ossViewOnly && !$rofoReadOnly)
                                 <td class="px-4 py-2 text-right sticky right-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)] border-l border-slate-100 z-10 whitespace-nowrap">
                                     <div x-data="{
                                         open: false,
@@ -798,7 +805,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="{{ $ossViewOnly ? 21 : 22 }}" class="px-8 py-12 text-center">
+                                <td colspan="{{ ($ossViewOnly || $rofoReadOnly) ? 21 : 22 }}" class="px-8 py-12 text-center">
                                     <div class="flex flex-col items-center">
                                         <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-4">
                                             <i data-lucide="file-text" class="h-6 w-6"></i>
@@ -1646,6 +1653,8 @@ function rofoPill(ok, okLabel, pendingLabel) {
 // that choice now, inside the manager, so the wording and the passes cannot drift
 // apart between the places it opens from.
 var _rofoChildById = {};
+// View only from the Cadastral sidebar: batch child rows get no print actions.
+var ROFO_READ_ONLY = @json($rofoReadOnly);
 
 function rofoOpenChildPrintManager(id) {
     var c = _rofoChildById[String(id)];
@@ -1710,6 +1719,78 @@ function rofoPrintStagePill(c) {
     return rofoPill(stage === 'complete', 'Printed', 'Not printed');
 }
 
+// Security paper code on a child of a batch, by the main list's rules. Enter: only once
+// the letter is printed (there is no paper in hand before that), greyed out once a code
+// is on it. Reset: wherever a code exists, since that is a correction, not an entry.
+var ROFO_SPC_URL = @json(url('land-rofos')) + '/';
+
+function rofoChildSecurityPaperButton(c, printed) {
+    var cls = 'inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded';
+    var enter;
+    if (c.serial_no) {
+        enter = '<span class="' + cls + ' text-slate-300 cursor-not-allowed" title="Security paper code already assigned">'
+            + '<i data-lucide="hash" class="h-3 w-3"></i> Enter Security Paper Code</span>';
+    } else if (!printed) {
+        enter = '<span class="' + cls + ' text-slate-300 cursor-not-allowed" title="Print the RofO first, then enter the code on its paper">'
+            + '<i data-lucide="hash" class="h-3 w-3"></i> Enter Security Paper Code</span>';
+    } else {
+        enter = '<button type="button" onclick="rofoOpenChildSecurityPaper(' + c.id + ')"'
+            + ' class="' + cls + ' text-emerald-700 hover:bg-emerald-50">'
+            + '<i data-lucide="hash" class="h-3 w-3"></i> Enter Security Paper Code</button>';
+    }
+    var reset = c.serial_no
+        ? '<button type="button" onclick="rofoResetChildSecurityPaper(' + c.id + ')"'
+          + ' class="' + cls + ' text-red-600 hover:bg-red-50">'
+          + '<i data-lucide="rotate-ccw" class="h-3 w-3"></i> Reset Security Paper Code</button>'
+        : '';
+    return '<span class="rofo-child-spc">' + enter + reset + '</span>';
+}
+
+// Redraw one child's serial and code buttons from the server, rather than reloading
+// the page, which would fold the batch up.
+function rofoRefreshChildRow(id) {
+    var row = document.querySelector('tr[data-rofo-child="' + id + '"]');
+    var batchHolder = row ? row.closest('tr[data-batch-children]') : null;
+    if (!row || !batchHolder) { location.reload(); return Promise.resolve(null); }
+    return loadRofoBatchChildren(batchHolder.getAttribute('data-batch-children'))
+        .then(function (data) {
+            var fresh = (data.children || []).find(function (x) { return String(x.id) === String(id); });
+            if (!fresh) return null;
+            _rofoChildById[String(id)] = fresh;
+            var printed = (fresh.print_count > 0 || fresh.print_stage === 'complete' || fresh.print_stage === 'originals');
+            row.querySelector('.rofo-child-serial').textContent = fresh.serial_no || '—';
+            var btns = row.querySelector('.rofo-child-spc');
+            if (btns) btns.outerHTML = rofoChildSecurityPaperButton(fresh, printed);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return fresh;
+        })
+        .catch(function () { location.reload(); return null; });
+}
+
+function rofoOpenChildSecurityPaper(id) {
+    var c = _rofoChildById[String(id)];
+    if (!c) return;
+    openAssignSecurityPaperModal(c.id, c.file_number, c.serial_no || '',
+        ROFO_SPC_URL + encodeURIComponent(c.id) + '/assign-security-paper', {
+            onSuccess: function () { rofoRefreshChildRow(c.id); }
+        });
+}
+
+// Same shared modal as the main list. As there, a successful reset goes straight on
+// to the code picker so the right code can be keyed in; the row is redrawn first.
+function rofoResetChildSecurityPaper(id) {
+    var c = _rofoChildById[String(id)];
+    if (!c || !c.serial_no) return;
+    openResetSecurityPaperModal(c.id, c.file_number, c.serial_no,
+        ROFO_SPC_URL + encodeURIComponent(c.id) + '/reset-security-paper', {
+            onSuccess: function () {
+                rofoRefreshChildRow(c.id).then(function (fresh) {
+                    if (fresh && !fresh.serial_no) rofoOpenChildSecurityPaper(c.id);
+                });
+            }
+        });
+}
+
 function loadRofoBatchChildren(batchId) {
     return fetch(ROFO_BATCH_URL + '/' + encodeURIComponent(batchId) + '/children', {
         credentials: 'same-origin',
@@ -1752,18 +1833,18 @@ document.addEventListener('click', function (e) {
                 _rofoChildById[String(c.id)] = c;
 
                 var generated = String(c.rofo_status || '').toLowerCase() === 'generated';
-                return '<tr class="border-b border-violet-100/70 hover:bg-white/70">'
+                return '<tr class="border-b border-violet-100/70 hover:bg-white/70" data-rofo-child="' + c.id + '">'
                     + '<td class="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400">' + c.seq + '</td>'
                     + '<td class="px-4 py-2.5 font-mono text-xs font-bold text-slate-900">' + rofoEscHtml(c.file_number) + '</td>'
                     + '<td class="px-4 py-2.5 text-xs text-slate-700"><div>' + rofoEscHtml(c.applicant_name) + '</div>'
                     + (window.applicantPhoneActionButtonHtml ? window.applicantPhoneActionButtonHtml(c.applicant_phone, c.applicant_name, c.file_number) : '') + '</td>'
                     + '<td class="px-4 py-2.5 text-xs text-slate-600">' + rofoEscHtml(c.plot_number) + '</td>'
                     + '<td class="px-4 py-2.5 text-xs text-slate-600">' + rofoEscHtml(c.location) + '</td>'
-                    + '<td class="px-4 py-2.5 font-mono text-[11px] text-slate-500">' + rofoEscHtml(c.serial_no || '—') + '</td>'
+                    + '<td class="rofo-child-serial px-4 py-2.5 font-mono text-[11px] text-slate-500">' + rofoEscHtml(c.serial_no || '—') + '</td>'
                     + '<td class="px-4 py-2.5 text-center">' + rofoPill(generated, 'Generated', 'Pending') + '</td>'
                     + '<td class="px-4 py-2.5 text-center">' + rofoPrintStagePill(c) + '</td>'
                     + '<td class="px-4 py-2.5 text-right whitespace-nowrap">'
-                    +   (generated
+                    +   (generated && !ROFO_READ_ONLY
                             // One child on its own is an individual print, so it opens the
                             // Print Manager like any other single letter — the same three
                             // passes, the same ticks read from its own print log. It used
@@ -1798,7 +1879,7 @@ document.addEventListener('click', function (e) {
                                     : '<span class="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-slate-300 cursor-not-allowed" title="Print and read the white copy first">'
                                       + '<i data-lucide="printer" class="h-3 w-3"></i> Print</span>';
 
-                                return wc + pr;
+                                return wc + pr + rofoChildSecurityPaperButton(c, printed);
                               })()
                             : '<span class="text-[10px] text-slate-400">—</span>')
                     + '</td>'

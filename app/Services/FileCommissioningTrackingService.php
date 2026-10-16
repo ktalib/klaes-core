@@ -255,6 +255,12 @@ class FileCommissioningTrackingService
      */
     protected function commissionedAt($row): Carbon
     {
+        // A file moved to a new number (Move Commissioned File) carries the move date on
+        // its register; this line is its FIRST commissioning, kept on the move's audit.
+        if ($first = \App\Services\FileNumber\CommissionedFileMoveService::firstCommissionedAt($row->full_file_number ?? null)) {
+            return $first;
+        }
+
         $date = trim((string) ($row->commissioning_date ?? ''));
         $time = trim((string) ($row->commissioning_time ?? ''));
 
@@ -304,7 +310,10 @@ class FileCommissioningTrackingService
             'log_out_time'           => $closedAt ? $closedAt->format('H:i') : null,
             'status'                 => $closedAt ? 'completed' : 'active',
             'status_label'           => self::LABEL,
-            'notes'                  => 'File commissioned in KLAES — in process at the File Commissioning Office.',
+            // A file since moved to a new number was first commissioned under the old one.
+            'notes'                  => ($firstAs = \App\Services\FileNumber\CommissionedFileMoveService::firstCommissionedAs($info['file_number']))
+                ? "File commissioned in KLAES as {$firstAs} — in process at the File Commissioning Office."
+                : 'File commissioned in KLAES — in process at the File Commissioning Office.',
             'timestamp'              => $at->toIso8601String(),
             'user_name'              => $info['commissioned_by'] ?: 'System',
             'receiving_office_code'  => self::OFFICE_CODE,

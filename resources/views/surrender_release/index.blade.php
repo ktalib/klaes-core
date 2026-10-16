@@ -109,7 +109,9 @@
                                 <th class="px-4 py-4">Created By</th>
                                 <th class="px-4 py-4">Date Captured</th>
                                 <th class="px-4 py-4 text-center">Source</th>
+                                @if(empty($readOnly))
                                 <th class="px-4 py-4 text-center rounded-tr-xl">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                     </table>
@@ -945,8 +947,11 @@ $(function() {
                     else if (data === 'File History Staging') cls = 'source-fhs';
                     return `<span class="source-badge ${cls}">${data}</span>`;
                 }
-            },
-            {
+            }
+            {{-- Left out entirely when opened from Cadastral > Other Departments (?url=cadastral):
+                 table only. Not visible:false, because table-columns.js forces "Actions" back on. --}}
+            @if(empty($readOnly))
+            ,{
                 data: 'id',
                 name: 'id',
                 orderable: false,
@@ -960,6 +965,7 @@ $(function() {
                             </button>`;
                 }
             }
+            @endif
         ],
         pageLength: 25,
         order: [[8, 'desc']],

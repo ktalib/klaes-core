@@ -342,6 +342,37 @@
                     </button>
                   </div>
                 </div>
+
+                {{-- Source tabs: where the pages came from. Server-side filter, so
+                     counts, paging and search all follow the chosen source. --}}
+                @php
+                  $sourceTabs = \App\Services\Edms\ScanSource::TABS;
+                  $sourceIcons = ['scanned' => 'scan-line', 'uploads' => 'blocks'];
+                  $activeSource = $activeSource ?? \App\Services\Edms\ScanSource::SCANNED;
+                @endphp
+                <nav class="mt-5 flex flex-wrap gap-2" aria-label="Document source" id="scan-source-tabs">
+                  @foreach($sourceTabs as $sourceKey => $sourceLabel)
+                    @php
+                      $sourceUrl = url()->current() . '?' . http_build_query(array_filter([
+                        'tab' => 'uploaded-files',
+                        'view' => request()->query('view', 'list'),
+                        'search' => request()->query('search'),
+                        'source' => $sourceKey,
+                      ], fn ($v) => $v !== null && $v !== ''));
+                      $isActiveSource = $activeSource === $sourceKey;
+                      $sourceCount = $sourceCounts[$sourceKey] ?? null;
+                    @endphp
+                    <a href="{{ $sourceUrl }}"
+                       class="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors {{ $isActiveSource ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' }}"
+                       @if($isActiveSource) aria-current="page" @endif>
+                      <i data-lucide="{{ $sourceIcons[$sourceKey] ?? 'folder' }}" class="h-4 w-4"></i>
+                      {{ $sourceLabel }}
+                      @if($sourceCount !== null)
+                        <span class="rounded-full px-2 text-xs {{ $isActiveSource ? 'bg-white text-blue-700' : 'bg-gray-100 text-gray-600' }}">{{ number_format($sourceCount) }}</span>
+                      @endif
+                    </a>
+                  @endforeach
+                </nav>
               </div>
               <div class="p-6">
                 <!-- Empty state -->
@@ -399,7 +430,7 @@
                         Showing results for <strong>"{{ e($activeSearch) }}"</strong>
                         &mdash; {{ $uploadsPaginator->total() }} {{ Str::plural('result', $uploadsPaginator->total()) }} found
                       </span>
-                      <a href="{{ url()->current() }}?tab=uploaded-files&view={{ request()->query('view', 'list') }}"
+                      <a href="{{ url()->current() }}?tab=uploaded-files&view={{ request()->query('view', 'list') }}{{ $activeSource !== '' ? '&source=' . urlencode($activeSource) : '' }}"
                          class="ml-auto btn btn-outline btn-sm gap-1 text-blue-700 border-blue-300 hover:bg-blue-100">
                         <i data-lucide="x" class="h-3 w-3"></i>
                         Clear Search
@@ -417,12 +448,30 @@
                         No uploaded documents found.
                       @endif
                     </div>
-                    <div class="flex items-center gap-2">
+                    @php
+                      // Numbered window: first, last, and two either side of the current page.
+                      $lastPage = max(1, (int) ceil($uploadsPaginator->total() / max(1, $uploadsPaginator->perPage())));
+                      $pageWindow = collect([1, $lastPage])
+                        ->merge(range(max(1, $currentPage - 2), min($lastPage, $currentPage + 2)))
+                        ->unique()->sort()->values();
+                    @endphp
+                    <div class="flex flex-wrap items-center gap-1">
                       <button type="button" class="btn btn-outline btn-sm gap-2" data-pagination-btn="prev"
                         data-page-number="{{ $prevPageNumber ?? '' }}" {{ $prevPageNumber ? '' : 'disabled' }}>
                         <i data-lucide="chevron-left" class="h-4 w-4"></i>
                         Previous
                       </button>
+                      @foreach($pageWindow as $i => $pageNumber)
+                        @if($i > 0 && $pageNumber - $pageWindow[$i - 1] > 1)
+                          <span class="px-1 text-sm text-gray-400">&hellip;</span>
+                        @endif
+                        <button type="button"
+                          class="btn btn-sm min-w-[2.25rem] {{ $pageNumber === $currentPage ? 'btn-primary' : 'btn-outline' }}"
+                          data-pagination-btn="page" data-page-number="{{ $pageNumber }}"
+                          @if($pageNumber === $currentPage) aria-current="page" disabled @endif>
+                          {{ $pageNumber }}
+                        </button>
+                      @endforeach
                       <button type="button" class="btn btn-primary btn-sm gap-2" data-pagination-btn="next"
                         data-page-number="{{ $nextPageNumber ?? '' }}" {{ $nextPageNumber ? '' : 'disabled' }}>
                         Next

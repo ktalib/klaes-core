@@ -63,6 +63,9 @@
             ${badges.map((label) => `<span>${label}</span>`).join('')}
           </div>
           <div class="notification-item__actions">
+            ${typeof meta.openPath === 'string' && meta.openPath.startsWith('/') && !meta.openPath.startsWith('//')
+              ? `<a class="btn btn-outline btn-xs" href="${escapeHtml(meta.openPath)}">Open file</a>`
+              : ''}
             <button class="btn btn-outline btn-xs" data-action="toggle-read" data-notification-id="${item.id}" data-read="${item.isRead ? '1' : '0'}">
               ${item.isRead ? 'Mark as unread' : 'Mark as read'}
             </button>

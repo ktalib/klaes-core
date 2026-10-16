@@ -1550,6 +1550,8 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('legalsearchreports')->group(function () {
         Route::get('/', [LegalsearchreportsController::class, 'index'])->name('legalsearchreports.index');
         Route::get('/data', [LegalsearchreportsController::class, 'data'])->name('legalsearchreports.data');
+        // Earlier searches of one value, opened under its collapsed row.
+        Route::get('/history', [LegalsearchreportsController::class, 'history'])->name('legalsearchreports.history');
     });
 
     // KANGIS Print Labels

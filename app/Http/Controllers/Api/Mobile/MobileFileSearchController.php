@@ -179,6 +179,11 @@ class MobileFileSearchController extends Controller
                 'linked_file_number' => $resolver->linkedFileNumber($result['file_number'], $result['indexing'] ?? null),
                 // Keep the mobile File History in step with desktop Quick Search.
                 'related_files'      => $resolver->relatedFilesWithTitles($result['indexing'] ?? null, $result['file_number']),
+                // KANGIS file(s) this land file is kept inside, with where each is now.
+                // The Send-to-SCB form then targets the KANGIS Registry.
+                'kangis_files'       => $resolver->kangisContainersFor($result['file_number'], $result['indexing'] ?? null),
+                // The reverse: land file(s) kept inside this KANGIS file.
+                'land_files'         => $resolver->landFilesFor($result['file_number'], $result['indexing'] ?? null),
                 'file_title'       => $fileTitle,
                 'status'           => $result['status'],
                 // In-Transit / Requested / DIIT for the open movement cycle (null when none).
@@ -363,12 +368,17 @@ class MobileFileSearchController extends Controller
             ->limit(100)
             ->get(['id', 'request_no', 'file_number', 'file_title', 'current_location', 'status', 'resolved_status', 'source', 'requester_user_id', 'receiving_officer', 'requester_office', 'requester_department', 'is_ofs', 'ofs_rank', 'priority', 'created_at', 'request_purpose_name', 'expected_return_date']);
 
-        $data = $requests->map(function (FileSearchRequest $fr) {
+        // KANGIS file each land file is kept inside, so the monitor searches the
+        // right folder. One batch lookup for the whole inbox.
+        $kangis = app(FileLocationResolver::class)->kangisContainerNumbers($requests->pluck('file_number')->all());
+
+        $data = $requests->map(function (FileSearchRequest $fr) use ($kangis) {
             $req = $fr->requester;
             return array_merge([
                 'id'                  => $fr->id,
                 'request_no'          => $fr->request_no,
                 'file_number'         => $fr->file_number,
+                'kangis_file_numbers' => $kangis[strtoupper(trim((string) $fr->file_number))] ?? [],
                 'file_title'          => $fr->file_title,
                 'requester'           => $req ? trim($req->first_name . ' ' . $req->last_name) : '—',
                 'receiving_officer'   => $fr->receiving_officer,

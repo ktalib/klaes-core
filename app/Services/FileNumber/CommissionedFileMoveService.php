@@ -58,7 +58,9 @@ class CommissionedFileMoveService
      *    (it also holds suffixed copies such as cadastral_tracking_id = TRK-...-0001);
      *    the new number's row is mapped by mapNewGroupingRow().
      */
-    private const EXCLUDED_TABLES = ['deprecated_records', 'grouping'];
+    //  - file_movement_log_edits: the tracker change log, append-only (the database
+    //    refuses updates); its rows record numbers as they were at the time.
+    private const EXCLUDED_TABLES = ['deprecated_records', 'grouping', 'file_movement_log_edits'];
     private const EXCLUDED_COLUMNS = [];
 
     public function __construct(private MlsSerialAllocationService $allocator)
@@ -127,6 +129,12 @@ class CommissionedFileMoveService
             // The new number's own grouping row supplies the tracking ID.
             $newTracking = $this->mapNewGroupingRow($newFileNo);
 
+            // When the file was first commissioned, kept in the audit entry below: the
+            // register now carries the move date, and the tracking sheet's original
+            // "File Commissioning" line still needs the first one.
+            $firstCommissioned = $this->commissionedAt($db->table('mls_file_no')->where('id', $record->id)
+                ->first(['created_at', 'commissioning_date', 'commissioning_time']));
+
             // The file's tracker rows as they were, for the tracking log below.
             $trackersBefore = $db->table('file_tracker')
                 ->where('file_number', $oldFileNo)
@@ -178,6 +186,20 @@ class CommissionedFileMoveService
             // commissioning sheet prints under "Related FileNo/Old FileNo".
             $this->addRelatedFileNumber($newFileNo, $oldFileNo);
 
+            // ...and its Old FileNo: the old-number ledger plus mls_file_no.old_fileno and
+            // file_indexings.old_fileno, which the listing shows as OLD.
+            app(\App\Services\OldFileNumberService::class)->record(
+                $newFileNo,
+                $oldFileNo,
+                \App\Models\OldFileNumber::SOURCE_MOVE,
+                $indexing->file_title ?? ($record->file_name ?? null),
+                $userId
+            );
+
+            // Commissioned again, under the new number: the MLS table's Date / Time
+            // Commissioned read these.
+            $this->stampCommissioned($newFileNo, now());
+
             // Record the change on the file's tracking.
             $this->logOnTrackers($trackersBefore, $oldFileNo, $newFileNo, $oldTracking, $newTracking, $userId, $movedBy);
 
@@ -193,7 +215,11 @@ class CommissionedFileMoveService
                 'action' => self::AUDIT_ACTION,
                 'resource_type' => 'mls_file_no',
                 'resource_id' => $record->id,
-                'old_values' => ['file_number' => $oldFileNo, 'tracking_id' => $oldTracking ?: null],
+                'old_values' => [
+                    'file_number' => $oldFileNo,
+                    'tracking_id' => $oldTracking ?: null,
+                    'commissioned_at' => $firstCommissioned,
+                ],
                 'new_values' => [
                     'file_number' => $newFileNo,
                     'tracking_id' => $newTracking,
@@ -392,6 +418,208 @@ class CommissionedFileMoveService
                 'created_at' => $stamp,
             ]);
         }
+    }
+
+    /**
+     * Set the commissioning date/time of $fileNo to $at on the registers the MLS table
+     * reads: mls_file_no (created_at, commissioning_date, commissioning_time) and
+     * fileNumber.created_at, its fallback. file_indexings.created_at is the indexing
+     * date and is left alone.
+     */
+    public function stampCommissioned(string $fileNo, \DateTimeInterface $at): void
+    {
+        $db = DB::connection('sqlsrv');
+        $at = \Carbon\Carbon::instance($at);
+
+        $db->table('mls_file_no')->where('full_file_number', $fileNo)->update([
+            'created_at' => $at,
+            'commissioning_date' => $at->format('Y-m-d'),
+            'commissioning_time' => $at->format('H:i:s'),
+        ]);
+        $db->table('fileNumber')->where('mlsfNo', $fileNo)->update(['created_at' => $at]);
+    }
+
+    /** "Y-m-d H:i:s" from an mls_file_no row: commissioning date/time, else created_at. */
+    private function commissionedAt(?object $row): ?string
+    {
+        if (!$row) {
+            return null;
+        }
+        $date = trim((string) ($row->commissioning_date ?? ''));
+        if ($date !== '') {
+            $time = trim((string) ($row->commissioning_time ?? ''));
+            return substr($date, 0, 10) . ' ' . ($time !== '' ? substr($time, 0, 8) : '00:00:00');
+        }
+
+        return $row->created_at ? \Carbon\Carbon::parse($row->created_at)->format('Y-m-d H:i:s') : null;
+    }
+
+    /** Moved file number (upper-case) => first commissioning date, loaded once per request. */
+    private static ?array $firstCommissionedMap = null;
+
+    /**
+     * For a file that was moved to its current number, when it was first commissioned
+     * (kept on the move's audit entry); null for any other file. The tracking sheet's
+     * original "File Commissioning" line reads this, since the register now holds the
+     * move date.
+     */
+    public static function firstCommissionedAt(?string $fileNo): ?\Carbon\Carbon
+    {
+        $key = strtoupper(trim((string) $fileNo));
+        if ($key === '') {
+            return null;
+        }
+
+        try {
+            if (self::$firstCommissionedMap === null) {
+                self::$firstCommissionedMap = [];
+                $rows = DB::connection('sqlsrv')->table('audit_logs')
+                    ->where('action', self::AUDIT_ACTION)
+                    ->where('resource_type', 'mls_file_no')
+                    ->where('old_values', 'like', '%commissioned_at%')
+                    ->orderBy('id')
+                    ->get(['old_values', 'new_values']);
+                foreach ($rows as $r) {
+                    $old = self::decodeAudit($r->old_values);
+                    $new = self::decodeAudit($r->new_values);
+                    $to = strtoupper(trim((string) ($new['file_number'] ?? '')));
+                    if ($to !== '' && !empty($old['commissioned_at']) && !isset(self::$firstCommissionedMap[$to])) {
+                        self::$firstCommissionedMap[$to] = [
+                            'at' => (string) $old['commissioned_at'],
+                            'file_number' => (string) ($old['file_number'] ?? ''),
+                        ];
+                    }
+                }
+            }
+
+            return isset(self::$firstCommissionedMap[$key]) ? \Carbon\Carbon::parse(self::$firstCommissionedMap[$key]['at']) : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * For a file that was moved to its current number, the number it was first
+     * commissioned under ("CON-IND-2026-4"); null for any other file.
+     */
+    public static function firstCommissionedAs(?string $fileNo): ?string
+    {
+        if (self::firstCommissionedAt($fileNo) === null) {
+            return null;
+        }
+        $as = self::$firstCommissionedMap[strtoupper(trim((string) $fileNo))]['file_number'] ?? '';
+
+        return $as !== '' ? $as : null;
+    }
+
+    /** audit_logs values are JSON, sometimes JSON-encoded twice. */
+    private static function decodeAudit($value): array
+    {
+        $v = is_string($value) ? json_decode($value, true) : $value;
+        if (is_string($v)) {
+            $v = json_decode($v, true);
+        }
+
+        return is_array($v) ? $v : [];
+    }
+
+    /** Every recorded move, keyed by the new number (upper-case); loaded once per request. */
+    private static ?array $movesByNewNumber = null;
+
+    /**
+     * A "File Commissioning" line for each time this file was moved to a new number,
+     * in the same shape as FileCommissioningTrackingService's commissioning line, for
+     * the tracking sheet's Movement History: the file was commissioned again under the
+     * new number. Read-only (_diit); never a logged movement.
+     *
+     * Keyed by FILE NUMBER, not tracker: a file logged back and re-tracked after the
+     * move has a new tracker, and its sheet must still show the move. Follows the
+     * chain back (A -> B -> C), oldest first. One query per request loads every move.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function recommissioningLinesFor(?string $fileNo): array
+    {
+        $current = strtoupper(trim((string) $fileNo));
+        if ($current === '') {
+            return [];
+        }
+
+        try {
+            $db = DB::connection('sqlsrv');
+            if (self::$movesByNewNumber === null) {
+                self::$movesByNewNumber = [];
+                $rows = $db->table('file_movement_log_edits')
+                    ->where('reason', 'like', 'Move Commissioned File:%')
+                    ->orderBy('created_at')
+                    ->get(['created_at', 'tracker_before', 'tracker_after', 'edited_by_name']);
+                foreach ($rows as $r) {
+                    $before = json_decode((string) $r->tracker_before, true) ?: [];
+                    $after = json_decode((string) $r->tracker_after, true) ?: [];
+                    $old = trim((string) ($before['file_number'] ?? ''));
+                    $new = trim((string) ($after['file_number'] ?? ''));
+                    // One move writes a row per tracker; the first one stands for it.
+                    if ($old !== '' && $new !== '' && !isset(self::$movesByNewNumber[strtoupper($new)])) {
+                        self::$movesByNewNumber[strtoupper($new)] = [
+                            'old' => $old, 'new' => $new, 'logged_at' => $r->created_at, 'by' => $r->edited_by_name,
+                        ];
+                    }
+                }
+            }
+
+            $lines = [];
+            for ($guard = 0; $guard < 10 && isset(self::$movesByNewNumber[$current]); $guard++) {
+                $m = self::$movesByNewNumber[$current];
+
+                // When the move happened: the move's own audit entry. The change-log row
+                // is written in the same transaction, except where it was backfilled.
+                $movedAt = $db->table('audit_logs')
+                    ->where('action', self::AUDIT_ACTION)
+                    ->where('resource_type', 'mls_file_no')
+                    ->where('new_values', 'like', '%"file_number":"' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $m['new']) . '"%')
+                    ->orderBy('id')
+                    ->value('created_at');
+                $at = \Carbon\Carbon::parse($movedAt ?: $m['logged_at']);
+
+                array_unshift($lines, self::recommissioningLine($m['old'], $m['new'], $at, $m['by']));
+                $current = strtoupper($m['old']);
+            }
+
+            return $lines;
+        } catch (\Throwable $e) {
+            Log::warning('Move Commissioned File: could not build re-commissioning lines', ['file_number' => $fileNo, 'error' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    private static function recommissioningLine(string $old, string $new, \Carbon\Carbon $at, ?string $by): array
+    {
+        $fct = \App\Services\FileCommissioningTrackingService::class;
+
+        return [
+            'log_id'                   => 'DIIT-MOVE-' . strtoupper(substr(sha1($old . '|' . $new), 0, 10)),
+            'office_code'              => $fct::OFFICE_CODE,
+            'office_name'              => $fct::OFFICE_NAME,
+            'log_in_date'              => $at->format('Y-m-d'),
+            'log_in_time'              => $at->format('H:i'),
+            'log_out_date'             => null,
+            'log_out_time'             => null,
+            'status'                   => 'completed',
+            'status_label'             => $fct::LABEL,
+            'notes'                    => "File re-commissioned as {$new} (moved from {$old}, physical duplicate).",
+            'timestamp'                => $at->toIso8601String(),
+            'user_name'                => $by ?: 'System',
+            'receiving_office_code'    => $fct::OFFICE_CODE,
+            'receiving_office_name'    => $fct::OFFICE_NAME,
+            'receiving_officer_id'     => null,
+            'receiving_officer_name'   => $by ?: null,
+            'origin_office_code'       => $fct::OFFICE_CODE,
+            'origin_office_name'       => $fct::OFFICE_NAME,
+            'origin_office_department' => $fct::OFFICE_DEPARTMENT,
+            '_diit'                    => true,
+            '_recommissioned'          => true,
+        ];
     }
 
     // ---- grouping / tracking ID -----------------------------------------------

@@ -1576,6 +1576,7 @@ class FileTrackerApiController extends Controller
             $movementLog = is_array($tracker->movement_log)
                 ? $tracker->movement_log
                 : (json_decode((string) $tracker->movement_log, true) ?? []);
+            $movementLog = $this->withQueueDepartment($movementLog, $tracker);
 
             // The commissioning line always opens the timeline of a commissioned file.
             $priorMovements = $tracker->getAttribute('is_diit')
@@ -1685,6 +1686,45 @@ class FileTrackerApiController extends Controller
         return $earliest;
     }
 
+    /**
+     * A KANGIS approval-workflow file parks in the "Department Queue" placeholder
+     * office; its real department lives on the tracker's workflow_config (same
+     * order as CreateFileTrackerController::exportDestination()). Show that on
+     * the movement entries instead of the placeholder. Display only: the stored
+     * log is not changed, and the raw value stays in queue_office_name.
+     */
+    protected function withQueueDepartment(array $entries, $tracker): array
+    {
+        $queue  = 'Department Queue';
+        $config = (array) ($tracker->workflow_config ?? []);
+        $real   = null;
+        foreach ([$config['original_destination_office_name'] ?? null, $config['destination_office_name'] ?? null, $tracker->department ?? null] as $candidate) {
+            $candidate = trim((string) $candidate);
+            if ($candidate !== '' && $candidate !== $queue) {
+                $real = $candidate;
+                break;
+            }
+        }
+        if ($real === null) {
+            return $entries;
+        }
+
+        foreach ($entries as $i => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            foreach (['office_name', 'receiving_office_name'] as $field) {
+                if (trim((string) ($entry[$field] ?? '')) === $queue) {
+                    $entry['queue_office_name'] = $queue;
+                    $entry[$field] = $real;
+                }
+            }
+            $entries[$i] = $entry;
+        }
+
+        return $entries;
+    }
+
     protected function getPriorMovements(FileTracker $tracker): array
     {
         $fileNumber = trim((string) $tracker->file_number);
@@ -1697,7 +1737,7 @@ class FileTrackerApiController extends Controller
             ->whereRaw('UPPER(LTRIM(RTRIM(file_number))) = ?', [$key])
             ->where('id', '<', $tracker->id)
             ->orderBy('id')
-            ->get(['id', 'movement_log', 'receiving_officer_name', 'receiving_officer_id']);
+            ->get(['id', 'movement_log', 'receiving_officer_name', 'receiving_officer_id', 'workflow_config', 'department']);
 
         $priorMovements = [];
         foreach ($priorRows as $row) {
@@ -1708,6 +1748,7 @@ class FileTrackerApiController extends Controller
             if (!is_array($logEntries)) {
                 continue;
             }
+            $logEntries = $this->withQueueDepartment($logEntries, $row);
 
             foreach ($logEntries as $entry) {
                 if (!is_array($entry)) {

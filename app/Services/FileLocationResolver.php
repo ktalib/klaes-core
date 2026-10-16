@@ -408,6 +408,245 @@ class FileLocationResolver
     }
 
     /**
+     * KANGIS file(s) a land file is kept inside, each resolved to where it is now.
+     *
+     * A land file usually sits physically inside its KANGIS file, so the KANGIS
+     * file's location is the land file's real location. The link is usually stored
+     * on the KANGIS side (its related_fileno lists the land number); a few land
+     * rows carry it the other way, so both directions are read. A KANGIS file
+     * searched directly has no container. Read-only: nothing is persisted.
+     *
+     * @return array<int, array{file_number:string, file_title:?string, registry:?string, status:string, current_location:?string, rack_shelf:?string, is_in_transit:bool, has_tracker:bool, receiving_officer_name:?string}>
+     */
+    public function kangisContainersFor(string $fileNumber, ?FileIndexing $indexing): array
+    {
+        if ($indexing && $this->isKangisIndexing($indexing)) {
+            return [];
+        }
+
+        $key     = strtoupper(trim($fileNumber));
+        $numbers = $this->kangisContainerNumbers([$fileNumber])[$key] ?? [];
+
+        // 181 land numbers sit in two KANGIS files; none in more than a handful.
+        return $this->describeLinkedFiles(array_slice($numbers, 0, 5), 'KANGIS Registry');
+    }
+
+    /**
+     * The reverse of kangisContainersFor(): the land file(s) kept inside a KANGIS
+     * file, each resolved to where it is now. Read from the KANGIS row's own
+     * related_fileno and from land rows that list the KANGIS number. Empty for a
+     * file that is not a KANGIS file. Read-only.
+     *
+     * @return array<int, array{file_number:string, file_title:?string, registry:?string, status:string, current_location:?string, rack_shelf:?string, is_in_transit:bool, has_tracker:bool, receiving_officer_name:?string}>
+     */
+    public function landFilesFor(string $fileNumber, ?FileIndexing $indexing): array
+    {
+        if (!$indexing || !$this->isKangisIndexing($indexing)) {
+            return [];
+        }
+
+        $self    = strtoupper(trim($fileNumber));
+        $numbers = [];
+        $add = function ($number) use (&$numbers, $self) {
+            $number = trim((string) $number);
+            $key    = strtoupper($number);
+            if ($number !== '' && $key !== $self && !isset($numbers[$key])) {
+                $numbers[$key] = $number;
+            }
+        };
+
+        // 1. The KANGIS row's own related_fileno (the usual direction).
+        foreach ($this->relatedEntries($indexing->related_fileno) as $entry) {
+            $add($entry);
+        }
+
+        // 2. Non-KANGIS rows that list this KANGIS number.
+        $reverse = FileIndexing::query()
+            ->where('related_fileno', 'like', '%' . $this->escapeLike($self) . '%')
+            ->orderBy('id')
+            ->get(['file_number', 'related_fileno', 'general_registry', 'physical_registry']);
+        foreach ($reverse as $row) {
+            if ($this->isKangisIndexing($row)) {
+                continue;
+            }
+            foreach ($this->relatedEntries($row->related_fileno) as $entry) {
+                if (strtoupper($entry) === $self) {
+                    $add($row->file_number);
+                }
+            }
+        }
+
+        if (!$numbers) {
+            return [];
+        }
+
+        // Another KANGIS file listed alongside is not a land file.
+        $kangisKeys = FileIndexing::query()
+            ->whereIn('file_number', array_values($numbers))
+            ->where(fn ($q) => $q->where('general_registry', 'like', '%KANGIS%')
+                ->orWhere('physical_registry', 'like', '%KANGIS%'))
+            ->pluck('file_number')
+            ->map(fn ($n) => strtoupper(trim((string) $n)))
+            ->all();
+        $land = array_values(array_diff_key($numbers, array_flip($kangisKeys)));
+
+        return $this->describeLinkedFiles(array_slice($land, 0, 5), null);
+    }
+
+    /**
+     * Resolve each linked file number to where it is now, for the KANGIS / Land
+     * panels on Quick Search. Restores the caller's duplicate flag, which
+     * resolve() overwrites.
+     */
+    protected function describeLinkedFiles(array $numbers, ?string $defaultRegistry): array
+    {
+        if (!$numbers) {
+            return [];
+        }
+
+        $savedFlag = $this->currentDuplicateFlag;
+        $files = [];
+        foreach ($numbers as $number) {
+            $r       = $this->resolve($number);
+            $tracker = $r['tracker'] ?? null;
+            $files[] = [
+                'file_number'            => $number,
+                'file_title'             => trim((string) ($r['indexing']->file_title ?? '')) ?: null,
+                'registry'               => trim((string) ($r['indexing']->physical_registry ?? '')) ?: ($r['registry'] ?? $defaultRegistry),
+                'status'                 => $r['status'],
+                'current_location'       => $r['current_location'],
+                'rack_shelf'             => $r['rack_shelf'],
+                'is_in_transit'          => $r['status'] === self::STATUS_IN_TRANSIT,
+                'has_tracker'            => $tracker !== null,
+                'receiving_officer_name' => $tracker->receiving_officer_name ?? null,
+            ];
+        }
+        $this->currentDuplicateFlag = $savedFlag;
+
+        return $files;
+    }
+
+    /**
+     * Batch form of the KANGIS link lookup: for each land file number, the KANGIS
+     * file numbers it is linked to (either direction). Keyed by the upper-cased
+     * land number; numbers with no KANGIS link are absent.
+     *
+     * @param  array<int,string>  $fileNumbers
+     * @return array<string, array<int,string>>
+     */
+    public function kangisContainerNumbers(array $fileNumbers): array
+    {
+        $wanted = collect($fileNumbers)
+            ->map(fn ($n) => strtoupper(trim((string) $n)))
+            ->filter()
+            ->unique()
+            ->values();
+        if ($wanted->isEmpty()) {
+            return [];
+        }
+
+        $found = [];
+        $add = function (string $land, string $kangis) use (&$found) {
+            $kangis = trim($kangis);
+            if ($kangis === '') {
+                return;
+            }
+            $found[$land] ??= [];
+            foreach ($found[$land] as $existing) {
+                if (strcasecmp($existing, $kangis) === 0) {
+                    return;
+                }
+            }
+            $found[$land][] = $kangis;
+        };
+
+        // 1. KANGIS rows that list the land number in their related_fileno. LIKE
+        //    narrows the scan; the exact match is made on the parsed entries.
+        $reverse = FileIndexing::query()
+            ->where(fn ($q) => $q->where('general_registry', 'like', '%KANGIS%')
+                ->orWhere('physical_registry', 'like', '%KANGIS%'))
+            ->where(function ($q) use ($wanted) {
+                foreach ($wanted as $number) {
+                    $q->orWhere('related_fileno', 'like', '%' . $this->escapeLike($number) . '%');
+                }
+            })
+            ->orderBy('id')
+            ->get(['file_number', 'related_fileno']);
+
+        foreach ($reverse as $row) {
+            foreach ($this->relatedEntries($row->related_fileno) as $entry) {
+                $entryKey = strtoupper($entry);
+                if ($wanted->contains($entryKey)) {
+                    $add($entryKey, (string) $row->file_number);
+                }
+            }
+        }
+
+        // 2. Land rows that list a KANGIS number in their own related_fileno.
+        $forward = FileIndexing::query()
+            ->whereIn('file_number', $wanted->all())
+            ->whereNotNull('related_fileno')
+            ->get(['file_number', 'related_fileno']);
+
+        $forwardPairs = [];
+        foreach ($forward as $row) {
+            foreach ($this->relatedEntries($row->related_fileno) as $entry) {
+                $forwardPairs[] = [strtoupper(trim((string) $row->file_number)), $entry];
+            }
+        }
+
+        if ($forwardPairs) {
+            $kangisRows = FileIndexing::query()
+                ->whereIn('file_number', array_values(array_unique(array_column($forwardPairs, 1))))
+                ->where(fn ($q) => $q->where('general_registry', 'like', '%KANGIS%')
+                    ->orWhere('physical_registry', 'like', '%KANGIS%'))
+                ->pluck('file_number')
+                ->mapWithKeys(fn ($n) => [strtoupper(trim((string) $n)) => trim((string) $n)]);
+
+            foreach ($forwardPairs as [$land, $entry]) {
+                if ($kangisRows->has(strtoupper($entry))) {
+                    $add($land, $kangisRows->get(strtoupper($entry)));
+                }
+            }
+        }
+
+        return $found;
+    }
+
+    /** True when the indexing row belongs to the KANGIS registry. */
+    public function isKangisIndexing(FileIndexing $indexing): bool
+    {
+        return stripos((string) $indexing->general_registry, 'KANGIS') !== false
+            || stripos((string) $indexing->physical_registry, 'KANGIS') !== false;
+    }
+
+    /**
+     * Entries of a related_fileno value: a JSON array string, or legacy plain
+     * text (one number, or a comma list).
+     *
+     * @return array<int,string>
+     */
+    protected function relatedEntries($raw): array
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return [];
+        }
+        $items = json_decode($raw, true);
+        if (!is_array($items)) {
+            $items = str_contains($raw, ',') ? explode(',', $raw) : [$raw];
+        }
+
+        return array_values(array_filter(array_map(fn ($i) => trim((string) $i), $items), fn ($i) => $i !== ''));
+    }
+
+    /** Escape SQL Server LIKE wildcards in a literal. */
+    protected function escapeLike(string $value): string
+    {
+        return str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $value);
+    }
+
+    /**
      * First distinct related file number on the indexing row's related_fileno
      * column — a JSON array string like ["RES-1982-1302"], or a plain file
      * number. Skips any entry equal to the searched number. Null when none.

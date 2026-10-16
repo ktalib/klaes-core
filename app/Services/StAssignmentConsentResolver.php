@@ -117,6 +117,38 @@ class StAssignmentConsentResolver
     }
 
     /**
+     * Every file number an ST Assignment consent covers: the mother file of each
+     * approved memo /deeds-applications lists, plus its units' ST file numbers.
+     * Backs the consent-sourced File Number dropdown on /instruments/create.
+     *
+     * @return Collection<int, object{file_number: string, holder: string, mother_file_number: string}>
+     */
+    public function listedFileNumbers(): Collection
+    {
+        $rows = collect();
+
+        foreach ($this->approvedMemos(null) as $memo) {
+            $holder = trim((string) ($memo->corporate_name ?: trim(implode(' ', array_filter([
+                $memo->applicant_title, $memo->first_name, $memo->surname,
+            ])))));
+            $mother = trim((string) $memo->file_number);
+
+            foreach (array_merge([$mother], $this->unitFileNumbers($memo->mother_id)) as $fileNo) {
+                $fileNo = trim((string) $fileNo);
+                if ($fileNo !== '') {
+                    $rows->push((object) [
+                        'file_number' => $fileNo,
+                        'holder' => $holder,
+                        'mother_file_number' => $mother,
+                    ]);
+                }
+            }
+        }
+
+        return $rows->unique(fn ($r) => strtoupper($r->file_number))->values();
+    }
+
+    /**
      * Mother application ids reachable from a file number, plus the matched unit
      * row (when the file number was a unit's own ST file number) keyed by mother id.
      *
@@ -205,13 +237,13 @@ class StAssignmentConsentResolver
     /**
      * The memos that make an ST Assignment appear on /deeds-applications.
      * Kept identical to DeedsApplicationController::index so a file is registrable
-     * exactly when its consent is visible there.
+     * exactly when its consent is visible there. Null ids = every listed memo.
      */
-    private function approvedMemos(array $motherIds): Collection
+    private function approvedMemos(?array $motherIds): Collection
     {
         return DB::connection('sqlsrv')->table('memos')
             ->join('mother_applications', 'memos.application_id', '=', 'mother_applications.id')
-            ->whereIn('mother_applications.id', $motherIds)
+            ->when($motherIds !== null, fn ($q) => $q->whereIn('mother_applications.id', $motherIds))
             ->where('mother_applications.application_status', 'Approved')
             ->where(function ($q) {
                 $q->where('memos.memo_status', 'GENERATED')

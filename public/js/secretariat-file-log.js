@@ -13,6 +13,8 @@ window.secretariatFileLog = function (config) {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const userKey = config.userId || 'anon';
     const officeKey = 'secretariatFileLog.office.' + userKey;
+    const autoRefreshKey = 'secretariatFileLog.autoRefresh.' + userKey;
+    const AUTO_REFRESH_SECONDS = 30;
 
     // A scanner "types" a whole code in a few milliseconds per character; a
     // person cannot. These thresholds separate the two.
@@ -60,8 +62,9 @@ window.secretariatFileLog = function (config) {
 
     const blankManual = () => ({
         open: false, entry_type: 'file', file_number: '', file_title: '',
-        sender: '', sender_type: '', sender_mda: '', sender_dept: '', document_kind: '',
-        from_department: '', to_department: '', to_office: '', reference: '', from_office: '', notes: '',
+        sender: '', sender_type: '', sender_mda: '', sender_lga: '', sender_dept: '', document_kind: '', kind_other: '',
+        sender_person: '', sender_name: '', sender_rank: '', sender_rank_other: '',
+        from_department: '', send_to_office: '', reference: '', from_office: '', notes: '',
         indexQ: '', indexOpen: false, related_file_number: '',
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', from_other: '',
@@ -91,6 +94,8 @@ window.secretariatFileLog = function (config) {
         canEditLogs: !!config.canEditLogs,
         requestPurposes: config.requestPurposes || [],
         officers: config.officers || [],
+        officerRanks: config.officerRanks || [],
+        lgas: config.lgas || [],
         userId: config.userId || null,
         userName: config.userName || '',
         externalSenders: config.externalSenders || [],
@@ -102,15 +107,37 @@ window.secretariatFileLog = function (config) {
         // Always on: a scanned file is received straight away (no toggle on the page).
         autoReceive: true,
         busy: false,
-        tab: 'pending',
+        tab: 'held',
+        // Both tabs split into Incoming (waiting for receipt + held here) and Outgoing.
+        sub: 'incoming',
         days: 7,
+        // Date range (Y-m-d). Filters every tab by the row's date; on Outgoing it
+        // also replaces the "Last N days" window on the server.
+        dateFrom: '',
+        dateTo: '',
+        exportOpen: false,
         filter: '',
         listsLoading: false,
+        autoRefresh: false,
+        autoRefreshSeconds: AUTO_REFRESH_SECONDS,
+        lastRefreshed: null,
+        _autoTimer: null,
         lists: { pending: [], held: [], sent: [] },
-        heldView: 'files',
-        // Held at my office: the files held here, and what this office has sent out.
-        heldViews: [
-            { key: 'files', label: 'Files' },
+        // Mails tab (key 'memo'): '' all, or one document kind (mail, memo, file, other).
+        memoFilter: '',
+        // Incoming is split into two inner tabs (user, 2026-10-16): 'pending' = Yet to
+        // Receive (awaiting receipt), 'held' = Received (held here). Rows carry the bucket.
+        incomingView: 'pending',
+        incomingViews: [
+            { key: 'pending', label: 'Yet to Receive' },
+            { key: 'held', label: 'Received' },
+        ],
+        // Register pagination, client-side over visibleRows(); Export still takes them all.
+        page: 1,
+        perPage: 25,
+        perPageOptions: [10, 25, 50, 100],
+        subTabs: [
+            { key: 'incoming', label: 'Incoming' },
             { key: 'outgoing', label: 'Outgoing' },
         ],
         scan: blankScan(),
@@ -129,23 +156,34 @@ window.secretariatFileLog = function (config) {
         autoTimer: null,
         globalBuffer: '',
         globalTimes: [],
+        // Each entry type has its own colour (inline, so the Tailwind v2 CDN cannot drop it).
         entryTypes: [
-            { value: 'file', icon: 'folder-check', label: 'Indexed file', hint: 'No tracking sheet or QR, but the file is indexed.' },
-            { value: 'unindexed', icon: 'folder-x', label: 'Not indexed', hint: 'A file number that has not been indexed yet.' },
-            { value: 'non_file', icon: 'mail', label: 'Not a regular File/Mail', hint: 'A letter, memo or other document — not a file folder.' },
+            { value: 'file', icon: 'folder-check', label: 'Indexed file', hint: 'No tracking sheet or QR, but the file is indexed.',
+              solid: '#16a34a', bg: '#f0fdf4', tint: '#dcfce7', text: '#166534', border: '#bbf7d0' },
+            { value: 'unindexed', icon: 'folder-x', label: 'Not indexed', hint: 'A file number that has not been indexed yet.',
+              solid: '#ea580c', bg: '#fff7ed', tint: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
+            { value: 'non_file', icon: 'mail', label: 'Not a regular Mail/Letter/Memo/File', hint: 'A letter, memo or other document — not a file folder.',
+              solid: '#2563eb', bg: '#eff6ff', tint: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
         ],
+        // Each kind has its own colour: solid when chosen, tinted otherwise and on badges.
+        // Inline, so the Tailwind v2 CDN cannot drop them.
         documentKinds: [
-            { value: 'mail', icon: 'mail', label: 'Mail' },
-            { value: 'file', icon: 'folder', label: 'File' },
+            { value: 'mail', icon: 'mail', label: 'Mail', solid: '#2563eb', bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' },
+            { value: 'letter', icon: 'mail-open', label: 'Letter', solid: '#db2777', bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' },
+            { value: 'memo', icon: 'sticky-note', label: 'Memo', solid: '#d97706', bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
+            { value: 'file', icon: 'folder', label: 'File', solid: '#16a34a', bg: '#dcfce7', text: '#166534', border: '#bbf7d0' },
+            { value: 'other', icon: 'file-question', label: 'Other', solid: '#7c3aed', bg: '#ede9fe', text: '#5b21b6', border: '#ddd6fe' },
         ],
         senderTypes: ['Internal', 'External', 'Other'],
         registerTabs: [
-            { key: 'pending', label: 'Pending receipt', badge: 'bg-yellow-100 text-yellow-800' },
-            { key: 'held', label: 'Held at my office', badge: 'bg-green-100 text-green-800' },
-            { key: 'memo', label: 'Memo', badge: 'bg-blue-100 text-blue-700' },
+            { key: 'held', label: 'Files', badge: 'bg-green-100 text-green-800' },
+            { key: 'memo', label: 'Mails', badge: 'bg-blue-100 text-blue-700' },
         ],
 
         init() {
+            // Anything that changes which rows are listed goes back to page 1.
+            ['tab', 'sub', 'incomingView', 'filter', 'memoFilter', 'dateFrom', 'dateTo', 'perPage']
+                .forEach((key) => this.$watch(key, () => { this.page = 1; }));
 
             // Normal users work as the office their account maps to (server-side,
             // config/file_movement.php) and cannot change it. Only a super admin
@@ -180,6 +218,36 @@ window.secretariatFileLog = function (config) {
             renderLucide(root);
 
             document.addEventListener('keydown', (e) => this.onGlobalKeydown(e));
+
+            // Auto refresh: per-viewer choice, remembered in this browser.
+            this.autoRefresh = store.get(autoRefreshKey) === '1';
+            this.startAutoRefresh();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && this.autoRefresh && this.canAutoRefresh()) this.loadLists(true);
+            });
+        },
+
+        // ── Auto refresh ──────────────────────────────────────────────────
+        toggleAutoRefresh() {
+            this.autoRefresh = !this.autoRefresh;
+            store.set(autoRefreshKey, this.autoRefresh ? '1' : '0');
+            this.startAutoRefresh();
+            if (this.autoRefresh) this.loadLists(true);
+        },
+
+        startAutoRefresh() {
+            if (this._autoTimer) { clearInterval(this._autoTimer); this._autoTimer = null; }
+            if (!this.autoRefresh) return;
+            this._autoTimer = setInterval(() => {
+                if (!document.hidden && this.canAutoRefresh()) this.loadLists(true);
+            }, this.autoRefreshSeconds * 1000);
+        },
+
+        // Skip a tick while the page is busy or the user is mid-form, so nothing
+        // they are typing or sending is disturbed.
+        canAutoRefresh() {
+            return !!this.office && !this.listsLoading && !this.manual.open && !this.edit.open
+                && !this.send.row && !this.batch.running;
         },
 
         // ── Office ────────────────────────────────────────────────────────
@@ -254,18 +322,24 @@ window.secretariatFileLog = function (config) {
         },
 
         // ── Dashboard / register ──────────────────────────────────────────
-        async loadLists() {
+        // `silent`: an automatic refresh, so a failure is not shown as a pop-up every tick.
+        async loadLists(silent = false) {
             if (!this.office) return;
             this.listsLoading = true;
             try {
-                const data = await this.request(this.urls.lists + '?' + new URLSearchParams({ office: this.office, days: this.days }));
+                const params = { office: this.office, days: this.days };
+                if (this.dateFrom) params.from = this.dateFrom;
+                if (this.dateTo) params.to = this.dateTo;
+                const data = await this.request(this.urls.lists + '?' + new URLSearchParams(params));
                 const pending = (data.pending || []).map(r => ({ ...r, bucket: 'pending' }));
                 const held = (data.held || []).map(r => ({ ...r, bucket: 'held' }));
                 // Memo: the letters, memos and other non-files at this office, waiting or held.
                 const memo = [...pending, ...held].filter(r => r.file_type === 'NON_FILE');
                 this.lists = { pending, held, sent: data.sent || [], memo };
+                this.lastRefreshed = new Date();
             } catch (e) {
-                this.notify('error', e.message);
+                if (silent) console.warn('[File Movement] auto refresh failed:', e.message);
+                else this.notify('error', e.message);
             } finally {
                 this.listsLoading = false;
             }
@@ -277,53 +351,345 @@ window.secretariatFileLog = function (config) {
             return !isNaN(d.getTime()) && d.toDateString() === new Date().toDateString();
         },
 
+        // Each card counts files and memos together, and says how many of each,
+        // so it adds up with the Files and Mails tabs.
         cards() {
-            const inTransit = this.lists.sent.filter(r => r.state === 'In transit').length;
             const periods = { 1: 'today', 7: 'in the last 7 days', 30: 'in the last 30 days', 90: 'in the last 90 days' };
+            if (this.dateFrom || this.dateTo) periods[this.days] = this.rangeLabel().toLowerCase();
+            // Incoming cards open the matching inner tab (Yet to Receive / Received).
+            const buckets = { pending: 'pending', held: 'held', today: 'held' };
+            const card = (key, sub, label, rows, icon, text, bg, hint) => {
+                const memo = rows.filter(r => r.file_type === 'NON_FILE').length;
+                return { key, tab: 'held', sub, bucket: buckets[key] || null, label, value: rows.length, files: rows.length - memo, memo, icon, text, bg, hint };
+            };
             return [
-                { key: 'pending', tab: 'pending', label: 'Pending Receipt', value: this.lists.pending.length, icon: 'inbox', text: 'text-yellow-600', bg: 'bg-yellow-100', hint: 'Sent to this office, not yet received' },
-                { key: 'held', tab: 'held', label: 'Held Here', value: this.lists.held.length, icon: 'folder-open', text: 'text-green-600', bg: 'bg-green-100', hint: 'Received and not yet sent on' },
-                { key: 'today', tab: 'held', label: 'Received Today', value: this.lists.held.filter(r => this.isToday(r.since)).length, icon: 'calendar-check', text: 'text-blue-600', bg: 'bg-blue-100', hint: 'Still held, received today' },
-                { key: 'transit', tab: 'sent', label: 'In Transit', value: inTransit, icon: 'truck', text: 'text-orange-600', bg: 'bg-orange-100', hint: 'Sent out, awaiting receipt' },
-                { key: 'sent', tab: 'sent', label: 'Outgoing', value: this.lists.sent.length, icon: 'send', text: 'text-indigo-600', bg: 'bg-indigo-100', hint: 'Sent out ' + (periods[this.days] || '') },
+                card('pending', 'incoming', 'Pending Receipt', this.lists.pending, 'inbox', 'text-yellow-600', 'bg-yellow-100', 'Sent to this office, not yet received'),
+                card('held', 'incoming', 'Held Here', this.lists.held, 'folder-open', 'text-green-600', 'bg-green-100', 'Received and not yet sent on'),
+                card('today', 'incoming', 'Received Today', this.lists.held.filter(r => this.isToday(r.since)), 'calendar-check', 'text-blue-600', 'bg-blue-100', 'Still held, received today'),
+                card('transit', 'outgoing', 'In Transit', this.lists.sent.filter(r => r.state === 'In transit'), 'truck', 'text-orange-600', 'bg-orange-100', 'Sent out, awaiting receipt'),
+                card('sent', 'outgoing', 'Outgoing', this.lists.sent, 'send', 'text-indigo-600', 'bg-indigo-100', 'Sent out ' + (periods[this.days] || '')),
             ];
         },
 
-        // Held at my office: Files (memos have their own tab) and Outgoing.
-        heldViewRows(view) {
-            if (view === 'outgoing') return this.lists.sent || [];
-            return (this.lists.held || []).filter(r => r.file_type !== 'NON_FILE');
+        // Rows for a tab (held = regular files, memo = Not a regular File/Mail) and
+        // sub-tab. Incoming mixes files waiting for receipt (Receive) with files held
+        // here (Send); each row's bucket says which.
+        tabRows(tab, sub) {
+            const isMemo = (r) => r.file_type === 'NON_FILE';
+            const want = tab === 'memo' ? isMemo : (r) => !isMemo(r);
+            if (sub === 'outgoing') return (this.lists.sent || []).filter(want);
+            return [...(this.lists.pending || []), ...(this.lists.held || [])].filter(want);
         },
 
-        // What the table shows: 'pending', 'held', 'sent' (Held → Outgoing) or 'memo'.
+        // 'incoming' or 'sent' (Outgoing).
         view() {
-            if (this.tab === 'held') return this.heldView === 'outgoing' ? 'sent' : 'held';
-            return this.tab;
+            return this.sub === 'outgoing' ? 'sent' : 'incoming';
         },
 
         tabCount(key) {
-            return key === 'held' ? this.heldViewRows('files').length : (this.lists[key] || []).length;
+            // The tab's total: Incoming + Outgoing (each sub-tab shows its own count); follows the Filter box.
+            return this.subCount(key, 'incoming') + this.subCount(key, 'outgoing');
+        },
+        subCount(tab, sub) {
+            return this.searched(this.tabRows(tab, sub)).length;
         },
 
-        // Dashboard cards: Outgoing / In Transit open Held → Outgoing.
+        // Incoming inner-tab count (Yet to Receive / Received); follows the Filter box like subCount().
+        incomingCount(tab, bucket) {
+            return this.searched(this.tabRows(tab, 'incoming')).filter(r => this.rowBucket(r) === bucket).length;
+        },
+
         openCard(card) {
             if (!card.tab) return;
-            if (card.tab === 'sent') { this.tab = 'held'; this.heldView = 'outgoing'; return; }
             this.tab = card.tab;
-            if (card.tab === 'held') this.heldView = 'files';
+            this.sub = card.sub || 'incoming';
+            if (card.bucket) this.incomingView = card.bucket;
         },
         cardActive(card) {
-            return !!card.tab && card.tab === this.view();
+            return !!card.tab && this.tab === card.tab && this.sub === (card.sub || 'incoming')
+                && (!card.bucket || this.sub !== 'incoming' || this.incomingView === card.bucket);
         },
 
         visibleRows() {
-            const view = this.view();
-            const rows = view === 'held' ? this.heldViewRows('files')
-                : (view === 'sent' ? this.heldViewRows('outgoing') : (this.lists[view] || []));
-            const f = this.filter.trim().toLowerCase();
-            if (!f) return rows;
-            return rows.filter(r => [r.file_number, r.file_title, r.tracking_id, r.log_id, r.from, r.to, r.purpose, r.reference]
-                .some(v => v && String(v).toLowerCase().includes(f)));
+            let rows = this.inDateRange(this.searched(this.tabRows(this.tab, this.sub)));
+            if (this.view() === 'incoming') rows = rows.filter(r => this.rowBucket(r) === this.incomingView);
+            return this.tab === 'memo' && this.memoFilter ? rows.filter(r => this.memoMatches(r, this.memoFilter)) : rows;
+        },
+
+        // ── Pagination ────────────────────────────────────────────────────
+        pageCount() {
+            return Math.max(1, Math.ceil(this.visibleRows().length / this.perPage));
+        },
+        // Clamped, so a refresh that shrinks the list never leaves an empty page.
+        currentPage() {
+            return Math.min(Math.max(1, this.page), this.pageCount());
+        },
+        pageOffset() {
+            return (this.currentPage() - 1) * this.perPage;
+        },
+        pagedRows() {
+            return this.visibleRows().slice(this.pageOffset(), this.pageOffset() + this.perPage);
+        },
+        goToPage(n) {
+            this.page = Math.min(Math.max(1, n), this.pageCount());
+        },
+        // First, last, and up to two either side of the current page; null marks a gap.
+        pageNumbers() {
+            const total = this.pageCount();
+            const cur = this.currentPage();
+            const out = [];
+            for (let n = 1; n <= total; n++) {
+                if (n === 1 || n === total || Math.abs(n - cur) <= 2) {
+                    out.push(n);
+                } else if (out[out.length - 1] !== null) {
+                    out.push(null);
+                }
+            }
+            return out;
+        },
+
+        // ── Date range ────────────────────────────────────────────────────
+        // A row's date is `since` (received / sent / logged); compared as Y-m-d.
+        rowDay(r) {
+            const v = String(r.since || '').trim();
+            if (!v) return '';
+            const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) return m[0];
+            const d = new Date(v);
+            if (isNaN(d.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        },
+        inDateRange(rows) {
+            if (!this.dateFrom && !this.dateTo) return rows;
+            return rows.filter(r => {
+                const day = this.rowDay(r);
+                if (!day) return false;
+                return (!this.dateFrom || day >= this.dateFrom) && (!this.dateTo || day <= this.dateTo);
+            });
+        },
+        onDateRangeChange() {
+            if (this.dateFrom && this.dateTo && this.dateFrom > this.dateTo) {
+                [this.dateFrom, this.dateTo] = [this.dateTo, this.dateFrom];
+            }
+            this.loadLists();
+        },
+        clearDateRange() {
+            this.dateFrom = '';
+            this.dateTo = '';
+            this.loadLists();
+        },
+        rangeLabel() {
+            const f = (v) => {
+                const [y, m, d] = v.split('-');
+                return d + '/' + m + '/' + y;
+            };
+            if (this.dateFrom && this.dateTo) return this.dateFrom === this.dateTo ? 'On ' + f(this.dateFrom) : 'From ' + f(this.dateFrom) + ' to ' + f(this.dateTo);
+            if (this.dateFrom) return 'From ' + f(this.dateFrom);
+            if (this.dateTo) return 'Up to ' + f(this.dateTo);
+            return '';
+        },
+
+        // The Filter box: case-insensitive, over everything the row shows (and its ids), on every
+        // tab and sub-tab. Several words must all match, in any column.
+        searched(rows) {
+            const words = this.filter.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            if (!words.length) return rows;
+            return rows.filter(r => {
+                const text = this.rowSearchText(r);
+                return words.every(w => text.includes(w));
+            });
+        },
+        // Export what the register shows now (tab, sub-tab, Filter box, Memo type, date range)
+        // as a CSV that opens in Excel (UTF-8 with BOM), or as a PDF.
+        exportData() {
+            const rows = this.visibleRows();
+            const sent = this.view() === 'sent';
+            // No Notes, Reference, Tracking ID or Log ID in the export (user, 2026-10-16).
+            // To: office before officer, as the table shows it.
+            const head = ['S/N', 'File Number', 'Title', 'Type', 'Status', 'From', 'To (Office)', 'To (Officer)',
+                sent ? 'Sent' : 'Date', 'Purpose', 'Sender', 'Sender Name'];
+            const status = (r) => sent ? (r.state || '')
+                : [r.bucket === 'pending' ? 'Awaiting receipt' : 'Held here', r.legacy ? 'Legacy log' : '', r.not_indexed ? 'Not indexed' : '',
+                   r.request_type === 'SUBMITTED' ? 'Submitted Request' : ''].filter(Boolean).join('; ');
+            const type = (r) => r.file_type === 'NON_FILE' ? (r.document_kind ? this.kindText(r.document_kind, r.mail_type) : 'Mail') : 'File';
+            const body = rows.map((r, i) => [
+                i + 1, r.file_number || r.related_file_number || '', nice(r.file_title) || '', type(r), status(r),
+                nice(r.from) || '', nice(r.to) || '', nice(r.to_officer) || '', r.since ? this.fmt(r.since) : '',
+                nice(r.purpose) || '', [r.sender_type && r.sender_type !== 'Other' ? r.sender_type : '', r.sender || ''].filter(Boolean).join(' — '),
+                [nice(r.sender_name) || '', r.sender_rank ? '(' + r.sender_rank + ')' : ''].filter(Boolean).join(' '),
+            ]);
+            const tabName = this.tab === 'memo' ? 'memo' : 'held';
+            const stamp = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const fileBase = ['file-movement', this.office || 'office', tabName, this.sub,
+                stamp.getFullYear() + '-' + pad(stamp.getMonth() + 1) + '-' + pad(stamp.getDate()) + '_' + pad(stamp.getHours()) + pad(stamp.getMinutes())].join('_');
+            const officeRow = (this.offices || []).find(o => o.office_code === this.office) || {};
+            const officeName = officeRow.office_name || this.office || '';
+            const tabLabel = (this.tab === 'memo' ? 'Mails' : 'Files') + ' — '
+                + (this.sub === 'outgoing' ? 'Outgoing' : 'Incoming — ' + (this.incomingView === 'held' ? 'Received' : 'Yet to Receive'));
+            const period = this.rangeLabel() || (sent ? ({ 1: 'Today', 7: 'Last 7 days', 30: 'Last 30 days', 90: 'Last 90 days' }[this.days] || '') : '');
+            return { rows, head, body, fileBase, officeName, tabLabel, period, stamp };
+        },
+
+        download(blob, name) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+        },
+
+        exportRows(format = 'csv') {
+            this.exportOpen = false;
+            if (!this.visibleRows().length) { this.notify('info', 'Nothing to export.'); return; }
+            return format === 'pdf' ? this.exportPdf() : this.exportCsv();
+        },
+
+        exportCsv() {
+            const { rows, head, body, fileBase } = this.exportData();
+            // Quote every cell; a leading = + - @ is prefixed so Excel does not run it as a formula.
+            const cell = (v) => {
+                let t = String(v ?? '');
+                if (/^[=+\-@]/.test(t)) t = "'" + t;
+                return '"' + t.replace(/"/g, '""') + '"';
+            };
+            const csv = [head, ...body].map(line => line.map(cell).join(',')).join('\r\n');
+            this.download(new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8;' }), fileBase + '.csv');
+            this.notify('success', 'Exported ' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + '.');
+        },
+
+        // jsPDF + autotable, loaded on first use (the same CDN builds other KLAES pages use).
+        loadPdfLibs() {
+            const ready = () => window.jspdf && window.jspdf.jsPDF;
+            if (ready() && window.jspdf.jsPDF.API.autoTable) return Promise.resolve();
+            const load = (src) => new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = () => reject(new Error('Could not load the PDF library. Check the connection and try again.'));
+                document.head.appendChild(s);
+            });
+            const base = ready() ? Promise.resolve() : load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+            return base.then(() => window.jspdf.jsPDF.API.autoTable ? null
+                : load('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js'));
+        },
+
+        async exportPdf() {
+            const { rows, head, body, fileBase, officeName, tabLabel, period, stamp } = this.exportData();
+            try {
+                await this.loadPdfLibs();
+            } catch (e) {
+                this.notify('error', e.message);
+                return;
+            }
+            // The PDF leaves out the system ids so the table fits a landscape page; the CSV keeps them.
+            const keep = head.map((h, i) => i).filter(i => !['Sender Name'].includes(head[i]));
+            const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+            const pageW = doc.internal.pageSize.getWidth();
+            doc.setFontSize(13);
+            doc.setFont(undefined, 'bold');
+            doc.text('File Movement Register', 30, 32);
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(9);
+            doc.text([officeName, tabLabel, period].filter(Boolean).join('   |   '), 30, 48);
+            doc.text('Generated ' + stamp.toLocaleString() + '   |   ' + rows.length + ' record' + (rows.length === 1 ? '' : 's'), pageW - 30, 48, { align: 'right' });
+            doc.autoTable({
+                head: [keep.map(i => head[i])],
+                body: body.map(line => keep.map(i => String(line[i] ?? ''))),
+                startY: 60,
+                margin: { left: 30, right: 30, bottom: 30 },
+                styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak', valign: 'top' },
+                headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                columnStyles: { 0: { cellWidth: 26, halign: 'right' } },
+                didDrawPage: () => {
+                    const h = doc.internal.pageSize.getHeight();
+                    doc.setFontSize(8);
+                    doc.text('Page ' + doc.internal.getNumberOfPages(), pageW - 30, h - 14, { align: 'right' });
+                },
+            });
+            doc.save(fileBase + '.pdf');
+            this.notify('success', 'Exported ' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + ' to PDF.');
+        },
+
+        rowSearchText(r) {
+            const bucket = r.bucket === 'pending' ? 'awaiting receipt' : (r.bucket === 'held' ? 'held here' : '');
+            return [
+                r.file_number, r.related_file_number, r.file_title, r.tracking_id, r.log_id,
+                r.file_type === 'NON_FILE' ? 'not a regular mail letter memo file' : '',
+                this.kindText(r.document_kind, r.mail_type), r.mail_type,
+                r.not_indexed ? 'not indexed' : '', r.legacy ? 'legacy log' : '', r.request_type === 'SUBMITTED' ? 'submitted request' : '',
+                r.from, r.to, r.to_officer, r.now_at, r.state, bucket,
+                r.since, r.since ? this.fmt(r.since) : '',
+                r.purpose, r.notes, r.reference, r.sender, r.sender_name, r.sender_rank,
+            ].filter(v => v !== null && v !== undefined && v !== '').map(v => nice(String(v))).join(' | ').toLowerCase();
+        },
+
+        memoMatches(r, want) {
+            return r.document_kind === want;
+        },
+        memoCount(want) {
+            return this.searched(this.tabRows('memo', this.sub)).filter(r => !want || this.memoMatches(r, want)).length;
+        },
+
+        // ── Correct a "Not a regular File/Mail" entry: Mail/File and mail type ──
+        canEditDetails() {
+            const d = this.profile.data;
+            return !!(this.canEditLogs && d && d.file.non_file && d.tracker);
+        },
+        async editDetails() {
+            const d = this.profile.data;
+            if (!this.canEditDetails() || !window.Swal) return;
+            const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const kind = d.file.document_kind || '';
+            const current = kind === 'other' ? (d.file.mail_type || '') : '';
+            const field = 'width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:14px;margin-top:4px;';
+            const label = 'display:block;font-size:12px;font-weight:600;color:#4b5563;margin-top:12px;';
+            const html = '<div style="text-align:left">'
+                + '<label style="' + label + 'margin-top:0;">Title / subject *</label><input id="ed-title" maxlength="255" style="' + field + '" value="' + esc(d.file.file_title || '') + '">'
+                + '<label style="' + label + '">What is it? *</label><select id="ed-kind" style="' + field + '"><option value="">— Select —</option>'
+                + this.documentKinds.map(k => '<option value="' + k.value + '"' + (k.value === kind ? ' selected' : '') + '>' + k.label + (k.value === 'other' ? ' (specify)…' : '') + '</option>').join('') + '</select>'
+                + '<input id="ed-type-other" maxlength="100" placeholder="Specify what it is *" style="' + field + '" value="' + esc(current) + '">'
+                + '<label style="' + label + '">Reference no.</label><input id="ed-ref" maxlength="255" style="' + field + '" value="' + esc(d.file.reference || '') + '">'
+                + '<label style="' + label + '">File number <span style="font-weight:400;color:#9ca3af">(optional — if the document relates to a file)</span></label>'
+                + '<input id="ed-related" maxlength="255" style="' + field + '" value="' + esc(d.file.related_file_number || '') + '">'
+                + '<label style="' + label + '">Reason for the change *</label><textarea id="ed-reason" rows="2" maxlength="500" style="' + field + '" placeholder="Why is this being corrected?"></textarea>'
+                + '</div>';
+            const ask = await Swal.fire({
+                title: 'Edit details', html, showCancelButton: true, confirmButtonText: 'Save', cancelButtonText: 'Cancel',
+                confirmButtonColor: '#2563eb', cancelButtonColor: '#6b7280', reverseButtons: true, focusConfirm: false,
+                didOpen: (el) => {
+                    const k = el.querySelector('#ed-kind'), o = el.querySelector('#ed-type-other');
+                    const sync = () => { o.style.display = k.value === 'other' ? '' : 'none'; };
+                    k.addEventListener('change', sync); sync();
+                },
+                preConfirm: () => {
+                    const el = Swal.getPopup();
+                    const v = (id) => String(el.querySelector('#' + id).value || '').trim();
+                    const k = v('ed-kind');
+                    if (!k) { Swal.showValidationMessage('Choose Mail, Letter, Memo, File or Other.'); return false; }
+                    const type = k === 'other' ? v('ed-type-other') : null;
+                    if (k === 'other' && !type) { Swal.showValidationMessage('Specify what it is.'); return false; }
+                    if (!v('ed-title')) { Swal.showValidationMessage('Give the title / subject.'); return false; }
+                    if (!v('ed-reason')) { Swal.showValidationMessage('Give a reason for the change.'); return false; }
+                    return { document_kind: k, mail_type: type, file_title: v('ed-title'), reference: v('ed-ref') || null,
+                        related_file_number: v('ed-related') || null, reason: v('ed-reason') };
+                },
+            });
+            if (!ask.isConfirmed) return;
+            this.busy = true;
+            try {
+                const data = await this.request(this.urls.editDetails, { method: 'POST', body: JSON.stringify({ tracker_id: d.tracker.id, ...ask.value }) });
+                this.notify('success', data.message);
+                await this.reloadProfile();
+                await this.loadLists();
+            } catch (e) {
+                this.notify('error', e.message);
+            } finally {
+                this.busy = false;
+            }
         },
 
         fmt(value) {
@@ -518,6 +884,31 @@ window.secretariatFileLog = function (config) {
             return row.bucket || this.view();
         },
 
+        // "Mail · Letter", "File".
+        // Entry-type card: its colour border and tint when picked, a light tint otherwise.
+        entryCardStyle(opt, picked) {
+            return picked
+                ? 'border-color:' + opt.solid + ';background:' + opt.tint + ';box-shadow:0 0 0 3px ' + opt.border + ';'
+                : 'border-color:' + opt.border + ';background:' + opt.bg + ';';
+        },
+
+        // Badge colours for a kind; unknown kinds stay grey.
+        kindStyle(kind) {
+            const k = this.documentKinds.find(i => i.value === kind);
+            return k ? 'background:' + k.bg + ';color:' + k.text + ';border:1px solid ' + k.border + ';' : 'background:#f3f4f6;color:#374151;';
+        },
+        // The choice pill: solid when picked, tinted otherwise.
+        kindPillStyle(k, picked) {
+            return picked
+                ? 'background:' + k.solid + ';color:#fff;border-color:' + k.solid + ';'
+                : 'background:' + k.bg + ';color:' + k.text + ';border-color:' + k.border + ';';
+        },
+
+        // "Memo"; for Other, the text typed ("Circular").
+        kindText(kind, other) {
+            return kind === 'other' && other ? nice(other) : this.docKindLabel(kind);
+        },
+
         docKindLabel(kind) {
             const k = this.documentKinds.find(i => i.value === kind);
             return k ? k.label : '';
@@ -525,9 +916,73 @@ window.secretariatFileLog = function (config) {
 
         // A new sender type starts with nothing chosen or typed.
         senderTypeChanged() {
+            // Leaving Internal: the department it gave is no longer chosen, so ask again.
+            if (this.manual.sender_type !== 'Internal' && this.manual.from_synced) {
+                this.manual.from_department = '';
+                this.fromDepartmentChanged();
+            }
+            this.manual.from_synced = this.manual.sender_type === 'Internal';
             this.manual.sender = '';
             this.manual.sender_mda = '';
+            this.manual.sender_lga = '';
             this.manual.sender_dept = '';
+            this.manual.sender_person = '';
+            this.manual.sender_name = '';
+            this.manual.sender_rank = '';
+            this.manual.sender_rank_other = '';
+            if (this.manual.sender_type === 'Internal') this.selfAsSender();
+        },
+
+        // Internal sender: the logged-in user by default, with their office's department
+        // and their account's rank. Everything stays editable.
+        selfAsSender() {
+            const m = this.manual;
+            const mine = this.offices.find(o => o.office_code === this.office);
+            if (mine && mine.department) m.sender_dept = mine.department;
+            const me = this.officers.find(o => String(o.id) === String(this.userId));
+            if (me) {
+                m.sender_person = String(me.id);
+                this.pickSenderPerson();
+            } else if (this.userName) {
+                m.sender_person = 'other';
+                m.sender_name = this.userName;
+            }
+            this.syncFromDepartment();
+        },
+
+        // Internal sender names: staff of the chosen department first, then everyone.
+        senderPeople() {
+            const dept = String(this.manual.sender_dept || '').toLowerCase().replace(/\s*department\s*$/, '').trim();
+            if (!dept || dept === 'other') return this.officers;
+            const inDept = this.officers.filter(o => {
+                const d = String(o.department || '').toLowerCase();
+                return d && (d === dept || d.includes(dept) || dept.includes(d));
+            });
+            const list = inDept.length ? inDept : this.officers;
+            // The person already chosen (e.g. the logged-in user) always stays in the list.
+            const picked = this.officers.find(o => String(o.id) === String(this.manual.sender_person));
+            return picked && !list.includes(picked) ? [picked, ...list] : list;
+        },
+        // Picking a person fills their rank from their account when it is a listed rank.
+        pickSenderPerson() {
+            const m = this.manual;
+            m.sender_name = '';
+            m.sender_rank = '';
+            m.sender_rank_other = '';
+            const o = this.officers.find(i => String(i.id) === String(m.sender_person));
+            if (!o || !o.rank) return;
+            const r = this.officerRanks.find(x => x.toLowerCase() === String(o.rank).toLowerCase());
+            if (r) m.sender_rank = r;
+            else { m.sender_rank = 'other'; m.sender_rank_other = o.rank; }
+        },
+        senderNameValue() {
+            const m = this.manual;
+            if (m.sender_type === 'Internal') {
+                if (m.sender_person === 'other') return m.sender_name.trim();
+                const o = this.officers.find(i => String(i.id) === String(m.sender_person));
+                return o ? nice(o.name) : '';
+            }
+            return m.sender_name.trim();
         },
 
         // KLAES departments, as the offices table groups them.
@@ -541,12 +996,35 @@ window.secretariatFileLog = function (config) {
         // An Internal sender's department is usually where it was received from too.
         pickSenderDept() {
             this.manual.sender = '';
+            this.syncFromDepartment();
+        },
+        // An Internal sender's department is where it was received from: one dropdown,
+        // not two. The office list follows it. Other (typed department) means an office typed too.
+        // An External sender (MDA / LGA / other organisation) is itself where it came from.
+        senderIsExternal() {
+            return this.manual.entry_type === 'non_file' && this.manual.sender_type === 'External';
+        },
+        senderGivesDepartment() {
+            return this.manual.entry_type === 'non_file' && this.manual.sender_type === 'Internal';
+        },
+        syncFromDepartment() {
+            if (!this.senderGivesDepartment()) return;
             const d = this.manual.sender_dept;
-            if (d && d !== 'other' && !this.manual.from_department && !this.manual.from_office) this.manual.from_department = d;
+            const from = d === 'other' ? 'other' : (d || '');
+            if (this.manual.from_department !== from) {
+                this.manual.from_department = from;
+                this.fromDepartmentChanged();
+            }
+        },
+        // A new department clears the office; outside KLAES there is no office to pick, so Other is typed.
+        fromDepartmentChanged() {
+            this.manual.from_other = '';
+            this.manual.from_office = this.manual.from_department === 'other' ? 'other' : '';
         },
 
-        senderLabel(type, name) {
-            return [type && type !== 'Other' ? type : '', nice(name) || ''].filter(Boolean).join(' — ');
+        senderLabel(type, name, person, rank) {
+            const who = [nice(person) || '', rank ? '(' + rank + ')' : ''].filter(Boolean).join(' ');
+            return [type && type !== 'Other' ? type : '', nice(name) || '', who].filter(Boolean).join(' — ');
         },
 
         // Date and time stamps for the file overview: first logged, and the latest movement.
@@ -566,7 +1044,15 @@ window.secretariatFileLog = function (config) {
             const d = this.profile.data;
             if (!d || this.profile.loading) return false;
             if (!d.tracker) return !!d.file.file_number;
+            if (this.sentFromHere()) return false;
             return !this.heldHere();
+        },
+
+        // This office sent it on and it is on its way to another office: nothing to receive here.
+        sentFromHere() {
+            const t = this.profile.data && this.profile.data.tracker;
+            if (!t || t.last_status !== 'pending_acceptance' || !t.pending_to || t.pending_to === this.office) return false;
+            return t.sent_from ? t.sent_from === this.office : t.current_code === this.office;
         },
 
         canSend() {
@@ -597,7 +1083,10 @@ window.secretariatFileLog = function (config) {
             const d = this.profile.data;
             if (!d) return [];
             const b = [];
-            if (d.file.non_file) b.push({ label: 'Not a regular File/Mail' + (this.docKindLabel(d.file.document_kind) ? ' · ' + this.docKindLabel(d.file.document_kind) : ''), cls: 'bg-blue-100 text-blue-700' });
+            if (d.file.non_file) {
+                b.push({ label: 'Not a regular Mail/Letter/Memo/File', cls: 'bg-gray-100 text-gray-700' });
+                if (d.file.document_kind) b.push({ label: this.kindText(d.file.document_kind, d.file.mail_type), style: this.kindStyle(d.file.document_kind) });
+            }
             else b.push(d.file.indexed ? { label: 'Indexed', cls: 'bg-green-100 text-green-700' } : { label: 'Not indexed', cls: 'bg-orange-100 text-orange-700' });
             if (d.tracker && d.tracker.request_type === 'SUBMITTED') b.push({ label: 'Submitted Request', cls: 'bg-purple-100 text-purple-700' });
             if (d.file.decommissioned) b.push({ label: 'Decommissioned' + (d.file.successor ? ' → ' + d.file.successor : ''), cls: 'bg-red-100 text-red-700' });
@@ -626,8 +1115,8 @@ window.secretariatFileLog = function (config) {
                 { label: 'Shelf location', value: f.shelf_location },
                 { label: 'Batch no.', value: f.batch_no },
                 { label: 'Title status', value: nice(f.title_status) },
-                { label: 'Document type', value: this.docKindLabel(f.document_kind) },
-                { label: 'Sender', value: this.senderLabel(f.sender_type, f.sender) },
+                { label: 'Document type', value: this.kindText(f.document_kind, f.mail_type) },
+                { label: 'Sender', value: this.senderLabel(f.sender_type, f.sender, f.sender_name, f.sender_rank) },
                 { label: 'Reference', value: f.reference },
                 { label: 'Logged by', value: nice(t.created_by) },
             ];
@@ -1108,7 +1597,13 @@ window.secretariatFileLog = function (config) {
                 this.manual.sender = '';
                 this.manual.sender_type = '';
                 this.manual.sender_mda = '';
+                this.manual.sender_lga = '';
                 this.manual.document_kind = '';
+                this.manual.kind_other = '';
+                this.manual.sender_person = '';
+                this.manual.sender_name = '';
+                this.manual.sender_rank = '';
+                this.manual.sender_rank_other = '';
                 this.manual.reference = '';
             }
         },
@@ -1130,12 +1625,21 @@ window.secretariatFileLog = function (config) {
 
         manualValid() {
             const m = this.manual;
-            if (!chosen(m.receiving_officer_id, m.officer_other) || !chosen(m.request_purpose_id, m.purpose_other)) return false;
-            if (m.from_office === 'other' && !m.from_other.trim()) return false;
+            // A request purpose is optional; "Other" must still be typed.
+            const purposeOk = m.request_purpose_id !== 'other' || m.purpose_other.trim() !== '';
+            if (!chosen(m.receiving_officer_id, m.officer_other) || !purposeOk) return false;
+            // Send: where it goes.
+            if (this.mode === 'out' && (!m.send_to_office || m.send_to_office === this.office)) return false;
+            // Where it came from is required: a department, then an office (or Other, typed).
+            if (!this.senderIsExternal() && (!m.from_department || !chosen(m.from_office, m.from_other))) return false;
             if (m.entry_type === 'non_file') {
                 if (!m.document_kind) return false;
+                if (m.document_kind === 'other' && !m.kind_other.trim()) return false;
+                // A chosen sender needs a name; a rank is optional but Other must be typed.
+                if (m.sender_type && !this.senderNameValue()) return false;
+                if (m.sender_rank === 'other' && !m.sender_rank_other.trim()) return false;
                 if (m.sender_type === 'Other' && !m.sender.trim()) return false;
-                if (m.sender_type === 'External' && !chosen(m.sender_mda, m.sender)) return false;
+                if (m.sender_type === 'External' && (m.sender_mda === 'lga' ? !m.sender_lga : !chosen(m.sender_mda, m.sender))) return false;
                 if (m.sender_type === 'Internal' && !chosen(m.sender_dept, m.sender)) return false;
                 return m.file_title.trim() !== '';
             }
@@ -1152,33 +1656,38 @@ window.secretariatFileLog = function (config) {
                 receiving_officer_other: typed(m.receiving_officer_id, m.officer_other),
                 request_purpose_id: listed(m.request_purpose_id),
                 request_purpose_other: typed(m.request_purpose_id, m.purpose_other),
-                from_office_other: typed(m.from_office, m.from_other),
+                from_office_other: this.senderIsExternal() ? null : typed(m.from_office, m.from_other),
                 file_title: m.file_title,
                 document_kind: m.entry_type === 'non_file' ? m.document_kind : null,
+                // The mail_type column holds the text typed for an "Other" kind.
+                mail_type: m.entry_type === 'non_file' && m.document_kind === 'other' ? m.kind_other.trim() : null,
+                sender_name: m.entry_type === 'non_file' && m.sender_type ? this.senderNameValue() : null,
+                sender_rank: m.entry_type === 'non_file' && m.sender_type ? (listed(m.sender_rank) || typed(m.sender_rank, m.sender_rank_other)) : null,
                 sender_type: m.entry_type === 'non_file' ? (m.sender_type || null) : null,
                 // External: the listed MDA, or the one typed under Other.
                 // External: the listed MDA; Internal: the department; either may be typed under Other.
                 sender: m.entry_type !== 'non_file' ? null
-                    : (m.sender_type === 'External' ? (listed(m.sender_mda) || typed(m.sender_mda, m.sender))
+                    : (m.sender_type === 'External' ? (m.sender_mda === 'lga' ? (m.sender_lga ? m.sender_lga + ' Local Government' : null) : (listed(m.sender_mda) || typed(m.sender_mda, m.sender)))
                         : (m.sender_type === 'Internal' ? (listed(m.sender_dept) || typed(m.sender_dept, m.sender)) : m.sender)),
-                from_department: m.from_department || null,
+                sender_lga: m.entry_type === 'non_file' && m.sender_type === 'External' && m.sender_mda === 'lga' ? (m.sender_lga || null) : null,
+                // Internal sender with a typed department: that department; otherwise Other is outside KLAES.
+                send_to_office: this.mode === 'out' ? m.send_to_office : null,
+                from_department: this.senderIsExternal() ? null : m.from_department === 'other'
+                    ? (this.senderGivesDepartment() && m.sender_dept === 'other' && m.sender.trim() ? m.sender.trim() : 'Outside KLAES')
+                    : (m.from_department || null),
+                manual_form: true,
                 reference: m.reference,
-                from_office: listed(m.from_office),
+                from_office: this.senderIsExternal() ? null : listed(m.from_office),
                 notes: m.notes,
                 received_via: 'manual',
             }, (data) => {
                 // In Send mode the file is logged at this office first, then the
                 // send form opens so it can go straight on to the next office.
-                const sending = this.mode === 'out';
-                const toOffice = m.to_office;
+                // Send mode has already sent it on (one step); the profile just shows where it went.
                 this.manual = blankManual();
+                if (data.action === 'sent') this.sub = 'outgoing';
                 this.profile.match = { file_number: data.tracker.file_number, file_title: data.tracker.file_title, tracker: { id: data.tracker.id } };
-                this.loadProfile({ tracker_id: data.tracker.id, file_number: data.tracker.file_number || '' }).then(() => {
-                    if (sending && this.heldHere()) {
-                        this.startSendFromProfile();
-                        if (toOffice) this.send.to_office = toOffice;
-                    }
-                });
+                this.loadProfile({ tracker_id: data.tracker.id, file_number: data.tracker.file_number || '' });
             });
         },
 
@@ -1195,10 +1704,15 @@ window.secretariatFileLog = function (config) {
             return this.groupOfficers(this.send, this.send.to_office);
         },
         // Manual log: the officer at my office who took the file; my department first.
+        // Receive: the officer here. Send: the officer at the office it goes to, that office's people first.
         manualOfficerGroups() {
-            return this.groupOfficers(this.manual, this.office);
+            return this.groupOfficers(this.manual, this.mode === 'out' ? (this.manual.send_to_office || this.office) : this.office);
         },
         pickManualOfficer(o) {
+            // Send: pre-fill "Send to" with the office the officer's account maps to (editable).
+            if (this.mode === 'out' && !this.manual.send_to_office && o.office_code && o.office_code !== this.office) {
+                this.manual.send_to_office = o.office_code;
+            }
             this.manual.receiving_officer_id = o.id;
             this.manual.officerFilter = nice(o.name);
             this.manual.officerOpen = false;
@@ -1228,7 +1742,9 @@ window.secretariatFileLog = function (config) {
 
         sendValid() {
             const s = this.send;
-            return !!(s.row && s.to_office && chosen(s.receiving_officer_id, s.officer_other) && chosen(s.request_purpose_id, s.purpose_other));
+            // A request purpose is optional; "Other" must still be typed.
+            const purposeOk = s.request_purpose_id !== 'other' || s.purpose_other.trim() !== '';
+            return !!(s.row && s.to_office && chosen(s.receiving_officer_id, s.officer_other) && purposeOk);
         },
 
         async forward() {
@@ -1370,8 +1886,10 @@ window.secretariatFileLog = function (config) {
         },
         batchItemValid(i) {
             if (this.mode === 'in') return true;
+            // A request purpose is optional; "Other" must still be typed.
+            const purposeOk = i.request_purpose_id !== 'other' || String(i.purpose_other || '').trim() !== '';
             return !!(i.to_office && i.to_office !== this.office
-                && chosen(i.receiving_officer_id, i.officer_other) && chosen(i.request_purpose_id, i.purpose_other));
+                && chosen(i.receiving_officer_id, i.officer_other) && purposeOk);
         },
         batchReady() {
             const todo = this.batchPending();

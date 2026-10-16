@@ -110,6 +110,12 @@
         </div>
         @endif
 
+        <!-- Change of Purpose: the Parcel Update register, Initiate Change tab only -->
+        <a href="{{ route('change-of-purpose.index', ['view' => 'initiate']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $spaCopActive ? 'active' : '' }}">
+          <i data-lucide="repeat" class="h-4 w-4 text-[rgb(186,191,12)]"></i>
+          <span>Change of Purpose</span>
+        </a>
+
         <!-- e. Memo -->
         @if($hasRole('Special Assignment - Notice') || $hasRole('Supper Admin'))
         <a href="{{ route('special-assignment.memo') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('special-assignment.memo') ? 'active' : '' }}">
@@ -150,12 +156,6 @@
           </a>
         </div>
         @endif
-
-        <!-- Change of Purpose: the Parcel Update register, Initiate Change tab only -->
-        <a href="{{ route('change-of-purpose.index', ['view' => 'initiate']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $spaCopActive ? 'active' : '' }}">
-          <i data-lucide="repeat" class="h-4 w-4 text-[rgb(186,191,12)]"></i>
-          <span>Change of Purpose</span>
-        </a>
 
         <!-- i. Report -->
         @if($hasRole('Special Assignment - Report') || $hasRole('Supper Admin'))

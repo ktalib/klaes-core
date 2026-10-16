@@ -605,6 +605,11 @@ class CommissioningSheetController extends Controller
                 }
             }
 
+            // 5b. A Re-Issuance of FileNo labels its old-number line "(Duplicate FileNo)".
+            //     Keyed on the File Type, not on old_fileno being set: "Old File Number"
+            //     on the Edit modal fills that column for a moved file too.
+            $data['is_duplicate'] = $this->isReissuance($fileNo);
+
             // 6. The applicant's passport photograph, filed at commissioning, prints on the sheet.
             $data['passport_image'] = $this->resolveCommissioningPassport($fileNo)
                 ?? $this->resolveCommissioningPassport((string) ($data['related_file_number'] ?? ''));
@@ -625,6 +630,13 @@ class CommissioningSheetController extends Controller
             if (!empty($data['related_file_number']) && stripos($fileNo, 'ST-') !== 0) {
                 $data['related_file_number'] = $pairs->formatList($data['related_file_number'], $fileNo);
             }
+            // Each number prints once: a moved file carries its previous number as both
+            // its Old FileNo and a related file, and a chain like "KN5358, CON-IND-2026-4"
+            // formats both entries as "CON-IND-2026-4 (KN5358)".
+            $data['related_file_number'] = $this->dropRepeatedFileNumbers(
+                (string) ($data['related_file_number'] ?? ''),
+                (string) ($data['old_file_number'] ?? '')
+            );
 
             return view('commissioning_sheet.pdf', compact('data'));
 
@@ -654,6 +666,27 @@ class CommissioningSheetController extends Controller
             'success' => (bool) $image,
             'image'   => $image,
         ]);
+    }
+
+    /**
+     * Whether the file was commissioned as a Re-Issuance of FileNo
+     * (mls_file_no.file_option = 'reissuance'), whose old number is the duplicate it replaces.
+     */
+    private function isReissuance(string $fileNumber): bool
+    {
+        if (trim($fileNumber) === '') {
+            return false;
+        }
+        try {
+            return strtolower(trim((string) DB::connection('sqlsrv')
+                ->table('mls_file_no')
+                ->where('full_file_number', $fileNumber)
+                ->orderByDesc('id')
+                ->value('file_option'))) === 'reissuance';
+        } catch (\Throwable $e) {
+            \Log::warning('Commissioning sheet file type lookup failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -707,6 +740,7 @@ class CommissioningSheetController extends Controller
                 // number already leads the sheet and must not reappear beside its alias.
                 $related = $pairs->formatList($relatedRaw, $fileNumber);
             }
+            $related = $this->dropRepeatedFileNumbers($related, $old);
         } catch (\Throwable $e) {
             \Log::warning('Commissioning sheet file links lookup failed: ' . $e->getMessage());
         }
@@ -728,6 +762,8 @@ class CommissioningSheetController extends Controller
 
         return response()->json([
             'success'             => true,
+            // Re-Issuance of FileNo: the old number is the duplicate it replaces.
+            'is_duplicate'        => $this->isReissuance($fileNumber),
             'old_file_number'     => $old,
             'related_file_number' => $related,
             'district'            => $this->resolveDistrict($fileNumber),
@@ -795,6 +831,50 @@ class CommissioningSheetController extends Controller
      * stops at a file with no parent, at a merger (several parents, all listed), on a
      * loop, or after ten steps.
      */
+    /**
+     * The related line with every entry removed whose numbers are already printed:
+     * on the Old FileNo line, or earlier on the related line itself. An entry is the
+     * number plus its paired alias, e.g. "CON-IND-2026-4 (KN5358)"; it is a repeat
+     * when its leading number has been printed (the bracket is only its alias).
+     */
+    private function dropRepeatedFileNumbers(string $related, string $old): string
+    {
+        $related = trim($related);
+        if ($related === '') {
+            return '';
+        }
+
+        $numbers = fn (string $entry): array => array_values(array_filter(
+            array_map(fn ($t) => strtoupper(trim($t)), preg_split('/[()]+/', $entry)),
+            fn ($t) => $t !== ''
+        ));
+        $entries = fn (string $line): array => array_values(array_filter(
+            array_map('trim', preg_split('/\s*,\s*(?![^()]*\))/', $line)),
+            fn ($e) => $e !== ''
+        ));
+
+        $printed = [];
+        foreach ($entries($old) as $entry) {
+            foreach ($numbers($entry) as $n) {
+                $printed[$n] = true;
+            }
+        }
+
+        $kept = [];
+        foreach ($entries($related) as $entry) {
+            $own = $numbers($entry);
+            if ($own && isset($printed[$own[0]])) {
+                continue;
+            }
+            foreach ($own as $n) {
+                $printed[$n] = true;
+            }
+            $kept[] = $entry;
+        }
+
+        return implode(', ', $kept);
+    }
+
     private function relatedFileChain(string $start, string $fileNumber): string
     {
         $parse = function (string $raw): array {

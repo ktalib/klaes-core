@@ -55,6 +55,24 @@ class OpResettlementApplicationController extends Controller
     }
 
     /**
+     * The Source the Land FC table shows for a file: the File Type label when one was
+     * picked, otherwise the Application Type. Mirrors the Source column renderer in
+     * resources/views/generate_fileno/mls_js.blade.php.
+     */
+    private function landFileSourceLabel($fileOption, $source): ?string
+    {
+        $fileTypeLabels = [
+            'temporary' => 'Temporary', 'extension' => 'Extension', 'miscellaneous' => 'Miscellaneous',
+            'change_of_purpose' => 'Change of Purpose', 'resettlement' => 'Resettlement',
+            'regrant' => 'Re-grant', 'reissuance' => 'Re-Issuance of FileNo', 'recertification' => 'Recertification',
+            'subdivision' => 'Subdivision', 'merger' => 'Merger', 'separation' => 'Separation', 'duplex' => 'Duplex',
+        ];
+        $label = $fileTypeLabels[strtolower(trim((string) $fileOption))] ?? trim((string) $source);
+
+        return $label !== '' ? $label : null;
+    }
+
+    /**
      * Format one pinned coordinate for the Latitude / Longitude columns.
      *
      * Only file_indexings stores the pin, and plenty of files were never pinned, so a
@@ -595,6 +613,7 @@ class OpResettlementApplicationController extends Controller
                     N'—'
                 ) as created_by_name"),
                 'mfn.source as mls_source',
+                'mfn.file_option as mls_file_option',
                 'mfn.id as mls_file_no_id',
                 DB::raw($resolvedCustomerTypeSql . ' as resolved_customer_type'),
                 'mfn.full_file_number as mfn_full_file_number',
@@ -823,6 +842,9 @@ class OpResettlementApplicationController extends Controller
                     'sn' => $row->pra_id,
                     'customer_type' => $row->resolved_customer_type ? strtoupper((string) $row->resolved_customer_type) : '—',
                     'source' => $resolvedSource ? strtoupper((string) $resolvedSource) : '—',
+                    // The file's own Source as the Land FC table shows it (File Type when
+                    // set, else the Application Type); FC / FEFR rows show it in its colour.
+                    'file_source' => $this->landFileSourceLabel($row->mls_file_option ?? null, $row->mls_source ?: ($row->file_number_source ?? null)),
                     'mls_file_no' => $displayMlsFileNo,
                     'file_title' => $fileTitle,
                     'land_use' => $landUse,
@@ -3757,6 +3779,10 @@ class OpResettlementApplicationController extends Controller
                     ->where(fn ($q) => $q->where('mlsFNo', $base->mlsfNo)->orWhere('fileno', $base->mlsfNo))
                     ->where('instrument_type', 'like', '%Occupancy Permit%')
                     ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()->get();
+                if ($candidates->isEmpty()) {
+                    // Commissioned with only a placeholder Transfer of Title: there is no OP to update yet.
+                    throw \Illuminate\Validation\ValidationException::withMessages(['pra_id' => 'This file has no Occupancy Permit on record yet, so there is nothing to update. Use "Capture OP for Commissioned File" to capture its OP first.']);
+                }
                 if ($candidates->count() !== 1) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['pra_id' => 'Select the exact OP transaction card before editing.']);
                 }
@@ -3769,9 +3795,18 @@ class OpResettlementApplicationController extends Controller
                     ->table($praTable)
                     ->where('id', $targetPraId)
                     ->first();
+                // After a Transfer of Title the OP row stays on the earlier (e.g. TEMP-)
+                // file while this file holds the ToT row; both share a prop_id, and the
+                // edit page lists cards by prop_id, so a same-property row belongs here too.
+                $sharesPropertyWithFile = !empty($targetPraRow->prop_id) && DB::connection('sqlsrv')->table($praTable)
+                    ->where('prop_id', $targetPraRow->prop_id)
+                    ->where(fn ($q) => $q->where('mlsFNo', $base->mlsfNo)->orWhere('fileno', $base->mlsfNo))
+                    ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                    ->exists();
                 if (!$targetPraRow || !empty($targetPraRow->is_deleted) || !\App\Support\OpSerial::isOp((array) $targetPraRow)
                     || (!in_array(strtoupper(trim((string) $base->mlsfNo)), \App\Services\OpSerialRepairPlanner::files((array) $targetPraRow), true)
-                        && (int) ($base->source_pra_id ?? 0) !== (int) $targetPraId)) {
+                        && (int) ($base->source_pra_id ?? 0) !== (int) $targetPraId
+                        && !$sharesPropertyWithFile)) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['pra_id' => 'The selected OP transaction does not belong to this file.']);
                 }
                 app(\App\Services\OpSerialSourceResolver::class)->guard(['op_serial_number' => $validated['op_serial_number']], (array) $targetPraRow);

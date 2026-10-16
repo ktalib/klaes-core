@@ -35,7 +35,7 @@
 | movement is logged), so no step has an "update the FMC" task.
 */
 
-$p1Review = fn (string $notRecommended) => [
+$p1Review = fn (string $notRecommended, bool $ddcBackToDcad = true) => [
     'dc_review' => [
         'phase' => 1, 'desk' => 'director_cadastral', 'label' => 'Recommend or not recommend',
         'question' => 'Recommend this file?', 'menu_label' => 'Recommend',
@@ -44,13 +44,17 @@ $p1Review = fn (string $notRecommended) => [
             'not_recommended' => ['label' => $notRecommended, 'next' => 'registry_return', 'reason' => true],
         ],
     ],
-    // DD Cad's refusal goes back to D Cad with the reason, and D Cad decides again.
+    // DD Cad's refusal goes back to D Cad with the reason, and D Cad decides again (Conversion,
+    // Verification). Under Direct Allocation it returns straight to Registry, then the source
+    // (updated workflow doc, 2026-10-15).
     'ddc_review' => [
         'phase' => 1, 'desk' => 'deputy_director_cadastral', 'label' => 'Recommend or not recommend',
         'question' => 'Recommend this file?', 'menu_label' => 'Recommend',
         'outcomes' => [
             'recommended' => ['label' => 'Recommend', 'next' => 'info_commission'],
-            'not_recommended' => ['label' => $notRecommended . ' (back to D Cad)', 'next' => 'dc_review', 'reason' => true],
+            'not_recommended' => $ddcBackToDcad
+                ? ['label' => $notRecommended . ' (back to D Cad)', 'next' => 'dc_review', 'reason' => true]
+                : ['label' => $notRecommended . ' (back to Registry)', 'next' => 'registry_return', 'reason' => true],
         ],
     ],
     'registry_return' => [
@@ -59,19 +63,75 @@ $p1Review = fn (string $notRecommended) => [
     ],
 ];
 
-// Planning-advice return, Land Department round trip, and the way back to
-// AD P&D (shared by Conversion and both Direct sub-types).
-$landRoundTrip = fn (string $afterDdc) => [
+// Government acquisition check (Conversion and Resettlement). Yes or No, the file goes to
+// DSG with Compensation's comment; DSG minutes it and sends it to D Cad, who sends a rejected
+// file (Yes: falls on Government acquisition) back to Registry (user, 2026-10-16).
+$compensation = [
+    'compensation_check' => [
+        'phase' => 2, 'desk' => 'compensation_unit', 'label' => 'Government acquisition check',
+        'question' => 'Land falls on Government acquisition?', 'menu_label' => 'Acquisition check',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'outcomes' => [
+            'no' => ['label' => 'No: send to DSG', 'next' => 'dsg_review'],
+            'yes' => ['label' => 'Yes: falls on acquisition, send to DSG', 'next' => 'dsg_review', 'reason' => true],
+        ],
+    ],
+    'dsg_review' => [
+        'phase' => 2, 'desk' => 'dsg', 'label' => 'DSG minutes the Compensation answer and sends the file to D Cad',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'dc_buffer',
+    ],
+];
+
+// Steps 7 to 28 of the updated workflow doc (2026-10-15), shared by Conversion and both
+// Direct sub-types: GIS buffer, Planning Advice, Land round trip, survey, examination,
+// final charting, SG, billing and dispatch to Deeds.
+$sharedTail = [
+    // Phase 2 (end): D Cad receives the file and sends it to the GIS Unit.
+    'dc_buffer' => [
+        'phase' => 2, 'desk' => 'director_cadastral', 'label' => 'Receive the file; send to the Cadastral GIS Unit for the buffer check',
+        'question' => 'Send the file on for the buffer check?', 'menu_label' => 'GIS Unit or return',
+        'outcomes' => [
+            'to_gis' => ['label' => 'Send to the GIS Unit', 'next' => 'gis_buffer'],
+            'rejected' => ['label' => 'Rejected (Government acquisition): send back to Registry', 'next' => 'registry_return', 'reason' => true],
+        ],
+    ],
+    // GIS staff do the check; the head of the GIS Unit sends the file to KAMMA or Physical Planning.
+    'gis_buffer' => [
+        'phase' => 2, 'desk' => 'cadastral_gis', 'label' => 'Buffer check: within 10 km of the city centre?',
+        'question' => 'Within the 10 km buffer from the city centre?', 'menu_label' => 'Buffer check',
+        'outcomes' => [
+            'inside_10km' => ['label' => 'Inside 10 km: send to KAMMA', 'next' => 'kamma_advice'],
+            'outside_10km' => ['label' => 'Outside 10 km: send to Physical Planning', 'next' => 'ppd_advice'],
+        ],
+    ],
+    // Phase 3: Planning Advice.
+    'kamma_advice' => [
+        'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA/Physical Planning)',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'perm_sec_review',
+    ],
+    'ppd_advice' => [
+        'phase' => 3, 'desk' => 'physical_planning', 'label' => 'Planning Advice (Physical Planning)',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'perm_sec_review',
+    ],
+    'perm_sec_review' => [
+        'phase' => 3, 'desk' => 'permanent_secretary', 'label' => 'PS reviews the Planning Advice and passes the file back',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'dc_after_advice',
+    ],
     'dc_after_advice' => [
-        'phase' => 3, 'desk' => 'director_cadastral', 'label' => 'Send to Cadastral Information',
+        'phase' => 3, 'desk' => 'director_cadastral', 'label' => 'Receive the file from the PS; send to Cadastral Information',
         'next' => 'info_update_fmc',
     ],
+    // Phase 4: Registry and Land Department.
     'info_update_fmc' => [
-        'phase' => 3, 'desk' => 'ad_information', 'label' => 'Planning Advice details on the FMC; send to Registry',
+        'phase' => 4, 'desk' => 'ad_information', 'label' => 'Planning Advice details on the FMC; send to Registry',
         'next' => 'registry_to_land',
     ],
     'registry_to_land' => [
-        'phase' => 4, 'desk' => 'registry', 'label' => 'Detach correspondence file, send main file to Director Land',
+        'phase' => 4, 'desk' => 'registry', 'label' => 'Detach and archive correspondence file, send main file to Land',
         'tasks' => ['correspondence_detached' => 'Correspondence file detached and archived'],
         'next' => 'land_processing',
     ],
@@ -85,48 +145,76 @@ $landRoundTrip = fn (string $afterDdc) => [
         'tasks' => ['correspondence_attached' => 'Correspondence file attached'],
         'next' => 'dc_survey',
     ],
+    // Phase 5: Survey instruction and execution.
     'dc_survey' => [
-        'phase' => 5, 'desk' => 'director_cadastral', 'label' => 'Send to DD Cad',
+        'phase' => 5, 'desk' => 'director_cadastral', 'label' => 'Receive the file from Registry; send to DD Cad',
         'next' => 'ddc_survey',
     ],
     'ddc_survey' => [
-        'phase' => 5, 'desk' => 'deputy_director_cadastral', 'label' => 'Send to AD P&D',
-        'next' => $afterDdc,
+        'phase' => 5, 'desk' => 'deputy_director_cadastral', 'label' => 'Forward the file to AD P&D',
+        'next' => 'pnd_instruction',
     ],
-];
-
-// Government acquisition check (Conversion and Resettlement). A "yes" rejects
-// the file, which goes back the way it came: Registry, then the source.
-$compensation = fn (string $afterDsg) => [
-    'compensation_check' => [
-        'phase' => 3, 'desk' => 'compensation_unit', 'label' => 'Government acquisition check',
-        'question' => 'Land falls on Government acquisition?', 'menu_label' => 'Acquisition check',
-        'external' => true, 'recorded_by' => 'director_cadastral',
-        'outcomes' => [
-            'no' => ['label' => 'No: send to DSG', 'next' => 'dsg_review'],
-            'yes' => ['label' => 'Yes: rejected, send back', 'next' => 'registry_return', 'reason' => true],
+    'pnd_instruction' => [
+        'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Commission the Field Jacket and I to S; send to Cadastral Information',
+        // P&D only commissions a plain field jacket and a plain I to S (no job, no surveyor);
+        // AD Cad Info attaches the job and surveyor (transcript, 2026-10-16).
+        'tasks' => [
+            'field_jacket' => 'Field Jacket commissioned',
+            'its' => 'I to S issued (attach a job and a surveyor)',
         ],
+        'next' => 'info_job_assign',
     ],
-    'dsg_review' => [
-        'phase' => 3, 'desk' => 'dsg', 'label' => 'DSG sends the file back to D Cad',
-        'external' => true, 'recorded_by' => 'director_cadastral',
-        'next' => $afterDsg,
+    'info_job_assign' => [
+        'phase' => 5, 'desk' => 'ad_information',
+        'label' => 'Issue Job No. (Job Book) and assign: Conversion to a Private Surveyor, Government to the Survey Dept; send to Survey',
+        'tasks' => [
+            'job_attached' => 'Job and surveyor attached to the field jacket',
+            'job_its' => 'Instruction to Surveyor issued',
+        ],
+        'next' => 'field_survey',
     ],
-];
-
-// Billing and dispatch to Deeds (shared tail of Conversion and Direct).
-$billingTail = [
+    'field_survey' => [
+        'phase' => 5, 'desk' => 'field_survey', 'label' => 'Survey in the field',
+        'external' => true, 'recorded_by' => 'ad_information',
+        'next' => 'info_to_examination',
+    ],
+    // Phase 6: Examination and final charting.
+    'info_to_examination' => [
+        'phase' => 6, 'desk' => 'ad_information', 'label' => 'Receive the file after survey; send to the Examination Unit',
+        'next' => 'survey_examination',
+    ],
+    'survey_examination' => [
+        'phase' => 6, 'desk' => 'examination_unit', 'label' => 'Examine the survey plan; send to AD Drawing & Charting',
+        'external' => true, 'recorded_by' => 'ad_drawing',
+        'next' => 'final_charting',
+    ],
+    'final_charting' => [
+        'phase' => 6, 'desk' => 'ad_drawing', 'label' => 'Final Charting; send to the Surveyor General',
+        'tasks' => ['final_charting' => 'Final charting done'],
+        'next' => 'sg_signing',
+    ],
+    'sg_signing' => [
+        'phase' => 6, 'desk' => 'surveyor_general', 'label' => 'SG signs the Final Survey Plan',
+        'external' => true, 'recorded_by' => 'ad_information',
+        'next' => 'info_after_sg',
+    ],
+    // Phase 7: Billing and final hand-off.
+    'info_after_sg' => [
+        'phase' => 7, 'desk' => 'ad_information', 'label' => 'Receive the signed plan; send to AD P&D',
+        'next' => 'pnd_billing',
+    ],
     'pnd_billing' => [
-        'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Generate the Fees P&D bill (no payment)',
+        'phase' => 7, 'desk' => 'ad_pnd', 'label' => 'Generate the Fees P&D bill (no payment); send to Cadastral Information',
         'tasks' => ['bill_generated' => 'Fees, Plan and Description bill generated'],
-        'next' => 'ad_cadastral_review',
+        'next' => 'info_sign_bill',
     ],
-    'ad_cadastral_review' => [
-        'phase' => 5, 'desk' => 'ad_cadastral', 'label' => 'Send to Registry',
+    // Doc step 27: AD Cad Info signs, D Cad forwards to Registry (one step, as the doc numbers it).
+    'info_sign_bill' => [
+        'phase' => 7, 'desk' => 'ad_information', 'label' => 'Sign the Fees P&D bill; send through D Cad to Registry',
         'next' => 'registry_dispatch',
     ],
     'registry_dispatch' => [
-        'phase' => 5, 'desk' => 'registry', 'label' => 'Detach correspondence file, send main file to Deeds',
+        'phase' => 7, 'desk' => 'registry', 'label' => 'Archive correspondence file, send main file to Deeds (Bill Balance)',
         'tasks' => ['correspondence_detached' => 'Correspondence file detached and archived'],
         // Send to Deeds is the last action, after the detach, and checks the file is complete.
         'checks' => ['fmc', 'charting', 'correspondence', 'bill', 'detached'],
@@ -140,25 +228,58 @@ return [
     /*
     | Desks. `internal` desks are Cadastral posts; the rest are other departments.
     | `short` is the short form the client uses on screen.
+    | `head`: a unit whose staff do the work and whose head sends it across (transcript,
+    | 2026-10-16). Staff get "Send to <head>"; only the head (the users holding the desk's
+    | `post`, or Cad - Records / Supper Admin while the post is vacant) sends the file to
+    | another unit or department. Directors (D Cad, DD Cad) send directly. See HeadApproval.
     */
     'desks' => [
-        'registry' => ['label' => 'Cadastral Registry', 'short' => 'Registry', 'internal' => true],
-        'director_cadastral' => ['label' => 'Director Cadastral', 'short' => 'D Cad', 'internal' => true],
-        'deputy_director_cadastral' => ['label' => 'Deputy Director Cadastral', 'short' => 'DD Cad', 'internal' => true],
-        'ad_information' => ['label' => 'Asst. Director Cadastral Information', 'short' => 'AD Cad Info', 'internal' => true],
-        'ad_report' => ['label' => 'Asst. Director Cadastral Report', 'short' => 'AD Cad Report', 'internal' => true],
-        'ad_pnd' => ['label' => 'Asst. Director Plans and Description', 'short' => 'AD P&D', 'internal' => true],
-        // A separate officer who receives the billed file and passes it to Registry (user's default, 2026-10-10).
-        'ad_cadastral' => ['label' => 'Asst. Director Cadastral', 'short' => 'AD Cad', 'internal' => true],
+        // `post`: the officers notified in-app when a file reaches the desk (user, 2026-10-14) are the
+        // users holding this post in Configurable Entries > Cadastral > Officers (cadastral_officers).
+        'registry' => ['label' => 'Cadastral Registry', 'short' => 'Registry', 'internal' => true, 'post' => 'CAD_REGISTRY', 'head' => 'Head of Registry'],
+        'director_cadastral' => ['label' => 'Director Cadastral', 'short' => 'D Cad', 'internal' => true, 'post' => 'D_CAD'],
+        'deputy_director_cadastral' => ['label' => 'Deputy Director Cadastral', 'short' => 'DD Cad', 'internal' => true, 'post' => 'DD_CAD'],
+        'ad_information' => ['label' => 'Asst. Director Cadastral Information', 'short' => 'AD Cad Info', 'internal' => true, 'post' => 'AD_CAD_INFO', 'head' => 'AD Cad Info'],
+        'ad_report' => ['label' => 'Asst. Director Cadastral Report', 'short' => 'AD Cad Report', 'internal' => true, 'post' => 'AD_CAD_REP', 'head' => 'AD Cad Report'],
+        'ad_pnd' => ['label' => 'Asst. Director Plans and Description', 'short' => 'AD P&D', 'internal' => true, 'post' => 'AD_PSD', 'head' => 'AD P&D'],
+        // No "AD Cadastral" desk: it is not a post; every AD heads a unit (user, 2026-10-16).
+        // Final charting (updated workflow doc, 2026-10-15). No desk role yet: Cad - Records covers it.
+        'ad_drawing' => ['label' => 'Asst. Director Drawing & Charting', 'short' => 'AD Drawing & Charting', 'internal' => true, 'post' => 'AD_DRAW_CHART', 'head' => 'AD Drawing & Charting'],
+        // The Cadastral GIS Unit does the buffer check (transcript, 2026-10-16).
+        'cadastral_gis' => ['label' => 'Cadastral GIS Unit', 'short' => 'GIS Unit', 'internal' => true, 'post' => 'CAD_GIS', 'head' => 'Head of GIS Unit'],
 
         'compensation_unit' => ['label' => 'Compensation Unit (Survey Dept)', 'short' => 'Compensation', 'internal' => false],
         'dsg' => ['label' => 'Deputy Director Survey (DSG)', 'short' => 'DSG', 'internal' => false],
-        'kamma' => ['label' => 'KAMMA/Physical Planning', 'short' => 'KAMMA', 'internal' => false],
+        'kamma' => ['label' => 'KAMMA/Physical Planning', 'short' => 'KAMMA/Physical Planning', 'internal' => false],
         'physical_planning' => ['label' => 'Physical Planning Department', 'short' => 'Physical Planning', 'internal' => false],
         'permanent_secretary' => ['label' => 'Permanent Secretary', 'short' => 'PS', 'internal' => false],
         'director_land' => ['label' => 'Director Land (Land Dept)', 'short' => 'Land', 'internal' => false],
-        'field_survey' => ['label' => 'Field Survey', 'short' => 'Field', 'internal' => false],
+        'field_survey' => ['label' => 'Field Survey', 'short' => 'Survey', 'internal' => false],
+        // Updated workflow doc (2026-10-15).
+        'examination_unit' => ['label' => 'Examination Unit (Survey Dept)', 'short' => 'Examination', 'internal' => false],
+        'surveyor_general' => ['label' => 'Surveyor General', 'short' => 'SG', 'internal' => false],
     ],
+
+    /*
+    | Desk roles (user, 2026-10-15). A user_roles module per internal desk, granted through
+    | users.assign_role like any module. It shows the desk's sidebar entry, opens the desk
+    | page, and allows the actions on files whose current step that desk acts on (an external
+    | step counts for the desk that records its return). `department_role` covers every desk
+    | (supervisors, and everyone who had the department before desk roles existed).
+    | Rows: database/migrations/manual/2026_10_15_cadastral_desk_roles.sql.
+    */
+    'department_role' => 'Cad - Records',
+    'desk_roles' => [
+        'registry' => 'Cad - Registry',
+        'director_cadastral' => 'Cad - D Cad',
+        'deputy_director_cadastral' => 'Cad - DD Cad',
+        'ad_information' => 'Cad - Information',
+        'ad_report' => 'Cad - Report',
+        'ad_pnd' => 'Cad - P&D',
+        'cadastral_gis' => 'Cad - GIS',
+        'ad_drawing' => 'Cad - Drawing & Charting',   // role row: manual/2026_10_15_cadastral_drawing_charting_role.sql (not yet run)
+    ],
+    'verification_role' => 'Cad - Verification',
 
     /*
     | Sidebar lists per desk (user's proposed sidebar, 2026-10-11). Each entry
@@ -173,9 +294,13 @@ return [
     | sidebar heading for the desk.
     */
     'queues' => [
-        // Registry is one link too (user, 2026-10-12): Attach Land File, Detach Correspondence
-        // and Send to Deeds are row-menu actions on the files that need them, not sidebar lists.
-        'registry' => ['group' => 'Registry', 'entries' => []],
+        // Sidebar per the user's KLAES sidebar doc (KLAES_Land_Admin_Enterprise_System-16, 2026-10-15):
+        // each unit ends with "AD CAD <unit> > Approval": files its staff sent to the head, waiting
+        // for the head to send them across (rule `awaiting_head`, HeadApproval).
+        // Attach Land File, Detach Correspondence and Send to Deeds stay row-menu actions.
+        'registry' => ['group' => 'Registry', 'entries' => [
+            'approval' => ['label' => 'Approval', 'awaiting_head' => true],
+        ]],
         // D Cad and DD Cad are one link each (user, 2026-10-11): the table's Status column
         // shows what each file needs, and the row menu groups a decision into one item.
         'director_cadastral' => ['group' => 'D Cad', 'entries' => []],
@@ -184,7 +309,9 @@ return [
             // 'all' => ['label' => 'All files at AD Cad Info'],   // hidden from the sidebar for now (user, 2026-10-12)
             'fmc' => ['label' => 'File Movement Card (FMC)', 'tasks' => ['fmc_commissioned']],
             'first_charting' => ['label' => '1st Charting (Direct Allocation Files)', 'tasks' => ['chart_first']],
-            // 'send' => ['label' => 'Send to Report', 'to' => ['ad_report']],   // hidden from the sidebar for now (user, 2026-10-12)
+            // Doc step 19: AD Cad Info issues the Job No. and assigns the surveyor.
+            'job_no' => ['label' => 'Assign to Surveyor (I to S)', 'tasks' => ['job_attached', 'job_its']],
+            'approval' => ['label' => 'Approval', 'awaiting_head' => true],
         ]],
         'ad_report' => ['group' => 'Cadastral Report', 'entries' => [
             'all' => ['label' => 'All Reports'],
@@ -194,15 +321,24 @@ return [
             'charting' => ['label' => 'Charting', 'tasks' => ['charted', 'chart_second', 'charting_checked']],
             'correspondence' => ['label' => 'Commission Correspondence File', 'tasks' => ['correspondence_created']],
             'send' => ['label' => 'Send', 'ready' => true],
+            'approval' => ['label' => 'Approval', 'awaiting_head' => true],
         ]],
         'ad_pnd' => ['group' => 'Plans & Descriptions', 'entries' => [
             'all' => ['label' => 'All Files at P&D'],
             'field_jacket' => ['label' => 'Commission Field Jacket', 'tasks' => ['field_jacket']],
-            'its' => ['label' => 'Assign to Surveyor (I to S)', 'tasks' => ['its']],
+            'its' => ['label' => 'I to S', 'tasks' => ['its']],
             'bill' => ['label' => 'Fees, Plan and Description', 'tasks' => ['bill_generated']],
             'send' => ['label' => 'Send', 'ready' => true],
+            'approval' => ['label' => 'Approval', 'awaiting_head' => true],
         ]],
-        'ad_cadastral' => ['group' => 'AD Cad', 'entries' => []],
+        'ad_drawing' => ['group' => 'Drawing & Charting', 'entries' => [
+            'final_charting' => ['label' => 'Final Charting', 'tasks' => ['final_charting']],
+            'approval' => ['label' => 'Approval', 'awaiting_head' => true],
+        ]],
+        'cadastral_gis' => ['group' => 'GIS Unit', 'entries' => [
+            'buffer' => ['label' => 'Buffer Check', 'steps' => ['gis_buffer']],
+            'approval' => ['label' => 'Approval', 'awaiting_head' => true],
+        ]],
     ],
 
     /*
@@ -218,8 +354,8 @@ return [
         'gkn' => ['label' => 'GKN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory'],
         'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory'],
         'op' => ['label' => 'OP File', 'workflows' => ['direct', 'verification'], 'asks_sub_type' => true, 'tenure' => 'statutory'],
-        'dciv' => ['label' => 'DCIV File', 'workflows' => ['conversion', 'direct', 'verification']],
-        'lpcc' => ['label' => 'LPCC File', 'workflows' => ['conversion', 'direct', 'verification']],
+        'dciv' => ['label' => 'DCIV/LPCC File', 'workflows' => ['conversion', 'direct', 'verification']],
+        // LPCC is the same file type as DCIV (user, 2026-10-15): one DCIV/LPCC File option.
     ],
 
     /*
@@ -240,27 +376,31 @@ return [
     'workflows' => [
 
         /* ------------------------- 1. Conversion ------------------------- */
+        // Updated workflow doc (2026-10-15): 28 steps in 7 phases.
         'conversion' => [
             'label' => 'Conversion',
             'short' => 'Conversion',
             'applies_to' => 'Conversion, Quarry, SIT, and DCIV/LPCC files under Conversion',
             'colour' => 'yellow',
+            'icon' => 'repeat',
             'phases' => [
                 1 => 'Initial Reception & Recommendation',
-                2 => 'File Commissioning & Charting',
-                3 => 'Acquisition Check & Planning Advice',
-                4 => 'Land Department Processing & Return',
-                5 => 'Survey Instruction & Billing',
+                2 => 'Acquisition Check & GIS Buffer',
+                3 => 'Planning Advice',
+                4 => 'Registry & Land Dept Processing',
+                5 => 'Survey Instruction & Execution',
+                6 => 'Survey Examination & Final Charting',
+                7 => 'Billing & Final Handoff',
             ],
             'start' => 'dc_review',
             'steps' => $p1Review('Not recommended') + [
                 'info_commission' => [
-                    'phase' => 2, 'desk' => 'ad_information', 'label' => 'Commission the File Movement Card (FMC)',
+                    'phase' => 1, 'desk' => 'ad_information', 'label' => 'Commission the File Movement Card (FMC)',
                     'tasks' => ['fmc_commissioned' => 'FMC commissioned'],
                     'next' => 'report_charting',
                 ],
                 'report_charting' => [
-                    'phase' => 2, 'desk' => 'ad_report', 'label' => 'Charting, Land 12, Yes/No form, correspondence file',
+                    'phase' => 1, 'desk' => 'ad_report', 'label' => 'Charting, Land 12, Yes/No form, correspondence file',
                     'tasks' => [
                         'charted' => 'Charting card done (sheet charting is outside KLAES)',
                         'land12' => 'Land 12 and Yes/No form',
@@ -268,55 +408,18 @@ return [
                     ],
                     'next' => 'compensation_check',
                 ],
-            ] + $compensation('dc_buffer') + [
-                'dc_buffer' => [
-                    'phase' => 3, 'desk' => 'director_cadastral', 'label' => 'Route for Planning Advice (buffer on GIS)',
-                    'question' => 'Within the 10 km buffer from the town centre?', 'menu_label' => 'Planning Advice route',
-                    'outcomes' => [
-                        'inside_10km' => ['label' => 'Yes: send to KAMMA', 'next' => 'kamma_advice'],
-                        'outside_10km' => ['label' => 'No: send to Physical Planning', 'next' => 'ppd_advice'],
-                    ],
-                ],
-                'kamma_advice' => [
-                    'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA/Physical Planning)',
-                    'external' => true, 'recorded_by' => 'director_cadastral',
-                    'next' => 'perm_sec_review',
-                ],
-                'ppd_advice' => [
-                    'phase' => 3, 'desk' => 'physical_planning', 'label' => 'Planning Advice (Physical Planning)',
-                    'external' => true, 'recorded_by' => 'director_cadastral',
-                    'next' => 'perm_sec_review',
-                ],
-                'perm_sec_review' => [
-                    'phase' => 3, 'desk' => 'permanent_secretary', 'label' => 'PS reviews the Planning Advice',
-                    'external' => true, 'recorded_by' => 'director_cadastral',
-                    'next' => 'dc_after_advice',
-                ],
-            ] + $landRoundTrip('pnd_instruction') + [
-                'pnd_instruction' => [
-                    'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Attach the survey job and surveyor, issue I to S',
-                    'tasks' => [
-                        // Jobs are registered first, with no file or surveyor (user, 2026-10-12).
-                        'field_jacket' => 'Survey job and surveyor attached (field jacket commissioned)',
-                        'its' => 'Instruction to Survey (I to S) issued',
-                    ],
-                    'next' => 'field_survey',
-                ],
-                'field_survey' => [
-                    'phase' => 5, 'desk' => 'field_survey', 'label' => 'Survey in the field',
-                    'external' => true, 'recorded_by' => 'ad_pnd',
-                    'next' => 'pnd_billing',
-                ],
-            ] + $billingTail,
+            ] + $compensation + $sharedTail,
         ],
 
         /* ------------------------- 2. Direct Allocation ------------------------- */
         // Client's list (2026-10-11): Direct Allocation, split into Resettlement and Direct.
+        // Updated workflow doc (2026-10-15): the Conversion sequence, diverging only in phase 2.
         'direct' => [
             'label' => 'Direct Allocation',
             'short' => 'Direct',
-            'applies_to' => 'GKN, Misc KN, OP, and DCIV/LPCC files: Resettlement or Direct',
+            'applies_to' => 'Direct Allocation, GKN, Misc KN, and DCIV/LPCC files under Direct Allocation: Resettlement or Direct',
             'colour' => 'blue',
+            'icon' => 'map-pin',
             // Every Direct Allocation file chooses Resettlement or Direct at intake, not
             // only OP files (user, 2026-10-12).
             'asks_sub_type' => true,
@@ -328,15 +431,17 @@ return [
             'default_sub_type' => 'direct_allocation',
             'phases' => [
                 1 => 'Initial Reception & Recommendation',
-                2 => 'File Commissioning & Charting',
-                3 => 'Acquisition / Genuineness Check',
-                4 => 'Land Department Processing & Return',
-                5 => 'Survey Plan & Billing',
+                2 => 'Acquisition Check & Routing',
+                3 => 'Planning Advice',
+                4 => 'Registry & Land Dept Processing',
+                5 => 'Survey Instruction & Execution',
+                6 => 'Survey Examination & Final Charting',
+                7 => 'Billing & Final Handoff',
             ],
             'start' => 'dc_review',
-            'steps' => $p1Review('Not recommended') + [
+            'steps' => $p1Review('Not recommended', false) + [
                 'info_commission' => [
-                    'phase' => 2, 'desk' => 'ad_information', 'label' => 'Commission FMC, check layout plan, 1st charting',
+                    'phase' => 1, 'desk' => 'ad_information', 'label' => 'Commission FMC, check layout plan, 1st charting',
                     'tasks' => [
                         'fmc_commissioned' => 'FMC commissioned',
                         'layout_checked' => 'Layout plan checked against the allocation paper',
@@ -345,7 +450,7 @@ return [
                     'next' => 'report_charting',
                 ],
                 'report_charting' => [
-                    'phase' => 2, 'desk' => 'ad_report', 'label' => '2nd charting, Land 12, Yes/No form, correspondence file',
+                    'phase' => 1, 'desk' => 'ad_report', 'label' => '2nd charting, Land 12, Yes/No form, correspondence file',
                     'tasks' => [
                         'chart_second' => '2nd charting done',
                         'land12' => 'Land 12 and Yes/No form',
@@ -358,22 +463,15 @@ return [
                     ],
                 ],
             ]
-            // 3A Resettlement
-            + $compensation('dc_after_advice') + [
-                // 3B Direct Allocation
+            // Resettlement: Compensation, DSG, then D Cad.
+            + $compensation + [
+                // Direct: Land checks the application is genuine, then D Cad.
                 'land_genuineness' => [
-                    'phase' => 3, 'desk' => 'director_land', 'label' => 'Land checks the application is genuine',
+                    'phase' => 2, 'desk' => 'director_land', 'label' => 'Land checks the application is genuine',
                     'external' => true, 'recorded_by' => 'director_cadastral',
-                    'next' => 'dc_after_advice',
+                    'next' => 'dc_buffer',
                 ],
-            ] + $landRoundTrip('pnd_plan') + [
-                // The Record Section attaches the survey plan; AD P&D ticks it (user's default, 2026-10-10).
-                'pnd_plan' => [
-                    'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Survey plan attached by the Record Section',
-                    'tasks' => ['survey_plan_attached' => 'Survey plan attached (Record Section)'],
-                    'next' => 'pnd_billing',
-                ],
-            ] + $billingTail,
+            ] + $sharedTail,
         ],
 
         /* ------------------------- 3. Verification ------------------------- */
@@ -381,7 +479,8 @@ return [
             'label' => 'Verification',
             'short' => 'Verification',
             'applies_to' => 'Statutory or Customary: any file type that already has a correspondence file',
-            'colour' => 'green',
+            'colour' => 'red',   // red (user, 2026-10-15)
+            'icon' => 'shield-check',
             // Client's list (2026-10-11): Verification is Statutory or Customary. Asked for every
             // file at intake (preselected from the file type); the route is the same for both.
             'asks_sub_type' => true,

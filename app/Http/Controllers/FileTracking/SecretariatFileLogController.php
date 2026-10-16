@@ -41,6 +41,8 @@ class SecretariatFileLogController extends Controller
             'requestPurposes' => \App\Models\RequestPurpose::active()->orderBy('name')->get(['id', 'name']),
             'officers'        => $this->log->receivingOfficers(),
             'externalSenders' => $this->log->externalSenders(),
+            'officerRanks'    => $this->log->officerRanks(),
+            'lgas'            => $this->log->lgas(),
             // Only a super admin may choose an office; everyone else is fixed to the
             // office their Rank/Department maps to (config/file_movement.php).
             'canChooseOffice' => $user->isSuperAdmin(),
@@ -183,6 +185,46 @@ class SecretariatFileLogController extends Controller
         return response()->json(['success' => true, 'message' => 'Log updated.']);
     }
 
+    /** Correct a "Not a regular File/Mail" entry's Mail/File and mail type. */
+    public function editDetails(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($this->canEditLogs($user), 403, 'You do not have permission to edit logs.');
+
+        $data = $request->validate([
+            'tracker_id'    => 'required|integer',
+            'document_kind' => 'required|in:' . implode(',', array_keys(SecretariatFileLogService::DOCUMENT_KINDS)),
+            'mail_type'     => 'nullable|string|max:100',
+            'file_title'    => 'required|string|max:255',
+            'reference'     => 'nullable|string|max:255',
+            'related_file_number' => 'nullable|string|max:255',
+            'reason'        => 'required|string|max:500',
+        ]);
+
+        $onlyOffice = null;
+        if (!$user->isSuperAdmin()) {
+            $office = $this->log->officeFor($user);
+            abort_unless($office, 403, 'No office is assigned to your account. Ask the administrator to set your Department and Rank.');
+            $onlyOffice = $office['code'];
+        }
+
+        try {
+            $this->log->editDocumentDetails((int) $data['tracker_id'], $data['document_kind'], $data['mail_type'] ?? null, $data['reason'], $user,
+                $onlyOffice, ['ip' => $request->ip(), 'user_agent' => $request->userAgent()], [
+                    'file_title'          => $data['file_title'],
+                    'reference'           => $data['reference'] ?? null,
+                    'related_file_number' => $data['related_file_number'] ?? null,
+                ]);
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('File movement details edit failed', ['error' => $e->getMessage(), 'tracker_id' => $data['tracker_id']]);
+            return response()->json(['success' => false, 'message' => 'Could not save the change: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Details updated.']);
+    }
+
     private function canEditLogs($user): bool
     {
         return $user->isSuperAdmin() || $user->canDo(self::MODULE, 'edit');
@@ -242,12 +284,19 @@ class SecretariatFileLogController extends Controller
         $request->validate([
             'office' => 'nullable|string|max:50',
             'days'   => 'nullable|integer|min:1|max:365',
+            'from'   => 'nullable|date_format:Y-m-d',
+            'to'     => 'nullable|date_format:Y-m-d|after_or_equal:from',
         ]);
 
         $office = $this->actingOffice($request);
 
         try {
-            return response()->json(['success' => true] + $this->log->lists($office, (int) $request->input('days', 7)));
+            return response()->json(['success' => true] + $this->log->lists(
+                $office,
+                (int) $request->input('days', 7),
+                $request->input('from') ?: null,
+                $request->input('to') ?: null
+            ));
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -272,20 +321,43 @@ class SecretariatFileLogController extends Controller
             'file_title'   => 'nullable|string|max:255',
             'from_office'  => 'nullable|string|max:50',
             'from_department' => 'nullable|string|max:255',
+            'manual_form'  => 'nullable|boolean',
             // "Not a regular File/Mail": Mail or File (required for a new one, checked
             // in the service), and where it came from.
             'document_kind' => 'nullable|in:' . implode(',', array_keys(SecretariatFileLogService::DOCUMENT_KINDS)),
+            'mail_type'    => 'nullable|string|max:100',
             'sender_type'  => 'nullable|in:' . implode(',', SecretariatFileLogService::SENDER_TYPES),
             'sender'       => 'nullable|string|max:255',
+            'sender_name'  => 'nullable|string|max:255',
+            'sender_rank'  => 'nullable|string|max:100',
+            'sender_lga'   => 'nullable|string|max:100',
             'reference'    => 'nullable|string|max:255',
             'notes'        => 'nullable|string|max:1000',
             'received_via' => 'nullable|in:scan,manual',
+            // Send mode on the manual log: log it here and send it on in one step.
+            'send_to_office' => 'nullable|string|max:50',
         ]);
 
         $office = $this->actingOffice($request);
+        $sendTo = $data['send_to_office'] ?? null;
 
         try {
-            $result = $this->log->receive($office, $data, $request->user());
+            if ($sendTo) {
+                // The receipt here is logged by the user; the receiving officer chosen is
+                // the one at the office it goes to. Both steps commit together or not at all.
+                $user = $request->user();
+                $result = \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($office, $data, $user, $sendTo) {
+                    $receipt = array_merge($data, ['receiving_officer_id' => $user->id, 'receiving_officer_other' => null]);
+                    $result = $this->log->receive($office, $receipt, $user);
+                    $tracker = $this->log->forward($office, (int) $result['tracker']->id, $sendTo,
+                        $data['request_purpose_id'] ?? null, $data['receiving_officer_id'] ?? null, null, $user,
+                        $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null);
+
+                    return ['tracker' => $tracker, 'action' => 'sent'];
+                });
+            } else {
+                $result = $this->log->receive($office, $data, $request->user());
+            }
         } catch (\App\Services\FileTracking\MissingReceiptDetailsException $e) {
             // The page asks for what is missing and sends the receipt again.
             return response()->json(['success' => false, 'message' => $e->getMessage(), 'needs' => $e->needs], 422);
@@ -301,13 +373,14 @@ class SecretariatFileLogController extends Controller
             'accepted'     => 'File received.',
             'logged_in'    => 'Movement completed and file received at this office.',
             'already_here' => 'This file is already held at this office.',
+            'sent'         => 'Logged and sent to ' . ($result['tracker']->receiving_office_name ?? 'the next office') . '.',
         ];
 
         return response()->json([
             'success' => true,
             'action'  => $result['action'],
             'message' => ($messages[$result['action']] ?? 'Done.') . ' Tracking ID: ' . $result['tracker']->tracking_id,
-            'tracker' => $result['tracker']->only(['id', 'tracking_id', 'file_number', 'file_title', 'current_office_name']),
+            'tracker' => $result['tracker']->only(['id', 'tracking_id', 'file_number', 'file_title', 'current_office_name', 'receiving_office_name']),
         ]);
     }
 
@@ -317,7 +390,7 @@ class SecretariatFileLogController extends Controller
             'office'     => 'nullable|string|max:50',
             'tracker_id' => 'required|integer',
             'to_office'            => 'required|string|max:50',
-            'request_purpose_id'      => 'nullable|required_without:request_purpose_other|integer|exists:sqlsrv.request_purposes,id',
+            'request_purpose_id'      => 'nullable|integer|exists:sqlsrv.request_purposes,id',
             'request_purpose_other'   => 'nullable|string|max:255',
             'receiving_officer_id'    => 'nullable|required_without:receiving_officer_other|integer',
             'receiving_officer_other' => 'nullable|string|max:255',

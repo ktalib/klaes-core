@@ -1855,12 +1855,6 @@ class InstrumentRegistrationController extends Controller
             // These would be instruments registered from instrument_capture or instrument_registration
             $registeredOtherInstrumentsQuery = DB::connection('sqlsrv')->table('deed_registrations')
                 ->leftJoin('users', 'deed_registrations.created_by', '=', 'users.id')
-                ->leftJoin('instrument_capture', function($join) {
-                    $join->on('deed_registrations.fileno', '=', 'instrument_capture.mlsFNo')
-                        ->orOn('deed_registrations.fileno', '=', 'instrument_capture.temp_fileno')
-                        ->orOn('deed_registrations.fileno', '=', 'instrument_capture.kangisFileNo')
-                        ->orOn('deed_registrations.fileno', '=', 'instrument_capture.NewKANGISFileno');
-                })
                 ->whereNotIn('deed_registrations.instrument_type', [
                     'ST Assignment (Transfer of Title)',
                     'Sectional Titling CofO',
@@ -1880,12 +1874,33 @@ class InstrumentRegistrationController extends Controller
                 'deed_registrations.*',
                 'deed_registrations.rds_exists as rds_exists_db',
                 'deed_registrations.cor_exists as cor_exists_db',
-                'instrument_capture.op_type as captured_op_type',
                 DB::raw("CONCAT(COALESCE(users.first_name, ''), ' ', COALESCE(users.last_name, '')) as reg_creator_name")
             )
             ->get();
 
+            // OP type of the captured instrument behind each deed. This was an
+            // OR-join on four file-number columns, which took ~11s and repeated
+            // a deed once per matching capture row; a lookup map does the same
+            // match in PHP. Keys mimic SQL Server's case/trailing-space rules.
+            $opTypeKey = fn($v) => strtoupper(rtrim((string) $v));
+            $capturedOpTypes = [];
+            DB::connection('sqlsrv')->table('instrument_capture')
+                ->whereNotNull('op_type')
+                ->where('op_type', '<>', '')
+                ->orderBy('id')
+                ->select('mlsFNo', 'temp_fileno', 'kangisFileNo', 'NewKANGISFileno', 'op_type')
+                ->get()
+                ->each(function ($cap) use (&$capturedOpTypes, $opTypeKey) {
+                    foreach (['mlsFNo', 'temp_fileno', 'kangisFileNo', 'NewKANGISFileno'] as $col) {
+                        $key = $opTypeKey($cap->{$col});
+                        if ($key !== '' && !isset($capturedOpTypes[$key])) {
+                            $capturedOpTypes[$key] = $cap->op_type;
+                        }
+                    }
+                });
+
             foreach ($registeredOtherInstruments as $reg) {
+                $reg->captured_op_type = $capturedOpTypes[$opTypeKey($reg->fileno)] ?? null;
                 $instrumentRecord = (object) [
                     'id' => 'deed_reg_' . $reg->id,
                     'fileno' => $reg->fileno,
@@ -3188,7 +3203,11 @@ class InstrumentRegistrationController extends Controller
             'serial_no' => (int) $serial,
             'page_no' => (int) $page,
             'volume_no' => (int) $volume,
-            'deeds_serial_no' => $formatted
+            'deeds_serial_no' => $formatted,
+            // Clash guard (InstrumentRegistrationService::clashGuardStatus).
+            'blocked' => (bool) ($preview['blocked'] ?? false),
+            'block_message' => $preview['block_message'] ?? null,
+            'warning' => $preview['warning'] ?? null,
         ])->header('Cache-Control', 'no-cache, no-store, must-revalidate')
             ->header('Pragma', 'no-cache')
             ->header('Expires', '0');

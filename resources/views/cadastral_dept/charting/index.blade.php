@@ -43,7 +43,7 @@
             @forelse ($rows as $card)
               @php
                 $items = [['Open card', 'id-card', route('cadastral-dept.charting.show', $card->id)]];
-                if (auth()->user()->canDo('Cad - Records', 'print')) {
+                if (\App\Services\CadastralDept\DeskAccess::can(auth()->user(), 'print')) {
                     $items[] = ['Print card', 'printer', route('cadastral-dept.charting.print', $card->id), true];
                 }
                 $items[] = ['View', 'eye', route('cadastral-dept.cases.show', $card->cadastral_case_id)];

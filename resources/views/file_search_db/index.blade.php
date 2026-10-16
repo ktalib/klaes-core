@@ -5,6 +5,9 @@
 @endsection
 
 @section('content')
+    @php
+        $fsReadOnly = request('url') === 'cadastral';
+    @endphp
     <div class="flex-1 overflow-auto bg-slate-50 text-slate-900">
         @include('admin.header')
 
@@ -96,11 +99,13 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12v9m0-9l3 3m-3-3l-3 3M12 5l3 3m-3-3L9 8m3-3V3"/></svg>
                                 Export Results
                             </button>
-                            <button id="file-search-import" type="button" class="inline-flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-2 text-white font-semibold hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-500">
+                            {{-- Opened from the Cadastral sidebar (?url=cadastral) the page is view only:
+                                 Import and Add are hidden (kept for the script) and rows have no actions. --}}
+                            <button id="file-search-import" type="button" @if($fsReadOnly) style="display:none" @endif class="inline-flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-2 text-white font-semibold hover:bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-500">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12v9m0-9l3 3m-3-3l-3 3M12 5l3 3m-3-3L9 8m3-3V3"></path></svg>
                                 Import CSV
                             </button>
-                            <button id="file-search-add" type="button" class="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-2 text-white font-semibold hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500">
+                            <button id="file-search-add" type="button" @if($fsReadOnly) style="display:none" @endif class="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-2 text-white font-semibold hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                 Add Record
                             </button>
@@ -136,7 +141,9 @@
                                                 <th class="px-4 py-3 text-left">Location</th>
                                                 <th class="px-4 py-3 text-left">Comment</th>
                                                 <th class="px-4 py-3 text-left">Created</th>
+                                                @unless($fsReadOnly)
                                                 <th class="px-4 py-3 text-center">Actions</th>
+                                                @endunless
                                             </tr>
                                         </thead>
                                         <tbody id="{{ $sectionId }}-tbody" class="divide-y divide-slate-100 text-slate-700">
@@ -407,6 +414,7 @@
             typeLabels: @json($recordTypeLabels ?? []),
             typeOrder: @json(array_keys($recordTypeLabels ?? [])),
             defaultType: @json($defaultRecordType ?? 'duplicate'),
+            readOnly: @json($fsReadOnly),
         };
     </script>
     <script type="module" src="{{ asset('js/file_search_db.js') }}"></script>

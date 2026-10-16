@@ -95,5 +95,7 @@ class Kernel extends HttpKernel
         // The same for the PHS Portal, behind `auth:phs`.
         'phs.otp' => \App\Http\Middleware\RequirePhsLoginOtp::class,
         'super.admin' => \App\Http\Middleware\EnsureSuperAdmin::class,
+        // Cadastral desk roles on cadastral-dept.* (2026-10-15).
+        'cadastral.desk' => \App\Http\Middleware\CadastralDeskAccess::class,
     ];
 }

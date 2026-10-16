@@ -20,7 +20,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const financialWordsInput = document.querySelector('input[name="consideration_words"]');
     const financialInput = document.querySelector('input[name="consideration"]');
 
-    const selectFilenoBtn = document.getElementById('select-fileno-btn');
     const filenoInput = document.getElementById('file_number');
     const selectionIndicator = document.getElementById('file-selection-indicator');
     const applicationIdInput = document.getElementById('application_id');
@@ -1219,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ok = false;
             }
             if (filenoInput && !filenoInput.disabled && !filenoInput.value.trim()) {
-                setFieldError('file_number_error', 'No file selected. Use the search button to pick the file this consent is for.');
+                setFieldError('file_number_error', 'No file selected. Pick the file this consent is for from the File Number dropdown.');
                 ok = false;
             } else {
                 setFieldError('file_number_error', '');
@@ -1847,12 +1846,126 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Global File Number Selector Integration
-    if (selectFilenoBtn) {
-        selectFilenoBtn.addEventListener('click', function () {
-            if (typeof GlobalFileNoModal !== 'undefined') {
-                GlobalFileNoModal.open({
-                    callback: async function (result) {
+    /* --- File Number dropdown --------------------------------------------------
+     * The file is picked from a searchable Select2 dropdown over the indexing
+     * table plus the temporary "(T)" files (include_temporary), not from the
+     * global file-number modal. The input stays the value the form posts and
+     * every other line reads; it is only hidden, and the dropdown mirrors it.
+     * A pick is handed on in the modal's result shape ({ fileNumber, file_title,
+     * record }), so the backfill below is the same code the modal fed.
+     * ------------------------------------------------------------------------ */
+    const FILE_NUMBER_DROPDOWN_URL = '/api/file-numbers/indexing-search';
+
+    function escapeOptionText(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function attachFileNumberDropdown(input, { onPick, onClear } = {}) {
+        if (!input || !(window.jQuery && jQuery.fn.select2)) return;
+
+        const select = document.createElement('select');
+        select.className = 'fileno-dropdown w-full';
+        input.classList.add('hidden');   // still a text input, so form.reset() clears it
+        input.insertAdjacentElement('afterend', select);
+
+        const $select = jQuery(select);
+        const modal = document.getElementById('generate-modal');
+        let syncing = false;
+
+        $select.select2({
+            width: '100%',
+            placeholder: 'Search a file number or holder…',
+            allowClear: true,
+            minimumInputLength: 0,
+            dropdownParent: modal ? jQuery(modal) : jQuery(document.body),
+            ajax: {
+                url: FILE_NUMBER_DROPDOWN_URL,
+                dataType: 'json',
+                delay: 250,
+                data: params => ({ q: params.term || '', page: params.page || 1, per_page: 30, include_temporary: 1 }),
+                processResults: data => ({
+                    results: (data && data.results) ? data.results : [],
+                    pagination: { more: !!(data && data.pagination && data.pagination.more) },
+                }),
+            },
+            templateResult: item => {
+                if (!item.id) return item.text;
+                const tag = item.is_temporary ? '<span class="fileno-option__tag">TEMP</span>' : '';
+                return jQuery(
+                    '<div><div class="fileno-option__no">' + escapeOptionText(item.text) + tag + '</div>'
+                    + (item.subtitle ? '<div class="fileno-option__sub">' + escapeOptionText(item.subtitle) + '</div>' : '')
+                    + '</div>'
+                );
+            },
+            templateSelection: item => item.text || item.id || '',
+        });
+
+        // Show `value` without treating it as a pick.
+        function mirror(value) {
+            const wanted = String(value || '').trim();
+            syncing = true;
+            try {
+                select.innerHTML = '';
+                if (wanted) select.appendChild(new Option(wanted, wanted, true, true));
+                select.disabled = input.disabled;
+                $select.trigger('change.select2');
+            } finally {
+                syncing = false;
+            }
+        }
+
+        // Every write of input.value (edit load, reset after save, a pick
+        // refused as a duplicate) is mirrored, not just the ones that fire events.
+        const nativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        Object.defineProperty(input, 'value', {
+            configurable: true,
+            get() { return nativeValue.get.call(this); },
+            set(next) {
+                nativeValue.set.call(this, next);
+                if (!syncing) mirror(next);
+            },
+        });
+        // form.reset() bypasses the setter; view mode toggles input.disabled.
+        if (input.form) input.form.addEventListener('reset', () => setTimeout(() => mirror(input.value)));
+        new MutationObserver(() => mirror(input.value)).observe(input, { attributes: true, attributeFilter: ['disabled'] });
+
+        $select.on('select2:select', async function (event) {
+            if (syncing) return;
+            const data = (event.params && event.params.data) || {};
+            const fileNumber = String(data.file_number || data.id || '').trim();
+            if (!fileNumber) return;
+            if (onPick) {
+                await onPick({
+                    fileNumber: fileNumber,
+                    system: String(data.system || 'mls').toUpperCase(),
+                    file_title: data.file_title || '',
+                    file_name: data.file_title || '',
+                    record: data.record || null,
+                    is_temporary: !!data.is_temporary,
+                });
+            }
+            mirror(input.value);   // a refused pick snaps back to what the input holds
+        });
+
+        $select.on('select2:clear', function () {
+            if (syncing) return;
+            nativeValue.set.call(input, '');
+            if (onClear) onClear();
+        });
+
+        mirror(input.value);
+    }
+
+    // Primary file number
+    if (filenoInput) {
+        attachFileNumberDropdown(filenoInput, {
+            onClear: function () {
+                if (selectionIndicator) selectionIndicator.classList.add('hidden');
+                setRightOfOccupancyNumber('');
+                updateMultiPropertyNotice();
+            },
+            onPick: async function (result) {
                         console.log('File selected:', result);
                         if (result && result.fileNumber) {
                             filenoInput.value = result.fileNumber;
@@ -1950,13 +2063,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             // check by hand now that the holder name is known.
                             checkAssigneeNameConflict();
                         }
-                    }
-                });
-            } else {
-                console.error('GlobalFileNoModal is not defined.');
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire('Error', 'File selector component missing.', 'error');
-                }
             }
         });
     }
@@ -2129,11 +2235,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
         additionalFilenosContainer.appendChild(filenoTemplate.content.cloneNode(true));
         const block = additionalFilenosContainer.lastElementChild;
+        const rowInput = block.querySelector('.additional-fileno-input');
 
         if (value) {
-            block.querySelector('.additional-fileno-input').value = value;
+            rowInput.value = value;
             block.querySelector('.additional-fileno-indicator').classList.remove('hidden');
         }
+
+        attachFileNumberDropdown(rowInput, {
+            onPick: result => applyAdditionalFileSelection(block, result),
+            onClear: () => syncPropertyBlockHeaders(),
+        });
 
         // New rows inherit the form's current interactive state (view mode stays read-only).
         if (!formIsInteractive) {
@@ -2141,6 +2253,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 btn.disabled = true;
                 btn.classList.add('opacity-50', 'cursor-not-allowed');
             });
+            rowInput.disabled = true;
         }
 
         addPropertyBlock();
@@ -2225,84 +2338,71 @@ document.addEventListener('DOMContentLoaded', function () {
                 syncPropertyBlockHeaders();
                 return;
             }
-
-            const searchBtn = e.target.closest('.additional-fileno-search-btn');
-            if (!searchBtn) return;
-
-            if (typeof GlobalFileNoModal === 'undefined') {
-                console.error('GlobalFileNoModal is not defined.');
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire('Error', 'File selector component missing.', 'error');
-                }
-                return;
-            }
-
-            const block = searchBtn.closest('.additional-fileno-block');
-            const input = block.querySelector('.additional-fileno-input');
-
-            GlobalFileNoModal.open({
-                // Without this the picker writes every selection straight into
-                // [name="file_number"] — the primary input — clobbering it.
-                autoPopulateGenericFields: false,
-                callback: function (result) {
-                    if (!result || !result.fileNumber) return;
-
-                    const picked = result.fileNumber.trim();
-                    const taken = getSelectedFileNumbers();
-
-                    // Re-picking into a row that already holds a value must not clash with itself.
-                    const own = input.value.trim().toUpperCase();
-                    const ownIndex = own ? taken.indexOf(own) : -1;
-                    if (ownIndex > -1) taken.splice(ownIndex, 1);
-
-                    if (taken.includes(picked.toUpperCase())) {
-                        warn('Duplicate', `File number ${picked} is already on this application.`);
-                        return;
-                    }
-
-                    input.value = picked;
-                    block.querySelector('.additional-fileno-indicator').classList.remove('hidden');
-
-                    const pairedIndex = filenoRows().indexOf(block);
-
-                    // Backfill the paired Step 2 Right of Occupancy row's applicant.
-                    // Same precedence the primary file number uses.
-                    const record = result.record || {};
-                    setRofoRowValues(
-                        rofoRows()[pairedIndex],
-                        picked,
-                        record.applicant_name || record.owner_name || record.file_name || result.file_name || ''
-                    );
-
-                    // Seed the paired Property Description from the selected file's record.
-                    const pairedProperty = propertyBlocks()[pairedIndex];
-                    if (pairedProperty && result.record) {
-                        const houseNo = pairedProperty.querySelector('input[name="additional_property_house_no[]"]');
-                        if (houseNo) houseNo.value = record.plot_no || record.house_no || '';
-                        setStreetSelectValue(
-                            pairedProperty.querySelector('select[name="additional_property_street[]"]'),
-                            record.street || record.street_name || ''
-                        );
-                        setDistrictValue(
-                            pairedProperty.querySelector('select[name="additional_property_district[]"]'),
-                            pairedProperty.querySelector('input[name="additional_property_district_other[]"]'),
-                            record.district || ''
-                        );
-                        setSelectValueWithFallback(
-                            pairedProperty.querySelector('select[name="additional_property_lga[]"]'),
-                            record.lga || record.lga_name || ''
-                        );
-                        setSelectValueWithFallback(
-                            pairedProperty.querySelector('select[name="additional_property_state[]"]'),
-                            record.state || 'Kano'
-                        );
-                        updateAdditionalPropertyAddress(pairedProperty);
-                    }
-
-                    syncPropertyBlockHeaders();
-                }
-            });
         });
+    }
+
+    // A file picked in an additional row's dropdown. A duplicate is refused and
+    // the dropdown snaps back to the row's previous value.
+    function applyAdditionalFileSelection(block, result) {
+        if (!result || !result.fileNumber) return;
+        const input = block.querySelector('.additional-fileno-input');
+
+        const picked = result.fileNumber.trim();
+        const taken = getSelectedFileNumbers();
+
+        // Re-picking into a row that already holds a value must not clash with itself.
+        const own = input.value.trim().toUpperCase();
+        const ownIndex = own ? taken.indexOf(own) : -1;
+        if (ownIndex > -1) taken.splice(ownIndex, 1);
+
+        if (taken.includes(picked.toUpperCase())) {
+            warn('Duplicate', `File number ${picked} is already on this application.`);
+            return;
+        }
+
+        input.value = picked;
+        block.querySelector('.additional-fileno-indicator').classList.remove('hidden');
+
+        const pairedIndex = filenoRows().indexOf(block);
+
+        // Backfill the paired Step 2 Right of Occupancy row's applicant.
+        // Same precedence the primary file number uses.
+        const record = result.record || {};
+        setRofoRowValues(
+            rofoRows()[pairedIndex],
+            picked,
+            record.applicant_name || record.owner_name || record.file_name || result.file_name || ''
+        );
+
+        // Seed the paired Property Description from the selected file's record.
+        // House No. and Plot No. each go to their own field, as on the primary.
+        const pairedProperty = propertyBlocks()[pairedIndex];
+        if (pairedProperty && result.record) {
+            const houseNo = pairedProperty.querySelector('input[name="additional_property_house_no[]"]');
+            if (houseNo) houseNo.value = record.house_no || '';
+            const plotNo = pairedProperty.querySelector('input[name="additional_property_plot_no[]"]');
+            if (plotNo) plotNo.value = record.plot_no || '';
+            setStreetSelectValue(
+                pairedProperty.querySelector('select[name="additional_property_street[]"]'),
+                record.street || record.street_name || ''
+            );
+            setDistrictValue(
+                pairedProperty.querySelector('select[name="additional_property_district[]"]'),
+                pairedProperty.querySelector('input[name="additional_property_district_other[]"]'),
+                record.district || ''
+            );
+            setSelectValueWithFallback(
+                pairedProperty.querySelector('select[name="additional_property_lga[]"]'),
+                record.lga || record.lga_name || ''
+            );
+            setSelectValueWithFallback(
+                pairedProperty.querySelector('select[name="additional_property_state[]"]'),
+                record.state || 'Kano'
+            );
+            updateAdditionalPropertyAddress(pairedProperty);
+        }
+
+        syncPropertyBlockHeaders();
     }
 
     if (additionalPropertiesContainer) {

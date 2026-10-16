@@ -1064,6 +1064,10 @@ class PropertyRecordController extends Controller
             'related_fileno' => 'nullable|string|max:255',
             'is_mapped' => 'nullable|boolean',
             'temp_fileno' => 'nullable|string|max:255',
+            'op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+            'op_source_other' => 'nullable|string|max:100',
+            'op_type_other' => 'nullable|string|max:100',
+            'extra_regs.*.type_other' => 'nullable|string|max:100',
             'op_type' => 'nullable|string|max:255',
             // Old OP / New OP. Asked only for Resettlement and Direct Allocation; blank
             // means the question was never put and the row keeps the New OP rules.
@@ -1112,6 +1116,25 @@ class PropertyRecordController extends Controller
             if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
                 if (!\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
                     $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required.');
+                }
+                // Source is required on every permit: Other needs its "specify" text, and
+                // an LGA one must name one of the 44 Local Governments as grantor.
+                foreach (\App\Support\OpSource::errors(
+                    $request->input('op_source'),
+                    $request->input('op_source_other'),
+                    $request->input('firstParty') ?: $request->input('Grantor') ?: $request->input('party_1'),
+                    'op_source', 'op_source_other', 'firstParty'
+                ) + \App\Support\OpType::errors(
+                    $request->input('op_type'), $request->input('op_type_other'), 'op_type_other'
+                ) as $field => $message) {
+                    $validator->errors()->add($field, $message);
+                }
+                foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
+                    foreach (\App\Support\OpType::errors(
+                        $reg['type_value'] ?? null, $reg['type_other'] ?? null, "extra_regs.{$index}.type_other"
+                    ) as $field => $message) {
+                        $validator->errors()->add($field, $message);
+                    }
                 }
                 foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
                     if (!\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
@@ -1595,6 +1618,9 @@ class PropertyRecordController extends Controller
                 'metric_sheet' => $request->metric_sheet,
                 'temp_fileno' => $tempFileno,
                 'op_type' => $request->op_type,
+                'op_source' => $this->normalizeValue($request->input('op_source')),
+                'op_source_other' => \App\Support\OpSource::otherFor($request->input('op_source'), $request->input('op_source_other')),
+                'op_type_other' => \App\Support\OpType::otherFor($request->op_type, $request->input('op_type_other')),
                 'instrument_subtype' => $request->instrument_subtype,
                 'instrument_category' => $request->instrument_category,
                 'op_serial_number' => $request->op_serial_number,
@@ -1689,6 +1715,10 @@ class PropertyRecordController extends Controller
                         $rowTypeColumn = InstrumentTypeCatalog::typeColumnFor($request->transactionType);
                         if (array_key_exists($rowTypeColumn, $extraData)) {
                             $extraData[$rowTypeColumn] = $rowTypeValue;
+                            // The row's own "specify" text, not the primary row's.
+                            if ($rowTypeColumn === 'op_type' && array_key_exists('op_type_other', $extraData)) {
+                                $extraData['op_type_other'] = \App\Support\OpType::otherFor($rowTypeValue, $reg['type_other'] ?? null);
+                            }
                         }
                     }
                     $rowCategory = isset($reg['instrument_category']) ? trim((string) $reg['instrument_category']) : '';
@@ -1888,6 +1918,10 @@ class PropertyRecordController extends Controller
             'related_fileno' => 'nullable|string|max:255',
             'Surrenderor_2' => 'nullable|string|max:255',
             'temp_fileno' => 'nullable|string|max:255',
+            'op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+            'op_source_other' => 'nullable|string|max:100',
+            'op_type_other' => 'nullable|string|max:100',
+            'extra_regs.*.type_other' => 'nullable|string|max:100',
             'op_type' => 'nullable|string|max:255',
             'instrument_subtype' => 'nullable|string|max:100',
             'instrument_category' => 'nullable|string|max:100',
@@ -1905,6 +1939,25 @@ class PropertyRecordController extends Controller
             if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
                 if (!\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
                     $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required.');
+                }
+                // Source is required on every permit: Other needs its "specify" text, and
+                // an LGA one must name one of the 44 Local Governments as grantor.
+                foreach (\App\Support\OpSource::errors(
+                    $request->input('op_source'),
+                    $request->input('op_source_other'),
+                    $request->input('firstParty') ?: $request->input('Grantor') ?: $request->input('party_1'),
+                    'op_source', 'op_source_other', 'firstParty'
+                ) + \App\Support\OpType::errors(
+                    $request->input('op_type'), $request->input('op_type_other'), 'op_type_other'
+                ) as $field => $message) {
+                    $validator->errors()->add($field, $message);
+                }
+                foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
+                    foreach (\App\Support\OpType::errors(
+                        $reg['type_value'] ?? null, $reg['type_other'] ?? null, "extra_regs.{$index}.type_other"
+                    ) as $field => $message) {
+                        $validator->errors()->add($field, $message);
+                    }
                 }
                 foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
                     if (!\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
@@ -2144,6 +2197,15 @@ class PropertyRecordController extends Controller
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_type')) {
                 $data['op_type'] = $request->input('op_type');
+                if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_type_other')) {
+                    $data['op_type_other'] = \App\Support\OpType::otherFor($request->input('op_type'), $request->input('op_type_other'));
+                }
+            }
+            if ($request->exists('op_source') && Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_source')) {
+                $data['op_source'] = $this->normalizeValue($request->input('op_source'));
+                if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_source_other')) {
+                    $data['op_source_other'] = \App\Support\OpSource::otherFor($request->input('op_source'), $request->input('op_source_other'));
+                }
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'instrument_subtype')) {
                 $data['instrument_subtype'] = $request->input('instrument_subtype');
@@ -3406,6 +3468,9 @@ class PropertyRecordController extends Controller
                 'transactions.*.consideration_amount' => 'nullable|string|max:100',
                 'transactions.*.receipt_no' => 'nullable|string|max:100',
                 'transactions.*.op_type' => 'nullable|string|max:255',
+                'transactions.*.op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+                'transactions.*.op_source_other' => 'nullable|string|max:100',
+                'transactions.*.op_type_other' => 'nullable|string|max:100',
                 'transactions.*.cofo_type' => 'nullable|string|max:255',
                 'transactions.*.instrument_subtype' => 'nullable|string|max:100',
                 'transactions.*.instrument_category' => 'nullable|string|max:100',
@@ -3425,6 +3490,24 @@ class PropertyRecordController extends Controller
                             "transactions.{$index}.op_serial_number",
                             'OP serial number is required for Occupancy Permit (OP) transactions.'
                         );
+                    }
+
+                    // Source (Ministry / KANGIS / LGA / Other + specify) and OP Type "Other",
+                    // the same rules as the indexing OP section and the PRA card.
+                    if (\App\Support\OpSerial::isMother(['transaction_type' => $transactionType])) {
+                        $opErrors = \App\Support\OpSource::errors(
+                            $transaction['op_source'] ?? null,
+                            $transaction['op_source_other'] ?? null,
+                            $transaction['first_party'] ?? null,
+                            "transactions.{$index}.op_source", "transactions.{$index}.op_source_other", "transactions.{$index}.first_party"
+                        ) + \App\Support\OpType::errors(
+                            $transaction['op_type'] ?? null,
+                            $transaction['op_type_other'] ?? null,
+                            "transactions.{$index}.op_type_other"
+                        );
+                        foreach ($opErrors as $field => $message) {
+                            $validator->errors()->add($field, $message);
+                        }
                     }
                 }
             });
@@ -3943,6 +4026,10 @@ class PropertyRecordController extends Controller
                         if (empty($praData['op_type'])) {
                             $praData['op_type'] = $transaction['op_type'] ?? null;
                         }
+                        // Source and the two "specify" boxes live only on pra too.
+                        $praData['op_source'] = trim((string) ($transaction['op_source'] ?? '')) ?: null;
+                        $praData['op_source_other'] = \App\Support\OpSource::otherFor($transaction['op_source'] ?? null, $transaction['op_source_other'] ?? null);
+                        $praData['op_type_other'] = \App\Support\OpType::otherFor($transaction['op_type'] ?? null, $transaction['op_type_other'] ?? null);
 
                         $praData['created_by'] = Auth::id();
                         $praData['created_at'] = now();
@@ -4034,6 +4121,10 @@ class PropertyRecordController extends Controller
                         if (empty($praData['op_type'])) {
                             $praData['op_type'] = $transaction['op_type'] ?? null;
                         }
+                        // Source and the two "specify" boxes live only on pra too.
+                        $praData['op_source'] = trim((string) ($transaction['op_source'] ?? '')) ?: null;
+                        $praData['op_source_other'] = \App\Support\OpSource::otherFor($transaction['op_source'] ?? null, $transaction['op_source_other'] ?? null);
+                        $praData['op_type_other'] = \App\Support\OpType::otherFor($transaction['op_type'] ?? null, $transaction['op_type_other'] ?? null);
 
                         $praData['updated_by'] = Auth::id();
                         $praData['updated_at'] = now();

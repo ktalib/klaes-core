@@ -3,7 +3,9 @@
     the FMC and charting card prints: standalone, no sidebar, black on white.
     The QR code opens the file's page in the Cadastral Department workflow.
 --}}
-@php $job = $jacket->job; @endphp
+@php
+  $job = $jacket->job ?? (new \App\Models\Cadastral\CadastralSurveyJob())->forceFill(['status' => 'No job yet']);
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>

@@ -7,6 +7,7 @@ use App\Models\PageTyping;
 use App\Models\Scanning;
 use App\Services\Edms\EdmsDocumentPathResolver;
 use App\Services\Edms\EdmsFileType;
+use App\Services\Edms\ScanSource;
 use App\Services\ScanUploads\BlindScanIngestionService;
 use App\Services\ScanUploads\ScanReassignmentService;
 use Illuminate\Http\Request;
@@ -44,6 +45,8 @@ class ScanUploadsController extends Controller
 
         $stats = $this->getDashboardStats();
         $uploadsPaginator = $this->buildUploadsPaginator($request);
+        $activeSource = ScanSource::tab($request->query('source'));
+        $sourceCounts = ScanSource::fileCounts();
 
         $payload = [
             'stats' => $stats,
@@ -64,7 +67,9 @@ class ScanUploadsController extends Controller
             'PageTitle',
             'PageDescription',
             'payload',
-            'uploadsPaginator'
+            'uploadsPaginator',
+            'activeSource',
+            'sourceCounts'
         ));
     }
 
@@ -782,6 +787,12 @@ class ScanUploadsController extends Controller
 
         if ($request->filled('document_type')) {
             $query->where('document_type', $request->input('document_type'));
+        }
+
+        // Source tab: Scanned Files (the default) or Module Uploads. A lookup for one
+        // file number without a tab still returns every page of that file.
+        if ($request->filled('source') || !$request->filled('file_number')) {
+            ScanSource::apply($query, ScanSource::tab($request->input('source')));
         }
 
         return $query;

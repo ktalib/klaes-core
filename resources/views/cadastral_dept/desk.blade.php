@@ -74,10 +74,15 @@
               <td class="px-4 py-2">
                 @if ($isClosed)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800">{{ $case->status === 'returned' ? 'Returned' : 'Completed' }}</span>
+                @elseif ($isSent && $case->current_desk === $desk)
+                  {{-- On a task list: its task is done, the file is still here for the rest. --}}
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800">Done</span>
                 @elseif ($isSent)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800">Sent to {{ $case->deskShort() }}</span>
                 @elseif ($isAway)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">With {{ $case->deskShort() }}</span>
+                @elseif ($m && $m['head']['awaiting'])
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">With the {{ $m['head']['head'] }} for approval</span>
                 @elseif ($back)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800">Sent back by {{ $back['desk'] }}</span>
                 @elseif ($m && $m['tasks_open'])
@@ -106,28 +111,44 @@
                     @if ($fmcInstalled && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
+                    @foreach ($case->verificationReportActions() as $cdVrItem)
+                      <a href="{{ $cdVrItem[2] }}" @if ($cdVrItem[3] ?? false) target="_blank" @endif class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="{{ $cdVrItem[1] }}" class="w-4 h-4 text-gray-500"></i> {{ $cdVrItem[0] }}</a>
+                    @endforeach
                     @if ($isClosed)
                       <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">{{ $case->status === 'returned' ? 'Returned' : 'Completed' }}: view only.</div>
+                    @elseif ($isSent && $case->current_desk === $desk)
+                      <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">Done on this list: view only. Its other actions are on the desk's other lists.</div>
                     @elseif ($isSent)
                       <div class="px-3 py-2 text-xs text-gray-500 border-t border-gray-100">With {{ $case->deskShort() }}: actions are on their desk.</div>
                     @endif
                     @if ($m && $m['question'] && ! $m['decision'])
                       <div class="px-3 pt-2 pb-1 text-xs font-bold text-gray-500 border-t border-gray-100">{{ $m['question'] }}</div>
                     @endif
-                    @if ($m && ($m['attach_job'] || $m['issue_its']))
-                      {{-- Assign to Surveyor (I to S): attach the surveyor's job, then issue the I to S. --}}
+                    @if ($m && $m['jacket'])
+                      {{-- P&D: Commission Field Jacket, then Issue I to S. AD Cad Info: Attach Job and
+                           Surveyor, then Issue Instruction to Surveyor (transcript, 2026-10-16). --}}
                       <div class="border-t border-gray-100">
-                        @if ($m['attach_job'])
+                        @if ($m['jacket'] === 'commission')
+                          <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
+                                data-confirm-title="Commission the field jacket?" data-confirm="A field jacket is numbered for {{ $case->file_number }}.">
+                            @csrf
+                            <button class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
+                              <span class="inline-flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4"></i> Commission Field Jacket</span>
+                              <span class="block text-xs text-gray-500">Then issue the I to S</span>
+                            </button>
+                          </form>
+                        @elseif ($m['jacket'] === 'attach_job')
+                          @php $cdFj = \App\Models\CadastralDept\CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->value('field_jacket_no'); @endphp
                           <button type="button" class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50"
-                                  data-attach-job data-url="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
+                                  data-attach-job data-url="{{ route('cadastral-dept.cases.job.store', $case->id) }}"
                                   data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-plot="{{ $case->plot_no }}"
-                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}">
-                            <span class="inline-flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> Attach Survey Job</span>
-                            <span class="block text-xs text-gray-500">Pick the job and the surveyor; then issue the I to S</span>
+                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $cdFj }}">
+                            <span class="inline-flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> Attach Job and Surveyor</span>
+                            <span class="block text-xs text-gray-500">From the Job Book; then issue the Instruction to Surveyor</span>
                           </button>
                         @else
                           <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
-                            <span class="inline-flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Issue I to S</span>
+                            <span class="inline-flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> {{ $m['jacket'] === 'pnd_its' ? 'Issue I to S' : 'Issue Instruction to Surveyor' }}</span>
                             <span class="block text-xs text-gray-500">On the file page</span>
                           </a>
                         @endif
@@ -191,6 +212,17 @@
                         </button>
                       @endforeach
                     @endif
+                    @if ($m && $m['head']['required'] && ! $m['head']['is_head'])
+                      {{-- Head-of-unit approval: the step's real actions, greyed out for staff (HeadApproval). --}}
+                      @if ($m['head']['awaiting'])
+                        <div class="px-3 py-2 text-xs text-purple-800 border-t border-gray-100">With the {{ $m['head']['head'] }} for approval.</div>
+                      @endif
+                      @foreach ($m['head']['locked'] as $cdLocked)
+                        <div class="px-3 py-2 text-sm text-gray-400 cursor-not-allowed" title="Only the {{ $m['head']['head'] }} sends the file on">
+                          <i data-lucide="lock" class="w-3.5 h-3.5 inline -mt-0.5"></i> {{ $cdLocked['label'] }}
+                        </div>
+                      @endforeach
+                    @endif
                     @php $cdDel = $isClosed ? null : $case->masterDeleteJs(); @endphp
                     @if ($cdDel)
                       <button type="button" onclick="{{ $cdDel }}" @click="open = false"
@@ -209,7 +241,7 @@
       </table>
     </div>
     @if ($sentTotal > $sent->count() && $sent->isNotEmpty())
-      <p class="mt-2 text-xs text-gray-500">Showing the latest {{ $sentLimit }} of {{ number_format($sentTotal) }} files sent on. Search by file number to find an older one.</p>
+      <p class="mt-2 text-xs text-gray-500">Showing the latest {{ $sentLimit }} of {{ number_format($sentTotal) }} {{ ! empty($queueKeepsDone) ? 'files done on this list' : 'files sent on' }}. Search by file number to find an older one.</p>
     @endif
   </div>
 

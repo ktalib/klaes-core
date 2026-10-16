@@ -40,13 +40,19 @@ class FileProfileService
         }
 
         $indexing = $fileNumber
-            ? $db->table('file_indexings')->where('file_number', $fileNumber)
+            // A temporary file ("COM-1994-8(T)") is found by temp_file_no; often it has no file_number.
+            ? $db->table('file_indexings')
+                ->where(fn ($q) => $q->where('file_number', $fileNumber)->orWhere('temp_file_no', $fileNumber))
                 ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->orderByRaw('CASE WHEN file_number = ? THEN 0 ELSE 1 END', [$fileNumber])
                 ->orderByDesc('id')
-                ->first(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
+                ->first(['id', 'file_number', 'temp_file_no', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
                          'registry', 'shelf_location', 'batch_no', 'plot_size', 'tp_no', 'title_status',
                          'tracking_id', 'is_decommissioned', 'successor_file_no', 'edms_file_type', 'created_at'])
             : null;
+        if ($indexing && trim((string) $indexing->file_number) === '') {
+            $indexing->file_number = $indexing->temp_file_no;   // in memory only: EDMS paths need a number
+        }
 
         $meta = $tracker ? json_decode((string) $tracker->module_meta, true) : null;
         $meta = is_array($meta) ? ($meta['secretariat'] ?? []) : [];
@@ -83,10 +89,14 @@ class FileProfileService
                 'title_status'    => $indexing->title_status ?? null,
                 'decommissioned'  => !empty($indexing->is_decommissioned),
                 'successor'       => $indexing->successor_file_no ?? null,
-                'document_kind'   => $meta['document_kind'] ?? null,
+                'document_kind'   => $tracker?->document_kind ?: ($meta['document_kind'] ?? null),
+                'mail_type'       => $tracker?->mail_type ?: ($meta['mail_type'] ?? null),
                 'sender_type'     => $meta['sender_type'] ?? null,
                 'sender'          => $meta['sender'] ?? null,
+                'sender_name'     => $meta['sender_name'] ?? null,
+                'sender_rank'     => $meta['sender_rank'] ?? null,
                 'reference'       => $meta['reference'] ?? null,
+                'related_file_number' => $meta['related_file_number'] ?? null,
                 'passport_url'    => $passport,
             ],
             'tracker' => $tracker ? [
@@ -103,6 +113,10 @@ class FileProfileService
                 'last_status'    => strtolower((string) ($lastEntry['status'] ?? '')),
                 'last_at'        => $lastEntry['accepted_at'] ?? $lastEntry['timestamp'] ?? null,
                 // The office a legacy hand-over sits at; it counts as held there.
+                // Where a pending hand-over is addressed, and which office sent it.
+                'pending_to'     => strtolower((string) ($lastEntry['status'] ?? '')) === 'pending_acceptance'
+                    ? ($lastEntry['receiving_office_code'] ?? $lastEntry['office_code'] ?? null) : null,
+                'sent_from'      => $lastEntry['sent_from_office_code'] ?? null,
                 'legacy_held_at' => SecretariatFileLogService::isLegacyHandOver($lastEntry)
                     ? ($lastEntry['receiving_office_code'] ?? $lastEntry['office_code'] ?? null) : null,
             ] : null,

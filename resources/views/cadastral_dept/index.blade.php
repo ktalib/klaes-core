@@ -12,7 +12,9 @@
       @foreach ($def->workflows() as $wfKey => $wf)
         <a href="{{ route('cadastral-dept.cases.index', ['workflow' => $wfKey, 'status' => 'in_progress']) }}"
            class="rounded-xl border border-{{ $wf['colour'] }}-200 bg-white p-5 hover:shadow">
-          <div class="text-sm font-semibold text-{{ $wf['colour'] }}-700">{{ $wf['label'] }}</div>
+          <div class="flex items-center gap-2 text-sm font-semibold text-{{ $wf['colour'] }}-700">
+            <i data-lucide="{{ $wf['icon'] ?? 'folder' }}" class="w-4 h-4"></i>{{ $wf['label'] }}
+          </div>
           <div class="text-3xl font-black text-gray-800 mt-1">{{ number_format($byWorkflow[$wfKey] ?? 0) }}</div>
           <div class="text-xs text-gray-500">open files</div>
         </a>

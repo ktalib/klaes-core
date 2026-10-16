@@ -58,6 +58,7 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'file-numbers'], func
     Route::get('/consolidation-report', [FileNumberController::class, 'getConsolidationReport'])->name('file-numbers.consolidation-report');
     Route::get('/{id}', [FileNumberController::class, 'show'])->name('file-numbers.show');
     Route::put('/{id}', [FileNumberController::class, 'update'])->name('file-numbers.update');
+    Route::post('/{id}/file-source', [FileNumberController::class, 'updateFileSource'])->name('file-numbers.update-file-source');
     Route::post('/bulk-destroy', [FileNumberController::class, 'bulkDestroy'])->name('file-numbers.bulk-destroy');
     Route::delete('/{id}', [FileNumberController::class, 'destroy'])->name('file-numbers.destroy');
     Route::get('/count/total', [FileNumberController::class, 'getCount'])->name('file-numbers.count');

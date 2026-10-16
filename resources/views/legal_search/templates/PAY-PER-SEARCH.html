@@ -339,6 +339,24 @@
       color: rgba(220, 38, 38, 0.14);
     }
 
+    /* Requesting Body watermark (unpaid Official search) — sits below the ORIGINAL /
+       FILE COPY mark so both read. */
+    .watermark-body {
+      position: absolute;
+      left: 50%;
+      top: 72%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: 80px;
+      color: rgba(29, 78, 216, 0.14);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      font-weight: 900;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 0;
+      display: none;
+    }
+
     .dynamic-comment-inline {
       display: none;
       margin-right: 4px;
@@ -450,7 +468,8 @@
       }
 
       .watermark-img,
-      .watermark-copy {
+      .watermark-copy,
+      .watermark-body {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
@@ -465,6 +484,13 @@
       .watermark-copy {
         position: fixed;
         top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+      }
+
+      .watermark-body {
+        position: fixed;
+        top: 72%;
         left: 50%;
         transform: translate(-50%, -50%) rotate(-30deg);
       }
@@ -498,6 +524,8 @@
       src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Coat_of_arms_of_Nigeria.svg/250px-Coat_of_arms_of_Nigeria.svg.png"
       alt="" />
     <div id="wm-copy" class="watermark-copy">FILE COPY</div>
+    <!-- Unpaid (Official) search: the Requesting Body from the TTC token, e.g. EFCC. -->
+    <div id="wm-body" class="watermark-body"></div>
 
     <div class="main-content">
       <header>
@@ -561,14 +589,27 @@
         <div class="lbl">TP No:</div>
         <div class="val"><strong id="report-tpno">-</strong></div>
         <div class="sp"></div>
-        <div class="lbl"></div>
-        <div class="val"></div>
+        <div class="lbl">Search Type:</div>
+        <div class="val"><strong id="report-search-type">-</strong></div>
         <div class="sp"></div>
         <!-- Root of Title, sitting directly beneath the Date line in the same column.
              Hidden entirely when the file has none on record, rather than printing a
              label with a dash after it. -->
         <div id="report-root-of-title-line" class="root-of-title"
              style="grid-column: span 2; font-size: 11px; display: none;"></div>
+
+        <!-- Row 5: Requester Details from the Transaction Token Control (TTC) token. -->
+        <div class="lbl">Token No:</div>
+        <div class="val"><strong id="report-ttc-token">-</strong></div>
+        <div class="sp"></div>
+        <div class="lbl">Receipt No:</div>
+        <div class="val"><strong id="report-ttc-receipt">-</strong></div>
+        <div class="sp"></div>
+        <div class="lbl">Amount Paid:</div>
+        <div class="val"><strong id="report-ttc-amount">-</strong></div>
+        <div class="sp"></div>
+        <div class="lbl">Date Paid:</div>
+        <div class="val"><strong id="report-ttc-date-paid">-</strong></div>
       </div>
 
       <div class="section-label">File History</div>
@@ -906,6 +947,21 @@
           setText('report-tpno', d.tpno);
           setText('report-client-name', titleCase(d.client_name));
           setText('report-client-address', titleCase(d.client_address));
+          // Requester Details from the TTC token. A token with a Requesting Body is an
+          // Official (unpaid) search and carries that body as a watermark; a General
+          // token is a Commercial, paid search.
+          const rq = d.requester || {};
+          setText('report-search-type', rq.search_type
+            ? (rq.requesting_body ? rq.search_type + ' (' + rq.requesting_body + ')' : rq.search_type) : null);
+          setText('report-ttc-token', rq.token);
+          setText('report-ttc-receipt', rq.receipt_number);
+          setText('report-ttc-amount', rq.amount_paid ? '\u20A6' + rq.amount_paid : null);
+          setText('report-ttc-date-paid', rq.date_paid);
+          const wmBody = document.getElementById('wm-body');
+          if (wmBody) {
+            wmBody.textContent = rq.watermark || '';
+            wmBody.style.display = rq.watermark ? 'block' : 'none';
+          }
           setText('report-generated-by', d.generated_by);
           setText('report-full-name', d.full_name);
           setText('report-rank', d.rank);

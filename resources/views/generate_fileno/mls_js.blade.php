@@ -436,17 +436,23 @@
         // both leave their row out when there is none.
         const links = await fetchCommissioningFileLinks(key);
         if (stillOnSameFile()) {
-            setCommissioningOldFileNumber(links.old_file_number, key);
-            setCommissioningRelatedFileNumber(links.related_file_number, key);
+            setCommissioningOldFileNumber(links.old_file_number, key, !!links.is_duplicate);
+            setCommissioningRelatedFileNumber(links.related_file_number, key, !!links.is_duplicate && !String(links.old_file_number || '').trim());
         }
     }
 
     // Show/hide the Old File No line on the commissioning modal. An empty value keeps
     // the row hidden so the printed sheet never carries a blank rule.
-    function setCommissioningOldFileNumber(value, fileNumber = '') {
+    function setCommissioningOldFileNumber(value, fileNumber = '', isDuplicate = false) {
         const input = document.getElementById('cs_old_file_number');
         const wrap = document.getElementById('cs_old_file_number_wrap');
         if (!input) return;
+
+        // Re-Issuance of FileNo: the old number is the duplicate it replaces.
+        const label = wrap ? wrap.querySelector('label[for="cs_old_file_number"]') : null;
+        if (label) {
+            label.textContent = isDuplicate ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:';
+        }
 
         let old = String(value || '').trim();
         // An entry equal to the file's own number is not a previous number.
@@ -460,10 +466,16 @@
 
     // Same treatment for the Related File No line: a file with no related file keeps
     // the row off the sheet entirely.
-    function setCommissioningRelatedFileNumber(value, fileNumber = '') {
+    function setCommissioningRelatedFileNumber(value, fileNumber = '', isDuplicate = false) {
         const input = document.getElementById('cs_related_file_number');
         const wrap = document.getElementById('cs_related_file_number_wrap');
         if (!input) return;
+
+        // Re-Issuance of FileNo with no old number: this related number is the duplicate.
+        const label = wrap ? wrap.querySelector('label[for="cs_related_file_number"]') : null;
+        if (label) {
+            label.textContent = isDuplicate ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:';
+        }
 
         let related = String(value || '').trim();
         // A file is not related to itself.
@@ -1790,15 +1802,20 @@
                         const fileTypeLabels = {
                             temporary: 'Temporary', extension: 'Extension', miscellaneous: 'Miscellaneous',
                             change_of_purpose: 'Change of Purpose', resettlement: 'Resettlement',
-                            regrant: 'Re-grant', reissuance: 'Re-Issuance', recertification: 'Recertification',
+                            regrant: 'Re-grant', reissuance: 'Re-Issuance of FileNo', recertification: 'Recertification',
                             subdivision: 'Subdivision', merger: 'Merger', separation: 'Separation', duplex: 'Duplex'
                         };
                         const fileOpt = String(row.file_option || '').trim().toLowerCase();
                         const fileTypeLabel = fileTypeLabels[fileOpt] || '';
                         const badgeValue = fileTypeLabel || sourceValue;
                         if (type !== 'display') return badgeValue;
+                        // One colour per Source value, from App\Support\SourceBadge — the
+                        // OSS FC / FEFR tables use the same map.
+                        const sourcePalette = @json(\App\Support\SourceBadge::palette());
+                        const paletteKey = badgeValue.toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+                        const [badgeBg, badgeFg, badgeBorder] = sourcePalette[paletteKey] || sourcePalette['*'];
                         return badgeValue !== 'N/A'
-                            ? `<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:9999px;font-size:12px;font-weight:600;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8">${badgeValue}</span>`
+                            ? `<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:9999px;font-size:12px;font-weight:600;border:1px solid ${badgeBorder};background:${badgeBg};color:${badgeFg};white-space:nowrap">${badgeValue}</span>`
                             : 'N/A';
                     }
                 },
@@ -1921,10 +1938,16 @@
                             // like an afterthought rather than part of the same fact.
                             const isOld = (relOld && relOld.kind === 'old')
                                 || String(relatedList[0].type || '').toLowerCase() === 'old file number';
-                            const relBadge = isOld
+                            // Re-Issuance of FileNo: the number beneath is the duplicate it
+                            // replaces, so it reads DUP (rose, like the form's Old File
+                            // (Duplicate FileNo) panel) instead of OLD / REL.
+                            const isDup = String(row.file_option || '').trim().toLowerCase() === 'reissuance';
+                            const relBadge = isDup
+                                ? '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold mr-1" style="background:#ffe4e6;color:#be123c;border:1px solid #fecdd3" title="Duplicate FileNo (Re-Issuance of FileNo)">DUP</span>'
+                                : isOld
                                 ? '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 mr-1">OLD</span>'
                                 : '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-100 text-sky-700 border border-sky-200 mr-1">REL</span>';
-                            const relValueClass = isOld ? 'text-amber-700' : 'text-sky-700';
+                            const relValueClass = isDup ? 'text-rose-700' : (isOld ? 'text-amber-700' : 'text-sky-700');
 
                             // A recertification is not its own Root of Title — the file it
                             // was raised from is — so the marker rides on this number
@@ -2279,67 +2302,77 @@
                                 </button>
 
                                 <div class="action-dropdown shadow-sm border border-gray-200 rounded-lg">
-                                    <button class="flex items-center space-x-2 px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none" title="More actions">
-                                        <i data-lucide="ellipsis" class="w-4 h-4 text-gray-400"></i>
+                                    <button class="flex items-center space-x-2 px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none" title="Actions" aria-label="Actions">
+                                        <i data-lucide="more-vertical" class="w-4 h-4 text-gray-400"></i>
                                     </button>
                                     <div class="action-dropdown-menu">
-                                    <!-- Edit Record -->
-                                    <button onclick="openEditModalFromAction(event, ${row.id}, '${row.type || ''}')"
-                                            class="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-3">
-                                        <i data-lucide="edit-3" class="w-4 h-4 text-slate-500"></i>
-                                        <span class="font-medium">Edit${batchCount > 1 ? ` <span class="text-[10px] font-semibold text-amber-700">(batch of ${batchCount})</span>` : ''}</span>
-                                    </button>
-
-                                    <!-- Did commissioning write every table it should? -->
+                                    <!-- a. Did commissioning write every table it should? -->
                                     <button onclick="openCommissioningChecklist('${moveFileNo}', '${batchNo}', ${batchCount})"
                                             class="w-full text-left px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 flex items-center space-x-3">
                                         <i data-lucide="list-checks" class="w-4 h-4 text-emerald-500"></i>
-                                        <span class="font-medium">Commissioning Checklist</span>
+                                        <span class="font-medium">File Commissioning Checklist</span>
                                     </button>
 
-                                    <!-- MLPP is never a change of ownership: always Land Applications (No Change) -->
+                                    <!-- b. Edit Record -->
+                                    <button onclick="openEditModalFromAction(event, ${row.id}, '${row.type || ''}')"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-3">
+                                        <i data-lucide="edit-3" class="w-4 h-4 text-slate-500"></i>
+                                        <span class="font-medium">Edit Record${batchCount > 1 ? ` <span class="text-[10px] font-semibold text-amber-700">(batch of ${batchCount})</span>` : ''}</span>
+                                    </button>
+
+                                    ${isFileNumberRow ? `
+                                    <!-- c. Quick fix of the property/contact fields on the fileNumber row:
+                                         Plot No., District, LGA, Location and Phone (directAllocationModal) -->
+                                    <button onclick="directAllocation(${row.id}, '${row.type || ''}')"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 flex items-center space-x-3">
+                                        <i data-lucide="map-pin" class="w-4 h-4 text-green-500"></i>
+                                        <span class="font-medium">Update Allocation Data</span>
+                                    </button>
+
+                                    @if(Auth::user() && Auth::user()->assign_role === 'Supper Admin')
+                                    <!-- d. Relabel the File Type (Source column + commissioning sheet); Super Admin only for now -->
+                                    <button onclick="openUpdateFileSource(event, ${row.id}, '${moveFileNo}', '${String(row.file_option || '').replace(/'/g, '')}')"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-violet-700 hover:bg-violet-50 flex items-center space-x-3">
+                                        <i data-lucide="tag" class="w-4 h-4 text-violet-500"></i>
+                                        <span class="font-medium">Update File Source</span>
+                                    </button>
+                                    @endif
+                                    ` : ''}
+
+                                    <!-- e. MLPP is never a change of ownership: always Land Applications (No Change) -->
                                     <button onclick="sendToOssApplications(window.MLPP_SEND_TO_OSS_URL, { file_number: '${moveFileNo}' }, { label: '${moveFileNo}', list: 'Land Applications (No Change of Ownership)', title: 'Send to Land Applications?' })"
                                             class="w-full text-left px-4 py-2.5 text-sm text-sky-700 hover:bg-sky-50 flex items-center space-x-3">
                                         <i data-lucide="send" class="w-4 h-4 text-sky-500"></i>
                                         <span class="font-medium">Send to Land Applications</span>
                                     </button>
 
-                                    ${isFileNumberRow ? `
-                                    <!-- Direct Allocation -->
-                                    <button onclick="directAllocation(${row.id}, '${row.type || ''}')"
-                                            class="w-full text-left px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 flex items-center space-x-3">
-                                        <i data-lucide="map-pin" class="w-4 h-4 text-green-500"></i>
-                                        <span class="font-medium">Update Allocation data</span>
-                                    </button>
-                                    ` : ''}
-
                                     @if(Auth::user() && Auth::user()->assign_role === 'Supper Admin')
                                     ${isFileNumberRow ? `
-                                    <!-- Re-file a wrongly commissioned file under the OSS registry -->
-                                    <button onclick="moveCommissioningRegistry(event, '${moveFileNo}', 'OSS')"
-                                            class="w-full text-left px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 flex items-center space-x-3">
-                                        <i data-lucide="arrow-right-left" class="w-4 h-4 text-blue-500"></i>
-                                        <span class="font-medium">Move to OSS File Commissioning</span>
-                                    </button>
-
-                                    <!-- This number is also on another physical folder: move this file to the next serial -->
+                                    <!-- f. This number is also on another physical folder: move this file to the next serial -->
                                     <button onclick="moveCommissionedFile(event, ${row.id}, '${row.type || ''}')"
                                             class="w-full text-left px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50 flex items-center space-x-3">
                                         <i data-lucide="copy" class="w-4 h-4 text-rose-500"></i>
-                                        <span class="font-medium">Move Commissioned File</span>
+                                        <span class="font-medium">Move File Commissioning Record</span>
+                                    </button>
+
+                                    <!-- g. Re-file a wrongly commissioned file under the OSS registry -->
+                                    <button onclick="moveCommissioningRegistry(event, '${moveFileNo}', 'OSS')"
+                                            class="w-full text-left px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 flex items-center space-x-3">
+                                        <i data-lucide="arrow-right-left" class="w-4 h-4 text-blue-500"></i>
+                                        <span class="font-medium">Move from Land to OSS</span>
                                     </button>
                                     ` : ''}
                                     @endif
 
                                     <div class="border-t border-gray-100 my-1"></div>
 
-                                    <!-- Delete Record -->
+                                    <!-- h. Master Delete -->
                                     @if(Auth::user() && Auth::user()->assign_role === 'Supper Admin')
                                     ${isFileNumberRow ? `
                                     <button onclick="deleteRecord(${row.id}, '${row.type || ''}', '${batchNo}', ${batchCount})"
                                             class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-3">
                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        <span class="font-medium">Delete Record${batchCount > 1 ? ` (${batchCount} files)` : ''}</span>
+                                        <span class="font-medium">Master Delete${batchCount > 1 ? ` (${batchCount} files)` : ''}</span>
                                     </button>
                                     ` : `
                                     <div class="px-4 py-2.5 text-xs text-gray-400 italic">
@@ -5534,6 +5567,25 @@
         editRecord(id, type);
     }
 
+    // The sheet's related line without entries already printed, on the Old FileNo line
+    // or earlier on the related line. An entry is a number plus its paired alias,
+    // "CON-IND-2026-4 (KN5358)"; it repeats when its leading number is already printed.
+    // Mirrors CommissioningSheetController::dropRepeatedFileNumbers().
+    function dropRepeatedFileNumbers(related, old) {
+        const entries = line => String(line || '').split(/\s*,\s*(?![^()]*\))/).map(e => e.trim()).filter(Boolean);
+        const numbers = entry => entry.split(/[()]+/).map(t => t.trim().toUpperCase()).filter(Boolean);
+        const printed = new Set();
+        entries(old).forEach(e => numbers(e).forEach(n => printed.add(n)));
+        const kept = [];
+        entries(related).forEach(e => {
+            const own = numbers(e);
+            if (own.length && printed.has(own[0])) return;
+            own.forEach(n => printed.add(n));
+            kept.push(e);
+        });
+        return kept.join(', ');
+    }
+
     // "Move Commissioned File" (Supper Admin). This file's number is also on another
     // PHYSICAL folder, so this record moves to the next available number of its own
     // prefix (CON-RES stays CON-RES). The file number changes everywhere it is stored,
@@ -5563,7 +5615,7 @@
 
         const confirmMove = (preview, notice) => Swal.fire({
             icon: 'question',
-            title: 'Move Commissioned File?',
+            title: 'Move File Commissioning Record?',
             html:
                 (notice ? '<p style="font-size:12px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-bottom:10px;">' + esc(notice) + '</p>' : '')
                 + '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 14px;">'
@@ -6458,6 +6510,70 @@
                     confirmButtonColor: '#ef4444'
                 });
             });
+    }
+
+    // Land FC > Update File Source: a card with the File Type list. Saving sets the
+    // file's file_option + source, which the Source column and the commissioning sheet read.
+    function openUpdateFileSource(event, id, fileNo, currentOption) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const modal = document.getElementById('updateFileSourceModal');
+        if (!modal) { Swal.fire('Error', 'Update File Source card is missing. Refresh the page.', 'error'); return; }
+        if (modal.parentNode !== document.body) document.body.appendChild(modal);
+        document.getElementById('ufsId').value = id;
+        document.getElementById('ufsFileNo').textContent = fileNo || '-';
+        const select = document.getElementById('ufsFileOption');
+        select.value = Array.from(select.options).some(o => o.value === currentOption) ? currentOption : '';
+        document.getElementById('ufsError').classList.add('hidden');
+        modal.classList.remove('hidden');
+        modal.style.setProperty('display', 'block', 'important');
+        modal.style.setProperty('z-index', '1000005', 'important');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeUpdateFileSource() {
+        const modal = document.getElementById('updateFileSourceModal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.style.removeProperty('display');
+    }
+
+    async function submitUpdateFileSource(event) {
+        event.preventDefault();
+        const id = document.getElementById('ufsId').value;
+        const option = document.getElementById('ufsFileOption').value;
+        const errorEl = document.getElementById('ufsError');
+        if (!option) {
+            errorEl.textContent = 'Select a file type.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        const btn = document.getElementById('ufsSaveBtn');
+        btn.disabled = true;
+        try {
+            const response = await fetch(`{{ route("file-numbers.update-file-source", ":id") }}`.replace(':id', id), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                },
+                body: JSON.stringify({ file_option: option }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                errorEl.textContent = data.message || 'Could not update the file source.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            closeUpdateFileSource();
+            Swal.fire({ icon: 'success', title: 'File Source Updated', text: data.message, timer: 2200, showConfirmButton: false });
+            try { table.ajax.reload(null, false); } catch (e) { /* server-rendered table */ }
+        } catch (e) {
+            errorEl.textContent = 'Network error. Please try again.';
+            errorEl.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     function directAllocation(id, rowType) {
@@ -7457,6 +7573,9 @@
             copCurrentLandUse: '',
             copNewPurpose: '',
             newPurpose: '', // Added missing property to fix ReferenceError
+            // A Purpose to select by name once the land use's purposes load (Change of
+            // Purpose backfill). { name, until } — see setPrefillPurpose / applyPrefillPurpose.
+            prefillPurpose: null,
 
             // Batch Mode Properties
             hideBatchMode: window.commissionModalHideBatchMode === true,
@@ -9056,9 +9175,10 @@
                     .then(data => {
                         this.purposes = data.purposes || [];
                         // this.prefixes = data.prefixes || []; // We use the global list now
-                        
+
                         // Reset purpose
                         this.purpose = '';
+                        this.applyPrefillPurpose();
                     })
                     .catch(error => {
                         console.error('Error fetching dependent data:', error);
@@ -9068,6 +9188,32 @@
                     .finally(() => {
                          hideGlobalLoading();
                     });
+            },
+
+            // Change of Purpose backfill: the purpose chosen on the CoP card is selected
+            // here once its land use's purposes have loaded (they load after the land use
+            // is set, and loading clears the selection). Short-lived, so an abandoned
+            // prefill cannot land on a later, unrelated commissioning.
+            setPrefillPurpose(name) {
+                const n = String(name || '').trim();
+                this.prefillPurpose = n ? { name: n, until: Date.now() + 15000 } : null;
+                this.$nextTick(() => this.applyPrefillPurpose());
+            },
+
+            applyPrefillPurpose() {
+                const p = this.prefillPurpose;
+                if (!p) return;
+                if (Date.now() > p.until) { this.prefillPurpose = null; return; }
+                const norm = v => String(v || '').trim().replace(/\s+/g, ' ').toUpperCase();
+                const match = (this.purposes || []).find(x => norm(x.name) === norm(p.name));
+                if (!match) return; // the right land use's list may not have loaded yet
+                this.purpose = String(match.id);
+                this.prefillPurpose = null;
+                this.$nextTick(() => {
+                    const sel = document.getElementById('purpose');
+                    if (sel) sel.value = String(match.id);
+                    this.updatePreview();
+                });
             },
 
             fetchAllPurposes() {
@@ -9596,6 +9742,8 @@
                     const newLuCode = this.normalizeLandUseCode(data.purpose || data.new_purpose || '');
                     this.newPurpose = newLuCode;
                     this.landUse = newLuCode;
+                    // ...and the Purpose picked on the CoP card (e.g. LOW DENSITY).
+                    this.setPrefillPurpose(data.new_purpose || '');
 
                     const matchedPrefix = this.findPrefixForLandUseCode(newLuCode);
                     if (matchedPrefix) {
@@ -10808,47 +10956,34 @@
 
                     // Specialized handling for Land Use and Prefix
                     if (match.land_use || fileNumber) {
-                        let luCode = '';
-                        let matchedPrefix = null;
-
-                        if (match.land_use) {
-                            // 1. Success from API/DB join
-                            const luName = match.land_use.toUpperCase();
-                            if (luName.includes('RESIDENTIAL')) luCode = 'RES';
-                            else if (luName.includes('COMMERCIAL')) luCode = 'COM';
-                            else if (luName.includes('INDUSTRIAL')) luCode = 'IND';
-                            else if (luName.includes('AGRICULTURAL')) luCode = 'AG';
-                            else luCode = luName.substring(0, 3);
-                        } else {
-                            // 2. Fallback: Parse from file number string (e.g., "AG-RC-2026-32")
-                            console.log('No land_use in data, attempting fallback from file number:', fileNumber);
-                            const parts = fileNumber.split('-');
-                            if (parts.length > 0) {
-                                const prefixFound = parts[0]; // e.g., "AG" or "RES"
-                                matchedPrefix = alpineData.allAllPrefixes.find(p => p.prefix === prefixFound || p.prefix === `CON-${prefixFound}`);
-                                if (matchedPrefix) {
-                                    luCode = prefixFound;
-                                }
-                            }
-                        }
+                        // Land use: from the API (mother application / MLS register /
+                        // indexing), else parsed from the number itself. normalizeLandUseCode
+                        // strips CON- and -RC, so "CON-IND-2023-9" resolves to IND.
+                        const prefixPart = (fileNumber.match(/^(CON-)?[A-Z]+(-RC)?(?=-\d)/i) || [''])[0].toUpperCase();
+                        const luCode = alpineData.normalizeLandUseCode(match.land_use || '')
+                            || alpineData.normalizeLandUseCode(prefixPart);
 
                         if (luCode) {
-                            alpineData.landUse = luCode;
-                            
-                            // Try to find a matching prefix for the dropdown
-                            if (!matchedPrefix) {
-                                if (alpineData.applicationType === 'conversion') {
-                                    matchedPrefix = alpineData.allAllPrefixes.find(p => p.prefix.includes('CON-') && p.prefix.includes(luCode));
-                                } else {
-                                    matchedPrefix = alpineData.allAllPrefixes.find(p => !p.prefix.includes('CON-') && p.prefix.includes(luCode));
-                                }
+                            // A prefix the Select Prefix list shows for the current application
+                            // type, else the selected file's own prefix (e.g. CON-IND).
+                            const matchedPrefix = alpineData.findPrefixForLandUseCode(luCode)
+                                || (prefixPart && alpineData.allAllPrefixes.find(p => (p.prefix || '').toUpperCase() === prefixPart));
+
+                            if (match.purpose_name && typeof alpineData.setPrefillPurpose === 'function') {
+                                alpineData.setPrefillPurpose(match.purpose_name);
                             }
 
                             if (matchedPrefix) {
                                 alpineData.prefix = matchedPrefix.prefix;
-                                // Fetch purposes for this land use ID to keep UI consistent
-                                if (matchedPrefix.land_use_id) {
-                                    alpineData.fetchDependentData(matchedPrefix.land_use_id);
+                                // Sets landUse / landUseId and loads that land use's purposes;
+                                // the prefilled purpose is selected once they arrive.
+                                alpineData.handlePrefixChange();
+                            } else {
+                                alpineData.landUse = luCode;
+                                const lu = alpineData.findLandUseByCode(luCode);
+                                if (lu) {
+                                    alpineData.landUseId = lu.id;
+                                    alpineData.fetchDependentData(lu.id);
                                 }
                             }
                         }
@@ -11145,7 +11280,7 @@
     // an API row and may not carry either, so both are looked up here rather than left
     // off the sheet.
     async function fetchCommissioningFileLinks(fileNumber) {
-        const empty = { old_file_number: '', related_file_number: '', district: '', source: '' };
+        const empty = { is_duplicate: false, old_file_number: '', related_file_number: '', district: '', source: '' };
         const number = String(fileNumber || '').trim();
         if (!number) return empty;
 
@@ -11156,6 +11291,8 @@
             if (!res.ok) return empty;
             const payload = await res.json();
             return {
+                // Re-Issuance of FileNo: its old (or, failing that, related) number is the duplicate.
+                is_duplicate: !!payload.is_duplicate,
                 old_file_number: String(payload.old_file_number || '').trim(),
                 related_file_number: String(payload.related_file_number || '').trim(),
                 district: String(payload.district || '').trim(),
@@ -11201,6 +11338,16 @@
         while (size > 7 && doc.getTextWidth(label) > available) {
             size -= 0.5;
             doc.setFontSize(size);
+        }
+
+        // Still too wide at the smallest size ("... (Duplicate FileNo):"): break before
+        // the bracket and set the two halves just above and below the usual baseline.
+        const cut = label.indexOf(' (');
+        if (doc.getTextWidth(label) > available && cut > 0) {
+            doc.text(label.slice(0, cut), x, y - 1.8);
+            doc.text(label.slice(cut + 1), x, y + 1.8);
+            doc.setFontSize(10);
+            return;
         }
 
         doc.text(label, x, y);
@@ -11405,35 +11552,78 @@
         });
     }
 
-    async function appendTrackingSheetPage(doc, fileNumber) {
-        const number = (fileNumber || '').toString().trim();
-        if (!number || typeof html2canvas === 'undefined') {
-            return false;
+    // The File Tracking page loaded once in a hidden frame, for a batch to reuse across
+    // every file instead of loading it again per sheet. Close it with closeTrackingPage().
+    async function openTrackingPage() {
+        const frame = makeHiddenFrame();
+        frame.src = TRACKING_PAGE_URL;
+        const win = await waitForTrackingPage(frame);
+        return { frame, win };
+    }
+
+    function closeTrackingPage(page) {
+        if (page && page.frame && page.frame.parentNode) page.frame.parentNode.removeChild(page.frame);
+    }
+
+    // The tracker lookup, retried. It is fired while the tracking page in the hidden frame
+    // runs its own list request, and the server drops one of two such concurrent calls
+    // now and then (a 401 or a 500 on a session that is fine a second later). Taken once,
+    // that silently cost the sheet its page 2. Resolves to the payload, or null.
+    async function fetchTrackerRows(number, attempts = 4) {
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                const response = await fetch(
+                    `${TRACKING_LIST_URL}?per_page=25&status=all&search=${encodeURIComponent(number)}`,
+                    { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' }
+                );
+                const payload = response.ok ? await response.json() : null;
+                if (payload && payload.success) return payload;
+                console.warn(`Tracker lookup for ${number} failed (attempt ${attempt}, HTTP ${response.status}).`);
+            } catch (e) {
+                console.warn(`Tracker lookup for ${number} failed (attempt ${attempt}):`, e);
+            }
+            if (attempt < attempts) await new Promise(r => setTimeout(r, 700 * attempt));
         }
+        return null;
+    }
+
+    // sharedWin: a tracking page already open (openTrackingPage().win), so a batch does
+    // not load it once per file. Without it the page is opened and closed here.
+    //
+    // Resolves true when the page was added, false when the file has no tracker (one
+    // page is then the right answer), and null when it should have been added but could
+    // not be — the caller tells the officer, rather than handing over a one-page sheet
+    // as if it were complete.
+    async function appendTrackingSheetPage(doc, fileNumber, sharedWin = null) {
+        const number = (fileNumber || '').toString().trim();
+        if (!number) return false;
+        if (typeof html2canvas === 'undefined') return null;
 
         let pageFrame = null;
         let sheetFrame = null;
 
         try {
             // 1. The tracking page, purely as the place its own sheet code can run.
-            pageFrame = makeHiddenFrame();
-            pageFrame.src = TRACKING_PAGE_URL;
-
-            const win = await waitForTrackingPage(pageFrame);
+            let win = sharedWin;
+            if (!win) {
+                pageFrame = makeHiddenFrame();
+                pageFrame.src = TRACKING_PAGE_URL;
+                win = await waitForTrackingPage(pageFrame);
+            }
             if (!win) {
                 console.warn('Tracking sheet page skipped: the File Tracking page did not '
                     + 'initialise in its frame (check that the URL is same-origin).');
-                return false;
+                return null;
             }
 
             // 2. The tracker, from the same endpoint and the same transform the File Log
             //    Table uses, so the sheet gets exactly the object it expects.
-            const response = await fetch(
-                `${TRACKING_LIST_URL}?per_page=25&status=all&search=${encodeURIComponent(number)}`,
-                { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' }
-            );
-            const payload = await response.json();
-            const rows = (payload && payload.success && Array.isArray(payload.data)) ? payload.data : [];
+            const payload = await fetchTrackerRows(number);
+            if (!payload) {
+                console.warn('Tracking sheet page skipped: the tracker lookup kept failing.');
+                return null;
+            }
+            const rows = Array.isArray(payload.data) ? payload.data : [];
 
             if (!rows.length) {
                 // No tracking for this file — one page is the right answer.
@@ -11455,7 +11645,7 @@
             });
             if (!html) {
                 console.warn('Tracking sheet page skipped: the sheet builder returned nothing.');
-                return false;
+                return null;
             }
 
             // 4. Render it, then let its own paginator split the movement history the
@@ -11464,7 +11654,7 @@
             const sheetDoc = frameDocumentOf(sheetFrame);
             if (!sheetDoc) {
                 console.warn('Tracking sheet page skipped: the rendered sheet could not be read.');
-                return false;
+                return null;
             }
 
             applyCaptureFixes(sheetDoc);
@@ -11483,7 +11673,7 @@
             const pages = Array.from(sheetDoc.querySelectorAll('.print-container'));
             if (!pages.length) {
                 console.warn('Tracking sheet page skipped: the sheet rendered no pages.');
-                return false;
+                return null;
             }
 
             // The logos were re-pointed above, so they are loading again; capturing now
@@ -11517,7 +11707,7 @@
         } catch (error) {
             // Never cost the officer page 1.
             console.error('Could not append the tracking sheet page:', error);
-            return false;
+            return null;
         } finally {
             [sheetFrame, pageFrame].forEach(f => {
                 if (f && f.parentNode) f.parentNode.removeChild(f);
@@ -11604,15 +11794,23 @@
                 fileNumberVal
             );
             const fileNoDisplay = fileTypeLabel ? `${fileNumberVal} (${fileTypeLabel})` : fileNumberVal;
-            oldFileNoVal = oldFileNoVal || links.old_file_number;
-            relatedFileNoVal = relatedFileNoVal || links.related_file_number;
+            // The lookup's value carries the KANGIS pair ("CON-IND-2026-4 (KN5358)"), as
+            // the listing shows it; prefer it whenever it is the same number the form holds.
+            const linksOld = String(links.old_file_number || '').trim();
+            if (linksOld && (!oldFileNoVal
+                || linksOld.split(/\s*\(/)[0].trim().toUpperCase() === oldFileNoVal.split(/\s*\(/)[0].trim().toUpperCase())) {
+                oldFileNoVal = linksOld;
+            }
+            relatedFileNoVal = dropRepeatedFileNumbers(relatedFileNoVal || links.related_file_number, oldFileNoVal);
             const districtVal = String(formData.get('district') || '').trim() || links.district;
             // The Related/Old FileNo line is part of the sheet's shape, not an optional
             // extra: a file with neither number prints the label over a blank rule, the
             // same as TP No or Plot No do. A file carrying both keeps a line for each.
             const relatedOrOldRows = [
-                ...(oldFileNoVal ? [['Related FileNo/Old FileNo:', oldFileNoVal]] : []),
-                ...(relatedFileNoVal ? [['Related FileNo/Old FileNo:', relatedFileNoVal]] : []),
+                // Re-Issuance of FileNo: the duplicated number is the old one when there is
+                // one, otherwise the related one (that is where the duplicate selector puts it).
+                ...(oldFileNoVal ? [[links.is_duplicate ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:', oldFileNoVal]] : []),
+                ...(relatedFileNoVal ? [[links.is_duplicate && !oldFileNoVal ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:', relatedFileNoVal]] : []),
             ];
             if (!relatedOrOldRows.length) {
                 relatedOrOldRows.push(['Related FileNo/Old FileNo:', '']);
@@ -11672,10 +11870,19 @@
 
             // Page 2 — the File Tracking Sheet, so it travels with the file.
             showGlobalLoading('Adding tracking sheet...');
-            await appendTrackingSheetPage(doc, formData.get('file_number'));
+            const trackingAdded = await appendTrackingSheetPage(doc, formData.get('file_number'));
 
             hideGlobalLoading();
             doc.save(`commissioning-sheet-${formData.get('file_number')}.pdf`);
+
+            if (trackingAdded === null) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Tracking sheet not attached',
+                    text: 'The commissioning sheet downloaded, but the DIIT tracking sheet could not be '
+                        + 'added this time. Please print it again.',
+                });
+            }
 
         } catch (error) {
             hideGlobalLoading();
@@ -11686,6 +11893,7 @@
 
 
     async function generateBatchCommissioningSheetPDF(records, batchNo, watermarkText = 'ORIGINAL') {
+        let trackingPage = null;
         try {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -11697,6 +11905,13 @@
             const footerLogoLeftBase64 = await getImageBase64('/assets/logo/logo.png') || await getImageBase64('/storage/upload/logo/logo.png') || await getImageBase64('http://app.klaes.ng/storage/upload/logo/logo.png');
 
             const totalPages = records.length;
+
+            // Each file's File Tracking Sheet follows its commissioning page, as on a
+            // single sheet. The tracking page is loaded once for the whole batch.
+            showGlobalLoading('Preparing tracking sheets...');
+            trackingPage = await openTrackingPage().catch(() => null);
+            let trackingSheets = 0;
+            const trackingMissed = [];
 
             for (let i = 0; i < records.length; i++) {
                 if (i > 0) doc.addPage();
@@ -11766,13 +11981,13 @@
                 const rowFileNoDisplay = rowFileTypeLabel ? `${rowFileNo} (${rowFileTypeLabel})` : rowFileNo;
                 const rowOldFileNo = rowLinks.old_file_number || String(row.old_fileno || row.old_file_number || '').trim();
                 const hasRowOldFileNo = rowOldFileNo !== '' && rowOldFileNo.toUpperCase() !== String(rowFileNo).trim().toUpperCase();
-                const rowRelatedFileNo = rowLinks.related_file_number;
+                const rowRelatedFileNo = dropRepeatedFileNumbers(rowLinks.related_file_number, hasRowOldFileNo ? rowOldFileNo : '');
                 const rowDistrict = String(row.district || '').trim() || rowLinks.district;
                 // Kept even when empty, so every sheet in the batch has the same rows
                 // in the same places -- see the single-sheet builder above.
                 const rowRelatedOrOldRows = [
-                    ...(hasRowOldFileNo ? [['Related FileNo/Old FileNo:', rowOldFileNo]] : []),
-                    ...(rowRelatedFileNo ? [['Related FileNo/Old FileNo:', rowRelatedFileNo]] : []),
+                    ...(hasRowOldFileNo ? [[rowLinks.is_duplicate ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:', rowOldFileNo]] : []),
+                    ...(rowRelatedFileNo ? [[rowLinks.is_duplicate && !hasRowOldFileNo ? 'Related FileNo/Old FileNo (Duplicate FileNo):' : 'Related FileNo/Old FileNo:', rowRelatedFileNo]] : []),
                 ];
                 if (!rowRelatedOrOldRows.length) {
                     rowRelatedOrOldRows.push(['Related FileNo/Old FileNo:', '']);
@@ -11830,18 +12045,38 @@
                 doc.text(`Generated on ${new Date().toLocaleString()} | Batch: ${batchNo || 'N/A'} | Page ${i + 1} of ${totalPages}`, 105, 270, { align: 'center' });
                 if (footerLogoBase64) doc.addImage(footerLogoBase64, 'PNG', 156.2, 278.5, 28.8, 11.5);
                 drawFooterLeftLogo(doc, footerLogoLeftBase64);
+
+                // This file's tracking sheet, right behind its commissioning page.
+                if (trackingPage && trackingPage.win && rowFileNo) {
+                    showGlobalLoading(`Adding tracking sheet ${i + 1} of ${totalPages}...`);
+                    const added = await appendTrackingSheetPage(doc, rowFileNo, trackingPage.win);
+                    if (added) {
+                        trackingSheets++;
+                    } else if (added === null) {
+                        trackingMissed.push(rowFileNo);
+                    }
+                } else if (rowFileNo) {
+                    trackingMissed.push(rowFileNo);
+                }
             }
+            closeTrackingPage(trackingPage);
 
             hideGlobalLoading();
             doc.save(`batch-commissioning-sheet-${batchNo}.pdf`);
 
+            const escapeHtml = (v) => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
             Swal.fire({
-                icon: 'success',
+                icon: trackingMissed.length ? 'warning' : 'success',
                 title: 'Processed',
-                html: `Batch commissioning sheet generated successfully.<br><strong>${records.length}</strong> page${records.length === 1 ? '' : 's'} for batch <strong>${batchNo}</strong>.`,
+                html: `Batch commissioning sheet generated successfully.<br><strong>${records.length}</strong> commissioning sheet${records.length === 1 ? '' : 's'}`
+                    + ` and <strong>${trackingSheets}</strong> tracking sheet${trackingSheets === 1 ? '' : 's'} for batch <strong>${batchNo}</strong>.`
+                    + (trackingMissed.length
+                        ? `<br><br>The DIIT tracking sheet could not be added for: <strong>${trackingMissed.map(escapeHtml).join(', ')}</strong>. Print those files again individually.`
+                        : ''),
                 confirmButtonColor: '#10b981'
             });
         } catch (error) {
+            closeTrackingPage(trackingPage);
             hideGlobalLoading();
             console.error('Error generating batch PDF:', error);
             Swal.fire({
@@ -13449,6 +13684,11 @@
      * the preview and the PDF. The server sends them old-number-first, so a re-issued
      * file reads as OLD rather than REL — the same precedence as the main listing.
      */
+    // Re-Issuance of FileNo: its related number is the duplicate it replaces (DUP).
+    function crIsDuplicate(row) {
+        return String(row?.file_option || '').trim().toLowerCase() === 'reissuance';
+    }
+
     function crRelatedEntries(row) {
         return (Array.isArray(row?.related_files) ? row.related_files : [])
             .map(e => {
@@ -13570,11 +13810,14 @@
                 // Related / previous numbers sit directly beneath the file number they
                 // belong to, badged the way the main listing badges them: amber OLD for a
                 // previous number, sky REL for a related one.
+                const isDup = crIsDuplicate(row);
                 const relatedHtml = crRelatedEntries(row).map(e => {
-                    const badge = e.isOld
+                    const badge = isDup
+                        ? '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold mr-1" style="background:#ffe4e6;color:#be123c;border:1px solid #fecdd3" title="Duplicate FileNo (Re-Issuance of FileNo)">DUP</span>'
+                        : e.isOld
                         ? '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 mr-1">OLD</span>'
                         : '<span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-100 text-sky-700 border border-sky-200 mr-1">REL</span>';
-                    const valueClass = e.isOld ? 'text-amber-700' : 'text-sky-700';
+                    const valueClass = isDup ? 'text-rose-700' : (e.isOld ? 'text-amber-700' : 'text-sky-700');
                     return `<div class="mt-1 text-[11px] whitespace-nowrap">${badge}<span class="font-semibold ${valueClass}">${crEscape(e.file_no)}</span></div>`;
                 }).join('');
 
@@ -13788,7 +14031,7 @@
                 // one is printed rather than the listing's "first + N more": that badge is
                 // a click target on screen and a dead end on paper.
                 const related = crRelatedEntries(row)
-                    .map(e => `${e.isOld ? 'OLD' : 'REL'}: ${e.file_no}`)
+                    .map(e => `${crIsDuplicate(row) ? 'DUP' : (e.isOld ? 'OLD' : 'REL')}: ${e.file_no}`)
                     .join('\n');
                 const fileNoCell = related
                     ? `${crCell(row.full_file_number)}\n${related}`
@@ -13879,7 +14122,7 @@
                 // One cell, newline-separated, so a merger quoting many files stays on
                 // one spreadsheet row.
                 const related = crRelatedEntries(row)
-                    .map(e => `${e.isOld ? 'OLD' : 'REL'}: ${e.file_no}`)
+                    .map(e => `${crIsDuplicate(row) ? 'DUP' : (e.isOld ? 'OLD' : 'REL')}: ${e.file_no}`)
                     .join('\n');
                 const line = [
                     i + 1,

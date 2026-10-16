@@ -156,11 +156,8 @@
                                         <i data-lucide="check-circle" class="h-5 w-5 text-emerald-500"></i>
                                     </div>
                                 </div>
-                                <button type="button" id="select-fileno-btn"
-                                    class="p-3 rounded-xl bg-blue-50 text-blue-600 font-bold border border-blue-100 hover:bg-blue-100 transition flex items-center justify-center shrink-0"
-                                    title="Select File">
-                                    <i data-lucide="search" class="h-5 w-5"></i>
-                                </button>
+                                {{-- #file_number stays the value the form posts; consent_applications.js
+                                     hides it behind a searchable dropdown of indexed + temporary files. --}}
                                 <button type="button" id="add-fileno-btn"
                                     class="hidden p-3 rounded-xl bg-emerald-50 text-emerald-600 font-bold border border-emerald-100 hover:bg-emerald-100 transition items-center justify-center shrink-0"
                                     title="Add Another File Number">
@@ -1097,11 +1094,6 @@
             </div>
         </div>
         <button type="button"
-            class="additional-fileno-search-btn p-3 rounded-xl bg-blue-50 text-blue-600 font-bold border border-blue-100 hover:bg-blue-100 transition flex items-center justify-center shrink-0"
-            title="Select File">
-            <i data-lucide="search" class="h-5 w-5"></i>
-        </button>
-        <button type="button"
             class="remove-fileno-btn p-3 rounded-xl bg-red-50 text-red-500 font-bold border border-red-100 hover:bg-red-100 transition flex items-center justify-center shrink-0"
             title="Remove">
             <i data-lucide="trash-2" class="h-5 w-5"></i>
@@ -1403,3 +1395,28 @@
     document.querySelectorAll('template').forEach(function (tpl) { fill(tpl.content); });
   })();
 </script>
+
+{{-- Searchable File Number dropdown (indexed + temporary files). Select2 itself
+     comes from components.global-fileno-modal, which every page with this modal
+     includes alongside it. --}}
+@push('styles')
+<style>
+    #generate-modal .select2-container .select2-selection--single {
+        height: 46px; border-radius: 0.75rem; border-color: #e2e8f0; background: #f8fafc;
+        display: flex; align-items: center;
+    }
+    #generate-modal .select2-container .select2-selection--single .select2-selection__rendered {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: 0.875rem;
+        color: #334155; padding-left: 1rem; padding-right: 2.5rem; line-height: 46px;
+    }
+    #generate-modal .select2-container .select2-selection--single .select2-selection__arrow { height: 44px; right: 8px; }
+    #generate-modal .select2-container--disabled .select2-selection--single { background: #e2e8f0; cursor: not-allowed; }
+    #generate-modal .select2-dropdown { border-color: #cbd5e1; border-radius: 0.75rem; overflow: hidden; z-index: 60; }
+    #generate-modal .select2-search__field { border-radius: 0.5rem; padding: 6px 10px; }
+    .fileno-option__no { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: 0.8125rem; }
+    .fileno-option__tag { margin-left: 6px; padding: 1px 6px; border-radius: 9999px; background: #fef3c7; color: #92400e; font-size: 10px; font-weight: 700; font-family: inherit; }
+    .fileno-option__sub { font-size: 0.75rem; opacity: 0.75; }
+    /* The dropdown shows the chosen number itself; the old check mark would sit on its arrow. */
+    #generate-modal #file-selection-indicator, #generate-modal .additional-fileno-indicator { display: none !important; }
+</style>
+@endpush

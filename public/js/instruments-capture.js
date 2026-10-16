@@ -418,6 +418,47 @@ document.addEventListener('DOMContentLoaded', function () {
      * take (read-only — the number is only consumed at registration). Blank when
      * the vault is not configured, so the line never shows a misleading value.
      */
+    // Register clash guard (InstrumentRegistrationService::clashGuardStatus):
+    // `blocked` = the register will refuse the next number, `warning` = its
+    // volume is about to roll into an occupied one. Written as a note under the
+    // banner, not a popup: the preview is fetched while the "You are about to
+    // register" Swal is open, and a second Swal would replace it.
+    function paintRegisterGuard(targetId, data) {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        const noteId = targetId + '-guard';
+        let note = document.getElementById(noteId);
+        const text = data && (data.blocked ? data.block_message : data.warning);
+        if (!text) {
+            if (note) note.remove();
+            return;
+        }
+        const anchor = el.closest('div, p, li') || el;
+        if (!note) {
+            note = document.createElement('div');
+            note.id = noteId;
+            anchor.insertAdjacentElement('afterend', note);
+        }
+        note.style.cssText = 'margin-top:6px;padding:6px 8px;border-radius:6px;font-size:12px;text-align:left;'
+            + (data.blocked
+                ? 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:600;'
+                : 'background:#fffbeb;color:#b45309;border:1px solid #fde68a;');
+        note.textContent = (data.blocked ? 'Registration paused: ' : 'Warning: ') + text;
+    }
+
+    // The same note, as markup for the "You are about to register" popup.
+    function registerGuardMarkup(data) {
+        const text = data && (data.blocked ? data.block_message : data.warning);
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = (data.blocked ? 'Registration paused: ' : 'Warning: ') + text;
+        div.style.cssText = 'margin-top:10px;padding:8px 10px;border-radius:8px;font-size:13px;text-align:left;'
+            + (data.blocked
+                ? 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:600;'
+                : 'background:#fffbeb;color:#b45309;border:1px solid #fde68a;');
+        return div.outerHTML;
+    }
+
     function fetchRegistrationPreview(instrumentType, opType) {
         if (!instrumentType) return Promise.resolve(null);
 
@@ -480,6 +521,7 @@ document.addEventListener('DOMContentLoaded', function () {
         fetchRegistrationPreview(instrumentType, opType).then(data => {
             const value = data ? data[field || 'formatted'] : null;
             vaultPreviewByTarget[targetId] = (value === 0 || value) ? String(value) : '\u2014';
+            paintRegisterGuard(targetId, data);
             // Painted rather than assigned: this answer can land AFTER a missing
             // number was chosen, and must not overwrite it with the vault's.
             paintRegistrationPreview(targetId);
@@ -856,6 +898,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     + 'font-size:22px;color:' + opts.accent + ';">'
                     + volume + '</strong></p>'
                     + '</div>'
+                    + registerGuardMarkup(preview)
                     + (report ? backfillNoticeMarkup(report) : ''),
                 width: report ? 500 : 440,
                 showCancelButton: true,
@@ -1188,6 +1231,16 @@ document.addEventListener('DOMContentLoaded', function () {
      * something else writes a number, e.g. TEMP allocation for an OP).
      * ------------------------------------------------------------------------ */
     const FILE_NUMBER_SEARCH_URL = '/api/file-numbers/indexing-search';
+    // Instruments a consent authorises pick from the Applications for Consent
+    // (/deeds-applications) instead: they cannot be registered without one, and
+    // temporary "(T)" files exist there but never in the indexing table.
+    const CONSENT_FILE_SEARCH_URL = '/api/file-numbers/consent-search';
+    const CONSENT_SOURCED_TYPES = {
+        'deed-of-assignment': 'Assignment',
+        'deed-of-gift': 'Gift',
+        'deed-of-mortgage': 'Mortgage',
+        'tripartite-mortgage': 'Mortgage'
+    };
     let fileNumberSyncing = false;   // guards the two-way mirror against a loop
 
     function fileNumberSelectEl() {
@@ -1211,11 +1264,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? jQuery('#registration-dialog')
                 : jQuery(document.body),
             ajax: {
-                url: FILE_NUMBER_SEARCH_URL,
+                // Read per request: the same dropdown serves every instrument type.
+                url: () => (CONSENT_SOURCED_TYPES[currentInstrumentType]
+                    ? CONSENT_FILE_SEARCH_URL
+                    : FILE_NUMBER_SEARCH_URL),
                 dataType: 'json',
                 delay: 250,
                 cache: true,
-                data: params => ({ q: params.term || '', page: params.page || 1, per_page: 30 }),
+                data: params => ({
+                    q: params.term || '',
+                    page: params.page || 1,
+                    per_page: 30,
+                    consent_type: CONSENT_SOURCED_TYPES[currentInstrumentType] || '',
+                }),
                 processResults: (data, params) => ({
                     results: (data && data.results) ? data.results : [],
                     pagination: { more: !!(data && data.pagination && data.pagination.more) },

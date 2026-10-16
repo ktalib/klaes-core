@@ -11,11 +11,11 @@
       <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700">
         <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to {{ $case->case_ref }}
       </a>
-      @canDo('Cad - Records', 'print')
+      @cadCan('print')
         <a href="{{ route('cadastral-dept.charting.print', $card->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">
           <i data-lucide="printer" class="w-4 h-4"></i> Print card
         </a>
-      @endcanDo
+      @endcadCan
       @unless ($card->is_current)
         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">Replaced by a later version</span>
       @endunless

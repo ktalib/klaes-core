@@ -17,6 +17,7 @@ use App\Models\PageTypingToolLog;
 use App\Models\Thumbnail;
 use App\Services\Edms\EdmsDocumentPathResolver;
 use App\Services\Edms\EdmsFileType;
+use App\Services\Edms\ScanSource;
 
 class PageTypingController extends Controller
 {
@@ -73,6 +74,8 @@ class PageTypingController extends Controller
                 'pagetype_more_count' => $this->getPageTypeMoreCount(),
             ];
 
+            $sourceCounts = ScanSource::fileCounts();
+
             // Load pending files (files with scannings but no page typings)
             $pendingFiles = $this->getPendingFiles();
 
@@ -111,7 +114,8 @@ class PageTypingController extends Controller
                 'inProgressFiles',
                 'completedFiles',
                 'selectedFileIndexing',
-                'registries'
+                'registries',
+                'sourceCounts'
             ));
         } catch (Exception $e) {
             Log::error('Error loading page typing dashboard', [
@@ -181,16 +185,17 @@ class PageTypingController extends Controller
             $limit = $request->get('limit', 10);
             $page = $request->get('page', 1);
             $registry = $request->get('registry', '');
+            $source = (string) $request->get('source', '');
 
             switch ($status) {
                 case 'pending':
-                    $result = $this->getPendingFilesPaginated($search, $limit, $page, $registry);
+                    $result = $this->getPendingFilesPaginated($search, $limit, $page, $registry, $source);
                     break;
                 case 'in_progress':
-                    $result = $this->getInProgressFilesPaginated($search, $limit, $page, $registry);
+                    $result = $this->getInProgressFilesPaginated($search, $limit, $page, $registry, $source);
                     break;
                 case 'completed':
-                    $result = $this->getCompletedFilesPaginated($search, $limit, $page, $registry);
+                    $result = $this->getCompletedFilesPaginated($search, $limit, $page, $registry, $source);
                     break;
                 default:
                     $result = [
@@ -339,7 +344,7 @@ class PageTypingController extends Controller
     /**
      * Get pending files (files with scannings but no page typings) - Paginated
      */
-    private function getPendingFilesPaginated($search = '', $limit = 10, $page = 1, $registry = '')
+    private function getPendingFilesPaginated($search = '', $limit = 10, $page = 1, $registry = '', $source = '')
     {
         try {
             $query = FileIndexing::on('sqlsrv')
@@ -350,6 +355,9 @@ class PageTypingController extends Controller
             if ($registry) {
                 $query->where('registry', $registry);
             }
+
+            // Source tab: only files holding pages from that source.
+            ScanSource::applyToFiles($query, $source);
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -394,7 +402,7 @@ class PageTypingController extends Controller
     /**
      * Get in-progress files (files with some page typings but not all pages typed) - Paginated
      */
-    private function getInProgressFilesPaginated($search = '', $limit = 10, $page = 1, $registry = '')
+    private function getInProgressFilesPaginated($search = '', $limit = 10, $page = 1, $registry = '', $source = '')
     {
         try {
             $query = FileIndexing::on('sqlsrv')
@@ -406,6 +414,9 @@ class PageTypingController extends Controller
             if ($registry) {
                 $query->where('registry', $registry);
             }
+
+            // Source tab: only files holding pages from that source.
+            ScanSource::applyToFiles($query, $source);
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -454,7 +465,7 @@ class PageTypingController extends Controller
     /**
      * Get completed files (files where all pages are typed) - Paginated
      */
-    private function getCompletedFilesPaginated($search = '', $limit = 10, $page = 1, $registry = '')
+    private function getCompletedFilesPaginated($search = '', $limit = 10, $page = 1, $registry = '', $source = '')
     {
         try {
             $query = FileIndexing::on('sqlsrv')
@@ -465,6 +476,9 @@ class PageTypingController extends Controller
             if ($registry) {
                 $query->where('registry', $registry);
             }
+
+            // Source tab: only files holding pages from that source.
+            ScanSource::applyToFiles($query, $source);
 
             if ($search) {
                 $query->where(function ($q) use ($search) {

@@ -51,9 +51,11 @@ class DeedsDispatchChecks
                 'bill' => ($b = PndBills::liveBill((string) $case->file_number))
                     ? [true, $b->bill_ref . ' · ₦' . number_format((float) $b->grand_total, 2)]
                     : [false, 'No issued bill'],
-                'detached' => !CorrespondenceCustody::installed()
+                'detached' => !trim((string) $case->correspondence_fileno)
+                    ? [true, 'Not needed: the file has no correspondence file']
+                    : (!CorrespondenceCustody::installed()
                     ? [true, 'Not tracked yet (custody table not created)']
-                    : ($this->custody->isDetached($case) ? [true, 'Detached'] : [false, 'Still attached']),
+                    : ($this->custody->isDetached($case) ? [true, 'Detached'] : [false, 'Still attached'])),
                 default => [false, 'Unknown check'],
             };
             $out[$key] = ['label' => self::LABELS[$key] ?? $key, 'ok' => $ok, 'detail' => $detail];

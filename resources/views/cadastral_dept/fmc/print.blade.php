@@ -48,7 +48,7 @@
         </div>
         <h2>File Movement Card · Cadastral Department</h2>
         @if ($qr)
-            <div class="qr"><img src="{{ $qr }}" alt="QR">{{ $qrLabel }}: {{ $qrValue }}</div>
+            <div class="qr"><img src="{{ $qr }}" alt="QR"></div>
         @endif
     </div>
 

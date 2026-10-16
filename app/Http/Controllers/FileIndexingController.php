@@ -1024,9 +1024,21 @@ class FileIndexingController extends Controller
             return [];
         }
 
+        // LGA was an OP Type until 2026-10-15 and is a Source now. A permit saved the old
+        // way reopens as Source = LGA with a blank Type; saving it moves the value over.
+        $opSource = $record->op_source ?? null;
+        $opType = $record->op_type ?? null;
+        if (strtoupper(trim(preg_replace('/^OP\s+/i', '', (string) $opType))) === 'LGA') {
+            $opSource = $opSource ?: 'LGA';
+            $opType = null;
+        }
+
         return [
             'occupancy_permit_instrument_type' => $record->instrument_type ?? 'Occupancy Permit',
-            'occupancy_permit_op_type' => $record->op_type ?? null,
+            'occupancy_permit_op_source' => $opSource,
+            'occupancy_permit_op_source_other' => $record->op_source_other ?? null,
+            'occupancy_permit_op_type' => $opType,
+            'occupancy_permit_op_type_other' => $record->op_type_other ?? null,
             'occupancy_permit_op_category' => $record->instrument_category ?? null,
             'occupancy_permit_op_serial_number' => $record->op_serial_number ?? null,
             'occupancy_permit_date' => $this->formatDateForForm($record->transaction_date ?? null),
@@ -1208,7 +1220,10 @@ class FileIndexingController extends Controller
                 // Occupancy Permit fields
                 'has_occupancy_permit' => 'nullable|boolean',
                 'occupancy_permit_instrument_type' => 'nullable|string|max:255',
+                'occupancy_permit_op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+                'occupancy_permit_op_source_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
+                'occupancy_permit_op_type_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
                 'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled($request->input('has_occupancy_permit', false)),
                 'occupancy_permit_date' => 'nullable|date',
@@ -3738,7 +3753,10 @@ class FileIndexingController extends Controller
                 // Occupancy Permit fields
                 'has_occupancy_permit' => 'nullable|boolean',
                 'occupancy_permit_instrument_type' => 'nullable|string|max:255',
+                'occupancy_permit_op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+                'occupancy_permit_op_source_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
+                'occupancy_permit_op_type_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
                 'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled($request->input('has_occupancy_permit', false)),
                 'occupancy_permit_date' => 'nullable|date',
@@ -5315,9 +5333,35 @@ class FileIndexingController extends Controller
     protected function syncOccupancyPermitRecord(FileIndexing $fileIndexing, Request $request, ?string $testControl = null, ?int $propId = null): void
     {
         \App\Support\OpSerial::require($request->input('occupancy_permit_op_serial_number'), 'occupancy_permit_op_serial_number');
+        // Source is required on every permit: Other needs its "specify" text, and an LGA
+        // one must name one of the 44 Local Governments as grantor.
+        $opSourceErrors = \App\Support\OpSource::errors(
+            $request->input('occupancy_permit_op_source'),
+            $request->input('occupancy_permit_op_source_other'),
+            $request->input('occupancy_permit_grantor'),
+            'occupancy_permit_op_source', 'occupancy_permit_op_source_other', 'occupancy_permit_grantor'
+        );
+        $opSourceErrors += \App\Support\OpType::errors(
+            $request->input('occupancy_permit_op_type'),
+            $request->input('occupancy_permit_op_type_other'),
+            'occupancy_permit_op_type_other'
+        );
+        if ($opSourceErrors) {
+            throw \Illuminate\Validation\ValidationException::withMessages($opSourceErrors);
+        }
         $permitPayload = [
             'instrument_type' => $this->normalizeValue($request->input('occupancy_permit_instrument_type')),
+            // Ministry / KANGIS / LGA. LGA was an OP Type until 2026-10-15.
+            'op_source' => $this->normalizeValue($request->input('occupancy_permit_op_source')),
+            'op_source_other' => \App\Support\OpSource::otherFor(
+                $request->input('occupancy_permit_op_source'),
+                $request->input('occupancy_permit_op_source_other')
+            ),
             'op_type' => $this->normalizeValue($request->input('occupancy_permit_op_type')),
+            'op_type_other' => \App\Support\OpType::otherFor(
+                $request->input('occupancy_permit_op_type'),
+                $request->input('occupancy_permit_op_type_other')
+            ),
             // Old / New. Asked for every Occupancy Permit; blank means the question was
             // never put, and the permit keeps the rules a New one has.
             // Stored in instrument_category, the one Category column every capture table
@@ -5360,7 +5404,10 @@ class FileIndexingController extends Controller
             'rofo_number' => null,
             'instrument_type' => $instrumentType,
             'transaction_type' => $instrumentType,
+            'op_source' => $permitPayload['op_source'] ?? null,
+            'op_source_other' => $permitPayload['op_source_other'] ?? null,
             'op_type' => $permitPayload['op_type'] ?? null,
+            'op_type_other' => $permitPayload['op_type_other'] ?? null,
             'instrument_category' => $permitPayload['instrument_category'] ?? null,
             'op_serial_number' => $permitPayload['op_serial_number'] ?? null,
             'transaction_date' => $permitPayload['transaction_date'] ?? null,

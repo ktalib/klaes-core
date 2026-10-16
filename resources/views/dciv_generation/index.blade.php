@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    // Cadastral > Verification > File Status > DCIV Management (user, 2026-10-14): this page,
+    // view only. ?url=cadastral hides Generate DCIV FileNo and the row action menu.
+    $dcivReadOnly = request('url') === 'cadastral';
+@endphp
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 @endpush
@@ -44,10 +49,10 @@
         <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">DCIV File Number Generation</h1>
-                    <p class="text-slate-500 text-sm mt-1">Manage and generate DCIV file numbers.</p>
+                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">{{ $dcivReadOnly ? 'DCIV Management' : 'DCIV File Number Generation' }}</h1>
+                    <p class="text-slate-500 text-sm mt-1">{{ $dcivReadOnly ? 'DCIV file numbers (view only).' : 'Manage and generate DCIV file numbers.' }}</p>
                 </div>
-                <div class="flex items-center gap-3 w-full md:w-auto">
+                <div class="flex items-center gap-3 w-full md:w-auto" @if ($dcivReadOnly) style="display:none" @endif>
                     <div class="flex flex-wrap gap-4">
                         <button 
                             @click="showGenerateModal = true"
@@ -131,7 +136,7 @@
             <!-- Existing Records Table -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <h3 class="font-bold text-slate-800">Generated DCIV Records</h3>
+                    <h3 class="font-bold text-slate-800">{{ $dcivReadOnly ? 'DCIV Records' : 'Generated DCIV Records' }}</h3>
                     <!-- Source legend -->
                     <div class="flex items-center gap-3 flex-wrap">
                         <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source Key:</span>
@@ -167,7 +172,9 @@
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Time Commissioned</th>
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Date Commissioned</th>
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Source</th>
-                                <th class="px-6 py-4 text-right whitespace-nowrap">Actions</th>
+                                @unless ($dcivReadOnly)
+                                    <th class="px-6 py-4 text-right whitespace-nowrap">Actions</th>
+                                @endunless
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
@@ -1096,7 +1103,9 @@ $(document).ready(function() {
                 searchable: false,
                 className: 'text-center whitespace-nowrap'
             },
+            @unless ($dcivReadOnly)
             { data: 'actions', name: 'actions', orderable: false, searchable: false, className: 'text-right' }
+            @endunless
         ],
         createdRow: function(row, data) {
             const sourceTable = String(data.source_table || '').toLowerCase();
@@ -1122,7 +1131,7 @@ $(document).ready(function() {
         },
         language: {
             processing: '<div class="flex items-center justify-center gap-3 py-4"><div class="w-5 h-5 border-2 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div><span class="text-sm font-bold text-slate-500">Loading records...</span></div>',
-            emptyTable: '<div class="py-8 text-center text-slate-400 italic">No records found. Click "Generate DCIV FileNo" to start.</div>',
+            emptyTable: '<div class="py-8 text-center text-slate-400 italic">{{ $dcivReadOnly ? 'No records found.' : 'No records found. Click "Generate DCIV FileNo" to start.' }}</div>',
             info: 'Showing _START_ to _END_ of _TOTAL_ records',
             infoFiltered: '(filtered from _MAX_ total)',
             lengthMenu: 'Show _MENU_ per page',

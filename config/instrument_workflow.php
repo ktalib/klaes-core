@@ -212,6 +212,13 @@ return [
     |                this port. Turn it on deliberately, never as a side effect.
     | default_page_limit  The roll used for a vault whose row carries no
     |                page_limit. 300 is the historic Deeds rule.
+    | clash_guard    Vaults that refuse to issue a number already held by a
+    |                registration of that vault. Deed of Assignment: four deeds
+    |                were registered and printed as 1/1/76-4/4/76 (2 Feb 2026)
+    |                from a wrong volume given by staff, so the register must stop
+    |                when it reaches volume 76 for the Registry to decide.
+    |                warn_within = numbers left in the volume at which the screen
+    |                starts warning that the next volume is already occupied.
     */
     'registration' => [
         'unified_vault' => [
@@ -221,6 +228,10 @@ return [
             'separate_vaults' => [],
         ],
         'default_page_limit' => 300,
+        'clash_guard' => [
+            'vaults' => ['Deed of Assignment'],
+            'warn_within' => 20,
+        ],
     ],
 
     /* Bumped when identity handling changes and a fresh TIN lookup should be forced. */

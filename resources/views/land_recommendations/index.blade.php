@@ -99,23 +99,30 @@
                     </div>
                 </div>
 
-                <!-- Approved / Total Ground Rent -->
-                <div class="p-6 rounded-3xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative text-white bg-gradient-to-br from-blue-600 to-blue-800 border-none">
+                {{-- Ground Rent: rate x plot size over the approved recommendations, the
+                     same card as the Land RofO page. The approved count rides in the footer. --}}
+                <div class="p-6 rounded-3xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative text-white bg-gradient-to-br from-red-600 to-red-800 border-none">
                     <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                        <i data-lucide="check-circle" class="h-32 w-32 text-white"></i>
+                        <i data-lucide="coins" class="h-32 w-32 text-white"></i>
                     </div>
                     <div class="flex items-center gap-4 relative z-10">
                         <div class="p-3 bg-white/20 text-white rounded-2xl border border-white/30 shadow-sm backdrop-blur-md">
-                            <i data-lucide="check-circle" class="h-6 w-6"></i>
+                            <i data-lucide="coins" class="h-6 w-6"></i>
                         </div>
                         <div>
-                            <p class="text-[10px] font-black text-blue-100 uppercase tracking-widest">Approved Applications</p>
-                            <h3 class="text-2xl font-black tracking-tight text-white">{{ number_format($stats['approved']) }}</h3>
+                            <p class="text-[10px] font-black text-red-100 uppercase tracking-widest">Ground Rent</p>
+                            <h3 class="text-2xl font-black tracking-tight text-white">
+                                @if ($stats['total_ground_rent'] === null)
+                                    ₦ &mdash;
+                                @else
+                                    ₦{{ number_format($stats['total_ground_rent'], 2) }}
+                                @endif
+                            </h3>
                         </div>
                     </div>
-                    <div class="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[10px] font-bold text-blue-100 uppercase tracking-widest">
-                        <span>Total Rent Value</span>
-                        <span class="px-2 py-0.5 bg-white/20 text-white rounded-lg border border-white/20">₦{{ number_format($stats['total_ground_rent']) }}</span>
+                    <div class="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[10px] font-bold text-red-100 uppercase tracking-widest">
+                        <span>Rate &times; Plot Size</span>
+                        <span class="px-2 py-0.5 bg-white/20 text-white rounded-lg border border-white/20">{{ number_format($stats['approved']) }} Approved</span>
                     </div>
                 </div>
             </div>

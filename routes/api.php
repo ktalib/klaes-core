@@ -306,6 +306,9 @@ Route::prefix('file-numbers')->controller(FileNumberApiController::class)->group
     // Select2-shaped, paged search over file_indexings — backs the instrument-capture
     // File Number dropdown (every registry, no modal).
     Route::get('/indexing-search', 'indexingSearch')->name('api.file-numbers.indexing-search');
+    // Same shape, sourced from the Applications for Consent (/deeds-applications) —
+    // the dropdown for Assignment / Gift / Mortgage / Tripartite Mortgage.
+    Route::get('/consent-search', 'consentSearch')->name('api.file-numbers.consent-search');
     Route::get('/tracking/{trackingId}', 'showByTracking')->name('api.file-numbers.show-tracking');
 
     // Legacy file number systems

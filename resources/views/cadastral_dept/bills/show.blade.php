@@ -24,11 +24,11 @@
       </a>
       @if ($liveBill)
         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Bill {{ $liveBill->bill_ref }} issued · {{ $naira($liveBill->grand_total) }}</span>
-        @canDo('Cad - Records', 'print')
+        @cadCan('print')
           <a href="{{ route('cadastral-dept.bills.print', $liveBill->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">
             <i data-lucide="printer" class="w-4 h-4"></i> Print bill
           </a>
-        @endcanDo
+        @endcadCan
       @endif
     </div>
 
@@ -216,9 +216,9 @@
                   <td class="px-3 py-2 text-right">{{ $naira($b->grand_total) }}</td>
                   <td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $b->status === 'Issued' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $b->status }}</span>@if ($b->cancel_reason)<div class="text-xs text-gray-500">{{ $b->cancel_reason }}</div>@endif</td>
                   <td class="px-3 py-2 text-right">
-                    @canDo('Cad - Records', 'print')
+                    @cadCan('print')
                       @include('cadastral_dept.partials._row_actions', ['items' => [['Print bill', 'printer', route('cadastral-dept.bills.print', $b->id), true]]])
-                    @endcanDo
+                    @endcadCan
                   </td>
                 </tr>
               @endforeach

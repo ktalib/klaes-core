@@ -602,6 +602,12 @@
                             <input id="cop-land-use" name="land_use" type="text" readonly
                                 class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500"
                                 placeholder="Auto-detected">
+                            {{-- Display only (not saved): the file's current purpose, so a change within
+                                 the same land use (e.g. HIGH DENSITY to LOW DENSITY) is visible and allowed. --}}
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 mt-3">Current Purpose</label>
+                            <input id="cop-current-purpose" type="text" readonly
+                                class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500"
+                                placeholder="Auto-detected">
                         </div>
                     </div>
 

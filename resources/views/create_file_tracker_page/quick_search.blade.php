@@ -700,8 +700,12 @@
         // timeline" panel) — fetches the same /api/file-trackers/track/{file} data
         // and renders it with the desktop's Tailwind styling instead of mobile's
         // inline CSS-variable theme.
-        async function toggleMovementTimeline(fileNumber, detailsEl, originRegistry, rackShelf) {
-            const container = document.getElementById('qs-movement-timeline');
+        // Workflow Approvals section under the movement timeline — hidden for now.
+        const SHOW_WORKFLOW_APPROVALS = false;
+
+        // containerId: the related KANGIS file panels render their own timeline.
+        async function toggleMovementTimeline(fileNumber, detailsEl, originRegistry, rackShelf, containerId) {
+            const container = document.getElementById(containerId || 'qs-movement-timeline');
             if (!container || !detailsEl || !detailsEl.open) return;
             if (container.dataset.loaded === '1') return;
 
@@ -774,9 +778,9 @@
                             ${priorLogs.length ? `<div class="mb-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] text-gray-500">Tracking cycles for this file.</div>` : ''}
                             <div>
                                 ${homeRow()}
-                                ${movementLogs.length ? movementLogs.map(e => renderMovementRow(e, trackerMeta)).join('') : `<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500">No physical movement entries found. Approval steps may still be present below.</div>`}
+                                ${movementLogs.length ? movementLogs.map(e => renderMovementRow(e, trackerMeta)).join('') : `<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-500">No physical movement entries found.</div>`}
                             </div>
-                            ${approvalLogs.length ? `
+                            ${(SHOW_WORKFLOW_APPROVALS && approvalLogs.length) ? `
                             <div class="mt-4 mb-2 text-[10px] font-extrabold uppercase tracking-wider text-gray-500">Workflow Approvals</div>
                             <div class="space-y-2">${approvalLogs.map(e => renderApprovalRow(e)).join('')}</div>` : ''}`;
                         container.dataset.loaded = '1';
@@ -1013,6 +1017,12 @@
         }
 
         function render(d) {
+            // A land file is usually kept inside its KANGIS file, so the request is
+            // worded as going to the KANGIS Registry (Next Action + Send button).
+            if (Array.isArray(d.kangis_files) && d.kangis_files.length
+                && d.next_action === 'Send File Search Request to SCB Monitor') {
+                d.next_action = 'Send Request to KANGIS Registry';
+            }
             const meta = STATUS_META[d.status] || { label:d.status, cls:'bg-gray-100 text-gray-800 border-gray-300', icon:'file' };
             const showsRegistry = (d.status === 'REFER_TO_ORIGINAL_REGISTRY' && d.registry);
             const metaLabel = showsRegistry ? d.registry : meta.label;
@@ -1139,6 +1149,36 @@
                     </details>`;
             })();
 
+            // KANGIS file(s) this land file is kept inside. Opening one loads its
+            // movement log (same /track endpoint), so a KANGIS file that is out shows
+            // who has it. It has its own panel, so it is not repeated as a related chip.
+            // Works both ways: a land file shows its KANGIS file, a KANGIS file its land file.
+            const linkedFiles = [
+                ...(Array.isArray(d.kangis_files) ? d.kangis_files : []).map(k => ({ ...k, _title: 'KANGIS file', _box: 'border-orange-200 bg-orange-50', _head: 'text-orange-700' })),
+                ...(Array.isArray(d.land_files) ? d.land_files : []).map(k => ({ ...k, _title: 'Land file', _box: 'border-blue-200 bg-blue-50', _head: 'text-blue-700' })),
+            ];
+            const relatedChips = (Array.isArray(d.related_files) ? d.related_files : [])
+                .filter(f => !linkedFiles.some(k => String(k.file_number).toUpperCase() === String(f.file_number).toUpperCase()));
+            const kangisPanelHtml = linkedFiles.map((k, i) => {
+                const km = STATUS_META[k.status] || { label: k.status, cls: 'bg-gray-100 text-gray-800 border-gray-300', icon: 'file' };
+                const where = k.is_in_transit
+                    ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
+                    : `${esc(k.current_location || k.registry || '—')}${k.rack_shelf && !String(k.current_location || '').includes(k.rack_shelf) ? ` — Shelf/Rack ${esc(k.rack_shelf)}` : ''}`;
+                return `
+                    <details class="mb-3 rounded-lg border ${k._box}" data-kangis-timeline="${i}">
+                        <summary class="cursor-pointer select-none px-4 py-2.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold ${k._head}"><i data-lucide="folder-tree" class="h-3.5 w-3.5"></i> ${k._title}</span>
+                                <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${km.cls}"><i data-lucide="${km.icon}" class="h-3 w-3"></i> ${esc(km.label)}</span>
+                            </div>
+                            <div class="mt-1 text-sm font-bold text-gray-900">${esc(k.file_number)}${k.file_title ? ` <span class="font-medium text-gray-600">— ${esc(k.file_title)}</span>` : ''}</div>
+                            <div class="mt-0.5 text-xs text-gray-600">${where}</div>
+                            <div class="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600"><i data-lucide="route" class="h-3 w-3"></i> Click to view its movement log</div>
+                        </summary>
+                        <div class="px-4 pb-3 pt-1"><div id="qs-kangis-timeline-${i}"></div></div>
+                    </details>`;
+            }).join('');
+
             result.innerHTML = `
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -1146,10 +1186,10 @@
                             ${filePassportThumb(d.passport_url, d.file_title, 'h-14 w-14')}
                             <div>
                             <div class="text-lg font-bold text-gray-900">${esc(d.file_number)}</div>
-                            ${Array.isArray(d.related_files) && d.related_files.length ? `
+                            ${relatedChips.length ? `
                             <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                                <span class="font-semibold text-violet-700">Related file${d.related_files.length === 1 ? '' : 's'}:</span>
-                                ${d.related_files.map(f => `<span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800"><span class="font-semibold">${esc(f.file_number)}</span>${f.file_title ? `<span class="text-violet-700">— ${esc(f.file_title)}</span>` : ''}</span>`).join('')}
+                                <span class="font-semibold text-violet-700">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
+                                ${relatedChips.map(f => `<span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800"><span class="font-semibold">${esc(f.file_number)}</span>${f.file_title ? `<span class="text-violet-700">— ${esc(f.file_title)}</span>` : ''}</span>`).join('')}
                             </div>` : ''}
                             <div class="text-sm text-gray-500">${esc(d.file_title || '—')}</div>
                             </div>
@@ -1272,6 +1312,7 @@
                             </div>
                         </details>
                         ${movementDetailsHtml}
+                        ${kangisPanelHtml}
                         ${row('Registry', d.registry)}
                         ${row('Shelf/Rack', d.rack_shelf || '—')}
                         ${(() => {
@@ -1541,6 +1582,10 @@
             if (saveBtn) saveBtn.addEventListener('click', () => updateStatus(d, result.querySelector('[data-us-status]').value, result.querySelector('[data-us-loc]').value, saveBtn));
             const movementDetails = result.querySelector('[data-movement-timeline]');
             if (movementDetails) movementDetails.addEventListener('toggle', () => toggleMovementTimeline(d.file_number, movementDetails, d.registry, d.rack_shelf));
+            result.querySelectorAll('[data-kangis-timeline]').forEach(el => {
+                const k = linkedFiles[Number(el.dataset.kangisTimeline)];
+                if (k) el.addEventListener('toggle', () => toggleMovementTimeline(k.file_number, el, k.registry || '', k.rack_shelf, `qs-kangis-timeline-${el.dataset.kangisTimeline}`));
+            });
             if (window.lucide) window.lucide.createIcons();
 
             // Load the File Digital Library (same FileIndexing source as the DFR / mobile

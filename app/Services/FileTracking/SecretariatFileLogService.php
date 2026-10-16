@@ -33,8 +33,11 @@ class SecretariatFileLogService
     public const ENTRY_UNINDEXED = 'unindexed';  // file number exists, not indexed
     public const ENTRY_NON_FILE = 'non_file';    // letter, memo, not a regular file
 
-    /** What a "Not a regular File/Mail" entry is; the user must choose one. */
-    public const DOCUMENT_KINDS = ['mail' => 'Mail', 'file' => 'File'];
+    /**
+     * What a "Not a regular File/Mail" entry is; the user must choose one. For
+     * Other the text typed is kept in file_tracker.mail_type.
+     */
+    public const DOCUMENT_KINDS = ['mail' => 'Mail', 'letter' => 'Letter', 'memo' => 'Memo', 'file' => 'File', 'other' => 'Other'];
 
     /** Where a "Not a regular File/Mail" entry came from. "Other" needs the sender typed. */
     public const SENDER_TYPES = ['Internal', 'External', 'Other'];
@@ -60,6 +63,26 @@ class SecretariatFileLogService
      *
      * @return array{code:string,name:string,department:?string,source:string}|null
      */
+    /** officeFor()'s mapping without the lookups: user override, then rank, then department. */
+    private function mappedOfficeCode(int $userId, string $rank, string $department): ?string
+    {
+        $map = config('file_movement');
+        $rank = trim($rank);
+        $code = $map['user_offices'][$userId] ?? null;
+        if (!$code && $rank !== '') {
+            $code = collect($map['rank_offices'] ?? [])->first(fn ($office, $name) => strcasecmp($name, $rank) === 0);
+        }
+        if (!$code && trim($department) !== '') {
+            $offices = collect($map['department_offices'] ?? [])->first(fn ($o, $name) => strcasecmp($name, trim($department)) === 0);
+            if ($offices) {
+                $isDeputy = collect($map['deputy_ranks'] ?? [])->contains(fn ($r) => strcasecmp($r, $rank) === 0);
+                $code = $isDeputy ? ($offices['deputy'] ?? $offices['director']) : $offices['director'];
+            }
+        }
+
+        return $code ?: null;
+    }
+
     public function officeFor(User $user): ?array
     {
         $map = config('file_movement');
@@ -124,9 +147,13 @@ class SecretariatFileLogService
         }
         // Only a new entry carries these; receiving an existing tracker never asks.
         if ($entryType === self::ENTRY_NON_FILE && empty($data['tracker_id'])) {
-            if (!isset(self::DOCUMENT_KINDS[$data['document_kind'] ?? ''])) {
-                throw new RuntimeException('Choose whether this is Mail or a File.');
+            [$data['document_kind'], $data['mail_type']] = $this->documentType($data['document_kind'] ?? null, $data['mail_type'] ?? null);
+            // Who sent it: a chosen sender needs a name; the rank is optional.
+            if ($this->clean($data['sender_type'] ?? null) && !$this->clean($data['sender_name'] ?? null)) {
+                throw new RuntimeException('Give the sender\'s name, or choose Other and specify it.');
             }
+            $data['sender_name'] = $this->clean($data['sender_name'] ?? null) ? mb_substr(preg_replace('/\s+/', ' ', $this->clean($data['sender_name'])), 0, 255) : null;
+            $data['sender_rank'] = $this->listedRank($data['sender_rank'] ?? null);
             if (($data['sender_type'] ?? null) === 'Other' && !$this->clean($data['sender'] ?? null)) {
                 throw new RuntimeException('Specify the sender.');
             }
@@ -134,18 +161,44 @@ class SecretariatFileLogService
                 throw new RuntimeException('Choose the department that sent it, or choose Other and specify it.');
             }
             if (($data['sender_type'] ?? null) === 'External') {
+                // An LGA (from the lgas table) is an External sender of its own.
+                if ($this->clean($data['sender_lga'] ?? null)) {
+                    $lga = collect($this->lgas())->first(fn ($n) => mb_strtolower($n) === mb_strtolower($this->clean($data['sender_lga'])));
+                    if (!$lga) {
+                        throw new RuntimeException('Choose an LGA from the list.');
+                    }
+                    $data['sender_lga'] = $lga;
+                    $data['sender'] = $lga . ' Local Government';
+                }
                 if (!$this->clean($data['sender'] ?? null)) {
                     throw new RuntimeException('Choose the MDA that sent it, or choose Other and specify it.');
                 }
-                $data['sender'] = $this->listedExternalSender($data['sender']);
+                if (empty($data['sender_lga'])) {
+                    $data['sender'] = $this->listedExternalSender($data['sender']);
+                }
+            } else {
+                $data['sender_lga'] = null;
+            }
+        }
+        // The manual log form must say where the file came from. Other receipts
+        // (a scan, the profile's Receive button, the register) are not asked.
+        // An External sender (letter, memo...) is itself where it came from: not asked.
+        $externalSender = $entryType === self::ENTRY_NON_FILE && ($data['sender_type'] ?? null) === 'External';
+        if (!empty($data['manual_form']) && !$externalSender) {
+            if (!$this->clean($data['from_department'] ?? null)) {
+                throw new RuntimeException('Choose the department the file was received from.');
+            }
+            if (!$this->clean($data['from_office'] ?? null) && !$this->clean($data['from_office_other'] ?? null)) {
+                throw new RuntimeException('Choose the office the file was received from, or choose Other and specify it.');
+            }
+            if ($this->clean($data['from_office'] ?? null) && !$this->officeOrNull($data['from_office'])) {
+                throw new RuntimeException('That office no longer exists. Choose another.');
             }
         }
         if (($data['received_via'] ?? null) === 'manual') {
             // Both gaps are reported at once, so the page asks for them together.
+            // The request purpose is optional (2026-10-15); only the officer is asked for.
             $needs = [];
-            if (!$this->purposeChoice($data['request_purpose_id'] ?? null, $data['request_purpose_other'] ?? null)) {
-                $needs[] = 'purpose';
-            }
             if (!$this->officerChoice($data['receiving_officer_id'] ?? null, $data['receiving_officer_other'] ?? null)) {
                 $needs[] = 'officer';
             }
@@ -240,6 +293,13 @@ class SecretariatFileLogService
             ->where('u.staff_type_category', 'MLPP')
             ->orderBy('u.first_name')->orderBy('u.last_name')
             ->get(['u.id', 'u.first_name', 'u.last_name', 'u.rank', 'u.username', 'd.name as department'])
+            ->each(function ($o) use (&$activeOffices) {
+                $activeOffices ??= DB::connection('sqlsrv')->table('offices')->where('is_active', 1)->pluck('office_code')->flip();
+                $o->office_code = $this->mappedOfficeCode((int) $o->id, (string) $o->rank, (string) $o->department);
+                if ($o->office_code && !isset($activeOffices[$o->office_code])) {
+                    $o->office_code = null;
+                }
+            })
             ->map(fn ($o) => [
                 'id'         => (int) $o->id,
                 'name'       => trim($o->first_name . ' ' . $o->last_name),
@@ -247,6 +307,8 @@ class SecretariatFileLogService
                 // Several staff share a name; the username tells them apart.
                 'username'   => $o->username,
                 'department' => $o->department,
+                // Where their account maps to (config/file_movement.php); a hint for "Send to", not a rule.
+                'office_code' => $o->office_code,
             ]);
     }
 
@@ -259,9 +321,7 @@ class SecretariatFileLogService
 
         // {id, name}; id is null for an "Other" purpose / officer typed by hand.
         $purpose = $this->purposeChoice($purposeId, $purposeOther);
-        if (!$purpose) {
-            throw new RuntimeException('Choose a request purpose, or choose Other and specify it.');
-        }
+        // The request purpose is optional (2026-10-15).
         $officer = $this->officerChoice($officerId, $officerOther);
         if (!$officer) {
             throw new RuntimeException('Choose a receiving officer, or choose Other and specify the name.');
@@ -319,7 +379,7 @@ class SecretariatFileLogService
                 [
                     'status'                 => 'pending_acceptance',
                     'requires_acceptance'    => true,
-                    'purpose'                => $purpose->name,
+                    'purpose'                => $purpose?->name,
                     'receiving_office_code'  => $to['code'],
                     'receiving_office_name'  => $to['name'],
                     'receiving_officer_id'   => $officer->id,
@@ -337,8 +397,10 @@ class SecretariatFileLogService
             $tracker->receiving_office_name = $to['name'];
             $tracker->receiving_officer_id = $officer->id;
             $tracker->receiving_officer_name = $officerName;
-            $tracker->request_purpose_id = $purpose->id;
-            $tracker->request_purpose_name = $purpose->name;
+            if ($purpose) {
+                $tracker->request_purpose_id = $purpose->id;
+                $tracker->request_purpose_name = $purpose->name;
+            }
             $tracker->assignment_status = FileTracker::ASSIGNMENT_PENDING;
             $tracker->assignment_accepted_at = null;
             $this->markIfRequested($tracker);
@@ -352,9 +414,13 @@ class SecretariatFileLogService
      * pending: addressed to my office, not yet received.
      * held:    received here and not sent on.
      * sent:    sent from my office in the last $days days, with where it is now.
+     *          With a date range ($from / $to, Y-m-d) the range replaces $days.
      */
-    public function lists(string $officeCode, int $days = 7): array
+    public function lists(string $officeCode, int $days = 7, ?string $from = null, ?string $to = null): array
     {
+        $sentFrom = $from ? \Carbon\Carbon::parse($from)->startOfDay() : now()->subDays(max(1, $days));
+        $sentTo = $to ? \Carbon\Carbon::parse($to)->endOfDay() : null;
+
         $office = $this->office($officeCode);
         $code = $office['code'];
 
@@ -420,7 +486,7 @@ class SecretariatFileLogService
         // Sent: any tracker whose log passes through my office, touched recently.
         $needle = '%"office_code":"' . str_replace(['%', '_', '['], ['[%]', '[_]', '[[]'], $code) . '"%';
         $recent = FileTracker::where('movement_log', 'like', $needle)
-            ->where('updated_at', '>=', now()->subDays(max(1, $days)))
+            ->where('updated_at', '>=', $sentFrom)
             ->orderByDesc('updated_at')
             ->limit(500)
             ->get();
@@ -435,8 +501,12 @@ class SecretariatFileLogService
                 }
                 $next = $log[$i + 1];
                 $sentAt = $log[$i]['log_out_date'] . ' ' . ($log[$i]['log_out_time'] ?? '');
-                if (strtotime($sentAt) && strtotime($sentAt) < now()->subDays(max(1, $days))->getTimestamp()) {
+                if (strtotime($sentAt) && strtotime($sentAt) < $sentFrom->getTimestamp()) {
                     break;
+                }
+                // Sent after the range: an earlier send from this office may still fall in it.
+                if ($sentTo && strtotime($sentAt) && strtotime($sentAt) > $sentTo->getTimestamp()) {
+                    continue;
                 }
                 $nextStatus = strtolower((string) ($next['status'] ?? ''));
                 $sent[] = $this->row($tracker, $next, [
@@ -527,22 +597,35 @@ class SecretariatFileLogService
     public function searchIndexed(string $q, int $limit = 25): array
     {
         $q = trim($q);
-        $query = DB::connection('sqlsrv')->table('file_indexings')
-            ->select('id', 'file_number', 'file_title')
-            ->whereNotNull('file_number')->where('file_number', '<>', '')
-            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
+        $prefix = str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
 
-        if ($q !== '') {
-            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
-            $query->where(fn ($w) => $w->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like));
-            // Exact file number first, then numbers starting with the search, then the rest.
-            $prefix = str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
-            $query->orderByRaw('CASE WHEN file_number = ? THEN 0 WHEN file_number LIKE ? THEN 1 ELSE 2 END', [$q, $prefix]);
-        }
+        // A file's regular number and its temporary number (temp_file_no, "COM-1994-8(T)")
+        // are both offered. A temporary file often has no file_number at all.
+        $search = function (string $column, bool $temp) use ($q, $like, $prefix, $limit) {
+            $query = DB::connection('sqlsrv')->table('file_indexings')
+                ->select('id', "{$column} as number", 'file_title')
+                ->whereNotNull($column)->where($column, '<>', '')
+                ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
+            if ($q !== '') {
+                $query->where(fn ($w) => $w->where($column, 'like', $like)->orWhere('file_title', 'like', $like));
+                // Exact number first, then numbers starting with the search, then the rest.
+                $query->orderByRaw("CASE WHEN {$column} = ? THEN 0 WHEN {$column} LIKE ? THEN 1 ELSE 2 END", [$q, $prefix]);
+            }
 
-        return $query->orderByDesc('id')->limit($limit)->get()
-            ->map(fn ($r) => ['id' => (int) $r->id, 'file_number' => trim($r->file_number), 'file_title' => $r->file_title])
-            ->all();
+            return $query->orderByDesc('id')->limit($limit)->get()->map(function ($r) use ($q, $temp) {
+                $number = trim($r->number);
+                $rank = $q === '' ? 2 : (strcasecmp($number, $q) === 0 ? 0 : (stripos($number, $q) === 0 ? 1 : 2));
+                return ['id' => (int) $r->id, 'key' => ($temp ? 't' : 'f') . $r->id, 'file_number' => $number,
+                        'file_title' => $r->file_title, 'temporary' => $temp, '_rank' => $rank];
+            });
+        };
+
+        return $search('file_number', false)->concat($search('temp_file_no', true))
+            ->sort(fn ($a, $b) => [$a['_rank'], -$a['id']] <=> [$b['_rank'], -$b['id']])
+            ->take($limit)
+            ->map(fn ($r) => array_diff_key($r, ['_rank' => 1]))
+            ->values()->all();
     }
 
     private function createAtOffice(array $office, array $data, User $user, string $entryType, ?string $fileNumber): FileTracker
@@ -551,7 +634,9 @@ class SecretariatFileLogService
         $userName = $this->userName($user);
         // An indexed file keeps its indexed title; the form's field is locked for it.
         $indexedTitle = ($entryType === self::ENTRY_FILE && $fileNumber)
-            ? $this->clean(DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $fileNumber)->orderByDesc('id')->value('file_title'))
+            ? $this->clean(DB::connection('sqlsrv')->table('file_indexings')
+                ->where(fn ($w) => $w->where('file_number', $fileNumber)->orWhere('temp_file_no', $fileNumber))   // temporary files too
+                ->orderByDesc('id')->value('file_title'))
             : null;
         $title = $indexedTitle ?: ($this->clean($data['file_title'] ?? null) ?: ($fileNumber ?: 'Untitled document'));
         $from = !empty($data['from_office']) ? $this->officeOrNull($data['from_office']) : null;
@@ -582,10 +667,12 @@ class SecretariatFileLogService
         $tracker->module_meta = json_encode(['secretariat' => array_filter([
             'entry_type'   => $entryType,
             'not_indexed'  => $entryType === self::ENTRY_UNINDEXED ? true : null,
-            'document_kind' => $entryType === self::ENTRY_NON_FILE ? ($data['document_kind'] ?? null) : null,
             'sender_type'  => $entryType === self::ENTRY_NON_FILE && in_array($data['sender_type'] ?? null, self::SENDER_TYPES, true)
                 ? $data['sender_type'] : null,
             'sender'       => $this->clean($data['sender'] ?? null),
+            'sender_name'  => $entryType === self::ENTRY_NON_FILE ? ($data['sender_name'] ?? null) : null,
+            'sender_rank'  => $entryType === self::ENTRY_NON_FILE ? ($data['sender_rank'] ?? null) : null,
+            'sender_lga'   => $entryType === self::ENTRY_NON_FILE ? ($data['sender_lga'] ?? null) : null,
             'reference'    => $this->clean($data['reference'] ?? null),
             // The file a letter/memo relates to. Kept here, not in file_number, so the
             // document never stands in for that file's own tracker.
@@ -595,6 +682,9 @@ class SecretariatFileLogService
             'logged_at'    => $office['code'],
         ], fn ($v) => $v !== null)]);
 
+        // Own columns, so the type can be corrected and filtered on.
+        $tracker->document_kind = $entryType === self::ENTRY_NON_FILE ? ($data['document_kind'] ?? null) : null;
+        $tracker->mail_type = $entryType === self::ENTRY_NON_FILE ? ($data['mail_type'] ?? null) : null;
         $tracker->movement_log = [];
         $tracker->save();
 
@@ -676,9 +766,12 @@ class SecretariatFileLogService
             'file_type'   => $tracker->file_type,
             'request_type' => strtoupper(trim((string) $tracker->file_request_type)) ?: null,
             'not_indexed' => !empty($meta['not_indexed']),
-            'document_kind' => $meta['document_kind'] ?? null,
+            'document_kind' => $tracker->document_kind ?: ($meta['document_kind'] ?? null),
+            'mail_type'   => $tracker->mail_type ?: ($meta['mail_type'] ?? null),
             'sender_type' => $meta['sender_type'] ?? null,
             'sender'      => $meta['sender'] ?? null,
+            'sender_name' => $meta['sender_name'] ?? null,
+            'sender_rank' => $meta['sender_rank'] ?? null,
             'reference'   => $meta['reference'] ?? null,
             'related_file_number' => $meta['related_file_number'] ?? null,
             // The entry's own id; unique within its tracker (tracking_id is unique overall).
@@ -689,6 +782,159 @@ class SecretariatFileLogService
                 : $tracker->request_purpose_name,
             'notes'       => $entry['notes'] ?? null,
         ], $extra);
+    }
+
+    /**
+     * Mail, Memo, File, or Other with the text typed. Returns [kind, other text];
+     * an "Other" typed as a listed kind ("memo") becomes that kind.
+     *
+     * @return array{0:string,1:?string}
+     */
+    private function documentType(?string $kind, ?string $other): array
+    {
+        if (!isset(self::DOCUMENT_KINDS[$kind ?? ''])) {
+            throw new RuntimeException('Choose what it is: Mail, Letter, Memo, File or Other.');
+        }
+        if ($kind !== 'other') {
+            return [$kind, null];
+        }
+        $other = preg_replace('/\s+/', ' ', (string) $this->clean($other));
+        if ($other === '') {
+            throw new RuntimeException('Specify what it is.');
+        }
+        foreach (self::DOCUMENT_KINDS as $value => $label) {
+            if ($value !== 'other' && mb_strtolower($label) === mb_strtolower($other)) {
+                return [$value, null];
+            }
+        }
+
+        return ['other', mb_substr($other, 0, 100)];
+    }
+
+    /** Active ranks (officer_ranks), highest first; the pseudo-rank ALL is not a rank. */
+    public function officerRanks(): array
+    {
+        return DB::connection('sqlsrv')->table('officer_ranks')->where('is_active', 1)
+            ->whereRaw("UPPER(name) <> 'ALL'")
+            ->orderByDesc('weight')->orderBy('sort_order')->pluck('name')->all();
+    }
+
+    /** A rank typed under Other that is really a listed rank keeps the listed spelling. */
+    private function listedRank(?string $rank): ?string
+    {
+        $rank = $this->clean($rank);
+        if (!$rank) {
+            return null;
+        }
+        $rank = preg_replace('/\s+/', ' ', $rank);
+        foreach ($this->officerRanks() as $listed) {
+            if (mb_strtolower($listed) === mb_strtolower($rank)) {
+                return $listed;
+            }
+        }
+
+        return mb_substr($rank, 0, 100);
+    }
+
+    /**
+     * Correct what a "Not a regular File/Mail" entry is (Mail/File, mail type).
+     * The values before and after go to file_movement_log_edits first, in the same
+     * transaction, with entry_index -1 meaning "the entry's details", not one
+     * movement. $onlyOffice limits a non-admin to entries logged at, or now at,
+     * their own office.
+     */
+    /**
+     * $text: file_title (title / subject, required when given), reference and
+     * related_file_number (identifiers: trimmed, kept as typed, may be cleared).
+     * A key left out of $text is not changed.
+     */
+    public function editDocumentDetails(int $trackerId, ?string $kind, ?string $mailType, string $reason, User $user,
+                                        ?string $onlyOffice = null, array $context = [], array $text = []): FileTracker
+    {
+        $reason = $this->clean($reason);
+        if (!$reason) {
+            throw new RuntimeException('Give a reason for the change.');
+        }
+        [$kind, $mailType] = $this->documentType($kind, $mailType);
+        if (array_key_exists('file_title', $text)) {
+            $text['file_title'] = $this->clean($text['file_title']) ? mb_substr(preg_replace('/\s+/', ' ', $this->clean($text['file_title'])), 0, 255) : null;
+            if (!$text['file_title']) {
+                throw new RuntimeException('Give the title / subject.');
+            }
+        }
+        foreach (['reference', 'related_file_number'] as $key) {
+            if (array_key_exists($key, $text)) {
+                $text[$key] = $this->clean($text[$key]) ? mb_substr($this->clean($text[$key]), 0, 255) : null;
+            }
+        }
+
+        return DB::connection('sqlsrv')->transaction(function () use ($trackerId, $kind, $mailType, $reason, $user, $onlyOffice, $context, $text) {
+            $tracker = FileTracker::lockForUpdate()->find($trackerId);
+            if (!$tracker) {
+                throw new RuntimeException('File tracker not found.');
+            }
+            if ($tracker->file_type !== 'NON_FILE') {
+                throw new RuntimeException('Only a "Not a regular Mail/Letter/Memo/File" entry has these details.');
+            }
+            $meta = json_decode((string) $tracker->module_meta, true);
+            $meta = is_array($meta) ? ($meta['secretariat'] ?? []) : [];
+            if ($onlyOffice && $tracker->current_office_code !== $onlyOffice && ($meta['logged_at'] ?? null) !== $onlyOffice) {
+                throw new RuntimeException('You can only correct entries logged at, or now held at, your office.');
+            }
+
+            $before = [
+                'document_kind'       => $tracker->document_kind ?: ($meta['document_kind'] ?? null),
+                'mail_type'           => $tracker->mail_type ?: ($meta['mail_type'] ?? null),
+                'file_title'          => $tracker->file_title,
+                'reference'           => $meta['reference'] ?? null,
+                'related_file_number' => $meta['related_file_number'] ?? null,
+            ];
+            $after = array_merge($before, ['document_kind' => $kind, 'mail_type' => $mailType],
+                array_intersect_key($text, array_flip(['file_title', 'reference', 'related_file_number'])));
+            $changed = array_keys(array_filter($after, fn ($v, $k) => $v !== $before[$k], ARRAY_FILTER_USE_BOTH));
+            if (!$changed) {
+                throw new RuntimeException('Nothing has changed.');
+            }
+
+            DB::connection('sqlsrv')->table('file_movement_log_edits')->insert([
+                'file_tracker_id' => $tracker->id,
+                'tracking_id'     => $tracker->tracking_id,
+                'file_number'     => $tracker->file_number,
+                'entry_index'     => -1,
+                'log_id'          => null,
+                'office_code'     => $tracker->current_office_code,
+                'changed_fields'  => json_encode($changed),
+                'before_entry'    => json_encode($before, JSON_UNESCAPED_UNICODE),
+                'after_entry'     => json_encode($after, JSON_UNESCAPED_UNICODE),
+                'reason'          => mb_substr($reason, 0, 500),
+                'edited_by'       => $user->id,
+                'edited_by_name'  => $this->userName($user),
+                'acting_office'   => $onlyOffice,
+                'ip_address'      => isset($context['ip']) ? mb_substr((string) $context['ip'], 0, 45) : null,
+                'user_agent'      => isset($context['user_agent']) ? mb_substr((string) $context['user_agent'], 0, 500) : null,
+                'created_at'      => now(),
+            ]);
+
+            $tracker->document_kind = $kind;
+            $tracker->mail_type = $mailType;
+            $tracker->file_title = $after['file_title'];
+            // Reference and related file number live in module_meta; other keys are kept.
+            $allMeta = json_decode((string) $tracker->module_meta, true);
+            $allMeta = is_array($allMeta) ? $allMeta : [];
+            $section = $allMeta['secretariat'] ?? [];
+            foreach (['reference', 'related_file_number'] as $key) {
+                if ($after[$key] === null) {
+                    unset($section[$key]);
+                } else {
+                    $section[$key] = $after[$key];
+                }
+            }
+            $allMeta['secretariat'] = $section;
+            $tracker->module_meta = json_encode($allMeta);
+            $tracker->save();
+
+            return $tracker->refresh();
+        });
     }
 
     /** Identity of one stored log entry, stable across reads. */
@@ -1201,6 +1447,14 @@ class SecretariatFileLogService
     }
 
     /** Active Kano State MDAs (kano_mdas), in display order: the External sender list. */
+    /** Active Kano LGAs (lgas), by name: the LGA choice under an External sender. "Unknown" is a placeholder row, not an LGA. */
+    public function lgas(): array
+    {
+        return DB::connection('sqlsrv')->table('lgas')->where('is_active', 1)
+            ->whereRaw("UPPER(LTRIM(RTRIM(name))) <> 'UNKNOWN'")
+            ->orderBy('name')->pluck('name')->all();
+    }
+
     public function externalSenders(): array
     {
         return DB::connection('sqlsrv')->table('kano_mdas')->where('is_active', 1)
@@ -1229,7 +1483,11 @@ class SecretariatFileLogService
     {
         $type = in_array($data['sender_type'] ?? null, self::SENDER_TYPES, true) && $data['sender_type'] !== 'Other'
             ? $data['sender_type'] : null;
-        $sender = implode(' — ', array_filter([$type, $this->clean($data['sender'] ?? null)]));
+        $person = $this->clean($data['sender_name'] ?? null);
+        if ($person && $this->clean($data['sender_rank'] ?? null)) {
+            $person .= ' (' . $this->clean($data['sender_rank']) . ')';
+        }
+        $sender = implode(' — ', array_filter([$type, $this->clean($data['sender'] ?? null), $person]));
 
         return $sender !== '' ? 'Sender: ' . $sender : null;
     }

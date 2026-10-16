@@ -184,6 +184,18 @@ class LegalSearchController extends Controller
             });
             $directLink = route('legal_search.index', $queryParams);
 
+            // The Transaction Token Control (TTC) token the search ran on: the one passed
+            // in, else the file's latest. Its Requesting Body makes the search Official,
+            // a General token makes it Commercial; no token leaves the type blank.
+            $ttc = null;
+            if ($request->filled('token')) {
+                $ttc = \App\Models\LegalSearchToken::where('token', $request->input('token'))->first();
+            }
+            if (!$ttc && $searchParam === 'File Number') {
+                $ttc = $this->searchService->latestSearchToken((string) $searchValue);
+            }
+            $requester = $this->searchService->requesterDetails($ttc);
+
             \App\Models\LegalSearchLog::create([
                 'user_id' => auth()->id(),
                 'search_parameter' => $searchParam,
@@ -191,10 +203,11 @@ class LegalSearchController extends Controller
                 'result_status' => $resultStatus,
                 'results_count' => $totalCount,
                 'lga' => $request->input('lga'),
-                'receipt_no' => $request->input('token'),
+                'receipt_no' => $requester['receipt_number'] ?? $request->input('token'),
                 'printed' => false,
                 'direct_link' => $directLink,
                 'search_source' => $this->printTemplateRouteName,
+                'search_type' => $requester['search_type'] ?? null,
             ]);
         }
 
@@ -259,6 +272,8 @@ class LegalSearchController extends Controller
                 'lga' => $request->input('lga'),
                 'printed' => false,
                 'search_source' => 'legal_search.print.online',
+                // Online searches are paid for by the public: always Commercial.
+                'search_type' => 'Commercial',
             ]);
         }
 

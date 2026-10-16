@@ -86,6 +86,11 @@
         // Kebab menu for the CofO row; empty when the user has no item to show
         // (txnFileNoCorrectionMenuItem returns '' without permission).
         function renderCofoActionMenu(id) {
+            // View only from the Cadastral sidebar (?url=cadastral): View and Timeline stay,
+            // the correction menu does not.
+            if (@json(request('url') === 'cadastral')) {
+                return '';
+            }
             var correctItem = window.txnFileNoCorrectionMenuItem
                 ? window.txnFileNoCorrectionMenuItem('CofO_staging', id)
                 : '';

@@ -2947,6 +2947,11 @@
             if (state.searchQuery && state.searchQuery.trim()) {
                 params.set('search', state.searchQuery.trim());
             }
+            // Keep the active source tab (Scanned / OSS-FC / Parcel / Other).
+            const activeSource = new URLSearchParams(window.location.search).get('source');
+            if (activeSource) {
+                params.set('source', activeSource);
+            }
             let logUrl = state.logEndpoint;
             const queryString = params.toString();
             if (queryString) {
@@ -5144,6 +5149,7 @@
         table.innerHTML = `
         <thead class="bg-gray-50">
           <tr>
+            <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase tracking-wide text-xs w-12">S/N</th>
             <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase tracking-wide text-xs">File Number</th>
             <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase tracking-wide text-xs">Document</th>
             <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase tracking-wide text-xs">Paper Size</th>
@@ -5161,6 +5167,8 @@
         table.appendChild(tbody);
 
         let rowsRendered = 0;
+        // S/N continues across server pages (20 files per page).
+        const serialOffset = ((parseInt(state.pagination?.currentPage, 10) || 1) - 1) * (parseInt(state.pagination?.perPage, 10) || 20);
 
         batches.forEach(batch => {
             if (!Array.isArray(batch.documents) || batch.documents.length === 0) {
@@ -5191,6 +5199,7 @@
 
             const row = document.createElement('tr');
             row.innerHTML = `
+          <td class="px-4 py-3 text-gray-500 whitespace-nowrap">${serialOffset + rowsRendered}</td>
           <td class="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">${safeFileNumber}</td>
           <td class="px-4 py-3 text-gray-700 whitespace-nowrap">Total Uploads: ${totalUploads}</td>
           <td class="px-4 py-3 text-gray-700 whitespace-nowrap">${paperSummary}</td>
@@ -5213,7 +5222,7 @@
         if (!rowsRendered) {
             const emptyRow = document.createElement('tr');
             emptyRow.innerHTML = `
-          <td colspan="8" class="px-4 py-6 text-center text-sm text-gray-500">
+          <td colspan="9" class="px-4 py-6 text-center text-sm text-gray-500">
             No uploaded documents available.
           </td>
         `;

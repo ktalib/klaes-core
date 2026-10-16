@@ -1539,6 +1539,7 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'secretariat-file-log
     Route::get('/indexed', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'indexed'])->name('indexed');
     Route::post('/delete-log', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'deleteLog'])->name('delete-log');
     Route::post('/edit-log', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'editLog'])->name('edit-log');
+    Route::post('/edit-details', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'editDetails'])->name('edit-details');
     Route::post('/delete-tracker', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'deleteTracker'])->name('delete-tracker');
     Route::post('/receive', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'receive'])->name('receive');
     Route::post('/forward', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'forward'])->name('forward');

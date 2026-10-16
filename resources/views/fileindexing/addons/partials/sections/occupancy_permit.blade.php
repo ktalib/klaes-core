@@ -39,26 +39,50 @@
 
         <div class="grid grid-cols-2 gap-4">
             <div class="form-group">
+                <label for="occupancy-permit-op-source" class="block text-sm font-medium text-gray-700 mb-2">Source <span class="text-red-500">*</span></label>
+                @php $occupancyPermitOpSourceValue = isset($record) ? ($record->occupancy_permit_op_source ?? '') : ''; @endphp
+                {{-- Who issued the permit (user, 2026-10-15). LGA used to be an OP Type and now
+                     lives here only: it turns the Grantor field into a 44-LGA picker and fixes
+                     the registration particulars at 0/0/0 with no deeds date or time — see
+                     applyOccupancyPermitLgaRules() in public/js/fileindexing/create-indexing-dialog.js.
+                     Saved in pra.op_source. --}}
+                <select id="occupancy-permit-op-source" name="occupancy_permit_op_source"
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm">
+                    <option value="">Select source</option>
+                    <option value="Ministry" {{ $occupancyPermitOpSourceValue === 'Ministry' ? 'selected' : '' }}>Ministry</option>
+                    <option value="KANGIS" {{ $occupancyPermitOpSourceValue === 'KANGIS' ? 'selected' : '' }}>KANGIS</option>
+                    <option value="LGA" {{ $occupancyPermitOpSourceValue === 'LGA' ? 'selected' : '' }}>LGA</option>
+                    <option value="Other" {{ $occupancyPermitOpSourceValue === 'Other' ? 'selected' : '' }}>Other</option>
+                </select>
+                {{-- Shown, enabled and required only while Source is Other; saved in pra.op_source_other. --}}
+                <input type="text" id="occupancy-permit-op-source-other" name="occupancy_permit_op_source_other" maxlength="100"
+                    class="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm {{ $occupancyPermitOpSourceValue === 'Other' ? '' : 'hidden' }}"
+                    placeholder="Specify source *" aria-label="Specify source"
+                    value="{{ isset($record) ? ($record->occupancy_permit_op_source_other ?? '') : '' }}"
+                    {{ $occupancyPermitOpSourceValue === 'Other' ? 'required' : 'disabled' }}>
+                <p id="occupancy-permit-lga-note" class="mt-1 text-[11px] text-amber-700 hidden">
+                    Issued by a Local Government: registration number is fixed at 0/0/0 and the
+                    deeds date and time are left blank.
+                </p>
+            </div>
+            <div class="form-group">
                 <label for="occupancy-permit-op-type" class="block text-sm font-medium text-gray-700 mb-2">Type</label>
                 @php $occupancyPermitOpTypeValue = isset($record) ? ($record->occupancy_permit_op_type ?? '') : ''; @endphp
-                {{-- This section captures Occupancy Permits only, so the list is the permit
-                     row of the catalogue: Resettlement, Direct Allocation, LGA. ("LGA
-                     Allocation Letter" was briefly here; it is its own instrument type, not
-                     a permit Type, and belongs on the transaction card instead.)
-                     LGA turns the Grantor field into a 44-LGA picker and fixes the
-                     registration particulars at 0/0/0 with no deeds date or time — see
-                     applyOccupancyPermitLgaRules() in public/js/fileindexing/create-indexing-dialog.js. --}}
+                {{-- This section captures Occupancy Permits only. LGA is not a Type here any
+                     more; it is a Source (above). --}}
                 <select id="occupancy-permit-op-type" name="occupancy_permit_op_type"
                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm">
                     <option value="">Select OP Type</option>
                     <option value="Resettlement" {{ $occupancyPermitOpTypeValue === 'Resettlement' ? 'selected' : '' }}>Resettlement</option>
                     <option value="Direct Allocation" {{ $occupancyPermitOpTypeValue === 'Direct Allocation' ? 'selected' : '' }}>Direct Allocation</option>
-                    <option value="LGA" {{ $occupancyPermitOpTypeValue === 'LGA' ? 'selected' : '' }}>LGA</option>
+                    <option value="Other" {{ $occupancyPermitOpTypeValue === 'Other' ? 'selected' : '' }}>Other</option>
                 </select>
-                <p id="occupancy-permit-lga-note" class="mt-1 text-[11px] text-amber-700 hidden">
-                    Issued by a Local Government: registration number is fixed at 0/0/0 and the
-                    deeds date and time are left blank.
-                </p>
+                {{-- Shown, enabled and required only while Type is Other; saved in pra.op_type_other. --}}
+                <input type="text" id="occupancy-permit-op-type-other" name="occupancy_permit_op_type_other" maxlength="100"
+                    class="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm {{ $occupancyPermitOpTypeValue === 'Other' ? '' : 'hidden' }}"
+                    placeholder="Specify OP type *" aria-label="Specify OP type"
+                    value="{{ isset($record) ? ($record->occupancy_permit_op_type_other ?? '') : '' }}"
+                    {{ $occupancyPermitOpTypeValue === 'Other' ? 'required' : 'disabled' }}>
             </div>
             <div class="form-group" id="occupancy-permit-op-category-group">
                 <label for="occupancy-permit-op-category" class="block text-sm font-medium text-gray-700 mb-2">Category</label>

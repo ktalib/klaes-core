@@ -11,6 +11,18 @@
     var copStep = 1;
     var selectedFileRecord = null;
     var commissionRecordId = null; // ID of the record currently being commissioned
+    var copCurrentPurpose = '';    // the selected file's purpose, from applicant-details
+
+    function copSamePurpose(a, b) {
+        var norm = function (v) { return String(v || '').trim().replace(/\s+/g, ' ').toUpperCase(); };
+        return norm(a) !== '' && norm(a) === norm(b);
+    }
+
+    function copSetCurrentPurpose(value) {
+        copCurrentPurpose = value || '';
+        var el = document.getElementById('cop-current-purpose');
+        if (el) el.value = copCurrentPurpose;
+    }
 
     /* ----------------------------------------
        Land-use helpers
@@ -329,9 +341,12 @@
             }
             if (!landUseId)  { Swal.fire({ icon: 'warning', title: 'Select a new land use' }); return; }
             if (!newPurpose) { Swal.fire({ icon: 'warning', title: 'Select a new purpose' }); return; }
+            // A change may stay within the land use (RESIDENTIAL HIGH DENSITY -> LOW DENSITY);
+            // only the same land use AND the same purpose is refused.
             var curCode = detectLandUseCode(fileNo);
-            if (purposeCode && curCode && curCode === purposeCode.toUpperCase()) {
-                Swal.fire({ icon: 'warning', title: 'Same Land Use', text: 'The new land use matches the current land use.' });
+            var sameUse = purposeCode && curCode && LAND_USE_MAP[curCode] === LAND_USE_MAP[purposeCode.toUpperCase()];
+            if (sameUse && copSamePurpose(copCurrentPurpose, newPurpose)) {
+                Swal.fire({ icon: 'warning', title: 'Same Land Use and Purpose', text: 'The new land use and purpose are the same as the current ones.' });
                 return;
             }
             if (purposeCode && !computeNewFileNo(fileNo, purposeCode)) {
@@ -405,6 +420,7 @@
         document.getElementById('cop-file-indicator')?.classList.add('hidden');
         document.getElementById('cop-file-details')?.classList.add('hidden');
         document.getElementById('cop-land-use').value = '';
+        copSetCurrentPurpose('');
         document.getElementById('cop-purpose').value = '';
         document.getElementById('cop-res-addr-street-other-wrapper')?.classList.add('hidden');
         document.getElementById('cop-res-addr-district-other-wrapper')?.classList.add('hidden');
@@ -884,6 +900,12 @@
         var plotInput = document.getElementById('plotNo');
         if (plotInput && data.plot_no) { plotInput.value = data.plot_no; }
 
+        // Backfill the card's Purpose with the one picked on the CoP card. It is
+        // selected once the land use's purposes have loaded (see setPrefillPurpose).
+        if (component && typeof component.setPrefillPurpose === 'function') {
+            component.setPrefillPurpose(data.new_purpose || '');
+        }
+
         // Hide allocation source section (not relevant for COP)
         var allocSrc = document.getElementById('allocation-source-section');
         if (allocSrc) allocSrc.style.display = 'none';
@@ -1246,6 +1268,7 @@
                 if (!res || !res.success || !res.data) return;
 
                 if (document.getElementById('cop-file-no')?.value.trim().toUpperCase() !== fileNo.toUpperCase()) return;
+                copSetCurrentPurpose(res.data.current_purpose);
                 var property = res.data.property || {};
                 Object.keys(propertyFields).forEach(function (id) {
                     var el = document.getElementById(id), value = property[propertyFields[id]];
@@ -1471,6 +1494,7 @@
                     document.getElementById('cop-file-indicator')?.classList.remove('hidden');
                     // Auto-fill land use
                     document.getElementById('cop-land-use').value = detectLandUseLabel(fn);
+                    copSetCurrentPurpose(''); // the previous file's; refilled by copFillApplicantDetails
                     // Auto-fill applicant name from record
                     if (data.record) {
                         showFileDetails(data.record);

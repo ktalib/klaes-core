@@ -46,7 +46,11 @@ class CaveatController extends Controller
             ->orderBy('InstrumentName')
             ->get();
 
-        return view('caveat.index', compact('PageTitle', 'PageDescriptionS', 'instrumentTypes'));
+        // Opened from Cadastral > Other Departments: the caveats log only, no
+        // Place / Lift forms and no row actions.
+        $readOnly = request('url') === 'cadastral';
+
+        return view('caveat.index', compact('PageTitle', 'PageDescriptionS', 'instrumentTypes', 'readOnly'));
     }
 
     // Create/place a new caveat

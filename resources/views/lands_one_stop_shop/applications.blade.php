@@ -597,6 +597,20 @@
                                     </tr>
                                 @endforelse
                             @else
+                            @php
+                                // FC / FEFR menu: Print Bill is enabled only once a bill exists.
+                                // Same lookup as billStatus(); chunked for SQL Server's 2100-parameter cap.
+                                $billedRecordIds = [];
+                                if ($isGenerateChangeOfName) {
+                                    collect($records)->pluck('id')->filter()->map(fn ($v) => (int) $v)->unique()->chunk(1000)
+                                        ->each(function ($ids) use (&$billedRecordIds) {
+                                            \App\Models\Billing::where('source', 'OSS_OP_APPLICATION_FEE')
+                                                ->whereIn('source_id', $ids->values()->all())
+                                                ->pluck('source_id')
+                                                ->each(function ($sid) use (&$billedRecordIds) { $billedRecordIds[(int) $sid] = true; });
+                                        });
+                                }
+                            @endphp
                             @forelse($records as $record)
                                 <tr data-record='@json($record)'>
                                     @if($isSupperAdmin)
@@ -662,6 +676,10 @@
                                                 
                                                 @if(!$isChangeOfName)
                                                     <span class="text-[11px] font-semibold {{ $subColor }} whitespace-nowrap">{{ $subLabel }}</span>
+                                                @elseif(!empty($record['file_source']))
+                                                    {{-- The file's own Source, coloured as on the Land FC table (App\Support\SourceBadge). --}}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
+                                                        style="{{ \App\Support\SourceBadge::style($record['file_source']) }}">{{ \App\Support\SourceBadge::label($record['file_source']) }}</span>
                                                 @endif
                                             </div>
                                         @else
@@ -671,7 +689,8 @@
                                                 @else
                                                     <span class="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-200 whitespace-nowrap">FEFR Record</span>
                                                 @endif
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-blue-50 text-blue-700 border-blue-200">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                                                    style="{{ \App\Support\SourceBadge::style($src) }}">
                                                     {{ $src }}
                                                 </span>
                                             </div>
@@ -779,22 +798,36 @@
                                                     $canUpdateOp = $isSupperAdmin || auth()->id() == 101524;
                                                 @endphp
                                                 @if($isGenerateChangeOfName)
-                                                <!-- OSS - Generate FileNos (Change of Ownership) -->
+                                                <!-- OSS - Generate FileNos (Change of Ownership): FC / FEFR -->
                                                 <button type="button" class="inline-flex items-center gap-2">
                                                     <i class="fas fa-eye w-3.5 h-3.5 text-blue-500"></i> View Record
                                                 </button>
+                                                @if($canUpdateOp)
+                                                <a href="{{ url('lands-one-stop-shop/applications/op-resettlement/' . ($record['id'] ?: 'pra-' . $record['pra_id']) . '/capture-edit') }}"
+                                                   class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-all">
+                                                    <i class="fas fa-file-pen w-3.5 h-3.5 text-indigo-500"></i> Update OP
+                                                </a>
+                                                @else
+                                                {{-- Update OP replaces Edit Record; officers without it keep Edit Record so they can still edit --}}
                                                 <button type="button" onclick="openOpEditModal(this)" class="inline-flex items-center gap-2">
                                                     <i class="fas fa-pen w-3.5 h-3.5 text-amber-500"></i> Edit Record
+                                                </button>
+                                                @endif
+                                                <button type="button" onclick="openCommissioningSheetForOP(this)" class="inline-flex items-center gap-2">
+                                                    <i class="fas fa-file-text w-3.5 h-3.5 text-violet-500"></i> Print Commissioning Sheet
                                                 </button>
                                                 <button type="button" onclick="openBillModalForOP(this)" class="inline-flex items-center gap-2">
                                                     <i class="fas fa-receipt w-3.5 h-3.5 text-slate-500"></i> Bill
                                                 </button>
+                                                @if(!empty($billedRecordIds[(int) ($record['id'] ?? 0)]))
                                                 <button type="button" onclick="printBillForOP(this)" class="inline-flex items-center gap-2">
                                                     <i class="fas fa-print w-3.5 h-3.5 text-indigo-500"></i> Print Bill
                                                 </button>
-                                                <button type="button" onclick="openCommissioningSheetForOP(this)" class="inline-flex items-center gap-2">
-                                                    <i class="fas fa-file-text w-3.5 h-3.5 text-violet-500"></i> Commissioning Sheet
+                                                @else
+                                                <button type="button" disabled title="Generate the bill first" class="inline-flex items-center gap-2 opacity-50 cursor-not-allowed">
+                                                    <i class="fas fa-print w-3.5 h-3.5 text-slate-400"></i> Print Bill
                                                 </button>
+                                                @endif
                                                 @if(!empty($record['pra_id']))
                                                 {{-- FC / FEFR is a change of ownership: always the Change of Ownership list --}}
                                                 <button type="button"
@@ -802,12 +835,6 @@
                                                     class="inline-flex items-center gap-2">
                                                     <i class="fas fa-paper-plane w-3.5 h-3.5 text-sky-500"></i> Send to OSS Applications
                                                 </button>
-                                                @endif
-                                                @if($canUpdateOp)
-                                                <a href="{{ url('lands-one-stop-shop/applications/op-resettlement/' . ($record['id'] ?: 'pra-' . $record['pra_id']) . '/capture-edit') }}"
-                                                   class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-all">
-                                                    <i class="fas fa-file-pen w-3.5 h-3.5 text-indigo-500"></i> Update OP
-                                                </a>
                                                 @endif
                                                 @if($isSupperAdmin && !empty($record['mls_file_no']) && $record['mls_file_no'] !== '—')
                                                 <button type="button" onclick="moveCommissioningRegistry(event, '{{ addslashes($record['mls_file_no']) }}', 'MLS')" class="inline-flex items-center gap-2">

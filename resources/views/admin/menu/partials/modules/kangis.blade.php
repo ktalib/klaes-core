@@ -213,12 +213,12 @@
       </div>
     @endif
 
-    <!-- d. Director GIS Recommendation -->
+    <!-- d. KANGIS File Request Recommendation (Director GIS) -->
     @if($hasRole('DGIS') || $hasRole('Supper Admin'))
       <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="dgis-recommendation">
         <div class="flex items-center gap-2">
           <i data-lucide="map-pin-check" class="h-4 w-4 text-yellow-500"></i>
-          <span>Director GIS Recommendation</span>
+          <span>KANGIS File Request Recommendation</span>
         </div>
         <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="dgis-recommendation"></i>
       </div>
@@ -236,12 +236,12 @@
       </div>
     @endif
 
-    <!-- e. DG Approval -->
+    <!-- e. KANGIS File Request Approval (DG) -->
     @if($hasRole('DG') || $hasRole('Supper Admin'))
       <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="dg-approval">
         <div class="flex items-center gap-2">
           <i data-lucide="badge-check" class="h-4 w-4 text-yellow-500"></i>
-          <span>DG Approval</span>
+          <span>KANGIS File Request Approval</span>
         </div>
         <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="dg-approval"></i>
       </div>

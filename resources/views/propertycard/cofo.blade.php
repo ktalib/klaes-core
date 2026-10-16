@@ -41,7 +41,8 @@
                     <!-- <p class="text-gray-500">Manage and view Certificate of Occupancy records</p> -->
                 </div>
         
-                <div class="flex items-center justify-between mb-4">
+                {{-- View only from the Cadastral sidebar: no links into the Property Records screens. --}}
+                <div class="flex items-center justify-between mb-4" @if(request('url') === 'cadastral') style="display:none" @endif>
                     <a href="{{ route('propertycard.index') }}" class="flex items-center text-gray-600 hover:text-gray-800">
                         <i class="fas fa-arrow-left mr-2"></i> Back to Property Records
                     </a>
@@ -233,7 +234,7 @@
                             </div>
 <br>
 <hr>
-<a href="{{ route('propertycard.index') }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-150 ease-in-out mr-3">
+<a href="{{ route('propertycard.index') }}" @if(request('url') === 'cadastral') style="display:none" @endif class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-150 ease-in-out mr-3">
     <i class="fas fa-home mr-2"></i>View Records
 </a>
                 <br>

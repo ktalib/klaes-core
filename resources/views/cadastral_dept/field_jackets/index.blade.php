@@ -43,9 +43,9 @@
             @forelse ($rows as $jacket)
               @php
                 $items = [['Open field jacket', 'briefcase', route('cadastral-dept.field-jackets.show', $jacket->id)]];
-                if (auth()->user()->canDo('Cad - Records', 'print')) {
+                if (\App\Services\CadastralDept\DeskAccess::can(auth()->user(), 'print')) {
                     $items[] = ['Print jacket cover', 'printer', route('cadastral-dept.field-jackets.print', $jacket->id), true];
-                    if ($jacket->job->its_number) {
+                    if ($jacket->job?->its_number) {
                         $items[] = ['Print I to S', 'file-text', route('cadastral-dept.field-jackets.its.print', $jacket->id), true];
                     }
                 }
@@ -54,15 +54,15 @@
               <tr class="hover:bg-gray-50">
                 <td class="px-3 py-2 text-gray-500">{{ $rows->firstItem() + $loop->index }}</td>
                 <td class="px-3 py-2 font-mono">{{ $jacket->field_jacket_no }}</td>
-                <td class="px-3 py-2 font-mono">{{ $jacket->job->job_number }}</td>
+                <td class="px-3 py-2 font-mono">{{ $jacket->job?->job_number }}</td>
                 <td class="px-3 py-2 font-mono">{{ $jacket->file_number }}</td>
                 <td class="px-3 py-2">{{ $jacket->plot_no ?: '—' }}</td>
                 <td class="px-3 py-2">{{ $jacket->district ?: '—' }}</td>
                 <td class="px-3 py-2">{{ $jacket->lga ?: '—' }}</td>
                 <td class="px-3 py-2">{{ $jacket->location ?: '—' }}</td>
-                <td class="px-3 py-2">{{ $jacket->job->surveyor_name ?: '—' }}@if ($jacket->job->firm_name)<div class="text-xs text-gray-500">{{ $jacket->job->firm_name }}</div>@endif</td>
-                <td class="px-3 py-2 font-mono">{{ $jacket->job->its_number ?: '—' }}</td>
-                <td class="px-3 py-2">@include('cadastral_dept.field_jackets._status', ['cdStatus' => $jacket->job->status])</td>
+                <td class="px-3 py-2">{{ $jacket->job?->surveyor_name ?: '—' }}@if ($jacket->job?->firm_name)<div class="text-xs text-gray-500">{{ $jacket->job?->firm_name }}</div>@endif</td>
+                <td class="px-3 py-2 font-mono">{{ $jacket->job?->its_number ?: '—' }}</td>
+                <td class="px-3 py-2">@include('cadastral_dept.field_jackets._status', ['cdStatus' => $jacket->job?->status ?? 'No job yet'])</td>
                 <td class="px-3 py-2 whitespace-nowrap">{{ $jacket->commissioned_at->format('d M Y') }}</td>
                 <td class="px-3 py-2 text-right">@include('cadastral_dept.partials._row_actions', ['items' => $items])</td>
               </tr>

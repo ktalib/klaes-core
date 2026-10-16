@@ -109,8 +109,11 @@
                 @php
                     // Categorise PRA rows into OP rows and Transfer-of-Title rows
                     // Prioritize records that actually HAVE an op_serial_number for the OP card display.
-                    $opPraRows = $allPraRows->filter(fn($r) => 
-                        !empty($r->op_serial_number) && $r->op_serial_number != '0'
+                    // Transfer of Title rows carry the OP serial too, but they get their own card below.
+                    $opPraRows = $allPraRows->filter(fn($r) =>
+                        !empty($r->op_serial_number) && $r->op_serial_number != '0' &&
+                        stripos($r->instrument_type ?? '', 'Transfer of Title') === false &&
+                        stripos($r->transaction_type ?? '', 'Transfer of Title') === false
                     )->values();
 
                     // If still empty, fall back to records that are NOT transfers

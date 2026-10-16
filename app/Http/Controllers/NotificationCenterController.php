@@ -181,6 +181,8 @@ class NotificationCenterController extends Controller
                 'fileNumber' => $data['file_number'] ?? null,
                 'fileName' => $data['file_name'] ?? null,
                 'source' => $notification->module,
+                // A same-site page the notification opens (Cadastral workflow sets it).
+                'openPath' => $data['open_path'] ?? null,
             ],
         ];
     }

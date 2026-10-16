@@ -3061,6 +3061,15 @@ HTML;
             'related_files' => $withCandidates
                 ? app(FileLocationResolver::class)->relatedFilesWithTitles($indexing, $result['file_number'])
                 : [],
+            // KANGIS file(s) this land file is kept inside, with where each is now.
+            // The Send-to-SCB form then targets the KANGIS Registry.
+            'kangis_files' => $withCandidates
+                ? app(FileLocationResolver::class)->kangisContainersFor($result['file_number'], $indexing)
+                : [],
+            // The reverse: land file(s) kept inside this KANGIS file.
+            'land_files' => $withCandidates
+                ? app(FileLocationResolver::class)->landFilesFor($result['file_number'], $indexing)
+                : [],
             'status'           => $result['status'],
             // In-Transit / Requested / DIIT for the open movement cycle (null when none).
             'request_type'     => app(FileLocationResolver::class)->requestTypeFor($tracker),
@@ -3584,6 +3593,8 @@ HTML;
         // file's timeline always opens where the file actually began.
         $priorMovements = $this->withCommissioningLine($tracker);
         $tracker->setAttribute('prior_movements', $priorMovements);
+        // A "File Commissioning" line for each Move Commissioned File (new number).
+        $tracker->setAttribute('recommissioning_lines', \App\Services\FileNumber\CommissionedFileMoveService::recommissioningLinesFor($tracker->file_number));
 
         // The KANGIS sheet takes its holder from the latest movement entry when the
         // tracker-level officer is blank, so those officers need photos too, and the

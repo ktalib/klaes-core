@@ -40,11 +40,11 @@
           {{ $form->isComplete() ? 'Complete' : 'Incomplete' }}
         </span>
       @endif
-      @canDo('Cad - Records', 'print')
+      @cadCan('print')
         <a href="{{ route('cadastral-dept.cases.yes-no.print', $case->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">
           <i data-lucide="printer" class="w-4 h-4"></i> Generate Yes/No Form
         </a>
-      @endcanDo
+      @endcadCan
     </div>
 
     <div class="rounded-xl border border-gray-200 bg-white p-5">
@@ -173,11 +173,11 @@
       @if ($editable)
         <div class="p-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100">
           <span class="text-xs text-gray-500">"Land 12 and Yes/No form" can be ticked once questions 1–7 are all answered.</span>
-          @canDo('Cad - Records', 'edit')
+          @cadCan('edit')
             <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold">
               <i data-lucide="save" class="w-4 h-4"></i> Save the Yes/No form
             </button>
-          @endcanDo
+          @endcadCan
         </div>
       @endif
     </form>

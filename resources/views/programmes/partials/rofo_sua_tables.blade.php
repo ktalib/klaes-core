@@ -93,6 +93,7 @@
                 <th>RoFO Details</th>
                 <th>Created By</th>
                 <th>Date Created</th>
+                <th>Security Paper Code</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -101,7 +102,15 @@
                 return (bool) ($app->rofo_generated ?? false);
             }) as $unitApplication)
             <tr>
-                <td>{{ $unitApplication->fileno ?? 'N/A' }}</td>
+                <td>
+                    <div>{{ $unitApplication->fileno ?? 'N/A' }}</div>
+                    {{-- Shown on the row, as on Land RofO, rather than only inside the action menu. --}}
+                    @if(!empty($unitApplication->security_paper_code))
+                        <div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:'Courier New', monospace;" title="Security Paper Code">
+                            {{ $unitApplication->security_paper_code }}
+                        </div>
+                    @endif
+                </td>
                 <td><strong>{{ $unitApplication->rofo_no ?? 'N/A' }}</strong></td>
                 <td>{{ $unitApplication->scheme_no ?? 'N/A' }}</td>
                 <td>{{ $unitApplication->owner_name ?? 'N/A' }}</td>
@@ -118,6 +127,13 @@
                 </td>
                 <td>{{ $unitApplication->created_by_name ?? '—' }}</td>
                 <td>{{ $unitApplication->created_at ? date('d-m-Y', strtotime($unitApplication->created_at)) : 'N/A' }}</td>
+                <td>
+                    @if(!empty($unitApplication->security_paper_code))
+                        <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200">{{ $unitApplication->security_paper_code }}</span>
+                    @else
+                        <span class="muted text-xs italic">Unassigned</span>
+                    @endif
+                </td>
                 <td class="actions">
                     <div class="dd">
                             <button type="button" class="dd-btn" onclick="toggleDD(this)">
@@ -179,11 +195,8 @@
                                     <span>Print Manager</span>
                                 </span>
                             @endif
-                            @if($unitApplication->security_paper_code)
-                                <span class="dd-item disabled" title="Security code already assigned">
-                                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
-                                    <span>Code Assigned: {{ $unitApplication->security_paper_code }}</span>
-                                </span>
+                            @if(!empty($unitApplication->security_paper_code))
+                                {{-- The assigned code is shown on the row, not here. --}}
                                 <button type="button" class="dd-item"
                                     onclick="resetSecurityPaperModal('{{ $unitApplication->id }}', @js($unitApplication->fileno), @js($unitApplication->security_paper_code))">
                                     <i data-lucide="rotate-ccw" class="w-4 h-4 text-red-500"></i>
@@ -220,7 +233,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="12" class="muted">No generated SUA RoFO applications found</td>
+                <td colspan="13" class="muted">No generated SUA RoFO applications found</td>
             </tr>
             @endforelse
         </tbody>

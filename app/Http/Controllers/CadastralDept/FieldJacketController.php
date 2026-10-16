@@ -13,7 +13,7 @@ use App\Services\CadastralDept\WorkflowDefinition;
 use App\Services\DocumentQr\QrRenderer;
 use Illuminate\Http\Request;
 
-/** Field Jacket, job, surveyor and I to S (step 10). */
+/** Field Jacket and I to S (AD P&D), job, surveyor and Instruction to Surveyor (AD Cad Info). */
 class FieldJacketController extends Controller
 {
     use RunsWorkflowActions;
@@ -57,12 +57,34 @@ class FieldJacketController extends Controller
         return view('cadastral_dept.field_jackets.index', compact('def', 'installed', 'term', 'status', 'rows') + ['cdCards' => $cdCards ?? []]);
     }
 
+    /** AD P&D: commission the plain field jacket (no job, no surveyor). */
     public function store(Request $request, int $case)
+    {
+        $data = $request->validate(['remarks' => 'nullable|string|max:2000']);
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(function () use ($case, $data) {
+            $jacket = $this->jackets->commission($case, $data, auth()->id());
+
+            return "Field jacket {$jacket->field_jacket_no} commissioned for {$case->file_number}. Next: issue the I to S.";
+        }, 'Field jacket commissioned.');
+    }
+
+    /** AD P&D: the plain I to S (attach a job and a surveyor), for AD Cad Info. */
+    public function issueIts(Request $request, int $case)
+    {
+        $data = $request->validate(['its_instructions' => 'required|string|max:8000'], ['its_instructions.required' => 'Write the instruction text.']);
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $this->jackets->issueIts($case, $data, auth()->id()), 'I to S issued.');
+    }
+
+    /** AD Cad Info: attach a job from the Job Book and a surveyor to the field jacket. */
+    public function attachJob(Request $request, int $case)
     {
         $data = $request->validate([
             'cadastral_survey_job_id' => 'required|integer',
             'cadastral_surveyor_id' => 'required|integer',
-            'remarks' => 'nullable|string|max:2000',
         ], [
             'cadastral_survey_job_id.required' => 'Choose the survey job to attach.',
             'cadastral_surveyor_id.required' => 'Choose the surveyor.',
@@ -70,14 +92,15 @@ class FieldJacketController extends Controller
         $case = CadastralCase::findOrFail($case);
 
         return $this->attempt(function () use ($case, $data) {
-            $jacket = $this->jackets->commission($case, $data, auth()->id());
+            $jacket = $this->jackets->attachJob($case, $data, auth()->id());
 
-            return "Job {$jacket->job->job_number} ({$jacket->job->surveyor_name}) attached to {$case->file_number}"
-                . " on field jacket {$jacket->field_jacket_no}. Next: issue the I to S.";
-        }, 'Survey job attached.');
+            return "Job {$jacket->job->job_number} ({$jacket->job->surveyor_name}) attached to field jacket {$jacket->field_jacket_no}."
+                . ' Next: issue the Instruction to Surveyor.';
+        }, 'Job attached.');
     }
 
-    public function issueIts(Request $request, int $case)
+    /** AD Cad Info: issue the job's Instruction to Surveyor. */
+    public function issueJobIts(Request $request, int $case)
     {
         $data = $request->validate([
             'its_instructions' => 'required|string|max:8000',
@@ -86,10 +109,10 @@ class FieldJacketController extends Controller
         $case = CadastralCase::findOrFail($case);
 
         return $this->attempt(function () use ($case, $data) {
-            $job = $this->jackets->issueIts($case, $data, auth()->id());
+            $job = $this->jackets->issueJobIts($case, $data, auth()->id());
 
-            return "I to S {$job->its_number} issued to {$job->its_recipient}.";
-        }, 'I to S issued.');
+            return "Instruction to Surveyor {$job->its_number} issued to {$job->its_recipient}.";
+        }, 'Instruction issued.');
     }
 
     public function reassign(Request $request, int $jacket)
@@ -116,7 +139,7 @@ class FieldJacketController extends Controller
             'def' => $def,
             'jacket' => $jacket,
             'surveyors' => $this->jackets->surveyors(),
-            'canReassign' => $jacket->case->isOpen() && !in_array($jacket->job->status, ['Accepted', 'Cancelled'], true),
+            'canReassign' => $jacket->job && $jacket->case->isOpen() && !in_array($jacket->job->status, ['Accepted', 'Cancelled'], true),
         ]);
     }
 
@@ -137,7 +160,7 @@ class FieldJacketController extends Controller
     {
         abort_unless(FieldJackets::installed(), 404);
         $jacket = CadastralFieldJacket::with(['job.surveyor'])->findOrFail($jacket);
-        if (!$jacket->job->its_number) {
+        if (!$jacket->job?->its_number) {
             return redirect()->route('cadastral-dept.field-jackets.show', $jacket->id)->with('error', 'The I to S has not been issued yet.');
         }
 

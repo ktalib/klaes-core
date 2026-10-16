@@ -58,6 +58,17 @@ class IntakeLookup
             return ['status' => 'ambiguous', 'message' => $r['message'], 'candidates' => $r['candidates']] + $out;
         }
 
+        // Verification still processes a decommissioned file (user, 2026-10-15): take its
+        // index row instead of refusing it; the File Status checks show it is decommissioned.
+        $verification = ($q['workflow'] ?? '') === 'verification';
+        if ($verification && $r['status'] === 'refused' && (int) ($r['file']['id'] ?? 0) > 0) {
+            $r = $this->lookup->resolveFile([
+                'file_number' => (string) ($q['file_number'] ?? ''),
+                'file_indexing_id' => (int) $r['file']['id'],
+                'scope' => 'indexed',
+            ]);
+        }
+
         if ($r['status'] === 'ok' && $r['file']) {
             $f = $r['file'];
             $v = $r['values'];
@@ -76,10 +87,10 @@ class IntakeLookup
                 'record' => 'indexed',
             ];
         } elseif ($r['status'] === 'refused' && $r['file']) {
-            // Decommissioned: never taken in; the message names the successor.
+            // Decommissioned: not taken in (Verification excepted, above); the message names the successor.
             return ['status' => 'refused', 'message' => $r['message'], 'flags' => $r['flags']] + $out;
         } else {
-            $file = $this->commissioned((string) ($q['file_number'] ?? ''));
+            $file = $this->commissioned((string) ($q['file_number'] ?? ''), $verification);
             if (!$file) {
                 $n = trim((string) ($q['file_number'] ?? ''));
 
@@ -91,7 +102,7 @@ class IntakeLookup
 
         $out['file'] = $file;
         $out['correspondence'] = $this->correspondence($file['file_number']);
-        $out['duplicate'] = $this->duplicate($file['file_number']);
+        $out['duplicate'] = $this->duplicate($file['file_number'], (string) ($q['workflow'] ?? ''));
         $out['flags'] = array_values(array_filter([
             $file['record'] === 'commissioned' ? ['info', 'Commissioned, not yet indexed'] : null,
             $out['duplicate']['flag'] ? ['warn', 'Possible duplicate: ' . $out['duplicate']['note']] : null,
@@ -117,8 +128,9 @@ class IntakeLookup
     /**
      * Number prefixes each application type lists at intake (user, 2026-10-12):
      * Conversion lists the indexed CON- files, Direct Allocation the indexed
-     * RES- / COM- / IND- / AG- files. Verification lists any indexed file that
-     * has a correspondence file, since it cannot be verified without one.
+     * RES- / COM- / IND- / AG- files. Verification lists any indexed file,
+     * decommissioned ones included (user, 2026-10-15): its File Status checks
+     * are what Verification is for, and a correspondence file is shown, not required.
      */
     private const LIST_PREFIXES = [
         'conversion' => ['CON-'],
@@ -140,13 +152,10 @@ class IntakeLookup
         $q = DB::connection('sqlsrv')->table('file_indexings')
             ->select(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'tracking_id'])
             ->whereNotNull('file_number')
-            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
-            ->where(fn ($w) => $w->whereNull('is_decommissioned')->orWhere('is_decommissioned', 0));
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
 
-        if ($workflow === 'verification') {
-            $q->where(fn ($w) => $w->where('is_corresponding_file', 1)
-                ->orWhere(fn ($x) => $x->whereNotNull('corresponding_fileno')->where('corresponding_fileno', '!=', '')));
-        } else {
+        if ($workflow !== 'verification') {
+            $q->where(fn ($w) => $w->whereNull('is_decommissioned')->orWhere('is_decommissioned', 0));
             $q->where(function ($w) use ($workflow) {
                 foreach (self::LIST_PREFIXES[$workflow] as $prefix) {
                     $w->orWhere('file_number', 'like', $prefix . '%');
@@ -173,7 +182,7 @@ class IntakeLookup
     }
 
     /** A live fileNumber row for the number, when the file is commissioned but not indexed. */
-    private function commissioned(string $number): ?array
+    private function commissioned(string $number, bool $withDecommissioned = false): ?array
     {
         $number = trim($number);
         if ($number === '') {
@@ -187,7 +196,7 @@ class IntakeLookup
                 }
             })
             ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
-            ->where(fn ($w) => $w->whereNull('is_decommissioned')->orWhere('is_decommissioned', 0))
+            ->when(!$withDecommissioned, fn ($q) => $q->where(fn ($w) => $w->whereNull('is_decommissioned')->orWhere('is_decommissioned', 0)))
             ->orderByDesc('id')
             ->first();
 
@@ -244,13 +253,18 @@ class IntakeLookup
      *
      * @return array{flag:bool, note:?string}
      */
-    private function duplicate(string $number): array
+    private function duplicate(string $number, string $workflow = ''): array
     {
         $notes = [];
 
         if (CaseWorkflow::installed()) {
             $refs = CadastralCase::query()->where('file_number', $number)
                 ->where('status', '!=', CadastralCase::STATUS_IN_PROGRESS)
+                // Verification follows a completed Conversion or Direct Allocation case on the
+                // same file, so those are not a duplicate (user, 2026-10-15).
+                ->when($workflow === 'verification', fn ($q) => $q->whereNot(fn ($w) => $w
+                    ->whereIn('workflow', ['conversion', 'direct'])
+                    ->where('status', CadastralCase::STATUS_COMPLETED)))
                 ->orderByDesc('id')->limit(5)->pluck('case_ref');
             if ($refs->isNotEmpty()) {
                 $notes[] = 'came in before as ' . $refs->implode(', ') . '.';

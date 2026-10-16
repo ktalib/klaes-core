@@ -11,11 +11,11 @@
       <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700">
         <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to {{ $case->case_ref }}
       </a>
-      @canDo('Cad - Records', 'print')
+      @cadCan('print')
         <a href="{{ route('cadastral-dept.cases.fmc.print', $case->id) }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">
           <i data-lucide="printer" class="w-4 h-4"></i> Print FMC
         </a>
-      @endcanDo
+      @endcadCan
       <span class="text-xs text-gray-500">Printed {{ $fmc->print_count }} time(s)</span>
     </div>
 
@@ -34,7 +34,6 @@
           @if ($qr)
             <img src="{{ $qr }}" alt="QR code for {{ $fmc->fmc_no }}" class="mx-auto" style="width: 160px; height: 160px;">
           @endif
-          <div class="text-xs text-gray-500 mt-2">QR code: {{ $qrLabel }} <span class="font-mono font-semibold text-gray-700">{{ $qrValue }}</span></div>
           <a href="{{ $scanUrl }}" class="inline-block text-xs text-blue-700 hover:underline mt-1">Open the log in / out page</a>
         </div>
         @include('cadastral_dept.fmc._log_form')

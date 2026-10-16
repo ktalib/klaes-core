@@ -5,7 +5,12 @@
     // enforces it on the endpoints. Computed once here, above the pushes, so the styles,
     // the column header, the row cells, the empty-row colspan and the script all honour
     // the same decision and cannot drift apart.
-    $canCorrect = auth()->check() && auth()->user()->isSuperAdmin();
+    // Opened from the Cadastral sidebar (?url=cadastral) the page is view only: no
+    // Correct menu. The flag is kept on the tabs and filters so it stays view only
+    // and that sidebar keeps its entry lit.
+    $regrantReadOnly = request('url') === 'cadastral';
+    $regrantKeep = $regrantReadOnly ? '&url=cadastral' : '';
+    $canCorrect = !$regrantReadOnly && auth()->check() && auth()->user()->isSuperAdmin();
 @endphp
 
 @if ($canCorrect)
@@ -78,18 +83,18 @@
                 Re-grant Management
             </h1>
             <p class="text-sm text-slate-500 mt-1">
-                Every Re-grant on record, and the files whose statutory term has already run out.
+                Every Re-grant on record, and the files whose statutory term has already run out{{ $regrantReadOnly ? ' (view only)' : '' }}.
             </p>
         </div>
 
         {{-- Two cards, mirroring the two tabs below. Each links to its own tab. --}}
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('regrant.index') }}?tab=register"
+            <a href="{{ route('regrant.index') }}?tab=register{{ $regrantKeep }}"
                class="px-4 py-2 rounded-lg bg-white border text-center min-w-[132px] transition hover:border-indigo-300 hover:shadow-sm {{ $tab === 'register' ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-200' }}">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Re-grant Register</p>
                 <p class="text-lg font-bold text-slate-800">{{ number_format($stats['register_total']) }}</p>
             </a>
-            <a href="{{ route('regrant.index') }}?tab=due"
+            <a href="{{ route('regrant.index') }}?tab=due{{ $regrantKeep }}"
                class="px-4 py-2 rounded-lg bg-white border text-center min-w-[132px] transition hover:border-red-300 hover:shadow-sm {{ $tab === 'due' ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-200' }}">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">To Be Re-granted</p>
                 <p class="text-lg font-bold text-red-600">{{ number_format($stats['due_total']) }}</p>
@@ -104,13 +109,13 @@
             $tabOn     = 'border-indigo-600 text-indigo-700';
             $tabOff    = 'border-transparent text-slate-500 hover:text-slate-700';
         @endphp
-        <a href="{{ route('regrant.index') }}?tab=register"
+        <a href="{{ route('regrant.index') }}?tab=register{{ $regrantKeep }}"
            class="{{ $tabBase }} {{ $tab === 'register' ? $tabOn : $tabOff }}">
             <i data-lucide="list" class="w-4 h-4"></i>
             Re-grant Register
             <span class="px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-600">{{ number_format($stats['register_total']) }}</span>
         </a>
-        <a href="{{ route('regrant.index') }}?tab=due"
+        <a href="{{ route('regrant.index') }}?tab=due{{ $regrantKeep }}"
            class="{{ $tabBase }} {{ $tab === 'due' ? $tabOn : $tabOff }}">
             <i data-lucide="alarm-clock" class="w-4 h-4"></i>
             To Be Re-granted
@@ -121,6 +126,7 @@
     {{-- Filters --}}
     <form method="GET" action="{{ route('regrant.index') }}" class="flex flex-wrap items-end gap-3 mb-4">
         <input type="hidden" name="tab" value="{{ $tab }}">
+        @if ($regrantKeep)<input type="hidden" name="url" value="cadastral">@endif
 
         <div class="flex-1 min-w-[220px]">
             <label class="block text-[11px] font-semibold text-slate-500 mb-1">Search</label>
@@ -154,7 +160,7 @@
             <i data-lucide="search" class="w-4 h-4"></i> Filter
         </button>
         @if ($search || $filters['source'] || $filters['term'])
-            <a href="{{ route('regrant.index') }}?tab={{ $tab }}" class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700">Reset</a>
+            <a href="{{ route('regrant.index') }}?tab={{ $tab }}{{ $regrantKeep }}" class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700">Reset</a>
         @endif
     </form>
 

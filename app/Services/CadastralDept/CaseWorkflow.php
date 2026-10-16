@@ -5,6 +5,7 @@ namespace App\Services\CadastralDept;
 use App\Models\CadastralDept\CadastralCase;
 use App\Models\CadastralDept\CadastralCaseMovement;
 use App\Models\CadastralDept\CadastralCaseTask;
+use App\Models\User;
 use App\Services\AuditService;
 use App\Services\InstrumentWorkflow\WorkflowGuardException;
 use Illuminate\Support\Facades\DB;
@@ -186,6 +187,12 @@ class CaseWorkflow
         if ($taskKey === FieldJackets::TASK_ITS) {
             throw WorkflowGuardException::because('Issue the I to S on the field jacket; that ticks this task.');
         }
+        if ($taskKey === FieldJackets::TASK_JOB) {
+            throw WorkflowGuardException::because('Attach the job and the surveyor; that ticks this task.');
+        }
+        if ($taskKey === FieldJackets::TASK_JOB_ITS) {
+            throw WorkflowGuardException::because('Issue the Instruction to Surveyor on the job; that ticks this task.');
+        }
         if (isset(ChartingCards::TASK_STAGE[$taskKey])) {
             throw WorkflowGuardException::because('Fill in the charting card; saving it ticks this task.');
         }
@@ -227,14 +234,13 @@ class CaseWorkflow
             $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
             $this->assertOpen($case);
 
-            $done = CadastralCaseTask::query()
-                ->where('cadastral_case_id', $case->id)
-                ->where('step', $case->current_step)
-                ->pluck('task_key')->all();
-            $missing = $this->engine->missingTasks($case->workflow, $case->current_step, $done);
-            if ($missing) {
-                $labels = array_intersect_key((array) $def->step($case->workflow, $case->current_step)['tasks'], array_flip($missing));
-                throw WorkflowGuardException::because('Finish this step first: ' . implode('; ', $labels) . '.');
+            $this->assertTasksDone($case);
+
+            // In a unit, only the head sends the file across (HeadApproval).
+            $heads = app(HeadApproval::class);
+            if ($heads->required($case) && !$heads->isHead(User::find($userId), $case->current_desk)) {
+                throw WorkflowGuardException::because('Only the ' . $heads->headOf($case->current_desk) . ' sends this file on. Use "Send to '
+                    . $heads->headOf($case->current_desk) . '".');
             }
 
             $from = $case->current_step;
@@ -275,6 +281,75 @@ class CaseWorkflow
             return ($chose ? "{$chose}: " : '') . "{$case->case_ref} sent to " . $def->deskShort($desk)
                 . ' (' . $def->deskLabel($desk) . ').';
         });
+    }
+
+    /**
+     * Staff hand the finished step to the unit head (HeadApproval): a movement on the same
+     * step, so the file stays where it is and shows on the head's Approval list.
+     */
+    public function sendToHead(CadastralCase $case, ?string $remarks, ?int $userId): string
+    {
+        $this->assertOpen($case);
+        $heads = app(HeadApproval::class);
+
+        return DB::connection(self::CONN)->transaction(function () use ($case, $remarks, $userId, $heads) {
+            $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
+            $this->assertOpen($case);
+            if (!$heads->required($case)) {
+                throw WorkflowGuardException::because('This step has no head-of-unit approval.');
+            }
+            if ($heads->awaiting($case)) {
+                throw WorkflowGuardException::because("{$case->case_ref} is already with the " . $heads->headOf($case->current_desk) . '.');
+            }
+            $this->assertTasksDone($case);
+
+            $this->move($case, $case->current_step, $case->current_step, HeadApproval::TO_HEAD, $remarks, $userId);
+
+            return "{$case->case_ref} sent to the " . $heads->headOf($case->current_desk) . ' for approval.';
+        });
+    }
+
+    /** The head sends a file back to the unit's staff, with the reason. */
+    public function returnToStaff(CadastralCase $case, ?string $remarks, ?int $userId): string
+    {
+        $this->assertOpen($case);
+        $heads = app(HeadApproval::class);
+        if (trim((string) $remarks) === '') {
+            throw WorkflowGuardException::because('Give the reason before returning the file to the staff.');
+        }
+
+        return DB::connection(self::CONN)->transaction(function () use ($case, $remarks, $userId, $heads) {
+            $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
+            if (!$heads->awaiting($case)) {
+                throw WorkflowGuardException::because("{$case->case_ref} is not waiting for approval.");
+            }
+            if (!$heads->isHead(User::find($userId), $case->current_desk)) {
+                throw WorkflowGuardException::because('Only the ' . $heads->headOf($case->current_desk) . ' returns it.');
+            }
+
+            $this->move($case, $case->current_step, $case->current_step, HeadApproval::RETURNED, $remarks, $userId);
+
+            return "{$case->case_ref} returned to the staff.";
+        });
+    }
+
+    /** Every task of the current step done (a file with no correspondence file skips detach/attach). */
+    private function assertTasksDone(CadastralCase $case): void
+    {
+        $def = $this->def();
+        $done = CadastralCaseTask::query()
+            ->where('cadastral_case_id', $case->id)
+            ->where('step', $case->current_step)
+            ->pluck('task_key')->all();
+        $missing = $this->engine->missingTasks($case->workflow, $case->current_step, $done);
+        // No correspondence file (a Verification file can have none): nothing to detach or attach.
+        if (!trim((string) $case->correspondence_fileno)) {
+            $missing = array_values(array_diff($missing, CorrespondenceCustody::TASKS));
+        }
+        if ($missing) {
+            $labels = array_intersect_key((array) $def->step($case->workflow, $case->current_step)['tasks'], array_flip($missing));
+            throw WorkflowGuardException::because('Finish this step first: ' . implode('; ', $labels) . '.');
+        }
     }
 
     /** A Direct Allocation file's sub-type. Changeable only until the file has been routed on it. */
@@ -347,6 +422,9 @@ class CaseWorkflow
             'acted_by' => $userId,
             'acted_at' => now(),
         ]);
+
+        // In-app notification to the desk concerned, sent once the move commits.
+        app(WorkflowNotifications::class)->moved($case, $from, $to, $outcome, $remarks, $userId);
     }
 
     /** CAD-2026-00001: next sequence for the year. Caller holds the transaction. */

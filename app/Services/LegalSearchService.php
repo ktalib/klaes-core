@@ -863,6 +863,9 @@ class LegalSearchService
             'file_commissioning_date' => $commissioningInfo['date'],
             'file_commissioned_number' => $commissioningInfo['number'],
             'file_commissioning_source' => $commissioningInfo['source'] ?? null,
+            // The route as the MLS list's Source column shows it (Re-grant, Direct Allocation, ...),
+            // printed under the File Commissioning row's transaction type.
+            'file_commissioning_source_label' => $commissioningInfo['source_label'] ?? null,
             'file_commissioning_holder' => $this->resolveCommissioningHolder($conn, $fileNo),
             'lineage' => $this->enrichLineageWithCommissioning(
                 $conn,
@@ -2519,6 +2522,154 @@ class LegalSearchService
                 $out[] = $buildRow($unitNo, 'ST File Commissioning – Fragmentation', $u);
             }
 
+            // 3. The ST applications behind those files — the mother application, and
+            // the unit (child) applications under the same scope as the units above.
+            return array_merge($out, $this->stApplicationRows($conn, $primaryNo, $landFileNo, $searchedUnitNo, $existing));
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Sectional Titling application rows for the timeline.
+     *
+     *   - Mother application (mother_applications, keyed on the ST scheme number):
+     *     shown on every search of the scheme, folded into the land file's block
+     *     like the ST primary commissioning row.
+     *   - Unit (child) applications (subapplications under that mother): every unit
+     *     on a mother search, only the searched unit on a unit search.
+     *
+     * Rows are pinned, so the timeline places them by their application date.
+     */
+    private function stApplicationRows($conn, string $primaryNo, string $landFileNo, ?string $searchedUnitNo, array $existing): array
+    {
+        try {
+            $schema = Schema::connection($conn->getName());
+            if (!$schema->hasTable('mother_applications') || !$schema->hasTable('subapplications')) {
+                return [];
+            }
+
+            $mother = $conn->table('mother_applications')
+                ->whereRaw('UPPER(LTRIM(RTRIM(np_fileno))) = ?', [strtoupper($primaryNo)])
+                ->orderByDesc('id')
+                ->first();
+            if (!$mother) {
+                return [];
+            }
+
+            $fmt = function ($value): ?Carbon {
+                if ($value === null || trim((string) $value) === '') {
+                    return null;
+                }
+                return rescue(fn () => Carbon::parse($value), null, false);
+            };
+            $applicant = function ($r): string {
+                $name = trim((string) ($r->corporate_name ?? ''));
+                if ($name === '') {
+                    $name = trim(implode(' ', array_filter([
+                        $r->first_name ?? null, $r->middle_name ?? null, $r->surname ?? null,
+                    ], static fn ($v) => trim((string) $v) !== '')));
+                }
+                if ($name === '') {
+                    $name = trim((string) ($r->multiple_owners_names ?? ''));
+                }
+                return $name !== '' ? $name : '-';
+            };
+            $statusNote = function ($r, array $extra = []) use ($fmt): string {
+                $parts = [];
+                $status = trim((string) ($r->application_status ?? ''));
+                if ($status !== '') {
+                    $approved = $fmt($r->approval_date ?? null);
+                    $parts[] = $approved && strcasecmp($status, 'Approved') === 0
+                        ? 'Approved ' . $approved->format('M j, Y')
+                        : 'Status: ' . $status;
+                }
+                return implode(' · ', array_merge($parts, $extra)) ?: '-';
+            };
+
+            $rowId = -950000;
+            $build = function (string $rowFileNo, string $lifecycleNo, string $label, $app, string $comments) use (&$rowId, $fmt, $applicant) {
+                $date = $fmt($app->application_date ?? null) ?? $fmt($app->created_at ?? null);
+                return [
+                    'id'                 => $rowId--,
+                    'file_number'        => $rowFileNo,
+                    'mlsFNo'             => $rowFileNo,
+                    'fileno'             => $rowFileNo,
+                    'kangisFileNo'       => null,
+                    'NewKANGISFileno'    => null,
+                    'transaction_type'   => $label,
+                    'transaction_date'   => $date ? $date->format('M j, Y') : '-',
+                    'sort_date'          => $date ? $date->toDateString() : null,
+                    'party_1'            => $applicant($app),
+                    'party_2'            => 'Kano State Ministry of Land and Physical Planning',
+                    'party_3'            => '-',
+                    'party_4'            => '-',
+                    'land_use'           => trim((string) ($app->land_use ?? '')) ?: '-',
+                    'location'           => '-',
+                    'lgsaOrCity'         => '-',
+                    'districtName'       => '-',
+                    'registration'       => '-',
+                    'regNo'              => '-',
+                    'serial_no'          => '-',
+                    'page_no'            => '-',
+                    'volume_no'          => '-',
+                    'size'               => '-',
+                    'caveat'             => '-',
+                    'caveat_id'          => null,
+                    'caveated_comment'   => null,
+                    'is_caveated'        => 0,
+                    'plot_no'            => '-',
+                    'comments'           => $comments,
+                    'cofo_comment'       => null,
+                    'prop_id'            => null,
+                    'parent_prop_id'     => null,
+                    'deeds_date'         => null,
+                    'deeds_time'         => null,
+                    'reg_date'           => null,
+                    'reg_time'           => null,
+                    'tp_no'              => null,
+                    'source_table'       => 'ST Application',
+                    '_synthesized'       => true,
+                    '_pinned'            => true,
+                    'lifecycle_file_no'  => $lifecycleNo,
+                    'parent_file_number' => $lifecycleNo,
+                ];
+            };
+
+            $out = [];
+
+            $units = trim((string) ($mother->NoOfUnits ?? ''));
+            if (!isset($existing['ST MOTHER APPLICATION|' . strtoupper($primaryNo)])) {
+                $out[] = $build($primaryNo, $landFileNo, 'ST Mother Application', $mother,
+                    $statusNote($mother, $units !== '' ? [$units . ' unit' . ($units === '1' ? '' : 's')] : []));
+            }
+
+            $subs = $conn->table('subapplications')
+                ->where(function ($q) use ($mother, $primaryNo) {
+                    $q->where('main_application_id', $mother->id)
+                      ->orWhereRaw('UPPER(LTRIM(RTRIM(np_fileno))) = ?', [strtoupper($primaryNo)]);
+                })
+                ->whereNotNull('fileno');
+            if ($searchedUnitNo !== null) {
+                $subs->whereRaw('UPPER(LTRIM(RTRIM(fileno))) = ?', [strtoupper($searchedUnitNo)]);
+            }
+
+            $seen = [];
+            foreach ($subs->orderBy('fileno')->orderByDesc('id')->get() as $sub) {
+                $unitNo = trim((string) $sub->fileno);
+                $key = strtoupper($unitNo);
+                if ($unitNo === '' || isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $unitLabel = trim((string) ($sub->unit_number ?? ''));
+                $label = 'ST Unit Application' . ($unitLabel !== '' ? ' – ' . $unitLabel : '');
+                if (isset($existing[strtoupper($label) . '|' . $key])) {
+                    continue;
+                }
+                $out[] = $build($unitNo, $unitNo, $label, $sub, $statusNote($sub, ['Mother ' . $primaryNo]));
+            }
+
             return $out;
         } catch (\Throwable $e) {
             return [];
@@ -2555,6 +2706,7 @@ class LegalSearchService
             'file_commissioning_date' => '-',
             'file_commissioned_number' => null,
             'file_commissioning_source' => null,
+            'file_commissioning_source_label' => null,
         ];
     }
 
@@ -2583,7 +2735,7 @@ class LegalSearchService
      */
     private function resolveCommissioningInfo(?string $fileNumber, ?string $altFileNo = null): array
     {
-        $default = ['date' => '-', 'number' => null, 'source' => null];
+        $default = ['date' => '-', 'number' => null, 'source' => null, 'source_label' => null];
 
         // Match ALL variants of the file number (base, base(T)), not just the two
         // exact strings passed in — a temporary file may be commissioned under its
@@ -2602,7 +2754,7 @@ class LegalSearchService
                 $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
             })
             ->orderByDesc('id')
-            ->first(['full_file_number', 'commissioning_date', 'source']);
+            ->first(['full_file_number', 'commissioning_date', 'source', 'file_option']);
 
         // Presence in mls_file_no is THE authoritative signal that a file was
         // commissioned through KLAES. A file absent from mls_file_no was NOT
@@ -2619,11 +2771,12 @@ class LegalSearchService
         // 'OP Resettlement', 'Conversion', …). Drives the Root of Title annotation on
         // the timeline's File Commissioning row.
         $source = trim((string) ($mlsRecord->source ?? '')) ?: null;
+        $sourceLabel = $this->commissioningSourceLabel($source, $mlsRecord->file_option ?? null);
 
         if ($mlsRecord->commissioning_date) {
             $date = rescue(fn () => \Carbon\Carbon::parse($mlsRecord->commissioning_date), null, false);
             if ($date) {
-                return ['date' => $date->format('M j, Y'), 'number' => $number, 'source' => $source];
+                return ['date' => $date->format('M j, Y'), 'number' => $number, 'source' => $source, 'source_label' => $sourceLabel];
             }
         }
 
@@ -2645,7 +2798,7 @@ class LegalSearchService
             if ($record->commissioning_date) {
                 $date = rescue(fn () => \Carbon\Carbon::parse($record->commissioning_date), null, false);
                 if ($date) {
-                    return ['date' => $date->format('M j, Y'), 'number' => $number, 'source' => $source];
+                    return ['date' => $date->format('M j, Y'), 'number' => $number, 'source' => $source, 'source_label' => $sourceLabel];
                 }
             }
         }
@@ -2673,11 +2826,30 @@ class LegalSearchService
             $embeddedYear = $this->extractYearFromFileNumber($fileNumber)
                 ?? $this->extractYearFromFileNumber($altFileNo);
             if ($date && $embeddedYear && (int) $date->format('Y') === (int) $embeddedYear) {
-                return ['date' => $date->format('M j, Y'), 'number' => $number, 'source' => $source];
+                return ['date' => $date->format('M j, Y'), 'number' => $number, 'source' => $source, 'source_label' => $sourceLabel];
             }
         }
 
-        return ['date' => '-', 'number' => $number, 'source' => $source];
+        return ['date' => '-', 'number' => $number, 'source' => $source, 'source_label' => $sourceLabel];
+    }
+
+    /**
+     * The commissioning route as the MLS file-number list labels it (see the Source
+     * column in generate_fileno/mls_js.blade.php): the File Type picked at
+     * commissioning (Re-grant, Subdivision, ...) when there is one, being the more
+     * specific of the two, otherwise mls_file_no.source (Direct Allocation, Conversion, ...).
+     */
+    private function commissioningSourceLabel(?string $source, ?string $fileOption): ?string
+    {
+        $fileTypeLabels = [
+            'temporary' => 'Temporary', 'extension' => 'Extension', 'miscellaneous' => 'Miscellaneous',
+            'change_of_purpose' => 'Change of Purpose', 'resettlement' => 'Resettlement',
+            'regrant' => 'Re-grant', 'reissuance' => 'Re-Issuance', 'recertification' => 'Recertification',
+            'subdivision' => 'Subdivision', 'merger' => 'Merger', 'separation' => 'Separation', 'duplex' => 'Duplex',
+        ];
+        $label = $fileTypeLabels[strtolower(trim((string) $fileOption))] ?? null;
+
+        return $label ?? (trim((string) $source) ?: null);
     }
 
     /**
@@ -5765,6 +5937,56 @@ class LegalSearchService
      *                 client_name, client_address, timeline_order
      * @return array{status:int, payload:array}
      */
+    /**
+     * The file's most recent Transaction Token Control (TTC) token, or null.
+     */
+    public function latestSearchToken(string $fileNo)
+    {
+        $fileNo = trim($fileNo);
+        if ($fileNo === '') {
+            return null;
+        }
+        return rescue(fn () => DB::connection('sqlsrv')->table('legal_search_tokens')
+            ->where('file_number', $fileNo)
+            ->orderByDesc('created_at')
+            ->first(), null, false);
+    }
+
+    /**
+     * Requester Details for the search report, mapped from a TTC token.
+     *
+     * A token with a Requesting Body (Court, EFCC, ...) is an Official search: it is
+     * not paid for by a client (its receipt is system generated), and the report
+     * carries the Requesting Body as a watermark. A General token is a Commercial,
+     * paid search.
+     */
+    public function requesterDetails($token): ?array
+    {
+        if (!$token) {
+            return null;
+        }
+        $body = trim((string) ($token->general_body ?? ''));
+        $isOfficial = $body !== '';
+        $receipt = trim((string) ($token->receipt_number ?? ''));
+        $datePaid = rescue(fn () => $token->date_paid ? Carbon::parse($token->date_paid) : null, null, false);
+        $amount = $token->amount_paid ?? null;
+
+        return [
+            // Masked like the TTC preview: the full token can still run searches for
+            // 24 hours after first use, so a printed report must not carry it.
+            'token'           => ($tk = trim((string) ($token->token ?? ''))) !== '' ? substr($tk, 0, 4) . '****' : null,
+            'applicant_name'  => trim((string) ($token->applicant_name ?? '')) ?: null,
+            'receipt_number'  => $receipt !== '' ? $receipt : null,
+            'amount_paid'     => ($amount !== null && (float) $amount > 0) ? number_format((float) $amount, 2) : null,
+            'date_paid'       => $datePaid ? $datePaid->format('jS F, Y') : null,
+            'payment_reason'  => trim((string) ($token->payment_reason ?? '')) ?: null,
+            'requesting_body' => $isOfficial ? $body : null,
+            'search_type'     => $isOfficial ? 'Official' : 'Commercial',
+            'is_paid'         => !$isOfficial,
+            'watermark'       => $isOfficial ? $body : null,
+        ];
+    }
+
     public function buildPrintReport(array $q): array
     {
         $fileNo = trim((string) ($q['file_number'] ?? ''));
@@ -5784,16 +6006,12 @@ class LegalSearchService
         $clientAddress = trim((string) ($q['client_address'] ?? ''));
         // Fallback: if the UI did not carry client details (e.g. Super Admin bypass or
         // an already-used token), resolve them from the latest token for this file.
-        if (($clientName === '' && $clientAddress === '') && $fileNo !== '') {
-            $tokenClient = DB::connection('sqlsrv')->table('legal_search_tokens')
-                ->where('file_number', $fileNo)
-                ->orderByDesc('created_at')
-                ->first(['client_name', 'client_address']);
-            if ($tokenClient) {
-                $clientName = trim((string) ($tokenClient->client_name ?? ''));
-                $clientAddress = trim((string) ($tokenClient->client_address ?? ''));
-            }
+        $requesterToken = $fileNo !== '' ? $this->latestSearchToken($fileNo) : null;
+        if (($clientName === '' && $clientAddress === '') && $requesterToken) {
+            $clientName = trim((string) ($requesterToken->client_name ?? ''));
+            $clientAddress = trim((string) ($requesterToken->client_address ?? ''));
         }
+        $requester = $this->requesterDetails($requesterToken);
 
         if ($fileNo === '' && $propId === '') {
             return ['status' => 422, 'payload' => ['success' => false, 'message' => 'file_number or prop_id is required']];
@@ -6772,7 +6990,8 @@ class LegalSearchService
         $rows = $this->annotateRootOfTitle(
             $rows,
             $commissioningFileNo,
-            $this->resolveCommissioningInfo($fileNumber, $fileNo)['source'] ?? null
+            ($rootCommissioning = $this->resolveCommissioningInfo($fileNumber, $fileNo))['source'] ?? null,
+            $rootCommissioning['source_label'] ?? null
         );
 
         // File-level Root of Title, lifted off whichever row annotateRootOfTitle() tagged.
@@ -7163,6 +7382,10 @@ class LegalSearchService
                     'root_of_title' => $rootOfTitleLabel,
                     'client_name' => $clientName !== '' ? $clientName : null,
                     'client_address' => $clientAddress !== '' ? $clientAddress : null,
+                    // Requester Details from the file's Transaction Token Control (TTC) token:
+                    // token, receipt, amount, date paid, search type (Official / Commercial)
+                    // and, for an unpaid Official search, the Requesting Body watermark.
+                    'requester' => $requester,
                     'rows' => $rows,
                     'remarks' => $remarksTimestamp,
                     'caveat_note' => $caveatNote,
@@ -8620,7 +8843,7 @@ class LegalSearchService
      * Sets 'root_of_title' on the one row it belongs to; the print templates render
      * it beneath that row's Comments cell.
      */
-    private function annotateRootOfTitle(array $rows, ?string $commissioningFileNo, ?string $commissioningSource): array
+    private function annotateRootOfTitle(array $rows, ?string $commissioningFileNo, ?string $commissioningSource, ?string $commissioningSourceLabel = null): array
     {
         if (empty($rows)) {
             return $rows;
@@ -8711,6 +8934,10 @@ class LegalSearchService
                 $label = 'Allocation List';
             } elseif ($src === 'op' || str_starts_with($src, 'op ') || str_contains($src, 'occupancy permit')) {
                 $label = 'Occupancy Permit (OP)';
+            } elseif (strcasecmp(trim((string) $commissioningSourceLabel), 'Re-grant') === 0) {
+                // A Re-grant is a new grant: the title starts at the re-grant (its File
+                // Commissioning row), not at the replaced file's grants.
+                $label = 'Re-grant';
             } else {
                 // Rule 3 — "Other File Commissioning". The route is neither allocation
                 // nor OP (a Conversion, Re-grant, Subdivision…), so the title did not

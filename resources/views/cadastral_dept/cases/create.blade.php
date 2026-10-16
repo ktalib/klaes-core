@@ -29,15 +29,22 @@
       {{-- 1. Application type --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5">
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">1 · Application type</h3>
+        {{-- Drawn here rather than in an Alpine loop so the lucide icons render; one colour and icon per workflow (config). --}}
         <div class="grid gap-3 md:grid-cols-3">
-          <template x-for="w in workflows" :key="w.key">
-            <label class="cursor-pointer rounded-lg border-2 p-3 block"
-                   :class="workflow === w.key ? 'border-' + w.colour + '-500 bg-' + w.colour + '-50' : 'border-gray-200 hover:border-gray-300'">
-              <input type="radio" name="workflow" class="sr-only" :value="w.key" x-model="workflow" @change="onWorkflow()">
-              <div class="font-bold text-gray-800" x-text="w.label"></div>
-              <div class="text-xs text-gray-500 mt-1" x-text="w.applies"></div>
+          @foreach ($def->workflows() as $cdWk => $cdWf)
+            @php $cdWc = $cdWf['colour']; @endphp
+            <label class="cursor-pointer rounded-lg border-2 p-3 flex items-start gap-3"
+                   :class="workflow === @js($cdWk) ? 'border-{{ $cdWc }}-500 bg-{{ $cdWc }}-50' : 'border-gray-200 hover:border-{{ $cdWc }}-300'">
+              <input type="radio" name="workflow" class="sr-only" value="{{ $cdWk }}" x-model="workflow" @change="onWorkflow()">
+              <span class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-{{ $cdWc }}-100 text-{{ $cdWc }}-700">
+                <i data-lucide="{{ $cdWf['icon'] ?? 'folder' }}" class="w-5 h-5"></i>
+              </span>
+              <span class="min-w-0">
+                <span class="block font-bold text-{{ $cdWc }}-800">{{ $cdWf['label'] }}</span>
+                <span class="block text-xs text-gray-500 mt-1">{{ $cdWf['applies_to'] }}</span>
+              </span>
             </label>
-          </template>
+          @endforeach
         </div>
       </section>
 
@@ -54,10 +61,11 @@
         }
       @endphp
       @foreach ($cdPipes as $cdKey => [$cdK, $cdSub, $cdW, $cdPipe])
-        <section class="rounded-xl border border-gray-200 bg-white px-5 py-4" x-cloak
+        {{-- Tinted in the workflow's colour (user, 2026-10-15). --}}
+        <section class="rounded-xl border border-{{ $cdW['colour'] }}-200 bg-{{ $cdW['colour'] }}-50 px-5 py-4" x-cloak
                  x-show="workflow === @js($cdK) @if ($cdSub) && (subType || @js($cdW['default_sub_type'] ?? '')) === @js($cdSub) @endif">
-          <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">
-            Process · {{ $cdW['label'] }}@if ($cdSub) ({{ $cdW['sub_types'][$cdSub] }})@endif
+          <h3 class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-{{ $cdW['colour'] }}-800 mb-3">
+            <i data-lucide="{{ $cdW['icon'] ?? 'folder' }}" class="w-4 h-4"></i>Process · {{ $cdW['label'] }}@if ($cdSub) ({{ $cdW['sub_types'][$cdSub] }})@endif
           </h3>
           @include('cadastral_dept.partials._pipeline', ['pipeline' => $cdPipe, 'c' => $cdW['colour']])
         </section>
@@ -115,9 +123,9 @@
       {{-- 3. The file: picked from the indexed files for the application type, never typed (user, 2026-10-12) --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1"
-            x-text="workflow === 'verification' ? '3 · Search the correspondence file' : '3 · File'"></h3>
+            x-text="workflow === 'verification' ? '3 · Search the file' : '3 · File'"></h3>
         <p class="text-xs text-gray-500 mb-3" x-show="workflow === 'verification'">
-          Pick the main file. Its correspondence file is found and matched to it; a file without one cannot be verified.
+          Pick any indexed file, decommissioned ones included. Its correspondence file is matched when there is one, and the File status checks show below.
         </p>
 
         {{-- Two halves (user, 2026-10-12): the picker on the left, the picked file's brief details on the right. --}}
@@ -198,12 +206,18 @@
           </div>
           <div class="mt-3 rounded-md px-3 py-2 text-sm font-semibold"
                x-show="workflow === 'verification' && result && result.correspondence"
-               :class="result && result.correspondence && result.correspondence.exists ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+               :class="result && result.correspondence && result.correspondence.exists ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'"
                x-text="result && result.correspondence && result.correspondence.exists
                    ? 'Match found: correspondence file ' + (result.correspondence.fileno || 'linked')
-                   : 'No correspondence file found for this file.'"></div>
+                   : 'No correspondence file for this file. It can still be verified.'"></div>
         </div>
         </div>
+        </div>
+
+        {{-- Verification: which File Status lists the picked file is on (RofO, CofO, ... Mortgage). --}}
+        <div class="mt-4 rounded-lg border border-gray-200 px-4 py-3" x-show="workflow === 'verification' && (statusLoading || statusHtml)" x-cloak>
+          <div class="text-sm text-gray-400" x-show="statusLoading">Checking RofO, CofO, decommissioning, duplicates, Re-grant, title status, DCIV, caveat and mortgage…</div>
+          <div x-show="!statusLoading" x-html="statusHtml" x-ref="statusBox"></div>
         </div>
       </section>
 
@@ -265,6 +279,7 @@
       fileNumber: old.file_number || '', fileIndexingId: old.file_indexing_id || '',
       fileSystem: old.file_system || '', trackingId: old.tracking_id || '',
       result: null, loading: false,
+      statusUrl: @js(route('cadastral-dept.lookup.file-status')), statusHtml: '', statusLoading: false, statusFor: '',
 
       init() {
         // After a failed submit, check the same file again.
@@ -280,10 +295,11 @@
         // Each type lists different files, so the previous pick goes.
         this.fileNumber = ''; this.fileIndexingId = ''; this.trackingId = ''; this.fileSystem = '';
         this.result = null; this.listRows = []; this.listTerm = ''; this.listFor = null; this.listOpen = false;
+        this.statusHtml = ''; this.statusFor = '';
       },
       listLabel() {
         return { conversion: 'Indexed Conversion file (CON-)', direct: 'Indexed Direct Allocation file (RES- / COM- / IND- / AG-)',
-                 verification: 'Indexed file with a correspondence file' }[this.workflow] || 'File';
+                 verification: 'Any indexed file' }[this.workflow] || 'File';
       },
       toggleList() {
         this.listOpen = !this.listOpen;
@@ -319,10 +335,10 @@
       },
       choose(id) { this.lookup({ file_number: this.fileNumber, tab: this.fileSystem, file_indexing_id: id }); },
       async lookup(q) {
-        this.loading = true; this.result = null;
+        this.loading = true; this.result = null; this.statusHtml = ''; this.statusFor = '';
         this.fileNumber = q.file_number || '';
         try {
-          const res = await fetch(this.lookupUrl + '?' + new URLSearchParams(q), { headers: { 'Accept': 'application/json' } });
+          const res = await fetch(this.lookupUrl + '?' + new URLSearchParams({ ...q, workflow: this.workflow }), { headers: { 'Accept': 'application/json' } });
           this.result = await res.json();
         } catch (e) {
           this.result = { status: 'error', message: 'Could not check the file. Try again.' };
@@ -333,7 +349,25 @@
           this.fileNumber = f.file_number;
           this.fileIndexingId = f.file_indexing_id || '';
           if (!this.fileSource && f.file_source) this.fileSource = f.file_source;
+          if (this.workflow === 'verification') this.loadStatus();
         }
+      },
+      // The File Status checks for the picked file (read only; the panel is the case page's).
+      async loadStatus() {
+        const key = this.fileNumber + '|' + this.fileIndexingId;
+        this.statusFor = key; this.statusLoading = true; this.statusHtml = '';
+        let html;
+        try {
+          const res = await fetch(this.statusUrl + '?' + new URLSearchParams({ file_number: this.fileNumber, file_indexing_id: this.fileIndexingId || '' }),
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+          if (!res.ok) throw new Error(res.status);
+          html = await res.text();
+        } catch (e) {
+          html = '<p class="text-sm text-yellow-800">Could not load the file status checks. Pick the file again to retry.</p>';
+        }
+        if (this.statusFor !== key) return; // another file was picked meanwhile
+        this.statusHtml = html; this.statusLoading = false;
+        this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
       },
       missing() {
         if (!this.workflow) return 'Choose the application type.';
@@ -342,7 +376,6 @@
         if (this.workflow === 'verification' && !this.subType) return 'Choose Statutory or Customary.';
         if (this.workflow === 'verification' && !this.allocationRoute) return 'Choose Resettlement or Direct.';
         if (!this.result || this.result.status !== 'ok') return 'Select a file that can be registered.';
-        if (this.workflow === 'verification' && !(this.result.correspondence && this.result.correspondence.exists)) return 'Verification needs a correspondence file.';
         if (!this.fileSource) return 'Choose where the file came from.';
         if (this.fileSource === 'other' && !this.fileSourceOther.trim()) return 'Specify where the file came from.';
         return '';

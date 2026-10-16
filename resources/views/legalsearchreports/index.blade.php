@@ -59,6 +59,17 @@
     .badge-default     { background: #1d4ed8; color: #fff; }
     .badge-secondary   { background: #f3f4f6; color: #374151; }
     .badge-destructive { background: #ef4444; color: #fff; }
+    .badge-type-official   { background: #ede9fe; color: #5b21b6; }
+    .badge-type-commercial { background: #e0f2fe; color: #075985; }
+    .ls-requester-link { color: #1d4ed8; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .ls-requester-link:hover { color: #1e3a8a; }
+    .ls-repeat-toggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 1px 8px; border-radius: 9999px;
+        border: 1px solid #c7d2fe; background: #eef2ff; color: #4338ca; font-size: 11px; font-weight: 600; cursor: pointer; }
+    .ls-repeat-toggle:hover { background: #e0e7ff; }
+    .ls-repeat-panel { padding: 8px 12px 12px 48px; background: #f8fafc; }
+    .ls-repeat-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+    .ls-repeat-table th { text-align: left; font-weight: 600; color: #64748b; padding: 4px 8px; border-bottom: 1px solid #e2e8f0; }
+    .ls-repeat-table td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; color: #0f172a; }
 
     /* ── Tabs ────────────────────────────────────────── */
     .tabs-list {
@@ -277,7 +288,6 @@
                                     <option value="all" selected>All Types</option>
                                     <option value="commercial">Commercial</option>
                                     <option value="official">Official</option>
-                                    <option value="online">Online</option>
                                 </select>
                             </div>
                             <button id="apply-filters-btn" class="btn btn-primary w-full">Apply Filters</button>
@@ -307,6 +317,8 @@
             <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm ring-1 ring-emerald-100 bg-emerald-50/10">
                 <p class="text-[10px] md:text-xs font-semibold text-emerald-600 uppercase tracking-wider">Searches Today</p>
                 <p class="text-2xl md:text-3xl font-bold text-emerald-700 mt-1.5">{{ $totalToday ?? 0 }}</p>
+                {{-- Distinct files/values searched today; repeats counted once. --}}
+                <p class="text-[10px] md:text-xs text-slate-500 mt-0.5">{{ $searchesTodayRaw ?? 0 }} incl. repeats</p>
             </div>
 
             <div class="bg-white p-4 md:p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -370,10 +382,10 @@
                                     <th>S/N</th>
                                     <th>Date</th>
                                     <th>Search Parameter</th>
+                                    <th>Search Type</th>
                                     <th>Source</th>
-                                    <th>Search Value</th>
+                                    <th>Requester</th>
                                     <th>Result</th>
-                                    <th>LGA</th>
                                     <th>Receipt No.</th>
                                     <th>Staff</th>
                                     <th>Printed</th>
@@ -517,6 +529,22 @@
     @include('admin.footer')
 </div>
 
+{{-- Requester card: full Transaction Token Control (TTC) details for the clicked search. --}}
+<div id="ls-requester-modal" style="display:none;position:fixed;inset:0;z-index:9999;">
+    <div data-close-requester style="position:absolute;inset:0;background:rgba(15,23,42,.45);"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="ls-requester-title"
+         style="position:relative;max-width:480px;width:calc(100% - 32px);margin:10vh auto 0;background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.25);overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#4f46e5;color:#fff;">
+            <div>
+                <div id="ls-requester-title" style="font-weight:700;font-size:15px;">Requester Details</div>
+                <div style="font-size:11px;opacity:.85;letter-spacing:.04em;">TRANSACTION TOKEN CONTROL (TTC)</div>
+            </div>
+            <button type="button" data-close-requester aria-label="Close" style="background:none;border:0;color:#fff;font-size:22px;line-height:1;cursor:pointer;">&times;</button>
+        </div>
+        <dl id="ls-requester-body" style="margin:0;padding:14px 18px 18px;display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;font-size:13px;"></dl>
+    </div>
+</div>
+
 <script>
 lucide.createIcons();
 
@@ -576,6 +604,11 @@ function renderStaffCell(staff) {
 }
 
 /* ── DataTable init ── */
+// Escape a value before it goes into table / card HTML.
+function escHtml(v) {
+    return String(v).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+}
+
 function initDataTable() {
     if (dtTable) { dtTable.destroy(); dtTable = null; }
 
@@ -587,6 +620,8 @@ function initDataTable() {
             url: '{{ route("legalsearchreports.data") }}',
             data: function(d) {
                 d.order = [{ column: 1, dir: 'desc' }];
+                // Official / Commercial filter (from the TTC the search ran on).
+                d.search_type = $('#filter-search-type').val() || 'all';
                 if (d.columns && d.columns[1]) {
                     d.columns[1].orderable = true;
                 }
@@ -603,12 +638,27 @@ function initDataTable() {
                 render: function(data) { return renderDateCell(data); }
             },
             {
-                data: 'search_parameter', name: 'search_parameter',
-                render: function(data) {
-                    return data
-                        ? `<span class="badge badge-outline">${data}</span>`
+                // Parameter, with the searched value beneath it. Repeat searches of the
+                // same value are collapsed into this row; the toggle opens them.
+                // name 'search_value' keeps the table search matching the value.
+                data: 'search_parameter', name: 'search_value',
+                render: function(data, type, row) {
+                    if (type !== 'display') return (data || '') + ' ' + (row.search_value || '');
+                    const param = data
+                        ? `<span class="badge badge-outline">${escHtml(data)}</span>`
                         : '<span class="cell-secondary">—</span>';
+                    const value = row.search_value
+                        ? `<div class="cell-primary cell-mono" style="margin-top:4px;">${escHtml(row.search_value)}</div>` : '';
+                    const n = parseInt(row.search_count, 10) || 1;
+                    const toggle = n > 1
+                        ? `<button type="button" class="ls-repeat-toggle" aria-expanded="false">${n} searches <span aria-hidden="true">▸</span></button>` : '';
+                    return param + value + toggle;
                 }
+            },
+            {
+                data: 'search_type_display', name: 'search_type',
+                orderable: false, searchable: false,
+                render: function(data) { return data || '—'; }
             },
             {
                 data: 'source_display', name: 'search_source',
@@ -616,21 +666,14 @@ function initDataTable() {
                 render: function(data) { return data || '—'; }
             },
             {
-                data: 'search_value', name: 'search_value',
-                render: function(data, type, row) {
-                    if (type !== 'display') return data;
-                    return `<div class="cell-primary cell-mono">${data || '—'}</div>`;
-                }
+                // Requester from the Transaction Token Control (TTC) token; the name opens the card.
+                data: 'requester_display', name: 'requester_display',
+                orderable: false, searchable: false,
+                render: function(data) { return data || '—'; }
             },
             {
                 data: 'result_display', name: 'result_status',
                 render: function(data) { return data || '—'; }
-            },
-            {
-                data: 'lga', name: 'lga',
-                render: function(data) {
-                    return data ? `<div class="cell-primary">${data}</div>` : '<span class="cell-secondary">—</span>';
-                }
             },
             {
                 data: 'receipt_no', name: 'receipt_no',
@@ -874,6 +917,87 @@ document.addEventListener('DOMContentLoaded', function () {
     initDataTable();
     renderSummaryView(calculateStatistics(reportData));
     lucide.createIcons();
+
+    // The Search Type (Official / Commercial) filter is applied server-side; reload
+    // the table on Apply or as soon as the type changes.
+    const reloadLogs = () => { if (dtTable) dtTable.ajax.reload(); };
+    document.getElementById('apply-filters-btn')?.addEventListener('click', reloadLogs);
+    document.getElementById('filter-search-type')?.addEventListener('change', reloadLogs);
+
+    // Repeat searches: the toggle under a value lists every search of it beneath the row.
+    const historyUrl = '{{ route("legalsearchreports.history") }}';
+    $('#legal-search-logs-table').on('click', '.ls-repeat-toggle', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const btn = this;
+        let tr = $(btn).closest('tr');
+        if (tr.hasClass('child')) tr = tr.prev();
+        const row = dtTable.row(tr);
+        const d = row.data() || {};
+        const arrow = btn.querySelector('span');
+        if (row.child.isShown()) {
+            row.child.hide();
+            btn.setAttribute('aria-expanded', 'false');
+            if (arrow) arrow.textContent = '▸';
+            return;
+        }
+        row.child('<div class="ls-repeat-panel cell-secondary">Loading searches…</div>').show();
+        btn.setAttribute('aria-expanded', 'true');
+        if (arrow) arrow.textContent = '▾';
+        $.get(historyUrl, {
+            search_parameter: d.search_parameter,
+            search_value: d.search_value,
+            search_type: $('#filter-search-type').val() || 'all',
+        }).done(function (res) {
+            const rows = (res && res.rows) || [];
+            const cell = (v) => v ? escHtml(v) : '—';
+            row.child('<div class="ls-repeat-panel"><table class="ls-repeat-table"><thead><tr>'
+                + '<th>S/N</th><th>Date</th><th>Search Type</th><th>Source</th><th>Requester</th><th>Result</th><th>Receipt No.</th><th>Staff</th><th>Printed</th>'
+                + '</tr></thead><tbody>'
+                + rows.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' + cell(r.date) + '</td><td>' + cell(r.search_type) + '</td><td>' + cell(r.source) + '</td>'
+                    + '<td>' + cell(r.requester) + '</td><td>' + cell(r.result) + '</td><td>' + cell(r.receipt_no) + '</td><td>' + cell(r.staff) + '</td>'
+                    + '<td>' + (r.printed ? 'Printed' : 'Not Printed') + '</td></tr>').join('')
+                + '</tbody></table></div>').show();
+        }).fail(function () {
+            row.child('<div class="ls-repeat-panel" style="color:#b91c1c;">Could not load the searches.</div>').show();
+        });
+    });
+
+    // Requester name → card with the full TTC details carried on the row.
+    const requesterModal = document.getElementById('ls-requester-modal');
+    const closeRequester = () => { if (requesterModal) requesterModal.style.display = 'none'; };
+    const esc = (v) => String(v).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+    $('#legal-search-logs-table').on('click', '.ls-requester-link', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        let tr = $(this).closest('tr');
+        if (tr.hasClass('child')) tr = tr.prev(); // responsive child row
+        const rq = (dtTable && dtTable.row(tr).data() || {}).requester;
+        if (!rq || !requesterModal) return;
+        const type = rq.search_type ? rq.search_type + (rq.requesting_body ? ' · ' + rq.requesting_body : '') : null;
+        const fields = [
+            ['Client Name', rq.client_name],
+            ['Client Address', rq.client_address],
+            ['Applicant Name', rq.applicant_name],
+            ['File Number', rq.file_number],
+            ['Property Location', rq.property_location],
+            ['Search Type', type],
+            ['Requesting Body', rq.requesting_body],
+            ['Token', rq.token],
+            ['Receipt No.', rq.receipt_number],
+            ['Amount Paid', rq.amount_paid ? '\u20A6' + rq.amount_paid : null],
+            ['Date Paid', rq.date_paid],
+            ['Reason for Payment', rq.payment_reason],
+            ['Token Issued', rq.issued_at],
+        ];
+        document.getElementById('ls-requester-body').innerHTML = fields
+            .filter(([label, v]) => label !== 'Requesting Body' || v)
+            .map(([label, v]) => `<dt style="font-weight:600;color:#475569;">${label}</dt><dd style="margin:0;color:#0f172a;word-break:break-word;">${v ? esc(v) : '—'}</dd>`)
+            .join('');
+        requesterModal.style.display = 'block';
+    });
+    requesterModal?.addEventListener('click', (e) => { if (e.target.closest('[data-close-requester]')) closeRequester(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRequester(); });
 });
 </script>
 

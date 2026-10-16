@@ -551,6 +551,7 @@
     .source-badge-fh { background: #d1fae5; color: #065f46; }
     .source-badge-deed { background: #fef3c7; color: #92400e; }
     .source-badge-cofo { background: #ede9fe; color: #5b21b6; }
+    .source-badge-regrant { background: #dcfce7; color: #166534; }
     .source-badge-related { background: #ffedd5; color: #9a3412; }
 
     /* Timeline row tints — match badge source colors */
@@ -564,6 +565,10 @@
     #timeline-table tr.row-tint-deed:hover { background-color: #fef3c7; }
     #timeline-table tr.row-tint-cofo:hover { background-color: #ede9fe; }
     #timeline-table tr.row-tint-related:hover { background-color: #ffedd5; }
+    /* Sectional Titling mother / unit applications */
+    .source-badge-stapp { background: #ccfbf1; color: #115e59; }
+    #timeline-table tr.row-tint-stapp { background-color: #f0fdfa; }
+    #timeline-table tr.row-tint-stapp:hover { background-color: #ccfbf1; }
 
     /* Lifecycle-file group divider: thin green line above the first row of each file block. */
     #timeline-table tr.ls-group-divider td {
@@ -593,6 +598,21 @@
     #timeline-table .ls-root-of-title-inline {
       display: inline;
       margin-top: 0;
+      white-space: nowrap;
+    }
+    /* KLAES-commissioned files: how the file was commissioned (Re-grant, Direct
+       Allocation, ...), under "File Commissioning" — the MLS list's Source badge. */
+    #timeline-table .ls-commissioning-source {
+      display: inline-block;
+      margin-top: 0.2rem;
+      padding: 0 0.5rem;
+      border: 1px solid #bfdbfe;
+      border-radius: 9999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.7rem;
+      font-weight: 600;
+      line-height: 1.4;
       white-space: nowrap;
     }
     /* The Comments column truncates to one line; the row carrying the Root of Title

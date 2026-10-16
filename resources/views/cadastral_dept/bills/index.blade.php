@@ -36,7 +36,7 @@
             @php
               $cdCase = $cases[$bill->file_number] ?? null;
               $items = [];
-              if (auth()->user()->canDo('Cad - Records', 'print')) {
+              if (\App\Services\CadastralDept\DeskAccess::can(auth()->user(), 'print')) {
                   $items[] = ['Print bill', 'printer', route('cadastral-dept.bills.print', $bill->id), true];
               }
               if ($cdCase) {

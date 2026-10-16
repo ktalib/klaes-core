@@ -2710,6 +2710,8 @@ HTML;
         // rows so a file that is re-tracked after being logged back into the registry
         // shows one continuous timeline instead of a fresh, disconnected log.
         $tracker->setAttribute('prior_movements', $this->getPriorMovements($tracker));
+        // A "File Commissioning" line for each Move Commissioned File (new number).
+        $tracker->setAttribute('recommissioning_lines', \App\Services\FileNumber\CommissionedFileMoveService::recommissioningLinesFor($tracker->file_number));
 
         // Add workflow progress if this is a 3-step tracker
         if ($tracker->isKangis3Step()) {

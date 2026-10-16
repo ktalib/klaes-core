@@ -259,6 +259,7 @@
                             'COMMERCIAL ( WARE HOUSE)' => 'COMMERCIAL ( WARE HOUSE)',
                             'COMMERCIAL (OFFICES)' => 'COMMERCIAL (OFFICES)',
                             'COMMERCIAL (PETROL FILLING STATION)' => 'COMMERCIAL (PETROL FILLING STATION)',
+                            'COMMERCIAL (LPG REFILLING STATION)' => 'COMMERCIAL (LPG REFILLING STATION)',
                             'COMMERCIAL (RICE PROCESSING)' => 'COMMERCIAL (RICE PROCESSING)',
                             'COMMERCIAL (SCHOOL)' => 'COMMERCIAL (SCHOOL)',
                             'COMMERCIAL (SHOPS & PUBLIC CONVINIENCE)' => 'COMMERCIAL (SHOPS & PUBLIC CONVINIENCE)',
