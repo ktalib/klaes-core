@@ -119,6 +119,7 @@
                     <table class="w-full text-left min-w-[1400px] border-collapse">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                <th class="px-4 py-4 text-center whitespace-nowrap">S/N</th>
                                 <th class="px-6 py-4 whitespace-nowrap">SLTR Number</th>
                                 <th class="px-6 py-4 whitespace-nowrap">Applicant Name</th>
                                 <th class="px-6 py-4 whitespace-nowrap">Land Use</th>
@@ -138,8 +139,26 @@
                         <tbody class="divide-y divide-slate-100 text-sm">
                             @forelse($recommendations as $rec)
                             <tr class="hover:bg-slate-50/50 transition">
+                                <td class="px-4 py-2 text-center text-slate-500 whitespace-nowrap">{{ $recommendations->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-2 font-mono font-bold text-slate-900 whitespace-nowrap">
                                     <div>{{ $rec->sltr_number ?? '—' }}</div>
+                                    {{-- The security serial the RofO prints (templates/rofo_print): "V"
+                                         over the year, then a code derived from the SLTR number, so it
+                                         is the same on every copy and every reprint. Shown once the
+                                         RofO is generated; the year is the generation year. --}}
+                                    @if($rec->rofo_status === \App\Models\SltrRecommendation::ROFO_GENERATED)
+                                        @php
+                                            $sltrSerial = str_pad(substr(abs(crc32($rec->sltr_number ?? (string) $rec->id)), 0, 6), 6, '0', STR_PAD_LEFT);
+                                            $sltrSerialYear = ($rec->rofo_generated_at ?? now())->format('y');
+                                        @endphp
+                                        <div style="display:flex; align-items:center; gap:5px; margin-top:3px; letter-spacing:normal;" title="Security Serial No.">
+                                            <span style="line-height:1; color:#059669; display:inline-flex; flex-direction:column; align-items:center; font-weight:900; font-family:Arial, sans-serif;">
+                                                <span style="border-bottom:1.5px solid #059669; padding-bottom:1px; font-size:11px;">V</span>
+                                                <span style="padding-top:1px; font-size:11px;">{{ $sltrSerialYear }}</span>
+                                            </span>
+                                            <span style="font-size:18px; font-weight:900; letter-spacing:0.1em; color:#059669; font-family:'Courier New', monospace;">{{ $sltrSerial }}</span>
+                                        </div>
+                                    @endif
                                     {{-- Shown on the row, as on Land RofO, rather than only inside the action menu. --}}
                                     @if($rec->sltr_rofo_serial_no)
                                         <div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:'Courier New', monospace;" title="Security Paper Code">
@@ -332,7 +351,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="14" class="px-8 py-12 text-center">
+                                <td colspan="15" class="px-8 py-12 text-center">
                                     <div class="flex flex-col items-center">
                                         <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-4">
                                             <i data-lucide="file-text" class="h-6 w-6"></i>

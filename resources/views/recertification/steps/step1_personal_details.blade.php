@@ -1,5 +1,5 @@
 <!-- Step 1: Applicant Personal Details -->
-<div id="step-content-1" class="step-content"> 
+<div id="step-content-2" class="step-content hidden"> 
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold flex items-center gap-2">
@@ -98,31 +98,7 @@
                                     name="title"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
                                 >
-                                    <option value="" disabled selected>Select title</option>
-                                    <option value="Mr.">Mr.</option>
-                                    <option value="Mrs.">Mrs.</option>
-                                    <option value="Chief">Chief</option>
-                                    <option value="Master">Master</option>
-                                    <option value="Capt">Capt</option>
-                                    <option value="Coln">Coln</option>
-                                    <option value="Pastor">Pastor</option>
-                                    <option value="King">King</option>
-                                    <option value="Prof">Prof</option>
-                                    <option value="Dr.">Dr.</option>
-                                    <option value="Alhaji">Alhaji</option>
-                                    <option value="Alhaja">Alhaja</option>
-                                    <option value="High Chief">High Chief</option>
-                                    <option value="Lady">Lady</option>
-                                    <option value="Bishop">Bishop</option>
-                                    <option value="Senator">Senator</option>
-                                    <option value="Messr">Messr</option>
-                                    <option value="Honorable">Honorable</option>
-                                    <option value="Miss">Miss</option>
-                                    <option value="Rev.">Rev.</option>
-                                    <option value="Barr.">Barr.</option>
-                                    <option value="Arc.">Arc.</option>
-                                    <option value="Sister">Sister</option>
-                                    <option value="Other">Other</option>
+                                    @include('recertification.partials.title_options')
                                 </select>
                             </div>
                             
@@ -166,17 +142,17 @@
                             </div>
                             
                             <div class="form-field">
-                                <label for="state" class="block text-sm font-medium text-gray-700 mb-1">
+                                <label for="stateOfOrigin" class="block text-sm font-medium text-gray-700 mb-1">
                                     State of Origin <span class="text-red-500">*</span>
                                 </label>
                                 <select
-                                    id="state"
+                                    id="stateOfOrigin"
                                     name="stateOfOrigin"
                                     required
                                     onchange="selectLGA(this)"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
                                 >
-                                    <option>Select State <span class="text-red-500">*</span></option>
+                                    <option value="">Select State</option>
                                 </select>
                                 <div class="error-message">State of origin is required</div>
                             </div>
@@ -184,13 +160,13 @@
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="form-field">
-                                <label for="lga" class="block text-sm font-medium text-gray-700 mb-1">LGA of Origin <span class="text-red-500">*</span></label>
+                                <label for="lgaOfOrigin" class="block text-sm font-medium text-gray-700 mb-1">LGA of Origin <span class="text-red-500">*</span></label>
                                 <select
-                                    id="lga"
+                                    id="lgaOfOrigin"
                                     name="lgaOfOrigin"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
                                 >
-                                    <option>Select LGA</option>
+                                    <option value="">Select LGA</option>
                                 </select>
                             </div>
                             
@@ -562,40 +538,53 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Applicant type select not found!');
     }
 
-    // Fetch all States
+    // Fetch all States. A value already set (backfill or a resumed draft) is kept.
     fetch('https://nga-states-lga.onrender.com/fetch')
     .then((res) => res.json())
     .then((data) => {
-        var x = document.getElementById("state");
+        var x = document.getElementById("stateOfOrigin");
+        if (!x) return;
+        var current = x.value;
         for (let index = 0; index < Object.keys(data).length; index++) {
+            var name = data[index];
+            var existing = Array.from(x.options).find(o => o.value.toLowerCase() === String(name).toLowerCase());
+            if (existing) continue;
             var option = document.createElement("option");
-            option.text = data[index];
-            option.value = data[index];
+            option.text = name;
+            option.value = name;
             x.add(option);
         }
-    });
+        if (current) x.value = current;
+    })
+    .catch(() => {});
 });
 
-// Fetch Local Governments based on selected state
+// Fetch Local Governments of Origin for the selected State of Origin. Only the
+// LGA of Origin list is touched (the plot LGA on step 1 is a different field).
+// The chosen LGA is read when the list arrives (a resumed draft may set it while
+// the list is loading) and kept only if it belongs to the new state.
 function selectLGA(target) {
     var state = target.value;
-    fetch('https://nga-states-lga.onrender.com/?state='+state)
+    var select = document.getElementById("lgaOfOrigin");
+    if (!select) return;
+    if (!state) {
+        select.innerHTML = '<option value="">Select LGA</option>';
+        return;
+    }
+    fetch('https://nga-states-lga.onrender.com/?state=' + encodeURIComponent(state))
     .then((res) => res.json())
     .then((data) => {
-        var x = document.getElementById("lga");
-        var select = document.getElementById("lga");
-        var length = select.options.length;
-        
-        for (i = length-1; i >= 0; i--) {
-            select.options[i] = null;
+        if (!Array.isArray(data) || target.value !== state) return;
+        var current = select.value;
+        select.innerHTML = '<option value="">Select LGA</option>';
+        data.forEach(function (name) {
+            select.add(new Option(name, name));
+        });
+        if (current) {
+            var match = Array.from(select.options).find(o => o.value.toLowerCase() === current.toLowerCase());
+            if (match) select.value = match.value;
         }
-        
-        for (let index = 0; index < Object.keys(data).length; index++) {
-            var option = document.createElement("option");
-            option.text = data[index];
-            option.value = data[index];
-            x.add(option);
-        }
-    });
+    })
+    .catch(() => {});
 }
 </script>

@@ -51,7 +51,7 @@
     #cop-pending-table  tbody td:nth-child(2),
     #cop-pending-table  tbody td:nth-child(7),
     #cop-approved-table tbody td:nth-child(2),
-    #cop-approved-table tbody td:nth-child(7) { white-space: normal; min-width: 160px; max-width: 240px; }
+    #cop-approved-table tbody td:nth-child(8) { white-space: normal; min-width: 160px; max-width: 240px; }
 
     /* -- Tab styles -- */
     .cop-tab-btn.active { background: white; color: rgb(37 99 235); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
@@ -366,6 +366,7 @@
                                     <th class="px-4 py-3 text-left">#</th>
                                     <th class="px-4 py-3 text-left">Applicant</th>
                                     <th class="px-4 py-3 text-left">Current File No</th>
+                                    <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                     <th class="px-4 py-3 text-left">Current Land Use</th>
                                     <th class="px-4 py-3 text-left">New Purpose</th>
                                     <th class="px-4 py-3 text-left">Location</th>
@@ -377,11 +378,17 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                @php
+                                    // File numbers each Change of Purpose produced once commissioned.
+                                    $newFileNos = app(\App\Services\ParcelUpdateNewFiles::class)
+                                        ->forApplications($approvedRecords, 'Change of Purpose', fn ($r) => [$r->file_no]);
+                                @endphp
                                 @forelse($approvedRecords as $record)
                                     <tr data-record='@json($record)'>
                                         <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $loop->iteration }}</td>
                                         <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                         <td class="px-4 py-2.5 text-slate-700 font-mono text-xs">@include('change_of_purpose.partials.file_no_cell')</td>
+                                        @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
                                         <td class="px-4 py-2.5 text-slate-700 text-xs">{{ $landUseOptions[strtoupper(trim((string) $record->land_use))] ?? ($record->land_use ?: '-') }}</td>
                                         <td class="px-4 py-2.5 text-xs">
                                             <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded font-semibold">{{ $landUseOptions[strtoupper($record->purpose ?? '')] ?? ($record->purpose ?: '-') }}</span>
@@ -531,7 +538,7 @@
          NEW APPLICATION MODAL - 3-STEP WIZARD
          ==================================================================== --}}
     <div id="cop-create-modal" class="fixed inset-0 z-[9999] hidden flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="copCloseCreateModal()"></div>
+        <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-100">
             {{-- Header --}}
             <div class="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
@@ -1000,6 +1007,7 @@
             const data = result.data || result;
             Swal.fire({
                 title: 'KAMMA / Physical Planning',
+                allowOutsideClick: false, // typed input: a stray click must not discard it
                 html: `<div class="text-left space-y-3">
                     <label class="block text-xs font-bold text-slate-600">Land Value</label><input id="cop-knupda-value" type="number" step="0.01" class="swal2-input !m-0 !w-full" value="${data.land_value || ''}">
                     <label class="block text-xs font-bold text-slate-600">KAMMA/Physical Planning Fee</label><input id="cop-knupda-fee" type="number" step="0.01" class="swal2-input !m-0 !w-full" value="${data.knupda_fee || ''}">
@@ -1062,5 +1070,6 @@
 ])
 
 
+@include('partials.decommissioned_before', ['dbSource' => '#cop-file-no'])
 @endsection
 

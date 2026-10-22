@@ -30,6 +30,7 @@
         <table class="simple w-full">
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Unit ST FileNo</th>
                     <th>Unit Details</th>
                     <th>Owner</th>
@@ -42,8 +43,19 @@
             <tbody>
                 @foreach($units as $unit)
                     <tr>
+                        <td>{{ $loop->iteration }}</td>
                         <td>
                             <div>{{ $unit->fileno ?? 'N/A' }}</div>
+                            @if(!empty($unit->security_serial))
+                                @php $stSc = $unit->security_serial; @endphp
+                                <div style="display:flex; align-items:center; gap:5px; margin-top:3px; letter-spacing:normal;" title="Security Serial No.">
+                                    <span style="line-height:1; color:#059669; display:inline-flex; flex-direction:column; align-items:center; font-weight:900; font-family:Arial, sans-serif;">
+                                        <span style="border-bottom:1.5px solid #059669; padding-bottom:1px; font-size:11px;">{{ $stSc['alphabet'] }}</span>
+                                        <span style="padding-top:1px; font-size:11px;">{{ $stSc['digits_start'] }}</span>
+                                    </span>
+                                    <span style="font-size:18px; font-weight:900; letter-spacing:0.1em; color:#059669; font-family:'Courier New', monospace;">{{ $stSc['digits_end'] }}</span>
+                                </div>
+                            @endif
                             {{-- Shown on the row, as on Land RofO, rather than only inside the action menu. --}}
                             @if(!empty($unit->security_paper_code))
                                 <div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:'Courier New', monospace;" title="Security Paper Code">

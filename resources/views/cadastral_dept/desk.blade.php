@@ -25,7 +25,8 @@
       @if ($term !== '' || $filterWorkflow)
         <a href="{{ route('cadastral-dept.desks.show', array_filter(['desk' => $desk, 'queue' => $queueKey])) }}" class="text-sm text-gray-600 hover:underline">Clear</a>
       @endif
-      @if ($desk === 'registry')
+      @if ($desk === 'registry' && $queueKey !== 'approval')
+        {{-- Not on AD CAD Registry > Approval (user, 2026-10-16). --}}
         <a href="{{ route('cadastral-dept.cases.create') }}" class="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold">
           <i data-lucide="file-plus" class="w-4 h-4"></i> Register File
         </a>
@@ -43,7 +44,7 @@
       <table class="min-w-full text-sm">
         <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
           <tr>
-            <th class="px-4 py-2">S/N</th><th class="px-4 py-2">Ref</th><th class="px-4 py-2">File No.</th><th class="px-4 py-2">Title</th>
+            <th class="px-4 py-2 whitespace-nowrap"><input type="checkbox" class="cd-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-gray-300" aria-label="Select all">S/N</th><th class="px-4 py-2">Ref</th><th class="px-4 py-2">File No.</th><th class="px-4 py-2">Title</th>
             <th class="px-4 py-2">Type</th><th class="px-4 py-2">Status</th>
             <th class="px-4 py-2">Date created</th><th class="px-4 py-2">Created by</th><th class="px-4 py-2">Last moved</th>
             <th class="px-4 py-2 text-right">Action</th>
@@ -59,9 +60,19 @@
               $isSent = isset($cdSentIds[$case->id]) || $isClosed;
               $isAway = ! $isSent && $case->current_desk !== $desk;
               $back = $isSent ? null : $back;
+              // Batch Send (_batch_send): the row's own menu actions, only when the menu offers them.
+              $cdBatch = ($m && ! $isSent && ! $m['tasks_open'] && ! $m['failing'] && ! $m['custody'])
+                  ? array_map(fn ($a) => ['o' => $a['outcome'], 'l' => $a['label'], 'r' => (bool) $a['reason']], $m['actions'])
+                  : [];
             @endphp
             <tr class="{{ $isSent ? 'bg-gray-50 text-gray-600' : 'hover:bg-gray-50' }} align-top">
-              <td class="px-4 py-2 text-gray-500">{{ $loop->iteration }}</td>
+              <td class="px-4 py-2 text-gray-500 whitespace-nowrap">
+                @unless ($isSent)
+                  <input type="checkbox" class="cd-batch-check h-3.5 w-3.5 mr-1.5 align-middle rounded border-gray-300" value="{{ $case->id }}"
+                         data-file="{{ $case->file_number }}" data-url="{{ route('cadastral-dept.cases.move.save', $case->id) }}"
+                         data-actions='@json($cdBatch)' aria-label="Select {{ $case->file_number }}">
+                @endunless{{ $loop->iteration }}
+              </td>
               <td class="px-4 py-2 font-mono whitespace-nowrap">
                 {{ $case->case_ref }}
                 @if ($case->duplicate_flag)
@@ -165,11 +176,18 @@
                         <button type="button" class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50"
                                 data-custody-open="{{ $m['custody'] }}" data-url="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}"
                                 data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-title="{{ $case->file_title }}"
-                                data-corr="{{ $case->correspondence_fileno }}" data-csf="{{ $case->shadow_fileno }}">
+                                data-corr="{{ $case->correspondence_fileno }}" data-csf="{{ $case->shadow_fileno }}"
+                              >
                           <span class="inline-flex items-center gap-2"><i data-lucide="{{ $m['custody'] === 'detach' ? 'unlink' : 'link' }}" class="w-4 h-4"></i> {{ $cdCustLabel }}</span>
                           <span class="block text-xs text-gray-500">{{ $m['tasks_open'] ? 'Then finish ' . $m['tasks_open'] . ' more task(s)' : ($m['custody'] === 'detach' ? 'Then Send to Deeds' : 'Then send on') }}</span>
                         </button>
                       </div>
+                    @elseif ($m && $m['tasks_open'] && $m['edms'])
+                      {{-- Back from Land: scan and page-type the new pages (EdmsUpdate), on the file page. --}}
+                      <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-blue-700 hover:bg-gray-50 border-t border-gray-100">
+                        <span class="inline-flex items-center gap-2"><i data-lucide="scan-line" class="w-4 h-4"></i> Update DMS</span>
+                        <span class="block text-xs text-gray-500">Scan and page-type the pages added at Land</span>
+                      </a>
                     @elseif ($m && $m['tasks_open'])
                       <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-yellow-800 hover:bg-yellow-50">
                         Finish {{ $m['tasks_open'] }} task(s) first
@@ -291,6 +309,7 @@
   @include('admin.footer')
 </div>
 @include('cadastral_dept.partials._custody_preview')
+@include('cadastral_dept.partials._batch_send')
 @if ($waitingJobs !== null)
   @include('cadastral_dept.field_jackets._attach_job_modal')
 @endif

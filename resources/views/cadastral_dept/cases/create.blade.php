@@ -12,8 +12,9 @@
           'key' => $k, 'label' => $w['label'], 'short' => $w['short'], 'colour' => $w['colour'], 'applies' => $w['applies_to'],
       ])->values();
       $cdFileTypes = collect($def->fileTypes())->map(fn ($t, $k) => [
-          'key' => $k, 'label' => $t['label'], 'workflows' => $t['workflows'], 'asks' => ! empty($t['asks_sub_type']),
-          'tenure' => $t['tenure'] ?? null,
+          // tenure / route: fixed answer, null, or 'ask' (route only), per file type (2026-10-20).
+          'key' => $k, 'label' => $t['label'], 'workflows' => $t['workflows'],
+          'tenure' => $t['tenure'] ?? null, 'route' => $t['route'] ?? null,
       ])->values();
       $cdSubTypes = $def->subTypes('direct');
       $cdTenures = $def->subTypes('verification');
@@ -71,10 +72,37 @@
         </section>
       @endforeach
 
-      {{-- 2. File type, and Direct Allocation's sub-type --}}
-      <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
+      {{-- 2. File type, and Direct Allocation's sub-type. Conversion has one file type, so it is
+           picked for the user and the form goes straight to the file (user, 2026-10-20). --}}
+      <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow && (workflow === 'verification' || workflow === 'direct' || typesFor().length > 1)" x-cloak>
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">2 · File type</h3>
-        <div class="flex flex-wrap gap-2">
+        {{-- Verification: Conversion or Direct Allocation first, then that group's file types (2026-10-20). --}}
+        <div class="mb-4" x-show="workflow === 'verification'" x-cloak>
+          <div class="text-sm font-semibold text-gray-800 mb-2">Conversion or Direct Allocation? <span class="text-red-600">*</span></div>
+          <div class="flex flex-wrap gap-2">
+            @foreach (['conversion', 'direct'] as $cdG)
+              <label class="cursor-pointer px-3 py-2 rounded-lg border text-sm font-semibold"
+                     :class="vGroup === @js($cdG) ? 'bg-red-700 text-white border-red-700' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
+                <input type="radio" name="verification_group" class="sr-only" value="{{ $cdG }}" x-model="vGroup" @change="onGroup()" :disabled="workflow !== 'verification'">
+                {{ $def->workflow($cdG)['label'] }}
+              </label>
+            @endforeach
+          </div>
+        </div>
+        {{-- Direct Allocation: one Direct (Statutory) tab for DCIV/LPCC, GKN, Misc KN and OP; OP then
+             chooses Resettlement or Direct (user, 2026-10-22; OP had its own tab before). --}}
+        <div class="mb-4" x-show="workflow === 'direct'" x-cloak>
+          <div class="flex flex-wrap gap-2">
+            @foreach (['statutory' => 'Direct (Statutory)'] as $cdD => $cdDLabel)
+              <label class="cursor-pointer px-3 py-2 rounded-lg border text-sm font-semibold"
+                     :class="dGroup === @js($cdD) ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
+                <input type="radio" name="direct_group" class="sr-only" value="{{ $cdD }}" x-model="dGroup" @change="onGroup()" :disabled="workflow !== 'direct'">
+                {{ $cdDLabel }}
+              </label>
+            @endforeach
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2" x-show="(workflow !== 'verification' || vGroup) && (workflow !== 'direct' || dGroup === 'statutory')">
           <template x-for="t in typesFor()" :key="t.key">
             <label class="cursor-pointer px-3 py-2 rounded-lg border text-sm font-semibold"
                    :class="fileType === t.key ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
@@ -96,26 +124,40 @@
           <p class="text-xs text-blue-800 mt-2">Resettlement goes to the Compensation Unit; Direct goes straight to Director Land.</p>
         </div>
 
-        {{-- Verification: Statutory or Customary, preselected from the file type, always required. --}}
-        <div class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3" x-show="workflow === 'verification' && fileType" x-cloak>
-          <div class="text-sm font-semibold text-green-900 mb-2">Statutory or Customary? <span class="text-red-600">*</span></div>
-          <div class="flex flex-wrap gap-4 text-sm">
-            @foreach ($cdTenures as $k => $label)
-              <label class="inline-flex items-center gap-2">
-                <input type="radio" name="sub_type" value="{{ $k }}" x-model="subType" :disabled="workflow !== 'verification'"> {{ $label }}
-              </label>
-            @endforeach
-          </div>
-          <p class="text-xs text-green-800 mt-2">Picked from the file type where it is clear; change it if this file is the other kind.</p>
+        {{-- Direct Allocation: GKN, Misc KN and DCIV/LPCC are Direct; only OP chooses (2026-10-20). --}}
+        <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900" x-show="workflow === 'direct' && fileType && !asksSubType()" x-cloak>
+          Resettlement or Direct: <strong>Direct</strong> <span class="text-xs text-blue-800">(every <span x-text="ft() ? ft().label : ''"></span> is Direct; only OP files choose)</span>
+        </div>
 
-          {{-- And Resettlement or Direct (user, 2026-10-12). --}}
-          <div class="text-sm font-semibold text-green-900 mt-4 mb-2">Resettlement or Direct? <span class="text-red-600">*</span></div>
-          <div class="flex flex-wrap gap-4 text-sm">
-            @foreach ($cdSubTypes as $k => $label)
-              <label class="inline-flex items-center gap-2">
-                <input type="radio" name="allocation_route" value="{{ $k }}" x-model="allocationRoute" :disabled="workflow !== 'verification'"> {{ $label }}
-              </label>
-            @endforeach
+        {{-- Verification: Statutory or Customary and Resettlement or Direct follow the file type; only
+             the open ones are asked (DCIV/LPCC: Statutory or Customary; OP: Resettlement or Direct). --}}
+        <div class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 space-y-3" x-show="workflow === 'verification' && fileType" x-cloak>
+          <div x-show="ft() && ft().tenure !== false">
+            <div class="text-sm font-semibold text-green-900 mb-1">Statutory or Customary? <span class="text-red-600" x-show="tenureAsks()">*</span></div>
+            <div class="flex flex-wrap gap-4 text-sm" x-show="tenureAsks()">
+              @foreach ($cdTenures as $k => $label)
+                <label class="inline-flex items-center gap-2">
+                  <input type="radio" name="sub_type" value="{{ $k }}" x-model="subType" :disabled="!tenureAsks()"> {{ $label }}
+                </label>
+              @endforeach
+            </div>
+            <div class="text-sm text-green-900" x-show="!tenureAsks()">
+              <strong x-text="tenures[ft() ? ft().tenure : ''] || ''"></strong>
+              <span class="text-xs text-green-800">(every <span x-text="ft() ? ft().label : ''"></span> is)</span>
+            </div>
+          </div>
+          <div x-show="ft() && ft().route">
+            <div class="text-sm font-semibold text-green-900 mb-1">Resettlement or Direct? <span class="text-red-600" x-show="routeAsks()">*</span></div>
+            <div class="flex flex-wrap gap-4 text-sm" x-show="routeAsks()">
+              @foreach ($cdSubTypes as $k => $label)
+                <label class="inline-flex items-center gap-2">
+                  <input type="radio" name="allocation_route" value="{{ $k }}" x-model="allocationRoute" :disabled="!routeAsks()"> {{ $label }}
+                </label>
+              @endforeach
+            </div>
+            <div class="text-sm text-green-900" x-show="!routeAsks()">
+              <strong>Direct</strong> <span class="text-xs text-green-800">(every <span x-text="ft() ? ft().label : ''"></span> is)</span>
+            </div>
           </div>
         </div>
       </section>
@@ -123,7 +165,7 @@
       {{-- 3. The file: picked from the indexed files for the application type, never typed (user, 2026-10-12) --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
         <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1"
-            x-text="workflow === 'verification' ? '3 · Search the file' : '3 · File'"></h3>
+            x-text="workflow === 'verification' ? '3 · Search the file' : (workflow === 'conversion' ? '2 · File' : '3 · File')"></h3>
         <p class="text-xs text-gray-500 mb-3" x-show="workflow === 'verification'">
           Pick any indexed file, decommissioned ones included. Its correspondence file is matched when there is one, and the File status checks show below.
         </p>
@@ -223,7 +265,7 @@
 
       {{-- 4. Where it came from --}}
       <section class="rounded-xl border border-gray-200 bg-white p-5" x-show="workflow" x-cloak>
-        <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">4 · Received</h3>
+        <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3" x-text="workflow === 'conversion' ? '3 · Received' : '4 · Received'">4 · Received</h3>
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1">File source <span class="text-red-600">*</span></label>
@@ -274,7 +316,7 @@
       workflows, fileTypes, lookupUrl, listUrl,
       listOpen: false, listTerm: '', listRows: [], listLoading: false, listFor: null,
       workflow: old.workflow || '', fileType: old.file_type || '', subType: old.sub_type || '',
-      allocationRoute: old.allocation_route || '',
+      allocationRoute: old.allocation_route || '', vGroup: old.verification_group || '', dGroup: old.direct_group ? 'statutory' : '', tenures: @js($cdTenures),
       fileSource: old.file_source || '', fileSourceOther: old.file_source_other || '',
       fileNumber: old.file_number || '', fileIndexingId: old.file_indexing_id || '',
       fileSystem: old.file_system || '', trackingId: old.tracking_id || '',
@@ -285,12 +327,40 @@
         // After a failed submit, check the same file again.
         if (this.fileNumber) this.lookup({ file_number: this.fileNumber, tab: this.fileSystem, file_indexing_id: this.fileIndexingId });
       },
-      typesFor() { return this.fileTypes.filter(t => t.workflows.includes(this.workflow)); },
-      // Every Direct Allocation file chooses Resettlement or Direct (user, 2026-10-12).
-      asksSubType() { return this.workflow === 'direct' && !!this.fileType; },
+      // Verification lists the chosen group's file types (Conversion or Direct Allocation).
+      typesFor() {
+        if (this.workflow === 'verification') {
+          return this.vGroup ? this.fileTypes.filter(t => t.workflows.includes('verification') && t.workflows.includes(this.vGroup)) : [];
+        }
+        if (this.workflow === 'direct') {
+          if (!this.dGroup) return [];
+          // Direct (Statutory): every Direct type, OP included.
+          return this.fileTypes.filter(t => t.workflows.includes('direct'));
+        }
+        return this.fileTypes.filter(t => t.workflows.includes(this.workflow));
+      },
+      ft() { return this.fileTypes.find(t => t.key === this.fileType) || null; },
+      // Direct Allocation: only a file type whose route is open (OP) chooses Resettlement or Direct.
+      asksSubType() { return this.workflow === 'direct' && !!this.ft() && this.ft().route === 'ask'; },
+      // Verification: asked only where the file type leaves it open (2026-10-20).
+      tenureAsks() { return this.workflow === 'verification' && !!this.ft() && this.ft().tenure === null; },
+      routeAsks() { return this.workflow === 'verification' && !!this.ft() && this.ft().route === 'ask'; },
+      onGroup() {
+        if (!this.typesFor().some(t => t.key === this.fileType)) this.fileType = '';
+        this.pickOnlyType();
+        this.onFileType();
+      },
+      // One file type on offer (Conversion): pick it.
+      pickOnlyType() {
+        const types = this.typesFor();
+        if (types.length === 1) this.fileType = types[0].key;
+      },
       onWorkflow() {
         if (!this.typesFor().some(t => t.key === this.fileType)) this.fileType = '';
         this.subType = ''; this.allocationRoute = '';
+        if (this.workflow !== 'verification') this.vGroup = '';
+        if (this.workflow !== 'direct') this.dGroup = '';
+        this.pickOnlyType();
         this.onFileType();
         // Each type lists different files, so the previous pick goes.
         this.fileNumber = ''; this.fileIndexingId = ''; this.trackingId = ''; this.fileSystem = '';
@@ -324,12 +394,15 @@
         this.fileIndexingId = r.id;
         this.lookup({ file_number: r.file_number, file_indexing_id: r.id });
       },
-      // Verification: preselect Statutory / Customary from the file type (DCIV / LPCC can be either).
+      // The fixed answers come from the file type; open ones start blank (2026-10-20).
       onFileType() {
+        const t = this.ft();
         if (this.workflow === 'verification') {
-          const t = this.fileTypes.find(t => t.key === this.fileType);
           this.subType = (t && t.tenure) || '';
-        } else if (!this.asksSubType()) {
+          this.allocationRoute = t && t.route && t.route !== 'ask' ? t.route : '';
+        } else if (this.workflow === 'direct') {
+          this.subType = t && t.route === 'ask' ? '' : 'direct_allocation';
+        } else {
           this.subType = '';
         }
       },
@@ -371,10 +444,12 @@
       },
       missing() {
         if (!this.workflow) return 'Choose the application type.';
+        if (this.workflow === 'verification' && !this.vGroup) return 'Choose Conversion or Direct Allocation.';
+        if (this.workflow === 'direct' && !this.dGroup) return 'Choose Direct (Statutory).';
         if (!this.fileType) return 'Choose the file type.';
         if (this.asksSubType() && !this.subType) return 'Choose Resettlement or Direct.';
-        if (this.workflow === 'verification' && !this.subType) return 'Choose Statutory or Customary.';
-        if (this.workflow === 'verification' && !this.allocationRoute) return 'Choose Resettlement or Direct.';
+        if (this.tenureAsks() && !this.subType) return 'Choose Statutory or Customary.';
+        if (this.routeAsks() && !this.allocationRoute) return 'Choose Resettlement or Direct.';
         if (!this.result || this.result.status !== 'ok') return 'Select a file that can be registered.';
         if (!this.fileSource) return 'Choose where the file came from.';
         if (this.fileSource === 'other' && !this.fileSourceOther.trim()) return 'Specify where the file came from.';

@@ -18,6 +18,7 @@ class ChartingController extends Controller
         'information' => ['Cadastral Information · 1st charting', ['first'], null],
         'reports' => ['Cadastral Reports · charting', ['single', 'second'], null],
         'checks' => ['Verification checks', ['check'], null],
+        'final' => ['Drawing & Charting · final charting', ['final'], null],
     ];
 
     public function __construct(private ChartingCards $cards)

@@ -227,7 +227,13 @@ class SpaPipelineService
         $st['response']['message'] = preg_replace('/^Option \d+:\s*/', '', $st['response']['message']);
 
         $billed = (float) $bills->sum('amount');
-        if (! $bills->count()) {
+        $inRevm = \App\Services\Billing\Modules\SpasBillMirror::inBillMaster($bills->pluck('id'));
+        if ($bills->count() && $inRevm->count() === $bills->count()) {
+            // Paid under KLAES REV-M; shown for information, it holds nothing back.
+            $revmPaid = (float) $inRevm->sum('amount_paid');
+            $st['payment'] = $s($inRevm->every(fn ($b) => $b->status === 'paid') ? 'done' : 'progress',
+                'In KLAES REV-M · ' . ($revmPaid > 0 ? 'Paid '.$ngn($revmPaid).' of '.$ngn($billed) : 'Unpaid '.$ngn($billed)));
+        } elseif (! $bills->count()) {
             $st['payment'] = $s($contravenes ? 'pending' : 'na', $contravenes ? 'No bill yet' : 'No bill');
         } elseif ($bills->every(fn ($b) => $b->status === 'paid')) {
             $st['payment'] = $s('done', 'Paid '.$ngn($paid ?: $billed));
@@ -245,7 +251,7 @@ class SpaPipelineService
         } elseif (($app->new_file_route ?? null) === SpaNewFileService::NEW_CONVERSION) {
             $st['newfile'] = $s('progress', 'Awaiting New Conversion file no.');
         } else {
-            $settled = $bills->count() && $bills->every(fn ($b) => $b->status === 'paid');
+            $settled = $bills->count() && $bills->every(fn ($b) => $b->status === 'paid' || $inRevm->has((int) $b->id));
             $st['newfile'] = $s($contravenes ? 'pending' : 'na', ! $contravenes ? 'No contravention'
                 : ($settled ? 'Send to Change of Purpose (Bills)' : 'After the bill is settled'));
         }

@@ -89,6 +89,10 @@ class CorrespondenceCustody
             if (!trim((string) $case->correspondence_fileno)) {
                 throw WorkflowGuardException::because("{$case->case_ref} has no correspondence file yet (AD Cad Report creates it).");
             }
+            // Count the pages before detaching; update DMS before attaching (PageCounts).
+            if ($why = app(PageCounts::class)->custodyBlocker($case, $action)) {
+                throw WorkflowGuardException::because($why);
+            }
             $detached = $this->isDetached($case);
             if ($action === Custody::DETACH && $detached) {
                 throw WorkflowGuardException::because('The correspondence file is already detached.');

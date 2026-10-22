@@ -172,7 +172,7 @@ class LandRecommendationController extends Controller
         'Temporary File No' => ['mls' => ['Temporary File'],    'linkage' => []],
         'Ministry of Works' => ['mls' => [],                    'linkage' => []],
         'Change of Purpose' => ['mls' => ['Change of Purpose'], 'linkage' => ['Change of Purpose']],
-        'Regrant'           => ['mls' => ['Re-grant'],          'linkage' => []],
+        'Regrant'           => ['mls' => ['Re-grant'],          'linkage' => [], 'title_status' => true],
         'Reinstatement'     => ['mls' => [],                    'linkage' => []],
         'Revocation'        => ['mls' => [],                    'linkage' => []],
     ];
@@ -185,6 +185,50 @@ class LandRecommendationController extends Controller
         $category = trim((string) $category);
 
         return isset(self::MOTHER_CATEGORIES[$category]) ? $category : self::DEFAULT_MOTHER_CATEGORY;
+    }
+
+    /**
+     * Re-grants captured at indexing rather than commissioned through MLS: the new
+     * file carries the title status remark "This File has been Re-granted from X".
+     * Both title_status_type spellings ("Re-grant", "regranted") are used on either
+     * side of a re-grant, so only the remark tells the new file from the old one.
+     *
+     * @param  string[]|null  $mothers  limit to these mother file numbers
+     * @return array<string, array<string, true>>  mother => [child => true]
+     */
+    private function regrantTitleStatusChildren(?array $mothers = null): array
+    {
+        $rows = DB::connection('sqlsrv')->table('file_indexings')
+            ->whereRaw("CAST(title_status_remark AS NVARCHAR(MAX)) LIKE '%Re-granted from %'")
+            ->where(function ($q) {
+                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->when($mothers !== null, function ($q) use ($mothers) {
+                $q->where(function ($q) use ($mothers) {
+                    foreach ($mothers as $m) {
+                        $q->orWhereRaw('CAST(title_status_remark AS NVARCHAR(MAX)) LIKE ?', ['%Re-granted from ' . $m . '%']);
+                    }
+                });
+            })
+            ->get(['file_number', DB::raw('CAST(title_status_remark AS NVARCHAR(MAX)) AS remark')]);
+
+        // The LIKE above is a prefilter; "from COM-1985-5" would also hit
+        // "from COM-1985-55", so the mother is matched exactly here.
+        $wanted = $mothers === null ? null : array_flip(array_map('mb_strtoupper', $mothers));
+        $byMother = [];
+        foreach ($rows as $row) {
+            if (!preg_match('/Re-granted from\s+(\S.*?)\s*\.?\s*$/i', (string) $row->remark, $m)) {
+                continue;
+            }
+            $mother = trim($m[1]);
+            $child  = trim((string) $row->file_number);
+            if ($mother === '' || $child === '' || ($wanted !== null && !isset($wanted[mb_strtoupper($mother)]))) {
+                continue;
+            }
+            $byMother[$mother][$child] = true;
+        }
+
+        return $byMother;
     }
 
     public function index(Request $request)
@@ -358,16 +402,16 @@ class LandRecommendationController extends Controller
         // form sends `searched`, so a tab clicked by hand while a search is active
         // stays put even when it has nothing to show.
         if ($request->filled('search') && $request->boolean('searched')) {
-            $foundTab = $this->searchTabFor(
+            $found = $this->searchDestination(
                 trim((string) $request->search),
                 $tab,
                 $allowedTabs,
-                $pageType === 'OSS',
+                $pageType,
                 $applyOssChangeOfNameOriginFilter,
                 $printedExistsFor
             );
 
-            if ($foundTab !== $tab) {
+            if ($found['tab'] !== $tab || $found['page'] !== $pageType) {
                 $tabNames = [
                     'not_printed' => 'Not Printed',
                     'printed'     => 'Printed',
@@ -375,10 +419,12 @@ class LandRecommendationController extends Controller
                     'oss'         => 'OSS Recommendations',
                     'batches'     => 'Batch Recommendations',
                 ];
+                $where = $tabNames[$found['tab']]
+                    . ($found['page'] !== $pageType ? ' on the ' . ($found['page'] === 'OSS' ? 'OSS Recommendations' : 'Land Recommendation') . ' page' : '');
 
                 return redirect()
-                    ->route('land-recommendations.index', ['type' => $pageType, 'tab' => $foundTab, 'search' => $request->search])
-                    ->with('search_tab_moved', '"' . $request->search . '" is under ' . $tabNames[$foundTab] . '.');
+                    ->route('land-recommendations.index', ['type' => $found['page'], 'tab' => $found['tab'], 'search' => $request->search])
+                    ->with('search_tab_moved', '"' . $request->search . '" is under ' . $where . '.');
             }
         }
 
@@ -729,7 +775,43 @@ class LandRecommendationController extends Controller
      * the same scope, search columns and print / extant / batch rules index()
      * lists it with, so the tab chosen is never one that then shows nothing.
      */
-    private function searchTabFor(string $search, string $currentTab, array $allowedTabs, bool $ossPage, callable $applyOssFilter, callable $printedExistsFor): string
+    /**
+     * Where a typed search should land: ['page' => ROFO|OSS, 'tab' => ...].
+     *
+     * Three rules on top of searchTabFor()'s per-tab tests, each from a search that
+     * went to the wrong place:
+     *   - an EXACT file number wins over a partial one. "COM-2025-39" also matches
+     *     CON-COM-2025-39, and that printed conversion was pulling the search away
+     *     from the file's own Mother Recommendation;
+     *   - a batched file belongs to Batch Recommendations. The list shows batched
+     *     rows under any tab while searching, which made Not Printed look right;
+     *   - a file this page does not list at all may be on the other page (an
+     *     unprinted OSS recommendation is only on the OSS page), so that is tried
+     *     before giving up.
+     */
+    private function searchDestination(string $search, string $currentTab, array $allowedTabs, string $pageType, callable $applyOssFilter, callable $printedExistsFor): array
+    {
+        $otherPage = $pageType === 'OSS' ? 'ROFO' : 'OSS';
+        // The Land page's OSS tab is the OSS page's Printed list, so it is not
+        // offered a second time when looking from the OSS page.
+        $otherTabs = $otherPage === 'OSS' ? ['not_printed', 'printed', 'batches'] : ['not_printed', 'printed', 'extant', 'batches'];
+
+        foreach ([true, false] as $exact) {
+            $tab = $this->searchTabFor($search, $currentTab, $allowedTabs, $pageType === 'OSS', $applyOssFilter, $printedExistsFor, $exact);
+            if ($tab !== null) {
+                return ['page' => $pageType, 'tab' => $tab];
+            }
+
+            $tab = $this->searchTabFor($search, null, $otherTabs, $otherPage === 'OSS', $applyOssFilter, $printedExistsFor, $exact);
+            if ($tab !== null) {
+                return ['page' => $otherPage, 'tab' => $tab];
+            }
+        }
+
+        return ['page' => $pageType, 'tab' => $currentTab];
+    }
+
+    private function searchTabFor(string $search, ?string $currentTab, array $allowedTabs, bool $ossPage, callable $applyOssFilter, callable $printedExistsFor, bool $exact = false): ?string
     {
         $scoped = function (bool $oss) use ($applyOssFilter) {
             $query = LandRecommendation::query();
@@ -745,19 +827,32 @@ class LandRecommendationController extends Controller
             return $query;
         };
 
-        $listSearch = function ($query) use ($search) {
-            return $query->where(function ($q) use ($search) {
-                $q->where('file_number', 'LIKE', "%{$search}%")
-                  ->orWhere('applicant_name', 'LIKE', "%{$search}%")
-                  ->orWhere('location', 'LIKE', "%{$search}%");
-            });
+        $needle = strtoupper(trim($search));
+
+        // Exact: the file number itself. Otherwise the list's own partial search.
+        $listSearch = function ($query) use ($search, $needle, $exact) {
+            return $exact
+                ? $query->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(file_number, '')))) = ?", [$needle])
+                : $query->where(function ($q) use ($search) {
+                    $q->where('file_number', 'LIKE', "%{$search}%")
+                      ->orWhere('applicant_name', 'LIKE', "%{$search}%")
+                      ->orWhere('location', 'LIKE', "%{$search}%");
+                });
         };
 
-        $hasMatch = function (string $tab) use ($scoped, $listSearch, $ossPage, $printedExistsFor, $search) {
+        // Batched rows belong to the Batches tab, not to Printed / Not Printed / Mother.
+        $unbatched = fn ($query) => $query->whereNull('land_recommendations.rofo_batch_id');
+
+        $hasMatch = function (string $tab) use ($scoped, $listSearch, $unbatched, $ossPage, $printedExistsFor, $search, $needle, $exact) {
             switch ($tab) {
                 case 'batches':
                     return $this->activeBatchMembers($scoped($ossPage)->whereNotNull('rofo_batch_id'))
-                        ->where(function ($q) use ($search) {
+                        ->where(function ($q) use ($search, $needle, $exact) {
+                            if ($exact) {
+                                $q->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(file_number, '')))) = ?", [$needle])
+                                  ->orWhereRaw("UPPER(LTRIM(RTRIM(ISNULL(batch_mother_file_no, '')))) = ?", [$needle]);
+                                return;
+                            }
                             $q->where('batch_mother_file_no', 'LIKE', "%{$search}%")
                               ->orWhere('rofo_batch_id', 'LIKE', "%{$search}%")
                               ->orWhere('file_number', 'LIKE', "%{$search}%")
@@ -767,15 +862,15 @@ class LandRecommendationController extends Controller
                 case 'oss':
                     return $listSearch($scoped(true))->whereExists($printedExistsFor(true))->exists();
                 case 'extant':
-                    return $this->extantRecommendation($listSearch($scoped($ossPage)))->exists();
+                    return $this->extantRecommendation($unbatched($listSearch($scoped($ossPage))))->exists();
                 case 'printed':
-                    return $this->extantRecommendation($listSearch($scoped($ossPage))->whereExists($printedExistsFor($ossPage)), false)->exists();
+                    return $this->extantRecommendation($unbatched($listSearch($scoped($ossPage)))->whereExists($printedExistsFor($ossPage)), false)->exists();
                 default: // not_printed
-                    return $this->extantRecommendation($listSearch($scoped($ossPage))->whereNotExists($printedExistsFor($ossPage)), false)->exists();
+                    return $this->extantRecommendation($unbatched($listSearch($scoped($ossPage)))->whereNotExists($printedExistsFor($ossPage)), false)->exists();
             }
         };
 
-        if ($hasMatch($currentTab)) {
+        if ($currentTab !== null && in_array($currentTab, $allowedTabs, true) && $hasMatch($currentTab)) {
             return $currentTab;
         }
 
@@ -785,7 +880,7 @@ class LandRecommendationController extends Controller
             }
         }
 
-        return $currentTab;
+        return null;
     }
 
     /**
@@ -1721,9 +1816,11 @@ class LandRecommendationController extends Controller
 
         // A child renumbered by a Change of Purpose is counted once, under its new number.
         $renumbered = $children->isEmpty() ? [] : $this->renumberedSubdivisionChildren($children);
+        $held = $this->heldBatchFileNumbers();
 
         return $children
             ->map(fn ($fileNumber) => mb_strtoupper($renumbered[mb_strtoupper($fileNumber)] ?? $fileNumber))
+            ->reject(fn ($fileNumber) => isset($held[$fileNumber]))
             ->unique()
             ->count();
     }
@@ -1742,6 +1839,39 @@ class LandRecommendationController extends Controller
      *
      * @return string[]  the input first, then each successor in order
      */
+    /**
+     * Files on hold from batch capture: the children of every linkage group listed in
+     * config('land_recommendations.held_linkage_groups'), keyed upper-case. Held files
+     * are neither loaded nor counted under a mother, and storeBatch() refuses them.
+     *
+     * @return array<string, string>  FILE NO => reason
+     */
+    private function heldBatchFileNumbers(): array
+    {
+        static $held = null;
+        if ($held !== null) {
+            return $held;
+        }
+
+        $groups = (array) config('land_recommendations.held_linkage_groups', []);
+        $held = [];
+        if (!$groups) {
+            return $held;
+        }
+
+        DB::connection('sqlsrv')->table('manual_file_linkages')
+            ->whereIn('linkage_group_id', array_keys($groups))
+            ->get(['new_file_number', 'linkage_group_id'])
+            ->each(function ($r) use (&$held, $groups) {
+                $fileNo = mb_strtoupper(trim((string) $r->new_file_number));
+                if ($fileNo !== '') {
+                    $held[$fileNo] = (string) ($groups[$r->linkage_group_id] ?? 'On hold');
+                }
+            });
+
+        return $held;
+    }
+
     private function changeOfPurposeSuccessors(string $fileNumber): array
     {
         $chain = [trim($fileNumber)];
@@ -1999,12 +2129,13 @@ class LandRecommendationController extends Controller
         // The picker lists a grandmother (CON-COM-2003-118) where the subdivision was
         // commissioned on the number its Change of Purpose produced (CON-RES-2026-2924),
         // so the children are looked up under that number too.
+        // $viaChangeOfPurpose is that chain of CoP numbers, so the form can say the
+        // rows are the picked file's grandchildren rather than its children.
+        $viaChangeOfPurpose = [];
         if ($subdivision) {
             $base = preg_replace('/\s*\(T\)\s*$/i', '', $mother);
-            $variants = array_values(array_unique(array_merge(
-                $variants,
-                array_slice($this->changeOfPurposeSuccessors($base), 1)
-            )));
+            $viaChangeOfPurpose = array_slice($this->changeOfPurposeSuccessors($base), 1);
+            $variants = array_values(array_unique(array_merge($variants, $viaChangeOfPurpose)));
         }
 
         // Source 1 — commissioned through the Subdivision workflow: the child's
@@ -2051,6 +2182,13 @@ class LandRecommendationController extends Controller
         // "RES-1999-46" cannot hit a row whose mother is "RES-1999-469".
         $legacyByChild = $legacyRows->keyBy(fn ($r) => trim((string) $r->new_file_number));
 
+        // Source 3 — re-granted at indexing (title status remark), never through MLS.
+        if (!empty($sources['title_status'])) {
+            foreach ($this->regrantTitleStatusChildren($variants) as $kids) {
+                $workflowChildren = $workflowChildren->merge(array_keys($kids));
+            }
+        }
+
         $childFileNumbers = $workflowChildren
             ->merge($legacyByChild->keys())
             ->map(fn ($f) => trim((string) $f))
@@ -2083,6 +2221,18 @@ class LandRecommendationController extends Controller
             }
         }
 
+        // Files whose linkage group is on hold (config/land_recommendations.php) stay
+        // out of the batch until their lineage is confirmed.
+        $held = $this->heldBatchFileNumbers();
+        $heldCount = 0;
+        if ($held) {
+            $before = $childFileNumbers->count();
+            $childFileNumbers = $childFileNumbers
+                ->reject(fn ($f) => isset($held[mb_strtoupper(trim((string) $f))]))
+                ->values();
+            $heldCount = $before - $childFileNumbers->count();
+        }
+
         if ($childFileNumbers->isEmpty()) {
             // "I picked the mother and nothing loaded" is the most common report
             // about this screen, and the answer is almost always lineage rather
@@ -2098,7 +2248,10 @@ class LandRecommendationController extends Controller
                 'mother'   => $mother,
                 'category' => $category,
                 'children' => [],
-                'message'  => 'No ' . $category . ' children are linked to this file number — neither commissioned through the workflow nor backfilled as a legacy linkage.',
+                'held_count' => $heldCount,
+                'message'  => $heldCount
+                    ? "All {$heldCount} files linked to this file number are on hold until their lineage is confirmed."
+                    : 'No ' . $category . ' children are linked to this file number — neither commissioned through the workflow nor backfilled as a legacy linkage.',
             ]);
         }
 
@@ -2146,12 +2299,16 @@ class LandRecommendationController extends Controller
             'children'        => $payload->count(),
             'already_have_rec' => $payload->filter(fn ($r) => !empty($r['has_existing_record']))->count(),
             'mother_rec_id'   => $motherRec->id ?? null,
+            'held_count'      => $heldCount,
             'exclude_batch_id' => $excludeBatchId,
         ]);
 
         return response()->json([
             'success'  => true,
             'mother'   => $mother,
+            'via_change_of_purpose' => $viaChangeOfPurpose,
+            // Files left out because their linkage group is on hold.
+            'held_count' => $heldCount,
             'children' => $payload,
             'count'    => $payload->count(),
             // The batch-wide half of the inheritance: fields the form captures once
@@ -2712,6 +2869,13 @@ class LandRecommendationController extends Controller
             }
         }
 
+        // Source 3 — re-granted at indexing (title status remark), never through MLS.
+        if (!empty($sources['title_status'])) {
+            foreach ($this->regrantTitleStatusChildren() as $mother => $kids) {
+                $childrenByMother[$mother] = ($childrenByMother[$mother] ?? []) + $kids;
+            }
+        }
+
         if (!$childrenByMother) {
             return response()->json($empty);
         }
@@ -2758,6 +2922,17 @@ class LandRecommendationController extends Controller
                     $remapped[$current] = true;
                 }
                 $childrenByMother[$motherFileNo] = $remapped;
+            }
+        }
+
+        // Held files (config/land_recommendations.php) are not offered under any mother.
+        if ($held = $this->heldBatchFileNumbers()) {
+            foreach ($childrenByMother as $motherFileNo => $kids) {
+                $childrenByMother[$motherFileNo] = array_filter(
+                    $kids,
+                    fn ($child) => !isset($held[mb_strtoupper(trim((string) $child))]),
+                    ARRAY_FILTER_USE_KEY
+                );
             }
         }
 
@@ -3120,6 +3295,27 @@ class LandRecommendationController extends Controller
         }
 
         $mother = trim((string) ($validated['batch_mother_file_no'] ?? ''));
+
+        // Files on hold (config/land_recommendations.php) cannot be saved, even when a
+        // draft captured before the hold still carries them.
+        $held = $this->heldBatchFileNumbers();
+        $onHold = $held ? array_values(array_filter(
+            array_map(fn ($c) => trim((string) ($c['file_number'] ?? '')), $validated['children']),
+            fn ($f) => isset($held[mb_strtoupper($f)])
+        )) : [];
+        if ($onHold) {
+            RecLog::warning('Batch blocked by held files', [
+                'mother_file_no' => $mother,
+                'draft_key'      => $validated['draft_key'] ?? null,
+                'held_count'     => count($onHold),
+            ]);
+
+            throw ValidationException::withMessages([
+                'children' => count($onHold) . ' of these files are on hold until their lineage is confirmed ('
+                    . implode(', ', array_slice($onHold, 0, 5)) . (count($onHold) > 5 ? ', …' : '')
+                    . '). Press Reload to drop them from the batch, then save again.',
+            ]);
+        }
 
         // Same rule as the single-record path: a file number may not carry two
         // recommendations. Reported for the whole batch at once so the user fixes

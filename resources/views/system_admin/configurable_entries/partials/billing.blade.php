@@ -12,6 +12,9 @@
     </div>
 </div>
 
+{{-- Under Bill Settings a bill type's sub-tab shows only its own formula (code = the bill type code),
+     so the free "Add bill type" form appears only on the "Other formulas" sub-tab. --}}
+@if(empty($billSettingsType))
 <div class="iw-card">
     <div class="iw-card-head"><div class="iw-card-title">Add bill type</div></div>
     <form method="POST" action="{{ route('configurable-entries.billing-types.store') }}" class="iw-card-body space-y-3">
@@ -22,6 +25,7 @@
         <button type="submit" class="iw-btn iw-btn-primary">Add bill type</button>
     </form>
 </div>
+@endif
 
 @forelse($billingTypes as $type)
     @php
@@ -147,7 +151,20 @@
         @endforeach
     </div>
 @empty
-    <div class="iw-card"><div class="iw-card-body"><div class="iw-empty">No bill formulas yet. Add a bill type above, then configure its items and formula. No dev rates have been imported.</div></div></div>
+    @if(!empty($billSettingsType))
+        <div class="iw-card">
+            <form method="POST" action="{{ route('configurable-entries.billing-types.store') }}" class="iw-card-body flex flex-wrap items-center justify-between gap-3">
+                @csrf
+                <input type="hidden" name="code" value="{{ $billSettingsType->code }}">
+                <input type="hidden" name="name" value="{{ $billSettingsType->name }}">
+                <input type="hidden" name="module" value="REV-M">
+                <div class="iw-empty" style="text-align:left;padding:0">No bill items for {{ $billSettingsType->name }} yet. Set them up to add its items and formula.</div>
+                <button type="submit" class="iw-btn iw-btn-primary"><i data-lucide="plus" class="h-4 w-4"></i> Set up bill items</button>
+            </form>
+        </div>
+    @else
+        <div class="iw-card"><div class="iw-card-body"><div class="iw-empty">No other bill formulas. Add a bill type above, then configure its items and formula.</div></div></div>
+    @endif
 @endforelse
 
 <script>

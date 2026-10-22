@@ -419,9 +419,16 @@
                                                 <a href="javascript:void(0)" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 opacity-50 pointer-events-none cursor-not-allowed transition" role="menuitem">
                                                     <i data-lucide="eye" class="w-4 h-4"></i> Views
                                                 </a>
+                                                {{-- Same permission the edit / update routes enforce (config/module_permissions.php). --}}
+                                                @canDo('Deeds Registration', 'edit')
+                                                <a href="{{ route('instruments.edit', $instrument->id) }}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition" role="menuitem">
+                                                    <i data-lucide="edit-3" class="w-4 h-4"></i> Edit
+                                                </a>
+                                                @elsecanDo
                                                 <a href="javascript:void(0)" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 opacity-50 pointer-events-none cursor-not-allowed transition" role="menuitem">
                                                     <i data-lucide="edit-3" class="w-4 h-4"></i> Edit
                                                 </a>
+                                                @endcanDo
 
                                                 @canDo('Deeds Registration', 'delete')
                                                 <form action="{{ route('instruments.destroy', $instrument->id) }}" method="POST" role="menuitem">

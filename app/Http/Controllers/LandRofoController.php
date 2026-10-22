@@ -109,6 +109,21 @@ class LandRofoController extends Controller
 
         $childProofed = PrintLog::whiteCopyPrinted('Land ROFO', $children->pluck('file_number')->all());
 
+        // The security serial each printed letter carries, as the main list shows it
+        // under the file number. Earliest unused code per record, read only.
+        $childSerials = [];
+        $codeService = app(\App\Services\SecurityCodeService::class);
+        foreach (array_chunk($children->pluck('id')->all(), 1000) as $chunk) {
+            foreach (DB::connection('sqlsrv')->table('security_codes')
+                ->whereIn('document_id', $chunk)
+                ->where('document_type', 'Land ROFO')
+                ->where('is_used', 0)
+                ->orderBy('id')
+                ->get(['document_id', 'code']) as $sc) {
+                $childSerials[$sc->document_id] ??= $codeService->formatForDisplay($sc->code);
+            }
+        }
+
         return response()->json([
             'success'  => true,
             'batch_id' => $batchId,
@@ -125,6 +140,7 @@ class LandRofoController extends Controller
                 'status'         => $c->status,
                 'rofo_status'    => $c->rofo_status,
                 'serial_no'      => $c->land_rofo_serial_no,
+                'security_serial'=> $childSerials[$c->id] ?? null,
                 'issue_date'     => optional($c->date_issued)->format('Y-m-d') ?? '',
                 'reissuance'     => $c->is_reissuance
                     ? (strtolower(trim((string) $c->reissuance_source)) === 'legacy' ? 'legacy' : 'klaes')
@@ -140,6 +156,77 @@ class LandRofoController extends Controller
                 'white_copy_url' => route('land-rofos.white-copy', $c->id),
             ])->values(),
         ]);
+    }
+
+    /**
+     * The tab holding a searched file: the current one when it has a match, otherwise
+     * the first in strip order that does, or null when none does. Each tab is tested
+     * with the same scope and rules index() lists it with. Batched RofOs count only
+     * for Batches (the list shows them under any tab while searching), and $exact
+     * matches the file number itself so "COM-2025-39" is not pulled away by
+     * CON-COM-2025-39.
+     */
+    private function rofoSearchTab(string $search, string $currentTab, bool $ossViewOnly, bool $exact): ?string
+    {
+        $needle = strtoupper($search);
+
+        $base = function () use ($ossViewOnly) {
+            $q = LandRecommendation::query();
+            if ($ossViewOnly) {
+                $q->whereRaw("UPPER(ISNULL(type, '')) = 'OSS'");
+            } else {
+                $q->where(function ($w) {
+                    $w->where('status', LandRecommendation::STATUS_APPROVED)
+                      ->orWhereRaw("UPPER(ISNULL(type, '')) = 'OSS'");
+                });
+            }
+            return $q;
+        };
+
+        $match = function ($q, bool $batchColumns = false) use ($search, $needle, $exact) {
+            return $q->where(function ($w) use ($search, $needle, $exact, $batchColumns) {
+                if ($exact) {
+                    $w->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(file_number, '')))) = ?", [$needle]);
+                    if ($batchColumns) {
+                        $w->orWhereRaw("UPPER(LTRIM(RTRIM(ISNULL(batch_mother_file_no, '')))) = ?", [$needle]);
+                    }
+                    return;
+                }
+                $w->where('file_number', 'LIKE', "%{$search}%")
+                  ->orWhere('applicant_name', 'LIKE', "%{$search}%");
+                if ($batchColumns) {
+                    $w->orWhere('batch_mother_file_no', 'LIKE', "%{$search}%")
+                      ->orWhere('rofo_batch_id', 'LIKE', "%{$search}%");
+                } else {
+                    $w->orWhere('location', 'LIKE', "%{$search}%");
+                }
+            });
+        };
+
+        $has = function (string $tab) use ($base, $match) {
+            switch ($tab) {
+                case 'batches':
+                    return $match($base()->whereNotNull('rofo_batch_id'), true)->exists();
+                case 'reissuance':
+                    return $match($base()->where('is_reissuance', 1))->exists();
+                case 'printed':
+                    return $match($base()->whereNull('rofo_batch_id')->whereRaw($this->printedPredicateSql()))->exists();
+                default: // not_printed
+                    return $match($base()->whereNull('rofo_batch_id')->whereRaw('NOT ' . $this->printedPredicateSql()))->exists();
+            }
+        };
+
+        if ($has($currentTab)) {
+            return $currentTab;
+        }
+
+        foreach (['not_printed', 'printed', 'batches', 'reissuance'] as $tab) {
+            if ($tab !== $currentTab && $has($tab)) {
+                return $tab;
+            }
+        }
+
+        return null;
     }
 
     public function index(Request $request)
@@ -186,6 +273,28 @@ class LandRofoController extends Controller
         $tab = $request->query('tab', 'not_printed');
         if (!in_array($tab, ['printed', 'not_printed', 'batches', 'reissuance'], true)) {
             $tab = 'not_printed';
+        }
+
+        // A search typed into the box goes to the tab that holds the file, as on the
+        // Recommendation page. Only the search form sends `searched`, so a tab clicked
+        // by hand while a search is active stays put even when it shows nothing.
+        if ($request->filled('search') && $request->boolean('searched')) {
+            $search = trim((string) $request->search);
+            $found  = $this->rofoSearchTab($search, $tab, $ossViewOnly, true)
+                ?? $this->rofoSearchTab($search, $tab, $ossViewOnly, false);
+
+            if ($found !== null && $found !== $tab) {
+                $names = ['not_printed' => 'Not Printed', 'printed' => 'Printed', 'batches' => 'Batches', 'reissuance' => 'Re-issuance'];
+
+                return redirect()
+                    ->route('land-rofos.index', array_filter([
+                        'view'   => $request->query('view'),
+                        'url'    => $request->query('url'),
+                        'tab'    => $found,
+                        'search' => $request->search,
+                    ]))
+                    ->with('search_tab_moved', '"' . $request->search . '" is under ' . $names[$found] . '.');
+            }
         }
         // The Batches tab pages over batches rather than over RofOs. On the main
         // list a batch is one collapsed row and its children are spread across the

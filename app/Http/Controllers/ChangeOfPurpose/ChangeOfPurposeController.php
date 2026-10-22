@@ -198,6 +198,10 @@ class ChangeOfPurposeController extends Controller
             return $same;
         }
 
+        // "File Already Decommissioned Before" — read from the records, not chosen.
+        $data['previously_decommissioned'] = app(\App\Services\PlotWorkflowService::class)
+            ->decommissionedBeforeAnswer([$data['file_no'] ?? null]);
+
         $record = ChangeOfPurposeApplication::create($data);
 
         if ($request->hasFile('site_plan')) {
@@ -467,6 +471,8 @@ class ChangeOfPurposeController extends Controller
         }
 
         $data['updated_by'] = Auth::id();
+        $data['previously_decommissioned'] = app(\App\Services\PlotWorkflowService::class)
+            ->decommissionedBeforeAnswer([$data['file_no'] ?? $record->file_no]);
         $record->update($data);
 
         return response()->json(['success' => true, 'message' => 'Record updated.', 'data' => $record->fresh()]);

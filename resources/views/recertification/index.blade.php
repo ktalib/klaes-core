@@ -225,7 +225,11 @@ input:checked + .toggle-slider:before {
         </button> -->
         <a href="{{ url('/recertification/application') }}" class="inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer border border-blue-600 text-blue-600 hover:bg-blue-50 gap-2">
           <i data-lucide="external-link" class="h-4 w-4"></i>
-          New Application  
+          New Application
+        </a>
+        <a id="my-drafts-link" href="{{ url('/recertification/application') }}" class="hidden inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer border border-amber-500 text-amber-700 hover:bg-amber-50 gap-2" title="Your saved drafts are listed at the top of the form">
+          <i data-lucide="save" class="h-4 w-4"></i>
+          My Drafts <span id="my-drafts-count" class="ml-1 inline-flex items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-semibold">0</span>
         </a>
       </div>
     </div>
@@ -298,7 +302,9 @@ input:checked + .toggle-slider:before {
         <table class="w-full divide-y divide-gray-200" id="recertification-table">
           <thead class="bg-gray-50">
             <tr>
-               
+              <th scope="col" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div class="truncate">S/N</div>
+              </th>
               <th scope="col" class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <div class="truncate">New KANGIS FileNo</div>
               </th>

@@ -190,7 +190,7 @@ class WorkflowEngine
 
             $out[] = ['key' => $key, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk']),
                 'state' => $key === $current ? 'current' : 'next', 'outcome' => null, 'by' => null, 'at' => null,
-                'options' => count($options) > 1 ? $options : []];
+                'options' => count($options) > 1 ? $options : [], 'zero' => !empty($s['step_zero'])];
 
             if (isset($s['end'])) {
                 $out[] = ['key' => null, 'label' => $s['end'] === 'returned' ? 'Sent back to source' : 'Completed', 'desk' => '',
@@ -201,6 +201,48 @@ class WorkflowEngine
         }
 
         return $out;
+    }
+
+    /**
+     * The step bar on the file page (user, 2026-10-18): the planned route as the user listed
+     * it, (0) Registry, (1) D Cad ... (28) Registry -> Completed, whatever the file's history. Steps
+     * before the current one are ticked (with who moved it on, from the movements), the current
+     * one has the pin. Head-approval hand-overs are not bubbles; they stay in the Movement History. A file off the planned route (sent back,
+     * or on another branch) falls back to its history (pipeline()).
+     */
+    public function stepBar(string $workflow, ?string $subType, iterable $movements, ?string $current, ?string $closedAs = null): array
+    {
+        $plan = $this->pipeline($workflow, $subType);
+        $last = [];
+        foreach ($movements as $m) {
+            if ($m->from_step && $m->from_step !== $m->to_step) {
+                $last[$m->from_step] = $m;
+            }
+        }
+        $at = $closedAs ? count($plan) : array_search($current, array_column($plan, 'key'), true);
+        if ($at === false || ($closedAs && $closedAs !== 'completed')) {
+            return $this->pipeline($workflow, $subType, $movements, $current, $closedAs);
+        }
+        foreach ($plan as $i => &$p) {
+            if ($i < $at) {
+                $p['state'] = 'done';
+                if ($p['key'] && isset($last[$p['key']])) {
+                    $m = $last[$p['key']];
+                    $p['by'] = optional($m->actor)->name;
+                    $p['at'] = $m->acted_at;
+                }
+            } elseif ($i === $at && !$closedAs) {
+                $p['state'] = 'current';
+            }
+        }
+        unset($p);
+        if ($closedAs) {
+            $end = count($plan) - 1;
+            $plan[$end] = ['key' => null, 'label' => $closedAs === 'returned' ? 'Sent back to source' : 'Completed', 'desk' => '',
+                'state' => 'end', 'outcome' => null, 'by' => null, 'at' => null, 'options' => []];
+        }
+
+        return $plan;
     }
 
     /** Phase progress for a stage tracker: [phase => done|current|waiting]. */

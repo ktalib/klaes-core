@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum,web')->group(function () {
     // Quick Search & File Location (shared engine with web)
     Route::get('files/search', [MobileFileSearchController::class, 'search']);
+    // Quick Search "Scan QR": any KLAES QR → file number (read-only).
+    Route::get('files/resolve-qr', [MobileFileSearchController::class, 'resolveQr']);
 
     // A requester's own File Search Requests + outcomes (OFS tracking view).
     Route::get('my-file-requests', [MobileFileSearchController::class, 'mine']);

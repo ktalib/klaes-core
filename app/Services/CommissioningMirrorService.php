@@ -83,6 +83,8 @@ class CommissioningMirrorService
             'purpose_id' => $validated['purpose_id'] ?? null,
             'related_fileno' => $this->encodeRelatedNumbers($relatedFileNos, $fileIndexing->related_fileno),
             'dciv_reason' => $validated['dciv_reason'] ?? $fileIndexing->dciv_reason,
+            // Came in through File Indexing: an indexed file, not a commission.
+            'origin' => 'indexing',
         ];
 
         DcivFileNo::create($payload);

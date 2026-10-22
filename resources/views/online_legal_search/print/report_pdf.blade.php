@@ -179,17 +179,18 @@
            PAY-PER-SEARCH uses a CSS grid with spacer columns carrying a vertical
            rule; DomPDF has no grid, so the same four label+value sections are a
            table whose divider cells keep the border-left. */
-        .prop { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 5px; table-layout: fixed; }
+        .prop { width: 100%; border-collapse: collapse; font-size: 8.5px; margin-bottom: 5px; table-layout: fixed; }
         .prop td { padding: 2px 0; vertical-align: top; }
-        .prop .lbl { font-weight: bold; padding-right: 8px; }
+        .prop .lbl { font-weight: normal; padding-right: 8px; }
+        .prop strong, .prop b, .prop .root-of-title { font-weight: normal; }
         .prop .val { overflow-wrap: break-word; word-wrap: break-word; padding-right: 8px; }
         .prop .sp { border-left: 0.5px solid #000; width: 12px; }
 
         /* ── Transactions ── */
-        .tx { width: 100%; border-collapse: collapse; font-size: 8.5px; table-layout: fixed; margin-bottom: 2px; }
+        .tx { width: 100%; border-collapse: collapse; font-size: 10.5px; table-layout: fixed; margin-bottom: 2px; }
         .tx th, .tx td { padding: 2px 4px; border-bottom: 0.5px solid #eee; word-wrap: break-word; line-height: 1.2; }
         .tx th { font-weight: bold; border-bottom: 1.5px solid #000; text-align: left; vertical-align: top; }
-        .tx td { vertical-align: middle; }
+        .tx td { vertical-align: middle; font-weight: bold; }
         .tx tr { page-break-inside: avoid; }
         .tx thead { display: table-header-group; }
         .tx .nowrap { white-space: nowrap; }

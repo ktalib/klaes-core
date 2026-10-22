@@ -58,9 +58,17 @@ class RegisterBlindScanFolders extends Command
         @set_time_limit(0);
 
         $registryOption = strtolower((string) $this->option('registry'));
-        $registries = $registryOption === 'all'
-            ? array_values(self::REGISTRIES)
-            : array_filter([self::REGISTRIES[$registryOption] ?? null]);
+        if ($registryOption === 'all') {
+            // Every registry folder on disk (Lands_Registry_Raw, DCIV_Registry_Raw, ...).
+            $registries = [];
+            foreach (glob(file_storage_path('app/public/' . self::ROOT) . DIRECTORY_SEPARATOR . '*_Raw', GLOB_ONLYDIR) ?: [] as $dir) {
+                $folder = basename($dir);
+                $type = strtolower(str_replace('_', ' ', preg_replace('/_Registry_Raw$|_Raw$/i', '', $folder)));
+                $registries[] = ['folder' => $folder, 'type' => $type];
+            }
+        } else {
+            $registries = array_filter([self::REGISTRIES[$registryOption] ?? null]);
+        }
         if (!$registries) {
             $this->error('--registry must be lands, cadastral or all.');
             return self::FAILURE;

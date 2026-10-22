@@ -436,6 +436,39 @@
                 </div>` : (d.duplicate_flag.file_title ? `
                 <div class="mt-1 pl-6 text-xs text-gray-600">${esc(d.duplicate_flag.file_title)}</div>` : '')}
             </div>` : '';
+        // A land file kept inside a KANGIS file lives in the KANGIS Registry, not its
+        // original registry: show the KANGIS registry and — unless the land file is
+        // itself logged out — the KANGIS file's location and shelf. The original
+        // registry is kept on d.original_registry (Log File still opens the land
+        // file's own module). Runs once per result; display only, nothing is saved.
+        function applyKangisContainer(d) {
+            const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
+            if (!ks.length || d._kangisApplied) return;
+            d._kangisApplied = true;
+            const k = ks.find(x => x.is_in_transit) || ks[0];
+            const kReg = /kangis/i.test(k.registry || '') ? k.registry : 'KANGIS Registry';
+            d.original_registry = d.registry;
+            d.registry = kReg;
+            if (d.status !== 'IN_TRANSIT') {
+                if (k.current_location) d.current_location = k.current_location;
+                d.rack_shelf = k.rack_shelf || null;
+            }
+            if (typeof d.next_action === 'string') {
+                d.next_action = d.next_action.replace(/Original Registry/g, kReg);
+            }
+        }
+
+        // The in-transit KANGIS file a land file sits inside, when the request would
+        // otherwise go to the SCB / registry. Null when the land file is itself out
+        // (its own holder applies), and for the Director Land / DCIV / pick-a-record
+        // routes, which keep their own handling.
+        function kangisHolder(d) {
+            if (!d.can_send_fr || d.status === 'IN_TRANSIT') return null;
+            if (directsToLand(d) || isDcivFile(d) || hasCandidates(d)) return null;
+            const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
+            return ks.find(k => k.is_in_transit && (k.receiving_officer_name || k.current_location)) || null;
+        }
+
         // The record the user picked, as {record_id, source}. Null until they choose.
         let selectedCandidate = null;
 
@@ -528,11 +561,20 @@
                         <i data-lucide="shield-alert" class="h-4 w-4"></i> Re-direct To DCIV Director</button>`);
                     out.push(`<button type="button" data-fr ${ov ? '' : 'style="display:none;"'} class="inline-flex items-center gap-2 rounded-lg ${d.is_blind ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} px-4 py-2 text-sm font-semibold text-white">
                         <i data-lucide="send" class="h-4 w-4"></i> ${scbLabel}</button>`);
+                } else if (kangisHolder(d)) {
+                    // Land file inside a KANGIS file that is out: re-direct the request
+                    // to the officer holding the KANGIS file instead of the SCB.
+                    const kh = kangisHolder(d);
+                    out.push(`<button type="button" data-redirect-kangis
+                        class="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600">
+                        <i data-lucide="user-check" class="h-4 w-4"></i> Re-direct Request to ${esc(kh.receiving_officer_name || kh.current_location)}</button>`);
                 } else if (d.is_missing_file) {
                     // File exists in missing_files — SCB already searched and could not find it.
                     // Change button to "Send Blind Request to the Original Registry" instead of
                     // routing through SCB. The backend saves the request without notifying SCB.
-                    const label = d.is_blind ? 'Send Blind Request to the Original Registry' : 'Send File Search Request to the Original Registry';
+                    // A land file inside a KANGIS file names the KANGIS Registry instead.
+                    const regName = d._kangisApplied ? d.registry : 'the Original Registry';
+                    const label = d.is_blind ? `Send Blind Request to ${regName}` : `Send File Search Request to ${regName}`;
                     const frCls = d.is_blind ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700';
                     out.push(`<button type="button" data-fr data-missing-file="1" class="inline-flex items-center gap-2 rounded-lg ${frCls} px-4 py-2 text-sm font-semibold text-white">
                         <i data-lucide="send" class="h-4 w-4"></i> ${label}</button>`);
@@ -604,8 +646,9 @@
         function logFile(d) {
             const params = new URLSearchParams({ file_number: d.file_number || '' });
             if (d.file_title) params.set('file_title', d.file_title);
-            // Land the user on the page that matches the file's registry.
-            const mod = registryToModule(d.registry);
+            // Land the user on the page that matches the file's registry (a land file
+            // shown under the KANGIS Registry still logs on its own module).
+            const mod = registryToModule(d._kangisApplied ? d.original_registry : d.registry);
             if (mod) params.set('url', mod);
             // Backfill ALL the requester/office details captured on the file request
             // into the Create File Tracker form. The details are carried on the FOUND
@@ -1017,14 +1060,23 @@
         }
 
         function render(d) {
+            applyKangisContainer(d);
             // A land file is usually kept inside its KANGIS file, so the request is
             // worded as going to the KANGIS Registry (Next Action + Send button).
             if (Array.isArray(d.kangis_files) && d.kangis_files.length
                 && d.next_action === 'Send File Search Request to SCB Monitor') {
                 d.next_action = 'Send Request to KANGIS Registry';
             }
-            const meta = STATUS_META[d.status] || { label:d.status, cls:'bg-gray-100 text-gray-800 border-gray-300', icon:'file' };
-            const showsRegistry = (d.status === 'REFER_TO_ORIGINAL_REGISTRY' && d.registry);
+            // The KANGIS file holding this land file is out with an officer: the
+            // request goes to that officer, not to the registry.
+            const kh = kangisHolder(d);
+            if (kh) {
+                d.next_action = `Re-direct Request to ${kh.receiving_officer_name || kh.current_location || 'the holder'} (holding KANGIS file ${kh.file_number})`;
+            }
+            // A land file whose KANGIS file is out is in transit with that KANGIS file.
+            const meta = (kh && STATUS_META.IN_TRANSIT)
+                || STATUS_META[d.status] || { label:d.status, cls:'bg-gray-100 text-gray-800 border-gray-300', icon:'file' };
+            const showsRegistry = (!kh && d.status === 'REFER_TO_ORIGINAL_REGISTRY' && d.registry);
             const metaLabel = showsRegistry ? d.registry : meta.label;
             // When the badge shows a registry name, colour it by registry
             // (KANGIS → orange, SLTR → lime, …) instead of the neutral status grey.
@@ -1207,7 +1259,7 @@
                         <div class="mb-3 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
                             <div class="flex items-center gap-2">
                                 <i data-lucide="info" class="h-4 w-4 text-blue-600 shrink-0"></i>
-                                <span class="text-sm font-semibold text-blue-800">This file was indexed and returned to the Original Registry before archiving.</span>
+                                <span class="text-sm font-semibold text-blue-800">This file was indexed and returned to the ${d._kangisApplied ? esc(d.registry) : 'Original Registry'} before archiving.</span>
                             </div>
                             ${(d.registry || d.rack_shelf) ? `
                             <div class="mt-1.5 pl-6 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-blue-700">
@@ -1320,6 +1372,12 @@
                             // their department — show the holding Department as the current
                             // location and label the holder explicitly. Other statuses keep
                             // the expected archive/pool location.
+                            if (kh) {
+                                // Held with its KANGIS file by that file's receiving officer.
+                                return personRow('Receiving Officer (holder)', kh.receiving_officer_name, null)
+                                     + row('Current Location', kh.current_location)
+                                     + row('Held inside', `KANGIS file ${kh.file_number}`);
+                            }
                             if (d.status === 'IN_TRANSIT') {
                                 let dept = (d.receiving_department || '').trim();
                                 if (dept && !/department$/i.test(dept)) dept = dept + ' Department';
@@ -1400,7 +1458,7 @@
                             </div>
                         </details>
                     </div>
-                    ${(d.can_send_fr && CAN_SEND_FR && (!directsToLand(d) || hasIndexedCandidate(d))) ? `
+                    ${(!kh && d.can_send_fr && CAN_SEND_FR && (!directsToLand(d) || hasIndexedCandidate(d))) ? `
                     <div data-scb-request-form class="px-6 pt-4 border-t border-gray-100" style="${((directsToLand(d) && hasCandidates(d)) || isDciv(d)) ? 'display:none;' : ''}">
                         <div class="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Requester</div>
                         <div class="mb-3">
@@ -1510,12 +1568,18 @@
 
             // DCIV files get the cascade initialised too, even though their requester form
             // starts hidden — the override checkbox only un-hides it, it does not re-render.
-            if (d.can_send_fr && (!directsToLand(d) || hasIndexedCandidate(d))) initRequesterCascade(d);
+            if (!kh && d.can_send_fr && (!directsToLand(d) || hasIndexedCandidate(d))) initRequesterCascade(d);
 
             const frBtn = result.querySelector('[data-fr]');
             if (frBtn) frBtn.addEventListener('click', () => sendFR(d, frBtn));
             const redirectBtn = result.querySelector('[data-redirect]');
             if (redirectBtn) redirectBtn.addEventListener('click', () => sendRedirect(d, redirectBtn));
+            const redirectKangisBtn = result.querySelector('[data-redirect-kangis]');
+            if (redirectKangisBtn && kh) redirectKangisBtn.addEventListener('click', () => sendRedirect(d, redirectKangisBtn, {
+                officer:  kh.receiving_officer_name || null,
+                location: kh.current_location || null,
+                remarks:  `Land file kept inside KANGIS file ${kh.file_number}, which is currently with this officer — re-directed to the holder of the KANGIS file.`,
+            }));
             const redirectLandBtn = result.querySelector('[data-redirect-land]');
             if (redirectLandBtn) redirectLandBtn.addEventListener('click', () => {
                 // An indexed physical record is routed through the normal SCB
@@ -1819,7 +1883,7 @@
                 const deptId = REQ_DEPT_NAME_TO_ID[dept];
                 const matches = REQ_OFFICERS.filter(o => deptId == null || String(o.department_id) === String(deptId));
                 officerSel.innerHTML = '<option value="">— Select Officer —</option>' +
-                    matches.map(o => `<option value="${esc(o.name)}">${esc(o.name)}</option>`).join('') +
+                    matches.map(o => `<option value="${esc(o.name)}" data-user-id="${esc(o.id)}">${esc(o.name)}</option>`).join('') +
                     `<option value="${OFFICER_ADD}" class="font-semibold">+ Add Receiving Officer…</option>`;
                 officerSel.disabled = false;
                 refreshOfficerSelect2();
@@ -1922,6 +1986,8 @@
                         const name = (first + ' ' + last).trim();
                         const opt = document.createElement('option');
                         opt.value = name; opt.textContent = name;
+                        const newId = json.data?.id ?? json.id ?? json.officer?.id;
+                        if (newId) opt.dataset.userId = newId;
                         officerSel.insertBefore(opt, officerSel.querySelector(`option[value="${OFFICER_ADD}"]`));
                         officerSel.disabled = false;
                         refreshOfficerSelect2();
@@ -2061,7 +2127,7 @@
                 const res = await fetch(FR_URL, {
                     method:'POST',
                     headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN':CSRF, 'Accept':'application/json' },
-                    body: JSON.stringify({ file_number:d.file_number, file_title:d.file_title, current_location:d.current_location, resolved_status:d.status, receiving_officer: receivingOfficer, requester_department: requesterDept, requester_office: requesterOffice, requester_office_code: requesterOfficeCode, registry: registry || null, registry_code: registryCode || null, force: force ? 1 : 0, update_existing_id: updateId || null, request_purpose_id: requestPurposeId || null, request_purpose_other: requestPurposeOther || null, requester_director_id: directorIsOther ? null : directorId, requester_director_first_name: directorFirstName, requester_director_last_name: directorLastName }),
+                    body: JSON.stringify({ file_number:d.file_number, file_title:d.file_title, current_location:d.current_location, resolved_status:d.status, receiving_officer: receivingOfficer, receiving_officer_id: (receivingOfficer && officerSel?.selectedOptions[0]?.dataset.userId) || null, requester_department: requesterDept, requester_office: requesterOffice, requester_office_code: requesterOfficeCode, registry: registry || null, registry_code: registryCode || null, force: force ? 1 : 0, update_existing_id: updateId || null, request_purpose_id: requestPurposeId || null, request_purpose_other: requestPurposeOther || null, requester_director_id: directorIsOther ? null : directorId, requester_director_first_name: directorFirstName, requester_director_last_name: directorLastName }),
                 });
                 const json = await res.json();
                 if (json.success) {
@@ -2072,7 +2138,7 @@
                         <i data-lucide="check" class="h-4 w-4"></i> Requester details updated on ${reqNo}</span>`
                         : isMissing
                         ? `<span class="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
-                        <i data-lucide="check" class="h-4 w-4"></i> Request ${reqNo} saved — file is in the missing list. Refer to Original Registry.</span>`
+                        <i data-lucide="check" class="h-4 w-4"></i> Request ${reqNo} saved — file is in the missing list. Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'}.</span>`
                         : `<span class="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
                         <i data-lucide="check" class="h-4 w-4"></i> File Request ${reqNo} sent to SCB Monitors</span>`;
                     loadLog();
@@ -2421,8 +2487,12 @@
         // it (its last receiving officer) instead of routing it to the SCB Monitor.
         // Mirrors the Digital File Request "Send Request to {office}" redirect.
         const REDIRECT_URL = "{{ route('digital-request.store') }}";
-        async function sendRedirect(d, btn) {
-            const office = d.receiving_officer_name || d.current_location || 'Current Office';
+        // `holder` ({officer, location, remarks}) overrides the file's own holder — used
+        // for a land file whose KANGIS file is out with another officer.
+        async function sendRedirect(d, btn, holder) {
+            const officer  = holder ? holder.officer  : (d.receiving_officer_name || null);
+            const location = holder ? holder.location : (d.current_location || null);
+            const office = officer || location || 'Current Office';
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader" class="h-4 w-4 animate-spin"></i> Sending…';
             if (window.lucide) window.lucide.createIcons();
@@ -2435,9 +2505,10 @@
                         file_title: d.file_title,
                         request_type: 'Physical',
                         is_redirected: true,
-                        receiving_officer: d.receiving_officer_name || null,
-                        current_file_location: d.current_location || null,
-                        current_file_holder: d.receiving_officer_name || null,
+                        receiving_officer: officer,
+                        current_file_location: location,
+                        current_file_holder: officer,
+                        remarks: holder ? (holder.remarks || null) : null,
                     }),
                 });
                 const json = await res.json();

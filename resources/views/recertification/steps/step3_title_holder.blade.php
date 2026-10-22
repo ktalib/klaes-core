@@ -1,5 +1,5 @@
 <!-- Step 3: Title Holder Details -->
-<div id="step-content-3" class="step-content hidden">
+<div id="step-content-4" class="step-content hidden">
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold">SECTION B: TITLE HOLDER DETAILS</h3>
@@ -49,13 +49,13 @@
                 
                 <div class="form-field">
                     <label for="titleHolderTitle" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input
-                        type="text"
+                    <select
                         id="titleHolderTitle"
                         name="titleHolderTitle"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 uppercase"
-                        placeholder="TITLE"
-                    />
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                    >
+                        @include('recertification.partials.title_options')
+                    </select>
                 </div>
             </div>
             

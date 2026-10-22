@@ -105,7 +105,7 @@
               <p class="text-3xl font-bold text-white">{{ number_format($records->total()) }}</p>
               <div class="flex items-center justify-between mt-1">
                 <p class="text-xs text-indigo-200 uppercase">All Bill Records</p>
-                <span class="px-2 py-0.5 bg-white/20 rounded text-xs font-medium">DBBL</span>
+                <span class="px-2 py-0.5 bg-white/20 rounded text-xs font-medium">BILL</span>
               </div>
             </div>
           </div>

@@ -1172,7 +1172,9 @@
                 }
             } else if (!fileNumber && inputMethod === 'manual') {
                 // For manual entry, get the preview (which is already the file number)
-                const previewElement = $(`#${tabName}-preview span`).length ? $(`#${tabName}-preview span`) : $(`#${tabName}-preview`);
+                // .first(): a page that includes the picker twice has two previews, and
+                // .text() over both glued the empty one's "-" onto the number.
+                const previewElement = $(`#${tabName}-preview span`).length ? $(`#${tabName}-preview span`).first() : $(`#${tabName}-preview`).first();
                 fileNumber = (previewElement.text() || '').trim();
             }
             

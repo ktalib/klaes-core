@@ -275,7 +275,8 @@ class CadastralBillCalculator
 
         $bill = new CadastralBill();
         $bill->forceFill([
-            'bill_ref'                      => CadastralBill::nextRef('bill_ref', 'CBL', 4),
+            // KLAES REV-M: the bill's reference is its Bill Ref ID, issued by Bill Master.
+            'bill_ref'                      => \App\Services\Billing\BillRef::next(\App\Services\Billing\BillRef::SYSTEM),
             'cadastral_plan_description_id' => $pd->id,
             'file_number'                   => $pd->file_number,
             'status'                        => 'Issued',
@@ -331,10 +332,14 @@ class CadastralBillCalculator
                     'cancelled_by'          => auth()->id(),
                     'cancel_reason'         => "Superseded by {$bill->bill_ref}.",
                 ])->save();
+                app(\App\Services\Billing\Modules\CadastralPndMirror::class)->cancel((int) $old->id, (string) (auth()->user()->name ?? auth()->id() ?? 'system'));
             });
 
         // Stamp the beacon rate onto the pillar rows, as before.
         $pd->pillars()->update(['unit_price' => $l['beacon']['rate']]);
+
+        // KLAES REV-M: the P&D bill is its own Bill Master bill, paid under REV-M.
+        app(\App\Services\Billing\Modules\CadastralPndMirror::class)->sync($bill, (string) (auth()->user()->name ?? auth()->id() ?? 'system'), true);
 
         return $bill;
     }

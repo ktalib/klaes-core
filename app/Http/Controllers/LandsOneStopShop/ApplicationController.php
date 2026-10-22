@@ -1114,7 +1114,8 @@ class ApplicationController extends Controller
 
         $rates = $billRates[$type] ?? $billRates['residential'];
 
-        $refId = $this->generateOssBillRefId();
+        // KLAES REV-M: the bill's reference is its Bill Ref ID, issued by Bill Master.
+        $refId = \App\Services\Billing\BillRef::next(\App\Services\Billing\BillRef::SYSTEM);
 
         $bill = Billing::create([
             'Change_of_Name' => $rates['Change_of_Name'],
@@ -1128,6 +1129,9 @@ class ApplicationController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // KLAES REV-M: the same bill in Bill Master, unpaid there until paid under REV-M.
+        app(\App\Services\Billing\Modules\OssBillMirror::class)->sync($bill);
 
         return response()->json([
             'success' => true,
@@ -2738,6 +2742,9 @@ class ApplicationController extends Controller
                         'land_use' => $resolvedLandUse,
                         'purpose' => $purpose,
                         'is_updated' => 1,
+                        // The indexing row needs its own prop_id too; this raw insert bypasses the model hook.
+                        'prop_id' => $ffrFirstPraPropId ?: app(\App\Services\PropertyIdAllocationService::class)
+                            ->resolveOwnPropId($sourceFileNo),
                         'created_by' => $userId,
                         'updated_by' => $userId,
                         'created_at' => $now,

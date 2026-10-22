@@ -1003,7 +1003,7 @@
 
         title.innerText = `Batch Details: ${batchNo}`;
         subtitle.innerText = `Viewing all records grouped under batch ${batchNo}`;
-        tableBody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500"><div class="flex items-center justify-center"><i data-lucide="loader" class="w-6 h-6 animate-spin mr-2"></i>Loading records...</div></td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500"><div class="flex items-center justify-center"><i data-lucide="loader" class="w-6 h-6 animate-spin mr-2"></i>Loading records...</div></td></tr>';
 
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
@@ -1039,12 +1039,12 @@
                     renderBatchTable(result.data);
                 } else {
                     console.warn('No records found for batch:', batchNo);
-                    tableBody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-red-500">No records found for this batch.</td></tr>';
+                    tableBody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-red-500">No records found for this batch.</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error fetching batch records:', error);
-                tableBody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-500">Failed to load batch data.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-red-500">Failed to load batch data.</td></tr>';
             });
     }; // End viewBatch
 
@@ -1052,7 +1052,7 @@
         const tableBody = document.getElementById('batchDetailsTableBody');
         tableBody.innerHTML = '';
 
-        records.forEach(record => {
+        records.forEach((record, index) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors cursor-default';
 
@@ -1095,6 +1095,7 @@
             }
 
             row.innerHTML = `
+                <td class="px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500">${index + 1}</td>
                 <td class="px-4 py-3 whitespace-nowrap align-top text-sm font-bold text-gray-900">${numberCell}</td>
                 <td class="px-4 py-3 whitespace-nowrap align-top text-sm text-gray-700">${(record.file_name || record.FileName || 'N/A').toUpperCase()}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
@@ -1714,6 +1715,7 @@
                 timeout: 120000, // 120 second timeout for large production datasets
                 data: function (d) {
                     d.source = 'New'; // Filter for Generated records only
+                    d.batch_only = window.MLSF_BATCH_ONLY ? 1 : 0; // Batch Commissioned tab
                     console.log('DataTables request:', d);
                     return d;
                 },
@@ -2648,13 +2650,52 @@
                     </div>
                 `;
 
+                // A merged file is commissioned from several OPs but the row links only
+                // one of them; the server returns the whole set in merger_ops. Land
+                // mergers keep the same holder, so there is no Transfer of Title card.
+                const mergerOps = Array.isArray(row.merger_ops) ? row.merger_ops : [];
+                const isMerger = mergerOps.length > 1;
+                const mergerField = (label, value, extra = '') => `
+                    <div class="${extra}"><div class="text-[10px] text-slate-400">${label}</div><div class="font-semibold text-slate-800 text-xs">${value}</div></div>`;
+                const mergerHtml = !isMerger ? '' : `
+                    <div class="text-left text-sm font-sans">
+                        <div class="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-violet-700 text-xs font-bold">
+                            Merger &middot; ${mergerOps.length} OPs commissioned into ${esc(newMlsFilenoLabel || row.mlsFNo || 'this file')}
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${mergerOps.map((op, i) => {
+                                const isLinked = String(op.source_pra_id ?? '') !== '' && String(op.source_pra_id) === String(row.source_pra_id ?? sourcePraId ?? '');
+                                return `
+                                <div class="rounded-xl border ${isLinked ? 'border-sky-300' : 'border-sky-200'} bg-sky-50/60 p-4">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-sky-600 text-white font-extrabold text-sm">${i + 1}</span>
+                                        <span class="text-xs font-extrabold uppercase tracking-widest text-sky-700">Occupancy Permit</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                                        ${mergerField('Temp File No', `<span class="font-mono">${esc(op.temp_fileno)}</span>`)}
+                                        ${mergerField('OP Type', `<span class="text-orange-700">${esc(normalizeText(op.op_type))}</span>`)}
+                                        ${mergerField('OP Serial No', esc(op.op_serial_number))}
+                                        ${mergerField('Registration No', esc(op.registration_number))}
+                                        ${mergerField('Party 1', esc(normalizeText(op.party_1_name, 'name')))}
+                                        ${mergerField('Party 2', esc(normalizeText(op.party_2_name, 'name')))}
+                                        ${mergerField('Plot No', esc(op.plot_number))}
+                                        ${mergerField('LGA', esc(normalizeText(op.lga)))}
+                                        ${mergerField('Property', esc(normalizeText(op.property_description || op.property_location, 'location')), 'col-span-2')}
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+
                 Swal.fire({
                     icon: 'info',
                     title: `Occupancy Permit (OP) Details (${esc(tempFilenoLabel || row.temp_fileno || '—')}/${esc(newMlsFilenoLabel || row.mlsFNo || '—')})`,
-                    html,
+                    html: isMerger ? mergerHtml : html,
                     // Keep the heading about the source OP only. The commissioned
                     // file is context, not evidence of a Transfer of Title.
-                    title: `Occupancy Permit (OP) Details (${esc(tempFilenoLabel || row.temp_fileno || '—')})`,
+                    title: isMerger
+                        ? `Occupancy Permit (OP) Details (Merger of ${mergerOps.length})`
+                        : `Occupancy Permit (OP) Details (${esc(tempFilenoLabel || row.temp_fileno || '—')})`,
                     width: 900,
                     confirmButtonText: 'Close',
                 });
@@ -9176,8 +9217,10 @@
                         this.purposes = data.purposes || [];
                         // this.prefixes = data.prefixes || []; // We use the global list now
 
-                        // Reset purpose
+                        // Reset purpose — except a duplex file that already has its own,
+                        // which is put back (see restoreEntryPurpose).
                         this.purpose = '';
+                        this.restoreEntryPurpose();
                         this.applyPrefillPurpose();
                     })
                     .catch(error => {
@@ -9499,15 +9542,13 @@
                     self.lga = data.lga || '';
                     self.district = data.district || '';
 
-                    // Construct location from available components. The plot number
-                    // is deliberately absent — a location says where the property is,
-                    // as in buildLocation().
-                    let locParts = [];
-                    if (data.house_no) locParts.push(data.house_no);
-                    if (data.street_name) locParts.push(data.street_name);
-                    if (data.district) locParts.push(data.district);
-                    self.location = locParts.length > 0 ? locParts.join(', ').toUpperCase() : '';
-                    self.$nextTick(() => self.syncLocationSelects());
+                    // Location is district + LGA, composed by buildLocation() once the
+                    // selects have matched the backfilled values (the plot number is
+                    // never part of it).
+                    self.$nextTick(() => {
+                        self.syncLocationSelects();
+                        self.buildLocation();
+                    });
                     
                     // Detect full prefix from source file number (e.g. CON-IND from CON-IND-2026-1)
                     let detectedPrefix = '';
@@ -10394,6 +10435,7 @@
                     this.locationEntries[this.currentEntryIndex].file_name = this.fileName;
                     this.locationEntries[this.currentEntryIndex].phone_no = this.phone_no;
                     this.locationEntries[this.currentEntryIndex].address = this.address;
+                    this.rememberEntryPurpose();
                 }
             },
 
@@ -10403,7 +10445,58 @@
                     this.fileName = entry.file_name || '';
                     this.phone_no = entry.phone_no || '';
                     this.address = entry.address || '';
+                    this.restoreEntryPurpose(false);
                 }
+            },
+
+            /*
+             | A duplex commissions files of different land uses (a Merger's RES, then a
+             | Change of Purpose's COM), so each file keeps its OWN Purpose. Without this
+             | the one shared box was cleared every time the next file's land use loaded
+             | its purpose list, wiping the choice already made for the first file.
+             | Ordinary batches keep one Purpose for the whole batch, as before.
+             */
+            rememberEntryPurpose() {
+                const entry = this.locationEntries[this.currentEntryIndex];
+                if (this.duplexRecordId && entry) entry.purpose_id = this.purpose || '';
+                // Which file the Purpose on screen belongs to, so the next file of the
+                // SAME stage can take it over (see restoreEntryPurpose).
+                this._purposeFromEntry = this.currentEntryIndex;
+            },
+
+            /**
+             * Show the current file's own Purpose.
+             *
+             * `freshList` is true when the purpose list has just loaded for this file's
+             * land use: only then is a saved Purpose missing from the list known to be
+             * wrong (it belonged to another land use) and dropped. Called on a file
+             * change, the list may still be the previous stage's, so nothing is dropped.
+             *
+             * A file with no Purpose yet takes over the one on screen when it came from
+             * a file in the same stage — the next plot usually has the same purpose.
+             */
+            restoreEntryPurpose(freshList = true) {
+                const entry = this.locationEntries[this.currentEntryIndex];
+                if (!this.duplexRecordId || !entry) return;
+
+                const inList = id => id && (this.purposes || []).some(p => String(p.id) === String(id));
+                const from = this._purposeFromEntry;
+                const sameStage = from !== undefined && from !== null && from !== this.currentEntryIndex
+                    && this.duplexStageFor(from) === this.duplexStageFor(this.currentEntryIndex);
+
+                if (inList(entry.purpose_id)) {
+                    this.purpose = String(entry.purpose_id);
+                } else if (!entry.purpose_id && sameStage && inList(this.purpose)) {
+                    entry.purpose_id = this.purpose;
+                } else {
+                    if (freshList && entry.purpose_id) entry.purpose_id = '';
+                    this.purpose = '';
+                }
+                this._purposeFromEntry = this.currentEntryIndex;
+                this.$nextTick(() => {
+                    const sel = document.getElementById('purpose');
+                    if (sel) sel.value = this.purpose || '';
+                });
             },
 
             isEntryFilled(index) {
@@ -11840,8 +11933,8 @@
 
                 const text = String(value || '');
 
-                // Long values (File No, File Name, SIT reason, Location) wrap within the value column and grow over as many lines as needed.
-                if (label === 'File No/(File Type):' || label === 'File Name:' || label === 'Reason:' || label === 'Location:') {
+                // Long values (File No, Related/Old FileNo, File Name, SIT reason, Location) wrap within the value column and grow over as many lines as needed.
+                if (label === 'File No/(File Type):' || label.startsWith('Related FileNo/') || label === 'File Name:' || label === 'Reason:' || label === 'Location:') {
                     const lines = doc.splitTextToSize(text, valueMaxWidth);
                     lines.forEach((ln, i) => {
                         doc.text(ln, 72, y + i * reasonLineHeight);
@@ -12017,8 +12110,8 @@
 
                     const text = String(value || '');
 
-                    // Long values (File No, File Name, SIT reason, Location) wrap within the value column and grow over as many lines as needed.
-                    if (label === 'File No/(File Type):' || label === 'File Name:' || label === 'Reason:' || label === 'Location:') {
+                    // Long values (File No, Related/Old FileNo, File Name, SIT reason, Location) wrap within the value column and grow over as many lines as needed.
+                    if (label === 'File No/(File Type):' || label.startsWith('Related FileNo/') || label === 'File Name:' || label === 'Reason:' || label === 'Location:') {
                         const lines = doc.splitTextToSize(text, valueMaxWidth);
                         lines.forEach((ln, idx) => {
                             doc.text(ln, textStartX, y + idx * reasonLineHeight);
@@ -12323,25 +12416,27 @@
      */
     window.switchTab = function (tabName) {
         // Update tab buttons
-        const tabs = ['generator', 'consolidation'];
-        tabs.forEach(tab => {
+        // "Batch Commissioned" is not a page of its own: it is the generator view (dashboard,
+        // buttons and the same table) with the table narrowed to batch rows (batch_only).
+        const contentFor = { generator: 'generator', batches: 'generator', consolidation: 'consolidation' };
+        const shownContent = contentFor[tabName] || tabName;
+
+        ['generator', 'batches', 'consolidation'].forEach(tab => {
             const button = document.getElementById(`tab-${tab}`);
-            const content = document.getElementById(`content-${tab}`);
-
-            if (!button || !content) return;
-
-            if (tab === tabName) {
-                button.classList.add('active');
-                button.classList.remove('border-transparent', 'text-gray-500');
-                button.classList.add('border-blue-600', 'text-blue-600');
-                content.classList.remove('hidden');
-            } else {
-                button.classList.remove('active');
-                button.classList.remove('border-blue-600', 'text-blue-600');
-                button.classList.add('border-transparent', 'text-gray-500');
-                content.classList.add('hidden');
-            }
+            if (button) button.classList.toggle('active', tab === tabName);
         });
+        ['generator', 'consolidation'].forEach(name => {
+            const content = document.getElementById(`content-${name}`);
+            if (content) content.classList.toggle('hidden', name !== shownContent);
+        });
+
+        const batchOnly = tabName === 'batches';
+        const note = document.getElementById('mlsfBatchModeNote');
+        if (note) note.classList.toggle('hidden', !batchOnly);
+        if (shownContent === 'generator' && window.MLSF_BATCH_ONLY !== batchOnly) {
+            window.MLSF_BATCH_ONLY = batchOnly;
+            try { $('#mlsfTable').DataTable().page(0).ajax.reload(); } catch (e) { /* table not initialised yet */ }
+        }
 
         // Refresh icons after DOM changes
         if (typeof lucide !== 'undefined') {
@@ -14337,32 +14432,50 @@
     };
 
     /**
-     * Refresh the whole commissioning card in place.
+     * The header's Refresh: start the card over.
      *
-     * The serial map is read once when the modal opens and drives the next-serial and
-     * range previews for every file type, not just a duplex — so it is reloaded
-     * whoever is commissioning. A duplex's plan is refreshed on top of that, because
-     * its previews are computed from the map and would otherwise redraw stale numbers.
+     * Clears everything entered — file type, selections (subdivision, merger, CoP,
+     * duplex), applicant, location, purpose, batch entries — and leaves the card
+     * exactly as a freshly opened one, latest serials included. It used to re-read
+     * the serials only, which left the officer's half-filled form in place when what
+     * they wanted was a clean card. Asks first, because nothing typed comes back.
      */
     window.refreshCommissionCard = async function () {
+        if (window.Swal) {
+            const ok = await Swal.fire({
+                icon: 'question',
+                title: 'Clear this form?',
+                text: 'Everything entered on this card will be cleared and it will start fresh.',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, clear it',
+                cancelButtonText: 'Keep my entries',
+                confirmButtonColor: '#2563eb',
+                reverseButtons: true,
+            });
+            if (!ok.isConfirmed) return;
+        }
+
         const btn = document.getElementById('duplexRefreshBtn');
         if (btn) btn.classList.add('opacity-50', 'pointer-events-none');
 
         try {
-            await getNextSerialNumber();
+            // The same fresh start opening the modal gives, without re-showing it.
+            if (typeof resetTrackingIdDisplay === 'function') resetTrackingIdDisplay('--');
+            if (typeof setActionButtonsDisabled === 'function') setActionButtonsDisabled(true);
+            if (typeof resetForm === 'function') resetForm();
+            if (typeof getNextSerialNumber === 'function') await getNextSerialNumber();
 
-            if (window._duplexRecordId) {
-                // refreshDuplexPlan re-reads the map itself; it is cheap and keeps the
-                // two paths identical rather than half-refreshing here.
-                await window.refreshDuplexPlan();
-                return;
+            const now = new Date();
+            const timeInput = document.getElementById('commissionTime');
+            if (timeInput) {
+                timeInput.value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
             }
+            setTimeout(() => {
+                if (typeof updateAlpineSerialNumber === 'function') updateAlpineSerialNumber();
+            }, 100);
 
-            // No duplex: the serial map has moved, so the card's own preview follows it.
-            const el = document.querySelector('[x-data="fileNumberGenerator()"]');
-            const a = el && el._x_dataStack ? el._x_dataStack[0] : null;
-
-            if (a && typeof a.refreshSerialNumber === 'function') a.refreshSerialNumber();
+            const body = document.querySelector('#generateModal .overflow-y-auto');
+            if (body) body.scrollTop = 0;
         } finally {
             if (btn) btn.classList.remove('opacity-50', 'pointer-events-none');
             if (typeof lucide !== 'undefined') lucide.createIcons();

@@ -34,10 +34,10 @@ class BlindScanIngestionService
      * @param  string  $rawFileNumber
      * @return array
      */
-    public function discover(string $rawFileNumber): array
+    public function discover(string $rawFileNumber, ?string $registry = null): array
     {
         $fileNumber = $this->normalizeFileNumber($rawFileNumber);
-        [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber);
+        [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber, $registry);
 
         $files = $this->collectFiles($blindFolder, $blindRelative, $fileNumber);
         if ($files->isEmpty()) {
@@ -82,7 +82,7 @@ class BlindScanIngestionService
     public function transfer(string $rawFileNumber, array $requestedFiles, ?int $fileIndexingId = null, ?string $registry = null, ?string $fileType = null): array
     {
         $fileNumber = $this->normalizeFileNumber($rawFileNumber);
-        [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber);
+        [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber, $registry);
 
         $registryMap = [
             'Lands Registry' => 'Lands_Registry',
@@ -225,16 +225,29 @@ class BlindScanIngestionService
         return $files;
     }
 
-    private function resolveBlindFolder(string $fileNumber): array
+    private function resolveBlindFolder(string $fileNumber, ?string $registry = null): array
     {
         $startTime = microtime(true);
-        Log::info('BlindScan: Resolving folder start', ['file_number' => $fileNumber]);
+        Log::info('BlindScan: Resolving folder start', ['file_number' => $fileNumber, 'registry' => $registry]);
 
         $normalizedFileNumber = $this->normalizeFileNumber($fileNumber);
         $needle = strtolower(preg_replace('/[^a-z0-9]/', '', $normalizedFileNumber) ?? '');
 
-        // 1. Try Direct/Known Locations (Fastest)
-        $commonRegistries = ['', 'Lands_Registry_Raw', 'Cadastral_Registry_Raw', 'Lands_Registry', 'Cadastral_Registry'];
+        // 1. Try Direct/Known Locations (Fastest). The selected registry's
+        // folder first, so a file number present under two registries resolves
+        // to the one the operator is working in; then every registry folder on
+        // disk (DCIV_Registry_Raw, ...), not only Lands and Cadastral.
+        $commonRegistries = [];
+        if ($registry !== null && trim($registry) !== '') {
+            $commonRegistries[] = app(\App\Services\Edms\EdmsDocumentPathResolver::class)->blindScanRegistryFolder($registry);
+        }
+        foreach (glob(file_storage_path('app/public/' . self::BLIND_SCAN_ROOT) . DIRECTORY_SEPARATOR . '*_Raw', GLOB_ONLYDIR) ?: [] as $rawDir) {
+            $commonRegistries[] = basename($rawDir);
+        }
+        $commonRegistries = array_values(array_unique(array_merge(
+            $commonRegistries,
+            ['Lands_Registry_Raw', 'Cadastral_Registry_Raw', '', 'Lands_Registry', 'Cadastral_Registry']
+        )));
         foreach ($commonRegistries as $reg) {
             $relative = $reg ? $reg . '/' . $fileNumber : $fileNumber;
             $directPath = $this->buildBlindScanPath($relative);

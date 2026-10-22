@@ -50,6 +50,7 @@ class DuplexParcelUpdate extends Model
     public const BATCH_CAP = 200;
 
     protected $fillable = [
+        'previously_decommissioned',
         'source_module',
         'duplex_id',
         'applicant_name',

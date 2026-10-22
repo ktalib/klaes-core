@@ -31,6 +31,7 @@
                 </div>
 
                 {{-- Statistics Cards --}}
+                @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
                         <div class="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500">
@@ -75,6 +76,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 {{-- Records Table --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200">

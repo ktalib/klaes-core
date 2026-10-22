@@ -1869,16 +1869,22 @@ class SpecialAssignmentController extends Controller
         // (SpaBillingService) cannot disagree about the next reference.
         $refId = \App\Models\SpaBill::nextReference();
 
-        $bill = \App\Models\SpaBill::create([
-            'spa_application_id' => $request->spa_application_id,
-            'reference_id'       => $refId,
-            'bill_type'          => $request->bill_type,
-            'description'        => $request->description,
-            'amount'             => $request->amount,
-            'due_date'           => $request->due_date ?: null,
-            'status'             => 'unpaid',
-            'created_by'         => auth()->user()->name ?? auth()->id(),
-        ]);
+        // KLAES REV-M: the bill is mirrored into Bill Master under the same ref.
+        $bill = DB::connection('sqlsrv')->transaction(function () use ($request, $refId) {
+            $bill = \App\Models\SpaBill::create([
+                'spa_application_id' => $request->spa_application_id,
+                'reference_id'       => $refId,
+                'bill_type'          => $request->bill_type,
+                'description'        => $request->description,
+                'amount'             => $request->amount,
+                'due_date'           => $request->due_date ?: null,
+                'status'             => 'unpaid',
+                'created_by'         => auth()->user()->name ?? auth()->id(),
+            ]);
+            app(\App\Services\Billing\Modules\SpasBillMirror::class)->sync($bill, (string) (auth()->user()->name ?? auth()->id()), true);
+
+            return $bill;
+        });
 
         return response()->json(['success' => true, 'id' => $bill->id, 'reference_id' => $refId, 'message' => "Bill {$refId} saved."]);
     }
@@ -1994,6 +2000,7 @@ class SpecialAssignmentController extends Controller
 
             $bill->update(['amount' => round((float) $bill->amount + (float) $item->amount, 2)]);
             $this->refreshSpaBillStatus($bill);
+            app(\App\Services\Billing\Modules\SpasBillMirror::class)->sync($bill->fresh(), (string) (auth()->user()->name ?? auth()->id()));
         });
 
         app(\App\Services\AuditService::class)->logAction(
@@ -2032,6 +2039,7 @@ class SpecialAssignmentController extends Controller
             $line->delete();
             $bill->update(['amount' => max(0, round((float) $bill->amount - (float) $line->amount, 2))]);
             $this->refreshSpaBillStatus($bill);
+            app(\App\Services\Billing\Modules\SpasBillMirror::class)->sync($bill->fresh(), (string) (auth()->user()->name ?? auth()->id()));
         });
 
         app(\App\Services\AuditService::class)->logAction(
@@ -2063,6 +2071,12 @@ class SpecialAssignmentController extends Controller
      */
     public function recordBillPayment(Request $request)
     {
+        // A bill handed to KLAES REV-M is paid there (user decision, 2026-10-19).
+        if ($revm = \App\Services\Billing\Modules\SpasBillMirror::inBillMaster((int) $request->input('spa_bill_id'))->first()) {
+            return response()->json(['success' => false,
+                'message' => "This bill is paid under KLAES REV-M → Contravention Bill ({$revm->bill_ref_id})."], 422);
+        }
+
         $request->validate([
             'spa_bill_id'          => 'required|exists:sqlsrv.spa_bills,id',
             'payment_date'         => 'required|date',

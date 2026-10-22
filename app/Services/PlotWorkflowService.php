@@ -30,6 +30,8 @@ class PlotWorkflowService
             'deleted' => 0,
             'flagged' => 0,
             'removed_rows' => [],
+            // fileNo => its existing decommissioned_files row (kept; not recorded again)
+            'already_decommissioned' => [],
             'errors' => []
         ];
 
@@ -96,11 +98,42 @@ class PlotWorkflowService
                     $decommissionRow['event_type'] = 'parcel_update_new';
                 }
                 // The locked live row serializes simultaneous attempts for this file.
-                // An identical event is a retry, not a second archival event. Keep
-                // applying flags below so an older partially completed run can heal.
-                $alreadyArchived = $this->hasArchivedEvent($decommissionRow);
+                // A file already in decommissioned_files is never recorded a second time,
+                // whichever workflow decommissions it again — a retry, a later chunk, or a
+                // different parcel update on an already-retired file. Its first record
+                // stands, and the live-row flags below are healed from that record so a
+                // second workflow cannot overwrite the original reason / successor.
+                $existingDecommission = $this->activeDecommissionRecord($fileNo);
+                $alreadyArchived = $existingDecommission !== null;
                 if (!$alreadyArchived) {
                     $connection->table('decommissioned_files')->insert($decommissionRow);
+                    $flagReason    = $reason;
+                    $flagBy        = $commissionedBy;
+                    $flagSuccessor = $successorFileNo;
+                } else {
+                    $summary['already_decommissioned'][$fileNo] = $existingDecommission;
+                    // "File Already Decommissioned Before: Yes" — this workflow's successors
+                    // are added to that first record rather than written as a second one
+                    // (user rule, 2026-10-22). Its reason and date stay as they were.
+                    $flagSuccessor = $this->mergeSuccessorList(
+                        $existingDecommission->successor_file_no ?? null,
+                        $successorFileNo
+                    );
+                    if ($flagSuccessor !== (string) ($existingDecommission->successor_file_no ?? '')
+                        && Schema::connection('sqlsrv')->hasColumn('decommissioned_files', 'successor_file_no')) {
+                        $connection->table('decommissioned_files')
+                            ->where('id', $existingDecommission->id)
+                            ->update(['successor_file_no' => $flagSuccessor, 'updated_at' => now()]);
+                        $summary['successors_appended'][$fileNo] = (int) $existingDecommission->id;
+                    }
+                    $flagReason    = (string) ($existingDecommission->decommissioning_reason ?? $reason);
+                    $flagBy        = (string) ($existingDecommission->decommissioned_by ?? $commissionedBy);
+                    $flagSuccessor = $flagSuccessor !== '' ? $flagSuccessor : null;
+                    // Its live rows stay too. Removal is only for the first retirement, which
+                    // archives the indexing row to deprecated_records first; here nothing would
+                    // be archived, so removing them would lose the record — as happened to
+                    // CON-AG-2010-110, deleted by a backfill linkage after its Change of Purpose.
+                    $removeLiveRows = false;
                 }
 
                 // 2.5 Archive detailed indexing record to deprecated_records before deletion
@@ -153,11 +186,11 @@ class PlotWorkflowService
 
                 $flagged += $this->flagDecommissioned('fileNumber', function ($q) use ($fileNo) {
                     $q->where('mlsfNo', $fileNo)->orWhere('kangisFileNo', $fileNo);
-                }, $reason, $commissionedBy, $successorFileNo);
+                }, $flagReason, $flagBy, $flagSuccessor);
 
                 $flagged += $this->flagDecommissioned('file_indexings', function ($q) use ($fileNo) {
                     $q->where('file_number', $fileNo)->orWhere('kangis_file_no', $fileNo);
-                }, $reason, $commissionedBy, $successorFileNo);
+                }, $flagReason, $flagBy, $flagSuccessor);
 
                 // The commissioning register. Left unflagged, it went on reporting a
                 // retired file as live — and it is where `source` is read from, so a
@@ -166,22 +199,22 @@ class PlotWorkflowService
                 // has no row here, which is why there is no second column to match on.
                 $flagged += $this->flagDecommissioned('mls_file_no', function ($q) use ($fileNo) {
                     $q->where('full_file_number', $fileNo);
-                }, $reason, $commissionedBy, $successorFileNo);
+                }, $flagReason, $flagBy, $flagSuccessor);
 
                 $flagged += $this->flagDecommissioned('entities_staging', function ($q) use ($fileNo) {
                     $q->where('file_number', $fileNo);
-                }, $reason, $commissionedBy, $successorFileNo);
+                }, $flagReason, $flagBy, $flagSuccessor);
 
                 $flagged += $this->flagDecommissioned('customers_staging', function ($q) use ($fileNo) {
                     $q->where('file_number', $fileNo);
-                }, $reason, $commissionedBy, $successorFileNo);
+                }, $flagReason, $flagBy, $flagSuccessor);
 
                 // Grouping placeholders are flagged, never removed: deleting any row from a
                 // grouping table during decommissioning is forbidden, because the grouping
                 // record is the file's provenance and outlives the file's active life.
                 $flagged += $this->flagDecommissioned('kangis_grouping', function ($q) use ($fileNo) {
                     $q->where('kangis_fileno_placeholder', $fileNo);
-                }, $reason, $commissionedBy, $successorFileNo);
+                }, $flagReason, $flagBy, $flagSuccessor);
 
                 // NOTE: We deliberately DO NOT delete the file's rows from the Legal Search staging
                 // tables (file_history_staging, CofO_staging, pra, deed_registrations). Legal Search
@@ -370,25 +403,90 @@ class PlotWorkflowService
             ->exists();
     }
 
-    /** Check the event under the live-file lock held by decommissionFiles(). */
-    private function hasArchivedEvent(array $row): bool
+    /**
+     * The file's existing REAL decommission record, or null.
+     *
+     * A file already in decommissioned_files is never recorded there again, whatever
+     * workflow decommissions it a second time (user rule, 2026-10-21). A title-status
+     * flag (false_decommissioning = 1) is not a decommission, so it does not count —
+     * see DecommissionScope. The first record wins: it holds the original reason and
+     * successor.
+     */
+    /**
+     * "File Already Decommissioned Before" for each file: Yes when it already has a
+     * REAL decommissioning record (that record is then extended, not duplicated),
+     * No otherwise. The parcel-update forms show this locked — it is read from the
+     * records, never chosen.
+     *
+     * @return array<string, array{answer: string, record_id: ?int, date: ?string, reason: ?string, successor: ?string}>
+     */
+    public function decommissionedBefore(array $fileNumbers): array
     {
-        $query = DB::connection('sqlsrv')->table('decommissioned_files')
-            ->where('file_number_id', $row['file_number_id'])
-            ->where(function ($q) use ($row) {
-                $q->where('file_no', $row['file_no'])->orWhere('mls_file_no', $row['mls_file_no']);
-            })
-            ->where(function ($q) {
-                $q->where('false_decommissioning', '<>', \App\Support\DecommissionScope::FALSE_DECOMMISSIONING)
-                    ->orWhereNull('false_decommissioning');
-            })
-            ->whereRaw('CAST(decommissioning_reason AS NVARCHAR(MAX)) = ?', [$row['decommissioning_reason']]);
-
-        if (array_key_exists('successor_file_no', $row)) {
-            $query->whereRaw("COALESCE(successor_file_no, '') = ?", [$row['successor_file_no'] ?? '']);
+        $out = [];
+        foreach ($fileNumbers as $fileNo) {
+            $fileNo = trim((string) $fileNo);
+            if ($fileNo === '' || isset($out[$fileNo])) {
+                continue;
+            }
+            $row = $this->activeDecommissionRecord($fileNo);
+            $out[$fileNo] = [
+                'answer'    => $row ? 'Yes' : 'No',
+                'record_id' => $row ? (int) $row->id : null,
+                'date'      => $row && $row->decommissioning_date ? \Carbon\Carbon::parse($row->decommissioning_date)->format('d/m/Y') : null,
+                'reason'    => $row ? (string) $row->decommissioning_reason : null,
+                'successor' => $row ? ($row->successor_file_no ?? null) : null,
+            ];
         }
 
-        return $query->exists();
+        return $out;
+    }
+
+    /**
+     * The value saved in an application's previously_decommissioned column: "Yes" / "No"
+     * for one source file, "FILE=Yes; FILE=No" for several, null for none.
+     */
+    public function decommissionedBeforeAnswer(array $fileNumbers): ?string
+    {
+        $status = $this->decommissionedBefore($fileNumbers);
+        if (!$status) {
+            return null;
+        }
+        if (count($status) === 1) {
+            return reset($status)['answer'];
+        }
+
+        return mb_substr(implode('; ', array_map(
+            fn ($fileNo, $s) => $fileNo . '=' . $s['answer'],
+            array_keys($status),
+            $status
+        )), 0, 2000);
+    }
+
+    /** "A, B" + "B, C" => "A,B,C" — the comma list successor_file_no holds, deduplicated in order. */
+    private function mergeSuccessorList(?string $existing, ?string $add): string
+    {
+        $split = fn ($s) => array_filter(array_map('trim', explode(',', (string) $s)), fn ($v) => $v !== '');
+        $merged = [];
+        foreach (array_merge($split($existing), $split($add)) as $fileNo) {
+            $merged[mb_strtoupper($fileNo)] ??= $fileNo;
+        }
+
+        return implode(',', array_values($merged));
+    }
+
+    public function activeDecommissionRecord(string $fileNo): ?object
+    {
+        $fileNo = trim($fileNo);
+        if ($fileNo === '') {
+            return null;
+        }
+
+        $query = DB::connection('sqlsrv')->table('decommissioned_files')
+            ->where(function ($q) use ($fileNo) {
+                $q->where('file_no', $fileNo)->orWhere('mls_file_no', $fileNo);
+            });
+
+        return \App\Support\DecommissionScope::real($query)->orderBy('id')->first();
     }
 
     /**

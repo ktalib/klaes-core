@@ -80,6 +80,9 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     // Removed rows are switched off, never deleted -- see App\Services\SpaBillItemTariff.
     Route::post('/spa-bill-items', [Entries::class, 'saveSpaBillItems'])->name('spa-bill-items.save');
 
+    // Bill Settings (KLAES REV-M): a Bill Master type's on/off, accepts-payment and payment methods.
+    Route::post('/bill-settings/{code}', [Entries::class, 'saveBillSettingsType'])->where('code', '[a-z_]+')->name('bill-settings.save');
+
     Route::post('/land-uses',[Entries::class, 'saveLandUse'])->name('land-uses.store');
     Route::post('/land-uses/{landUse}', [Entries::class, 'saveLandUse'])->whereNumber('landUse')->name('land-uses.update');
     Route::post('/districts/{district}/rates', [Entries::class, 'saveDistrictRates'])->whereNumber('district')->name('districts.rates');

@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
  */
 class ExaminationController extends Controller
 {
-    public const TYPES      = ['Compensation Plan', 'Boundary Survey', 'Layout Plan', 'Plot Allocation', 'Occupancy Permit', 'Other'];
+    public const TYPES      = ['Compensation Plan', 'Boundary Survey', 'Layout Plan', 'Plot Allocation', 'Occupancy Permit', 'Cadastral File', 'Other'];
     public const PRIORITIES = ['High', 'Normal', 'Low'];
     public const STATUSES   = ['Queued', 'In Review', 'Passed', 'Returned'];
 
@@ -49,6 +49,12 @@ class ExaminationController extends Controller
             'status'       => 'Queued',
             'submitted_by' => optional($r->user())->name,
         ]);
+
+        // "Queue for Examination" from Cadastral Files opens the form prefilled.
+        if ($r->filled('linked_ref')) {
+            $exam->linked_ref = mb_substr(trim((string) $r->query('linked_ref')), 0, 100);
+            $exam->exam_type  = in_array($r->query('exam_type'), self::TYPES, true) ? $r->query('exam_type') : null;
+        }
 
         return view('survey_module.workflow.examination', [
             'exams'     => $exams,

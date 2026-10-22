@@ -15,6 +15,12 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'recertification'], f
         return view('recertification.application_standalone_clean');
     })->name('recertification.application');
     Route::post('/application/store', [RecertificationController::class, 'store'])->name('recertification.application.store');
+
+    // Draft mode (per officer; before the /{id} routes)
+    Route::get('/drafts', [\App\Http\Controllers\RecertificationDraftController::class, 'index'])->name('recertification.drafts.index');
+    Route::post('/drafts', [\App\Http\Controllers\RecertificationDraftController::class, 'store'])->name('recertification.drafts.store');
+    Route::get('/drafts/{draftKey}', [\App\Http\Controllers\RecertificationDraftController::class, 'show'])->name('recertification.drafts.show');
+    Route::delete('/drafts/{draftKey}', [\App\Http\Controllers\RecertificationDraftController::class, 'destroy'])->name('recertification.drafts.destroy');
     
     // Migration Routes
     Route::get('/migrate', [RecertificationController::class, 'migrate'])->name('recertification.migrate');
@@ -29,6 +35,7 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'recertification'], f
     // Utility Routes
     Route::get('/next-file-number', [RecertificationController::class, 'getNextFileNumber'])->name('recertification.nextFileNumber');
     Route::get('/next-new-kangis-file-number', [RecertificationController::class, 'getNextNewKangisFileNumber'])->name('recertification.nextNewKangisFileNumber');
+    Route::get('/land-file', [RecertificationController::class, 'landFile'])->name('recertification.land-file');
     
     // Individual Record Routes
     Route::get('/{id}/view', [RecertificationController::class, 'view'])->name('recertification.view');

@@ -1,5 +1,5 @@
 <!-- Step 2: Contact Details -->
-<div id="step-content-2" class="step-content hidden">
+<div id="step-content-3" class="step-content hidden">
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold">SECTION A1 & A2: CONTACT DETAILS</h3>

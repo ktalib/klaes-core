@@ -3053,6 +3053,20 @@ class ProgrammesController extends Controller
                 }
             }
 
+            // KLAES REV-M: a final bill in Bill Master is paid and receipted there,
+            // not here (decision 2026-10-19). Older final bills still take a receipt.
+            $revm = \App\Models\BillMaster::query()
+                ->where('source_table', \App\Services\Billing\Modules\StFinalBillMirror::SOURCE_TABLE)
+                ->where('source_id', $billRecord->id)
+                ->where('status', '<>', 'cancelled')
+                ->value('bill_ref_id');
+            if ($revm) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This bill balance is paid and receipted under KLAES REV-M → Bill Balance ({$revm}).",
+                ]);
+            }
+
             // Update the final_bills record with receipt information
             $updateData = [
                 'Bill_Balance_receipt' => $request->input('receipt_number'),
@@ -3311,7 +3325,7 @@ class ProgrammesController extends Controller
             $icon = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
             if ($app->new_file_route) {
                 $items[] = '<span class="'.$item.' text-gray-400 cursor-default" title="Already sent to Change of Purpose">'.$icon.'Sent to Change of Purpose ✓</span>';
-            } elseif ($bill->status === 'paid' && $newFile->settled($app)) {
+            } elseif (($bill->status === 'paid' || \App\Services\Billing\Modules\SpasBillMirror::inBillMaster($bill->id)->isNotEmpty()) && $newFile->settled($app)) {
                 $items[] = '<button type="button" class="btn-send-cop '.$item.' font-semibold" style="color:#0d9488" '
                     .'data-send=\''.e(json_encode([
                         'id'            => $app->id,
@@ -3487,13 +3501,18 @@ class ProgrammesController extends Controller
             $total = $query->count();
             $data  = $query->skip($request->input('start', 0))
                            ->take($request->input('length', 10))
-                           ->get()
-                           ->map(function ($b, $i) use ($request, $dotIcon) {
+                           ->get();
+            // Bills handed to KLAES REV-M are paid there, not here (user decision, 2026-10-19).
+            $inRevm = \App\Services\Billing\Modules\SpasBillMirror::inBillMaster($data->pluck('id'));
+            $data  = $data->map(function ($b, $i) use ($request, $dotIcon, $inRevm) {
                                $totalPaid = $b->payments->sum('amount_paid');
                                $balance   = max(0, (float) $b->amount - $totalPaid);
 
                                $actionItems = '';
-                               if ($b->status !== 'paid') {
+                               if ($revm = $inRevm->get((int) $b->id)) {
+                                   $actionItems .= '<a href="'.e(route('revenue.bills.index', 'contravention_bill').'?q='.urlencode($revm->bill_ref_id)).'"'
+                                       . ' class="block w-full text-left px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-gray-50">Pay in KLAES REV-M</a>';
+                               } elseif ($b->status !== 'paid') {
                                    $actionItems .= '<button class="btn-record-payment w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"'
                                        . ' data-id="'.$b->id.'"'
                                        . ' data-file="'.e(optional($b->application)->file_number ?? '').'"'

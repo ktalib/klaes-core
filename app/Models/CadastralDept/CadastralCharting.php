@@ -13,6 +13,8 @@ class CadastralCharting extends Model
         'first' => '1st charting',
         'second' => '2nd charting',
         'check' => 'Charting check',
+        // AD Drawing & Charting, after Examination (updated workflow, 2026-10-15/16).
+        'final' => 'Final charting',
     ];
 
     protected $connection = 'sqlsrv';

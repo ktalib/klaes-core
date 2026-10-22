@@ -115,6 +115,17 @@ class KlaesSmsDispatcher
             }
 
             /*
+             | 08000000000 and friends: typed in because the phone field is
+             | required and the applicant gave none. The gateway would accept
+             | and bill it, and nobody would read it. Not cleared by
+             | phone_confirmed — confirming a placeholder does not make it real.
+             */
+            if (\App\Support\PlaceholderPhone::is($verdict['raw'] ?? $phone)) {
+                return $this->record($key, $verdict['phone'], $body, SmsDispatchLog::STATUS_SKIPPED,
+                    SmsDispatchLog::SKIP_PLACEHOLDER_PHONE, $context);
+            }
+
+            /*
              | A number on many files is an agent or a clerk until somebody says
              | otherwise. The officer clears this by confirming the number on the
              | form, which sets phone_confirmed.

@@ -1527,7 +1527,7 @@
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div>
                                     <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">OP Serial No <span class="text-red-500">*</span></label>
-                                    <input id="opEditOpSerialNumber" type="text" required pattern="[1-9][0-9]*" maxlength="100" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Enter OP serial number">
+                                    <input id="opEditOpSerialNumber" type="text" required pattern="[1-9][0-9]*|0[0-9]{5}" maxlength="100" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Enter OP serial number">
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Instrument Type</label>
@@ -1847,22 +1847,21 @@
             return true;
         });
 
-        // ── Global search – server-side with debounce ──
-        var _opSearchTimer = null;
+        // ── Global search – server-side, runs on Enter only ──
+        // Searching on every keystroke reloaded the page mid-typing.
         if (searchInput) {
-            searchInput.addEventListener('input', function () {
-                clearTimeout(_opSearchTimer);
-                var val = this.value;
-                _opSearchTimer = setTimeout(function () {
-                    var url = new URL(window.location.href);
-                    if (val) {
-                        url.searchParams.set('search', val);
-                    } else {
-                        url.searchParams.delete('search');
-                    }
-                    url.searchParams.delete('page');
-                    window.location.href = url.toString();
-                }, 600);
+            searchInput.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                var val = this.value.trim();
+                var url = new URL(window.location.href);
+                if (val) {
+                    url.searchParams.set('search', val);
+                } else {
+                    url.searchParams.delete('search');
+                }
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
             });
         }
 
@@ -3769,7 +3768,7 @@
     // serial typed here is saved onto the OP record itself, with the match.
 
     function opSerialValid(v) {
-        return /^[1-9][0-9]*$/.test(String(v == null ? '' : v).trim());
+        return /^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/.test(String(v == null ? '' : v).trim());
     }
 
     // Same clean-up as the server's suggestOpSerial(): 0109 -> 109, 1O63 -> 1063,
@@ -3812,7 +3811,7 @@
                 return '<label for="' + id + '" class="block text-xs font-semibold text-slate-700 mt-3">' + label + ' <span class="text-red-500">*</span></label>'
                     + '<input required type="' + type + '" id="' + id + '" data-pra-id="' + opSerialEsc(o.pra_id) + '" data-field="' + key + '"'
                     + (type === 'time' ? ' step="1"' : '')
-                    + (key === 'op_serial_number' ? ' inputmode="numeric" pattern="[1-9][0-9]*" maxlength="100"' : '')
+                    + (key === 'op_serial_number' ? ' inputmode="numeric" pattern="[1-9][0-9]*|0[0-9]{5}" maxlength="100"' : '')
                     + (key === 'regNo' ? ' pattern="[1-9][0-9]*/[1-9][0-9]*/[1-9][0-9]*" maxlength="50" placeholder="12/34/56"' : '')
                     + (key === 'tp_no' ? ' maxlength="100"' : '')
                     + ' class="op-detail-input mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" value="' + opSerialEsc(value) + '">'

@@ -6,6 +6,7 @@ use App\Http\Controllers\CadastralDept\DeskController;
 use App\Http\Controllers\CadastralDept\FieldJacketController;
 use App\Http\Controllers\CadastralDept\FmcController;
 use App\Http\Controllers\CadastralDept\PndBillController;
+use App\Http\Controllers\CadastralDept\PropertyIndexCardController;
 use App\Http\Controllers\CadastralDept\WorkflowController;
 use App\Http\Controllers\CadastralDept\YesNoFormController;
 use App\Http\Controllers\CadastralDept\VerificationReportController;
@@ -37,6 +38,13 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
     Route::get('/', [WorkflowController::class, 'index'])->name('index');
     Route::get('/workflow-map', [WorkflowController::class, 'map'])->name('map');
 
+    // Generate Property Index Card (2026-10-16): one card per file from the Legal Search records,
+    // filed as a PDF to EDMS/SCAN_UPLOAD/Cadastral_Registry/PIC/{file}/. Registering a file generates it too.
+    Route::get('/pic', [PropertyIndexCardController::class, 'index'])->name('pic.index');
+    Route::get('/pic/preview', [PropertyIndexCardController::class, 'preview'])->name('pic.preview');
+    Route::get('/pic/card', [PropertyIndexCardController::class, 'show'])->name('pic.show');
+    Route::post('/pic', [PropertyIndexCardController::class, 'store'])->name('pic.store');
+
     // Desk inboxes: files currently waiting at one desk.
     Route::get('/desks/{desk}', [DeskController::class, 'show'])->name('desks.show');
 
@@ -60,8 +68,12 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
 
     // Create Correspondence File at AD Cad Report (matches an existing one first).
     Route::post('/cases/{case}/correspondence', [CaseController::class, 'createCorrespondence'])->whereNumber('case')->name('cases.correspondence.store');
+    // KAMMA / Physical Planning's Planning Advice, filed into EDMS when the file comes back.
+    Route::post('/cases/{case}/planning-advice', [CaseController::class, 'uploadPlanningAdvice'])->whereNumber('case')->name('cases.planning-advice.store');
     // Registry: detach / attach the correspondence file (history kept).
     Route::post('/cases/{case}/correspondence/custody', [CaseController::class, 'correspondenceCustody'])->whereNumber('case')->name('cases.correspondence.custody.save');
+    Route::post('/cases/{case}/page-count', [CaseController::class, 'pageCount'])->whereNumber('case')->name('cases.page-count.save');
+    Route::post('/cases/{case}/dms-upload', [CaseController::class, 'dmsUpload'])->whereNumber('case')->name('cases.dms-upload');
 
     // Yes/No form ("Report on Application") at AD Cad Report, done with Land 12.
     Route::get('/cases/{case}/yes-no', [YesNoFormController::class, 'show'])->whereNumber('case')->name('cases.yes-no.show');

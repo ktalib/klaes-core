@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Virtual Folder System — ' . ($file->file_number ?: $file->temp_file_no))
+@section('page-title', 'Virtual File/Folder System (Folio) — ' . ($file->file_number ?: $file->temp_file_no))
 
 @push('styles')
     @include('vfs.assets.style')

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\MobilePushToken;
 use App\Models\Notification;
+use App\Services\Push\FcmPushService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +21,18 @@ class MobileNotificationController extends Controller
      * file_search_request stays in: it is the app's own physical file lookup
      * flow and the dashboard has explicit SCB Monitor handling for it.
      */
-    protected const MODULES = ['file_tracking', 'file_search_request'];
+    public const MODULES = ['file_tracking', 'file_search_request'];
+
+    /**
+     * The same rule as scopeToFileTracking(), for a single row. Push
+     * notifications use it so the phone buzzes only for what the bell shows.
+     */
+    public static function belongsOnMobile(Notification $notification): bool
+    {
+        return in_array($notification->module, self::MODULES, true)
+            || str_starts_with((string) $notification->type, 'file_tracking')
+            || $notification->type === 'file_search_request';
+    }
 
     public function __construct(
         protected UserNotificationService $notificationService
@@ -74,6 +87,47 @@ class MobileNotificationController extends Controller
         $this->notificationService->markAsRead($notification);
 
         return response()->json(['success' => true, 'message' => 'Marked as read']);
+    }
+
+    /**
+     * POST /api/mobile/push/register
+     * The FTM app sends its FCM token on every dashboard load. A phone shared
+     * between officers moves to whoever is signed in now.
+     */
+    public function registerPush(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token'       => 'required|string|max:255',
+            'platform'    => 'nullable|string|in:android,ios',
+            'device_name' => 'nullable|string|max:150',
+            'app_version' => 'nullable|string|max:30',
+        ]);
+
+        MobilePushToken::updateOrCreate(
+            ['token' => $data['token']],
+            [
+                'user_id'      => $request->user()->id,
+                'platform'     => $data['platform'] ?? 'android',
+                'device_name'  => $data['device_name'] ?? null,
+                'app_version'  => $data['app_version'] ?? null,
+                'last_seen_at' => now(),
+            ]
+        );
+
+        return response()->json(['success' => true, 'push_enabled' => app(FcmPushService::class)->enabled()]);
+    }
+
+    /**
+     * POST /api/mobile/push/unregister — on logout, so the phone stops
+     * receiving the previous officer's notifications.
+     */
+    public function unregisterPush(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => 'required|string|max:255']);
+
+        MobilePushToken::where('token', $data['token'])->where('user_id', $request->user()->id)->delete();
+
+        return response()->json(['success' => true]);
     }
 
     /**

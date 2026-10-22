@@ -21,7 +21,8 @@ use App\Models\User;
  * file's history and FMC; a file waits for the head while its latest movement is that one.
  *
  * The head is whoever holds the desk's `post` in Configurable Entries > Cadastral > Officers.
- * While nobody holds it, Cad - Records (and Supper Admin, always) stand in, so no file is stuck.
+ * While nobody holds it, the admin (Super Admin) holds it, until it is assigned to a user
+ * (user, 2026-10-16); from then on only the holder acts as head.
  */
 class HeadApproval
 {
@@ -64,22 +65,25 @@ class HeadApproval
         if (!$user || !$desk) {
             return false;
         }
-        if ($user->isSuperAdmin()) {
-            return true;
-        }
         $holders = array_map('intval', CadastralOfficer::userIdsForPost($this->def->desks()[$desk]['post'] ?? null));
         if ($holders) {
             return in_array((int) $user->id, $holders, true);
         }
 
-        // Post vacant: the department role stands in.
-        return $user->canDo(DeskAccess::departmentRole(), 'view');
+        // Post vacant: the admin holds it until it is assigned to a user (user, 2026-10-16).
+        return $user->isSuperAdmin();
     }
 
-    /** Users to tell when a file is sent to the head (the post holders; none while vacant). */
+    /** Users to tell when a file is sent to the head: the post holders, or the admins while it is vacant. */
     public function headUserIds(?string $desk): array
     {
-        return CadastralOfficer::userIdsForPost($desk ? ($this->def->desks()[$desk]['post'] ?? null) : null);
+        $holders = CadastralOfficer::userIdsForPost($desk ? ($this->def->desks()[$desk]['post'] ?? null) : null);
+        if ($holders || !$desk || !$this->headOf($desk)) {
+            return $holders;
+        }
+
+        return User::query()->where('is_active', 1)->get()
+            ->filter(fn (User $u) => $u->isSuperAdmin())->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
     }
 
     /**
@@ -100,12 +104,20 @@ class HeadApproval
         $head = $this->headOf($desk);
         $awaiting = $this->awaiting($case);
         $isHead = $this->isHead($user, $desk);
-        $info = ['head' => $head, 'awaiting' => $awaiting, 'is_head' => $isHead, 'required' => true] + $info;
+        $vacant = !CadastralOfficer::userIdsForPost($this->def->desks()[$desk]['post'] ?? null);
+        $info = ['head' => $head, 'awaiting' => $awaiting, 'is_head' => $isHead, 'required' => true, 'vacant' => $vacant] + $info;
 
         if ($isHead) {
-            // The head sends it on; a file the staff sent can also go back to them.
+            // The head sends it on; a file the staff sent can also go back to them. Sending it on
+            // is the approval, so the button says "Approve" (user, 2026-10-17); "to D Cad" shows under it.
             if ($awaiting) {
-                $info['actions'][] = ['outcome' => self::RETURNED, 'label' => 'Return to staff', 'next' => null, 'ends' => null,
+                foreach ($info['actions'] as &$a) {
+                    if (empty($a['reason']) && str_starts_with($a['label'], 'Send to ')) {
+                        $a['label'] = 'Approve';
+                    }
+                }
+                unset($a);
+                $info['actions'][] = ['outcome' => self::RETURNED, 'label' => 'Return to ' . $this->def->deskShort($desk) . ' staff', 'next' => null, 'ends' => null,
                     'reason' => true, 'to' => $this->def->deskShort($desk) . ' staff', 'head_return' => true];
             }
 

@@ -125,6 +125,13 @@ class MobileController extends Controller
      */
     public function logout(Request $request)
     {
+        // The FTM app puts its FCM token in the logout form, so the phone stops
+        // receiving this officer's push notifications.
+        if ($request->filled('push_token') && Auth::id()) {
+            \App\Models\MobilePushToken::where('token', (string) $request->input('push_token'))
+                ->where('user_id', Auth::id())->delete();
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

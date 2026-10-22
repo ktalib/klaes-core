@@ -27,6 +27,7 @@ final class SmsConsoleGuard
         'spa:trigger-second-service',      // daily 08:00 SPAS 2nd Serve
         'spa:serve-pending-first-serves',  // SPAS 1st Serves owed
         'caveats:expire',                  // caveat auto-lift notices (scheduled when enabled)
+        'bills:cycle',                     // REV-M next-payment-due / next-cycle bill SMS (daily 07:30)
         // A queue worker running SMS jobs, if one is ever started.
         'queue:work',
         'queue:listen',

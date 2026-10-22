@@ -791,6 +791,8 @@ class SecondaryFormController extends Controller
 
             // Insert data into the subapplications table
             $subApplicationId = DB::connection('sqlsrv')->table('subapplications')->insertGetId($subApplicationData);
+            // KLAES REV-M: the initial bill in Bill Master, already paid from the receipts captured here.
+            app(\App\Services\Billing\Modules\StInitialBillMirror::class)->forUnit((int) $subApplicationId);
 
             // Save shared utilities to the normalized table
             $this->saveSharedUtilitiesToTable($request, null, $subApplicationId);

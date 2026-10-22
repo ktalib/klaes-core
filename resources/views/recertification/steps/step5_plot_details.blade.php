@@ -1,14 +1,114 @@
-<!-- Step 5: Plot Details -->
-<div id="step-content-5" class="step-content hidden">
+<!-- Step 1: Plot Details (the land file is the starting point) -->
+<div id="step-content-1" class="step-content">
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold flex items-center gap-2">
                 <i data-lucide="building" class="h-5 w-5"></i>
-                SECTION C: PLOT DETAILS
+                FILE DETAILS
             </h3>
         </div>
         <div class="p-4 space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            {{-- Land file: the starting point. A recertification needs an existing land file;
+                 its details are backfilled and locked, the clerk confirms the rest. --}}
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                <h4 class="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                    <i data-lucide="folder-search" class="h-4 w-4"></i>
+                    Land File
+                </h4>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="form-field">
+                        <label for="landFileDisplay" class="block text-sm font-medium text-gray-700 mb-1">
+                            Land File No (MLPP) <span class="text-red-500">*</span>
+                        </label>
+                        <div class="flex gap-2">
+                            <input
+                                type="text"
+                                id="landFileDisplay"
+                                disabled
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed font-mono font-bold"
+                                placeholder="Select the land file"
+                            />
+                            <input type="hidden" id="landFileNo" name="landFileNo" value="" required />
+                            <button
+                                type="button"
+                                id="landFilePickBtn"
+                                class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
+                            >
+                                <i data-lucide="search" class="h-4 w-4"></i>
+                                <span>Select Land File</span>
+                            </button>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                            <i data-lucide="info" class="h-3 w-3"></i>
+                            Pick from the global file number selector. Details already on record are filled in and locked.
+                        </div>
+                        <div class="error-message">Select the land file first</div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="kangisFileDisplay" class="block text-sm font-medium text-gray-700 mb-1">
+                            KANGIS File No <span class="text-gray-400">(if the land has one)</span>
+                        </label>
+                        <div class="flex gap-2">
+                            <input
+                                type="text"
+                                id="kangisFileDisplay"
+                                disabled
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-100 text-gray-700 cursor-not-allowed font-mono font-bold"
+                                placeholder="None selected"
+                            />
+                            <input type="hidden" id="kangisFileNo" name="kangisFileNo" value="" />
+                            <button
+                                type="button"
+                                id="kangisFilePickBtn"
+                                disabled
+                                class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium bg-green-600 text-white hover:bg-green-700 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <i data-lucide="search" class="h-4 w-4"></i>
+                                <span>Select</span>
+                            </button>
+                            <button
+                                type="button"
+                                id="kangisFileClearBtn"
+                                class="hidden inline-flex items-center rounded-md px-2 py-2 text-sm border border-gray-300 text-gray-600 hover:bg-gray-50"
+                                aria-label="Clear KANGIS File No"
+                            >
+                                <i data-lucide="x" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                        <div id="kangisFileHint" class="text-xs text-gray-500 mt-1">
+                            Select the land file first. A KANGIS number already on record is filled in and locked.
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">New KANGIS File No</label>
+                        <input type="hidden" id="newKangisFileNo" name="newKangisFileNo" value="" />
+                        <div class="flex items-center gap-2 px-3 py-2 border border-blue-200 rounded-md bg-white">
+                            <i data-lucide="file-text" class="h-4 w-4 text-blue-600"></i>
+                            <span id="kangisFileNoDisplay" class="text-sm font-bold text-blue-900 font-mono">-</span>
+                            <span id="kangisFileNoBadge" class="hidden ml-auto text-xs px-2 py-0.5 rounded-full"></span>
+                        </div>
+                        <div id="kangisFileNoHint" class="text-xs text-gray-500 mt-1">
+                            The land file's New KANGIS (KN) number is used when it has one; otherwise a new KN number is assigned on submit.
+                        </div>
+                    </div>
+                </div>
+
+                <div id="landFileStatus" class="hidden mt-3 text-sm"></div>
+
+                <div id="landFileCard" class="hidden mt-3 bg-white border border-gray-200 border-l-4 border-l-green-600 rounded-md p-3">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm">
+                        <div><div class="text-xs text-gray-500 uppercase">Holder on record</div><div id="landFileHolder" class="font-semibold text-gray-900">-</div></div>
+                        <div><div class="text-xs text-gray-500 uppercase">Plot No.</div><div id="landFilePlot" class="text-gray-900">-</div></div>
+                        <div><div class="text-xs text-gray-500 uppercase">District</div><div id="landFileDistrict" class="text-gray-900">-</div></div>
+                        <div><div class="text-xs text-gray-500 uppercase">LGA</div><div id="landFileLga" class="text-gray-900">-</div></div>
+                        <div><div class="text-xs text-gray-500 uppercase">Location</div><div id="landFileLocation" class="text-gray-900">-</div></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="form-field">
                 <label for="plotNumber" class="block text-sm font-medium text-gray-700 mb-1">
                     Plot Number or Piece of Land <span class="text-red-500">*</span>
@@ -24,161 +124,6 @@
                 <div class="error-message">Plot number is required</div>
             </div>
 
-            <div class="form-field hidden">
-                <label for="fileNumber" class="block text-sm font-medium text-gray-700 mb-1">
-                    File Number <span class="text-red-500">*</span>
-                </label>
-                <input
-                    type="text"
-                    id="fileNumber"
-                    name="fileNumber"
-                    readonly
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all bg-gray-100 text-gray-600 cursor-not-allowed uppercase"
-                    placeholder="Generating..."
-                    value=""
-                />
-                <div class="text-xs text-gray-500 mt-1">Auto-generated unique file number</div>
-                <div class="error-message">File number is required</div>
-            </div>
-            </div>
-
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                <h4 class="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                    <i data-lucide="file-text" class="h-4 w-4"></i>
-                    File Numbers
-                </h4>
-                
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div class="form-field hidden">
-                        <label for="newKangisFileNo" class="block text-sm font-medium text-gray-700 mb-1">
-                            New KANGIS File No <span class="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            id="newKangisFileNo"
-                            name="newKangisFileNo"
-                            required
-                            readonly
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all bg-blue-50 text-blue-900 cursor-not-allowed uppercase font-mono font-bold"
-                            placeholder="Generating..."
-                            value=""
-                        />
-                        <div class="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                            <i data-lucide="check-circle" class="h-3 w-3"></i>
-                            Auto-generated new KANGIS file number
-                        </div>
-                        <div class="error-message">New KANGIS file number is required</div>
-                    </div>
-
-                    @php
-                    $fileNumbers = DB::connection('sqlsrv')->table('fileNumber')
-                        ->select('kangisFileNo', 'mlsfNo')
-                        ->where(function($query) {
-                            $query->whereNull('is_deleted')
-                                  ->orWhere('is_deleted', 0);
-                        })
-                        ->where('is_decommissioned', 0)
-                        ->get();
-                    
-                    $mlsFileNumbers = $fileNumbers->whereNotNull('mlsfNo')->pluck('mlsfNo')->unique()->sort()->values();
-                    $kangisFileNumbers = $fileNumbers->whereNotNull('kangisFileNo')->pluck('kangisFileNo')->unique()->sort()->values();
-                    @endphp
-
-                    <div class="form-field">
-                        <label for="mlsFileNo" class="block text-sm font-medium text-gray-700 mb-1">
-                            MLPP File No <span class="text-red-500">*</span>
-                        </label>
-                        <div class="space-y-2">
-                            <button
-                                type="button"
-                                onclick="toggleManualInput('mlsFileNo')"
-                                class="text-xs bg-green-500 hover:bg-green-500 px-2 py-1 rounded border text-gray-700 transition-colors"
-                            >
-                                Enter Manually
-                            </button>
-                            <div id="mlsFileNoSelect">
-                                <select
-                                    id="mlsFileNo"
-                                    name="mlsFileNo"
-                                    required
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 uppercase file-number-select"
-                                >
-                                    <option value="">Search and select MLPP File Number</option>
-                                    @foreach($mlsFileNumbers as $fileNo)
-                                        <option value="{{ $fileNo }}">{{ $fileNo }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div id="mlsFileNoManual" class="hidden">
-                                <input
-                                    type="text"
-                                    name="mlsFileNoManual"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 uppercase"
-                                    placeholder="ENTER MLPP FILE NUMBER MANUALLY"
-                                />
-                                <button
-                                    type="button"
-                                    onclick="toggleManualInput('mlsFileNo')"
-                                    class="text-xs text-blue-600 hover:text-blue-800 mt-1"
-                                >
-                                    ← Back to search
-                                </button>
-                            </div>
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                            <i data-lucide="info" class="h-3 w-3"></i>
-                            Search from list or enter manually
-                        </div>
-                        <div class="error-message">MLPP file number is required</div>
-                    </div>
-
-                    <div class="form-field">
-                        <label for="kangisFileNo" class="block text-sm font-medium text-gray-700 mb-1">
-                            KANGIS File No <span class="text-gray-400"></span>
-                        </label>
-                        <div class="space-y-2">
-                            <button
-                                type="button"
-                                onclick="toggleManualInput('kangisFileNo')"
-                                class="text-xs bg-green-500 hover:bg-gray-200 px-2 py-1 rounded border text-gray-700 transition-colors"
-                            >
-                                Enter Manually
-                            </button>
-                            <div id="kangisFileNoSelect">
-                                <select
-                                    id="kangisFileNo"
-                                    name="kangisFileNo"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 uppercase file-number-select"
-                                >
-                                    <option value="">Search and select KANGIS File Number</option>
-                                    @foreach($kangisFileNumbers as $fileNo)
-                                        <option value="{{ $fileNo }}">{{ $fileNo }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div id="kangisFileNoManual" class="hidden">
-                                <input
-                                    type="text"
-                                    name="kangisFileNoManual"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 uppercase"
-                                    placeholder="ENTER KANGIS FILE NUMBER MANUALLY"
-                                />
-                                <button
-                                    type="button"
-                                    onclick="toggleManualInput('kangisFileNo')"
-                                    class="text-xs text-blue-600 hover:text-blue-800 mt-1"
-                                >
-                                    ← Back to search
-                                </button>
-                            </div>
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                            <i data-lucide="file" class="h-3 w-3"></i>
-                            Only if available
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="form-field">
@@ -217,57 +162,6 @@
                 </div>
             </div>
 
-            <script>
-            // Initialize Select2 when document is ready
-            $(document).ready(function() {
-                // Initialize Select2 for file number selects
-                $('.file-number-select').select2({
-                    placeholder: function() {
-                        return $(this).attr('placeholder') || 'Search and select...';
-                    },
-                    allowClear: true,
-                    width: '100%',
-                    templateResult: function(option) {
-                        if (!option.id) return option.text;
-                        return $('<span style="text-transform: uppercase;">' + option.text + '</span>');
-                    },
-                    templateSelection: function(option) {
-                        return $('<span style="text-transform: uppercase;">' + option.text + '</span>');
-                    }
-                });
-            });
-
-            function toggleManualInput(fieldName) {
-                const selectDiv = document.getElementById(fieldName + 'Select');
-                const manualDiv = document.getElementById(fieldName + 'Manual');
-                const selectElement = document.getElementById(fieldName);
-                const manualInput = manualDiv.querySelector('input');
-                
-                if (selectDiv.classList.contains('hidden')) {
-                    // Show select, hide manual
-                    selectDiv.classList.remove('hidden');
-                    manualDiv.classList.add('hidden');
-                    selectElement.setAttribute('name', fieldName);
-                    manualInput.removeAttribute('name');
-                    manualInput.value = '';
-                    // Reinitialize Select2
-                    $('#' + fieldName).select2({
-                        placeholder: 'Search and select...',
-                        allowClear: true,
-                        width: '100%'
-                    });
-                } else {
-                    // Hide select, show manual
-                    selectDiv.classList.add('hidden');
-                    manualDiv.classList.remove('hidden');
-                    selectElement.removeAttribute('name');
-                    manualInput.setAttribute('name', fieldName);
-                    // Destroy Select2 instance
-                    $('#' + fieldName).select2('destroy');
-                    manualInput.focus();
-                }
-            }
-            </script>
          
             
           
@@ -343,71 +237,21 @@
             </div>
             
             <div class="form-field">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
+                <label for="currentLandUse" class="block text-sm font-medium text-gray-700 mb-1">
                     Current Land Use <span class="text-red-500">*</span>
                 </label>
-                <div class="grid grid-cols-4 gap-2">
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="residential" required />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Residential</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="commercial" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Commercial</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="industrial" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Industrial</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="agricultural" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Agricultural</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="educational" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Educational</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="religious" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Religious</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="public" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Public</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="ngo" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">NGO</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="social" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Social (Hospital, etc)</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="petrol-station" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Petrol Filling Station</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="gkn" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">GKN</span>
-                    </label>
-                    <label class="radio-item">
-                        <input type="radio" name="currentLandUse" value="mixed-use" />
-                        <div class="radio-circle"></div>
-                        <span class="text-xs">Mixed Use</span>
-                    </label>
-                </div>
+                <select
+                    id="currentLandUse"
+                    name="currentLandUse"
+                    required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10"
+                >
+                    <option value="">Select land use</option>
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                    <option value="industrial">Industrial</option>
+                    <option value="agricultural">Agricultural</option>
+                </select>
                 <div class="error-message">Current land use is required</div>
             </div>
             

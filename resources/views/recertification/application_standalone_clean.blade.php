@@ -45,10 +45,32 @@ tailwind.config = {
                     <h1 class="text-3xl font-bold text-gray-900">New Recertification Application</h1>
                     <p class="text-gray-600">Complete the form below to submit a new recertification application</p>
                 </div>
-           
+                <button type="button" id="my-drafts-btn" aria-expanded="false" aria-controls="drafts-panel" class="inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 gap-2">
+                    <i data-lucide="save" class="h-4 w-4"></i>
+                    My Saved Drafts <span id="drafts-count"></span>
+                </button>
             </div>
 
             
+            <!-- Saved drafts: opened from the My Saved Drafts button (rows filled by the form script) -->
+            <div id="drafts-panel" class="hidden bg-white border border-gray-200 rounded-lg p-4">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs uppercase text-gray-500">
+                                <th class="py-1 pr-3">S/N</th>
+                                <th class="py-1 pr-3">Land File No</th>
+                                <th class="py-1 pr-3">Applicant</th>
+                                <th class="py-1 pr-3">Step</th>
+                                <th class="py-1 pr-3">Last saved</th>
+                                <th class="py-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="drafts-list"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Application Form -->
             <div class="bg-white rounded-lg shadow-xl border border-gray-200">
                 <!-- Header -->
@@ -67,7 +89,7 @@ tailwind.config = {
                             <div class="text-xs font-medium text-blue-700 uppercase tracking-wide text-center mb-1">New KANGIS File No</div>
                             <div class="flex items-center gap-2 justify-center">
                                 <i data-lucide="file-text" class="h-4 w-4 text-blue-600"></i>
-                                <span id="new-kangis-file-number-display" class="text-sm font-bold text-blue-900 font-mono">Loading...</span>
+                                <span id="new-kangis-file-number-display" class="text-sm font-bold text-blue-900 font-mono">Select a land file</span>
                             </div>
                             
                         </div>
@@ -98,13 +120,14 @@ tailwind.config = {
                 <div class="p-6">
                     <form id="recertification-form" method="POST" action="{{ route('recertification.application.store') }}" enctype="multipart/form-data">
                         @csrf
+                        <input type="hidden" name="draft_key" id="draft_key" value="{{ \App\Http\Controllers\RecertificationDraftController::newKey() }}" />
                         
                         <!-- Include Step Partials -->
+                        @include('recertification.steps.step5_plot_details')
                         @include('recertification.steps.step1_personal_details')
                         @include('recertification.steps.step2_contact_details')
                         @include('recertification.steps.step3_title_holder')
                         @include('recertification.steps.step4_mortgage_encumbrance')
-                        @include('recertification.steps.step5_plot_details')
                         @include('recertification.steps.step6_document_uploads')
                         @include('recertification.steps.step7_payment_terms')
                         @include('recertification.steps.step7_application_summary')
@@ -120,7 +143,17 @@ tailwind.config = {
                         >
                             Previous
                         </button>
-                        
+
+                        <div class="flex items-center gap-3">
+                            <span id="draft-status" class="text-xs text-gray-500"></span>
+                            <button
+                                type="button"
+                                id="save-draft-btn"
+                                class="inline-flex items-center justify-center rounded-md font-medium text-sm px-4 py-2 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <i data-lucide="save" class="h-4 w-4"></i>
+                                Save Draft
+                            </button>
                         <button
                             type="button"
                             id="next-btn"
@@ -129,6 +162,7 @@ tailwind.config = {
                             <span class="next-text">Next</span>
                             <div class="loading-spinner hidden"></div>
                         </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -144,6 +178,16 @@ tailwind.config = {
     <!-- Toast messages will be inserted here -->
 </div>
 
+@include('components.global-fileno-modal')
+
 @include('recertification.js.standalone_form_js')
 
 @endsection
+
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/global-fileno-modal.css') }}">
+@endpush
+
+@push('scripts')
+<script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+@endpush

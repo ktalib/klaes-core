@@ -79,6 +79,8 @@ class ConfigurableEntriesController extends Controller
     public const TABS = [
         'revenue' => ['label' => 'Revenue Items', 'icon' => 'banknote', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
         'billing' => ['label' => 'Bill Formulas', 'icon' => 'sigma', 'accent' => '#6d28d9', 'tint' => '#f5f3ff'],
+        // KLAES REV-M: one tab, a sub-tab per Bill Master type (SPAS items, folded Bill Formulas).
+        'bill-settings' => ['label' => 'Bill Settings', 'icon' => 'receipt-text', 'accent' => '#047857', 'tint' => '#ecfdf5'],
         'departments' => ['label' => 'Departments', 'icon' => 'building', 'accent' => '#a21caf', 'tint' => '#fdf4ff'],
         'units' => ['label' => 'Units', 'icon' => 'network', 'accent' => '#7e22ce', 'tint' => '#faf5ff'],
         'user-roles' => ['label' => 'User Roles', 'icon' => 'shield', 'accent' => '#be123c', 'tint' => '#fff1f2'],
@@ -111,8 +113,22 @@ class ConfigurableEntriesController extends Controller
      *   fileno    withdrawn on request.
      *   pipeline  withdrawn in favour of 'deeds-workflow' below, which configures
      *             Valuation -> Consent -> Registration, the pipeline Deeds runs.
+     *   cadastral hidden for now (user, 2026-10-16: not in the sidebar doc).
+     *   billing, spa-bill-items
+     *             moved under 'bill-settings' (2026-10-19): SPAS Bill Items is the
+     *             Contravention sub-tab, Bill Formulas is the engine behind the
+     *             other sub-tabs plus "Other formulas". Their routes still save.
      */
-    public const HIDDEN_TABS = ['pipeline', 'fileno'];
+    public const HIDDEN_TABS = ['pipeline', 'fileno', 'cadastral', 'billing', 'spa-bill-items'];
+
+    /**
+     * Bill Settings sub-tabs whose items live in a module's own table rather than
+     * the Bill Formulas engine, and those on hold.
+     */
+    private const BILL_SETTINGS_MODULE_TABS = [
+        'contravention_bill' => 'spa',
+        'land_use_charge' => 'hold',
+    ];
 
     /**
      * Document signatories the Signatories tab always offers.
@@ -262,6 +278,7 @@ class ConfigurableEntriesController extends Controller
             // nowhere to save an edit, so a tab would only offer forms that fail.
             'cadastral' => fn () => $schema->hasTable('cadastral_settings'),
             'spa-bill-items' => fn () => $schema->hasTable('spa_bill_items'),
+            'bill-settings' => fn () => $schema->hasTable('bill_master_types') && $schema->hasColumn('bill_master_types', 'payment_methods'),
         ];
 
         return array_filter(
@@ -301,7 +318,96 @@ class ConfigurableEntriesController extends Controller
             'signatories' => $this->signatoriesData(),
             'cadastral' => $this->cadastralData(),
             'spa-bill-items' => $this->spaBillItemsData(),
+            'bill-settings' => $this->billSettingsData($request),
         });
+    }
+
+    // ---- Bill Settings (KLAES REV-M) -----------------------------------------
+
+    /**
+     * One sub-tab per top-level Bill Master type (docs/plans/KLAES_REVM_Bill_Master_Plan.md).
+     * Each shows the type's settings, then its bill items: from the module's own
+     * table where it has one (SPAS), otherwise from the Bill Formulas engine, a
+     * billing_types row whose code is the bill type code. "Other formulas" keeps
+     * every formula not tied to a bill type.
+     */
+    private function billSettingsData(Request $request): array
+    {
+        $types = \App\Models\BillMasterType::query()->whereNull('parent_code')->orderBy('sort_order')->get();
+        $subs = $types->pluck('code')->push('other')->all();
+        $sub = in_array($request->query('sub'), $subs, true) ? $request->query('sub') : $types->first()?->code;
+
+        $data = [
+            'billSettingsTypes' => $types,
+            'billSettingsSub' => $sub,
+            'billSettingsType' => $types->firstWhere('code', $sub),
+            'billSettingsSource' => self::BILL_SETTINGS_MODULE_TABS[$sub] ?? 'engine',
+            'billSettingsChildren' => \App\Models\BillMasterType::query()->where('parent_code', $sub)->orderBy('sort_order')->get(),
+        ];
+
+        if ($data['billSettingsSource'] === 'spa') {
+            $ready = Schema::connection('sqlsrv')->hasTable('spa_bill_items');
+
+            return $data + ['billSettingsSpaReady' => $ready] + ($ready ? $this->spaBillItemsData() : []);
+        }
+        if ($data['billSettingsSource'] === 'hold') {
+            return $data;
+        }
+
+        $billing = $this->billingData();
+        $billing['billingTypes'] = $sub === 'other'
+            ? $billing['billingTypes']->whereNotIn('code', $types->pluck('code')->all())->values()
+            : $billing['billingTypes']->where('code', $sub)->values();
+
+        return $data + $billing;
+    }
+
+    /** A bill type's settings: on/off, whether it takes payment, and which methods. */
+    public function saveBillSettingsType(Request $request, string $code)
+    {
+        $this->authorizeAdmin();
+
+        $methods = array_keys(config('billing.payment_methods', []));
+        $data = $request->validate([
+            'is_active' => 'nullable|boolean',
+            'accepts_payment' => 'nullable|boolean',
+            'payment_methods' => 'nullable|array',
+            'payment_methods.*' => ['string', Rule::in($methods)],
+            'is_recurring' => 'nullable|boolean',
+            'payment_cycle' => ['nullable', 'string', Rule::in(array_keys(config('billing.cycles', [])))],
+            'remind_days_before' => 'nullable|integer|min:0|max:90',
+        ]);
+
+        return $this->attempt(function () use ($data, $code, $methods) {
+            $row = \App\Models\BillMasterType::query()->where('code', $code)->firstOrFail();
+            $chosen = array_values(array_intersect($methods, $data['payment_methods'] ?? []));
+            if (!empty($data['accepts_payment']) && !$chosen) {
+                throw WorkflowGuardException::because('Pick at least one payment method, or switch off "Accepts payment".');
+            }
+            $recurring = !empty($data['is_recurring']);
+            if ($recurring && empty($data['payment_cycle'])) {
+                throw WorkflowGuardException::because('Choose the payment cycle, or switch off "Recurring bill".');
+            }
+            if ($recurring && $row->code === 'land_use_charge') {
+                throw WorkflowGuardException::because('Land Use Charge is on hold.');
+            }
+
+            $fields = ['is_active', 'accepts_payment', 'payment_methods', 'is_recurring', 'payment_cycle', 'remind_days_before']; // the Revenue Code is not edited here
+            $before = $row->only($fields);
+            $row->fill([
+                'is_active' => !empty($data['is_active']),
+                'accepts_payment' => !empty($data['accepts_payment']),
+                'payment_methods' => implode(',', $chosen),
+                'is_recurring' => $recurring,
+                'payment_cycle' => $recurring ? $data['payment_cycle'] : $row->payment_cycle,
+                'remind_days_before' => (int) ($data['remind_days_before'] ?? $row->remind_days_before ?? 7),
+            ])->save();
+
+            app(\App\Services\AuditService::class)->logAction('Bill Settings Updated', 'BillMasterType', $row->id, $before,
+                $row->only($fields), $row->code);
+
+            return "{$row->name} settings saved.";
+        }, 'Bill settings saved.');
     }
 
     // ---- SPAS Bill Items ----------------------------------------------------
@@ -902,6 +1008,10 @@ class ConfigurableEntriesController extends Controller
         $mappings = InstrumentFeeMapping::query()->with(['applicationItem', 'registrationItem', 'approvalItem'])->get()->keyBy('instrument_type');
 
         return [
+            // KLAES REV-M: the bill types with their (one) Revenue Code, read-only here.
+            'billTypeCodes' => Schema::connection('sqlsrv')->hasColumn('bill_master_types', 'revenue_code')
+                ? \App\Models\BillMasterType::query()->whereNull('parent_code')->with('children')->orderBy('sort_order')->get()
+                : collect(),
             'items' => $items,
             'search' => $search,
             'category' => $category,

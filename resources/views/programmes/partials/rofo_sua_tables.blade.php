@@ -2,6 +2,7 @@
     <table id="table-sua-not" class="simple">
         <thead>
             <tr>
+                <th>S/N</th>
                 <th>ST FileNo</th>
                 <th>Scheme No</th>
                 <th>Unit Owner</th>
@@ -21,6 +22,7 @@
                 return !($app->rofo_generated ?? false);
             }) as $unitApplication)
             <tr>
+                <td class="sn-cell">{{ $loop->iteration }}</td>
                 <td>{{ $unitApplication->fileno ?? 'N/A' }}</td>
                 <td>{{ $unitApplication->scheme_no ?? 'N/A' }}</td>
                 <td>{{ $unitApplication->owner_name ?? 'N/A' }}</td>
@@ -71,7 +73,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="12" class="muted">No SUA records pending RoFO generation</td>
+                <td colspan="13" class="muted">No SUA records pending RoFO generation</td>
             </tr>
             @endforelse
         </tbody>
@@ -82,6 +84,7 @@
     <table id="table-sua-gen" class="simple">
         <thead>
             <tr>
+                <th>S/N</th>
                 <th>ST FileNo</th>
                 <th>RoFO No</th>
                 <th>Scheme No</th>
@@ -102,8 +105,19 @@
                 return (bool) ($app->rofo_generated ?? false);
             }) as $unitApplication)
             <tr>
+                <td class="sn-cell">{{ $loop->iteration }}</td>
                 <td>
                     <div>{{ $unitApplication->fileno ?? 'N/A' }}</div>
+                    @if(!empty($unitApplication->security_serial))
+                        @php $stSc = $unitApplication->security_serial; @endphp
+                        <div style="display:flex; align-items:center; gap:5px; margin-top:3px; letter-spacing:normal;" title="Security Serial No.">
+                            <span style="line-height:1; color:#059669; display:inline-flex; flex-direction:column; align-items:center; font-weight:900; font-family:Arial, sans-serif;">
+                                <span style="border-bottom:1.5px solid #059669; padding-bottom:1px; font-size:11px;">{{ $stSc['alphabet'] }}</span>
+                                <span style="padding-top:1px; font-size:11px;">{{ $stSc['digits_start'] }}</span>
+                            </span>
+                            <span style="font-size:18px; font-weight:900; letter-spacing:0.1em; color:#059669; font-family:'Courier New', monospace;">{{ $stSc['digits_end'] }}</span>
+                        </div>
+                    @endif
                     {{-- Shown on the row, as on Land RofO, rather than only inside the action menu. --}}
                     @if(!empty($unitApplication->security_paper_code))
                         <div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:'Courier New', monospace;" title="Security Paper Code">
@@ -233,7 +247,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="13" class="muted">No generated SUA RoFO applications found</td>
+                <td colspan="14" class="muted">No generated SUA RoFO applications found</td>
             </tr>
             @endforelse
         </tbody>

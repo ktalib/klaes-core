@@ -161,24 +161,32 @@
                                 <th class="px-4 py-3 text-left">Applicant Name</th>
                                 <th class="px-4 py-3 text-left">Temp File No</th>
                                 <th class="px-4 py-3 text-left">Source Plots</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                 <th class="px-4 py-3 text-left">Consolidated Title</th>
                                 <th class="px-4 py-3 text-left">Plots</th>
                                 <th class="px-4 py-3 text-left">Location</th>
                                 <th class="px-4 py-3 text-left">Source</th>
                                 <th class="px-4 py-3 text-left">Created By</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">Date Created</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
+                            @php
+                                // The merged file each application produced once commissioned.
+                                $newFileNos = app(\App\Services\ParcelUpdateNewFiles::class)
+                                    ->forApplications($records, 'Merger', fn ($r) => array_merge([$r->file_no], $r->plotSizes->pluck('source_file_no')->all()));
+                            @endphp
                             @forelse($records as $record)
                                 @php
                                     // Same conditions as this row's menu: KAMMA until approved;
                                     // reject while open; approve also needs the Master JSI.
                                     $batchOpen = !in_array($record->status, ['approved', 'rejected', 'commissioned'], true);
                                     $batchKammaDone = strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0;
+                                    $recommended = (bool) $record->recommendation_generated_at;
                                 @endphp
                                 <tr>
-                                    <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['file' => $record->temp_file_no ?: $record->file_no, 'canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['file' => $record->temp_file_no ?: $record->file_no, 'canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false) && $recommended, 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3">
                                         <div class="font-bold text-slate-900">{{ $record->applicant_name ?: '—' }}</div>
                                        
@@ -208,6 +216,7 @@
                                             @endif
                                         </div>
                                     </td>
+                                    @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => ($record->temp_file_no ?: $record->file_no)])
                                     <td class="px-4 py-3">
                                         <div class="text-slate-700 font-semibold leading-tight line-clamp-2" title="{{ $record->file_title }}">{{ $record->file_title }}</div>
                                     </td>
@@ -228,6 +237,7 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by])</td>
+                                    <td class="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{{ $record->created_at?->format('M d, Y') }}</td>
                                     <td class="px-4 py-3 text-center">
                                         @php
                                             /**
@@ -313,6 +323,10 @@
                                                         <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Already approved{{ ($jsiCleared[$record->id] ?? false) ? ' via the Master JSI' : '' }}">
                                                             <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i> Approve / Reject
                                                         </button>
+                                                    @elseif(!$recommended)
+                                                        <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate the recommendation first">
+                                                            <i data-lucide="scale" class="w-4 h-4 text-slate-300"></i> Approve / Reject
+                                                        </button>
                                                     @else
                                                         <button onclick="openApprovalDecision({{ $record->id }}, {{ ($jsiCleared[$record->id] ?? false) ? 'true' : 'false' }})" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 gap-2 font-bold">
                                                             <i data-lucide="scale" class="w-4 h-4 text-emerald-500"></i> Approve / Reject
@@ -366,7 +380,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="px-4 py-10 text-center text-slate-400">No records found.</td>
+                                    <td colspan="12" class="px-4 py-10 text-center text-slate-400">No records found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -948,7 +962,6 @@
         const card = document.getElementById(`location_card_${index}`);
         if (!card) return;
 
-        const plot = card.querySelector(`input[name="location_details[${index}][plot_no]"]`)?.value || '';
         const house = card.querySelector(`input[name="location_details[${index}][house_no]"]`)?.value || '';
         
         let street = card.querySelector(`select[name="location_details[${index}][street_name]"]`)?.value || '';
@@ -965,7 +978,6 @@
         const state = card.querySelector(`select[name="location_details[${index}][state]"]`)?.value || '';
         
         let parts = [];
-        if (plot) parts.push(plot);
         if (house) parts.push(`House No. ${house}`);
         if (street) parts.push(street);
         if (district) parts.push(district);
@@ -1454,6 +1466,7 @@
                 const data = result.data;
                 Swal.fire({
                     title: 'KAMMA/Physical Planning Handshake',
+                    allowOutsideClick: false, // typed input: a stray click must not discard it
                     html: `
                         <div class="text-left text-sm space-y-4 p-2">
                             <div class="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-4">
@@ -1588,6 +1601,7 @@
     async function openApprovalDecision(id, canApprove = true) {
         const result = await Swal.fire({
             title: 'Approval decision',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             text: canApprove ? 'Choose whether to approve or reject this application.' : 'The Master JSI is not approved, so only rejection is available.',
             input: 'radio',
             inputOptions: canApprove ? { approve: 'Approve', reject: 'Reject' } : { reject: 'Reject' },
@@ -1619,6 +1633,8 @@
                 if (res.success) {
                     Swal.fire('Approved!', res.message, 'success');
                     location.reload();
+                } else {
+                    Swal.fire('Not approved', res.message || 'Failed to approve record.', 'warning');
                 }
             } catch (error) {
                 Swal.fire('Error!', 'Failed to approve record.', 'error');
@@ -1629,6 +1645,7 @@
     async function rejectRecord(id) {
         const { value: reason } = await Swal.fire({
             title: 'Reject Application',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             input: 'textarea',
             inputLabel: 'Reason for rejection',
             inputPlaceholder: 'Enter reason here...',
@@ -1778,4 +1795,5 @@
         'reject' => route('plot-merger.reject', '__ID__'),
     ],
 ])
+@include('partials.decommissioned_before', ['dbSource' => 'input[name$="[source_file_no]"]', 'dbAnchor' => '#sourcesContainer'])
 @endsection

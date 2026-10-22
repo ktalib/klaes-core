@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\BillBalance;
+use App\Services\Billing\BillMasterService;
+use App\Services\Billing\BillRef;
+use App\Services\Billing\Modules\DeedsBillBalanceMirror;
 use App\Models\StreetName;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -134,7 +137,8 @@ class BillBalanceController extends Controller
     public function create(): View
     {
         $billBalance = new BillBalance();
-        $billBalance->reference = $this->generateReference();
+        // Bill Master issues the reference on save; this is the next one free now.
+        $billBalance->reference = BillRef::next(BillRef::SYSTEM);
 
         return view('bill_balance.create', [
             'billBalance' => $billBalance,
@@ -145,24 +149,47 @@ class BillBalanceController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validatedData($request);
-
-        if (empty($data['reference'])) {
-            $data['reference'] = $this->generateReference();
-        }
+        // Paid and receipted under KLAES REV-M, not on this form (decision 2026-10-19).
+        unset($data['bill_balance_reciept'], $data['bill_balance_date']);
 
         if (empty($data['prepared_at'])) {
             $data['prepared_at'] = Carbon::now()->format('Y-m-d H:i:s');
         }
 
-        $metadata = Arr::except($data, $this->billingFieldKeys);
-        $billBalance = BillBalance::create($metadata);
-        $billingId = $this->syncBillingRecord($billBalance, $data);
-
-        if ($billingId && !$billBalance->billing_id) {
-            $billBalance->forceFill(['billing_id' => $billingId])->save();
+        // KLAES REV-M: the reference is the Bill Ref ID issued by Bill Master, and
+        // the bill is mirrored there (DeedsBillBalanceMirror), so it can be paid
+        // and receipted under REV-M. The form's own reference is not used, except
+        // that an ST file's shared ST-BILL- reference (StBillBalanceResolver) is kept
+        // on the Bill Master row as legacy_ref: it is the same bill as the ST final
+        // bill, which links to this row instead of billing the file a second time.
+        $stRef = preg_match('/^ST-BILL-/', (string) ($data['reference'] ?? '')) ? $data['reference'] : null;
+        if ($stRef && ($taken = \App\Models\BillMaster::query()->where('legacy_ref', $stRef)->where('status', '<>', 'cancelled')->value('bill_ref_id'))) {
+            return back()->withInput()->withErrors(['reference' => "This ST bill is already billed as {$taken}."]);
         }
 
-        return redirect()->route('bill-balance.index')->with('status', 'Bill balance created.');
+        $mirror = app(DeedsBillBalanceMirror::class);
+        $actor = $this->actor();
+
+        $billBalance = DB::connection('sqlsrv')->transaction(function () use ($data, $mirror, $actor, $stRef) {
+            $metadata = Arr::except($data, $this->billingFieldKeys);
+            $bill = $mirror->sync(new BillBalance($metadata), $data, $actor, true);
+            if ($stRef) {
+                $bill->update(['legacy_ref' => $stRef]);
+            }
+
+            $data['reference'] = $metadata['reference'] = $bill->bill_ref_id;
+            $billBalance = BillBalance::create($metadata);
+            $billingId = $this->syncBillingRecord($billBalance, $data);
+
+            if ($billingId && !$billBalance->billing_id) {
+                $billBalance->forceFill(['billing_id' => $billingId])->save();
+            }
+            $bill->update(['source_id' => $billBalance->id]);
+
+            return $billBalance;
+        });
+
+        return redirect()->route('bill-balance.index')->with('status', "Bill balance {$billBalance->reference} created.");
     }
 
     public function show(BillBalance $billBalance): View
@@ -194,6 +221,13 @@ class BillBalanceController extends Controller
     public function update(Request $request, BillBalance $billBalance): RedirectResponse
     {
         $data = $this->validatedData($request);
+        if (\App\Models\BillMaster::query()->where('source_table', DeedsBillBalanceMirror::SOURCE_TABLE)->where('source_id', $billBalance->id)->exists()) {
+            // A Bill Master bill is paid and receipted under KLAES REV-M (decision 2026-10-19).
+            unset($data['bill_balance_reciept'], $data['bill_balance_date']);
+        }
+        // The reference is the bill's Bill Ref ID (or its old DBBL- number until the
+        // consolidation renumbers it): an edit never changes it.
+        $data['reference'] = $billBalance->reference;
         $metadata = Arr::except($data, $this->billingFieldKeys);
         $billBalance->update($metadata);
         $billingId = $this->syncBillingRecord($billBalance, $data);
@@ -202,11 +236,14 @@ class BillBalanceController extends Controller
             $billBalance->forceFill(['billing_id' => $billingId])->save();
         }
 
+        app(DeedsBillBalanceMirror::class)->sync($billBalance->refresh(), $data, $this->actor());
+
         return redirect()->route('bill-balance.index')->with('status', 'Bill balance updated.');
     }
 
     public function destroy(BillBalance $billBalance): RedirectResponse
     {
+        app(BillMasterService::class)->cancelMirror(DeedsBillBalanceMirror::SOURCE_TABLE, (int) $billBalance->id, $this->actor());
         $billBalance->delete();
 
         return redirect()->route('bill-balance.index')->with('status', 'Bill balance removed.');
@@ -258,7 +295,8 @@ class BillBalanceController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'reference' => $this->generateReference($year),
+                // Issued for real on save; this is the next free Bill Master ref.
+                'reference' => BillRef::next(BillRef::SYSTEM, $year),
             ],
         ]);
     }
@@ -453,26 +491,6 @@ class BillBalanceController extends Controller
         ];
     }
 
-    private function generateReference(?int $year = null): string
-    {
-        $year = $year ?: (int) now()->year;
-        $prefix = sprintf('DBBL-%d-', $year);
-        $table = (new BillBalance())->getTable();
-
-        $lastReference = DB::connection('sqlsrv')
-            ->table($table)
-            ->where('reference', 'like', $prefix . '%')
-            ->orderByDesc('reference')
-            ->value('reference');
-
-        $nextSerial = 1;
-        if ($lastReference && preg_match('/^DBBL-\d{4}-(\d{5})$/', $lastReference, $matches)) {
-            $nextSerial = ((int) $matches[1]) + 1;
-        }
-
-        return sprintf('DBBL-%d-%05d', $year, $nextSerial);
-    }
-
     /**
      * Identify an ST file and return its fees mapped onto this form's
      * Fees & Charges fields, so a Sectional Titling file does not have to be
@@ -520,6 +538,16 @@ class BillBalanceController extends Controller
 
         try {
             $bill = \App\Services\CadastralDept\PndBills::liveBill($fileNumber);
+
+            // A P&D bill raised under Bill Master is billed and paid on its own in
+            // KLAES REV-M (decision 2026-10-19), so it is not added as the survey fee.
+            if ($bill && ($revm = \App\Services\Billing\Modules\CadastralPndMirror::inBillMaster((int) $bill->id))) {
+                return response()->json([
+                    'success' => true,
+                    'data' => null,
+                    'note' => "Cadastral Fees P&D is billed separately in KLAES REV-M ({$revm->bill_ref_id}).",
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -681,5 +709,10 @@ class BillBalanceController extends Controller
                 'message' => 'Error fetching residence address'
             ], 500);
         }
+    }
+
+    private function actor(): string
+    {
+        return (string) (auth()->user()->name ?? auth()->id());
     }
 }

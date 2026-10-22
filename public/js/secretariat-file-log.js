@@ -15,6 +15,9 @@ window.secretariatFileLog = function (config) {
     const officeKey = 'secretariatFileLog.office.' + userKey;
     const autoRefreshKey = 'secretariatFileLog.autoRefresh.' + userKey;
     const AUTO_REFRESH_SECONDS = 30;
+    // Blank signature columns on the printed register (PDF only; empty in a CSV).
+    const SIGN_SENDER = 'Sending Officer (Sign)';
+    const SIGN_RECEIVER = 'Receiving Officer (Sign)';
 
     // A scanner "types" a whole code in a few milliseconds per character; a
     // person cannot. These thresholds separate the two.
@@ -506,17 +509,18 @@ window.secretariatFileLog = function (config) {
             const rows = this.visibleRows();
             const sent = this.view() === 'sent';
             // No Notes, Reference, Tracking ID or Log ID in the export (user, 2026-10-16).
-            // To: office before officer, as the table shows it.
-            const head = ['S/N', 'File Number', 'Title', 'Type', 'Status', 'From', 'To (Office)', 'To (Officer)',
-                sent ? 'Sent' : 'Date', 'Purpose', 'Sender', 'Sender Name'];
+            // To: office before officer, as the table shows it. Purpose follows Status, and the
+            // sending / receiving officers sign after From / To (Office) on the PDF (user, 2026-10-22).
+            const head = ['S/N', 'File Number', 'Title', 'Type', 'Status', 'Purpose', 'From', SIGN_SENDER, 'To (Office)', SIGN_RECEIVER,
+                'To (Officer)', sent ? 'Sent' : 'Date', 'Sender', 'Sender Name'];
             const status = (r) => sent ? (r.state || '')
                 : [r.bucket === 'pending' ? 'Awaiting receipt' : 'Held here', r.legacy ? 'Legacy log' : '', r.not_indexed ? 'Not indexed' : '',
                    r.request_type === 'SUBMITTED' ? 'Submitted Request' : ''].filter(Boolean).join('; ');
             const type = (r) => r.file_type === 'NON_FILE' ? (r.document_kind ? this.kindText(r.document_kind, r.mail_type) : 'Mail') : 'File';
             const body = rows.map((r, i) => [
-                i + 1, r.file_number || r.related_file_number || '', nice(r.file_title) || '', type(r), status(r),
-                nice(r.from) || '', nice(r.to) || '', nice(r.to_officer) || '', r.since ? this.fmt(r.since) : '',
-                nice(r.purpose) || '', [r.sender_type && r.sender_type !== 'Other' ? r.sender_type : '', r.sender || ''].filter(Boolean).join(' — '),
+                i + 1, r.file_number || r.related_file_number || '', String(r.file_title || '').trim().toUpperCase(), type(r), status(r),
+                nice(r.purpose) || '', nice(r.from) || '', '', nice(r.to) || '', '', nice(r.to_officer) || '', r.since ? this.fmt(r.since) : '',
+                [r.sender_type && r.sender_type !== 'Other' ? r.sender_type : '', r.sender || ''].filter(Boolean).join(' — '),
                 [nice(r.sender_name) || '', r.sender_rank ? '(' + r.sender_rank + ')' : ''].filter(Boolean).join(' '),
             ]);
             const tabName = this.tab === 'memo' ? 'memo' : 'held';
@@ -548,7 +552,12 @@ window.secretariatFileLog = function (config) {
         },
 
         exportCsv() {
-            const { rows, head, body, fileBase } = this.exportData();
+            const data = this.exportData();
+            const { rows, fileBase } = data;
+            // The signature columns are for the printed page only.
+            const keep = data.head.map((h, i) => i).filter(i => ![SIGN_SENDER, SIGN_RECEIVER].includes(data.head[i]));
+            const head = keep.map(i => data.head[i]);
+            const body = data.body.map(line => keep.map(i => line[i]));
             // Quote every cell; a leading = + - @ is prefixed so Excel does not run it as a formula.
             const cell = (v) => {
                 let t = String(v ?? '');
@@ -603,7 +612,11 @@ window.secretariatFileLog = function (config) {
                 styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak', valign: 'top' },
                 headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
                 alternateRowStyles: { fillColor: [245, 247, 250] },
-                columnStyles: { 0: { cellWidth: 26, halign: 'right' } },
+                // Signature columns: wide and tall enough to sign in.
+                columnStyles: keep.reduce((styles, col, pos) => {
+                    if ([SIGN_SENDER, SIGN_RECEIVER].includes(head[col])) styles[pos] = { cellWidth: 62, minCellHeight: 24 };
+                    return styles;
+                }, { 0: { cellWidth: 26, halign: 'right' } }),
                 didDrawPage: () => {
                     const h = doc.internal.pageSize.getHeight();
                     doc.setFontSize(8);
@@ -1717,9 +1730,15 @@ window.secretariatFileLog = function (config) {
             this.manual.officerFilter = nice(o.name);
             this.manual.officerOpen = false;
         },
+        // Officers who can receive a file sent from here: everyone but the sender,
+        // since a file cannot be sent to yourself.
+        sendOfficers() {
+            return this.officers.filter(o => String(o.id) !== String(this.userId));
+        },
         groupOfficers(state, officeCode) {
             const f = state.receiving_officer_id ? '' : (state.officerFilter || '').trim().toLowerCase();
-            const list = f ? this.officers.filter(o => (String(o.name) + ' ' + String(o.username || '')).toLowerCase().includes(f)) : this.officers;
+            const all = this.sendOfficers();
+            const list = f ? all.filter(o => (String(o.name) + ' ' + String(o.username || '')).toLowerCase().includes(f)) : all;
             const to = this.offices.find(o => o.office_code === officeCode);
             const dept = String((to && to.department) || '').toLowerCase().replace(/\s*department\s*$/, '').trim();
             const inDept = (o) => {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Survey\BeneficiaryController;
+use App\Http\Controllers\Survey\CadastralFilesController;
 use App\Http\Controllers\Survey\CalculatorController;
 use App\Http\Controllers\Survey\CaseController;
 use App\Http\Controllers\Survey\DashboardController;
@@ -87,6 +88,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/lands', [GknController::class, 'index'])->name('lands');
         Route::get('/register', [GknController::class, 'create'])->name('register');
         Route::post('/register', [GknController::class, 'store'])->name('register.store');
+        // Backfill for a number picked in the global file number selector (2026-10-21).
+        Route::get('/lookup', [GknController::class, 'lookup'])->name('lookup');
         Route::get('/{gkn}/edit', [GknController::class, 'edit'])->name('edit');
         Route::put('/{gkn}', [GknController::class, 'update'])->name('update');
         Route::delete('/{gkn}', [GknController::class, 'destroy'])->name('destroy');
@@ -126,6 +129,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/examination/{examination}/pass', [ExaminationController::class, 'pass'])->name('examination.pass');
         Route::post('/examination/{examination}/return', [ExaminationController::class, 'returnItem'])->name('examination.return');
         Route::delete('/examination/{examination}', [ExaminationController::class, 'destroy'])->name('examination.destroy');
+        // Cadastral Dept Verification files, read-only from Survey (2026-10-21).
+        Route::get('/cadastral-files', [CadastralFilesController::class, 'index'])->name('cadastral-files');
 
         Route::get('/occupancy', [OpController::class, 'workflow'])->name('occupancy');
     });

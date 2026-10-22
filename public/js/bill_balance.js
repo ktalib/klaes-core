@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
           referenceInput.value = d.bill_reference;
           setReferenceDisplay(d.bill_reference);
         } else if (d.bill_reference_taken) {
-          console.warn(`ST reference ${d.bill_reference} is already used by another bill balance; keeping the generated DBBL reference.`);
+          console.warn(`ST reference ${d.bill_reference} is already used by another bill balance; keeping the Bill Master reference.`);
         }
 
         // --- fees ---
@@ -309,7 +309,15 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(response => response.json())
       .then(payload => {
         const d = payload && payload.data;
-        if (!payload.success || !d) { release(); return; }
+        if (!payload.success || !d) {
+          release();
+          // A P&D bill raised under Bill Master is paid separately in KLAES REV-M.
+          if (payload && payload.note && note) {
+            note.textContent = payload.note;
+            note.classList.remove('hidden');
+          }
+          return;
+        }
 
         input.value = Number(d.total).toFixed(2);
         input.dataset.source = 'cadastral';

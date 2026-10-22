@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Recertification\RecertificationLandFile;
 use App\Services\ScannerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -524,9 +525,64 @@ class RecertificationController extends Controller
      * Store a newly created recertification application.
      * Persists to SQL Server connection (sqlsrv).
      */
+    /**
+     * GET recertification/land-file?file_no= — what the system holds about the land
+     * file a recertification starts from, for the form to backfill.
+     */
+    public function landFile(Request $request, RecertificationLandFile $landFiles)
+    {
+        $fileNo = trim((string) $request->query('file_no', ''));
+        if ($fileNo === '') {
+            return response()->json(['success' => false, 'message' => 'Select a land file.'], 422);
+        }
+
+        $record = $landFiles->resolve($fileNo);
+        if (!$record) {
+            return response()->json([
+                'success' => false,
+                'message' => "{$fileNo} is not in the system. A recertification needs an existing land file.",
+            ], 404);
+        }
+
+        if ($record['new_kangis']['source'] === 'new') {
+            $record['new_kangis']['preview'] = $landFiles->nextKangisNumber();
+        }
+
+        return response()->json(['success' => true] + $record);
+    }
+
     public function store(Request $request)
     {
+        $landFiles = app(RecertificationLandFile::class);
+
         try {
+            // A recertification starts from an existing land file. Re-read it here so
+            // locked (backfilled) fields come from the records, not the request.
+            $landFileNo = trim((string) $request->input('landFileNo', ''));
+            $land = $landFileNo !== '' ? $landFiles->resolve($landFileNo) : null;
+            if (!$land) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $landFileNo === ''
+                        ? 'Select the land file first.'
+                        : "{$landFileNo} is not in the system. A recertification needs an existing land file.",
+                ], 422);
+            }
+            if ($land['decommissioned']) {
+                return response()->json(['success' => false, 'message' => "{$land['land_file']} has been decommissioned and cannot be recertified."], 422);
+            }
+            if ($land['existing_application']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "{$land['land_file']} already has recertification application {$land['existing_application']['reference']}.",
+                ], 422);
+            }
+
+            $request->merge($land['fields']);
+            if (!$request->filled('cacRegistrationNo') && $request->filled('cacRegistrationNumber')) {
+                $request->merge(['cacRegistrationNo' => $request->input('cacRegistrationNumber')]);
+            }
+
             // Normalize applicant type
             $type = $request->input('applicantType');
 
@@ -534,6 +590,7 @@ class RecertificationController extends Controller
             $rules = [
                 'applicationDate' => 'nullable|date',
                 'applicantType' => 'required|in:Individual,Corporate,Government Body,Multiple Owners',
+                'currentLandUse' => 'required|in:residential,commercial,industrial,agricultural',
             ];
 
             if ($type === 'Corporate') {
@@ -575,7 +632,7 @@ class RecertificationController extends Controller
             $reference = 'RC-' . date('Ymd') . '-' . strtoupper(Str::random(6));
 
             // Prepare payload (exclude files)
-            $payload = $request->except(['owners', '_token']);
+            $payload = $request->except(['owners', '_token', 'draft_key']);
 
             // Include owners meta (without files) if present
             if ($type === 'Multiple Owners') {
@@ -602,8 +659,25 @@ class RecertificationController extends Controller
                 $payload['cac_document_path'] = $request->file('cacDocument')->store('recertification/cac', 'public');
             }
 
+            // KANGIS File No: the records' own when they hold one (locked on the form);
+            // otherwise the one the clerk picked with the selector, if any.
+            $existingKangis = $land['kangis']['file_no'];
+            if (!$existingKangis) {
+                $picked = trim((string) $request->input('kangisFileNo', ''));
+                if ($picked !== '' && !$landFiles->kangisFileExists($picked)) {
+                    return response()->json(['success' => false, 'message' => "KANGIS file {$picked} is not in the system."], 422);
+                }
+                $existingKangis = $picked !== '' ? $picked : null;
+            }
+
+            $db = DB::connection('sqlsrv');
+            $db->beginTransaction();
+
+            // New KANGIS File No: the land file's own KN number when it has one; otherwise the next KN.
+            $kangisFileNo = $land['new_kangis']['file_no'] ?: $landFiles->allocateKangisNumber();
+
             // Insert application with all structured fields
-            $appId = DB::connection('sqlsrv')->table('recertification_applications')->insertGetId([
+            $appId = $db->table('recertification_applications')->insertGetId([
                 // Meta
                 'application_reference' => $reference,
                 'application_date' => $request->input('applicationDate'),
@@ -652,6 +726,7 @@ class RecertificationController extends Controller
                 'title_holder_middle_name' => $request->input('titleHolderMiddleName'),
                 'title_holder_title' => $request->input('titleHolderTitle'),
                 'cofo_number' => $request->input('cofoNumber'),
+                'serial_no' => $request->input('serial_no'),
                 'reg_no' => $request->input('registrationNo'),
                 'reg_volume' => $request->input('registrationVolume'),
                 'reg_page' => $request->input('registrationPage'),
@@ -677,10 +752,13 @@ class RecertificationController extends Controller
 
                 // Step 5 - Plot Details
                 'plot_number' => $request->input('plotNumber'),
-                'file_number' => $request->input('fileNumber'),
-                'NewKANGISFileno' => $request->input('newKangisFileNo'),
+                'file_number' => $land['land_file'],
+                'mlsfNo' => $land['land_file'],
+                'mlsFileNo' => $land['land_file'],
+                'kangisFileNo' => $existingKangis,
+                'NewKANGISFileno' => $kangisFileNo,
                 'plot_size' => $request->input('plotSize'),
-                'layout_district' => $request->input('layoutDistrict'),
+                'layout_district' => $request->input('district', $request->input('layoutDistrict')),
                 'lga_name' => $request->input('lga'),
                 'current_land_use' => $request->input('currentLandUse'),
                 'plot_status' => $request->input('plotStatus'),
@@ -740,13 +818,30 @@ class RecertificationController extends Controller
                 }
             }
 
+            // The land file's commissioning row shows it has been called up into KANGIS.
+            $landFiles->markCalledUp($land['land_file'], $kangisFileNo, (int) $appId);
+
+            // The draft this application was keyed in is finished.
+            if ($request->filled('draft_key') && Schema::connection('sqlsrv')->hasTable('recertification_drafts')) {
+                RecertificationDraftController::markSubmitted($request->input('draft_key'), (int) $appId);
+            }
+
+            $db->commit();
+
             return response()->json([
                 'success' => true,
                 'id' => $appId,
                 'reference' => $reference,
+                'kangis_file_no' => $kangisFileNo,
+                'acknowledgement_url' => route('recertification.acknowledgement.view', ['id' => $appId]),
                 'message' => 'Recertification application stored successfully.'
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
+            if (isset($db) && $db->transactionLevel() > 0) {
+                $db->rollBack();
+            }
             Log::error('Recertification store error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -804,69 +899,13 @@ class RecertificationController extends Controller
     /**
      * Get the next New KANGIS file number for new applications
      */
-    public function getNextNewKangisFileNumber()
+    public function getNextNewKangisFileNumber(RecertificationLandFile $landFiles)
     {
-        try {
-            // Focus primarily on the recertification_applications table for NewKANGISFileno
-            // This ensures we maintain the KN3000+ sequence for recertification applications
-            $lastFromNewKangis = DB::connection('sqlsrv')
-                ->table('recertification_applications')
-                ->where('NewKANGISFileno', 'like', 'KN%')
-                ->orderBy('NewKANGISFileno', 'desc')
-                ->value('NewKANGISFileno');
-
-            // Also check file_number field in recertification_applications as backup
-            $lastFromFileNumber = DB::connection('sqlsrv')
-                ->table('recertification_applications')
-                ->where('file_number', 'like', 'KN%')
-                ->orderBy('file_number', 'desc')
-                ->value('file_number');
-
-            // Determine the next number based on recertification_applications table only
-            $highestNumber = 4000; // Default starting number for recertification
-
-            // Check NewKANGISFileno field first (primary field for this purpose)
-            if ($lastFromNewKangis && preg_match('/^KN(\d{4,})$/', $lastFromNewKangis, $matches)) {
-                $number = intval($matches[1]);
-                if ($number >= 4000) { // Only consider numbers in the 4000+ range for recertification
-                    $highestNumber = $number + 1;
-                }
-            }
-
-            // If no NewKANGISFileno found, check file_number as backup
-            if ($highestNumber == 4000 && $lastFromFileNumber && preg_match('/^KN(\d{4,})$/', $lastFromFileNumber, $matches)) {
-                $number = intval($matches[1]);
-                if ($number >= 4000) { // Only consider numbers in the 4000+ range for recertification
-                    $highestNumber = $number + 1;
-                }
-            }
-
-            $nextNewKangisFileNumber = 'KN' . str_pad($highestNumber, 4, '0', STR_PAD_LEFT);
-
-            // Log the generation for debugging
-            Log::info('New KANGIS file number generated', [
-                'last_from_new_kangis' => $lastFromNewKangis,
-                'last_from_file_number' => $lastFromFileNumber,
-                'highest_number' => $highestNumber,
-                'generated_number' => $nextNewKangisFileNumber
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'new_kangis_file_number' => $nextNewKangisFileNumber
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error getting next New KANGIS file number', [
-                'message' => $e->getMessage()
-            ]);
-
-            // Return a safer default that avoids reusing KN4000 on failure
-            return response()->json([
-                'success' => true,
-                'new_kangis_file_number' => 'KN4001'
-            ]);
-        }
+        // A preview only: the number is assigned when the application is saved.
+        return response()->json([
+            'success' => true,
+            'new_kangis_file_number' => $landFiles->nextKangisNumber(),
+        ]);
     }
 
     /**

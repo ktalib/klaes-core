@@ -196,6 +196,8 @@ class FileNumberController extends Controller
             $length = (int) $request->input('length', 20);
             $search = $request->input('search.value', '');
             $source = $request->input('source', 'New');
+            // Batch Commissioned tab: the same list, narrowed to files commissioned in a batch.
+            $batchOnly = $source === 'New' && $request->boolean('batch_only');
 
             // ── Source WHERE fragment (no bindings needed — string literals only) ──
             if ($source === 'New') {
@@ -209,18 +211,26 @@ class FileNumberController extends Controller
                 // 'OP Direct Allocation'): the generator writes those same values for
                 // its own OP allocations, so that test also hid files commissioned in
                 // MLS File Commissioning. Origin is stamped into sub_source instead.
-                $sourceWhere = "(
-                                    (fn.SOURCE IN ('MLS_Commissioned','MLS_Commissioned_Batch') AND fn.type = 'MlsFileNO')
-                                    OR EXISTS (
-                                        SELECT 1 FROM mls_file_no ms_new
-                                        WHERE ms_new.full_file_number = fn.mlsfNo
-                                          AND (ms_new.is_deleted IS NULL OR ms_new.is_deleted = 0)
-                                          AND (
-                                              ms_new.file_option IS NULL
-                                              OR LTRIM(RTRIM(ms_new.file_option)) = ''
-                                              OR LOWER(LTRIM(RTRIM(ms_new.file_option))) <> 'temporary'
-                                          )
-                                    )
+                //
+                // Written as an id set (UNION of two index seeks) rather than
+                // "SOURCE test OR EXISTS(mls_file_no)": the OR forced a scan of all
+                // ~180k fileNumber rows on every count and page (~3 s each). The CAST
+                // matters too — full_file_number is nvarchar and mlsfNo varchar, so
+                // without it SQL Server converts mlsfNo and cannot seek its index.
+                // Same rows as before (verified 2026-10-22: 8,935 ids, identical set).
+                $sourceWhere = "fn.id IN (
+                                    SELECT f1.id FROM fileNumber f1
+                                    WHERE f1.SOURCE IN ('MLS_Commissioned','MLS_Commissioned_Batch')
+                                      AND f1.type = 'MlsFileNO'
+                                    UNION
+                                    SELECT f2.id FROM mls_file_no ms_new
+                                    JOIN fileNumber f2 ON f2.mlsfNo = CAST(ms_new.full_file_number AS VARCHAR(100))
+                                    WHERE (ms_new.is_deleted IS NULL OR ms_new.is_deleted = 0)
+                                      AND (
+                                          ms_new.file_option IS NULL
+                                          OR LTRIM(RTRIM(ms_new.file_option)) = ''
+                                          OR LOWER(LTRIM(RTRIM(ms_new.file_option))) <> 'temporary'
+                                      )
                                 )
                                 AND " . OssOpCommissionFilter::notExistsSql('fn.mlsfNo');
             } elseif ($source === 'All') {
@@ -248,13 +258,50 @@ class FileNumberController extends Controller
                                        OR fn.plot_no         LIKE ?
                                        OR fn.tp_no           LIKE ?)";
                 $searchBindings = [$pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct];
+
+                if ($batchOnly) {
+                    // Batch Commissioned tab: a hit on ANY member (or the batch number)
+                    // keeps every file of that batch, so the batch still groups as one
+                    // full row instead of collapsing to the single matching file.
+                    // Resolved to batch numbers up front: as a correlated EXISTS inside
+                    // the list query SQL Server chose a plan that took over a minute.
+                    $matchedBatches = DB::connection('sqlsrv')->table('mls_file_no as mb')
+                        ->join('fileNumber as fs', 'fs.mlsfNo', '=', DB::raw('CAST(mb.full_file_number AS VARCHAR(100))'))
+                        ->whereRaw("NULLIF(LTRIM(RTRIM(mb.batch_no)), '') IS NOT NULL")
+                        ->where(fn ($q) => $q->whereNull('mb.is_deleted')->orWhere('mb.is_deleted', 0))
+                        ->where(fn ($q) => $q->whereNull('fs.is_deleted')->orWhere('fs.is_deleted', 0))
+                        ->where(function ($q) use ($pct) {
+                            foreach (['fs.kangisFileNo', 'fs.NewKANGISFileNo', 'fs.FileName', 'fs.mlsfNo', 'fs.st_file_no',
+                                      'fs.tracking_id', 'fs.lga', 'fs.location', 'fs.plot_no', 'fs.tp_no', 'mb.batch_no'] as $col) {
+                                $q->orWhere($col, 'like', $pct);
+                            }
+                        })
+                        ->distinct()
+                        ->limit(1000)
+                        ->pluck('mb.batch_no')
+                        ->map(fn ($v) => (string) $v)
+                        ->all();
+
+                    if (empty($matchedBatches)) {
+                        $searchSql = 'AND 1 = 0';
+                        $searchBindings = [];
+                    } else {
+                        $searchSql = 'AND mls.batch_no IN (' . implode(',', array_fill(0, count($matchedBatches), '?')) . ')';
+                        $searchBindings = $matchedBatches;
+                    }
+                }
             }
 
             // ── Fast total count (cached 5 min) ──
             // Uses a single OUTER APPLY for batch_no only — no other lookups needed.
             // v4: bumped when the OSS exclusion above dropped its source-based marker,
             // so the corrected total is not served from a stale v3 entry after deploy.
-            $recordsTotal = Cache::remember("file_numbers_total_v4_{$source}", 300, function () use ($sourceWhere) {
+            if ($batchOnly) {
+                // Every query below joins the newest mls_file_no row as `mls`.
+                $sourceWhere .= " AND NULLIF(LTRIM(RTRIM(mls.batch_no)), '') IS NOT NULL";
+            }
+
+            $recordsTotal = Cache::remember("file_numbers_total_v4_{$source}" . ($batchOnly ? '_batch' : ''), 300, function () use ($sourceWhere) {
                 $row = DB::connection('sqlsrv')->selectOne(
                     "SELECT COUNT(DISTINCT COALESCE(NULLIF(mls.batch_no,''), CAST(fn.id AS VARCHAR(20)))) AS cnt
                      FROM fileNumber fn
@@ -271,7 +318,7 @@ class FileNumberController extends Controller
             // ── Add temporary-file count to totals (source=New only) ──
             // Temporary files only exist in mls_file_no, so we count them separately.
             $tempCount = 0;
-            if ($source === 'New') {
+            if ($source === 'New' && !$batchOnly) {
                 $tempRow = DB::connection('sqlsrv')->selectOne(
                     "SELECT COUNT(*) AS cnt FROM mls_file_no
                      WHERE file_option = 'temporary'
@@ -289,7 +336,7 @@ class FileNumberController extends Controller
             // ── Build Plot Extension rows once (source=New only) ──
             // These now interleave by date through the unified phase-1 query; the full
             // formatted set is kept here so phase-2 can pick the rows on the current page.
-            $plotExtRows = $this->formatPlotExtensionRows($source, $search);
+            $plotExtRows = $batchOnly ? collect() : $this->formatPlotExtensionRows($source, $search);
             $recordsTotal += $plotExtRows->count();
 
             // ── Fast filtered count ──
@@ -312,7 +359,7 @@ class FileNumberController extends Controller
                 $filteredRecords = (int) ($row->cnt ?? 0);
 
                 // Also count matching temporary files in filtered count
-                if ($source === 'New') {
+                if ($source === 'New' && !$batchOnly) {
                     $pct = "%{$search}%";
                     $tempFiltered = DB::connection('sqlsrv')->selectOne(
                         "SELECT COUNT(*) AS cnt FROM mls_file_no
@@ -351,7 +398,7 @@ class FileNumberController extends Controller
             // extensions / temp files interleave chronologically instead of being pinned
             // to the top. F = fileNumber (batch-grouped), T = temporary files,
             // P = plot extensions. T/P only exist in the "New" view.
-            $includeExtras = ($source === 'New');
+            $includeExtras = ($source === 'New' && !$batchOnly);
 
             $fileBranch = "
                 SELECT CAST('F' AS CHAR(1)) AS source_type, w.id,
@@ -449,9 +496,11 @@ class FileNumberController extends Controller
             // redraw, and several users can open the default page at once.  Phase 2
             // still reads the current records, so only pagination metadata is cached.
             $pageCacheVersion = (string) Cache::get('file_numbers_datatable_version', '1');
-            $pageCacheKey = 'file_numbers_phase1_v1_' . sha1(json_encode([
+            // v2: batch-tab search now matches whole batches.
+            $pageCacheKey = 'file_numbers_phase1_v2_' . sha1(json_encode([
                 $pageCacheVersion,
                 $source,
+                $batchOnly,
                 $search,
                 $start,
                 $length,
@@ -2114,6 +2163,11 @@ class FileNumberController extends Controller
                     ->where('id', $id)
                     ->update($peUpdate);
 
+                // A plot extension's sheet is keyed by its original file number.
+                if (isset($peUpdate['lga'])) {
+                    $this->syncConversionSheetLga($peUpdate['lga'], $pe->original_file_no ?? null, null);
+                }
+
                 // Keep the matching file_indexings row in sync — the original file
                 // number is retained as-is on the plot extension, so the indexing
                 // screen must reflect the edited file name and location details.
@@ -2730,6 +2784,38 @@ class FileNumberController extends Controller
      *                           old/related file number and the passport belong to that
      *                           one file, never to its batch siblings.
      */
+    /**
+     * Keep a file's LGA Confirmation Sheet addressed to the file's LGA when the
+     * LGA is corrected. A Local Government sheet saves the council it was first
+     * printed for, so without this a corrected file kept reprinting the old LGA
+     * (CON-IND-2026-823). State Government sheets name an entity, not the
+     * plot's council, and are left alone. Matched by fileNumber id (the sheet's
+     * mls_file_no_id) or by file number (plot extensions, ST files).
+     */
+    private function syncConversionSheetLga($lga, ?string $fileNo, ?int $fileNumberId): void
+    {
+        $lga = trim((string) $lga);
+        $fileNo = trim((string) $fileNo);
+        if ($lga === '' || ($fileNo === '' && !$fileNumberId)) {
+            return;
+        }
+
+        DB::connection('sqlsrv')->table('conversion_applications')
+            ->where('allocation_source', 'Local Government')
+            ->where(function ($q) use ($fileNo, $fileNumberId) {
+                if ($fileNumberId) {
+                    $q->orWhere('mls_file_no_id', $fileNumberId);
+                }
+                if ($fileNo !== '') {
+                    $q->orWhere('full_file_number', $fileNo);
+                }
+            })
+            ->where(function ($q) use ($lga) {
+                $q->whereNull('allocation_entity')->orWhere('allocation_entity', '!=', $lga);
+            })
+            ->update(['allocation_entity' => $lga, 'updated_at' => now()]);
+    }
+
     private function applyFileNumberEdit(Request $request, $record, bool $isPrimary): void
     {
         $id = $record->id;
@@ -2815,6 +2901,10 @@ class FileNumberController extends Controller
                 ->table('fileNumber')
                 ->where('id', $id)
                 ->update($updateData);
+
+            if (isset($updateData['lga'])) {
+                $this->syncConversionSheetLga($updateData['lga'], $record->mlsfNo ?: ($record->st_file_no ?? null), (int) $id);
+            }
 
             // Also sync to mls_file_no if mlsfNo is present
             if ($record->mlsfNo) {
@@ -2967,29 +3057,65 @@ class FileNumberController extends Controller
             // values captured at commissioning time.
             $this->propagateToOssApplications($request, $fileNoCandidates, $nameChanged);
 
-            // The recommendation / RofO letter prints the file title as its applicant
-            // name (readonly on the capture form, "Taken from the selected file number"),
-            // so a renamed file must rename its letter too -- RES-2026-3878 kept the
-            // misspelt "REALITY MARK LIMITED" on its RofO after the file was corrected.
-            if ($nameChanged) {
-                $this->propagateNameToRecommendations($request, $fileNoCandidates);
-            }
+            // The recommendation / RofO letter keeps its OWN copy of the applicant and
+            // property details and prints from it, so a corrected file must correct its
+            // letter too -- RES-2026-3878 kept the misspelt "REALITY MARK LIMITED" on its
+            // RofO after the file was corrected. Runs once per file, so a batch edit
+            // reaches every member's own recommendation.
+            $this->propagateToRecommendations($request, $fileNoCandidates, $nameChanged, $isPrimary);
         }
     }
 
     /**
-     * Rename the applicant on the recommendation letters captured against this file.
+     * Land recommendation column => edit-form field it is kept in step with.
+     * applicant_name / file_title follow the file name only when the name itself changed.
+     */
+    private const RECOMMENDATION_SYNC_MAP = [
+        'plot_number'       => 'plot_no',
+        'location'          => 'location',
+        'lga'               => 'lga',
+        'district'          => 'district',
+        'applicant_address' => 'address',
+        'applicant_phone'   => 'phone_no',
+    ];
+
+    /**
+     * Carry a file-number edit onto the recommendation letters captured against this file.
      *
      * Matched on land_recommendations.file_number only, never old_file_number: for a
      * subdivision child that column holds the MOTHER's number, so matching it would
-     * rename every sibling plot's letter with this plot's holder.
+     * overwrite every sibling plot's letter with this plot's details.
+     *
+     * A blank form field never clears a value the recommendation already holds -- the
+     * edit form posts every field, and an empty one there usually means "not captured
+     * on the file yet", not "erase it from the letter".
+     *
+     * Plot number goes to the opened file's recommendation only. In a batch save the
+     * siblings are usually subdivision children with their own plots (e.g. the children
+     * of CON-COM-2022-216), so the opened file's plot never lands on their letters.
      *
      * @param  array<int, string>  $fileNoCandidates
+     * @param  bool  $isPrimary  false for the batch siblings of the file that was opened
      */
-    private function propagateNameToRecommendations(Request $request, array $fileNoCandidates): void
+    private function propagateToRecommendations(Request $request, array $fileNoCandidates, bool $nameChanged, bool $isPrimary = true): void
     {
-        $newName = trim((string) $request->file_name);
-        if ($newName === '') {
+        $incoming = [];
+
+        if ($nameChanged && trim((string) $request->file_name) !== '') {
+            $incoming['applicant_name'] = trim((string) $request->file_name);
+            $incoming['file_title'] = trim((string) $request->file_name);
+        }
+
+        foreach (self::RECOMMENDATION_SYNC_MAP as $column => $field) {
+            if ($column === 'plot_number' && !$isPrimary) {
+                continue;
+            }
+            if ($request->has($field) && trim((string) $request->input($field)) !== '') {
+                $incoming[$column] = trim((string) $request->input($field));
+            }
+        }
+
+        if (empty($incoming)) {
             return;
         }
 
@@ -2999,27 +3125,44 @@ class FileNumberController extends Controller
                 ->where(function ($q) {
                     $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
                 })
-                ->get(['id', 'file_number', 'applicant_name', 'rofo_status', 'rofo_print_count']);
+                ->get(array_merge(['id', 'file_number', 'rofo_status', 'rofo_print_count'], array_keys($incoming)));
 
-            $rows = $rows->filter(fn ($r) => trim((string) $r->applicant_name) !== $newName);
-            if ($rows->isEmpty()) {
+            $changedRecords = [];
+
+            foreach ($rows as $row) {
+                $changes = [];
+                foreach ($incoming as $column => $value) {
+                    if (trim((string) ($row->{$column} ?? '')) !== $value) {
+                        $changes[$column] = $value;
+                    }
+                }
+
+                if (empty($changes)) {
+                    continue;
+                }
+
+                DB::connection('sqlsrv')->table('land_recommendations')
+                    ->where('id', $row->id)
+                    ->update($changes + ['updated_at' => now()]);
+
+                $changedRecords[] = [
+                    'id' => (int) $row->id,
+                    'file_number' => $row->file_number,
+                    'before' => array_intersect_key((array) $row, $changes),
+                    'after' => $changes,
+                    'rofo_status' => $row->rofo_status,
+                    'rofo_print_count' => (int) $row->rofo_print_count,
+                ];
+            }
+
+            if (empty($changedRecords)) {
                 return;
             }
 
-            DB::connection('sqlsrv')->table('land_recommendations')
-                ->whereIn('id', $rows->pluck('id')->all())
-                ->update(['applicant_name' => $newName, 'updated_at' => now()]);
-
             // A letter already on paper now disagrees with the record; say which.
-            Log::info('File-number edit renamed recommendation applicant', [
+            Log::info('File-number edit updated recommendation details', [
                 'file_numbers' => $fileNoCandidates,
-                'new_name' => $newName,
-                'records' => $rows->map(fn ($r) => [
-                    'id' => (int) $r->id,
-                    'old_name' => $r->applicant_name,
-                    'rofo_status' => $r->rofo_status,
-                    'rofo_print_count' => (int) $r->rofo_print_count,
-                ])->values()->all(),
+                'records' => $changedRecords,
             ]);
         } catch (\Throwable $e) {
             Log::warning('Failed to propagate file-number edit to land_recommendations', [
@@ -3198,6 +3341,10 @@ class FileNumberController extends Controller
         }
 
         $db->table('mls_file_no')->where('id', $id)->update($update);
+
+        if (isset($update['lga'])) {
+            $this->syncConversionSheetLga($update['lga'], $temp->full_file_number ?? null, null);
+        }
 
         $nameChanged = trim((string) ($temp->file_name ?? '')) !== trim((string) $request->file_name);
         $fileNoCandidates = array_values(array_filter([$temp->full_file_number ?? null]));
@@ -3830,6 +3977,7 @@ class FileNumberController extends Controller
     {
         Cache::forget('mls_fileno_page_stats_v2');
         Cache::forget('file_numbers_total_v4_New');
+        Cache::forget('file_numbers_total_v4_New_batch');
         Cache::forget('file_numbers_total_v4_All');
         Cache::forget('file_numbers_total_v4_Captured');
         // Page keys include this version, which lets us invalidate every cached
@@ -4674,6 +4822,16 @@ class FileNumberController extends Controller
         }
 
         if ($source !== null) {
+            // A Local Government sheet is addressed to the council the plot lies in,
+            // so it follows the file's current LGA rather than the one saved at the
+            // first print: correcting the file's LGA must correct the reprint too
+            // (CON-IND-2026-823 kept printing its old LGA after the edit). The
+            // write-back in generateConversionApplication then updates the row.
+            $fileLga = trim((string) ($record->lga_derived ?? $record->lga ?? ''));
+            if ($source === 'Local Government' && $fileLga !== '' && strcasecmp($fileLga, (string) $entity) !== 0) {
+                $entity = $fileLga;
+            }
+
             return [
                 'source' => $source,
                 'entity' => $entity,

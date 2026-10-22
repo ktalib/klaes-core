@@ -164,6 +164,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>LPKN Ref</th>
                     <th>Layout Name</th>
                     <th>Location</th>
@@ -178,6 +179,7 @@
             <tbody>
                 @forelse ($layouts as $l)
                     <tr>
+                        <td>{{ $layouts->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $l->lpkn_number }}</strong></td>
                         <td>
                             {{ $l->layout_name }}
@@ -210,7 +212,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="10" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-drafting-compass" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'status', 'land_use']))
                                 No layout plans match that filter.

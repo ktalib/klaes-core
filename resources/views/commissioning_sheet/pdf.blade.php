@@ -478,7 +478,7 @@
                 @foreach($relatedOrOldLines as [$relatedOrOldLabel, $relatedOrOldLine])
                 <div class="row">
                     <div class="label label--wide {{ strlen($relatedOrOldLabel) > 30 ? 'label--wrap' : '' }}">{{ $relatedOrOldLabel }}</div>
-                    <div class="value-line">{{ $relatedOrOldLine }}</div>
+                    <div class="value-line wrap">{{ $relatedOrOldLine }}</div>
                 </div>
                 @endforeach
                 @if(!empty($allottee))

@@ -73,6 +73,16 @@ class DeskQueues
             }
         }
 
+        // Registry > DMS Update (sidebar, 2026-10-20): files back from Land whose new pages are
+        // still to scan (Scan More: count not entered, or nothing uploaded yet) or to page-type
+        // (More Pages: uploaded, the DMS update not marked done). PageCounts / EdmsUpdate.
+        if (!empty($rules['dms'])) {
+            $hasRule = true;
+            if ($this->dmsStage($case) === $rules['dms']) {
+                return true;
+            }
+        }
+
         if (!empty($rules['ready'])) {
             $hasRule = true;
             if ($open() === []) {
@@ -81,6 +91,24 @@ class DeskQueues
         }
 
         return !$hasRule;
+    }
+
+    /** scan | type | null: where a file back from Land stands on its DMS update. */
+    public function dmsStage(CadastralCase $case): ?string
+    {
+        $counts = app(PageCounts::class);
+        if ($counts->direction($case) !== 'back' || in_array(EdmsUpdate::TASK, $case->doneTaskKeys(), true)) {
+            return null;
+        }
+        $state = $counts->state($case);
+        if ($state['triggered'] === false) {
+            return null;
+        }
+        if ($state['triggered'] === null) {
+            return 'scan';
+        }
+
+        return app(EdmsUpdate::class)->status($case)['new_pages'] > 0 ? 'type' : 'scan';
     }
 
     /**

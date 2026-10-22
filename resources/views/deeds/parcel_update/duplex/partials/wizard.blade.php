@@ -195,13 +195,23 @@
 
                                     <div>
                                         <label class="block text-[11px] font-bold text-slate-600 mb-1.5">District</label>
-                                        <select id="dx-district" onchange="dxEntryTouched(); updateAddressPreview()"
+                                        {{-- Searchable (Select2) with one "Other" that asks for the
+                                             name. The value itself lives in the hidden dx-district,
+                                             which is what everything else reads. --}}
+                                        <select id="dx-district-select" onchange="dxDistrictChanged()"
                                             class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                                             <option value="">-- Select --</option>
                                             @foreach ($districts as $d)
+                                                {{-- The list's own "Other" row is replaced by the one below, which asks for the name. --}}
+                                                @continue(strcasecmp(trim($d->name), 'other') === 0)
                                                 <option value="{{ $d->name }}">{{ $d->name }}</option>
                                             @endforeach
+                                            <option value="__OTHER__">Other</option>
                                         </select>
+                                        <input type="text" id="dx-district-other" placeholder="Specify district *"
+                                            oninput="dxDistrictChanged()" disabled
+                                            class="hidden mt-2 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+                                        <input type="hidden" id="dx-district">
                                     </div>
 
                                     <div>
@@ -302,8 +312,9 @@
                             </div>
 
                             <div class="grid grid-cols-12 gap-2 mb-1.5 px-1">
-                                <span class="col-span-5 text-[10px] font-black uppercase tracking-wider text-slate-400">File Number</span>
-                                <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Current Purpose</span>
+                                <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">File Number</span>
+                                <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Current Use / Purpose</span>
+                                <span class="col-span-2 text-[10px] font-black uppercase tracking-wider text-slate-400">New Land Use</span>
                                 <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">New Purpose</span>
                                 <span class="col-span-1"></span>
                             </div>

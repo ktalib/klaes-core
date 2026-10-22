@@ -208,7 +208,7 @@ System">
         <!-- Footer with Bottom Right Logo -->
         <footer class="relative w-full">
             <div class="absolute bottom-4 right-4 md:bottom-8 md:right-8">
-                <img src="{{ asset('storage/upload/logo/las.jpeg') }}" alt="Footer Logo" class="w-30 md:w-40 h-auto opacity-80 hover:opacity-100 transition-opacity duration-300">
+                <img src="{{ asset('assets/logo/Left_Logo.png') }}" alt="Footer Logo" class="w-30 md:w-40 h-auto opacity-80 hover:opacity-100 transition-opacity duration-300">
             </div>
         </footer>
         

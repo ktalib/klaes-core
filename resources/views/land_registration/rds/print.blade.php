@@ -273,25 +273,17 @@
                 <span>{{ $dateFormatted['year'] }}</span>
             </div>
 
-            {{-- Consideration and the receipt number are captured on the form, so
-                 they print filled. The registration fee and stamp duty are still
-                 entered by hand at the counter and print as empty rules. --}}
-            @php
-                $amount = $instrument->consideration_amount ?? null;
-                // Formatted only when it really is a number: legacy rows can hold
-                // free text like "N1.5M", which must print as written.
-                $amountDisplay = is_numeric($amount)
-                    ? '&#8358;' . number_format((float) $amount, 2)
-                    : e((string) $amount);
-            @endphp
+            {{-- Consideration, receipt number, registration fee and stamp duty are
+                 all entered by hand at the counter, so they print as empty rules
+                 even when the form captured a value. --}}
             <div class="mt-8 space-y-2 max-w-md ml-auto">
                 <div class="flex items-baseline gap-2">
                     <span class="font-semibold uppercase tracking-wide">CONSIDERATION:</span>
-                    <span class="form-line flex-1 font-bold">{!! $amountDisplay !!}</span>
+                    <span class="form-line flex-1"></span>
                 </div>
                 <div class="flex items-baseline gap-2">
                     <span class="font-semibold uppercase tracking-wide">RECEIPT NO:</span>
-                    <span class="form-line flex-1 font-bold">{{ $instrument->receipt_no ?? '' }}</span>
+                    <span class="form-line flex-1"></span>
                 </div>
                 <div class="flex items-baseline gap-2">
                     <span class="font-semibold uppercase tracking-wide">REGISTRATION FEE OF &#8358;</span>

@@ -99,6 +99,7 @@
                                 <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left">R of Occupancy</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                 <th class="px-4 py-3 text-left">Existing Land Use</th>
                                 <th class="px-4 py-3 text-left">Plot No</th>
                                 <th class="px-4 py-3 text-left">Location</th>
@@ -110,6 +111,11 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @php
+                                // File numbers each application produced once commissioned.
+                                $newFileNos = app(\App\Services\ParcelUpdateNewFiles::class)
+                                    ->forApplications($records, 'Extension File', fn ($r) => [$r->file_no]);
+                            @endphp
                             @forelse($records as $record)
                                 @php
                                     // Same conditions as this row's menu: KAMMA until approved;
@@ -121,6 +127,7 @@
                                     <td class="px-4 py-2.5 text-xs text-slate-400 font-mono whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->file_no ?: '—' }}</td>
+                                    @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->land_use ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->plot_no ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-600 text-xs leading-snug">
@@ -256,6 +263,7 @@
                                 </tr>
                             @empty
                                 <tr>
+                                    <td class="px-4 py-2.5"></td>
                                     <td class="px-4 py-2.5"></td>
                                     <td class="px-4 py-2.5"></td>
                                     <td class="px-4 py-2.5"></td>
@@ -843,6 +851,7 @@
                 const data = result.data;
                 Swal.fire({
                     title: 'KAMMA/Physical Planning Handshake',
+                    allowOutsideClick: false, // typed input: a stray click must not discard it
                     html: `
                         <div class="text-left text-sm space-y-4 p-2">
                             <div class="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-4">
@@ -1093,6 +1102,7 @@
     async function peOpenApprovalDecision(id, canApprove = true) {
         var result = await Swal.fire({
             title: 'Approval decision',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             text: canApprove ? 'Choose whether to approve or reject this application.' : 'The Master JSI is not approved, so only rejection is available.',
             input: 'radio',
             inputOptions: canApprove ? { approve: 'Approve', reject: 'Reject' } : { reject: 'Reject' },
@@ -1131,6 +1141,7 @@
     async function peReject(id) {
         var res = await Swal.fire({
             title: 'Reject Application',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             input: 'textarea',
             inputLabel: 'Reason for rejection',
             inputPlaceholder: 'Enter reason here...',
@@ -1296,4 +1307,5 @@
         'reject' => route('plot-extension.reject', '__ID__'),
     ],
 ])
+@include('partials.decommissioned_before', ['dbSource' => '#pe-file-no'])
 @endsection

@@ -208,10 +208,14 @@ class TitleStatusService
             // NOTE: do not use insertOrIgnore() here — SQL Server does not support it
             // (Laravel throws "This database engine does not support inserting while
             // ignoring errors."). Guard against duplicates manually instead.
-            $alreadyArchived = DB::connection('sqlsrv')->table('decommissioned_files')
-                ->where('file_no', $fileNo)
-                ->where('false_decommissioning', $falseDecommissioning ? 1 : 0)
-                ->exists();
+            // A real decommission is never recorded twice for one file, whichever workflow
+            // retired it first (user rule, 2026-10-21); a flag is not repeated either.
+            $alreadyArchived = $falseDecommissioning
+                ? DB::connection('sqlsrv')->table('decommissioned_files')
+                    ->where('file_no', $fileNo)
+                    ->where('false_decommissioning', 1)
+                    ->exists()
+                : app(PlotWorkflowService::class)->activeDecommissionRecord($fileNo) !== null;
 
             if (!$alreadyArchived) {
                 $titleStatusRow = [

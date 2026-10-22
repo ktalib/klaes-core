@@ -551,12 +551,12 @@
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="edmsUpdate-lands">
           <a href="/scanning?url=scmore"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request()->query('url') === 'scmore' ? 'active' : '' }}">
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request()->query('url') === 'scmore' && ! request()->boolean('cadastral') ? 'active' : '' }}">
             <i data-lucide="scan-line" class="h-3.5 w-3.5 text-orange-500"></i>
             <span>Scan More</span>
           </a>
           <a href="/pagetyping?url=ptmore"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request()->query('url') === 'ptmore' ? 'active' : '' }}">
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request()->query('url') === 'ptmore' && ! request()->boolean('cadastral') ? 'active' : '' }}">
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-orange-500"></i>
             <span>Type More</span>
           </a>

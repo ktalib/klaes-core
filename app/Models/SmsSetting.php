@@ -49,6 +49,15 @@ class SmsSetting extends Model
     public const KEY_CAVEAT_AUTO_LIFTED = 'caveat_auto_lifted';
 
     /*
+     | KLAES REV-M bill notices (App\Services\Billing\BillNotifier): a bill is
+     | generated, a payment is received, the next payment of a recurring bill is
+     | due (bills:cycle, daily).
+     */
+    public const KEY_BILL_GENERATED = 'bill_generated';
+    public const KEY_BILL_PAYMENT = 'bill_payment_received';
+    public const KEY_BILL_DUE = 'bill_payment_due';
+
+    /*
      | Special Assignment (SPAS) contravention notices. Sent by SpaNoticeService
      | and spa:trigger-second-service, not by KlaesSmsDispatcher -- the notice
      | row records its own sms_sent. Here so the wording, the switch and the

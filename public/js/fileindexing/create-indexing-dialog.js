@@ -22,6 +22,281 @@
         return !!(box && box.checked);
     }
 
+    // KANGIS Block Indexing (fileindexing.partials.kangis_block_index). On a KANGIS
+    // Registry index the land file is the Related File No, and it may be related to one
+    // KANGIS file only. The box — offered while General Registry is KANGIS — marks the
+    // land file "multiple KANGIS files". Picking a land file already related to another
+    // KANGIS file asks Yes (tick the box) / No (clear the pick); users without the box
+    // are told which KANGIS file holds it. The controller enforces the same rule.
+    function isKangisRegistrySelected() {
+        return (document.getElementById('general-registry')?.value || '').toUpperCase().includes('KANGIS');
+    }
+
+    function kangisBlockIndexChecked() {
+        const wrapper = document.getElementById('kangis-block-index-wrapper');
+        const box = document.getElementById('kangis-block-index');
+        return !!(box && box.checked && wrapper && !wrapper.classList.contains('hidden'));
+    }
+
+    // Indexing Type follows the box (user, 2026-10-21): "KANGIS Block Indexing" is never
+    // picked by hand (its option is disabled); it is selected when the box is ticked and
+    // goes back to Regular when the box is cleared. "Land Block Indexing" is the old Block.
+    function setIndexingTypeForKangisBlock(on) {
+        const select = document.getElementById('indexing-type');
+        if (!select) return;
+        if (on && select.value !== 'KANGIS Block') {
+            select.value = 'KANGIS Block';
+        } else if (!on && select.value === 'KANGIS Block') {
+            select.value = 'Regular';
+        } else {
+            return;
+        }
+        // Alpine's x-model listens for change.
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    async function confirmKangisLandFile(input, landFile) {
+        const excludeId = (typeof editModeState !== 'undefined' && editModeState.isEditing) ? (editModeState.recordId || '') : '';
+        let status = null;
+        try {
+            const response = await fetch(`/fileindexing/api/kangis-land-file?land_file=${encodeURIComponent(landFile)}&exclude_id=${encodeURIComponent(excludeId)}`, {
+                headers: { Accept: 'application/json' },
+            });
+            status = await response.json().catch(() => null);
+        } catch (error) {
+            console.warn('KANGIS land file check failed; the save still enforces the rule.', error);
+        }
+        // Asked whenever the land file is on another KANGIS file, shared already or not (user, 2026-10-20).
+        if (!status || !status.success || !status.kangis_files?.length) return;
+        if (input.value.trim() !== landFile) return; // changed while we were asking
+
+        const list = status.kangis_files.map(escapeHtml).join(', ');
+        const box = document.getElementById('kangis-block-index');
+        if (status.can_mark_multiple && box) {
+            if (kangisBlockIndexChecked()) return;
+            const answer = await Swal.fire({
+                icon: 'question',
+                title: 'Land file already related to KANGIS',
+                html: `<b>${escapeHtml(landFile)}</b> is already related to KANGIS file <b>${list}</b>.<br><br>`
+                    + 'Relate it to this KANGIS file as well (KANGIS Block Indexing)?',
+                showCancelButton: true,
+                confirmButtonText: 'Yes',
+                cancelButtonText: 'No',
+            });
+            if (answer.isConfirmed) {
+                // Yes: the box appears, ticked; the land file stays picked.
+                box.checked = true;
+                document.getElementById('kangis-block-index-wrapper')?.classList.remove('hidden');
+                setIndexingTypeForKangisBlock(true);
+                return;
+            }
+        } else {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Land file already related to KANGIS',
+                html: `<b>${escapeHtml(landFile)}</b> is already related to KANGIS file <b>${list}</b>.<br>`
+                    + 'A land file may be related to one KANGIS file only.',
+            });
+        }
+
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // KANGIS Block Indexing — Plot No. On a KANGIS index each Related File Number row
+    // (a land file) carries its own Plot No.; together they form the KANGIS file's Plot
+    // Number ("1, 2 and 3", synced into Property Details), and each one is added to its
+    // land file's Plot Number list on save. Same list format as the server
+    // (App\Services\FileIndexing\KangisBlockIndexing::plotList / formatPlots).
+    function kangisPlotList(value) {
+        return String(value || '')
+            .split(/\s*,\s*(?:and\s+|&\s*)?|\s+(?:and|&)\s+|\s*&\s*/i)
+            .map(p => p.trim())
+            .filter(Boolean);
+    }
+
+    function kangisFormatPlots(plots) {
+        const list = plots.filter(Boolean);
+        if (list.length <= 1) return list[0] || '';
+        return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+    }
+
+    function kangisMainPlotInput() {
+        return document.getElementById('plot-number-0') || document.getElementById('plot-number');
+    }
+
+    /** The Plot No. typed beside a land file's Related File Number row. */
+    function relatedRowPlot(fileNo) {
+        if (!isKangisRegistrySelected()) return '';
+        const key = String(fileNo || '').toUpperCase().replace(/\s+/g, '');
+        const row = Array.from(document.querySelectorAll('#related-files-wrapper .related-file-row'))
+            .find(r => (r.querySelector('.related-file-input')?.value || '').toUpperCase().replace(/\s+/g, '') === key);
+        return (row?.querySelector('.related-plot-input')?.value || '').trim();
+    }
+
+    function initializeKangisBlockIndexUI() {
+        const wrapper = document.getElementById('kangis-block-index-wrapper');
+        const box = document.getElementById('kangis-block-index');
+        const registrySelect = document.getElementById('general-registry');
+        if (!registrySelect) return;
+
+        // The box stays hidden until a picked land file turns out to be on another KANGIS
+        // file and the user answers Yes (confirmKangisLandFile shows it, ticked). User,
+        // 2026-10-20. Leaving KANGIS Registry clears it.
+        function sync() {
+            const kangis = !window.isNewKnMode && isKangisRegistrySelected();
+            if (!kangis && box) box.checked = false;
+            if (wrapper) wrapper.classList.toggle('hidden', !(kangis && box?.checked));
+            // Off KANGIS Registry there is no KANGIS Block Indexing. On it, an unticked box
+            // leaves the type alone: an existing KANGIS Block record opens with the box clear.
+            if (!kangis) setIndexingTypeForKangisBlock(false);
+        }
+        registrySelect.addEventListener('change', sync);
+        sync();
+
+        // Unticked again: the box goes back out of sight (the save then refuses a land file
+        // that is still on another KANGIS file, naming it).
+        if (box) {
+            box.addEventListener('change', function () {
+                if (!box.checked && wrapper) wrapper.classList.add('hidden');
+                setIndexingTypeForKangisBlock(box.checked);
+            });
+        }
+
+        // Picking another Indexing Type by hand while the box is ticked clears the box.
+        document.getElementById('indexing-type')?.addEventListener('change', function (e) {
+            if (e.target.value !== 'KANGIS Block' && box?.checked) {
+                box.checked = false;
+                wrapper?.classList.add('hidden');
+            }
+        });
+
+        // A Plot No. box beside each Related File Number row (KANGIS Registry only), so the
+        // plot is entered without opening Related Details. Rows are cloned and rebuilt in
+        // several places, so the box is added here to whatever rows exist. On an existing
+        // record the KANGIS Plot Number list is spread back over the rows by position.
+        const relatedWrapper = document.getElementById('related-files-wrapper');
+        function ensureRelatedPlotInputs() {
+            if (!relatedWrapper) return;
+            const show = isKangisRegistrySelected();
+            const existing = kangisPlotList(kangisMainPlotInput()?.value);
+            relatedWrapper.querySelectorAll('.related-file-row').forEach((row, index) => {
+                if (!row.querySelector('.related-file-input')) return;
+                // Layout (user, 2026-10-20): the file number keeps the whole first line; Plot No.
+                // and Name sit on a second line under it (the row wraps).
+                row.classList.add('flex-wrap');
+                let extra = row.querySelector('.related-extra-fields');
+                if (!extra) {
+                    extra = document.createElement('div');
+                    extra.className = 'related-extra-fields w-full flex gap-2';
+                    row.appendChild(extra);
+                }
+                const inputClass = 'px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm';
+
+                let plotInput = row.querySelector('.related-plot-input');
+                if (!plotInput) {
+                    plotInput = document.createElement('input');
+                    plotInput.type = 'text';
+                    plotInput.placeholder = 'Plot No.';
+                    plotInput.title = 'Plot No. of this land file';
+                    plotInput.setAttribute('aria-label', 'Plot No.');
+                    plotInput.value = existing[index] || '';
+                }
+                plotInput.className = 'related-plot-input w-40 flex-shrink-0 ' + inputClass;
+                if (plotInput.parentElement !== extra) extra.appendChild(plotInput);
+
+                // Name (user, 2026-10-20): added to the land file's File Title on a block land
+                // file. Mirrors this KANGIS file's own File Title until typed in.
+                let nameInput = row.querySelector('.related-name-input');
+                if (!nameInput) {
+                    nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.placeholder = 'Name';
+                    nameInput.title = 'Holder name added to this land file\'s File Title';
+                    nameInput.setAttribute('aria-label', 'Name');
+                    nameInput.dataset.auto = '1';
+                    nameInput.value = kangisOwnTitle();
+                }
+                nameInput.className = 'related-name-input flex-1 min-w-0 ' + inputClass;
+                if (nameInput.parentElement !== extra) extra.appendChild(nameInput);
+
+                extra.classList.toggle('hidden', !show);
+            });
+        }
+
+        function kangisOwnTitle() {
+            return (document.querySelector('input[name="file_title[]"], #file-title')?.value || '').trim();
+        }
+
+        // KANGIS File Title -> every Name box not typed in by the user.
+        function syncNamesFromTitle() {
+            if (!relatedWrapper) return;
+            const title = kangisOwnTitle();
+            relatedWrapper.querySelectorAll('.related-name-input').forEach(input => {
+                if (input.dataset.auto === '1' && input.value !== title) input.value = title;
+            });
+        }
+        document.addEventListener('input', function (e) {
+            if (e.target.matches?.('input[name="file_title[]"], #file-title')) syncNamesFromTitle();
+        });
+
+        // Rows' Plot No. -> Property Details Plot No. as "1, 2 and 3" (left as is while
+        // every row is empty, so a plot typed there is not wiped).
+        function syncPlotsToPropertyDetails() {
+            if (!isKangisRegistrySelected() || !relatedWrapper) return;
+            const plots = [];
+            relatedWrapper.querySelectorAll('.related-plot-input').forEach(input => {
+                const v = input.value.trim();
+                if (v && !plots.some(p => p.toUpperCase().replace(/\s+/g, '') === v.toUpperCase().replace(/\s+/g, ''))) plots.push(v);
+            });
+            const main = kangisMainPlotInput();
+            if (!plots.length || !main) return;
+            const value = kangisFormatPlots(plots);
+            if (main.value !== value) {
+                main.value = value;
+                main.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        if (relatedWrapper) {
+            new MutationObserver(function (mutations) {
+                mutations.forEach(m => {
+                    m.addedNodes.forEach(node => {
+                        // A cloned row carries the first row's box and value: start it empty.
+                        const cloned = node.querySelector?.('.related-plot-input');
+                        if (cloned) cloned.value = '';
+                        const clonedName = node.querySelector?.('.related-name-input');
+                        if (clonedName) { clonedName.dataset.auto = '1'; clonedName.value = kangisOwnTitle(); }
+                    });
+                    if (m.removedNodes.length) setTimeout(syncPlotsToPropertyDetails, 0);
+                });
+                ensureRelatedPlotInputs();
+            }).observe(relatedWrapper, { childList: true });
+            relatedWrapper.addEventListener('input', function (e) {
+                if (e.target.classList.contains('related-plot-input')) syncPlotsToPropertyDetails();
+                // Typed in: stop mirroring the File Title (empty again: mirror again).
+                if (e.target.classList.contains('related-name-input')) e.target.dataset.auto = e.target.value.trim() === '' ? '1' : '0';
+            });
+        }
+        registrySelect.addEventListener('change', ensureRelatedPlotInputs);
+        ensureRelatedPlotInputs();
+
+        // Related File No picks fire `input` (initializeDynamicRelatedFiles).
+        const asked = new WeakMap();
+        document.addEventListener('input', function (e) {
+            const input = e.target;
+            if (!input?.classList?.contains('related-file-input')) return;
+            const landFile = (input.value || '').trim();
+            if (!landFile) {
+                asked.delete(input);
+                return;
+            }
+            if (!isKangisRegistrySelected() || asked.get(input) === landFile) return;
+            asked.set(input, landFile);
+            confirmKangisLandFile(input, landFile);
+        });
+    }
+
     const referenceDataStore = {
         lgas: [],
         districts: [],
@@ -1212,6 +1487,11 @@
             }
             if (typeof window.applyOccupancyPermitLgaRules === 'function') {
                 window.applyOccupancyPermitLgaRules();
+            }
+            const opSerialNoneEdit = document.getElementById('occupancy-permit-op-serial-none');
+            if (opSerialNoneEdit) {
+                opSerialNoneEdit.checked = !!record.occupancy_permit_op_serial_generated && record.occupancy_permit_op_serial_generated !== '0';
+                if (typeof window.applyOccupancyPermitNoSerialRule === 'function') window.applyOccupancyPermitNoSerialRule(false);
             }
             // After the field map: the box must be enabled to show its stored value, and
             // the rule only empties it when Source is not Other.
@@ -5315,6 +5595,50 @@
             opTypeSelect.addEventListener('change', applyOccupancyPermitSourceOtherRules);
         }
         applyOccupancyPermitSourceOtherRules();
+
+        // "This OP has no serial number" (user, 2026-10-16): the box greys out and the
+        // system generates the serial on save (000001, 000002, ...). Unticking releases it
+        // for the real serial; a system serial shown in it is cleared so the real one is typed.
+        const opSerialInput = document.getElementById('occupancy-permit-op-serial-number');
+        const opSerialNone = document.getElementById('occupancy-permit-op-serial-none');
+        const isSystemSerial = (v) => /^(?!0{6})0[0-9]{5}$/.test(String(v || '').trim());
+        function applyOccupancyPermitNoSerialRule(userChanged) {
+            if (!opSerialInput || !opSerialNone) return;
+            const none = opSerialNone.checked;
+            // The next system serial shows inside the greyed box (as placeholder, so it is
+            // never posted); the real number is set on save.
+            if (none && !isSystemSerial(opSerialInput.value) && window.KlaesOpSerialNone) {
+                window.KlaesOpSerialNone.next().then((serial) => {
+                    if (serial && opSerialNone.checked && !isSystemSerial(opSerialInput.value)) opSerialInput.placeholder = serial;
+                });
+            }
+            opSerialInput.readOnly = none;
+            opSerialInput.required = false;
+            opSerialInput.classList.toggle('bg-gray-100', none);
+            opSerialInput.classList.toggle('cursor-not-allowed', none);
+            opSerialInput.placeholder = none ? 'Generated by the system on save' : 'Enter OP serial number';
+            if (userChanged) {
+                // Ticked: a typed serial goes (the system supplies one). Unticked: a system
+                // serial goes, so the officer types the real one in its place.
+                if (none && !isSystemSerial(opSerialInput.value)) opSerialInput.value = '';
+                if (!none && isSystemSerial(opSerialInput.value)) opSerialInput.value = '';
+            }
+        }
+        window.applyOccupancyPermitNoSerialRule = applyOccupancyPermitNoSerialRule;
+        if (opSerialNone) opSerialNone.addEventListener('change', async () => {
+            // Ticking asks Yes / No first; No leaves the box unticked and free to type in.
+            if (opSerialNone.checked && window.KlaesOpSerialNone) {
+                const yes = await window.KlaesOpSerialNone.confirm();
+                if (!yes) {
+                    opSerialNone.checked = false;
+                    applyOccupancyPermitNoSerialRule(false);
+                    opSerialInput?.focus();
+                    return;
+                }
+            }
+            applyOccupancyPermitNoSerialRule(true);
+        });
+        applyOccupancyPermitNoSerialRule(false);
         if (opCategorySelect) {
             opCategorySelect.addEventListener('change', applyOccupancyPermitCategoryRules);
         }
@@ -5938,6 +6262,11 @@
         if (typeof window.applyOccupancyPermitSourceOtherRules === 'function') {
             window.applyOccupancyPermitSourceOtherRules();
         }
+        const opSerialNoneReset = document.getElementById('occupancy-permit-op-serial-none');
+        if (opSerialNoneReset) {
+            opSerialNoneReset.checked = false;
+            if (typeof window.applyOccupancyPermitNoSerialRule === 'function') window.applyOccupancyPermitNoSerialRule(false);
+        }
 
         // Instrument type is locked to Occupancy Permit
         const opInstrumentType = document.getElementById('occupancy-permit-instrument-type');
@@ -6459,6 +6788,22 @@
         const formData = {
             file_number: hasTempFile ? tempFileNo : baseFileNumber,
             override_year_block: yearOverrideChecked() ? 1 : 0,
+            kangis_block_index: kangisBlockIndexChecked() ? 1 : 0,
+            // Plot No. and Name beside each Related File Number row (KANGIS Registry), paired with its land file.
+            // Inline on purpose: this function declares its own `isKangisRegistrySelected`
+            // const further down, which shadows the shared helper (calling it here threw).
+            related_plots: (document.getElementById('general-registry')?.value || '').toUpperCase().includes('KANGIS') ? Array.from(document.querySelectorAll('#related-files-wrapper .related-file-row'))
+                .map(row => ({
+                    file_number: (row.querySelector('.related-file-input')?.value || '').trim(),
+                    plot_number: (row.querySelector('.related-plot-input')?.value || '').trim(),
+                    // Not typed in: the File Title as it is now (it is often backfilled without an input event).
+                    name: (() => {
+                        const box = row.querySelector('.related-name-input');
+                        if (!box) return '';
+                        return (box.dataset.auto === '1' ? (document.querySelector('input[name="file_title[]"], #file-title')?.value || '') : box.value).trim();
+                    })(),
+                }))
+                .filter(p => p.file_number !== '' && (p.plot_number !== '' || p.name !== '')) : [],
             has_temp_file: hasTempFile,
             temp_file_no: tempFileNo,
             file_title: collectArrayValues('file_title') || fileTitle,
@@ -6554,6 +6899,7 @@
             occupancy_permit_op_type_other: document.getElementById('occupancy-permit-op-type-other')?.value || '',
             occupancy_permit_op_category: document.getElementById('occupancy-permit-op-category')?.value || '',
             occupancy_permit_op_serial_number: document.getElementById('occupancy-permit-op-serial-number')?.value || '',
+            occupancy_permit_op_serial_none: !!document.getElementById('occupancy-permit-op-serial-none')?.checked,
             occupancy_permit_date: document.getElementById('occupancy-permit-date')?.value || '',
             occupancy_permit_file_number: document.getElementById('occupancy-permit-file-number')?.value || '',
             occupancy_permit_land_use: document.getElementById('occupancy-permit-land-use')?.value || '',
@@ -6830,6 +7176,39 @@
             }
         }
 
+        // Original Holder is required. Check the boxes on screen, not formData: the
+        // payload falls back to the Current Holder / File Title when they are empty.
+        const originalHolderInputs = Array.from(document.querySelectorAll('input[name="original_holder[]"]'))
+            .filter(el => el.offsetParent !== null);
+        if (originalHolderInputs.length && !originalHolderInputs.some(el => (el.value || '').trim() !== '')) {
+            const target = originalHolderInputs[0];
+            const focusOriginalHolder = () => {
+                target.focus();
+                target.classList.add('error-border');
+                try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { }
+                const clearError = () => {
+                    target.classList.remove('error-border');
+                    target.removeEventListener('input', clearError);
+                    target.removeEventListener('change', clearError);
+                };
+                target.addEventListener('input', clearError);
+                target.addEventListener('change', clearError);
+            };
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Original Holder Required',
+                    text: 'Please enter the Original Holder before submitting.',
+                    icon: 'warning',
+                    confirmButtonColor: '#f59e0b',
+                }).then(focusOriginalHolder);
+            } else {
+                alert('Please enter the Original Holder before submitting.');
+                focusOriginalHolder();
+            }
+            return;
+        }
+
         // Same rule for the CofO: Serial No / Page No / Vol No are required when the
         // file has one. Page No mirrors Serial No (read-only), so point at Serial No.
         if (document.getElementById('has-cofo-toggle')?.checked || document.getElementById('has-cofo')?.checked) {
@@ -6899,8 +7278,10 @@
             }
 
             const serialInput = document.getElementById('occupancy-permit-op-serial-number');
-            if (!/^[1-9][0-9]*$/.test((serialInput?.value || '').trim())) {
-                alert('OP Serial Number is required and must contain positive digits without leading zeros.');
+            // "This OP has no serial number": the system generates (or keeps) one on save.
+            const noSerial = !!document.getElementById('occupancy-permit-op-serial-none')?.checked;
+            if (!noSerial && !/^[1-9][0-9]*$/.test((serialInput?.value || '').trim())) {
+                alert('OP Serial Number is required and must contain positive digits without leading zeros, or tick "This OP has no serial number".');
                 serialInput?.focus();
                 return;
             }
@@ -8640,9 +9021,10 @@
                 }
             }
 
-            // Title Status / Title Status Update don't apply to SLTR, KANGIS or DCIV
-            // files — hide both cards and drop any selection already made.
-            const hideTitleStatus = isSltr || isKangis || isDciv;
+            // Title Status / Title Status Update don't apply to SLTR or DCIV files —
+            // hide both cards and drop any selection already made. KANGIS files can
+            // carry title statuses, so they keep both cards.
+            const hideTitleStatus = isSltr || isDciv;
             [titleStatusBlock, titleStatusUpdateBlock].forEach((block) => {
                 if (block) block.classList.toggle('hidden', hideTitleStatus);
             });
@@ -9139,7 +9521,7 @@
 
         // Function to update first holder from file title
         function syncFirstHolder() {
-            if (indexingTypeSelect.value === 'Regular' && fileTitleInput) {
+            if (indexingTypeSelect.value !== 'Block' && fileTitleInput) {
                 const firstInput = holdersWrapper.querySelector('.current-holder-input');
                 if (firstInput) {
                     firstInput.value = fileTitleInput.value;
@@ -9768,7 +10150,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Plot Number</label>
-                                <input type="text" name="related_details[${index}][plot_number]" value="${cached.plot_number || ''}"
+                                <input type="text" name="related_details[${index}][plot_number]" value="${escapeAttribute(cached.plot_number || relatedRowPlot(item.fileNo))}"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white">
                             </div>
                             <div>
@@ -10087,6 +10469,7 @@
         init(initializeNewKangisTransactions, 'NewKangisTransactions');
         init(initializeDynamicRelatedFiles, 'DynamicRelatedFiles');
         init(initializeBlockIndexingUI, 'BlockIndexingUI');
+        init(initializeKangisBlockIndexUI, 'KangisBlockIndexUI');
         init(initializeRelatedFilesDetails, 'RelatedFilesDetails');
 
         // new_kn mode: extra setup

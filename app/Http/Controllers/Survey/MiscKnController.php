@@ -22,45 +22,51 @@ class MiscKnController extends Controller
     /** The categories the register accepts. */
     public const CATEGORIES = ['Boundary', 'Dispute', 'Survey Note', 'Other'];
 
+    /**
+     * The Misc KN page lists the Misc KN files on the file indexing table
+     * (user, 2026-10-21): numbered "MISC KN 818" or "MISC-KN-5". Read-only;
+     * the files are indexed and edited in File Indexing. Decommissioned files
+     * stay listed, flagged.
+     */
     public function index(Request $r)
     {
-        $q = SurveyMiscKn::query();
+        $live = fn ($q) => $q->where('file_number', 'like', 'MISC%KN%')
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
+        $db = \Illuminate\Support\Facades\DB::connection('sqlsrv');
 
+        $q = $live($db->table('file_indexings'));
         if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('ref_no', 'like', "%$term%")
-                  ->orWhere('title', 'like', "%$term%")
-                  ->orWhere('linked_ref', 'like', "%$term%")
-                  ->orWhere('officer', 'like', "%$term%")
-                  ->orWhere('prop_district', 'like', "%$term%")
-                  ->orWhere('prop_district_other', 'like', "%$term%");
-            });
+            $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")
+                ->orWhere('file_title', 'like', "%$term%")
+                ->orWhere('district', 'like', "%$term%")
+                ->orWhere('lga', 'like', "%$term%")
+                ->orWhere('plot_number', 'like', "%$term%"));
+        }
+        if ($lga = trim((string) $r->query('lga', ''))) {
+            $q->where('lga', $lga);
         }
 
-        if ($c = $r->query('category')) $q->where('category', $c);
-
-        $notes = $q->orderByDesc('id')->paginate(15)->withQueryString();
-
-        // Editing reuses the inline form rather than a separate page.
-        $editing = $r->filled('edit') ? SurveyMiscKn::find($r->query('edit')) : null;
-        $note    = $editing ?: new SurveyMiscKn([
-            'category'    => 'Survey Note',
-            'record_date' => now()->toDateString(),
-            'officer'     => optional($r->user())->name,
-            'prop_state'  => 'Kano',
-        ]);
+        $files = $q->orderByDesc('id')
+            ->select(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
+                      'registry', 'created_at', 'created_by', 'is_decommissioned'])
+            ->paginate(15)->withQueryString();
 
         $stats = [
-            'total'      => SurveyMiscKn::count(),
-            'disputes'   => SurveyMiscKn::where('category', 'Dispute')->count(),
-            'boundary'   => SurveyMiscKn::where('category', 'Boundary')->count(),
-            'this_month' => SurveyMiscKn::whereBetween('record_date', [
-                                now()->startOfMonth()->toDateString(),
-                                now()->endOfMonth()->toDateString(),
-                            ])->count(),
+            'total'          => $live($db->table('file_indexings'))->count(),
+            'this_month'     => $live($db->table('file_indexings'))->where('created_at', '>=', now()->startOfMonth())->count(),
+            'lgas'           => $live($db->table('file_indexings'))->whereNotNull('lga')->where('lga', '<>', '')->distinct()->count('lga'),
+            'decommissioned' => $live($db->table('file_indexings'))->where('is_decommissioned', 1)->count(),
         ];
+        $lgas = $live($db->table('file_indexings'))->whereNotNull('lga')->where('lga', '<>', '')
+            ->distinct()->orderBy('lga')->pluck('lga');
 
-        return view('survey_module.records.misc', compact('notes', 'note', 'editing', 'stats'));
+        return view('survey_module.records.misc', [
+            'files'        => $files,
+            'stats'        => $stats,
+            'lgas'         => $lgas,
+            // The row opens the file in the File Digital Library (filearchive.*).
+            'canViewLibrary' => (bool) optional($r->user())->canDo('File Digital Library - Doc-WARE', 'view'),
+        ]);
     }
 
     public function store(Request $r)

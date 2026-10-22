@@ -21,6 +21,7 @@ class ChangeOfPurposeApplication extends Model
     public const STATUS_COMMISSIONED = 'commissioned';
 
     protected $fillable = [
+        'previously_decommissioned',
         'source_module',
         // Batch Change of Purpose: how many plots this one file covers. Null or 1
         // is an ordinary single application. See the 2026_09_28_110000 migration.

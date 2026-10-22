@@ -250,8 +250,10 @@ class DashboardController extends Controller
 
                 // 6. DCIV Files
                 $dcivIndexed      = (clone $fiBase('DCIV'))->count();
+                // Manual-serial captures and File Indexing mirrors are not commissions.
                 $dcivCommissioned = $db->table('dciv_file_no')
                     ->where('year', '2026')
+                    ->where(function ($q) { $q->whereNull('origin')->orWhereNotIn('origin', ['manual', 'indexing']); })
                     ->count();
 
                 // 7. SLTR Files
@@ -313,7 +315,11 @@ class DashboardController extends Controller
                       AND LTRIM(RTRIM(ISNULL(fi.file_number, ''))) <> ''
                 ")->c;
 
-                $headlineFileNumberTotal = $fileNumberCount + $orphanIndexed;
+                // A Cadastral file matched to a land file is a second physical
+                // file (Lands + Cadastral), so the Matched count is added on top.
+                // It cannot double-count: none of the matched rows is an orphan
+                // (every one shares its file number with a fileNumber row).
+                $headlineFileNumberTotal = $fileNumberCount + $orphanIndexed + $cadastralIndexed;
 
                 $fileStats = [
                     'total_file_numbers'   => ['count' => number_format($headlineFileNumberTotal),  'raw' => $headlineFileNumberTotal],

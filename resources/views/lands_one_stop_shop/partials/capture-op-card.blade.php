@@ -122,7 +122,7 @@
                 <label class="block text-xs font-semibold text-slate-700 mb-1">
                     OP Serial Number <span class="text-red-500">*</span>
                 </label>
-                <input type="text" id="copOpSerial" required pattern="[1-9][0-9]*" maxlength="100" placeholder="Enter OP serial number" inputmode="numeric"
+                <input type="text" id="copOpSerial" required pattern="[1-9][0-9]*|0[0-9]{5}" maxlength="100" placeholder="Enter OP serial number" inputmode="numeric"
                        oninput="copStripZeroPad(this); copLiveDupCheck()" onblur="copStripZeroPad(this); copLiveDupCheck()"
                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
             </div>
@@ -432,7 +432,7 @@
         else if (!payload.status) problem = 'Select a Status.';
         else if (!payload.grantee) problem = "Party 2 (allottee) is required — it becomes the file's Party 1.";
         else if (!payload.op_serial_number) problem = 'OP Serial Number is required.';
-        else if (!/^[1-9][0-9]*$/.test(payload.op_serial_number)) problem = 'OP Serial Number must contain positive digits without leading zeros.';
+        else if (!/^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/.test(payload.op_serial_number)) problem = 'OP Serial Number must contain positive digits without leading zeros.';
         if (problem) {
             Swal.fire({ icon: 'warning', title: 'Check the form', text: problem });
             return;
@@ -1301,7 +1301,7 @@
         if (!(f.op_serial_number || '').trim()) return 'OP Serial Number is required.';
         if (!(f.serial_no || '').trim()) return 'Serial No is required.';
         if (!(f.volume_no || '').trim()) return 'Vol No is required.';
-        if (!/^[1-9][0-9]*$/.test((f.op_serial_number || '').trim())) return 'OP Serial Number must contain positive digits without leading zeros.';
+        if (!/^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/.test((f.op_serial_number || '').trim())) return 'OP Serial Number must contain positive digits without leading zeros.';
         if (!/^\d+$/.test((f.serial_no || '').trim())) return 'Serial No must be a number.';
         if (!/^\d+$/.test((f.volume_no || '').trim())) return 'Vol No must be a number.';
         // Page No mirrors Serial No; flag a mismatch rather than silently overwriting it.

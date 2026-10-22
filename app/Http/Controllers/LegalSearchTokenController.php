@@ -66,6 +66,25 @@ class LegalSearchTokenController extends Controller
             ], 422);
         }
 
+        // One payment buys one token: a receipt already spent (on this or any other
+        // file) cannot raise another. A different receipt (a fresh payment) is fine.
+        // General (statutory) searches share the placeholder receipt, so they are exempt.
+        if ($isGeneral) {
+            $previous = LegalSearchToken::whereRaw('UPPER(LTRIM(RTRIM(receipt_number))) = ?', [Str::upper(trim((string) $request->receipt_number))])
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($previous) {
+                return response()->json([
+                    'success' => false,
+                    'duplicate_receipt' => true,
+                    'message' => "Receipt No. {$previous->receipt_number} has already been used for file {$previous->file_number}"
+                        . ($previous->created_at ? ' on ' . $previous->created_at->format('jS F, Y') : '')
+                        . '. Make another payment and enter the new receipt number.',
+                ], 422);
+            }
+        }
+
         $token = LegalSearchToken::create([
             'token' => Str::upper(Str::random(12)),
             'file_number' => $request->file_number,

@@ -56,6 +56,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>GKN No.</th>
                     <th>Title / Description</th>
                     <th>Location</th>
@@ -70,6 +71,7 @@
             <tbody>
                 @forelse ($records as $g)
                     <tr>
+                        <td>{{ $records->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $g->gkn_number }}</strong></td>
                         <td>{{ $g->title ?: '—' }}</td>
                         <td>{{ $g->property_location ?: '—' }}</td>
@@ -95,7 +97,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="10" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-marked-alt" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No government land parcels on the register.
                             <a href="{{ route('survey-module.gkn.register') }}">Register the first one</a>.

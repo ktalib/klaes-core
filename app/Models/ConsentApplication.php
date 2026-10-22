@@ -9,6 +9,16 @@ class ConsentApplication extends Model
     protected $connection = 'sqlsrv';
     protected $table = 'consent_applications';
 
+    /**
+     * KLAES REV-M: a consent bill is mirrored into Bill Master when it is first
+     * computed, and kept in step when it is recomputed (ConsentBillMirror).
+     */
+    protected static function booted(): void
+    {
+        static::saved(fn (self $app) => app(\App\Services\Billing\Modules\ConsentBillMirror::class)->onSaved($app));
+        static::deleted(fn (self $app) => app(\App\Services\Billing\Modules\ConsentBillMirror::class)->cancel((int) $app->id));
+    }
+
     protected $fillable = [
         'application_tracking_no',
         'file_number',

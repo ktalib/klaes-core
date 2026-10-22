@@ -163,448 +163,154 @@
       class="hidden md:block md:w-1/2 bg-gray-100 h-screen overflow-y-auto hide-scrollbar"
     >
       <div class="w-full max-w-3xl px-12 py-8 mx-auto">
-        <div class="flex justify-center mb-6">
-          <div class="w-64 h-auto relative">
-            <img
-              src="{{ asset('assets/logo/klas_core_logo.png') }}"
-              alt="KLAES-CORE Logo"
-              class="rounded-lg w-full h-auto"
-            />
-          </div>
-        </div>
-
         <div class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-gray-900 mb-2">KLAES-CORE</h1>
-          <h2 class="text-2xl font-semibold text-gray-800 mb-3">Kano State LAnd ADmin Enterprise System</h2>
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">KLAES 2.0</h1>
+          <h2 class="text-2xl font-semibold text-gray-800 mb-3">Kano State Land Administration Enterprise System</h2>
           <p class="text-lg text-gray-700 font-medium italic">
-            Powering a Smart, Secure & Integrated Future for Land Governance in Kano State whilst Leveraging on Block
-            Chain Technology and AI
+            Powering a Smart, Secure &amp; Integrated Future for Land, Urban Planning, and Revenue Governance in Kano
+            State, Leveraging Blockchain Technology and AI.
           </p>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow-sm mb-6">
           <p class="text-gray-700 leading-relaxed">
-            The Kano State Land Admin Enterprise 
-System (KLAES) is a next-generation, enterprise-grade Land Information
-            System designed to revolutionize how land is managed, administered, and serviced across Kano State. Built
-            with a modern, modular architecture, KLAES serves as the digital backbone of the Ministry of Land and
-            Physical Planning, enabling interoperability between departments and seamless integration of core land
-            services.
+            The Kano State Land Administration Enterprise System (KLAES 2.0) is a next-generation, enterprise-grade
+            digital ecosystem designed to revolutionize how land, urban planning, and state revenues are managed across
+            Kano State.
           </p>
         </div>
 
         <div class="bg-blue-50 p-6 rounded-lg shadow-sm mb-6 border border-blue-100">
-          <h3 class="font-semibold text-xl  mb-3 text-center">
-            KLAES – Interoperable, Intelligent, and Future-Proof
-          </h3>
           <p class="text-gray-700 leading-relaxed">
-            By bringing together these features, KLAES is not just a software—it's a statewide digital land governance
-            ecosystem, enabling smarter workflows, greater transparency, and improved service delivery.
+            Built on a modern, modular architecture, KLAES 2.0 serves as the unified digital backbone for the Ministry
+            of Land and Physical Planning, KAMMA (Kano State Metropolitan Area Management Agency), KADCA (Kano State
+            Development Control Agency), and KANGIS (Kano State Geographic Information System). By bringing together
+            land administration, geospatial intelligence, development control, and revenue collection, KLAES 2.0 is not
+            just a software—it is a statewide digital governance ecosystem enabling smarter workflows, greater
+            transparency, and seamless service delivery.
           </p>
           <p class="text-gray-700 leading-relaxed mt-3">
-            Whether it's planning infrastructure, registering titles, performing legal search, or managing land
-            disputes, KLAES ensures every department, from Survey to Legal, works in lockstep with synchronized data
-            and automated processes.
+            Whether it's registering a title, approving a building plan, performing a legal search, managing land
+            disputes, or collecting state revenues, KLAES 2.0 ensures every department works in lockstep with
+            synchronized data and automated processes.
           </p>
         </div>
 
+        @php
+          $klaesSuites = [
+            [
+              'title' => '1. KLAES-CORE (The Foundational Land & Registry Engine)',
+              'intro' => 'The centralized hub for the Ministry of Land and Physical Planning, managing the end-to-end lifecycle of land files and deeds.',
+              'items' => [
+                'e-Registry' => 'A digitally centralized, secure repository of all title records enabling instant retrieval, search, and registration with strict data integrity and audit trails.',
+                'Sectional Titling (ST) Module' => 'Allows original owners to apply for property fragmentation, supporting full workflows including betterment billing, planning approvals, and final conveyancing via a nested application system.',
+                'Systematic Land Titling & Registration (SLTR)' => 'Empowers the mass titling of informal settlements by integrating community-based land identification with formal parcel-based mapping.',
+                'Electronic Document Management System (EDMS)' => 'Manages scanned documents, file archiving, and indexing, integrated with RFID tracking for physical files and bulk document workflows.',
+                'Customer Relationship Management (CRM)' => 'Streamlines interactions between the Ministry and stakeholders, tracking requests, complaints, service timelines, and feedback.',
+              ],
+            ],
+            [
+              'title' => '2. KLAES-GIS (The Geospatial & Title Foundation – KANGIS)',
+              'intro' => 'The spatial intelligence engine powering accurate mapping and land information.',
+              'items' => [
+                'Enterprise GIS Integration' => 'Provides multi-user access to live spatial databases of parcels, layouts, infrastructure, and encumbrances.',
+                'Advanced Spatial Tools' => 'Supports spatial analysis, parcel querying, site planning, and seamless survey integration.',
+                'KANGIS Synchronization' => 'Fully integrated with the Parcel Fabric, COGO tools, and the KANGIS Land Information System (LIS) for real-time, bi-directional data syncing.',
+              ],
+            ],
+            [
+              'title' => '3. KLAES-METRO (The Urban & Field Operations Engine – KAMMA)',
+              'intro' => 'The urban planning engine automating building permits, zoning, and field operations.',
+              'items' => [
+                'Automated Planning Approvals' => 'Streamlines the submission, review, and approval of building plans and zoning permits.',
+                'Field Operations & Inspections' => 'Empowers field agents with mobile tools for joint site inspections, cadastral mapping, and special assignments.',
+                'Spatial Buffer Routing' => 'Automatically routes applications to KAMMA or Physical Planning based on geospatial city-radius parameters.',
+              ],
+            ],
+            [
+              'title' => '4. KLAES-CONTROL (The Regulatory & Security Shield – KADCA)',
+              'intro' => 'The centralized governance, compliance, and security hub for development control.',
+              'items' => [
+                'Development Control & Enforcement' => 'Provides a digital framework for site inspections, compliance monitoring, and enforcement of approved building plans.',
+                'Advanced Security Protocols' => 'Enforces system-wide compliance through 2-Factor Authentication (2FA), biometric face identification, and Role-Based Access Control (RBAC).',
+                'Immutable Audit Trails' => 'Tracks every user action, file movement, and system modification to ensure absolute accountability.',
+              ],
+            ],
+            [
+              'title' => '5. KLAES-Rev M (The Unified Billing & Revenue Engine)',
+              'intro' => 'The financial engine ensuring zero revenue leakages and seamless state treasury integration.',
+              'items' => [
+                'Automated Billing Workflow' => 'Generates dynamic, automated invoices based on parcel size, land use, and instrument type.',
+                'Real-Time Payment Integration' => 'Direct API-based integration with INTERSWITCH and KIRMAS (Kano State Internal Revenue Service) ensures all payments are tracked, validated, and reconciled in real-time.',
+                'Customer Portal & Digital Invoicing' => "Applicants can view/download invoices, make payments via multiple channels (Bank, POS, USSD, Mobile), and monitor balances. Receipts are auto-generated and digitally attached to the customer's profile.",
+              ],
+            ],
+          ];
+
+          $klaesTech = [
+            'Blockchain Technology' => 'Used in our Digital Legal Search (available both On-Premise for official use and Online for commercial use) to guarantee record immutability. It generates complete land histories from ownership to encumbrances, making titles fraud-proof.',
+            'Artificial Intelligence (AI)' => 'Integrated into the core engine to automatically detect anomalies, flag duplicate land transactions, and predict processing bottlenecks before they occur.',
+            'Multi-Tiered Approvals & Alerts' => 'Automated routing of files through various approval stages with real-time SMS and email alerts to applicants and officers, drastically reducing approval times.',
+          ];
+        @endphp
+
         <div class="bg-white p-6 rounded-lg shadow-sm mb-6">
-          <h3 class="font-semibold text-xl text-gray-900 mb-4">Key Features of KLAES</h3>
+          <h3 class="font-semibold text-xl text-gray-900 mb-2">The KLAES 2.0 Suite Ecosystem</h3>
+          <p class="text-gray-700 leading-relaxed mb-5">
+            KLAES 2.0 is powered by five specialized, interoperable suites designed to handle the specific mandates of
+            Kano State's land and urban governance agencies:
+          </p>
 
           <div class="space-y-6">
-            <!-- Digital Legal Search -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                Digital Legal Search (Online & On-Premise)
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Offers official (on-premise) and commercial (online) legal search options.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Generates complete land history from ownership to encumbrances.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Leverages Blockchain Technology to guarantee record immutability and Artificial Intelligence (AI)
-                    to detect anomalies or duplication in land transactions.
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Automated Billing and Revenue Management System -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                Automated Billing and Revenue Management System (ABRM)
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Fully Automated Billing Workflow</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Real-time Integration with INTERSWITCH & KIRMAS</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Direct API-based integration with INTERSWITCH payment gateway and KIRMAS (Kano State Internal
-                    Revenue Service) ensures that:
-                    <ul class="pl-6 pt-1.5 space-y-1.5">
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">All payments are tracked and validated in real-time.</span>
-                      </li>
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">
-                          Receipts are auto-generated and digitally attached to the customer's profile.
-                        </span>
-                      </li>
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">
-                          Reconciliations with state treasury accounts are seamless and auditable.
-                        </span>
-                      </li>
-                    </ul>
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Transparency & Accountability</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Customer Portal with Digital Invoicing
-                    <ul class="pl-6 pt-1.5 space-y-1.5">
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">Applicants and property owners can:</span>
-                      </li>
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">View, download, and print invoices online.</span>
-                      </li>
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">
-                          Make payments through multiple channels—bank, POS, USSD, or mobile.
-                        </span>
-                      </li>
-                      <li class="flex items-start">
-                        <div class="h-2 w-2 rounded-full bg-gray-600 mt-1.5 mr-2 flex-shrink-0"></div>
-                        <span class="text-gray-700">Monitor balances, payment history, and penalties.</span>
-                      </li>
-                    </ul>
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Multi-Tiered Approval & Alerts</span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- New Sectional Titling Module -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                New Sectional Titling (ST) Module
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Allows original owners to apply for property fragmentation.</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Supports full application workflows including betterment billing, planning approvals, and final
-                    conveyancing.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Nested application system for main and sub-units under a unified schema.
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Systematic Land Titling & Registration -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                Systematic Land Titling & Registration (SLTR)
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Empowers mass titling of informal settlements.</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Integrates community-based land identification with formal parcel-based mapping.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Outputs recognized legal documentation for untitled property owners.
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- e-Registry -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                e-Registry
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">A digitally centralized repository of all title records.</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Enables secure, instant retrieval, search and registration of land documents.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Built to ensure data integrity, audit trails, and secure multi-agency access.
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Electronic Document Management System -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                Electronic Document Management System (EDMS)
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Manages scanned documents, file archiving, indexing and retrieval.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">Integrates with RFID tracking for physical files.</span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Supports bulk uploads and document workflows tied to land records.
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Customer Relationship Management System -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                Customer Relationship Management (CRM) System
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Streamlines interaction between the Ministry and stakeholders.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Tracks customer requests, complaints, service timelines, and feedback.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Fully integrated with billing, messaging, and ticketing modules.
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Enterprise GIS -->
-            <div class="feature-item">
-              <h4 class="flex items-center text-lg font-medium  mb-2">
-                <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 " width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </div>
-                Enterprise GIS (Geographic Information System)
-              </h4>
-              <ul class="pl-8 space-y-1.5">
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Multi-user access to live spatial databases of parcels, layouts, infrastructure, and encumbrances.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Supports spatial analysis, parcel querying, site planning, and survey integration.
-                  </span>
-                </li>
-                <li class="flex items-start">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4  mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 11.08V12a10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  <span class="text-gray-700">
-                    Fully integrated with the Parcel Fabric, COGO tools, and land applications.
-                  </span>
-                </li>
-              </ul>
-            </div>
+            @foreach ($klaesSuites as $suite)
+              <div class="feature-item">
+                <h4 class="flex items-center text-lg font-medium mb-1">
+                  <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </div>
+                  {{ $suite['title'] }}
+                </h4>
+                <p class="pl-8 text-sm text-gray-600 italic mb-2">{{ $suite['intro'] }}</p>
+                <ul class="pl-8 space-y-1.5">
+                  @foreach ($suite['items'] as $label => $text)
+                    <li class="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                      </svg>
+                      <span class="text-gray-700"><span class="font-semibold">{{ $label }}:</span> {{ $text }}</span>
+                    </li>
+                  @endforeach
+                </ul>
+              </div>
+            @endforeach
           </div>
         </div>
 
+        <div class="bg-blue-50 p-6 rounded-lg shadow-sm mb-6 border border-blue-100">
+          <h3 class="font-semibold text-xl text-gray-900 mb-2">Powered by Next-Gen Technologies</h3>
+          <p class="text-gray-700 leading-relaxed mb-4">
+            KLAES 2.0 leverages cutting-edge technology to guarantee trust, speed, and accuracy:
+          </p>
+          <ul class="space-y-2">
+            @foreach ($klaesTech as $label => $text)
+              <li class="flex items-start">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mt-1 mr-2 flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span class="text-gray-700"><span class="font-semibold">{{ $label }}:</span> {{ $text }}</span>
+              </li>
+            @endforeach
+          </ul>
+        </div>
+
         <div class="text-center mb-8">
-          <p class="text-xl  font-semibold italic">
-            "KLAES: Interoperable Land Governance for a Smarter Kano."
+          <p class="text-xl font-semibold italic">
+            "KLAES 2.0: Interoperable Land, Urban, and Revenue Governance for a Smarter Kano."
           </p>
         </div>
 

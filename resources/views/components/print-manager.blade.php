@@ -464,7 +464,11 @@
                     <div x-show="isBatchMode && batchStatusLine" x-cloak
                          class="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
                         <i data-lucide="layers" class="h-4 w-4 text-slate-400 shrink-0"></i>
-                        <p class="text-[11.5px] font-semibold text-slate-600" x-text="batchStatusLine"></p>
+                        {{-- Red and bold once every letter is fully printed, so a
+                             reprint of a finished batch is not run by accident. --}}
+                        <p class="text-[11.5px]"
+                           :class="batchFullyPrinted ? 'font-bold text-red-600' : 'font-semibold text-slate-600'"
+                           x-text="batchStatusLine"></p>
                     </div>
 
                     {{-- A line, not a full-page celebration: the ticks on the passes
@@ -1016,6 +1020,12 @@ document.addEventListener('alpine:init', () => {
             return Number(st.complete || 0) === Number(st.total || 0);
         },
 
+        // True when every letter in the batch already has its full set on paper.
+        get batchFullyPrinted() {
+            const st = this.batch && this.batch.status;
+            return !!(st && st.total && Number(st.complete || 0) === Number(st.total));
+        },
+
         // What the batch still owes, said plainly under the passes.
         get batchStatusLine() {
             const st = this.batch && this.batch.status;
@@ -1024,7 +1034,7 @@ document.addEventListener('alpine:init', () => {
             const awaiting = Number(st.awaiting_office || 0);
             const complete = Number(st.complete || 0);
 
-            if (complete === total) return 'All ' + total + ' letters fully printed.';
+            if (complete === total) return 'All ' + total + ' ROFOs fully printed.';
             if (awaiting > 0) {
                 return awaiting + ' of ' + total + ' had Originals printed and still owe their Duplicate & Triplicate.';
             }

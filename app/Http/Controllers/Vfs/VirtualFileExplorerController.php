@@ -51,7 +51,7 @@ class VirtualFileExplorerController extends Controller
         }
 
         return view('vfs.index', [
-            'PageTitle' => 'Virtual Folder System',
+            'PageTitle' => 'Virtual File/Folder System (Folio)',
             'PageDescription' => 'Find an indexed file, then open its virtual folder',
             'files' => $files,
             'missedByScope' => $missedByScope,
@@ -74,7 +74,7 @@ class VirtualFileExplorerController extends Controller
         }
 
         return view('vfs.show', [
-            'PageTitle' => 'Virtual Folder System',
+            'PageTitle' => 'Virtual File/Folder System (Folio)',
             'PageDescription' => $fileIndexing->file_number,
             'file' => $fileIndexing,
             'summary' => $this->presenter->summary($fileIndexing),

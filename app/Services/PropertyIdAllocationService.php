@@ -20,6 +20,80 @@ class PropertyIdAllocationService
     private ?bool $propIdMasterExists = null;
 
     /**
+     * The prop_id a NEW file_indexings row should carry, worked out from its OWN number only.
+     *
+     * Never from related_fileno or other alternates: for a child those name the parent, and
+     * matching on them handed children their parent's id (2026-10-18: 47 such rows held back).
+     * The parent link belongs in parent_prop_id, not prop_id.
+     *
+     *   - PropID_Master knows the number   -> that id (primary column wins over aliases)
+     *   - that id is the row's parent's    -> null, logged; a human decides
+     *   - unknown number                   -> allocated through allocateOrRetrievePropId
+     *
+     * Returns null rather than throwing, so indexing never fails over an id.
+     */
+    public function resolveOwnPropId(?string $fileNumber, ?string $tempFileNo = null, $parentPropId = null): ?int
+    {
+        $own = $this->normalizeValue($fileNumber) ?? $this->normalizeValue($tempFileNo);
+
+        if ($own === null) {
+            return null;
+        }
+
+        try {
+            $all = [];
+            $primary = [];
+
+            foreach (DB::connection('sqlsrv')->table('PropID_Master')
+                ->where(function ($q) use ($own) {
+                    foreach (self::MASTER_IDENTIFIER_KEYS as $key) {
+                        $q->orWhere($key . '_norm', $own);
+                    }
+                })
+                ->whereNotNull('prop_id')
+                ->get(['prop_id', 'primary_file_number_norm']) as $row) {
+                $all[(int) $row->prop_id] = true;
+                if ($row->primary_file_number_norm === $own) {
+                    $primary[(int) $row->prop_id] = true;
+                }
+            }
+
+            $ids = count($all) === 1 ? $all : $primary;
+
+            if (count($all) > 0 && count($ids) !== 1) {
+                Log::warning('resolveOwnPropId: several PropID_Master ids for one number', [
+                    'file_number' => $own, 'prop_ids' => array_keys($all),
+                ]);
+
+                return null;
+            }
+
+            $propId = count($ids) === 1
+                ? (int) array_key_first($ids)
+                : $this->allocateOrRetrievePropId($fileNumber ?: null, null, null, null, [
+                    'temp_fileno' => $tempFileNo ?: null,
+                    'allow_temp_only' => true,
+                ]);
+
+            $parents = array_map('trim', explode(',', (string) $parentPropId));
+
+            if (in_array((string) $propId, $parents, true)) {
+                Log::warning('resolveOwnPropId: id is the row\'s own parent_prop_id; left NULL for review', [
+                    'file_number' => $own, 'prop_id' => $propId,
+                ]);
+
+                return null;
+            }
+
+            return $propId;
+        } catch (\Throwable $e) {
+            Log::warning('resolveOwnPropId failed', ['file_number' => $own, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
      * Allocate (or reuse) a prop_id for the provided file numbers.
    
      */

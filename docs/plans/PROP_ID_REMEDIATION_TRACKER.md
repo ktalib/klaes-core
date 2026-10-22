@@ -478,3 +478,39 @@ database/sql/<name>_ledger.mysql.sql  → run against MySQL
 ```
 
 Never verify a schema change by asking the ledger — query `INFORMATION_SCHEMA` / `sys.columns`.
+
+---
+
+## Step 8 follow-up: the NULL backlog (2026-10-18)
+
+10,961 `file_indexings` rows had no prop_id (mostly rows created after the 2026-09-30 runs).
+
+- `propid:mint --population=lookup` (new): **10,020 copied** from PropID_Master, run `20261018-222822`.
+  It skips a number with several master ids, an id another non-OP/ToT/ST file already holds,
+  and an id equal to the file's own `parent_prop_id`. 524 resulting shared pairs were checked; all are OP/ToT.
+- `propid:mint --population=nulls`: **486 minted**, run `20261018-223056`. It now skips any number
+  PropID_Master already knows, so it can never give a parcel a second identity.
+- **455 left NULL for review**: `storage/app/propid-remediation/propid-held-for-review-20261018.csv`.
+  296 OP/ToT not in master, 84 ST not in master, 47 master id = own parent, 28 id held by another file.
+- Per-file notes (lineage, duplex, merger, subdivision, OP/ToT, decommissioned): `propid-fill-plan-tagged-20261018.csv`.
+- Open: find the screens creating `file_indexings` rows without a prop_id (1,800+ in October alone).
+
+### 2026-10-19: indexing fixed at the source, conflicts worked down to 109
+
+**Root cause of new NULLs.** `FileIndexingController::store()` resolved a prop_id but only saved it
+when the form sent one. With no form value it also matched on `related_fileno`, so a child could get
+its parent's id. Fixed: `PropertyIdAllocationService::resolveOwnPropId()` (own number only; returns
+NULL if the id is the row's own parent), used by `store()`, by a `FileIndexing::creating` hook (DCIV,
+GKN, unit indexing, FileIndexingService) and by both OSS raw inserts.
+
+| Run | Population | Rows |
+|---|---|---|
+| `propid:backfill-st --apply` | ST units into PropID_Master | 26 allocated (its 27 "adopted" stored nothing) |
+| 20261019-012143 | lookup | 26 |
+| 20261019-012210 | pra (OP/ToT files take their own PRA id) | 294 |
+| 20261019-012214 | alias (KANGIS alias gets its own id) | 1 |
+| 20261019-012559 | st (mother adopts old land file id) | 25 |
+
+**109 left**, `storage/app/propid-remediation/propid-held-for-review-20261019.csv`. 58 are "id taken":
+PropID_Master and the file's PRA rows give it the id, but its old KANGIS file holds it. The proposed
+fix is a SWAP, not yet approved.

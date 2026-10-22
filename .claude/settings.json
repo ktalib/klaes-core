@@ -3,11 +3,36 @@
     "allow": [
       "Bash(/c/xampp/php/php.exe -r 'require '\\\\''C:/xampp/htdocs/klas/vendor/autoload.php'\\\\'';$a=require '\\\\''C:/xampp/htdocs/klas/bootstrap/app.php'\\\\'';$a->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); $db=Illuminate\\\\Support\\\\Facades\\\\DB::connection\\('\\\\''sqlsrv'\\\\''\\); foreach\\($db->select\\(\"select m.source, count\\(*\\) n, sum\\(case when nullif\\(ltrim\\(rtrim\\(m.address\\)\\),'\\\\'''\\\\''\\) is not null then 1 else 0 end\\) mls_addr, sum\\(case when nullif\\(ltrim\\(rtrim\\(f.address\\)\\),'\\\\'''\\\\''\\) is not null then 1 else 0 end\\) fn_addr, sum\\(case when nullif\\(ltrim\\(rtrim\\(m.phone_no\\)\\),'\\\\'''\\\\''\\) is not null then 1 else 0 end\\) mls_phone from mls_file_no m left join fileNumber f on f.mlsfNo = m.full_file_number where m.created_at >= '\\\\''2026-09-15'\\\\'' group by m.source order by n desc\"\\) as $r\\) echo str_pad\\($r->source,22\\),'\\\\'' total '\\\\'',$r->n,'\\\\'' | mls address '\\\\'',$r->mls_addr,'\\\\'' | fileNumber address '\\\\'',$r->fn_addr,'\\\\'' | mls phone '\\\\'',$r->mls_phone,PHP_EOL;')",
       "PowerShell(& C:\\\\xampp\\\\apache\\\\bin\\\\httpd.exe -t)",
-      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe artisan tinker --execute=\"echo json_encode\\(['fi'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexings'\\)->where\\('indexing_type','Block'\\)->count\\(\\),'links_m1'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexing_links'\\)->where\\('indexing_type','Block'\\)->where\\('mfile',1\\)->count\\(\\),'links_m0'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexing_links'\\)->where\\('indexing_type','Block'\\)->where\\('mfile',0\\)->count\\(\\),'latest'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexings'\\)->where\\('indexing_type','Block'\\)->max\\('created_at'\\)]\\);\")"
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe artisan tinker --execute=\"echo json_encode\\(['fi'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexings'\\)->where\\('indexing_type','Block'\\)->count\\(\\),'links_m1'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexing_links'\\)->where\\('indexing_type','Block'\\)->where\\('mfile',1\\)->count\\(\\),'links_m0'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexing_links'\\)->where\\('indexing_type','Block'\\)->where\\('mfile',0\\)->count\\(\\),'latest'=>DB::connection\\('sqlsrv'\\)->table\\('file_indexings'\\)->where\\('indexing_type','Block'\\)->max\\('created_at'\\)]\\);\")",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe -r \"require 'vendor/autoload.php'; `$app=require 'bootstrap/app.php'; `$app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); foreach\\(['survey_module/mobile/case_register','survey_module/mobile/case_show'] as `$v\\){ `$p=resource_path\\('views/'.`$v.'.blade.php'\\); `$c=app\\('blade.compiler'\\)->compileString\\(file_get_contents\\(`$p\\)\\); `$f=sys_get_temp_dir\\(\\).'/chk.php'; file_put_contents\\(`$f,`$c\\); echo `$v,': ',shell_exec\\('C:\\\\xampp\\\\php\\\\php.exe -l '.escapeshellarg\\(`$f\\)\\); }\")",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe artisan tinker)",
+      "Read(//c/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/4caa0dba-8f33-460e-9a42-3ebb799ca9bc/scratchpad/**)",
+      "Bash(grep -v '^//')",
+      "Bash(/c/xampp/php/php.exe artisan *)",
+      "Bash(/c/xampp/php/php.exe \"/c/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/7ff42597-6b5b-4349-8df0-5046a6366b28/scratchpad/close44393.php\")",
+      "Bash(grep -in 'quick\\\\|resolve\\\\|$tracker->receiving_officer')",
+      "Bash(awk 'NR>=2950 && NR<=3104 && /function |\\\\$tracker *=|withCandidates/ {print NR\": \"$0}' app/Http/Controllers/CreateFileTrackerController.php)",
+      "Bash(awk -F: '$1>2900 && $1<3110')",
+      "Bash(/c/xampp/php/php.exe -l app/Http/Controllers/CreateFileTrackerController.php)",
+      "Bash(/c/xampp/php/php.exe -l app/Http/Controllers/Api/Mobile/MobileFileSearchController.php)",
+      "Bash(awk 'NR>=52 && NR<=106 && /function|=> *function|fn *\\\\\\(/ {print NR\": \"$0}' app/Http/Controllers/Api/Mobile/MobileFileSearchController.php)",
+      "Bash(/c/xampp/php/php.exe /c/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/1c38e816-1eeb-46e2-bca8-331c6cffcd6b/scratchpad/restore.php)",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe \"C:\\\\Users\\\\ADMINI~1.KLA\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--xampp-htdocs-klas\\\\051bf96f-b557-4612-aca4-472457d73825\\\\scratchpad\\\\kn_batches.php\" 2>&1)",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe \"C:\\\\Users\\\\ADMINI~1.KLA\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--xampp-htdocs-klas\\\\051bf96f-b557-4612-aca4-472457d73825\\\\scratchpad\\\\kn_deps.php\" 2>&1)",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe \"C:\\\\Users\\\\ADMINI~1.KLA\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--xampp-htdocs-klas\\\\051bf96f-b557-4612-aca4-472457d73825\\\\scratchpad\\\\kn_deps2.php\" 2>&1)",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe \"C:\\\\Users\\\\ADMINI~1.KLA\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--xampp-htdocs-klas\\\\051bf96f-b557-4612-aca4-472457d73825\\\\scratchpad\\\\kn_deps3.php\" 2>&1)",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe database\\\\migrations\\\\manual\\\\2026_10_19_kn_registry_batch_50.php --apply)",
+      "PowerShell(& C:\\\\xampp\\\\php\\\\php.exe \"C:\\\\Users\\\\ADMINI~1.KLA\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--xampp-htdocs-klas\\\\051bf96f-b557-4612-aca4-472457d73825\\\\scratchpad\\\\kn_verify.php\" 2>&1)",
+      "Bash(grep -i \"UPDATED_KANGIS\\\\|KANGIS$\\\\|copy_log\")",
+      "Bash(awk 'NR>=3766 && NR<=4100 && /propertyData\\\\[.\\(Grantor|Grantee|party_1|party_2\\).\\\\]|\\\\$propertyData = /{print NR\": \"$0}' app/Http/Controllers/PropertyRecordController.php)",
+      "Bash(/c/xampp/php/php.exe -l app/Http/Controllers/PropertyRecordController.php)",
+      "Bash(awk 'NR<=3759 && /public function /{l=NR\": \"$0} END{print l}' app/Http/Controllers/PropertyRecordController.php)",
+      "Bash(/c/xampp/php/php.exe /c/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/1c38e816-1eeb-46e2-bca8-331c6cffcd6b/scratchpad/replay.php)"
     ],
     "additionalDirectories": [
       "C:\\win-acme\\Scripts",
-      "C:\\xampp\\apache\\conf"
+      "C:\\xampp\\apache\\conf",
+      "C:\\Users\\Administrator.klaes\\Downloads"
     ]
   }
 }

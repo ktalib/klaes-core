@@ -161,6 +161,14 @@ class LaasCommissioningAccountService
             return $result;
         }
 
+        if (\App\Support\PlaceholderPhone::is((string) $applicant->phone)) {
+            $result['sms'] = 'skipped_placeholder_number';
+            $this->stampSms($newApplications, null, LaasApplicationEvent::SMS_SKIPPED, (string) $applicant->phone,
+                \App\Support\PlaceholderPhone::REASON);
+
+            return $result;
+        }
+
         if ($applicant->phone && !$phoneConfirmed && $this->phones->describe($applicant->phone)['shared']) {
             // Same rule the commissioning SMS keeps: a number on file against many
             // other files is an agent's or a clerk's, and the officer did not
@@ -470,6 +478,15 @@ class LaasCommissioningAccountService
             return;
         }
 
+        // 08000000000 and the like: typed in because the applicant gave no phone.
+        // Texting it bills a message nobody reads, so record why it was not sent.
+        if (\App\Support\PlaceholderPhone::is((string) $applicant->phone)) {
+            $this->stampSms($applications, null, LaasApplicationEvent::SMS_SKIPPED, (string) $applicant->phone,
+                \App\Support\PlaceholderPhone::REASON);
+
+            return;
+        }
+
         try {
             $delivered = $this->sms->sendFirstAccepted((string) $applicant->phone, $messages);
         } catch (\Throwable $e) {
@@ -492,17 +509,18 @@ class LaasCommissioningAccountService
      * never repeats the password — the timeline is visible to anyone who later
      * signs in, and the password is meant to be changed.
      */
-    private function stampSms(array $applications, ?string $delivered, string $status, ?string $phone): void
+    private function stampSms(array $applications, ?string $delivered, string $status, ?string $phone, ?string $notSentReason = null): void
     {
         foreach ($applications as $application) {
             try {
                 LaasApplicationEvent::create([
                     'laas_application_id'  => $application->id,
                     'stage'                => $application->stage,
-                    'title'                => 'Portal sign-in details sent',
-                    'body'                 => 'Your username and a temporary password were sent by SMS.',
+                    'title'                => $notSentReason ? 'Portal sign-in details not sent' : 'Portal sign-in details sent',
+                    // Staff-facing reason when not sent; the applicant never saw a text.
+                    'body'                 => $notSentReason ?: 'Your username and a temporary password were sent by SMS.',
+                    'visible_to_applicant' => $notSentReason ? false : true,
                     'actor_type'           => 'system',
-                    'visible_to_applicant' => true,
                     'sms_to'               => $phone,
                     'sms_body'             => $delivered ? '[sign-in details]' : null,
                     'sms_status'           => $status,

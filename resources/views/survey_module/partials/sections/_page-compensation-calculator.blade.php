@@ -153,6 +153,7 @@
                     <table>
                         <thead>
                             <tr>
+                                <th>S/N</th>
                                 <th>Tree Type</th>
                                 <th>Category</th>
                                 <th>Quantity</th>
@@ -163,6 +164,7 @@
                         <tbody>
                             @foreach ($result['lines'] as $l)
                                 <tr>
+                                    <td>{{ $loop->iteration }}</td>
                                     <td><strong>{{ $l['tree_type'] }}</strong></td>
                                     <td>{{ $l['category'] ?: '—' }}</td>
                                     <td>{{ number_format($l['quantity']) }}</td>

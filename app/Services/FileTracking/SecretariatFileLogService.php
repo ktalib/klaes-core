@@ -332,6 +332,15 @@ class SecretariatFileLogService
             throw new RuntimeException('Choose a different office to send the file to.');
         }
 
+        // A file cannot be sent to yourself: the receiving officer is the person at
+        // the office it goes to, whether picked from the list or typed under "Other".
+        $isSender = $officer->id !== null
+            ? (int) $officer->id === (int) $user->id
+            : mb_strtolower(preg_replace('/\s+/', ' ', $officerName)) === mb_strtolower(preg_replace('/\s+/', ' ', $this->userName($user)));
+        if ($isSender) {
+            throw new RuntimeException("You cannot send a file to yourself. Choose the officer at {$to['name']} who is receiving it.");
+        }
+
         return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user) {
             $tracker = FileTracker::lockForUpdate()->find($trackerId);
             if (!$tracker) {

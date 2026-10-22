@@ -206,7 +206,7 @@
                                                 :class="profile.match && profile.match.file_number === m.file_number ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'"
                                                 @click="selectMatch(m)">
                                             <div class="font-semibold text-gray-800" x-text="m.file_number"></div>
-                                            <div class="text-xs text-gray-500" x-text="(nice(m.file_title) || '—') + ' · ' + m.source"></div>
+                                            <div class="text-xs text-gray-500" x-text="((nice(m.file_title) || '').toUpperCase() || '—') + ' · ' + m.source"></div>
                                         </button>
                                     </template>
                                 </div>
@@ -305,7 +305,7 @@
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer</label>
                                     <select x-model="batch.all.receiving_officer_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
                                         <option value="">— Select officer —</option>
-                                        <template x-for="o in officers" :key="'baof-o-' + o.id">
+                                        <template x-for="o in sendOfficers()" :key="'baof-o-' + o.id">
                                             <option :value="String(o.id)" x-text="nice(o.name) + (o.username ? ' (' + o.username + ')' : '')"></option>
                                         </template>
                                         <option value="other">Other (not listed)…</option>
@@ -358,7 +358,7 @@
                                             <td class="px-3 py-2 text-gray-400" x-text="n + 1"></td>
                                             <td class="px-3 py-2">
                                                 <div class="font-semibold text-gray-900" x-text="item.file_number || 'Document'"></div>
-                                                <div class="text-xs text-gray-500" x-text="nice(item.file_title) || ''"></div>
+                                                <div class="text-xs text-gray-500" x-text="(nice(item.file_title) || '').toUpperCase()"></div>
                                             </td>
                                             <td class="px-3 py-2 text-gray-600" x-show="mode === 'in'" x-text="nice(item.where) || '—'"></td>
                                             <td class="px-3 py-2" x-show="mode === 'out'">
@@ -378,7 +378,7 @@
                                                 <select x-model="item.receiving_officer_id" :disabled="item.state === 'done' || batch.running"
                                                         class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.receiving_officer_id || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:11rem">
                                                     <option value="">— Select officer —</option>
-                                                    <template x-for="o in officers" :key="'bif-' + o.id">
+                                                    <template x-for="o in sendOfficers()" :key="'bif-' + o.id">
                                                         <option :value="String(o.id)" x-text="nice(o.name) + (o.username ? ' (' + o.username + ')' : '')"></option>
                                                     </template>
                                                     <option value="other">Other (not listed)…</option>
@@ -1211,7 +1211,7 @@
                                     <th class="px-5 py-3 text-right">Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="uppercase">
                                 <template x-for="(row, idx) in pagedRows()" :key="view() + '-' + row.id">
                                     <tr class="border-t border-gray-100 hover:bg-indigo-50 cursor-pointer" @click="openRow(row)">
                                         <td class="px-5 py-3 text-gray-500" x-text="pageOffset() + idx + 1"></td>
@@ -1226,12 +1226,10 @@
                                                 <span x-show="row.not_indexed" class="px-1.5 rounded bg-orange-100 text-orange-700">Not indexed</span>
                                                 <span x-show="row.request_type === 'SUBMITTED'" class="px-1.5 rounded bg-purple-100 text-purple-700">Submitted Request</span>
                                             </div>
-                                            {{-- Files shows the log ID alone; the other tabs show the tracking ID too. --}}
-                                            <div class="text-xs font-mono text-gray-400 mt-0.5" :title="tab === 'held' ? 'Log ID (this movement)' : 'Tracking ID (the file\'s trail) · Log ID (this movement)'">
-                                                <span x-show="tab !== 'held'" x-text="row.tracking_id || ''"></span><span x-show="row.log_id" x-text="(tab !== 'held' && row.tracking_id ? ' · ' : '') + row.log_id"></span>
-                                            </div>
+                                            {{-- Log ID (this movement), wrapped: it is longer than the file number. --}}
+                                            <div x-show="row.log_id" class="text-xs font-mono text-gray-400 mt-0.5 whitespace-normal" style="max-width: 9rem" title="Log ID" x-text="row.log_id"></div>
                                         </td>
-                                        <td class="px-5 py-3 text-gray-700" x-text="nice(row.file_title) || '—'"></td>
+                                        <td class="px-5 py-3 text-gray-700" x-text="(nice(row.file_title) || '').toUpperCase() || '—'"></td>
                                         <td class="px-5 py-3">
                                             <span x-show="row.from" class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#e0f2fe;color:#075985;border:1px solid #bae6fd;" x-text="nice(row.from)"></span>
                                             <span x-show="!row.from" class="text-gray-400">—</span>
@@ -1247,7 +1245,7 @@
                                             <div x-text="nice(row.purpose) || ''"></div>
                                             <div class="text-xs text-gray-400" x-text="row.notes || ''"></div>
                                         </td>
-                                        <td class="px-5 py-3 text-right whitespace-nowrap" @click.stop>
+                                        <td class="px-5 py-3 text-right whitespace-nowrap normal-case" @click.stop>
                                             <template x-if="view() !== 'sent' && rowBucket(row) === 'pending'">
                                                 <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50" :disabled="busy" @click="receivePending(row)">
                                                     <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Receive

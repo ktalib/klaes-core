@@ -32,6 +32,9 @@
                             <tr>
                                 <th
                                     class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                    S/N</th>
+                                <th
+                                    class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                                     MLPP File No</th>
                                 <th
                                     class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">

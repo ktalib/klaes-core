@@ -414,6 +414,8 @@ class PrimaryForm extends Component
 
             // Insert main application
             $applicationId = DB::connection('sqlsrv')->table('mother_applications')->insertGetId($applicationData);
+            // KLAES REV-M: the initial bill in Bill Master, already paid from the receipts captured here.
+            app(\App\Services\Billing\Modules\StInitialBillMirror::class)->forPrimary((int) $applicationId);
 
             // Store buyers information into existing dbo.buyer_list table
             foreach ($this->buyers as $buyer) {

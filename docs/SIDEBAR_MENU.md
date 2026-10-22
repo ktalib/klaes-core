@@ -87,13 +87,38 @@ Generated 2026-09-04 from the Blade source.
    - Site Plan/Parcel Plan
    - Certificate of Occupancy
 
-8. **KLAES REV-M**
+8. **KLAES REV-M** (reworked 2026-10-19, sidebar sheet updated 2026-10-20; see docs/plans/KLAES_REVM_Bill_Master_Plan.md)
+   - Dashboard (/revenue/dashboard, built 2026-10-20)
    - **Billing**
-     - Automated Billing
-     - Legacy Billing
-   - Generate Receipt
-   - Land Use Charge (LUC)
-   - Bill Balance
+     - **Automated Billing**
+       - Bill Master (the whole bill_master register, /revenue/bills; On-the-fly bill button)
+       - On-the-fly Bills (/revenue/bills?raised=on_the_fly; HIDDEN from the sidebar 2026-10-21, button on Bill Master stays)
+       - Land Use Charge (LuC) (on hold; # for now)
+       - Ground Rent (recurring, annual; added 2026-10-21)
+       - Re-grant (recurring, annual; added 2026-10-21)
+       - Betterment Bill
+       - Initial Bill
+       - Primary
+       - PuA
+       - SuA
+       - OSS Bill
+       - 5% Deed of Purchase
+       - Consent Bill
+       - Fees, Plan & Description Bill
+       - Legal Search Bill
+       - Contravention Bill
+       - Bill Balance
+       - PHS Onboarding / Subscription (not on the sheet; kept at the end)
+       - PHS Token Top-up (not on the sheet; kept at the end)
+     - **Legacy Billing**
+       - Bill Legacy (the bill_legacy register: bills captured under File Indexing)
+     - Payment Cycles (recurring bills and next due dates, /revenue/cycles, added 2026-10-21)
+   - **Receipting**
+     - **Generate Receipt**
+       - Awaiting Receipt
+       - e-Receipt
+       - Print Receipt
+   - Reconciliation (/revenue/reconciliation, added 2026-10-21)
    - Transaction Token Control (TTC)
 
 9. **KANGIS LIS**

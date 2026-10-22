@@ -8,6 +8,12 @@ class PhsOnboardingRequest extends Model
 {
     protected $connection = 'sqlsrv';
 
+    /** KLAES REV-M: a confirmed portal payment is copied into Bill Master, as paid (PortalBillMirror). */
+    protected static function booted(): void
+    {
+        static::saved(fn ($row) => app(\App\Services\Billing\Modules\PortalBillMirror::class)->phsOnboarding($row));
+    }
+
     const STATUS_PENDING             = 'pending';
     const STATUS_DOCUMENTS_APPROVED  = 'documents_approved';
     const STATUS_AWAITING_SLA        = 'awaiting_sla';

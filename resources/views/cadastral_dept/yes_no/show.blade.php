@@ -9,10 +9,11 @@
   // The reference lines are filled from the file (refs(): the file number on the line its type says,
   // e.g. R. of O. No. for an ordinary file); a line holding the file number is locked (user, 2026-10-12).
   $fileRef = fn (string $prefix) => \App\Services\CadastralDept\YesNoForms::withoutPrefix($case->file_number, $prefix);
-  $areaValue = old('area_applied_ha', $form?->area_applied_ha);
+  // Square metres entered, hectares worked out (m2 / 10,000), no acres (transcript, 2026-10-16).
+  $areaValue = old('area_applied_sqm', $form?->area_applied_ha !== null ? round((float) $form->area_applied_ha * 10000, 2) : null);
   $areaPrefilled = ($areaValue === null || $areaValue === '') && $area['ha'] !== null;
   if ($areaPrefilled) {
-      $areaValue = $area['ha'];
+      $areaValue = round($area['ha'] * 10000, 2);
   }
   $purpose = $v('q4_purpose');
   $purposeIsOther = $purpose !== null && $purpose !== '' && $purpose !== 'Other' && ! in_array($purpose, $F::PURPOSES, true);
@@ -20,7 +21,7 @@
       'q2_ground_open' => $v('q2_ground_open'), 'q3_beaconed' => $v('q3_beaconed'),
       'q4_town_plan' => $v('q4_town_plan'), 'q5_previous_title' => $v('q5_previous_title'),
       'purpose' => $purposeIsOther ? 'Other' : $purpose,
-      'ha' => $areaValue === null ? '' : (string) $areaValue,
+      'sqm' => $areaValue === null ? '' : (string) $areaValue,
   ];
   $input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100';
   $label = 'block text-xs font-medium text-gray-600 mb-1';
@@ -64,7 +65,7 @@
       </div>
     @elseif (! $editable)
       <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-        The Yes/No form is filled at AD Cad Report, before "Land 12 and Yes/No form" is ticked, so this page is read only now.
+        The Yes/No form is filled at AD Cad Report, before "Yes/No form" is ticked, so this page is read only now.
       </div>
     @endif
 
@@ -153,8 +154,8 @@
           <div class="{{ $q }}"><span>8. Area applied for</span></div>
           <div class="{{ $sub }}">
             <div>
-              <label class="{{ $label }}">Hectares</label>
-              <input type="number" step="0.0001" min="0" name="area_applied_ha" x-model="ha" value="{{ $areaValue }}" class="{{ $input }}">
+              <label class="{{ $label }}">Square metres (m²)</label>
+              <input type="number" step="0.01" min="0" name="area_applied_sqm" x-model="sqm" value="{{ $areaValue }}" class="{{ $input }}">
               <p class="mt-1 text-xs text-gray-500">
                 @if ($areaPrefilled) Filled in from {{ $area['source'] }}; saved when you save the form.
                 @elseif ($area['source'] === 'entered') As entered.
@@ -163,8 +164,8 @@
               </p>
             </div>
             <div>
-              <label class="{{ $label }}">Acres (1 hectare = 2.47 acres, as the form prints)</label>
-              <input type="text" disabled x-bind:value="ha === '' || isNaN(parseFloat(ha)) ? '' : (parseFloat(ha) * {{ $F::ACRES_PER_HECTARE_AS_PRINTED }}).toFixed(4)" class="{{ $input }}">
+              <label class="{{ $label }}">Hectares (m² ÷ 10,000)</label>
+              <input type="text" disabled x-bind:value="sqm === '' || isNaN(parseFloat(sqm)) ? '' : (parseFloat(sqm) / 10000).toFixed(4)" class="{{ $input }}">
             </div>
           </div>
         </div>
@@ -172,7 +173,7 @@
 
       @if ($editable)
         <div class="p-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100">
-          <span class="text-xs text-gray-500">"Land 12 and Yes/No form" can be ticked once questions 1–7 are all answered.</span>
+          <span class="text-xs text-gray-500">"Yes/No form" can be ticked once questions 1–7 are all answered.</span>
           @cadCan('edit')
             <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold">
               <i data-lucide="save" class="w-4 h-4"></i> Save the Yes/No form

@@ -434,6 +434,19 @@
           <i data-lucide="banknote" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
         </div>
       </div>
+      @php
+        // KLAES REV-M: a bill raised under Bill Master (every new one) is paid and
+        // receipted there, so this form no longer takes its receipt (decision 2026-10-19).
+        $revmBill = ! $billBalance->exists || \App\Models\BillMaster::query()
+            ->where('source_table', \App\Services\Billing\Modules\DeedsBillBalanceMirror::SOURCE_TABLE)
+            ->where('source_id', $billBalance->id)->exists();
+      @endphp
+      @if ($revmBill)
+        <div class="md:col-span-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <i data-lucide="banknote" class="w-4 h-4 mt-0.5 shrink-0"></i>
+          <div>Payment and receipt are handled under <strong>KLAES REV-M → Bill Balance</strong>{{ $billBalance->exists ? ' (Bill Ref ID ' . $billBalance->reference . ')' : '' }}.</div>
+        </div>
+      @else
       <div>
         <label class="form-label">Receipt Number (CRC No)</label>
         <div class="relative">
@@ -448,6 +461,7 @@
           <i data-lucide="calendar-check" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
         </div>
       </div>
+      @endif
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
       <div>

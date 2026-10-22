@@ -58,12 +58,17 @@ class SpaNewFileService
             : self::NEW_CONVERSION;
     }
 
-    /** Settled = it has a bill and every bill on it is fully paid. */
+    /**
+     * Settled = it has a bill and every bill on it is either fully paid (older
+     * SPAS-paid bills) or handed to KLAES REV-M, where it is generated and paid.
+     * Payment under REV-M never holds the workflow back (user decision, 2026-10-19).
+     */
     public function settled(SpaApplication $app): bool
     {
-        $bills = SpaBill::where('spa_application_id', $app->id)->get(['status']);
+        $bills = SpaBill::where('spa_application_id', $app->id)->get(['id', 'status']);
+        $inRevm = \App\Services\Billing\Modules\SpasBillMirror::inBillMaster($bills->pluck('id'));
 
-        return $bills->isNotEmpty() && $bills->every(fn ($b) => $b->status === 'paid');
+        return $bills->isNotEmpty() && $bills->every(fn ($b) => $b->status === 'paid' || $inRevm->has((int) $b->id));
     }
 
     /** Types the officer picks on the Send to Change of Purpose card. */
@@ -95,7 +100,7 @@ class SpaNewFileService
             return 'This record has already been sent to Change of Purpose.';
         }
         if (! $this->settled($app)) {
-            return 'The bill must be fully paid before the record can be sent to Change of Purpose.';
+            return 'The bill must be settled (paid, or handed to KLAES REV-M) before the record can be sent to Change of Purpose.';
         }
 
         return null;

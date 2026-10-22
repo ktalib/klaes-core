@@ -65,7 +65,8 @@ class YesNoFormController extends Controller
             'q5_details' => 'nullable|required_if:q5_previous_title,Yes|string|max:1000',
             'q6_railway' => $yn,
             'q7_trunk_road' => $yn,
-            'area_applied_ha' => 'nullable|numeric|min:0|max:99999999',
+            // Square metres in; hectares (m2 / 10,000) stored (transcript, 2026-10-16: no acres).
+            'area_applied_sqm' => 'nullable|numeric|min:0|max:999999999999',
         ], [
             'q2_overlapping_title.required_if' => 'Q2 is No: say what title or application lies over the land.',
             'q3_tracing_no.required_if' => 'Q3 is Yes: give the Tracing No.',
@@ -77,6 +78,10 @@ class YesNoFormController extends Controller
             'q4_area_for_purpose.required_if' => 'Q4 is Yes: say whether the Town Plan shows the area for that purpose.',
             'q5_details.required_if' => 'Q5 is Yes: give the details.',
         ]);
+
+        $data['area_applied_ha'] = isset($data['area_applied_sqm']) && $data['area_applied_sqm'] !== ''
+            ? round((float) $data['area_applied_sqm'] / 10000, 4) : null;
+        unset($data['area_applied_sqm']);
 
         // "Other" stores the officer's own words.
         if (($data['q4_purpose'] ?? null) === 'Other') {
@@ -109,7 +114,7 @@ class YesNoFormController extends Controller
             'form' => $form,
             'refs' => $this->forms->refs($case, $form),
             'areaHa' => $area['ha'],
-            'areaAcres' => $area['ha'] === null ? null : round($area['ha'] * CadastralYesNoForm::ACRES_PER_HECTARE_AS_PRINTED, 4),
+            'areaSqm' => $area['ha'] === null ? null : round($area['ha'] * 10000, 2),
             'qr' => $qr->dataUri(route('cadastral-dept.cases.show', $case->id), 140),
         ]);
     }

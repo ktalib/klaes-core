@@ -311,8 +311,9 @@ class VerificationFileStatus
 
     /**
      * Under Investigation, as Legal Search reads it (LegalSearchService::resolveDcivInvestigation):
-     * the file linked to a DCIV / LPCC file in master_dciv_links, on either side, or a DCIV
-     * file commissioned for it in dciv_file_no.
+     * the land file a DCIV / LPCC file was opened against (master_dciv_links.related_file_number,
+     * dciv_file_no.related_fileno). Only the land file is under investigation: picking the DCIV /
+     * LPCC file itself (DCIV-1, LPC-102) gives no notice (user's voice note, 2026-10-20).
      */
     private function checkDciv(array $numbers, array $props): array
     {
@@ -322,15 +323,14 @@ class VerificationFileStatus
         if ($upper && \Illuminate\Support\Facades\Schema::connection(self::CONN)->hasTable('master_dciv_links')) {
             $links = $db->table('master_dciv_links')
                 ->where(function ($q) use ($upper) {
-                    $q->whereIn(DB::raw('UPPER(LTRIM(RTRIM(dciv_file_number)))'), $upper)
-                        ->orWhereIn(DB::raw('UPPER(LTRIM(RTRIM(related_file_number)))'), $upper);
+                    $q->whereIn(DB::raw('UPPER(LTRIM(RTRIM(related_file_number)))'), $upper);
                 })
                 ->orderByDesc('id')
                 ->get(['dciv_file_number', 'related_file_number', 'dciv_reason']);
             $link = $links->first(fn ($l) => trim((string) $l->dciv_reason) !== '') ?? $links->first();
         }
         $row = $db->table('dciv_file_no')
-            ->where(fn ($q) => $q->whereIn('full_file_number', $numbers)->orWhereIn('related_fileno', $numbers))
+            ->whereIn('related_fileno', $numbers)
             ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->orderByDesc('id')
             ->first(['full_file_number', 'related_fileno', 'commissioning_date']);

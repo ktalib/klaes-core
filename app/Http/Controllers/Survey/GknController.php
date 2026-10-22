@@ -8,6 +8,7 @@ use App\Models\Survey\SurveyGknRecord;
 use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -131,13 +132,64 @@ class GknController extends Controller
     /**
      * @param  SurveyGknRecord|null  $existing  the row being edited, excluded from the uniqueness check
      */
+    /**
+     * What the records hold for a GKN file number picked in the global selector
+     * (user, 2026-10-21): title, plot, district, LGA and land use from its
+     * file_indexings row (matched on the file-number string), else its fileNumber
+     * row, and whether the register already has it.
+     */
+    public function lookup(Request $r)
+    {
+        $number = trim(mb_substr((string) $r->query('file_number', ''), 0, 50));
+        if ($number === '') {
+            return response()->json(['found' => false, 'message' => 'No file number given.'], 422);
+        }
+
+        $db  = DB::connection('sqlsrv');
+        $out = ['found' => false, 'file_number' => $number, 'title' => null, 'plot' => null,
+                'district' => null, 'lga' => null, 'land_use' => null, 'registered' => null];
+
+        $fi = $db->table('file_indexings')->where('file_number', $number)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->orderByDesc('id')->first(['file_title', 'plot_number', 'district', 'lga', 'land_use_type']);
+        if ($fi) {
+            $out = array_merge($out, ['found' => true, 'title' => $fi->file_title, 'plot' => $fi->plot_number,
+                'district' => $fi->district, 'lga' => $fi->lga, 'land_use' => $this->landUse($fi->land_use_type)]);
+        } elseif ($fn = $db->table('fileNumber')->where('mlsfNo', $number)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->orderByDesc('id')->first(['FileName', 'plot_no', 'lga'])) {
+            $out = array_merge($out, ['found' => true, 'title' => $fn->FileName, 'plot' => $fn->plot_no, 'lga' => $fn->lga]);
+        }
+
+        // The location is district + LGA; a plot number never goes in it.
+        $out = array_map(fn ($v) => is_string($v) ? (trim($v) === '' ? null : trim($v)) : $v, $out);
+        if ($existing = SurveyGknRecord::where('gkn_number', $number)->first(['id', 'gkn_number'])) {
+            $out['registered'] = ['id' => $existing->id, 'edit_url' => route('survey-module.gkn.edit', $existing->id)];
+        }
+
+        return response()->json($out);
+    }
+
+    /** The indexing land use as one of LAND_USES, or null when it is not one of them. */
+    private function landUse(?string $value): ?string
+    {
+        $v = strtolower(trim((string) $value));
+        if ($v === '') return null;
+        if (str_contains($v, 'commercial') && str_contains($v, 'residential')) return 'Mixed';
+        foreach (self::LAND_USES as $lu) {
+            if (strtolower($lu) === $v) return $lu;
+        }
+        return null;
+    }
+
     private function validated(Request $r, ?SurveyGknRecord $existing = null): array
     {
         $rules = [
+            // Picked in the global file number selector (user, 2026-10-21); an edit keeps its number.
             // Unique against the sqlsrv table, including soft-deleted rows —
             // the database index does not ignore them either.
             'gkn_number'     => [
-                'nullable', 'string', 'max:50',
+                $existing ? 'nullable' : 'required', 'string', 'max:50',
                 Rule::unique('sqlsrv.survey_gkn_records', 'gkn_number')->ignore($existing?->id),
             ],
             'title'          => 'required|string|max:255',
@@ -152,6 +204,7 @@ class GknController extends Controller
 
         return $r->validate($rules, [
             'gkn_number.unique'               => 'That GKN number is already on the register.',
+            'gkn_number.required'             => 'Select the GKN file number with the file number selector.',
             'prop_district.required'          => 'The district is required.',
             'prop_district_other.required_if' => 'Please specify the district.',
             'prop_street_other.required_if'   => 'Please specify the street.',

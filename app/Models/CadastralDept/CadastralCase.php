@@ -109,6 +109,13 @@ class CadastralCase extends Model
         return $this->status === self::STATUS_IN_PROGRESS;
     }
 
+    /** File index ids of the files in the department now (Scan More / Type More from the Cadastral sidebar). */
+    public static function openIndexingIds(): array
+    {
+        return static::query()->open()->whereNotNull('file_indexing_id')
+            ->pluck('file_indexing_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
     /** Task keys done at the current step. */
     public function doneTaskKeys(?string $step = null): array
     {

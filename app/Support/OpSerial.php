@@ -7,11 +7,40 @@ use Illuminate\Validation\ValidationException;
 /** OP serials are identifiers, not registration serial/page/volume numbers. */
 final class OpSerial
 {
-    public const RULE = 'regex:/^[1-9][0-9]*$/';
+    /**
+     * Typed serials: positive digits, no leading zero. System-generated serials (for an
+     * OP that has none, user 2026-10-16) are six digits zero-padded, 000001 .. 999999,
+     * so a leading zero marks "made by the system". Both are valid everywhere; only the
+     * capture screens stop an officer TYPING a leading zero (see manualValid()).
+     */
+    public const RULE = 'regex:/^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/';
+
+    private const TYPED = '/^[1-9][0-9]*$/D';
+    private const GENERATED = '/^(?!0{6})0[0-9]{5}$/D';
 
     public static function rules(string $presence = 'required'): array
     {
         return [$presence, 'string', 'max:100', self::RULE];
+    }
+
+    /** Shaped like a system-generated serial (000001 .. 099999). */
+    public static function isGeneratedFormat($value): bool
+    {
+        return (is_string($value) || is_int($value)) && preg_match(self::GENERATED, trim((string) $value)) === 1;
+    }
+
+    /** What an officer may type: no leading zero. */
+    public static function manualValid($value): bool
+    {
+        return (is_string($value) || is_int($value))
+            && preg_match(self::TYPED, trim((string) $value)) === 1
+            && strlen(trim((string) $value)) <= 100;
+    }
+
+    /** The printed form of generated serial number $n: 1 => "000001". */
+    public static function formatGenerated(int $n): string
+    {
+        return str_pad((string) $n, 6, '0', STR_PAD_LEFT);
     }
 
     /** Unchecked optional OP sections must ignore even stale hidden values. */
@@ -24,9 +53,7 @@ final class OpSerial
 
     public static function valid($value): bool
     {
-        return (is_string($value) || is_int($value))
-            && preg_match('/^[1-9][0-9]*$/D', trim((string) $value)) === 1
-            && strlen(trim((string) $value)) <= 100;
+        return self::manualValid($value) || self::isGeneratedFormat($value);
     }
 
     public static function require($value, string $field = 'op_serial_number'): string

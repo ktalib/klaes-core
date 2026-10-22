@@ -15,14 +15,6 @@
 
 @include('survey_module.partials._flash')
 
-<div class="page-header">
-    <div></div>
-    <button type="button" class="btn btn-primary btn-sm"
-            onclick="document.getElementById('miscForm').classList.toggle('open')">
-        <i class="fas fa-plus"></i> New Note
-    </button>
-</div>
-
 <div class="kpi-grid">
     <div class="kpi-card">
         <div class="kpi-label">Total Notes</div>
@@ -147,6 +139,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Ref</th>
                     <th>Title</th>
                     <th>Category</th>
@@ -160,6 +153,7 @@
             <tbody>
                 @forelse ($notes as $n)
                     <tr>
+                        <td>{{ $notes->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $n->ref_no }}</strong></td>
                         <td>
                             {{ $n->title }}
@@ -191,14 +185,13 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-sticky-note" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'category']))
                                 No notes match that filter.
                                 <a href="{{ route('survey-module.records.misc') }}">Clear the filter</a>.
                             @else
                                 No miscellaneous notes yet.
-                                <a href="#" onclick="document.getElementById('miscForm').classList.add('open');return false;">Record the first one</a>.
                             @endif
                         </td>
                     </tr>

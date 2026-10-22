@@ -341,6 +341,46 @@
           </div>
         @endif
 
+        {{-- Blind scan dashboard: filled from the summary endpoint (stats). --}}
+        {{-- Hidden for now at the user's request (2026-10-21); remove "hidden" to bring it back. --}}
+        <div id="blindDashboard" class="mb-6 hidden">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-lg font-semibold"><i class="fa-solid fa-chart-column mr-2 text-indigo-600"></i>Blind Scan Dashboard</h2>
+            <span id="dashScope" class="text-xs text-muted-foreground"></span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div class="bg-card border rounded-lg p-4">
+              <div class="flex items-center justify-between text-xs text-muted-foreground">Uploaded Today <i class="fa-solid fa-calendar-day text-indigo-500"></i></div>
+              <div id="dashTodayPages" class="text-2xl font-bold mt-1">–</div>
+              <div id="dashTodayFolders" class="text-xs text-muted-foreground">pages</div>
+            </div>
+            <div class="bg-card border rounded-lg p-4">
+              <div class="flex items-center justify-between text-xs text-muted-foreground">This Week <i class="fa-solid fa-calendar-week text-blue-500"></i></div>
+              <div id="dashWeekPages" class="text-2xl font-bold mt-1">–</div>
+              <div id="dashWeekFolders" class="text-xs text-muted-foreground">pages</div>
+            </div>
+            <div class="bg-card border rounded-lg p-4">
+              <div class="flex items-center justify-between text-xs text-muted-foreground">Total Uploaded <i class="fa-solid fa-database text-gray-500"></i></div>
+              <div id="dashTotalPages" class="text-2xl font-bold mt-1">–</div>
+              <div id="dashTotalFolders" class="text-xs text-muted-foreground">pages</div>
+            </div>
+            <div class="bg-card border rounded-lg p-4">
+              <div class="flex items-center justify-between text-xs text-muted-foreground">Awaiting Scan Upload <i class="fa-solid fa-hourglass-half text-amber-500"></i></div>
+              <div id="dashAwaiting" class="text-2xl font-bold mt-1 text-yellow-700">–</div>
+              <div class="text-xs text-muted-foreground">pages not yet moved to a file</div>
+            </div>
+            <div class="bg-card border rounded-lg p-4">
+              <div class="flex items-center justify-between text-xs text-muted-foreground">Moved to Scan Upload <i class="fa-solid fa-circle-check text-green-600"></i></div>
+              <div id="dashMoved" class="text-2xl font-bold mt-1 text-green-700">–</div>
+              <div class="text-xs text-muted-foreground">pages taken into Scan Upload</div>
+            </div>
+          </div>
+          <div id="dashTopToday" class="hidden mt-3 bg-card border rounded-lg p-3 text-sm">
+            <div class="text-xs font-semibold text-muted-foreground mb-2">Top uploaders today</div>
+            <div id="dashTopTodayList" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <!-- Left: Upload + Migrate (reduced width) -->
           <div class="bg-card border rounded-lg p-6 lg:col-span-2">
@@ -348,25 +388,30 @@
 
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium mb-1">File Number (target on server)</label>
+                <label class="block text-sm font-medium mb-1">File Number (target on server) <span class="text-red-500">*</span></label>
                 <div class="flex gap-2">
-                  <input id="fileNo" type="text" class="flex-1 border rounded-md px-3 py-2"
-                    placeholder="e.g., ST-COM-2025-0001" />
+                  {{-- Filled only from the file number selector, never typed. --}}
+                  <input id="fileNo" type="text" class="flex-1 border rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed"
+                    placeholder="Click Select to choose a file number" readonly tabindex="-1" />
                   <button type="button" id="openFileNoModalBtn" class="btn btn-primary">
                     <i class="fa-solid fa-search mr-1"></i>Select
                   </button>
+                  <button type="button" id="clearFileNoBtn" class="btn hidden" title="Clear the file number">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
                 </div>
-                <p class="text-xs text-muted-foreground mt-1">Click 'Select' to choose or enter a file number manually</p>
+                <p class="text-xs text-muted-foreground mt-1">Choose the file with 'Select'. The field cannot be typed into.</p>
               </div>
 
               <div>
-                <label class="block text-sm font-medium mb-1">Registry</label>
+                <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
                 <select id="registryType" class="w-full border rounded-md px-3 py-2 bg-white">
+                  <option value="" selected disabled>Select registry</option>
                   @foreach($registries as $registry)
-                    <option value="{{ $registry->code ?? Str::slug($registry->name, '_') }}">{{ $registry->name }}</option>
+                    <option value="{{ $registry->code ?? Str::slug($registry->name, '_') }}">{{ preg_replace('/\s+/', ' ', trim($registry->name)) }}</option>
                   @endforeach
                 </select>
-                <p class="text-xs text-muted-foreground mt-1">Select the target registry for storage</p>
+                <p id="registryFolderHint" class="text-xs text-muted-foreground mt-1">Scans are stored in that registry's own blind-scan folder.</p>
               </div>
 
               <div>
@@ -404,7 +449,7 @@
             <div class="px-6 pb-0">
               <div class="flex gap-2">
                 <button id="tabServer" class="btn">Server Browser</button>
-                <button id="tabLogs" class="btn">Migration Logs</button>
+                <button id="tabLogs" class="btn">Upload History</button>
               </div>
             </div>
 
@@ -417,12 +462,23 @@
                   <div id="srvCrumbs" class="text-xs text-muted-foreground mt-1">Root</div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <button id="syncMigrationBtn" class="btn">
-                    <i class="fa-solid fa-list-check mr-2"></i>Sync Migration Log
+                  {{-- Admin only: records folders copied onto the server outside this page. --}}
+                  <button id="syncMigrationBtn" class="btn hidden" title="Record folders copied onto the server in the last 2 days">
+                    <i class="fa-solid fa-list-check mr-2"></i>Register Copied Folders
                   </button>
                   <button id="srvRefresh" class="btn"><i class="fa-solid fa-rotate mr-2"></i>Refresh</button>
                 </div>
               </div>
+              <div class="flex flex-wrap items-center gap-3 mb-3">
+                <form id="srvSearchForm" class="hidden flex items-center gap-2">
+                  <input id="srvSearch" type="search" class="border rounded-md px-3 py-1.5 text-sm w-56" placeholder="Find a folder by file number">
+                  <button type="submit" class="btn text-sm"><i class="fa-solid fa-search mr-1"></i>Find</button>
+                </form>
+                <label id="scopeToggleWrap" class="hidden items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                  <input type="checkbox" id="scopeToggle"> Show only my uploads
+                </label>
+              </div>
+              <div id="srvNote" class="text-xs text-muted-foreground mb-2 hidden"></div>
               <div id="srvStatus" class="text-xs text-muted-foreground mb-3 hidden"></div>
 
               <div class="border rounded-lg overflow-hidden">
@@ -434,6 +490,7 @@
                       <th class="text-left p-3">Name</th>
                       <th class="text-left p-3">Size</th>
                       <th class="text-left p-3">Modified</th>
+                      <th class="text-left p-3">Uploaded By</th>
                       <th class="text-left p-3">Actions</th>
                     </tr>
                   </thead>
@@ -464,8 +521,8 @@
           <div class="flex items-center justify-between mb-3">
             <div>
               <h3 class="font-semibold text-lg">Blind Scanning Summary</h3>
-              <p class="text-xs text-muted-foreground">Grouped by file number — counts per paper size and total files.
-                Click a row to expand details.</p>
+              <p class="text-xs text-muted-foreground">Uploads from the last 30 days, one row per file folder, with how many pages
+                have moved on to Scan Upload. Click a row to list its files.</p>
             </div>
             <div>
               <button id="refreshAggregates" class="btn">Refresh</button>
@@ -482,8 +539,9 @@
                   <th class="text-left p-3">Registry</th>
                   <th class="text-left p-3">A4</th>
                   <th class="text-left p-3">A3</th>
-                  <th class="text-left p-3">Other</th>
                   <th class="text-left p-3">Total</th>
+                  <th class="text-left p-3">Uploaded by</th>
+                  <th class="text-left p-3">Progress</th>
                 </tr>
               </thead>
               <tbody id="aggregatesBody"></tbody>
@@ -505,8 +563,14 @@
                 <div class="progress-bar bg-indigo-600 h-2 rounded-full" style="width:0%"></div>
               </div>
               <div id="progressText" class="text-sm text-center text-muted-foreground">0%</div>
+              <div id="progressDetail" class="text-xs text-center text-muted-foreground"></div>
               <div id="progressDone" class="flex items-center justify-center gap-2 text-green-700 hidden">
                 <i class="fa-solid fa-circle-check"></i><span>Done!</span>
+              </div>
+              <div class="flex justify-center">
+                <button type="button" id="progressCancel" class="btn text-xs hidden">
+                  <i class="fa-solid fa-ban mr-1"></i>Cancel after this batch
+                </button>
               </div>
             </div>
           </div>
@@ -595,7 +659,7 @@
       <!-- Include Global File Number Modal -->
       @include('components.global-fileno-modal')
 
-      <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
       <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
       @include('scanning.blind_scan_js')
 
@@ -700,6 +764,18 @@
             }
           @endif
 
+          // The field is read-only; this is the only way to empty it.
+          $('#clearFileNoBtn').on('click', function () {
+            $('#fileNo').val('');
+            $(this).addClass('hidden');
+            if (typeof validateUploadSection === 'function') {
+              validateUploadSection();
+            }
+          });
+          if ($('#fileNo').val()) {
+            $('#clearFileNoBtn').removeClass('hidden');
+          }
+
           // Handle the "Select" button click
           $('#openFileNoModalBtn').on('click', function () {
             if (typeof GlobalFileNoModal === 'undefined') {
@@ -718,6 +794,7 @@
                 // Update the file number input field
                 if (fileNumber) {
                   $('#fileNo').val(fileNumber);
+                  $('#clearFileNoBtn').removeClass('hidden');
 
                   // Trigger validation if function exists
                   if (typeof validateUploadSection === 'function') {
@@ -747,122 +824,54 @@
       </script>
 
       <script>
-        // Aggregates table loader
+        // Aggregates table loader: one row per uploaded folder (last 30 days),
+        // totals computed by the server. A row's file list loads when opened.
+        function aggEscape(value) {
+          return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function aggProgressBadge(group) {
+          const cls = group.converted >= group.files
+            ? 'text-green-700 bg-green-50 border-green-200'
+            : (group.converted > 0 ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-amber-700 bg-amber-50 border-amber-200');
+          return `<span class="inline-block text-xs px-2 py-0.5 rounded border ${cls}">${aggEscape(group.progress)}</span>`;
+        }
+
         function renderAggregates(items) {
           const $table = $('#aggregatesTable');
-          const $body = $('#aggregatesBody');
 
-          // Destroy existing DataTable if it exists
           if ($.fn.DataTable.isDataTable('#aggregatesTable')) {
             $table.DataTable().destroy();
           }
+          $('#aggregatesBody').empty();
 
-          $body.empty();
-
-          if (!items || !items.length) {
-            // Let DataTables handle the empty state
-            $table.DataTable({
-              pageLength: 50,
-              language: {
-                emptyTable: "No blind scan records found.",
-                search: "_INPUT_",
-                searchPlaceholder: "Search aggregates..."
-              }
-            });
-            return;
-          }
-
-          // Initialize main aggregates table
           const dt = $table.DataTable({
             pageLength: 50,
             order: [[0, 'asc']],
-            columnDefs: [
-              { orderable: false, targets: [1] } // chevron column
-            ],
+            columnDefs: [{ orderable: false, targets: [1] }],
             language: {
-              search: "_INPUT_",
-              searchPlaceholder: "Search aggregates..."
-            },
-            drawCallback: function () {
-              // Re-initialize nested details tables for visible rows
-              $('.details-table').each(function () {
-                if (!$.fn.DataTable.isDataTable(this)) {
-                  $(this).DataTable({
-                    pageLength: 50,
-                    order: [[0, 'asc']],
-                    language: {
-                      search: "_INPUT_",
-                      searchPlaceholder: "Search files..."
-                    }
-                  });
-                }
-              });
+              emptyTable: 'No uploads in the last 30 days.',
+              search: '_INPUT_',
+              searchPlaceholder: 'Search summary...'
             }
           });
 
-          items.forEach(function (group, idx) {
-            const fn = group.file_number || 'UNASSIGNED';
-            const registry = group.registry_type === 'cadastral' ? 'Cadastral' : 'Lands';
-            const a4 = group.counts['A4'] || 0;
-            const a3 = group.counts['A3'] || 0;
-            const total = group.total || 0;
-            const other = Math.max(0, total - (a4 + a3));
-            const sn = idx + 1;
-
-            const detailId = 'agg_detail_' + idx;
-            const registryPill = `<span class="pill ${registry === 'Cadastral' ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-blue-700 bg-blue-50 border-blue-200'}">${registry}</span>`;
-
-            // Add row to DataTable
+          (items || []).forEach(function (group, idx) {
             const rowNode = dt.row.add([
-              sn,
+              idx + 1,
               '<i class="fa-solid fa-chevron-right"></i>',
-              `<span class="font-mono">${fn}</span>`,
-              registryPill,
-              a4,
-              a3,
-              other,
-              `<strong>${total}</strong>`
-            ]).draw(false).node();
+              `<span class="font-mono">${aggEscape(group.file_number)}</span>`,
+              `<span class="pill text-blue-700 bg-blue-50 border-blue-200">${aggEscape(group.registry)}</span>`,
+              group.a4,
+              group.a3,
+              `<strong>${group.files}</strong>`,
+              aggEscape(group.user),
+              aggProgressBadge(group)
+            ]).node();
 
             $(rowNode).addClass('agg-summary hover:bg-gray-50 cursor-pointer');
             $(rowNode).find('td:eq(1)').addClass('text-center');
 
-            const recordsHtml = (group.records || []).map((r, i) => {
-              const url = r.document_path ? '/' + r.document_path : '#';
-              const rSn = i + 1;
-              const uploadedDate = r.created_at ? new Date(r.created_at).toLocaleString('en-US', {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-              }) : 'N/A';
-              return `<tr class="border-b">
-                    <td class="p-2">${rSn}</td>
-                    <td class="p-2">${r.original_filename}</td>
-                    <td class="p-2">${r.paper_size}</td>
-                    <td class="p-2">${uploadedDate}</td>
-                    <td class="p-2"><a href="${url}" target="_blank" class="text-indigo-600">Open</a></td>
-                  </tr>`;
-            }).join('');
-
-            const detailHtml = `
-                  <div class="p-3 bg-white border rounded shadow-inner">
-                    <div class="text-xs text-muted-foreground mb-2">Files for ${fn} (showing ${group.records.length}):</div>
-                    <div class="overflow-auto">
-                      <table id="detailsTable_${group.file_number_slug || idx}" class="w-full text-xs details-table">
-                        <thead>
-                          <tr class="bg-muted">
-                            <th class="p-2 text-left">S/N</th>
-                            <th class="p-2 text-left">Filename</th>
-                            <th class="p-2 text-left">Paper</th>
-                            <th class="p-2 text-left">Uploaded</th>
-                            <th class="p-2 text-left">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>${recordsHtml}</tbody>
-                      </table>
-                    </div>
-                  </div>`;
-
-            // Expandable row logic
             $(rowNode).on('click', function () {
               const row = dt.row(this);
               const $icon = $(this).find('i.fa-chevron-right');
@@ -870,48 +879,93 @@
               if (row.child.isShown()) {
                 row.child.hide();
                 $icon.removeClass('fa-rotate-90');
-              } else {
-                row.child(detailHtml).show();
-                $icon.addClass('fa-rotate-90');
-
-                // Initialize the table inside the child row if not already done
-                const $childTable = row.child().find('.details-table');
-                if ($childTable.length && !$.fn.DataTable.isDataTable($childTable)) {
-                  $childTable.DataTable({
-                    pageLength: 50,
-                    order: [[0, 'asc']],
-                    language: {
-                      search: "_INPUT_",
-                      searchPlaceholder: "Search files..."
-                    }
-                  });
-                }
+                return;
               }
+
+              row.child('<div class="p-3 text-xs text-muted-foreground">Loading files...</div>').show();
+              $icon.addClass('fa-rotate-90');
+
+              const url = new URL('/blind-scanning/aggregates', window.location.href);
+              url.searchParams.set('folder', group.folder);
+              if (group.first_at) url.searchParams.set('since', group.first_at);
+              fetch(url, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(res => {
+                  if (!res || !res.success) {
+                    row.child(`<div class="p-3 text-xs text-red-600">${aggEscape(res && res.message || 'Could not load the files.')}</div>`).show();
+                    return;
+                  }
+                  const recordsHtml = (res.records || []).map((r, i) => {
+                    const url = r.document_path ? '/storage/' + String(r.document_path).replace(/^\/+/, '') : '#';
+                    const uploaded = r.created_at ? new Date(String(r.created_at).replace(' ', 'T')).toLocaleString() : 'N/A';
+                    return `<tr class="border-b">
+                      <td class="p-2">${i + 1}</td>
+                      <td class="p-2">${aggEscape(r.original_filename)}</td>
+                      <td class="p-2">${aggEscape(r.paper_size)}</td>
+                      <td class="p-2">${aggEscape(r.status === 'converted' ? 'In Scan Upload' : 'Awaiting')}</td>
+                      <td class="p-2">${aggEscape(uploaded)}</td>
+                      <td class="p-2"><a href="${aggEscape(url)}" target="_blank" rel="noopener" class="text-indigo-600">Open</a></td>
+                    </tr>`;
+                  }).join('');
+                  row.child(`
+                    <div class="p-3 bg-white border rounded shadow-inner">
+                      <div class="text-xs text-muted-foreground mb-2">Files for ${aggEscape(group.file_number)} (${(res.records || []).length}):</div>
+                      <div class="overflow-auto max-h-96">
+                        <table class="w-full text-xs">
+                          <thead><tr class="bg-muted">
+                            <th class="p-2 text-left">S/N</th><th class="p-2 text-left">Filename</th><th class="p-2 text-left">Paper</th>
+                            <th class="p-2 text-left">Status</th><th class="p-2 text-left">Uploaded</th><th class="p-2 text-left">Actions</th>
+                          </tr></thead>
+                          <tbody>${recordsHtml}</tbody>
+                        </table>
+                      </div>
+                    </div>`).show();
+                })
+                .catch(() => row.child('<div class="p-3 text-xs text-red-600">Could not load the files.</div>').show());
             });
           });
+
+          dt.draw(false);
+        }
+
+        function renderDashboard(stats, mineOnly) {
+          if (!stats) return;
+          const n = v => Number(v || 0).toLocaleString();
+          const folders = v => `${n(v)} file folder${Number(v) === 1 ? '' : 's'}`;
+          $('#dashTodayPages').text(n(stats.today.pages) + ' pages');
+          $('#dashTodayFolders').text(folders(stats.today.folders));
+          $('#dashWeekPages').text(n(stats.week.pages) + ' pages');
+          $('#dashWeekFolders').text(folders(stats.week.folders));
+          $('#dashTotalPages').text(n(stats.total.pages) + ' pages');
+          $('#dashTotalFolders').text(folders(stats.total.folders));
+          $('#dashAwaiting').text(n(stats.awaiting));
+          $('#dashMoved').text(n(stats.moved));
+          $('#dashScope').text(mineOnly ? 'Showing your uploads' : 'Showing all users');
+
+          const top = stats.top_today || [];
+          $('#dashTopToday').toggleClass('hidden', mineOnly || !top.length);
+          $('#dashTopTodayList').html(top.map(t =>
+            `<span class="inline-flex items-center gap-1 px-2 py-1 rounded border bg-gray-50 text-xs"><i class="fa-solid fa-user text-gray-400"></i>${aggEscape(t.user)} <b>${n(t.pages)}</b> pages · ${n(t.folders)} folder(s)</span>`
+          ).join(''));
         }
 
         function loadAggregates() {
-          fetch('/blind-scanning/aggregates', { headers: { 'Accept': 'application/json' } })
+          const url = new URL('/blind-scanning/aggregates', window.location.href);
+          if (typeof mineOnlyScope !== 'undefined' && mineOnlyScope) url.searchParams.set('mine', '1');
+          fetch(url, { headers: { 'Accept': 'application/json' } })
             .then(r => r.json())
             .then(res => {
-              if (res && res.success && Array.isArray(res.data)) {
-                renderAggregates(res.data);
-              } else {
-                // Initial empty state call
-                renderAggregates([]);
-              }
+              renderDashboard(res && res.stats, res && res.mineOnly);
+              renderAggregates(res && res.success && Array.isArray(res.data) ? res.data : []);
             })
             .catch(err => {
               console.error('Failed to load aggregates', err);
-              $('#aggregatesBody').html('<tr><td colspan="8" class="p-3 text-sm text-muted-foreground">Error loading data</td></tr>');
+              $('#aggregatesBody').html('<tr><td colspan="9" class="p-3 text-sm text-muted-foreground">Error loading data</td></tr>');
             });
         }
 
         $(function () {
-          // initial load
           loadAggregates();
-          // refresh button
           $('#refreshAggregates').on('click', loadAggregates);
         });
       </script>

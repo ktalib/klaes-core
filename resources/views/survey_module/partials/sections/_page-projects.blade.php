@@ -53,6 +53,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Project ID</th>
                     <th>Project Name</th>
                     <th>Location</th>
@@ -66,6 +67,7 @@
             <tbody>
                 @forelse ($projects as $p)
                     <tr>
+                        <td>{{ $projects->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $p->project_code }}</strong></td>
                         <td>{{ $p->name }}</td>
                         <td>{{ $p->property_location ?: '—' }}</td>
@@ -99,7 +101,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No projects yet.
                             <a href="{{ route('survey-module.compensation.projects.create') }}">Create the first one</a>.

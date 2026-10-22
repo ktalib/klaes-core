@@ -114,6 +114,29 @@ class ConsentApplicationController extends Controller
      * validated, matching what ValuationReportController stores. A backfilled
      * number is already canonical and passes through untouched.
      */
+    /**
+     * The consideration is required on every consent, create and edit alike.
+     *
+     * The letter works out the registration fee and the stamp duty from it,
+     * so a consent saved without one printed blank fee lines and "Zero Naira
+     * Only" (RES-2009-1278, 2026-10-22). The form field is readonly until the
+     * pencil unlocks it, and browsers skip `required` on readonly inputs, so
+     * this is the check that actually holds.
+     */
+    private function considerationRules(): array
+    {
+        return [
+            'required',
+            'string',
+            function ($attribute, $value, $fail) {
+                $digits = preg_replace('/[^0-9.]/', '', (string) $value);
+                if (str_starts_with(trim((string) $value), '-') || $digits === '' || !is_numeric($digits) || (float) $digits <= 0) {
+                    $fail('Enter the consideration (amount in figures) as an amount greater than zero.');
+                }
+            },
+        ];
+    }
+
     private function normalizeApplicantPhone(Request $request): void
     {
         if ($request->filled('applicant_phone')) {
@@ -266,7 +289,8 @@ class ConsentApplicationController extends Controller
             'applicant_address' => 'required|string',
             // The composed address alone cannot be checked for completeness,
             // so the parts that must be present are validated individually.
-            'applicant_house_no' => 'required|string|max:120',
+            // Optional: not every applicant address has a house number (Deeds, 2026-10-22).
+            'applicant_house_no' => 'nullable|string|max:120',
             'applicant_lga' => 'required|string|max:120',
             'applicant_state' => 'required|string|max:120',
             'party_name' => 'required|string',
@@ -275,7 +299,7 @@ class ConsentApplicationController extends Controller
             'application_date' => $applicationDateRule,
             'application_submitted_date' => 'nullable|date',
             'application_type' => 'nullable|string|max:120',
-            'consideration' => 'nullable|string',
+            'consideration' => $this->considerationRules(),
             'consideration_words' => 'nullable|string',
             'right_of_occupancy_number' => 'nullable|string|max:120',
             'right_of_occupancy_landuse' => 'nullable|string|max:120',
@@ -543,7 +567,8 @@ class ConsentApplicationController extends Controller
             'applicant_address' => 'required|string',
             // The composed address alone cannot be checked for completeness,
             // so the parts that must be present are validated individually.
-            'applicant_house_no' => 'required|string|max:120',
+            // Optional: not every applicant address has a house number (Deeds, 2026-10-22).
+            'applicant_house_no' => 'nullable|string|max:120',
             'applicant_lga' => 'required|string|max:120',
             'applicant_state' => 'required|string|max:120',
             'party_name' => 'required|string',
@@ -552,7 +577,7 @@ class ConsentApplicationController extends Controller
             'application_date' => $applicationDateRule,
             'application_submitted_date' => 'nullable|date',
             'application_type' => 'nullable|string|max:120',
-            'consideration' => 'nullable|string',
+            'consideration' => $this->considerationRules(),
             'consideration_words' => 'nullable|string',
             'right_of_occupancy_number' => 'nullable|string|max:120',
             'right_of_occupancy_landuse' => 'nullable|string|max:120',

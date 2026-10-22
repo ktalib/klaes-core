@@ -911,11 +911,12 @@ function dcivGenerator(config) {
 
             // Validate related files if enabled
             if (this.enableRelatedFiles) {
-                const hasIncomplete = this.formData.relatedFiles.some(rf => !rf.file_number || !rf.secondary_title);
+                // Title is optional for related files that are not indexed yet (no title on record).
+                const hasIncomplete = this.formData.relatedFiles.some(rf => !rf.file_number || (rf.is_found && !rf.secondary_title));
                 if (this.formData.relatedFiles.length === 0 || hasIncomplete) {
                     Swal.fire({
                         title: 'Missing Related Files',
-                        text: 'Related Files is enabled. Please fill in all Related File Number and Related File Title fields.',
+                        text: 'Related Files is enabled. Please select a Related File Number for every related file row.',
                         icon: 'warning',
                         confirmButtonColor: '#3b82f6'
                     });
@@ -1018,7 +1019,10 @@ function dcivGenerator(config) {
                 window.GlobalFileNoModal.open({
                     callback: async (data) => {
                         this.formData.relatedFiles[index].file_number = data.fileNumber;
-                        
+                        // Clear the previous file's title so it cannot carry over to an unindexed file.
+                        this.formData.relatedFiles[index].secondary_title = '';
+                        this.formData.relatedFiles[index].is_found = false;
+
                         // Auto-fetch file title
                         try {
                             const response = await fetch(`/dciv/generation/lookup-title?file_number=${encodeURIComponent(data.fileNumber)}`);

@@ -1099,7 +1099,9 @@
                     ...(state.csrfToken ? { 'X-CSRF-TOKEN': state.csrfToken } : {})
                 },
                 body: JSON.stringify({
-                    file_number: fileNumber
+                    file_number: fileNumber,
+                    // Look in this registry's blind-scan folder first.
+                    registry: blindScanElements.registry?.value || null
                 })
             });
 
@@ -1259,6 +1261,15 @@
         if (!status || fileId === lfStatusFileId) return;
         lfStatusFileId = fileId;
 
+        // A different file: pages auto-added from the previous file's LF folder
+        // do not belong to this one.
+        const before = state.uploadDocuments.length;
+        state.uploadDocuments = state.uploadDocuments.filter(doc => !doc.lfAuto || String(doc.lfAutoFileId) === String(fileId));
+        if (state.uploadDocuments.length !== before) {
+            state.uploadDocuments.forEach((doc, i) => { doc.displayOrder = i; });
+            updateUI();
+        }
+
         if (!fileId) {
             status.textContent = 'Select an indexed file first. LF images are added to its upload pages.';
             status.className = 'text-xs text-gray-500';
@@ -1277,8 +1288,10 @@
                     const folders = (result.entries || []).filter(entry => entry.directory).map(entry => entry.name);
                     const images = (result.entries || []).filter(entry => !entry.directory).length;
                     const parts = [folders.length ? folders.join(', ') : null, images ? `${images} image(s)` : null].filter(Boolean);
-                    status.textContent = `LF folder found for ${result.file_number || result.path}${parts.length ? ' (' + parts.join(' · ') + ')' : ''}. Browse to add its images.`;
+                    const found = `LF folder found for ${result.file_number || result.path}${parts.length ? ' (' + parts.join(' · ') + ')' : ''}`;
+                    status.textContent = `${found}. Adding its images...`;
                     status.className = 'text-xs text-green-700';
+                    autoAddLfScans(fileId, result, status, found);
                 } else {
                     status.textContent = result.message || 'No LF folder for this file on the scan server.';
                     status.className = 'text-xs text-yellow-700';
@@ -1289,6 +1302,74 @@
                 status.textContent = 'The LF folder could not be checked. Browse to try again.';
                 status.className = 'text-xs text-red-600';
             });
+    }
+
+    /**
+     * When the selected file has an LF folder, stage all of its images (the
+     * folder and its A3/A4/... subfolders) as upload pages straight away, the
+     * same way "Browse Large-Format Scans" adds a picked one. A3/A4/A5 folder
+     * names set the paper size; anything else is Custom. Images already staged
+     * are skipped, so re-selecting the file does not double them.
+     */
+    const LF_AUTO_MAX_IMAGES = 300;
+    async function autoAddLfScans(fileId, root, status, foundText) {
+        const stillCurrent = () => lfStatusFileId === fileId && state.selectedIndexedFile === fileId && state.uploadStatus !== 'uploading';
+        const browseUrl = window.largeFormatConfig?.browse || '/large-format-scans';
+        const images = [];
+        try {
+            const walk = async (listing, depth) => {
+                for (const entry of listing.entries || []) {
+                    if (images.length >= LF_AUTO_MAX_IMAGES) return;
+                    if (!entry.directory) { images.push(entry); continue; }
+                    if (depth >= 2) continue;
+                    const url = new URL(browseUrl, location.href);
+                    url.searchParams.set('path', entry.path);
+                    if (listing.library) url.searchParams.set('library', listing.library);
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const sub = await response.json();
+                    if (sub.matched) await walk(sub, depth + 1);
+                    if (!stillCurrent()) return;
+                }
+            };
+            await walk(root, 0);
+            if (!stillCurrent()) return;
+
+            const staged = new Set(state.uploadDocuments.map(doc => doc.lfPath).filter(Boolean));
+            const toAdd = images.filter(entry => !staged.has(entry.path));
+            let added = 0, failed = 0;
+            for (const entry of toAdd) {
+                if (!stillCurrent()) return;
+                status.textContent = `${foundText}. Adding images ${added + failed + 1} of ${toAdd.length}...`;
+                try {
+                    const file = await LargeFormatScans.file(entry);
+                    if (!stillCurrent()) return;
+                    const folder = String(entry.path).split('/').slice(-2, -1)[0] || '';
+                    const size = (folder.match(/^(A3|A4|A5)$/i) || [])[1];
+                    state.uploadDocuments.push({ file, fileName: file.name, fileSize: file.size,
+                        paperSize: size ? size.toUpperCase() : 'Custom', documentType: 'Other', source: 'large-format',
+                        displayOrder: state.uploadDocuments.length, lfPath: entry.path, lfAuto: true, lfAutoFileId: fileId });
+                    added++;
+                } catch (e) {
+                    failed++;
+                }
+            }
+            if (added) { applyDefinitionToStagedDocs(); updateUI(); }
+
+            const skipped = images.length - toAdd.length;
+            const bits = [`${added} image(s) added to the upload pages`];
+            if (skipped) bits.push(`${skipped} already added`);
+            if (failed) bits.push(`${failed} could not be loaded`);
+            if (images.length >= LF_AUTO_MAX_IMAGES) bits.push(`stopped at ${LF_AUTO_MAX_IMAGES}; browse for the rest`);
+            status.textContent = images.length
+                ? `${foundText}. ${bits.join('; ')}.`
+                : `${foundText}, but it holds no images.`;
+            status.className = failed ? 'text-xs text-yellow-700' : 'text-xs text-green-700';
+        } catch (e) {
+            if (!stillCurrent()) return;
+            status.textContent = `${foundText}, but its images could not be added automatically. Browse to add them.`;
+            status.className = 'text-xs text-yellow-700';
+        }
     }
 
     function syncConfirmButtonState(forceDisable = false) {

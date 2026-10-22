@@ -24,6 +24,22 @@ document.addEventListener('DOMContentLoaded', function() {
     setupOcrMode();
 });
 
+// The officer's open drafts, shown as a count beside New Application.
+function loadMyDraftsCount() {
+    const link = document.getElementById('my-drafts-link');
+    const count = document.getElementById('my-drafts-count');
+    if (!link || !count) return;
+    fetch('/recertification/drafts', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.ok ? r.json() : { drafts: [] })
+        .then(data => {
+            const n = (data.drafts || []).length;
+            count.textContent = n;
+            link.classList.remove('hidden');
+        })
+        .catch(() => {});
+}
+document.addEventListener('DOMContentLoaded', loadMyDraftsCount);
+
 function loadApplicationsData() {
     console.log('Loading applications data...');
     
@@ -35,7 +51,7 @@ function loadApplicationsData() {
     if (tableBody) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="12" class="text-center py-8">
+                <td colspan="13" class="text-center py-8">
                     <div class="loading-spinner mx-auto mb-2"></div>
                     <p class="text-gray-600">Loading applications...</p>
                 </td>
@@ -81,7 +97,7 @@ function loadApplicationsData() {
         if (tableBody) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="12" class="text-center py-8">
+                    <td colspan="13" class="text-center py-8">
                         <i data-lucide="alert-circle" class="h-8 w-8 text-red-500 mx-auto mb-2"></i>
                         <p class="text-red-600">Failed to load applications</p>
                         <button onclick="loadApplicationsData()" class="mt-2 text-blue-600 hover:text-blue-800">
@@ -134,12 +150,15 @@ function renderApplicationsTable(data) {
     }
     
     // Generate table rows with correct column alignment
-    const rows = data.map(app => {
+    // S/N follows the displayed order (search included), never the record id.
+    const rows = data.map((app, index) => {
         const actionMenuId = `action-menu-${app.id}`;
-        
+
         return `
             <tr class="table-row border-b hover:bg-gray-50">
-               
+                <td class="px-4 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-500">${index + 1}</div>
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <div class="text-sm text-gray-900">${app.NewKANGISFileno || 'N/A'}</div>
                 </td>
@@ -179,9 +198,11 @@ function renderApplicationsTable(data) {
                     <div class="relative dropdown-container">
                         <button 
                             onclick="toggleActionMenu('${actionMenuId}')"
+                            aria-label="Actions"
+                            aria-haspopup="true"
                             class="inline-flex items-center justify-center rounded-md font-medium text-sm px-3 py-2 transition-all cursor-pointer bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
-                            <i data-lucide="more-horizontal" class="h-4 w-4"></i>
+                            <i data-lucide="more-vertical" class="h-4 w-4"></i>
                         </button>
                         
                         <div id="${actionMenuId}" class="dropdown-menu hidden w-56 bg-white rounded-md shadow-xl border border-gray-200" style="position: fixed; z-index: 9999;">

@@ -723,16 +723,24 @@
   const folderEl = document.getElementById('folderInput');
   const statusEl = document.getElementById('status');
   const migrateBtn = document.getElementById('migrateBtn');
-  const ZIP_SIZE_THRESHOLD = 200 * 1024 * 1024; // 200 MB
-  const ZIP_COUNT_THRESHOLD = 250;
+  const registryEl = document.getElementById('registryType');
+  const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'webp', 'pdf'];
+  // A folder goes up in batches: each request stays far below the server's
+  // size limit, progress is measured on real bytes sent, and a failed batch is
+  // retried on its own instead of restarting the whole folder.
+  const BATCH_MAX_FILES = 20;
+  const BATCH_MAX_BYTES = 80 * 1024 * 1024;
+  const BATCH_RETRIES = 3;
 
   // Progress modal helpers
   function openProgress(title, sub, pct = 0) {
     document.getElementById('progressTitle').textContent = title;
     document.getElementById('progressSub').textContent = sub || '';
-    document.querySelector('#progressModal .progress-bar').style.width = pct + '%';
-    document.getElementById('progressText').textContent = pct + '%';
+    document.getElementById('progressDetail').textContent = '';
+    setProgress(pct);
     document.getElementById('progressDone').classList.add('hidden');
+    document.getElementById('progressCancel').classList.remove('hidden');
+    document.getElementById('progressCancel').disabled = false;
     const m = document.getElementById('progressModal');
     m.classList.remove('hidden'); m.classList.add('flex');
   }
@@ -740,21 +748,39 @@
     document.querySelector('#progressModal .progress-bar').style.width = pct + '%';
     document.getElementById('progressText').textContent = pct + '%';
   }
+  function setProgressDetail(text) {
+    document.getElementById('progressDetail').textContent = text || '';
+  }
+  function closeProgress() {
+    const m = document.getElementById('progressModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+  }
   function doneProgress() {
+    document.getElementById('progressCancel').classList.add('hidden');
     document.getElementById('progressDone').classList.remove('hidden');
-    setTimeout(() => {
-      const m = document.getElementById('progressModal');
-      m.classList.add('hidden'); m.classList.remove('flex');
-    }, 600);
+    setTimeout(closeProgress, 900);
   }
 
   // ---- Upload state
   let selectedFiles = [];
+  let skippedLocal = [];
   let ready = false;
   let localParentName = null;
   let totalSelectedBytes = 0;
+  let uploading = false;
+  let cancelRequested = false;
 
   const norm = s => (s || '').trim();
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  document.getElementById('progressCancel').addEventListener('click', () => {
+    cancelRequested = true;
+    document.getElementById('progressCancel').disabled = true;
+    setProgressDetail('Stopping after the current batch...');
+  });
 
   function detectSelectedRoot(files) {
     const segs = [];
@@ -771,50 +797,72 @@
     return null;
   }
 
+  // Only scans travel: Thumbs.db, desktop.ini and shortcuts stay behind.
+  function isAllowedFile(file) {
+    const name = (file.name || '').toLowerCase();
+    if (!name || name.startsWith('.') || name === 'thumbs.db' || name === 'desktop.ini') return false;
+    const ext = name.includes('.') ? name.split('.').pop() : '';
+    return ALLOWED_EXT.includes(ext);
+  }
+
+  function paperCounts(files) {
+    const counts = { A4: 0, A3: 0, other: 0 };
+    for (const f of files) {
+      const rel = '/' + (f.webkitRelativePath || f.name || '').replace(/\\/g, '/').toUpperCase();
+      if (rel.includes('/A3/')) counts.A3++;
+      else if (rel.includes('/A4/')) counts.A4++;
+      else counts.other++;
+    }
+    return counts;
+  }
+
   function validateUploadSection() {
     const typedRaw = norm(fileNoEl.value);
-    const typed = typedRaw.toLowerCase();
-    const hasFiles = selectedFiles.length > 0;
+    const registryOk = !!(registryEl && registryEl.value);
+    const skippedNote = skippedLocal.length
+      ? `<div class="mt-1 text-xs text-muted-foreground">${skippedLocal.length} non-image file(s) will be left out (e.g. ${escapeHtml(skippedLocal[0].name)}).</div>`
+      : '';
 
-    if (!hasFiles) {
-      statusEl.textContent = 'No folder selected.';
+    if (!selectedFiles.length) {
+      statusEl.innerHTML = skippedLocal.length
+        ? `<span class="text-red-600">The folder has no image or PDF files.</span>${skippedNote}`
+        : 'No folder selected.';
       migrateBtn.disabled = true; ready = false; return;
     }
 
     const inferred = detectSelectedRoot(selectedFiles);
     localParentName = inferred;
 
-    if (!typed) {
-      statusEl.textContent = inferred
-        ? `Detected local folder "${inferred}". Enter the File Number to proceed.`
-        : 'Folder selected. Enter the File Number to proceed.';
+    if (!typedRaw) {
+      statusEl.innerHTML = `Folder selected${inferred ? ` ("${escapeHtml(inferred)}")` : ''}. Click <b>Select</b> to choose the file number.${skippedNote}`;
+      migrateBtn.disabled = true; ready = false; return;
+    }
+    if (!registryOk) {
+      statusEl.innerHTML = `Select the <b>registry</b> these scans belong to.${skippedNote}`;
       migrateBtn.disabled = true; ready = false; return;
     }
 
-    // Check if folder name matches file number (case-insensitive)
-    if (inferred) {
-      const match = (typed === inferred.toLowerCase());
-      if (!match) {
-        statusEl.innerHTML = `<div class="text-yellow-700"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Warning: Folder name is <code>${inferred}</code> but file number is <code>${typedRaw}</code>. Files will be stored as <code>${typedRaw}</code>.</div>${buildPerformanceHint()}`;
-        migrateBtn.disabled = false; ready = true; return;
-      }
-      statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Ready:</span> <b>${typedRaw}</b> will be migrated with all subfolders and files (${selectedFiles.length} items).${buildPerformanceHint()}`;
-      migrateBtn.disabled = false; ready = true; return;
-    } else {
-      statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Ready:</span> <b>${typedRaw}</b> (parent name not detectable by browser). All selected items (${selectedFiles.length}) will be zipped and migrated.${buildPerformanceHint()}`;
-      migrateBtn.disabled = false; ready = true; return;
-    }
+    const counts = paperCounts(selectedFiles);
+    const registryLabel = registryEl.options[registryEl.selectedIndex].text;
+    const mismatch = inferred && inferred.toLowerCase() !== typedRaw.toLowerCase()
+      ? `<div class="text-yellow-700 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder is named <code>${escapeHtml(inferred)}</code> but the file number is <code>${escapeHtml(typedRaw)}</code>. You will be asked to confirm.</div>`
+      : '';
+
+    statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Ready:</span>
+      <b>${selectedFiles.length}</b> file(s), ${formatBytes(totalSelectedBytes)} &mdash; A4 ${counts.A4}, A3 ${counts.A3}${counts.other ? `, no paper folder ${counts.other}` : ''}
+      &rarr; <b>${escapeHtml(typedRaw)}</b> in <b>${escapeHtml(registryLabel)}</b>.${mismatch}${skippedNote}`;
+    migrateBtn.disabled = uploading; ready = true;
   }
 
   folderEl.addEventListener('change', () => {
-    selectedFiles = Array.from(folderEl.files || []);
+    const all = Array.from(folderEl.files || []);
+    selectedFiles = all.filter(isAllowedFile);
+    skippedLocal = all.filter(f => !isAllowedFile(f));
     totalSelectedBytes = selectedFiles.reduce((sum, file) => sum + (file.size || 0), 0);
     validateUploadSection();
   });
-  fileNoEl.addEventListener('input', validateUploadSection);
-
-  function shouldPreferZipUpload() {
-    return totalSelectedBytes >= ZIP_SIZE_THRESHOLD || selectedFiles.length >= ZIP_COUNT_THRESHOLD;
+  if (registryEl) {
+    registryEl.addEventListener('change', validateUploadSection);
   }
 
   function formatBytes(bytes) {
@@ -830,32 +878,11 @@
     return `${size.toFixed(precision)} ${units[unitIndex]}`;
   }
 
-  function buildPerformanceHint() {
-    if (!selectedFiles.length) {
-      return '';
-    }
-    const sizeLabel = formatBytes(totalSelectedBytes);
-    if (shouldPreferZipUpload()) {
-      return `<div class="mt-2 text-xs text-blue-700 flex items-start gap-1"><i class="fa-solid fa-bolt mt-0.5"></i><span>Large folder detected (~${sizeLabel}, ${selectedFiles.length} files). We'll compress before uploading to keep things fast.</span></div>`;
-    }
-    return `<div class="mt-2 text-xs text-muted-foreground">${selectedFiles.length} files selected • ${sizeLabel}</div>`;
-  }
-
-  // ---- Client zip (preserves subfolders)
-  async function filesToZipBlob(files, folderName, onUpdate) {
-    const zip = new JSZip();
-    for (const f of files) {
-      const rel = computeRelativeUploadPath(f, folderName);
-      zip.file(rel, f);
-    }
-    return await zip.generateAsync(
-      { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
-      metadata => {
-        if (typeof onUpdate === 'function') {
-          onUpdate(metadata);
-        }
-      }
-    );
+  function formatDuration(seconds) {
+    if (!isFinite(seconds) || seconds <= 0) return 'a moment';
+    if (seconds < 60) return `${Math.ceil(seconds)}s`;
+    const m = Math.floor(seconds / 60);
+    return m < 60 ? `${m}m ${Math.ceil(seconds % 60)}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
   }
 
   function computeRelativeUploadPath(file, folderName) {
@@ -881,193 +908,275 @@
     return parts.join('/') || (file.name || 'document');
   }
 
+  function buildBatches(files) {
+    const batches = [];
+    let current = [];
+    let bytes = 0;
+    for (const file of files) {
+      if (current.length && (current.length >= BATCH_MAX_FILES || bytes + file.size > BATCH_MAX_BYTES)) {
+        batches.push(current);
+        current = [];
+        bytes = 0;
+      }
+      current.push(file);
+      bytes += file.size || 0;
+    }
+    if (current.length) batches.push(current);
+    return batches;
+  }
+
+  // XHR rather than fetch: only XHR reports upload progress.
+  function sendBatch(form, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', MIGRATE_ENDPOINT);
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('X-CSRF-TOKEN', CSRF_TOKEN);
+      xhr.timeout = 15 * 60 * 1000;
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded); };
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText || '{}'); } catch (e) { data = {}; }
+        const error = data.error || data.message || (xhr.status === 419 ? 'Your session expired. Reload the page and sign in again.' : `HTTP ${xhr.status}`);
+        resolve({ ok: xhr.status >= 200 && xhr.status < 300 && data.ok, status: xhr.status, data, error });
+      };
+      xhr.onerror = () => reject(new Error('Network error — check the connection to the server.'));
+      xhr.ontimeout = () => reject(new Error('The server took too long to answer.'));
+      xhr.send(form);
+    });
+  }
+
+  /**
+   * Show the selected folder before anything is sent: where it will go, the
+   * page counts, a thumbnail of every scan (grouped A4 / A3), and any warning.
+   * Resolves true only when the user confirms the upload.
+   */
+  async function previewBeforeUpload(folderName, registryLabel) {
+    const mismatch = localParentName && localParentName !== folderName.toLowerCase();
+
+    if (typeof Swal === 'undefined') {
+      return confirm(`${mismatch ? `The folder you picked is "${localParentName}" but the file number is "${folderName}".\n\n` : ''}Upload ${selectedFiles.length} file(s) to ${folderName} in ${registryLabel}?`);
+    }
+
+    const MAX_TILES = 150;
+    const objectUrls = [];
+    const counts = paperCounts(selectedFiles);
+    const groups = { A4: [], A3: [], other: [] };
+    selectedFiles.forEach(file => {
+      const rel = '/' + (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').toUpperCase();
+      (rel.includes('/A3/') ? groups.A3 : rel.includes('/A4/') ? groups.A4 : groups.other).push(file);
+    });
+    const naturalSort = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+    Object.values(groups).forEach(list => list.sort(naturalSort));
+
+    let shown = 0;
+    const tile = file => {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+      let media = `<div class="bsp-icon"><i class="fa-solid ${ext === 'pdf' ? 'fa-file-pdf text-red-500' : 'fa-file-image text-gray-400'}"></i></div>`;
+      if (isImage) {
+        const url = URL.createObjectURL(file);
+        objectUrls.push(url);
+        media = `<img src="${url}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'bsp-icon',innerHTML:'<i class=&quot;fa-solid fa-file-image text-gray-400&quot;></i>'}))">`;
+      }
+      return `<a class="bsp-tile" ${isImage ? `href="${objectUrls[objectUrls.length - 1]}" target="_blank" rel="noopener"` : ''} title="${escapeHtml(file.webkitRelativePath || file.name)}">
+          ${media}
+          <span class="bsp-name">${escapeHtml(file.name)}</span>
+          <span class="bsp-size">${formatBytes(file.size)}</span>
+        </a>`;
+    };
+    const section = (label, list) => {
+      if (!list.length) return '';
+      const room = Math.max(0, MAX_TILES - shown);
+      const visible = list.slice(0, room);
+      shown += visible.length;
+      const more = list.length - visible.length;
+      return `<div class="bsp-section">
+          <div class="bsp-section-title">${label} <span>${list.length} file(s)</span></div>
+          <div class="bsp-grid">${visible.map(tile).join('')}</div>
+          ${more > 0 ? `<div class="bsp-more">+ ${more} more not shown</div>` : ''}
+        </div>`;
+    };
+
+    const html = `
+      <style>
+        .bsp { text-align: left; font-size: 13px; }
+        .bsp-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+        .bsp-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; background: #f9fafb; }
+        .bsp-card small { display: block; color: #6b7280; font-size: 11px; }
+        .bsp-card b { font-size: 14px; color: #111827; word-break: break-all; }
+        .bsp-warn { border: 1px solid #fcd34d; background: #fffbeb; color: #92400e; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+        .bsp-note { color: #6b7280; font-size: 12px; margin-bottom: 10px; }
+        .bsp-scroll { max-height: 52vh; overflow-y: auto; padding-right: 4px; }
+        .bsp-section { margin-bottom: 12px; }
+        .bsp-section-title { font-weight: 600; margin: 4px 0 6px; color: #374151; }
+        .bsp-section-title span { font-weight: 400; color: #6b7280; font-size: 12px; margin-left: 4px; }
+        .bsp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+        .bsp-tile { display: flex; flex-direction: column; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; text-decoration: none; color: inherit; }
+        .bsp-tile:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,.2); }
+        .bsp-tile img, .bsp-icon { width: 100%; height: 120px; object-fit: contain; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+        .bsp-name { font-size: 11px; padding: 4px 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bsp-size { font-size: 10px; color: #9ca3af; padding: 0 6px 5px; }
+        .bsp-more { font-size: 12px; color: #6b7280; margin-top: 6px; }
+      </style>
+      <div class="bsp">
+        <div class="bsp-summary">
+          <div class="bsp-card"><small>File number</small><b>${escapeHtml(folderName)}</b></div>
+          <div class="bsp-card"><small>Registry</small><b>${escapeHtml(registryLabel)}</b></div>
+          <div class="bsp-card"><small>Files</small><b>${selectedFiles.length}</b> <small>${formatBytes(totalSelectedBytes)}</small></div>
+          <div class="bsp-card"><small>Paper size</small><b>A4 ${counts.A4} · A3 ${counts.A3}</b>${counts.other ? `<small>${counts.other} not in an A4/A3 folder (stored as A4)</small>` : ''}</div>
+        </div>
+        ${mismatch ? `<div class="bsp-warn"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder you picked is <b>${escapeHtml(localParentName)}</b> but the file number is <b>${escapeHtml(folderName)}</b>. Check these are the right scans before uploading.</div>` : ''}
+        ${skippedLocal.length ? `<div class="bsp-note">${skippedLocal.length} non-image file(s) will be left out: ${skippedLocal.slice(0, 5).map(f => escapeHtml(f.name)).join(', ')}${skippedLocal.length > 5 ? '…' : ''}</div>` : ''}
+        <div class="bsp-note">Click a thumbnail to open it full size in a new tab.</div>
+        <div class="bsp-scroll">
+          ${section('A4', groups.A4)}${section('A3', groups.A3)}${section('Not in an A4/A3 folder', groups.other)}
+        </div>
+      </div>`;
+
+    try {
+      const result = await Swal.fire({
+        title: 'Review scans before upload',
+        html,
+        width: '64rem',
+        icon: mismatch ? 'warning' : undefined,
+        showCancelButton: true,
+        confirmButtonText: `<i class="fa-solid fa-paper-plane mr-1"></i> Upload ${selectedFiles.length} file(s)`,
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#4f46e5',
+        reverseButtons: true,
+        focusCancel: !!mismatch,
+      });
+      return result.isConfirmed;
+    } finally {
+      objectUrls.forEach(url => URL.revokeObjectURL(url));
+    }
+  }
+
   async function migrateNow() {
-
-    if (!ready) return;
-
-
+    if (!ready || uploading) return;
 
     const folderName = norm(fileNoEl.value);
+    const registry = registryEl.value;
+    const registryLabel = registryEl.options[registryEl.selectedIndex].text;
 
-    const zipFirst = shouldPreferZipUpload();
+    if (!(await previewBeforeUpload(folderName, registryLabel))) {
+      return;
+    }
 
+    uploading = true;
+    cancelRequested = false;
+    migrateBtn.disabled = true;
 
+    const files = selectedFiles.slice();
+    const totalBytes = Math.max(1, totalSelectedBytes);
+    const batches = buildBatches(files);
+    const totals = { saved: 0, skipped: 0, registered: 0, renamed: [], failed: [] };
+    let bytesDone = 0;
+    let serverPath = '';
+    let completedBatches = 0;
+    const started = Date.now();
 
-    if (zipFirst) {
+    openProgress(`Uploading to ${registryLabel}`, `${folderName}: ${files.length} file(s), ${formatBytes(totalSelectedBytes)}, in ${batches.length} batch(es)`, 0);
 
-      openProgress('Creating ZIP Archive', `Compressing ${selectedFiles.length} files (${formatBytes(totalSelectedBytes)})`, 8);
+    try {
+      for (let i = 0; i < batches.length; i++) {
+        if (cancelRequested) break;
 
-      const zipAttempt = await attemptZipUpload(folderName);
+        const batch = batches[i];
+        const batchBytes = batch.reduce((sum, f) => sum + (f.size || 0), 0);
+        let result = null;
+        let lastError = '';
 
-      if (zipAttempt.success) {
+        for (let attempt = 1; attempt <= BATCH_RETRIES; attempt++) {
+          const form = new FormData();
+          form.append('_token', CSRF_TOKEN);
+          form.append('folderName', folderName);
+          form.append('registry', registry);
+          form.append('uploadMethod', 'direct');
+          form.append('batch_index', String(i));
+          form.append('batch_total', String(batches.length));
+          batch.forEach(file => {
+            form.append('files[]', file);
+            form.append('paths[]', computeRelativeUploadPath(file, folderName));
+          });
 
-        return;
+          try {
+            result = await sendBatch(form, loaded => {
+              const done = bytesDone + Math.min(loaded, batchBytes);
+              setProgress(Math.min(99, Math.round(done / totalBytes * 100)));
+              const elapsed = Math.max(0.5, (Date.now() - started) / 1000);
+              const speed = done / elapsed;
+              setProgressDetail(`Batch ${i + 1} of ${batches.length} · ${formatBytes(done)} of ${formatBytes(totalSelectedBytes)} · ${formatBytes(speed)}/s · about ${formatDuration((totalBytes - done) / Math.max(speed, 1))} left`);
+            });
+            if (result.ok) break;
+            lastError = result.error;
+            // Validation and session errors will not fix themselves on retry.
+            if (result.status >= 400 && result.status < 500 && ![408, 429].includes(result.status)) break;
+          } catch (error) {
+            lastError = error.message;
+          }
 
+          if (attempt < BATCH_RETRIES) {
+            setProgressDetail(`Batch ${i + 1} failed (${lastError}). Retrying ${attempt + 1} of ${BATCH_RETRIES}...`);
+            await sleep(1500 * attempt);
+          }
+        }
+
+        if (!result || !result.ok) {
+          throw new Error(`Batch ${i + 1} of ${batches.length} failed: ${lastError || 'unknown error'}.\n\nEverything sent before it is saved. Click Migrate again to send the rest — files already on the server are skipped, not duplicated.`);
+        }
+
+        const data = result.data || {};
+        totals.saved += data.saved || 0;
+        totals.skipped += data.skipped || 0;
+        totals.registered += data.registered || 0;
+        totals.renamed.push(...(data.renamed || []));
+        totals.failed.push(...(data.failed || []));
+        serverPath = data.serverPath || serverPath;
+        bytesDone += batchBytes;
+        completedBatches++;
+        setProgress(Math.min(99, Math.round(bytesDone / totalBytes * 100)));
       }
 
+      const summary = `${totals.saved} new file(s) saved${totals.skipped ? `, ${totals.skipped} already on the server (skipped)` : ''}${totals.renamed.length ? `, ${totals.renamed.length} renamed to avoid overwriting` : ''}${totals.failed.length ? `, <span class="text-red-600">${totals.failed.length} could not be saved</span>` : ''}.`;
 
-
-      console.warn('Zip-first upload failed, attempting direct upload.', zipAttempt.message || 'No message');
-
-      openProgress('Uploading Files', `${folderName} ? storage`, 5);
-
-      const directFallback = await attemptDirectUpload(folderName);
-
-      if (directFallback.success) {
-
-        return;
-
+      if (cancelRequested && completedBatches < batches.length) {
+        closeProgress();
+        statusEl.innerHTML = `<span class="text-yellow-700">Stopped after batch ${completedBatches} of ${batches.length}.</span> ${summary} Click Migrate to send the rest.`;
+      } else {
+        setProgress(100);
+        setProgressDetail(`${files.length} file(s) in ${formatDuration((Date.now() - started) / 1000)}`);
+        doneProgress();
+        statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Upload complete.</span> ${summary} Saved to <code>${escapeHtml(serverPath)}</code>.`;
+        folderEl.value = '';
+        selectedFiles = [];
+        skippedLocal = [];
+        totalSelectedBytes = 0;
+        fileNoEl.value = '';
+        document.getElementById('clearFileNoBtn')?.classList.add('hidden');
+        ready = false;
+      }
+      if (totals.failed.length) {
+        console.warn('Files the server could not save:', totals.failed);
       }
 
-
-
-      handleUploadFailure(zipAttempt.message, directFallback.message);
-
-      return;
-
+      await Promise.all([
+        fetchServerList(currentSrvPath).catch(() => {}),
+        fetchLogs().catch(() => {}),
+      ]);
+      if (typeof loadAggregates === 'function') loadAggregates();
+    } catch (error) {
+      closeProgress();
+      statusEl.innerHTML = `<span class="text-red-600"><i class="fa-solid fa-circle-exclamation mr-1"></i>${escapeHtml(error.message).replace(/\n/g, '<br>')}</span>`;
+      alert(error.message);
+    } finally {
+      uploading = false;
+      migrateBtn.disabled = !ready;
     }
-
-
-
-    openProgress('Uploading Files', `${folderName} ? storage`, 5);
-
-    const directResult = await attemptDirectUpload(folderName);
-
-
-
-    if (directResult.success) {
-
-      return;
-
-    }
-
-
-
-    console.warn('Direct upload failed, falling back to ZIP.', directResult.message || 'No message');
-
-    openProgress('Creating ZIP Archive', `${folderName} ? storage`, 10);
-
-
-
-    const zipResult = await attemptZipUpload(folderName);
-
-    if (zipResult.success) {
-
-      return;
-
-    }
-
-
-
-    handleUploadFailure(directResult.message, zipResult.message);
-
   }
-
-
 
   migrateBtn.addEventListener('click', migrateNow);
-
-  function handleUploadFailure(primaryMessage, secondaryMessage) {
-    const modal = document.getElementById('progressModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-
-    const failureMessage = primaryMessage || secondaryMessage || 'Upload failed. Please try again or contact support.';
-    alert('Migration failed: ' + failureMessage);
-  }
-
-  async function attemptDirectUpload(folderName) {
-    try {
-      document.getElementById('progressSub').textContent = `Uploading ${selectedFiles.length} files (${formatBytes(totalSelectedBytes)}) directly...`;
-
-      const form = new FormData();
-      form.append('_token', CSRF_TOKEN);
-      form.append('folderName', folderName);
-      form.append('uploadMethod', 'direct');
-      form.append('registry_type', document.getElementById('registryType').value);
-
-      const totalFiles = selectedFiles.length || 1;
-      selectedFiles.forEach((file, index) => {
-        const relativePath = computeRelativeUploadPath(file, folderName);
-        form.append('files[]', file);
-        form.append('paths[]', relativePath);
-
-        if (index % 25 === 0) {
-          const pct = 15 + Math.round(((index + 1) / totalFiles) * 30);
-          setProgress(Math.min(pct, 50));
-        }
-      });
-
-      setProgress(65);
-      document.getElementById('progressSub').textContent = 'Finalizing direct upload on server...';
-
-      const res = await fetch(MIGRATE_ENDPOINT, { method: 'POST', body: form });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data.ok) {
-        await handleMigrationSuccess(data, folderName, 'direct upload');
-        return { success: true };
-      }
-
-      const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
-      return { success: false, message: msg };
-    } catch (error) {
-      console.error('Direct upload exception', error);
-      return { success: false, message: error.message || 'Direct upload error' };
-    }
-  }
-
-  async function attemptZipUpload(folderName) {
-    try {
-      document.getElementById('progressSub').textContent = 'Compressing files into ZIP archive...';
-
-      const zipBlob = await filesToZipBlob(selectedFiles, folderName, (metadata) => {
-        const pct = 10 + Math.round((metadata.percent || 0) * 0.4);
-        setProgress(Math.min(55, pct));
-        document.getElementById('progressSub').textContent = `Compressing files into ZIP archive (${(metadata.percent || 0).toFixed(1)}%)...`;
-      });
-      setProgress(60);
-
-      document.getElementById('progressSub').textContent = 'Uploading ZIP archive (server will extract)...';
-
-      const form = new FormData();
-      form.append('_token', CSRF_TOKEN);
-      form.append('folderName', folderName);
-      form.append('uploadMethod', 'zip');
-      form.append('registry_type', document.getElementById('registryType').value);
-      form.append('zip', zipBlob, `${folderName}.zip`);
-
-      setProgress(70);
-
-      const res = await fetch(MIGRATE_ENDPOINT, { method: 'POST', body: form });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data.ok) {
-        await handleMigrationSuccess(data, folderName, 'zip fallback');
-        return { success: true };
-      }
-
-      const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
-      return { success: false, message: msg };
-    } catch (error) {
-      console.error('ZIP upload exception', error);
-      return { success: false, message: error.message || 'ZIP upload error' };
-    }
-  }
-
-  async function handleMigrationSuccess(data, folderName, methodLabel) {
-    document.getElementById('progressSub').textContent = 'Refreshing server view and logs...';
-    setProgress(90);
-    await Promise.all([fetchServerList(currentSrvPath), fetchLogs()]);
-    setProgress(100);
-    doneProgress();
-
-    statusEl.innerHTML = `<span class="text-green-700">Migration complete (${methodLabel}).</span> Saved to <code>${data.serverPath || '/storage/' + folderName}</code>.`;
-    folderEl.value = '';
-    selectedFiles = [];
-    ready = false;
-    migrateBtn.disabled = true;
-  }
 
   // ----------------------------
   // Server browser + logs (GET)
@@ -1110,7 +1219,7 @@
       syncMigrationBtn.disabled = true;
     }
 
-    updateSrvStatus('Scanning for new folders...', 'info');
+    updateSrvStatus('Registering folders copied onto the server in the last 2 days. This can take a few minutes...', 'info');
 
     try {
       const response = await fetch(API_SYNC_MIGRATIONS, {
@@ -1120,7 +1229,7 @@
           'Accept': 'application/json',
           'X-CSRF-TOKEN': CSRF_TOKEN
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({ days: 2 })
       });
 
       const data = await response.json().catch(() => ({}));
@@ -1130,35 +1239,9 @@
         throw new Error(errorMessage);
       }
 
-      const addedCount = data.added_count || 0;
-      const dbAddedCount = data.db_added_count || 0;
-      const dbSkippedCount = data.db_skipped_count || 0;
-      const errorCount = Array.isArray(data.errors) ? data.errors.length : 0;
-
-      const summaryParts = [];
-
-      if (addedCount > 0) {
-        summaryParts.push(`${addedCount} new folder${addedCount === 1 ? '' : 's'} logged`);
-      }
-
-      if (dbAddedCount > 0) {
-        summaryParts.push(`${dbAddedCount} folder${dbAddedCount === 1 ? '' : 's'} synced to database`);
-      }
-
-      if (dbSkippedCount > 0) {
-        summaryParts.push(`${dbSkippedCount} folder${dbSkippedCount === 1 ? '' : 's'} already synced`);
-      }
-
-      const summaryMessage = summaryParts.length ? summaryParts.join(' • ') : (data.message || 'No new folders detected.');
-
-      if (errorCount > 0) {
-        console.warn('Migration sync errors', data.errors);
-        updateSrvStatus(`${summaryMessage} • ${errorCount} error${errorCount === 1 ? '' : 's'} encountered.`, 'error');
-      } else if (addedCount > 0 || dbAddedCount > 0) {
-        updateSrvStatus(summaryMessage, 'success');
-      } else {
-        updateSrvStatus(summaryMessage, 'info');
-      }
+      // The command prints a summary table; show its "Rows inserted" line.
+      const inserted = ((data.output || '').match(/Rows inserted\s*\|\s*(\d+)/) || [])[1];
+      updateSrvStatus(`${data.message || 'Done.'}${inserted !== undefined ? ` ${inserted} new page(s) recorded.` : ''}`, 'success');
 
       await Promise.all([
         fetchLogs(),
@@ -1227,24 +1310,55 @@
     }
   }
 
-  async function fetchServerList(subPath = '') {
+  // Admins see everyone's uploads unless they tick "Show only my uploads".
+  let mineOnlyScope = false;
+  let srvSearchTerm = '';
+
+  async function fetchServerList(subPath = '', search = null) {
     const url = new URL(API_LIST, window.location.href);
     if (subPath) url.searchParams.set('path', subPath);
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok || !data.ok) { alert(data.error || ('HTTP ' + res.status)); return; }
+    if (search !== null) srvSearchTerm = search;
+    if (subPath !== currentSrvPath && search === null) srvSearchTerm = '';
+    if (srvSearchTerm) url.searchParams.set('q', srvSearchTerm);
+    if (mineOnlyScope) url.searchParams.set('mine', '1');
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) { updateSrvStatus(data.error || ('HTTP ' + res.status), 'error'); return; }
+    updateSrvStatus('');
 
     currentSrvPath = data.sub || '';
     previewState.currentDirItems = data.items || [];
 
+    // Folder search is offered inside a registry folder, which is too big to list.
+    const searchForm = document.getElementById('srvSearchForm');
+    const searchInput = document.getElementById('srvSearch');
+    if (searchForm) {
+      searchForm.classList.toggle('hidden', !data.searchable);
+      searchForm.classList.toggle('flex', !!data.searchable);
+      if (searchInput && document.activeElement !== searchInput) searchInput.value = srvSearchTerm;
+    }
+    const noteEl = document.getElementById('srvNote');
+    if (noteEl) {
+      noteEl.textContent = data.note || '';
+      noteEl.classList.toggle('hidden', !data.note);
+    }
+    const scopeWrap = document.getElementById('scopeToggleWrap');
+    if (scopeWrap) {
+      scopeWrap.classList.toggle('hidden', !data.isAdmin);
+      scopeWrap.classList.toggle('flex', !!data.isAdmin);
+    }
+    if (syncMigrationBtn) {
+      syncMigrationBtn.classList.toggle('hidden', !data.isAdmin);
+    }
+
     // Update user mode indicator
     const indicator = document.getElementById('userModeIndicator');
     if (indicator) {
-      if (data.isAdmin) {
+      if (data.isAdmin && !data.mineOnly) {
         indicator.innerHTML = `
           <div class="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-md">
             <i class="fa-solid fa-crown text-amber-600"></i>
-            <span class="text-xs font-medium text-amber-700">Admin View (All Files)</span>
+            <span class="text-xs font-medium text-amber-700">Admin View (All Users)</span>
           </div>
         `;
         indicator.classList.remove('hidden');
@@ -1293,6 +1407,7 @@
         <td class="p-3"><button class="srv-nav text-blue-700 hover:underline" data-path="${up}">Go Back</button></td>
         <td class="p-3">-</td>
         <td class="p-3">-</td>
+        <td class="p-3">-</td>
         <td class="p-3"></td>
       `);
       trUp.querySelector('.srv-nav').addEventListener('click', () => fetchServerList(up));
@@ -1309,8 +1424,9 @@
             <td class="p-3">${sn++}</td>
             <td class="p-3"><i class="fa-regular fa-folder text-yellow-500"></i></td>
             <td class="p-3"><button class="srv-nav text-blue-700 hover:underline" data-path="${(currentSrvPath ? currentSrvPath + '/' : '') + item.name}">${item.name}</button></td>
-            <td class="p-3">-</td>
+            <td class="p-3">${item.files ? item.files + ' file(s)' : '-'}</td>
             <td class="p-3">${fmtDate(item.mtime)}</td>
+            <td class="p-3">${escapeHtml(item.uploaded_by || '-')}</td>
             <td class="p-3"></td>
           `);
           tr.querySelector('.srv-nav').addEventListener('click', () => fetchServerList((currentSrvPath ? currentSrvPath + '/' : '') + item.name));
@@ -1325,6 +1441,7 @@
             <td class="p-3">${item.name}</td>
             <td class="p-3">${fmtBytes(item.size)}</td>
             <td class="p-3">${fmtDate(item.mtime)}</td>
+            <td class="p-3">${escapeHtml(item.uploaded_by || '-')}</td>
             <td class="p-3">
               <div class="flex gap-2">
                 ${isPreviewable ? `<button class="btn srv-preview text-xs" data-href="${href}" data-name="${item.name}">Preview</button>` : ''}
@@ -1347,7 +1464,7 @@
       pageLength: 50,
       order: [[0, 'asc']],
       columnDefs: [
-        { orderable: false, targets: [1, 5] } // icon and actions columns
+        { orderable: false, targets: [1, 6] } // icon and actions columns
       ],
       language: {
         emptyTable: "No files found in this directory.",
@@ -1359,42 +1476,71 @@
     clearPreview();
   }
 
+  // Upload history: one row per file folder, newest first, with how far its
+  // pages have got (moved into Scan Upload = status converted).
   async function fetchLogs() {
-    const res = await fetch(API_LOGS);
-    const data = await res.json();
-    if (!res.ok || !data.ok) { alert(data.error || ('HTTP ' + res.status)); return; }
-    const logs = data.logs || [];
+    const url = new URL(API_LOGS, window.location.href);
+    if (mineOnlyScope) url.searchParams.set('mine', '1');
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json().catch(() => ({}));
     const root = document.getElementById('logsContent');
+    if (!res.ok || !data.ok) {
+      root.innerHTML = `<div class="text-sm text-red-600 p-3">${escapeHtml(data.error || ('HTTP ' + res.status))}</div>`;
+      return;
+    }
+    const logs = data.logs || [];
     if (!logs.length) {
       root.innerHTML = `
         <div class="text-center py-8">
           <i class="fa-solid fa-clock-rotate-left text-3xl text-muted-foreground mx-auto mb-4"></i>
-          <p class="text-muted-foreground">No migrations yet</p>
-          <p class="text-sm text-muted-foreground">After migrating, entries will appear here.</p>
+          <p class="text-muted-foreground">No uploads in the last 30 days</p>
+          <p class="text-sm text-muted-foreground">Folders you migrate will appear here with their progress.</p>
         </div>`;
       return;
     }
+    const badge = m => {
+      if (m.converted >= m.files) return 'bg-green-50 text-green-700 border-green-200';
+      if (m.converted > 0) return 'bg-blue-50 text-blue-700 border-blue-200';
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    };
     root.innerHTML = `
-      <div class="border rounded-lg overflow-hidden">
+      <div class="text-xs text-muted-foreground mb-2">${data.mineOnly ? 'Your' : 'All users\''} uploads in the last 30 days, newest first.</div>
+      <div class="border rounded-lg overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-muted">
             <tr class="border-b">
-              <th class="text-left p-3">When</th>
-              <th class="text-left p-3">Parent Folder</th>
-              <th class="text-left p-3">Server Path</th>
+              <th class="text-left p-3">S/N</th>
+              <th class="text-left p-3">Last upload</th>
+              <th class="text-left p-3">File Number</th>
+              <th class="text-left p-3">Registry</th>
+              <th class="text-left p-3">Pages</th>
+              ${data.mineOnly ? '' : '<th class="text-left p-3">Uploaded by</th>'}
+              <th class="text-left p-3">Progress</th>
             </tr>
           </thead>
           <tbody>
-            ${logs.map(m => `
+            ${logs.map((m, i) => `
               <tr class="border-b">
-                <td class="p-3">${m.when || '-'}</td>
-                <td class="p-3 font-mono">${m.folder || '-'}</td>
-                <td class="p-3 font-mono"><a class="text-blue-700 hover:underline" href="${m.serverPath || '#'}" target="_blank" rel="noopener">${m.serverPath || '-'}</a></td>
+                <td class="p-3">${i + 1}</td>
+                <td class="p-3 whitespace-nowrap">${escapeHtml(m.when ? new Date(String(m.when).replace(' ', 'T')).toLocaleString() : '-')}</td>
+                <td class="p-3 font-mono"><a class="text-blue-700 hover:underline" href="#" data-open-folder="${escapeHtml(m.folder)}">${escapeHtml(m.file_number)}</a></td>
+                <td class="p-3">${escapeHtml(m.registry)}</td>
+                <td class="p-3 whitespace-nowrap">${m.files} <span class="text-xs text-muted-foreground">(A4 ${m.a4}, A3 ${m.a3})</span></td>
+                ${data.mineOnly ? '' : `<td class="p-3">${escapeHtml(m.user)}</td>`}
+                <td class="p-3"><span class="inline-block text-xs px-2 py-0.5 rounded border ${badge(m)}">${escapeHtml(m.progress)}</span></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>`;
+    root.querySelectorAll('[data-open-folder]').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        serverPanel.classList.remove('hidden');
+        logsPanel.classList.add('hidden');
+        fetchServerList(link.dataset.openFolder);
+      });
+    });
   }
 
   // Modal event listeners
@@ -1429,24 +1575,20 @@
     syncMigrationBtn.addEventListener('click', syncMigrationLog);
   }
 
-  function startAutomaticSync() {
-    if (autoSyncTimer !== null) {
-      return;
-    }
+  // No automatic sync on page load: uploads record their own rows, and the
+  // old auto-sync walked every folder on the server from each open page,
+  // timing out after 10 minutes. Copied folders are registered nightly.
 
-    // Run an initial sync so logs/DB catch up without manual clicks
-    syncMigrationLog();
-
-    autoSyncTimer = setInterval(() => {
-      syncMigrationLog();
-    }, MIGRATION_SYNC_INTERVAL_MS);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startAutomaticSync);
-  } else {
-    startAutomaticSync();
-  }
+  document.getElementById('srvSearchForm')?.addEventListener('submit', event => {
+    event.preventDefault();
+    fetchServerList(currentSrvPath, norm(document.getElementById('srvSearch').value));
+  });
+  document.getElementById('scopeToggle')?.addEventListener('change', event => {
+    mineOnlyScope = event.target.checked;
+    fetchServerList(currentSrvPath);
+    fetchLogs();
+    if (typeof loadAggregates === 'function') loadAggregates();
+  });
 
   // Boot
   (async function () {

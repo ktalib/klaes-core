@@ -159,6 +159,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Name</th>
                     <th>Phone</th>
                     <th>NIN</th>
@@ -172,6 +173,7 @@
             <tbody>
                 @forelse ($beneficiaries as $b)
                     <tr>
+                        <td>{{ $beneficiaries->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $b->full_name }}</strong></td>
                         <td>{{ $b->phone ?: '—' }}</td>
                         <td>{{ $b->nin ?: '—' }}</td>
@@ -208,7 +210,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-users" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'status', 'case']))
                                 No beneficiaries match these filters.

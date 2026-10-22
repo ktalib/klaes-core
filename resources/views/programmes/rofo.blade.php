@@ -362,9 +362,16 @@
             }
 
             const rows = table.querySelectorAll('tbody tr');
+            let shown = 0;
             rows.forEach(row => {
                 const text = row.innerText.toLowerCase();
-                row.style.display = text.includes(q) ? '' : 'none';
+                const match = text.includes(q);
+                row.style.display = match ? '' : 'none';
+                // S/N follows the rows left on screen, not their original position.
+                const sn = row.querySelector('td.sn-cell');
+                if (sn && match) {
+                    sn.textContent = ++shown;
+                }
             });
         }
 

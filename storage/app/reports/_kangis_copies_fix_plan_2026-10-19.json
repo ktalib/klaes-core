@@ -1,0 +1,827 @@
+{
+    "plan": [
+        {
+            "land": "RES-1995-846",
+            "keep_id": 110051,
+            "keep_no": "KNML 1362_1",
+            "rename_to": "KNML 1362",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 115238,
+                    "no": "KNML 1362_2",
+                    "title": "COL LAWAL JAFARU ISA"
+                },
+                {
+                    "id": 193825,
+                    "no": "KNML 1362_3",
+                    "title": "COL. LAWAL JAFAR ISA"
+                }
+            ],
+            "keep_title": "COL. LAWAL JAFARU ISA"
+        },
+        {
+            "land": "RES-1993-23",
+            "keep_id": 110097,
+            "keep_no": "KNML 1394_1",
+            "rename_to": "KNML 1394",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 115250,
+                    "no": "KNML 1394_2",
+                    "title": "GARBA A ISMA:ILA"
+                },
+                {
+                    "id": 193280,
+                    "no": "KNML 1394_3",
+                    "title": "GARBA A. ISMA'ILA"
+                }
+            ],
+            "keep_title": "GARBA A ISMA'ILA"
+        },
+        {
+            "land": "RES-1988-1116",
+            "keep_id": 111963,
+            "keep_no": "KNML 1378_1_1",
+            "rename_to": "KNML 1378",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 111975,
+                    "no": "KNML 1378_2",
+                    "title": "ALH. SHAREEF ABBA"
+                },
+                {
+                    "id": 195015,
+                    "no": "KNML 1378_1_2",
+                    "title": "ALHAJI SHAREEF ABBA"
+                }
+            ],
+            "keep_title": "ALH. SHAREEF ABBA"
+        },
+        {
+            "land": "CON-RES-2004-44",
+            "keep_id": 115927,
+            "keep_no": "KNML 356_1",
+            "rename_to": "KNML 356",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 117496,
+                    "no": "KNML 356_2",
+                    "title": "UMAR BABA BAMBALE"
+                }
+            ],
+            "keep_title": "UMAR BABA BAMBALE"
+        },
+        {
+            "land": "RES-RC-2003-13",
+            "keep_id": 116580,
+            "keep_no": "KNML 2819_1",
+            "rename_to": "KNML 2819",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 116582,
+                    "no": "KNML 2819_2",
+                    "title": "ALHAJI ABDULMUNAFI YUNUSA"
+                }
+            ],
+            "keep_title": "ALHAJI ABDULMUNAFI YUNUSA"
+        },
+        {
+            "land": "RES-2008-2112",
+            "keep_id": 116658,
+            "keep_no": "KNML 2843_1",
+            "rename_to": "KNML 2843",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 116660,
+                    "no": "KNML 2843_2",
+                    "title": "YUSUF MUSA HASSAN"
+                },
+                {
+                    "id": 117632,
+                    "no": "KNML 2843_3",
+                    "title": "YUSUF MUSA HASSAN"
+                }
+            ],
+            "keep_title": "YUSUF MUSA HASSAN"
+        },
+        {
+            "land": "CON-IND-2004-2",
+            "keep_id": 117178,
+            "keep_no": "KNML 1600_1",
+            "rename_to": "KNML 1600",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 117188,
+                    "no": "KNML 1600_2",
+                    "title": "FAS AGRO IND.CO. LTD"
+                }
+            ],
+            "keep_title": "FAS AGRO IND.CO. LTD"
+        },
+        {
+            "land": "CON-RES-2010-664",
+            "keep_id": 117638,
+            "keep_no": "KNML 4832_1",
+            "rename_to": "KNML 4832",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 117639,
+                    "no": "KNML 4832_2",
+                    "title": "MR TFEANYI ANYAKORAH"
+                }
+            ],
+            "keep_title": "MR TFEANYI ANYAKORAH"
+        },
+        {
+            "land": "RES-2000-1152",
+            "keep_id": 118024,
+            "keep_no": "KNML 4834_1",
+            "rename_to": "KNML 4834",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 118029,
+                    "no": "KNML 4834_2",
+                    "title": "MUSBAHU MUHAMMAD"
+                }
+            ],
+            "keep_title": "MUSBAHU MUHAMMAD"
+        },
+        {
+            "land": "RES-2002-6928",
+            "keep_id": 118186,
+            "keep_no": "KNML 4828_1",
+            "rename_to": "KNML 4828",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 118190,
+                    "no": "KNML 4828_2",
+                    "title": "BALA AMINU MUSA"
+                }
+            ],
+            "keep_title": "BALA AMINU MUSA"
+        },
+        {
+            "land": "RES-1987-478",
+            "keep_id": 118543,
+            "keep_no": "KNML 9903_1",
+            "rename_to": "KNML 9903",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 118551,
+                    "no": "KNML 9903_2",
+                    "title": "AHMED UMAR ABDULLAHI"
+                }
+            ],
+            "keep_title": "AHMED UMAR ABDULLAHI"
+        },
+        {
+            "land": "COM-2014-98",
+            "keep_id": 118634,
+            "keep_no": "MLKN 448_1",
+            "rename_to": "MLKN 448",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 118641,
+                    "no": "MLKN 448_2",
+                    "title": "KABIRU MOHAMMAD"
+                }
+            ],
+            "keep_title": "KABIRU MOHAMMAD"
+        },
+        {
+            "land": "CON-COM-2010-218",
+            "keep_id": 118636,
+            "keep_no": "MLKN 1421_1",
+            "rename_to": "MLKN 1421",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 118639,
+                    "no": "MLKN 1421_2",
+                    "title": "ALHAJI YA'U ABDULLAHI YANSHANA"
+                }
+            ],
+            "keep_title": "ALHAJI YA'U ABDULLAHI YANSHANA"
+        },
+        {
+            "land": "COM-2022-423",
+            "keep_id": 119408,
+            "keep_no": "MLKN 3604_1",
+            "rename_to": "MLKN 3604",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 119416,
+                    "no": "MLKN 3604_2",
+                    "title": "COSMIC GREENS LIMITED"
+                }
+            ],
+            "keep_title": "COSMIC GREENS LIMITED"
+        },
+        {
+            "land": "COM-2022-421",
+            "keep_id": 119449,
+            "keep_no": "MLKN 3614_1",
+            "rename_to": "MLKN 3614",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 119450,
+                    "no": "MLKN 3614_2",
+                    "title": "COSMIC GREENS LIMITED"
+                }
+            ],
+            "keep_title": "COSMIC GREENS LIMITED"
+        },
+        {
+            "land": "COM-1987-208",
+            "keep_id": 119700,
+            "keep_no": "MLKN 517_1",
+            "rename_to": "MLKN 517",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 119704,
+                    "no": "MLKN 517_2",
+                    "title": "ALI AHMAD SULAIMAN"
+                }
+            ],
+            "keep_title": "ALI AHMAD SULAIMAN"
+        },
+        {
+            "land": "CON-COM-1989-18",
+            "keep_id": 120046,
+            "keep_no": "KN930_1",
+            "rename_to": null,
+            "rename_blocked_by": [
+                "KN930_4"
+            ],
+            "copies": [
+                {
+                    "id": 120186,
+                    "no": "KN930_2",
+                    "title": "ALHJ HAMZA ABDULLAHI UMAR"
+                }
+            ],
+            "keep_title": "HAMZA ABDULLAHI UMAR"
+        },
+        {
+            "land": "RES-2000-3323",
+            "keep_id": 120768,
+            "keep_no": "KNML 4931_1",
+            "rename_to": "KNML 4931",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 120771,
+                    "no": "KNML 4931_2",
+                    "title": "UMAR MOHAMMED"
+                }
+            ],
+            "keep_title": "UMAR MOHAMMED"
+        },
+        {
+            "land": "CON-COM-2010-342",
+            "keep_id": 120781,
+            "keep_no": "MLKN 1217_1",
+            "rename_to": "MLKN 1217",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 120789,
+                    "no": "MLKN 1217_2",
+                    "title": "ALHAJI BILIYA MUHAMAHHAD"
+                }
+            ],
+            "keep_title": "ALHAJI BILIYA MUHAMAHHAD"
+        },
+        {
+            "land": "RES-2020-619",
+            "keep_id": 122107,
+            "keep_no": "KNML 7344_1",
+            "rename_to": "KNML 7344",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 122112,
+                    "no": "KNML 7344_2",
+                    "title": "SHEHU AJIYA"
+                }
+            ],
+            "keep_title": "SHEHU AJIYA"
+        },
+        {
+            "land": "IND-1982-80",
+            "keep_id": 124015,
+            "keep_no": "MLKN 1593_1",
+            "rename_to": "MLKN 1593",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 124018,
+                    "no": "MLKN 1593_2",
+                    "title": "ISYAKU RABIU"
+                }
+            ],
+            "keep_title": "ISYAKU RABIU"
+        },
+        {
+            "land": "CON-AG-2018-73",
+            "keep_id": 131569,
+            "keep_no": "MLKN 2809_1",
+            "rename_to": "MLKN 2809",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 131573,
+                    "no": "MLKN 2809_2",
+                    "title": "OLAWALE JOHNSON SALAKO"
+                }
+            ],
+            "keep_title": "OLAWALE JOHNSON SALAKO"
+        },
+        {
+            "land": "CON-COM-2014-7",
+            "keep_id": 131980,
+            "keep_no": "MLKN 1433_1",
+            "rename_to": "MLKN 1433",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 131981,
+                    "no": "MLKN 1433_2",
+                    "title": "GARBA ALI NIG LTD"
+                }
+            ],
+            "keep_title": "GARBA ALI NIG LTD"
+        },
+        {
+            "land": "CON-COM-2015-245",
+            "keep_id": 131982,
+            "keep_no": "MLKN 1434_1",
+            "rename_to": "MLKN 1434",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 131984,
+                    "no": "MLKN 1434_2",
+                    "title": "GARBA ALI NIG LTD"
+                }
+            ],
+            "keep_title": "GARBA ALI NIG LTD"
+        },
+        {
+            "land": "CON-COM-2014-130",
+            "keep_id": 132919,
+            "keep_no": "MLKN 602_1",
+            "rename_to": "MLKN 602",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 132921,
+                    "no": "MLKN 602_2",
+                    "title": "ISMAILA MAARUF MUSA"
+                }
+            ],
+            "keep_title": "ISMAILA MAARUF MUSA"
+        },
+        {
+            "land": "CON-COM-2013-247",
+            "keep_id": 133052,
+            "keep_no": "MLKN 611_1",
+            "rename_to": "MLKN 611",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 133053,
+                    "no": "MLKN 611_2",
+                    "title": "MUHAMMAD SALIHU"
+                }
+            ],
+            "keep_title": "MUHAMMAD SALIHU"
+        },
+        {
+            "land": "CON-COM-2014-77",
+            "keep_id": 133089,
+            "keep_no": "MLKN 622_1",
+            "rename_to": "MLKN 622",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 133091,
+                    "no": "MLKN 622_2",
+                    "title": "YUSUF JATAU"
+                }
+            ],
+            "keep_title": "YUSUF JATAU"
+        },
+        {
+            "land": "CON-AG-2006-22",
+            "keep_id": 133106,
+            "keep_no": "MLKN 408_1",
+            "rename_to": "MLKN 408",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 133108,
+                    "no": "MLKN 408_2",
+                    "title": "ALH. ISIYAKU UMAR TOFA"
+                }
+            ],
+            "keep_title": "ALH. ISIYAKU UMAR TOFA"
+        },
+        {
+            "land": "RES-2015-645",
+            "keep_id": 133207,
+            "keep_no": "KNML 3855_1",
+            "rename_to": "KNML 3855",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 133208,
+                    "no": "KNML 3855_2",
+                    "title": "NAJIB SHEHU GALADANCI\/KHALIFA SAID S GALADANCI"
+                },
+                {
+                    "id": 133219,
+                    "no": "KNML 3855_3",
+                    "title": "NAJIB SHEHU GALADANCI\/KHALIFA SAID S GALADANCI"
+                }
+            ],
+            "keep_title": "NAJIB SHEHU GALADANCI\/KHALIFA SAID S GALADANCI"
+        },
+        {
+            "land": "CON-COM-2015-305",
+            "keep_id": 134119,
+            "keep_no": "MLKN 1315_1",
+            "rename_to": "MLKN 1315",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 134120,
+                    "no": "MLKN 1315_2",
+                    "title": "ALH MUHAMMAD AL-GAZZALI"
+                }
+            ],
+            "keep_title": "ALH MUHAMMAD AL-GAZZALI"
+        },
+        {
+            "land": "COM-2015-45",
+            "keep_id": 134230,
+            "keep_no": "MLKN 701_1",
+            "rename_to": "MLKN 701",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 134237,
+                    "no": "MLKN 701_2",
+                    "title": "BASHIR MUDI"
+                },
+                {
+                    "id": 136131,
+                    "no": "MLKN 701_3",
+                    "title": "BASHIR MUDI"
+                }
+            ],
+            "keep_title": "BASHIR MUDI"
+        },
+        {
+            "land": "COM-2015-445",
+            "keep_id": 134618,
+            "keep_no": "MLKN 986_1",
+            "rename_to": "MLKN 986",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 134619,
+                    "no": "MLKN 986_2",
+                    "title": "ILYASU AUBAKAR"
+                },
+                {
+                    "id": 134622,
+                    "no": "MLKN 986_3",
+                    "title": "ILYASU AUBAKAR"
+                }
+            ],
+            "keep_title": "ILYASU AUBAKAR"
+        },
+        {
+            "land": "CON-RES-2014-763",
+            "keep_id": 172216,
+            "keep_no": "KNML 3143_1_1",
+            "rename_to": null,
+            "rename_blocked_by": [
+                "KNML 3143_2"
+            ],
+            "copies": [
+                {
+                    "id": 174052,
+                    "no": "KNML 3143_1_2",
+                    "title": "SAMINU KHALID ABDULLAHI"
+                }
+            ],
+            "keep_title": "SAMINU  KHALID ABDULLAHI"
+        },
+        {
+            "land": "CON-RES-2019-844",
+            "keep_id": 176306,
+            "keep_no": "KNML 8718_1_1",
+            "rename_to": null,
+            "rename_blocked_by": [
+                "KNML 8718"
+            ],
+            "copies": [
+                {
+                    "id": 178695,
+                    "no": "KNML 8718_2",
+                    "title": "ANAYO OKONKWO"
+                },
+                {
+                    "id": 186335,
+                    "no": "KNML 8718_1_2",
+                    "title": "ANAYO OKONKWO"
+                }
+            ],
+            "keep_title": "ANAYO OKONKWO"
+        },
+        {
+            "land": "KN3523",
+            "conflict": "record already in another group"
+        },
+        {
+            "land": "RES-2002-7520",
+            "keep_id": 180068,
+            "keep_no": "KNML 1471_1",
+            "rename_to": "KNML 1471",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 180069,
+                    "no": "KNML 1471_2",
+                    "title": "BASHIR ADO KIBIYA"
+                }
+            ],
+            "keep_title": "BASHIR ADO KIBIYA"
+        },
+        {
+            "land": "CON-RES-2023-7167",
+            "keep_id": 180400,
+            "keep_no": "KN4592_1",
+            "rename_to": null,
+            "rename_blocked_by": [
+                "KN4592_4"
+            ],
+            "copies": [
+                {
+                    "id": 180402,
+                    "no": "KN4592_2",
+                    "title": "MURTALA ABDULLAHI JEGA"
+                },
+                {
+                    "id": 182698,
+                    "no": "KN4592_3",
+                    "title": "MURTALA ABDULLAHI JEGA"
+                },
+                {
+                    "id": 184619,
+                    "no": "KN4592_5",
+                    "title": "MURTALA ABDULLAHI JEGA"
+                },
+                {
+                    "id": 185487,
+                    "no": "KN4592_6",
+                    "title": "MURTALA ABDULLAHI JEGA"
+                },
+                {
+                    "id": 191918,
+                    "no": "KN4592",
+                    "title": "MURTALA ABDULLAHI JEGA"
+                }
+            ],
+            "keep_title": "MURTALA ABDULLAHI JEGA"
+        },
+        {
+            "land": "RES-2005-300",
+            "keep_id": 182740,
+            "keep_no": "KNML 7964_1",
+            "rename_to": "KNML 7964",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 182741,
+                    "no": "KNML 7964_2",
+                    "title": "MUHAMMED SHAMAKI ZUBAIRU"
+                }
+            ],
+            "keep_title": "MUHAMMED SHAMAKI ZUBAIRU"
+        },
+        {
+            "land": "CON-RES-2013-569",
+            "keep_id": 189994,
+            "keep_no": "KNML 2484_1",
+            "rename_to": "KNML 2484",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 189995,
+                    "no": "KNML 2484_2",
+                    "title": "IBRAHIM SHUAIBU"
+                }
+            ],
+            "keep_title": "IBRAHIM SHUAIBU"
+        },
+        {
+            "land": "RES-1997-1164",
+            "keep_id": 191587,
+            "keep_no": "KNML 2467_1",
+            "rename_to": "KNML 2467",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 191588,
+                    "no": "KNML 2467_2",
+                    "title": "ALBASU BASHIR"
+                }
+            ],
+            "keep_title": "ALBASU BASHIR"
+        },
+        {
+            "land": "CON-COM-2019-38",
+            "keep_id": 192410,
+            "keep_no": "MLKN 4487_1",
+            "rename_to": "MLKN 4487",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 203737,
+                    "no": "MLKN 4487_2",
+                    "title": "KANO FASHION CITY"
+                }
+            ],
+            "keep_title": "KANO FASHION CITY"
+        },
+        {
+            "land": "RES-1996-706",
+            "keep_id": 192635,
+            "keep_no": "KNML 3012_1",
+            "rename_to": "KNML 3012",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 192638,
+                    "no": "KNML 3012_2",
+                    "title": "SHEHU LIMAN WAN"
+                }
+            ],
+            "keep_title": "SHEHU LIMAN WAN"
+        },
+        {
+            "land": "RES-2021-857",
+            "keep_id": 194624,
+            "keep_no": "KN2789_1",
+            "rename_to": "KN2789",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 194625,
+                    "no": "KN2789_2",
+                    "title": "ASHIRU AMINU LIMAN"
+                }
+            ],
+            "keep_title": "ASHIRU AMINU LIMAN"
+        },
+        {
+            "land": "RES-2014-2326",
+            "keep_id": 194788,
+            "keep_no": "KN885_1",
+            "rename_to": "KN885",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 194789,
+                    "no": "KN885_2",
+                    "title": "ISAH GARBA USMAN"
+                }
+            ],
+            "keep_title": "ISAH GARBA USMAN"
+        },
+        {
+            "land": "CON-RES-2001-30",
+            "keep_id": 200093,
+            "keep_no": "KN2328_1",
+            "rename_to": "KN2328",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 200097,
+                    "no": "KN2328_2",
+                    "title": "ALHAJI HABIBU YAU"
+                }
+            ],
+            "keep_title": "ALHAJI HABIBU YAU"
+        },
+        {
+            "land": "RES-2021-3538",
+            "keep_id": 205190,
+            "keep_no": "KN993_1",
+            "rename_to": "KN993",
+            "rename_blocked_by": [],
+            "copies": [
+                {
+                    "id": 205192,
+                    "no": "KN993_2",
+                    "title": "ISMAIL KAMILU ILAH"
+                }
+            ],
+            "keep_title": "ISMAIL KAMILU ILAH"
+        }
+    ],
+    "copyRefs": {
+        "file_indexings.kangis_fileno_resolved": 56,
+        "file_indexings.new_kangis_file_no": 6,
+        "rds_tracking.file_number": 1,
+        "fileNumber.kangisFileNo": 56,
+        "fileNumber.mlsfNo": 2,
+        "fileNumber.NewKANGISFileNo": 55,
+        "fileNumber.kangis_fileno_resolved": 56,
+        "kangis_checkout_approvals.file_number": 3,
+        "file_history_staging.mlsFNo": 9,
+        "file_history_staging.kangisFileNo": 8,
+        "file_history_staging.fileno": 9,
+        "kangis_grouping.kangis_awaiting_fileno": 53,
+        "kangis_grouping.kangis_fileno": 53,
+        "kangis_grouping.indexing_kangis_fileno": 54,
+        "kangis_grouping.kangis_fileno_resolved": 53,
+        "consent_applications.file_number": 1,
+        "related_file_number.file_number": 51,
+        "file_tracker.file_number": 3,
+        "PropID_Master.primary_file_number": 49,
+        "PropID_Master.mlsFNo": 21,
+        "PropID_Master.kangisFileNo": 7,
+        "PropID_Master.primary_file_number_norm": 49,
+        "PropID_Master.mlsFNo_norm": 21,
+        "PropID_Master.kangisFileNo_norm": 7,
+        "deed_registrations.fileno": 1,
+        "file_indexing_links.file_number": 1,
+        "CofO_staging.mlsFNo": 16,
+        "CofO_staging.kangisFileNo": 2,
+        "CofO_staging.fileno": 3,
+        "kn_grouping.kn_awaiting_fileno": 1,
+        "entities_staging.file_number": 57,
+        "pra.mlsFNo": 24,
+        "pra.resolved_fileno": 24,
+        "customers_staging.file_number": 57,
+        "instrument_capture.mlsFNo": 1,
+        "kangis_print_label_batch_items.file_number": 18,
+        "bill_legacy.file_number": 2,
+        "file_indexing_bills.file_number": 2,
+        "propid_rebuild_lineage.mlsFNo": 32
+    },
+    "keepRefs": {
+        "file_indexings.kangis_fileno_resolved": 41,
+        "fileNumber.kangisFileNo": 40,
+        "fileNumber.NewKANGISFileNo": 37,
+        "fileNumber.kangis_fileno_resolved": 37,
+        "kangis_checkout_approvals.file_number": 9,
+        "file_history_staging.mlsFNo": 13,
+        "file_history_staging.kangisFileNo": 13,
+        "file_history_staging.fileno": 13,
+        "kangis_grouping.kangis_awaiting_fileno": 2,
+        "kangis_grouping.kangis_fileno": 39,
+        "kangis_grouping.indexing_kangis_fileno": 36,
+        "kangis_grouping.kangis_fileno_resolved": 4,
+        "related_file_number.file_number": 30,
+        "file_tracker.file_number": 9,
+        "PropID_Master.primary_file_number": 34,
+        "PropID_Master.mlsFNo": 10,
+        "PropID_Master.kangisFileNo": 10,
+        "PropID_Master.primary_file_number_norm": 34,
+        "PropID_Master.mlsFNo_norm": 10,
+        "PropID_Master.kangisFileNo_norm": 10,
+        "entities_staging.file_number": 40,
+        "pra.mlsFNo": 1,
+        "pra.kangisFileNo": 1,
+        "pra.fileno": 1,
+        "pra.resolved_fileno": 1,
+        "customers_staging.file_number": 40,
+        "valuation_reports.file_number": 1,
+        "propid_rebuild_lineage.mlsFNo": 2
+    },
+    "idRefs": {
+        "file_indexing_links.file_indexing_id": 60,
+        "bill_legacy.file_indexing_id": 2,
+        "file_indexing_bills.file_indexing_id": 2
+    }
+}

@@ -28,7 +28,11 @@ class CasePurge
     public function blockers(CadastralCase $case): array
     {
         $out = [];
-        if ($bill = PndBills::liveBill((string) $case->file_number)) {
+        // Only a bill issued during this case blocks it: a later case on the same file (registered
+        // after an earlier one finished and was billed) is not that bill's case (2026-10-16).
+        $bill = PndBills::liveBill((string) $case->file_number);
+        $billDate = $bill ? ($bill->issued_at ?? $bill->created_at) : null;
+        if ($bill && (!$billDate || !$case->created_at || $billDate >= $case->created_at)) {
             $out[] = "{$case->file_number} has a live P&D bill ({$bill->bill_ref}). Cancel the bill first.";
         }
 

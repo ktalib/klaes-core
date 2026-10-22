@@ -76,29 +76,29 @@
                 <button type="submit" class="btn btn-success">Add Coordinate</button>
             </form>
             <div class="table-wrapper"><div class="table-scroll"><table>
-                <thead><tr><th>Order</th><th>Beacon</th><th>Northing (m)</th><th>Easting (m)</th><th>Elevation (m)</th><th>Remarks</th><th>Action</th></tr></thead>
+                <thead><tr><th>S/N</th><th>Order</th><th>Beacon</th><th>Northing (m)</th><th>Easting (m)</th><th>Elevation (m)</th><th>Remarks</th><th>Action</th></tr></thead>
                 <tbody>
                     @forelse ($coordinates as $coordinate)
-                        <tr><td>{{ $coordinate->sort_order }}</td><td>{{ $coordinate->beacon_id }}</td><td>{{ $coordinate->northing }}</td><td>{{ $coordinate->easting }}</td><td>{{ $coordinate->elevation }}</td><td>{{ $coordinate->remarks }}</td>
+                        <tr><td>{{ $loop->iteration }}</td><td>{{ $coordinate->sort_order }}</td><td>{{ $coordinate->beacon_id }}</td><td>{{ $coordinate->northing }}</td><td>{{ $coordinate->easting }}</td><td>{{ $coordinate->elevation }}</td><td>{{ $coordinate->remarks }}</td>
                             <td><form method="POST" action="{{ route('survey-module.records.lpkn.coordinates.delete', [$layout, $coordinate]) }}" onsubmit="return confirm('Remove this coordinate?');">
                                 @csrf @method('DELETE')<button class="btn btn-secondary btn-sm" type="submit">Remove</button>
                             </form></td></tr>
                     @empty
-                        <tr><td colspan="7">No coordinates entered for this layout.</td></tr>
+                        <tr><td colspan="8">No coordinates entered for this layout.</td></tr>
                     @endforelse
                 </tbody>
             </table></div></div>
         @else
             <p>Computed from consecutive beacons in traverse order. Distances are in metres; grid bearings are degrees clockwise from north. The final beacon is not automatically joined to the first.</p>
             <div class="table-wrapper"><div class="table-scroll"><table>
-                <thead><tr><th>From Beacon</th><th>To Beacon</th><th>Distance (m)</th><th>Grid Bearing (°)</th></tr></thead>
+                <thead><tr><th>S/N</th><th>From Beacon</th><th>To Beacon</th><th>Distance (m)</th><th>Grid Bearing (°)</th></tr></thead>
                 <tbody>
                     @forelse ($legs as $leg)
-                        <tr><td>{{ $leg['from'] }}</td><td>{{ $leg['to'] }}</td>
+                        <tr><td>{{ $loop->iteration }}</td><td>{{ $leg['from'] }}</td><td>{{ $leg['to'] }}</td>
                             <td>{{ $leg['distance'] !== null ? number_format($leg['distance'], 3) : 'Missing coordinates' }}</td>
                             <td>{{ $leg['bearing'] !== null ? number_format($leg['bearing'], 6) : 'Undefined' }}</td></tr>
                     @empty
-                        <tr><td colspan="4">Enter at least two beacons in List of Coordinates to compute observations.</td></tr>
+                        <tr><td colspan="5">Enter at least two beacons in List of Coordinates to compute observations.</td></tr>
                     @endforelse
                 </tbody>
             </table></div></div>

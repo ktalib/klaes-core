@@ -168,6 +168,7 @@ class DcivGenerationController extends Controller
                    d.commissioning_date,
                    d.created_at as record_created_at,
                    d.batch_no,
+                   d.origin,
                    'dciv_file_no' as source_table
             FROM dciv_file_no d
             LEFT JOIN users u ON d.created_by = u.id
@@ -201,6 +202,7 @@ class DcivGenerationController extends Controller
                    CAST(fi.created_at AS DATE) as commissioning_date,
                    fi.created_at as record_created_at,
                    NULL as batch_no,
+                   NULL as origin,
                    'file_indexings' as source_table
             FROM file_indexings fi
             WHERE fi.registry IN ('DCIV', 'LPCC')
@@ -215,26 +217,36 @@ class DcivGenerationController extends Controller
         // Total count (unfiltered)
         $totalRecords = $conn->select("SELECT COUNT(*) as cnt FROM ({$combinedSql}) as t")[0]->cnt;
 
-        // Build data query with optional search
+        // Build data query with optional search and Source filter
         $bindings = [];
-        $searchWhere = '';
+        $conditions = [];
 
         if ($search) {
-            $searchWhere = " WHERE (full_file_number LIKE ? OR file_name LIKE ? OR location LIKE ? OR plot_no LIKE ? OR lga LIKE ? OR created_by_name LIKE ? OR dciv_serial_no LIKE ?)";
+            $conditions[] = "(full_file_number LIKE ? OR file_name LIKE ? OR location LIKE ? OR plot_no LIKE ? OR lga LIKE ? OR created_by_name LIKE ? OR dciv_serial_no LIKE ?)";
             $bindings = array_fill(0, 7, "%{$search}%");
-
-            $filteredRecords = $conn->select(
-                "SELECT COUNT(*) as cnt FROM ({$combinedSql}) as t {$searchWhere}",
-                $bindings
-            )[0]->cnt;
-        } else {
-            $filteredRecords = $totalRecords;
         }
 
-        // Fetch paginated records with ordering
-        // Priority Sort: 'dciv_file_no' (COMMISSIONED) records come first (0), then 'file_indexings' (INDEXED FILE) (1).
-        $prioritySort = "CASE WHEN source_table = 'dciv_file_no' THEN 0 ELSE 1 END ASC";
-        $dataSql = "SELECT * FROM ({$combinedSql}) as t {$searchWhere} ORDER BY {$prioritySort}, [{$orderColumn}] {$orderDir} OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        // Same rule as isCommissionedOrigin(): only a dciv_file_no row that is not a
+        // Manual serial or a File Indexing mirror is a commission.
+        $commissionedSql = "(source_table = 'dciv_file_no' AND ISNULL(origin, '') NOT IN ('manual', 'indexing'))";
+        $sourceFilter = strtolower((string) $request->input('source_filter', ''));
+        if ($sourceFilter === 'commissioned') {
+            $conditions[] = $commissionedSql;
+        } elseif ($sourceFilter === 'indexed') {
+            $conditions[] = "NOT {$commissionedSql}";
+        }
+
+        $searchWhere = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
+        $filteredRecords = $conditions
+            ? $conn->select("SELECT COUNT(*) as cnt FROM ({$combinedSql}) as t {$searchWhere}", $bindings)[0]->cnt
+            : $totalRecords;
+
+        // Fetch paginated records ordered by the chosen column only (newest first by
+        // default). Commissioned rows used to be forced to the top, which buried every
+        // indexed file under them whatever its date.
+        // Ties fall back to newest first (SQL Server refuses a column listed twice).
+        $tieBreak = $orderColumn === 'record_created_at' ? 'id DESC' : 'record_created_at DESC, id DESC';
+        $dataSql = "SELECT * FROM ({$combinedSql}) as t {$searchWhere} ORDER BY [{$orderColumn}] {$orderDir}, {$tieBreak} OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
         $records = $conn->select($dataSql, array_merge($bindings, [$start, $length]));
 
         // --- Batch pre-fetch: eliminates N+1 queries for related files and batch counts ---
@@ -316,6 +328,7 @@ class DcivGenerationController extends Controller
             // Use resilient source detection because SQL unions/casts may alter casing/format.
             $sourceTable = (string) ($record->source_table ?? '');
             $isFromFileIndexings = stripos($sourceTable, 'file_index') !== false;
+            $isCommissioned = !$isFromFileIndexings && self::isCommissionedOrigin($record->origin ?? null);
 
             // Related files button — uses pre-fetched maps (no per-row DB queries)
             // dciv_file_no rows use dciv_link; file_indexings rows use file_indexing_links.
@@ -380,7 +393,7 @@ class DcivGenerationController extends Controller
             }
 
             // Time & Date badges with source-specific colors
-            if ($isFromFileIndexings) {
+            if (!$isCommissioned) {
                 // Amber for File Indexing
                 $timeHtml = '<span class="px-2 py-1 bg-amber-50 rounded-md border border-amber-100 font-black text-amber-600 text-[11px]">' . e($formattedTime ?? '—') . '</span>';
                 $dateHtml = '<span class="px-2 py-1 bg-amber-50 rounded-md border border-amber-100 font-black text-amber-700 text-[11px]">' . e($formattedDate ?? '—') . '</span>';
@@ -448,6 +461,7 @@ class DcivGenerationController extends Controller
                 'time' => $timeHtml,
                 'date' => $dateHtml,
                 'source_table' => $record->source_table,
+                'is_commissioned' => $isCommissioned,
                 'source' => $sourceHtml,
                 'actions' => $actionsHtml,
             ];
@@ -459,6 +473,17 @@ class DcivGenerationController extends Controller
             'recordsFiltered' => $filteredRecords,
             'data' => $data,
         ]);
+    }
+
+    /**
+     * Only an Auto serial from the Generate card is a new commission. A Manual serial
+     * captures a file that already carries its number, and 'indexing' rows were mirrored
+     * from File Indexing; both show as INDEXED FILE. NULL is an older row whose origin
+     * was never saved, shown as before (COMMISSIONED) until it is confirmed.
+     */
+    public static function isCommissionedOrigin(?string $origin): bool
+    {
+        return !in_array(strtolower(trim((string) $origin)), ['manual', 'indexing'], true);
     }
 
     /**
@@ -788,6 +813,9 @@ class DcivGenerationController extends Controller
                 'dciv_reason' => $dcivReason,
                 // Free-text attribute (not the file-number serial); deliberately unvalidated.
                 'dciv_serial_no' => $request->input('dciv_serial_no'),
+                // A manual serial captures a file that already carries its number,
+                // so only an auto serial is a new commission.
+                'origin' => $manualSerial ? 'manual' : 'auto',
             ]);
 
             // Persist the related-file links to dciv_link (general) + master_dciv_links,
@@ -837,7 +865,9 @@ class DcivGenerationController extends Controller
                 }
             }
 
-            FileIndexing::create([
+            // 'source' is not in FileIndexing::$fillable, so create() silently
+            // dropped it; forceFill makes the stamp actually land.
+            (new FileIndexing)->forceFill([
                 'tracking_id' => $trackingId,
                 'file_number' => $dcivNumber,
                 'file_title' => $entityName,
@@ -849,10 +879,10 @@ class DcivGenerationController extends Controller
                 'lga' => $currentLgaName,
                 'created_by' => $userName,
                 'workflow_status' => 'indexed',
-                'source' => 'DCIV FileNo Commissioning',
+                'source' => $manualSerial ? 'DCIV Manual Serial' : 'DCIV FileNo Commissioning',
                 'related_fileno' => !empty($relatedFileNumbers) ? json_encode($relatedFileNumbers) : null,
                 'dciv_serial_no' => $request->input('dciv_serial_no'),
-            ]);
+            ])->save();
 
 
                 $generatedNumbers[] = [

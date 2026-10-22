@@ -69,6 +69,11 @@ class Kernel extends ConsoleKernel
         // transfers for staff. The hooks do this live; this is the safety net.
         $schedule->command('laas:reconcile')->dailyAt('03:30')->withoutOverlapping();
 
+        // Blind scan: record folders copied onto F: outside the page (Explorer
+        // bulk copies). Page uploads record themselves; this only fills gaps.
+        $schedule->command('blind-scan:register --registry=all --since=' . now()->subDays(3)->toDateString())
+            ->dailyAt('00:30')->withoutOverlapping();
+
         // Clean up expired Digital File Request temp copies daily at 03:00
         $schedule->command('dfr:cleanup-expired')->dailyAt('03:00')->withoutOverlapping();
 
@@ -77,6 +82,9 @@ class Kernel extends ConsoleKernel
 
         // Warn PHS organizations whose token balance is running low (daily).
         $schedule->command('phs:low-balance-reminders')->dailyAt('07:00')->withoutOverlapping();
+
+        // REV-M recurring bills: next-payment-due SMS, and the next cycle's bill on the due date.
+        $schedule->command('bills:cycle')->dailyAt('07:30')->withoutOverlapping();
 
         /*
          | Lift caveats that have run their six months.

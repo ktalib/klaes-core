@@ -14,6 +14,7 @@ class PlotExtensionApplication extends Model
     public const STATUS_REJECTED   = 'rejected';
 
     protected $fillable = [
+        'previously_decommissioned',
         'source_module',
         'file_no',
         'file_title',

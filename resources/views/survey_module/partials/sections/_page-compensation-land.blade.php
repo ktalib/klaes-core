@@ -78,6 +78,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Case Ref</th>
                     <th>Project</th>
                     <th>Location</th>
@@ -92,6 +93,7 @@
                 @forelse ($cases as $c)
                     @php $s = $splits[$c->id] ?? ['total' => 0, 'farmer' => 0, 'govt' => 0]; @endphp
                     <tr>
+                        <td>{{ $cases->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $c->case_ref }}</strong></td>
                         <td>{{ $c->project?->name ?? '—' }}</td>
                         <td>{{ $c->property_location ?: '—' }}</td>
@@ -118,7 +120,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-marked-alt" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'status', 'project']))
                                 No land-for-land cases match these filters.

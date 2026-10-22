@@ -47,7 +47,7 @@ use Throwable;
 class MintMissingPropIds extends Command
 {
     protected $signature = 'propid:mint
-        {--population=duplicates : duplicates|nulls|child-adopted|lookup}
+        {--population=duplicates : duplicates|nulls|child-adopted|lookup|pra|alias|st}
         {--batch=500 : Maximum rows to change in this run.}
         {--registry= : Restrict to one registry, e.g. KANGIS. Scopes the NULL population.}
         {--with-pages : Only files that have scanned pages — the ones staff actually see.}
@@ -85,8 +85,8 @@ class MintMissingPropIds extends Command
         $population = $this->option('population');
         $batch = max(1, (int) $this->option('batch'));
 
-        if (!in_array($population, ['duplicates', 'nulls', 'child-adopted', 'lookup'], true)) {
-            $this->error('--population must be duplicates, nulls, child-adopted or lookup.');
+        if (!in_array($population, ['duplicates', 'nulls', 'child-adopted', 'lookup', 'pra', 'alias', 'st'], true)) {
+            $this->error('--population must be duplicates, nulls, child-adopted, lookup, pra, alias or st.');
 
             return self::FAILURE;
         }
@@ -108,6 +108,9 @@ class MintMissingPropIds extends Command
             'duplicates' => $this->duplicateTargets($conn, $batch),
             'child-adopted' => $this->childAdoptedTargets($conn, $batch),
             'lookup' => $this->lookupTargets($conn, $batch, $registry, (bool) $this->option('with-pages')),
+            'pra' => $this->praTargets($conn, $batch),
+            'alias' => $this->aliasTargets($conn, $batch),
+            'st' => $this->stTargets($conn, $batch),
             default => $this->nullTargets($conn, $batch, $registry, (bool) $this->option('with-pages')),
         };
 
@@ -438,6 +441,7 @@ class MintMissingPropIds extends Command
             'not in PropID_Master — needs minting' => 0,
             'several ids in PropID_Master' => 0,
             'id already held by another file' => 0,
+            'id is the file\'s own parent_prop_id' => 0,
         ];
 
         $rows = $conn->table('file_indexings')
@@ -446,7 +450,7 @@ class MintMissingPropIds extends Command
             ->when($withPages, fn ($q) => $q->whereExists(fn ($e) => $e->selectRaw(1)
                 ->from('pagetypings')->whereColumn('pagetypings.file_indexing_id', 'file_indexings.id')))
             ->orderBy('id')
-            ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'plot_number']);
+            ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'plot_number', 'parent_prop_id']);
 
         $master = $this->masterIdsFor($conn, $rows->map(fn ($r) => $this->normKey($r))->all());
 
@@ -490,6 +494,13 @@ class MintMissingPropIds extends Command
             }
 
             $id = (string) array_key_first($ids);
+            // A child must never take its parent's id; that merges the two identities
+            // (see childAdoptedTargets). PropID_Master sometimes records exactly that.
+            if (in_array($id, array_map('trim', explode(',', (string) $row->parent_prop_id)), true)) {
+                $skipped['id is the file\'s own parent_prop_id']++;
+                continue;
+            }
+
             $others = array_diff_key($holders[$id] ?? [], [$key => true]);
 
             if (!empty($others) && !$isExempt($key)
@@ -501,6 +512,221 @@ class MintMissingPropIds extends Command
             // Later rows in this run must see this one as a holder too.
             $holders[$id][$key] = true;
             $row->lookup_prop_id = $id;
+            $kept[] = $row;
+        }
+
+        return ['rows' => $kept, 'skipped' => $skipped];
+    }
+
+    /**
+     * NULL rows PropID_Master does not know, whose OWN pra rows all carry one prop_id.
+     *
+     * Mostly OP/ToT files (296 on 2026-10-18): lookup cannot help them and minting is
+     * wrong, because their transactions are already filed under that id. They adopt it,
+     * unless another indexed file holds it or it is the row's own parent.
+     */
+    private function praTargets($conn, int $batch): array
+    {
+        $skipped = [
+            'in PropID_Master — use lookup' => 0,
+            'pra rows carry no id, or several' => 0,
+            'id already held by another file' => 0,
+            'id is the file\'s own parent_prop_id' => 0,
+        ];
+
+        $rows = $conn->table('file_indexings')
+            ->where(fn ($q) => $q->whereNull('prop_id')->orWhere('prop_id', ''))
+            ->orderBy('id')
+            ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'parent_prop_id']);
+
+        $master = $this->masterIdsFor($conn, $rows->map(fn ($r) => $this->normKey($r))->all());
+        $kept = [];
+
+        foreach ($rows as $row) {
+            if (count($kept) >= $batch) {
+                break;
+            }
+
+            $key = $this->normKey($row);
+
+            if ($key === '' || isset($master[$key])) {
+                $skipped['in PropID_Master — use lookup'] += $key === '' ? 0 : 1;
+                continue;
+            }
+
+            $ids = $conn->table('pra')
+                ->where(fn ($q) => $q->where('fileno', $key)->orWhere('mlsFNo', $key))
+                ->whereNotNull('prop_id')->where('prop_id', '<>', '')
+                ->distinct()->pluck('prop_id')->map(fn ($v) => (string) $v)->all();
+
+            if (count($ids) !== 1) {
+                $skipped['pra rows carry no id, or several']++;
+                continue;
+            }
+
+            if (in_array($ids[0], array_map('trim', explode(',', (string) $row->parent_prop_id)), true)) {
+                $skipped['id is the file\'s own parent_prop_id']++;
+                continue;
+            }
+
+            if ($conn->table('file_indexings')->where('prop_id', $ids[0])->exists()) {
+                $skipped['id already held by another file']++;
+                continue;
+            }
+
+            $row->lookup_prop_id = $ids[0];
+            $kept[] = $row;
+        }
+
+        return ['rows' => $kept, 'skipped' => $skipped];
+    }
+
+    /**
+     * NULL rows that PropID_Master knows only as an ALIAS (e.g. the kangisFileNo) on
+     * another file's row, while that other file holds the id in file_indexings.
+     *
+     *     PropID_Master  39259  primary RES-1992-3115  kangisFileNo KN3658
+     *     file_indexings RES-1992-3115 = 39259,  KN3658 = NULL
+     *
+     * The alias is a separate file (usually the old KANGIS one), so it gets its OWN new
+     * id, the same as createStandaloneNewKangisRecord does. The primary keeps its id.
+     */
+    private function aliasTargets($conn, int $batch): array
+    {
+        $skipped = ['not an alias case' => 0];
+
+        $rows = $conn->table('file_indexings')
+            ->where(fn ($q) => $q->whereNull('prop_id')->orWhere('prop_id', ''))
+            ->orderBy('id')
+            ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'parent_prop_id']);
+
+        $master = $this->masterIdsFor($conn, $rows->map(fn ($r) => $this->normKey($r))->all());
+        $kept = [];
+
+        foreach ($rows as $row) {
+            if (count($kept) >= $batch) {
+                break;
+            }
+
+            $key = $this->normKey($row);
+
+            // Only a pure alias: never the primary of any master row, exactly one id.
+            if (!isset($master[$key]) || !empty($master[$key]['primary']) || count($master[$key]['all']) !== 1) {
+                $skipped['not an alias case'] += isset($master[$key]) ? 1 : 0;
+                continue;
+            }
+
+            $id = (string) array_key_first($master[$key]['all']);
+            $owner = $conn->table('PropID_Master')->where('prop_id', $id)->value('primary_file_number_norm');
+            $ownerHolds = $owner !== null && $conn->table('file_indexings')
+                ->where('prop_id', $id)
+                ->whereRaw('UPPER(LTRIM(RTRIM(file_number))) = ?', [$owner])
+                ->exists();
+
+            if (!$ownerHolds) {
+                $skipped['not an alias case']++;
+                continue;
+            }
+
+            $kept[] = $row; // no lookup_prop_id: minted fresh below
+        }
+
+        return ['rows' => $kept, 'skipped' => $skipped];
+    }
+
+    /**
+     * NULL ST rows, by the rules of propid:backfill-st, but written to file_indexings.
+     *
+     * propid:backfill-st only touches PropID_Master, and its "adopt" stores the ST number
+     * only when the old file's master row has an empty alias slot. On 2026-10-19 it
+     * reported 27 adopted and stored none, so the ST rows stayed NULL.
+     *
+     *   - mother (st_file_numbers PRIMARY): ADOPTS the old land file's id. Sharing it is
+     *     the rule, and parent_prop_id pointing at it too is expected.
+     *   - unit (PUA): its PropID_Master id if it has one, otherwise a NEW id.
+     */
+    private function stTargets($conn, int $batch): array
+    {
+        $skipped = [
+            'no st_file_numbers row' => 0,
+            'mother: old file has no prop_id' => 0,
+            'mother: no distinct old file' => 0,
+        ];
+
+        $kinds = [];
+        foreach ($conn->table('st_file_numbers')->get(['fileno', 'np_fileno', 'mls_fileno', 'file_no_type']) as $s) {
+            $type = strtoupper(trim((string) $s->file_no_type));
+            $np = strtoupper(trim((string) $s->np_fileno));
+            $fn = strtoupper(trim((string) $s->fileno));
+
+            if ($type === 'PUA' && $fn !== '') {
+                $kinds[$fn] = ['unit'];
+            }
+            if ($type === 'PRIMARY' && $np !== '') {
+                $kinds[$np] = ['mother', strtoupper(trim((string) ($s->mls_fileno ?: $s->fileno)))];
+            }
+        }
+
+        $rows = $conn->table('file_indexings')
+            ->where(fn ($q) => $q->whereNull('prop_id')->orWhere('prop_id', ''))
+            ->where('file_number', 'like', '%ST-%')
+            ->orderBy('id')
+            ->get(['id', 'file_number', 'temp_file_no', 'prop_id', 'parent_prop_id']);
+
+        $master = $this->masterIdsFor($conn, $rows->map(fn ($r) => $this->normKey($r))->all());
+        $kept = [];
+
+        foreach ($rows as $row) {
+            if (count($kept) >= $batch) {
+                break;
+            }
+
+            $key = $this->normKey($row);
+
+            if (!str_starts_with($key, 'ST-')) {
+                continue;
+            }
+
+            if (!isset($kinds[$key])) {
+                $skipped['no st_file_numbers row']++;
+                continue;
+            }
+
+            if ($kinds[$key][0] === 'unit') {
+                $known = $master[$key]['primary'] ?? [];
+                if (count($known) === 1) {
+                    $row->lookup_prop_id = (string) array_key_first($known);
+                }
+                $kept[] = $row; // otherwise minted fresh below
+                continue;
+            }
+
+            $old = $kinds[$key][1];
+            if ($old === '' || $old === $key) {
+                $skipped['mother: no distinct old file']++;
+                continue;
+            }
+
+            $oldId = $conn->table('file_indexings')
+                ->whereRaw('UPPER(LTRIM(RTRIM(file_number))) = ?', [$old])
+                ->whereNotNull('prop_id')->where('prop_id', '<>', '')
+                ->value('prop_id');
+            $masterOld = array_key_first($this->masterIdsFor($conn, [$old])[$old]['primary'] ?? []);
+
+            if ($oldId !== null && $masterOld !== null && (string) $oldId !== (string) $masterOld) {
+                $skipped['mother: old file\'s indexing and master ids differ']
+                    = ($skipped['mother: old file\'s indexing and master ids differ'] ?? 0) + 1;
+                continue;
+            }
+
+            $oldId = $oldId ?? $masterOld;
+
+            if ($oldId === null || $oldId === '') {
+                $skipped['mother: old file has no prop_id']++;
+                continue;
+            }
+
+            $row->lookup_prop_id = (string) $oldId;
             $kept[] = $row;
         }
 

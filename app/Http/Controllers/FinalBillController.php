@@ -139,6 +139,9 @@ class FinalBillController extends Controller
                 
                 $message = 'Bill generated successfully';
             }
+
+            // KLAES REV-M: the final bill is the Bill Balance in Bill Master (one bill with Deeds for the same ST file).
+            app(\App\Services\Billing\Modules\StFinalBillMirror::class)->syncFor((int) $validatedData['application_id'], null);
             
             return response()->json([
                 'success' => true,

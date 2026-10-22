@@ -1880,20 +1880,22 @@ HTML;
     }
 
     /**
-     * "Your File Request has been received" -- to the officer who raised it.
+     * "Your File Request has been received" -- to the File Requester.
      *
-     * Goes to a member of STAFF, not the public: the wording says "your request"
-     * and "let us know if this was not placed by you", which only makes sense to
-     * the person who pressed the button. users.phone_number is therefore the
-     * source, and it is the one phone column in this database with no
-     * shared-number problem.
+     * Goes to a member of STAFF, not the public. The recipient is the officer
+     * picked as File Requester (file_search_requests.receiving_officer), not the
+     * registry clerk who pressed the button: sending it to the logged-in user
+     * texted the clerks for every request they typed (switched off 2026-09-10).
+     * users.phone_number is the source; when the requester cannot be matched to
+     * exactly one active user the message is recorded as skipped, never
+     * redirected to someone else.
      *
      * One request is one file number -- file_search_requests.file_number is a
      * single string, and Quick Search raises them one at a time -- so the
      * [FileNo(s)] token renders one number. The plural is in the Ministry's
      * wording, not in the data.
      */
-    protected function sendFileRequestReceivedSms(FileSearchRequest $fr, $user): void
+    protected function sendFileRequestReceivedSms(FileSearchRequest $fr, $requesterUserId = null): void
     {
         try {
             $key = \App\Models\SmsSetting::KEY_FILE_REQUEST_RECEIVED;
@@ -1903,7 +1905,7 @@ HTML;
                 return;
             }
 
-            $phone = $user->phone_number ?? null;
+            $phone = $this->fileRequesterPhone($requesterUserId, $fr->receiving_officer);
 
             $dispatcher->queue($key, $phone, [
                 'FileNo(s)' => $fr->file_number,
@@ -1925,6 +1927,39 @@ HTML;
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Phone of the File Requester: by user id when the form sent one (officers
+     * added by hand carry an "ro_" id and are not users), else by an exact match
+     * on the name among active users -- only when exactly one user has it.
+     */
+    protected function fileRequesterPhone($userId, ?string $name): ?string
+    {
+        $users = DB::connection('sqlsrv')->table('users')->where('is_active', 1);
+
+        if (is_numeric($userId)) {
+            $row = (clone $users)->where('id', (int) $userId)->first(['first_name', 'last_name', 'phone_number']);
+            // The id must still be the officer named on the request.
+            if ($row && ($name === null || strcasecmp(
+                preg_replace('/\s+/', ' ', trim(($row->first_name ?? '') . ' ' . ($row->last_name ?? ''))),
+                preg_replace('/\s+/', ' ', trim($name))
+            ) === 0)) {
+                return $row->phone_number ?: null;
+            }
+        }
+
+        $name = preg_replace('/\s+/', ' ', trim((string) $name));
+        if ($name === '') {
+            return null;
+        }
+
+        $matches = $users
+            ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(first_name,'') + ' ' + ISNULL(last_name,'')))) = ?", [mb_strtoupper($name)])
+            ->limit(2)
+            ->pluck('phone_number');
+
+        return $matches->count() === 1 ? ($matches->first() ?: null) : null;
     }
 
     protected function sendNewKangisTrackerSms(FileTracker $tracker, ?FileIndexing $linkedIndexing, ?string $officeName): array
@@ -2937,6 +2972,8 @@ HTML;
         // the web picker and the mobile File Search account for every physical
         // file sharing the number.
         $displayTitle = $tracker->file_title ?? $indexing->file_title ?? null;
+        $holderClosed = $withCandidates && $tracker
+            && app(FileLocationResolver::class)->isTerminalTrackerStatus($tracker->status);
         $duplicateCandidates = $withCandidates
             ? app(FileLocationResolver::class)->duplicateCandidates($result)
             : [];
@@ -3118,11 +3155,13 @@ HTML;
             'duplicate_candidates' => $duplicateCandidates,
             'file_tracker_id'  => $result['file_tracker_id'],
             'file_title'       => $displayTitle,
-            'receiving_officer_name' => $tracker->receiving_officer_name ?? null,
+            // Quick Search: once the tracker is closed (logged back in / cancelled) its
+            // receiving officer no longer holds the file, so show none.
+            'receiving_officer_name' => $holderClosed ? null : ($tracker->receiving_officer_name ?? null),
             // Photo of the officer physically holding the file. Behind $withCandidates
             // because only the Quick Search paths render it — the paginated tracker list
             // calls this presenter per row and would turn it into an N+1.
-            'receiving_officer_photo' => $withCandidates
+            'receiving_officer_photo' => $withCandidates && !$holderClosed
                 ? \App\Support\UserPhoto::forIdOrName(
                     $tracker->receiving_officer_id ?? null,
                     $tracker->receiving_officer_name ?? null
@@ -3361,7 +3400,8 @@ HTML;
             $this->notifyScbMonitors($fr, $requesterName);
 
             /*
-             | Acknowledge the request to the officer who raised it.
+             | Acknowledge the request to the officer it was raised for (the
+             | File Requester picked on the form), not the clerk who typed it.
              |
              | Only on this branch. The two earlier returns -- updating an open
              | request, and the missing-file shortcut that is stamped NOT_FOUND
@@ -3369,7 +3409,7 @@ HTML;
              | message promises the request has been "forwarded to our SCB
              | Monitor for onward retrieval" and on those paths it has not.
              */
-            $this->sendFileRequestReceivedSms($fr, $user);
+            $this->sendFileRequestReceivedSms($fr, $request->input('receiving_officer_id'));
 
             return response()->json([
                 'success' => true,

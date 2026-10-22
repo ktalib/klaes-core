@@ -67,22 +67,22 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    /* Search – server-side with debounce (records are limited server-side) */
+    /* Search – server-side, runs on Enter only (records are limited server-side).
+       Searching on every keystroke reloaded the page mid-typing. */
     var searchInput = document.getElementById('lss-search');
-    var _lssSearchTimer = null;
     if (searchInput) {
-        searchInput.addEventListener('input', function () {
-            clearTimeout(_lssSearchTimer);
-            var val = this.value;
-            _lssSearchTimer = setTimeout(function () {
-                var url = new URL(window.location.href);
-                if (val) {
-                    url.searchParams.set('search', val);
-                } else {
-                    url.searchParams.delete('search');
-                }
-                window.location.href = url.toString();
-            }, 600);
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var val = this.value.trim();
+            var url = new URL(window.location.href);
+            if (val) {
+                url.searchParams.set('search', val);
+            } else {
+                url.searchParams.delete('search');
+            }
+            url.searchParams.delete('page');
+            window.location.href = url.toString();
         });
     }
 
@@ -1827,7 +1827,7 @@ function _ossValidatePayload(payload) {
     // sourced from the Occupancy Permit Details section — backfilled when the
     // record already has one, or entered by the user when it does not.
     if (_ossIsChangeOfNamePage() || payload.has_occupancy_permit) {
-        if (!/^[1-9][0-9]*$/.test((payload.op_serial_number || '').trim())) {
+        if (!/^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/.test((payload.op_serial_number || '').trim())) {
             errors.push('A valid OP Serial Number is required. Enter positive digits without leading zeros in "Occupancy Permit Details".');
         }
     }

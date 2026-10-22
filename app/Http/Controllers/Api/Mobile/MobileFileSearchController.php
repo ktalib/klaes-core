@@ -27,6 +27,28 @@ class MobileFileSearchController extends Controller
      * GET /api/mobile/files/search?q=RES-1985-1
      * Quick search — same engine as web, minimal fields for mobile.
      */
+    /**
+     * GET /api/mobile/files/resolve-qr?q=
+     * Quick Search "Scan QR": any KLAES QR → its file number(s), through the
+     * File Movement (Department) resolver. Read-only; the app then runs the
+     * normal search on the number.
+     */
+    public function resolveQr(Request $request, \App\Services\FileTracking\FileQrResolver $qr): JsonResponse
+    {
+        $request->validate(['q' => 'required|string|max:4000']);
+
+        $result = $qr->resolve($request->input('q'));
+
+        return response()->json([
+            'success' => $result['resolved'],
+            'message' => $result['message'],
+            'matches' => array_values(array_map(fn ($m) => [
+                'file_number' => $m['file_number'],
+                'file_title'  => $m['file_title'],
+            ], array_filter($result['matches'], fn ($m) => $m['file_number']))),
+        ]);
+    }
+
     public function search(Request $request, FileLocationResolver $resolver): JsonResponse
     {
         $q = trim((string) $request->get('q', $request->get('query', '')));
@@ -80,8 +102,11 @@ class MobileFileSearchController extends Controller
         // (authoritative) over the free-text column, which sometimes holds an office
         // label rather than a person's name.
         $tracker      = $result['tracker'] ?? null;
-        $officerName  = $tracker->receiving_officer_name ?? null;
-        $officerId    = $tracker->receiving_officer_id ?? null;
+        // A closed tracker (logged back in / cancelled): its receiving officer no
+        // longer holds the file, so no officer is shown.
+        $holderClosed = $tracker && $resolver->isTerminalTrackerStatus($tracker->status);
+        $officerName  = $holderClosed ? null : ($tracker->receiving_officer_name ?? null);
+        $officerId    = $holderClosed ? null : ($tracker->receiving_officer_id ?? null);
         // Picture of whoever is physically holding the file, shown beside their name.
         $officerPhoto = null;
         if ($officerId) {

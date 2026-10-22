@@ -1,0 +1,456 @@
+file_indexing_id,file_number,registry,parent_prop_id,master_prop_id,reason,notes
+13656,ST-RES-2025-3,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+42646,ST-MIXED-2025-1,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+42647,ST-COM-2025-4,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+42648,ST-RES-2025-1,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+42649,ST-COM-2025-3-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+42650,ST-COM-2025-2-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+42651,ST-COM-2025-1-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+47553,RES-2006-540,2,51175,51175,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+55060,ST-COM-2025-9-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+60766,ST-COM-2026-1-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+65767,ST-COM-2025-4-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+66689,ST-COM-2025-8-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+79654,ST-RES-2026-4,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+80200,RES-1981-393,1,27405,27405,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+90438,RES-1999-1219,2,46152,46152,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+94213,ST-RES-2025-2,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+101348,COM-2014-88,1,3930,3930,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+104519,IND-2001-16,1,19012,19012,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+106627,RES-2025-45,2,"118402,180826",118402,"PropID_Master id = its own parent_prop_id","OP/ToT; merger; has parent_prop_id"
+106774,RES-2023-5645,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+106882,RES-1995-2606,2,43819,43819,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+107501,CON-COM-2009-70,3,9130,9130,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+108344,RES-1995-2767,2,43923,43923,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+109591,CON-COM-2010-45,3,9277,9277,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+109718,COM-1990-155,1,1003,1003,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+110003,CON-COM-2010-47,3,9279,9279,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+113192,CON-COM-2019-84,3,9861,9861,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+117652,RES-RC-1981-112,1,64650,64650,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+119092,ST-COM-2025-8-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+119862,CON-COM-2016-201,3,9666,9666,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+124563,COM-2026-219,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+124653,RES-1985-2036,1,"30640,186707",30640,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+125738,RES-2026-2306,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126111,RES-2026-2307,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126117,RES-2026-2308,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126128,RES-2026-2309,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126142,RES-2026-2310,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126479,RES-2025-516,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126696,RES-2026-2313,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126721,RES-2026-2314,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+126987,RES-2026-2315,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+127002,RES-2026-2316,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+127722,RES-2026-2321,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+127759,RES-2026-2322,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128048,RES-2026-2334,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128054,RES-2026-2336,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128063,RES-2026-2339,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128407,CON-RES-2024-306,3,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128956,RES-2026-2364,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128968,RES-2026-2366,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+128994,COM-2026-222,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129007,COM-2026-223,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129012,COM-2026-224,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129019,COM-2026-225,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129032,RES-2026-2376,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129035,RES-2026-2377,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129175,RES-2026-2382,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129211,RES-2026-2383,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129802,RES-2026-2384,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+129951,RES-2026-2393,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130195,RES-2026-2405,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130197,RES-2026-2406,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130198,RES-2026-2407,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130590,RES-2026-2409,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130604,RES-2026-2410,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130673,RES-2026-2414,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130784,RES-2026-2421,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130817,RES-2026-2422,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130844,RES-2026-2430,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+130864,RES-2026-2434,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+131699,RES-2026-2455,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+131705,RES-2026-2456,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+131712,RES-2026-2457,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+131725,RES-2026-2458,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+131757,RES-2026-2459,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+131866,RES-2026-2472,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+132046,IND-2026-47,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+132153,RES-2026-2475,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+132337,RES-2023-391,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+132856,RES-1999-1343,2,46191,46191,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+133437,RES-2026-2480,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+133442,RES-2026-2481,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+133629,RES-2026-2483,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+133631,RES-2026-2484,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+133632,RES-2026-2485,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+133802,RES-2000-1658,2,46560,46560,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+134282,RES-2026-2490,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+134688,RES-2026-2496,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+134690,RES-2026-2497,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+135085,RES-2026-2498,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+135459,RES-2026-2499,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+135883,RES-1989-732,1,34661,34661,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+136914,RES-2026-2506,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+136915,RES-2026-2507,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+136916,RES-2026-2508,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+138116,RES-2026-2514,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+138640,RES-2026-2517,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+138641,RES-2026-2518,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+138642,RES-2026-2519,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+138643,RES-2026-2520,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+138644,RES-2026-2521,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+139474,RES-2026-2526,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+140787,COM-2026-239,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+140802,COM-2026-240,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+140827,RES-2026-2533,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+140882,IND-2026-56,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+140977,COM-2026-241,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141003,IND-2026-57,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141022,RES-2026-2540,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141044,RES-2026-2541,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141076,RES-2026-2542,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141154,RES-2026-2544,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141452,RES-2026-2559,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141470,RES-2026-2560,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+141543,RES-2026-2569,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+143524,RES-1981-629,1,"25041,27620",27620,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+143570,RES-2005-1447,2,"50566,184583",50566,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144090,RES-1987-2110,1,32327,32327,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144141,RES-1997-240,2,45348,45348,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144150,COM-RC-1982-38,1,6121,6121,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144167,CON-AG-1981-38,3,6841,6841,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144168,RES-1989-765,1,34676,34676,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144170,RES-2001-2773,2,48075,48075,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144184,RES-1983-1193,1,29596,29596,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144199,RES-2010-1217,2,53073,53073,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144207,RES-1982-216,1,28752,28752,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144208,RES-2000-856,2,47841,47841,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144209,RES-2000-1498,2,46499,46499,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144230,IND-RC-1982-209,1,"19470,184664",19470,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144252,RES-1981-1559,1,26994,26994,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144267,RES-1981-1412,1,26902,26902,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144273,RES-1981-763,1,27718,27718,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+144279,RES-2008-501,2,51900,51900,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+145340,RES-2026-2575,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+145500,RES-2000-3354,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146132,RES-2026-2581,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146271,RES-2026-2586,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146276,RES-2026-2587,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146297,RES-2026-2594,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146570,COM-2026-245,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146853,RES-2026-2609,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+146930,RES-2026-2613,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147022,IND-2026-72,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147072,IND-2026-74,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147099,RES-2026-2614,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147109,RES-2026-2615,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147114,RES-2026-2616,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147126,RES-2026-2617,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147137,RES-2026-2618,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147163,RES-2026-2619,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147173,RES-2026-2620,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147184,RES-2026-2621,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147205,RES-2026-2622,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147217,RES-2026-2623,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147230,COM-2026-246,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+147262,RES-2026-2624,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148152,RES-2026-2636,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148153,RES-2026-2637,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148154,RES-2026-2638,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148155,RES-2026-2639,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148157,RES-2026-2640,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148158,RES-2026-2641,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148160,RES-2026-2642,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148162,RES-2026-2643,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148163,RES-2026-2644,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148165,RES-2026-2645,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148168,RES-2026-2646,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148172,RES-2026-2647,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148174,RES-2026-2648,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148179,RES-2026-2649,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+148489,RES-2026-2653,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+149077,RES-1991-7462,1,37771,37771,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+149596,RES-2026-2655,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+149690,RES-2026-2662,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+149691,RES-2026-2663,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+149692,IND-2026-86,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+150049,RES-2026-2682,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+150368,COM-2026-248,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151385,COM-2026-251,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151407,IND-2026-124,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151408,RES-2026-2812,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151411,RES-2026-2815,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151412,RES-2026-2816,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151413,RES-2026-2817,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+151414,RES-2026-2818,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153069,RES-2026-2837,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153082,RES-2026-2838,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153103,RES-2026-2839,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153110,RES-2026-2840,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153119,RES-2026-2841,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153128,RES-2026-2842,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153133,RES-2026-2843,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153143,RES-2026-2844,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+153159,RES-2015-5707,2,55793,55793,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+153412,RES-2026-2845,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+154138,RES-2026-2865,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+154884,RES-2018-3404,2,58296,58296,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+155077,RES-2026-2885,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+155469,COM-2026-253,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+156049,IND-2026-133,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+156076,RES-2026-2905,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+156929,RES-2015-4577,2,135166,135166,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+158011,RES-1989-4132,1,34419,34419,"PropID_Master id = its own parent_prop_id","OP/ToT; subdivision; decommissioned; has parent_prop_id"
+158464,IND-2026-149,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+158815,COM-2026-287,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+159904,ST-COM-2026-5-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+159905,ST-COM-2026-4-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+159906,RES-2026-3025,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+159907,COM-2026-288,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+159908,RES-2026-3026,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+159909,RES-2026-3027,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160235,RES-1981-158,1,27010,27010,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+160377,RES-2026-3028,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160559,RES-2026-3030,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160575,COM-2026-290,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160593,RES-2026-3031,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160628,RES-2026-3032,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160629,RES-2026-3033,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160630,RES-2026-3034,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+160631,RES-2026-3035,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161084,RES-2026-3039,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161104,RES-2026-3040,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161224,RES-2026-3041,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161242,RES-2026-3042,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161249,RES-2026-3043,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161278,RES-2026-3044,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161289,RES-2026-3045,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161297,RES-2026-3046,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+161614,RES-2002-2292,2,48808,48808,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+162119,RES-2002-1690,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+162247,RES-2026-3075,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+162284,RES-2026-3076,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+162589,IND-2026-152,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+162632,IND-2026-153,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+163057,COM-2026-291,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+163620,RES-2022-6303,2,61304,61304,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+163723,RES-2026-3146,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+164103,COM-2026-293,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+165047,RES-2014-2696,2,"54490,186712",54490,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+165110,RES-2026-3158,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+166361,CON-AG-1982-390,3,6992,6992,"PropID_Master id = its own parent_prop_id","OP/ToT; has parent_prop_id"
+167816,ST-MIXED-2026-2,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+167927,ST-RES-2025-4,,184326,,"ST file not in PropID_Master: should adopt mother/land file id","has parent_prop_id; ST"
+167928,ST-COM-2025-9,,184325,,"ST file not in PropID_Master: should adopt mother/land file id","has parent_prop_id; ST"
+167929,ST-RES-2026-1,,184327,,"ST file not in PropID_Master: should adopt mother/land file id","has parent_prop_id; ST"
+167930,ST-RES-2026-2,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+167931,ST-RES-2026-3,,184328,,"ST file not in PropID_Master: should adopt mother/land file id","has parent_prop_id; ST"
+167933,ST-RES-2026-5,,184613,,"ST file not in PropID_Master: should adopt mother/land file id","has parent_prop_id; ST"
+167934,ST-COM-2026-1,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+167935,ST-MIXED-2026-1,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+167936,ST-RES-2026-9,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+167937,ST-RES-2026-10,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+169782,RES-2026-3238,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+169801,RES-2026-3239,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+170166,RES-2026-3240,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+171393,RES-2026-3252,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+171835,COM-2026-308,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+173161,RES-2026-3297,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+174307,RES-2026-3301,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+175168,RES-2026-3311,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+175173,RES-2026-3312,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+175758,COM-2026-313,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+176029,ST-RES-2026-12,"ST Registry",152617,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; has parent_prop_id; ST"
+176044,ST-RES-2026-13,"ST Registry",152626,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; has parent_prop_id; ST"
+176247,ST-RES-2026-11,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+177369,IND-2026-170,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+177792,COM-2026-314,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+179186,RES-2026-3357,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+179742,IND-2026-171,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+180343,RES-2026-3373,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+181140,RES-2026-3374,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+181144,RES-2026-3375,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+181191,RES-2026-3376,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+181229,RES-2026-3377,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+181432,RES-2026-3378,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+182052,ST-COM-2026-14,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; ST"
+182192,RES-2026-3382,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+183170,ST-RES-2026-14,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; ST"
+184074,RES-2026-3403,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184096,RES-2026-3404,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184119,RES-2026-3405,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184160,RES-2026-3407,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184172,RES-2026-3409,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184185,RES-2026-3411,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184212,RES-2026-3412,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184232,RES-2026-3413,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184451,RES-2026-3417,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184495,RES-2026-3418,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184498,RES-2026-3419,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184500,RES-2026-3420,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184502,RES-2026-3421,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184506,COM-2026-320,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+184520,RES-2026-3422,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+185181,RES-2026-3423,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+185377,RES-2026-3424,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+186386,COM-2026-323,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+186555,ST-COM-2026-15,"ST Registry",154412,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; has parent_prop_id; ST"
+186874,COM-2026-325,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+187602,RES-2026-3446,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+187610,RES-2026-3447,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+187647,RES-2026-3449,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+188850,ST-RES-2026-15,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; ST"
+189939,RES-2026-3508,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+190018,RES-2026-3509,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+190444,RES-2026-3510,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+190456,RES-2026-3511,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192003,RES-2026-3518,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192016,IND-2026-186,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192036,COM-2026-332,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192530,IND-2026-187,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192538,IND-2026-188,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192565,IND-2026-189,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192856,RES-2026-3521,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192857,RES-2026-3522,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192865,RES-2026-3524,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192931,RES-2026-3526,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192960,RES-2026-3528,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+192990,RES-2026-3530,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193014,RES-2026-3533,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193190,ST-RES-2026-16,"ST Registry",46062,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; has parent_prop_id; ST"
+193229,RES-2026-3534,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193240,RES-2026-3535,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193278,RES-2026-3536,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193288,RES-2026-3537,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193340,RES-2026-3539,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193349,RES-2026-3541,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193354,RES-2026-3542,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+193494,RES-2026-3543,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194123,RES-2026-3553,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194146,RES-2026-3554,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194169,RES-2026-3555,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194191,IND-2026-190,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194211,IND-2026-191,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194922,RES-2026-3560,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+194956,RES-2026-3561,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195507,IND-2026-192,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195549,IND-2026-195,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195550,IND-2026-196,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195551,IND-2026-197,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195552,IND-2026-198,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195553,COM-2026-343,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195554,COM-2026-344,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195766,RES-2026-3631,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195777,RES-2026-3632,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195788,RES-2026-3633,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+195824,RES-2026-3638,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+196166,RES-2026-3640,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+196398,RES-2026-3648,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+196644,RES-2026-3652,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+196812,RES-2026-3672,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+196851,ST-RES-2026-7,,,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+197434,COM-2026-347,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+197851,RES-2026-3676,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+197890,RES-2026-3678,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+197932,RES-2026-3681,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+198120,COM-2026-349,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+198702,RES-2026-3683,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+198746,RES-2026-3684,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+198810,RES-2026-3687,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+199194,RES-2026-3723,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+199351,RES-2026-3725,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+200014,ST-RES-2026-17,"ST Registry",68385,,"ST file not in PropID_Master: should adopt mother/land file id","successor of decommissioned; has parent_prop_id; ST"
+200029,COM-2026-356,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+200203,ST-MIXED-2025-1-046,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200204,ST-MIXED-2025-1-047,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200205,ST-MIXED-2025-1-048,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200206,ST-MIXED-2025-1-049,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200207,ST-MIXED-2025-1-050,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200208,ST-MIXED-2025-1-051,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200209,ST-MIXED-2025-1-052,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200210,ST-MIXED-2025-1-053,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200211,ST-MIXED-2025-1-054,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200212,ST-COM-2026-2-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200213,ST-RES-2025-4-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200214,ST-RES-2025-4-002,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200215,ST-COM-2026-6-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200216,ST-RES-2026-3-005,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200217,ST-RES-2026-3-006,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200218,ST-COM-2026-7-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200219,ST-COM-2026-8-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200220,ST-COM-2026-9-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200221,ST-COM-2026-10-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200222,ST-COM-2026-11-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200223,KN3658,,,39259,"PropID_Master id already held by another file",
+200226,COM-2005-616,1,,147103,"PropID_Master id already held by another file",decommissioned
+200227,COM-2001-193,1,,2070,"PropID_Master id already held by another file",
+200230,CON-IND-2000-2,3,,10508,"PropID_Master id already held by another file",
+200231,COM-2007-162,1,,2995,"PropID_Master id already held by another file",
+200232,RES-2006-1267,2,,50944,"PropID_Master id already held by another file",
+200233,RES-2015-4750,2,,55474,"PropID_Master id already held by another file",
+200235,RES-2001-4365,2,,115953,"PropID_Master id already held by another file",
+200239,COM-2011-162,1,,3665,"PropID_Master id already held by another file",
+200241,ST-COM-2026-12-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200247,ST-COM-2026-13-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200248,IND-1981-3,1,,18711,"PropID_Master id already held by another file",
+200250,COM-2002-2374,1,,2465,"PropID_Master id already held by another file",
+200251,RES-1993-3233,2,,41633,"PropID_Master id already held by another file",
+200255,ST-RES-2025-1-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200256,ST-RES-2025-1-002,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200257,ST-RES-2025-1-003,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200258,RES-2000-1741,2,,46599,"PropID_Master id already held by another file",
+200259,ST-RES-2025-1-004,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200260,ST-RES-2025-1-005,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200261,ST-RES-2025-1-006,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200262,ST-RES-2025-1-007,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200263,ST-RES-2025-1-008,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200264,ST-RES-2025-1-009,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200265,ST-RES-2025-1-010,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200266,ST-RES-2025-1-011,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200267,ST-RES-2025-1-012,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200268,ST-RES-2025-1-013,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200269,ST-RES-2025-1-014,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200270,ST-RES-2025-1-015,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200271,ST-RES-2025-1-016,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200272,ST-RES-2025-1-017,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200273,ST-RES-2025-1-018,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200274,ST-RES-2025-1-019,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200275,ST-RES-2025-1-020,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200277,CON-COM-1981-55,3,,7701,"PropID_Master id already held by another file",
+200278,COM-2002-2378,1,,2468,"PropID_Master id already held by another file",
+200279,COM-2002-1286,1,,160612,"PropID_Master id already held by another file",
+200282,RES-2001-1506,2,,47904,"PropID_Master id already held by another file",
+200283,RES-2000-4829,2,,47457,"PropID_Master id already held by another file",
+200284,RES-1987-776,1,,32782,"PropID_Master id already held by another file",
+200285,RES-1983-1144,1,,29571,"PropID_Master id already held by another file",
+200286,RES-2000-1400,2,,46477,"PropID_Master id already held by another file",
+200287,COM-1998-7,1,,1831,"PropID_Master id already held by another file",
+200288,ST-RES-2026-9-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200289,ST-RES-2026-9-002,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200290,ST-RES-2026-9-003,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200291,ST-RES-2026-9-004,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200292,COM-2001-741,1,,2236,"PropID_Master id already held by another file",
+200293,RES-RC-1988-73,1,,67654,"PropID_Master id already held by another file",
+200294,CON-IND-2024-207,3,,179753,"PropID_Master id already held by another file",
+200295,CON-RES-2003-11,3,,15311,"PropID_Master id already held by another file",
+200296,ST-COM-2026-16-001,"ST Registry",,,"ST file not in PropID_Master: should adopt mother/land file id",ST
+200379,RES-2026-3745,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+200558,RES-2026-3755,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+200609,RES-2026-3756,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+200646,RES-2026-3758,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+201863,RES-2026-3849,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+203983,RES-2026-3859,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+204319,RES-2026-3877,2,260457,297296,"PropID_Master id already held by another file","merger; decommissioned; has parent_prop_id"
+204614,RES-2026-3899,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+204674,RES-2026-3909,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+205110,RES-2026-3953,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+205153,RES-2026-3955,2,"281046,281047",298235,"PropID_Master id already held by another file","merger; decommissioned; successor of decommissioned; has parent_prop_id"
+205465,RES-2026-3959,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+205728,RES-2026-3962,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+205959,RES-2026-3963,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+206635,COM-2026-385,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+207064,IND-2026-239,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+207637,COM-2026-386,1,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+207672,RES-2026-4001,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT
+208132,RES-2026-4037,2,,,"OP/ToT file not in PropID_Master: should share partner id",OP/ToT

@@ -263,10 +263,10 @@ class InstrumentCaptureService
                 'party_3_nationality' => $parties['party_3']['nationality'],
                 'party_3_id_type' => $parties['party_3']['id_type'],
                 'party_3_id_number' => $parties['party_3']['id_number'],
-                'party_3_state' => $data['thirdPartyState'] ?? null,
-                'party_3_lga' => $data['thirdPartyLga'] ?? null,
-                'party_3_city' => $data['thirdPartyCity'] ?? null,
-                'party_3_district' => $data['coMortgagorDistrict'] ?? ($data['thirdPartyDistrict'] ?? null),
+                'party_3_state' => $data['coMortgagorState'] ?? null,
+                'party_3_lga' => $data['coMortgagorLga'] ?? null,
+                'party_3_city' => $data['coMortgagorLga'] ?? null,
+                'party_3_district' => $data['coMortgagorDistrict'] ?? null,
 
                 'party_4_name' => $parties['party_4']['name'],
                 'party_4_address' => $parties['party_4']['address'],
@@ -300,8 +300,8 @@ class InstrumentCaptureService
                 'plot_number' => $data['plotNumber'] ?? null,
                 'tp_no' => $data['tp_no'] ?? null,
                 'plot_size' => $data['size'] ?? ($data['plotSize'] ?? ($data['propertySize'] ?? null)),
-                'lga' => $data['lga'] ?? null,
-                'district' => $data['district'] ?? null,
+                'lga' => $this->postedLga($data),
+                'district' => $this->postedDistrict($data),
                 'land_use' => $data['land_use'] ?? null,
                 'purpose' => $data['purpose'] ?? null,
                 'land_use_id' => $data['land_use_id'] ?? null,
@@ -498,18 +498,20 @@ class InstrumentCaptureService
             'phone' => $data['secondPartyPhone'] ?? null
         ];
 
-        $p3City = $data['thirdPartyLga'] ?? ($data['thirdPartyCity'] ?? '');
-        $p3District = $data['coMortgagorDistrict'] ?? ($data['thirdPartyDistrict'] ?? '');
-        $p3Address = $data['thirdPartyAddress'] ?? ($data['coMortgagorAddress'] ?? null);
+        // Party 3 is the co-mortgagor: the form posts coMortgagorState / Lga.
+        // thirdParty* belongs to party 4 (the third party on a tripartite).
+        $p3City = $data['coMortgagorLga'] ?? '';
+        $p3District = $data['coMortgagorDistrict'] ?? '';
+        $p3Address = $data['coMortgagorAddress'] ?? null;
 
         if ($p3Address) {
-            $p3Address = trim($p3Address . ' ' . $p3District . ' ' . $p3City . ' ' . ($data['thirdPartyState'] ?? ''));
+            $p3Address = trim($p3Address . ' ' . $p3District . ' ' . $p3City . ' ' . ($data['coMortgagorState'] ?? ''));
         }
 
         $p3 = [
-            'name' => $data['coMortgagorName'] ?? ($data['thirdPartyName'] ?? null),
+            'name' => $data['coMortgagorName'] ?? null,
             'address' => $p3Address ?: null,
-            'phone' => $data['coMortgagorPhone'] ?? ($data['thirdPartyPhone'] ?? null)
+            'phone' => $data['coMortgagorPhone'] ?? null
         ];
 
         // Specifics logic based on report
@@ -533,12 +535,13 @@ class InstrumentCaptureService
         }
 
         // Normalize structure
-        $p4City = $data['party4Lga'] ?? ($data['party4City'] ?? '');
-        $p4District = $data['party4District'] ?? '';
-        $p4Address = $data['party4Address'] ?? null;
+        // Party 4 is the third party; its fields are posted as thirdParty*.
+        $p4City = $data['thirdPartyLga'] ?? ($data['party4Lga'] ?? '');
+        $p4District = $data['thirdPartyDistrict'] ?? ($data['party4District'] ?? '');
+        $p4Address = $data['thirdPartyAddress'] ?? ($data['party4Address'] ?? null);
 
         if ($p4Address) {
-            $p4Address = trim($p4Address . ' ' . $p4District . ' ' . $p4City . ' ' . ($data['party4State'] ?? ''));
+            $p4Address = trim($p4Address . ' ' . $p4District . ' ' . $p4City . ' ' . ($data['thirdPartyState'] ?? ($data['party4State'] ?? '')));
         }
 
         $p4 = [
@@ -784,8 +787,16 @@ class InstrumentCaptureService
             $primary = $mls ?? $kangis ?? $newKangis ?? $tempFileno;
 
             $propId = $existing->prop_id;
+
+            // Keep the registered prop_id unless the file number itself changed.
+            // Re-resolving it on every save moved edited instruments onto a
+            // different prop_id (Instrument Capture edit, 2026-10-22).
+            $sameFile = fn ($a, $b) => strcasecmp(trim((string) $a), trim((string) $b)) === 0;
+            $fileChanged = !$sameFile($mls, $existing->mlsFNo) || !$sameFile($kangis, $existing->kangisFileNo)
+                || !$sameFile($newKangis, $existing->NewKANGISFileno) || !$sameFile($tempFileno, $existing->temp_fileno);
+
             try {
-                if ($primary) {
+                if ($primary && (empty($propId) || $fileChanged)) {
                     $propId = $this->propIdService->allocateOrRetrievePropId(
                         $primary,
                         $mls,
@@ -865,10 +876,10 @@ class InstrumentCaptureService
                 'party_3_nationality' => $parties['party_3']['nationality'],
                 'party_3_id_type' => $parties['party_3']['id_type'],
                 'party_3_id_number' => $parties['party_3']['id_number'],
-                'party_3_state' => $data['thirdPartyState'] ?? ($existing->party_3_state ?? null),
-                'party_3_lga' => $data['thirdPartyLga'] ?? ($existing->party_3_lga ?? null),
-                'party_3_city' => $data['thirdPartyCity'] ?? ($existing->party_3_city ?? null),
-                'party_3_district' => $data['coMortgagorDistrict'] ?? ($data['thirdPartyDistrict'] ?? ($existing->party_3_district ?? null)),
+                'party_3_state' => $data['coMortgagorState'] ?? ($existing->party_3_state ?? null),
+                'party_3_lga' => $data['coMortgagorLga'] ?? ($existing->party_3_lga ?? null),
+                'party_3_city' => $data['coMortgagorLga'] ?? ($existing->party_3_city ?? null),
+                'party_3_district' => $data['coMortgagorDistrict'] ?? ($existing->party_3_district ?? null),
 
                 'party_4_name' => $parties['party_4']['name'],
                 'party_4_address' => $parties['party_4']['address'],
@@ -895,7 +906,11 @@ class InstrumentCaptureService
                 'solicitor_name' => $data['solicitorName'] ?? $existing->solicitor_name,
                 'solicitor_phone' => $data['solicitorPhone'] ?? $existing->solicitor_phone,
                 'solicitor_district' => (($data['solicitorDistrict'] ?? null) === 'Other' ? ($data['solicitorDistrictOther'] ?? $data['solicitorDistrictCustom'] ?? $existing->solicitor_district ?? null) : ($data['solicitorDistrict'] ?? ($existing->solicitor_district ?? null))),
-                'solicitor_address' => trim(($data['solicitorAddress'] ?? '') . ' ' . ($data['solicitorDistrict'] ?? '') . ' ' . ($data['solicitorLga'] ?? $data['solicitorCity'] ?? '') . ' ' . ($data['solicitorState'] ?? '')) ?: $existing->solicitor_address,
+                // Stored as posted, the rule updateSolicitor() follows: the form
+                // already composes the office address from district / LGA / state,
+                // and appending them again is what produced "... Nasarawa Kano
+                // Nasarawa Kano". Edit shows the stored address unchanged.
+                'solicitor_address' => trim((string) ($data['solicitorAddress'] ?? '')) ?: $existing->solicitor_address,
 
                 // Property
                 'property_description' => $data['propertyDescription'] ?? ($data['plotDescription'] ?? $existing->property_description),
@@ -903,8 +918,8 @@ class InstrumentCaptureService
                 'plot_number' => $data['plotNumber'] ?? $existing->plot_number,
                 'tp_no' => $data['tp_no'] ?? $existing->tp_no,
                 'plot_size' => $data['size'] ?? ($data['plotSize'] ?? ($data['propertySize'] ?? $existing->plot_size)),
-                'lga' => $data['lga'] ?? $existing->lga,
-                'district' => $data['district'] ?? $existing->district,
+                'lga' => $this->postedLga($data) ?? $existing->lga,
+                'district' => $this->postedDistrict($data) ?? $existing->district,
                 'land_use' => $data['land_use'] ?? $existing->land_use,
                 'purpose' => $data['purpose'] ?? ($existing->purpose ?? null),
                 'land_use_id' => $data['land_use_id'] ?? ($existing->land_use_id ?? null),
@@ -928,6 +943,17 @@ class InstrumentCaptureService
                 'updated_at' => now(),
                 'updated_by' => Auth::id(),
             ];
+
+            // Parties 3-5 are optional. Their State selects default to Kano even
+            // when the section is not in use, so with no name the location
+            // columns keep what the record already had.
+            foreach (['party_3', 'party_4', 'party_5'] as $optional) {
+                if (trim((string) ($parties[$optional]['name'] ?? '')) === '') {
+                    foreach (['state', 'lga', 'city', 'district'] as $part) {
+                        $updateData["{$optional}_{$part}"] = $existing->{"{$optional}_{$part}"} ?? null;
+                    }
+                }
+            }
 
             if ($this->hasInstrumentCaptureRegTimeColumn()) {
                 $updateData['reg_time'] = $data['registrationTime'] ?? ($data['reg_time'] ?? ($existing->reg_time ?? null));
@@ -956,6 +982,12 @@ class InstrumentCaptureService
                 ->update($updateData);
             app(OpSerialSynchronizer::class)->sync('instrument_capture', $id, $existing->op_serial_number ?? null);
 
+            $consentSync = $this->syncConsentParties(
+                $updateData['consent_application_id'] ?? ($existing->consent_application_id ?? null),
+                $existing,
+                $parties
+            );
+
             // Propagate name changes to core tables for specific instrument types (Deed of Assignment/Gift)
             $syncResult = $this->regService->syncPartyNames($primary, $instrumentType, $parties['party_2']['name'], [
                 'instrument_capture_id' => $id,
@@ -966,9 +998,61 @@ class InstrumentCaptureService
                 'success' => true,
                 'message' => 'Instrument updated successfully',
                 'id' => $id,
-                'sync_result' => $syncResult
+                'sync_result' => $syncResult,
+                'consent_sync' => $consentSync,
             ];
         });
+    }
+
+    /**
+     * Carry an edited party name over to the consent application this
+     * instrument was registered against (Assignment, Gift, Mortgage, ...).
+     *
+     * Party 1 is the consent's applicant (assignor / mortgagor / donor) and
+     * party 2 its party (assignee / mortgagee / donee) - 181 of the 182 linked
+     * rows matched exactly on 2026-10-22. Only a name this edit actually changed
+     * is copied, so an untouched name never overwrites the consent. Addresses
+     * are not copied: the consent holds the fuller, composed address.
+     *
+     * @return array<string, array{from: ?string, to: string}> what changed on the consent
+     */
+    private function syncConsentParties($consentId, object $existing, array $parties): array
+    {
+        if (empty($consentId)) {
+            return [];
+        }
+
+        $consent = DB::connection('sqlsrv')->table('consent_applications')->where('id', $consentId)->first();
+        if (!$consent) {
+            return [];
+        }
+
+        $map = [
+            'applicant_name' => [$existing->party_1_name ?? null, $parties['party_1']['name'] ?? null],
+            'party_name' => [$existing->party_2_name ?? null, $parties['party_2']['name'] ?? null],
+        ];
+
+        $changes = [];
+        foreach ($map as $column => [$before, $after]) {
+            $after = trim((string) $after);
+            if ($after === '' || $after === trim((string) $before) || $after === trim((string) ($consent->{$column} ?? ''))) {
+                continue;
+            }
+            $changes[$column] = ['from' => $consent->{$column} ?? null, 'to' => $after];
+        }
+
+        if ($changes) {
+            DB::connection('sqlsrv')->table('consent_applications')->where('id', $consentId)->update(
+                array_map(fn ($change) => $change['to'], $changes) + ['updated_at' => now()]
+            );
+            Log::info('Instrument edit synced party names to consent application', [
+                'consent_application_id' => $consentId,
+                'changes' => $changes,
+                'user_id' => Auth::id(),
+            ]);
+        }
+
+        return $changes;
     }
 
     /**
@@ -976,6 +1060,46 @@ class InstrumentCaptureService
      * Set by the duplicate-registration warning when the user picks one of the
      * file's consents, so a spent consent can be greyed out next time.
      */
+    /**
+     * The property's LGA. The survey section posts `lga`; the property section
+     * posts its own multi-select as desc_lga[], which the form requires but
+     * nothing used to store, so a capture that filled only that one lost its
+     * LGA (e.g. instrument_capture 40438). The survey value wins when both are
+     * set.
+     */
+    /**
+     * The property's district, on the same terms as postedLga(): the survey
+     * section's `district` wins, else the property section's desc_district
+     * (the form swaps "Others" for the typed name before posting). Captures
+     * that filled only the property section stored no district at all
+     * (e.g. instrument_capture 40448, "AIRFORCE KWA").
+     */
+    private function postedDistrict(array $data): ?string
+    {
+        foreach (['district', 'desc_district'] as $key) {
+            $value = trim((string) ($data[$key] ?? ''));
+            if ($value !== '' && strcasecmp($value, 'Others') !== 0 && strcasecmp($value, 'Select District') !== 0) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function postedLga(array $data): ?string
+    {
+        $lga = trim((string) ($data['lga'] ?? ''));
+        if ($lga !== '') {
+            return $lga;
+        }
+
+        $desc = $data['desc_lga'] ?? null;
+        $desc = is_array($desc) ? $desc : ($desc === null ? [] : [$desc]);
+        $desc = array_values(array_filter(array_map(fn ($v) => trim((string) $v), $desc), fn ($v) => $v !== ''));
+
+        return $desc ? implode(', ', $desc) : null;
+    }
+
     private function resolveConsentApplicationId(array $data, $fallback = null): ?int
     {
         $raw = $data['consent_application_id'] ?? null;

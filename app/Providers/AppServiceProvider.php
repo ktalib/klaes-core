@@ -58,6 +58,9 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerPermissionDirectives();
 
+        // File-tracking notifications are mirrored to the KLAES FTM app as push notifications.
+        \App\Models\Notification::observe(\App\Observers\NotificationPushObserver::class);
+
         // Only set default string length for MySQL connections
         if (config('database.default') === 'mysql') {
             Schema::defaultStringLength(191);

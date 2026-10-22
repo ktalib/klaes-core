@@ -1588,6 +1588,9 @@ class ApplicationController extends Controller
                         'land_use' => $resolvedLandUse,
                         'purpose' => $purpose,
                         'is_updated' => 1,
+                        // The indexing row needs its own prop_id too; this raw insert bypasses the model hook.
+                        'prop_id' => $ffrFirstPraPropId ?: app(\App\Services\PropertyIdAllocationService::class)
+                            ->resolveOwnPropId($sourceFileNo),
                         'created_by' => $userId,
                         'updated_by' => $userId,
                         'created_at' => $now,

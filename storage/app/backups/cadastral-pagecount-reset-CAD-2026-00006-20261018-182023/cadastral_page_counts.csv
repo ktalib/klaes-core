@@ -1,0 +1,3 @@
+id,cadastral_case_id,step,direction,pages,dms_pages,recorded_by,recorded_at,created_at,updated_at
+8,20072,registry_to_land,out,20,0,1,"2026-10-18 17:58:39.353","2026-10-18 17:58:39.353","2026-10-18 17:58:39.353"
+9,20072,registry_receive_back,back,30,0,1,"2026-10-18 18:00:04.653","2026-10-18 18:00:04.653","2026-10-18 18:00:04.653"

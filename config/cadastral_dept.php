@@ -11,8 +11,9 @@
 | moves a case along it. Change routing here, not in code;
 | tests/Unit/CadastralDept/WorkflowDefinitionTest checks the graph.
 |
-| Registration is not a step: the Registry intake form opens the case and sends
-| it straight to D Cad, so every workflow starts at dc_review.
+| Registration opens the case at registry_intake, already sent to the Head of Registry
+| (AD CAD Registry > Approval); only the head sends it on to D Cad (client, 2026-10-16:
+| "how can the file be sent to D Cad from Registry without AD Registry approval").
 |
 | A step is one stop of the main file at one desk:
 |   phase     phase number from the doc
@@ -36,6 +37,14 @@
 */
 
 $p1Review = fn (string $notRecommended, bool $ddcBackToDcad = true) => [
+    // The registered file waits for the Head of Registry, who sends it to D Cad (client, 2026-10-16).
+    'registry_intake' => [
+        'phase' => 1, 'desk' => 'registry', 'label' => 'Registered; Head of Registry approves and sends it to D Cad',
+        'menu_label' => 'Send to D Cad',
+        // Step 0 on the step bar, before the user's 28 steps from (1) D Cad (user, 2026-10-18).
+        'step_zero' => true,
+        'next' => 'dc_review',
+    ],
     'dc_review' => [
         'phase' => 1, 'desk' => 'director_cadastral', 'label' => 'Recommend or not recommend',
         'question' => 'Recommend this file?', 'menu_label' => 'Recommend',
@@ -89,8 +98,8 @@ $compensation = [
 $sharedTail = [
     // Phase 2 (end): D Cad receives the file and sends it to the GIS Unit.
     'dc_buffer' => [
-        'phase' => 2, 'desk' => 'director_cadastral', 'label' => 'Receive the file; send to the Cadastral GIS Unit for the buffer check',
-        'question' => 'Send the file on for the buffer check?', 'menu_label' => 'GIS Unit or return',
+        'phase' => 2, 'desk' => 'director_cadastral', 'label' => 'Receive the file; send to the Cadastral GIS Unit for the buffer analysis',
+        'question' => 'Send the file on for the buffer analysis?', 'menu_label' => 'GIS Unit or return',
         'outcomes' => [
             'to_gis' => ['label' => 'Send to the GIS Unit', 'next' => 'gis_buffer'],
             'rejected' => ['label' => 'Rejected (Government acquisition): send back to Registry', 'next' => 'registry_return', 'reason' => true],
@@ -98,22 +107,26 @@ $sharedTail = [
     ],
     // GIS staff do the check; the head of the GIS Unit sends the file to KAMMA or Physical Planning.
     'gis_buffer' => [
-        'phase' => 2, 'desk' => 'cadastral_gis', 'label' => 'Buffer check: within 10 km of the city centre?',
-        'question' => 'Within the 10 km buffer from the city centre?', 'menu_label' => 'Buffer check',
+        'phase' => 2, 'desk' => 'cadastral_gis', 'label' => 'Buffer analysis: within 10 km of the city centre?',
+        'question' => 'Within the 10 km buffer from the city centre?', 'menu_label' => 'Buffer analysis',
         'outcomes' => [
             'inside_10km' => ['label' => 'Inside 10 km: send to KAMMA', 'next' => 'kamma_advice'],
             'outside_10km' => ['label' => 'Outside 10 km: send to Physical Planning', 'next' => 'ppd_advice'],
         ],
     ],
     // Phase 3: Planning Advice.
+    // The Planning Advice (with the field comments, on the JSI) is uploaded when the file comes
+    // back, so the next desks can view or download it (transcript, 2026-10-16; PlanningAdvice).
     'kamma_advice' => [
         'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA/Physical Planning)',
         'external' => true, 'recorded_by' => 'director_cadastral',
+        'tasks' => ['planning_advice_uploaded' => 'Planning Advice uploaded'],
         'next' => 'perm_sec_review',
     ],
     'ppd_advice' => [
         'phase' => 3, 'desk' => 'physical_planning', 'label' => 'Planning Advice (Physical Planning)',
         'external' => true, 'recorded_by' => 'director_cadastral',
+        'tasks' => ['planning_advice_uploaded' => 'Planning Advice uploaded'],
         'next' => 'perm_sec_review',
     ],
     'perm_sec_review' => [
@@ -132,6 +145,10 @@ $sharedTail = [
     ],
     'registry_to_land' => [
         'phase' => 4, 'desk' => 'registry', 'label' => 'Detach and archive correspondence file, send main file to Land',
+        'label_no_correspondence' => 'Send main file to Land',
+        // The main file's page count going out (recording, 2026-10-18; PageCounts).
+        'page_count' => 'out',
+        // The pages are counted before the correspondence file is detached (client, 2026-10-18).
         'tasks' => ['correspondence_detached' => 'Correspondence file detached and archived'],
         'next' => 'land_processing',
     ],
@@ -141,8 +158,16 @@ $sharedTail = [
         'next' => 'registry_receive_back',
     ],
     'registry_receive_back' => [
-        'phase' => 4, 'desk' => 'registry', 'label' => 'Receive main file back, attach correspondence file',
-        'tasks' => ['correspondence_attached' => 'Correspondence file attached'],
+        'phase' => 4, 'desk' => 'registry', 'label' => 'Receive main file back, update DMS, attach correspondence file',
+        'label_no_correspondence' => 'Receive main file back, update DMS',
+        // The count coming back; more pages than went out triggers the DMS update.
+        'page_count' => 'back',
+        // In this order (client, 2026-10-18): count the pages, update DMS, then attach.
+        'tasks' => [
+            // The file came back with signed pages: scan them into EDMS and page-type them (transcript, 2026-10-16).
+            'edms_updated' => 'DMS updated: new pages scanned and page-typed',
+            'correspondence_attached' => 'Correspondence file attached',
+        ],
         'next' => 'dc_survey',
     ],
     // Phase 5: Survey instruction and execution.
@@ -215,6 +240,7 @@ $sharedTail = [
     ],
     'registry_dispatch' => [
         'phase' => 7, 'desk' => 'registry', 'label' => 'Archive correspondence file, send main file to Deeds (Bill Balance)',
+        'label_no_correspondence' => 'Send main file to Deeds (Bill Balance)',
         'tasks' => ['correspondence_detached' => 'Correspondence file detached and archived'],
         // Send to Deeds is the last action, after the detach, and checks the file is complete.
         'checks' => ['fmc', 'charting', 'correspondence', 'bill', 'detached'],
@@ -245,8 +271,8 @@ return [
         // No "AD Cadastral" desk: it is not a post; every AD heads a unit (user, 2026-10-16).
         // Final charting (updated workflow doc, 2026-10-15). No desk role yet: Cad - Records covers it.
         'ad_drawing' => ['label' => 'Asst. Director Drawing & Charting', 'short' => 'AD Drawing & Charting', 'internal' => true, 'post' => 'AD_DRAW_CHART', 'head' => 'AD Drawing & Charting'],
-        // The Cadastral GIS Unit does the buffer check (transcript, 2026-10-16).
-        'cadastral_gis' => ['label' => 'Cadastral GIS Unit', 'short' => 'GIS Unit', 'internal' => true, 'post' => 'CAD_GIS', 'head' => 'Head of GIS Unit'],
+        // The Cadastral GIS Unit does the buffer analysis (transcript, 2026-10-16); its head is AD GIS (sidebar, 2026-10-16).
+        'cadastral_gis' => ['label' => 'Cadastral GIS Unit', 'short' => 'GIS Unit', 'internal' => true, 'post' => 'CAD_GIS', 'head' => 'AD GIS'],
 
         'compensation_unit' => ['label' => 'Compensation Unit (Survey Dept)', 'short' => 'Compensation', 'internal' => false],
         'dsg' => ['label' => 'Deputy Director Survey (DSG)', 'short' => 'DSG', 'internal' => false],
@@ -277,7 +303,7 @@ return [
         'ad_report' => 'Cad - Report',
         'ad_pnd' => 'Cad - P&D',
         'cadastral_gis' => 'Cad - GIS',
-        'ad_drawing' => 'Cad - Drawing & Charting',   // role row: manual/2026_10_15_cadastral_drawing_charting_role.sql (not yet run)
+        'ad_drawing' => 'Cad - Drawing & Charting',   // role row: manual/2026_10_15_cadastral_drawing_charting_role.sql (run 2026-10-21)
     ],
     'verification_role' => 'Cad - Verification',
 
@@ -300,11 +326,18 @@ return [
         // Attach Land File, Detach Correspondence and Send to Deeds stay row-menu actions.
         'registry' => ['group' => 'Registry', 'entries' => [
             'approval' => ['label' => 'Approval', 'awaiting_head' => true],
+            // DMS Update (sidebar, 2026-10-20): files back from Land with new pages.
+            'dms_scan' => ['label' => 'Scan More', 'dms' => 'scan'],
+            'dms_pages' => ['label' => 'More Pages', 'dms' => 'type'],
         ]],
-        // D Cad and DD Cad are one link each (user, 2026-10-11): the table's Status column
-        // shows what each file needs, and the row menu groups a decision into one item.
-        'director_cadastral' => ['group' => 'D Cad', 'entries' => []],
-        'deputy_director_cadastral' => ['group' => 'DD Cad', 'entries' => []],
+        // D Cad and DD Cad: "Recommend" (was "Approval", user 2026-10-18; sidebar, WhatsApp image 2026-10-16 5.38 PM), every file at
+        // the desk, since each waits for the director's decision; the Status column shows which.
+        'director_cadastral' => ['group' => 'D Cad', 'entries' => [
+            'approval' => ['label' => 'Recommend'],
+        ]],
+        'deputy_director_cadastral' => ['group' => 'DD Cad', 'entries' => [
+            'approval' => ['label' => 'Recommend'],
+        ]],
         'ad_information' => ['group' => 'Cadastral Information', 'entries' => [
             // 'all' => ['label' => 'All files at AD Cad Info'],   // hidden from the sidebar for now (user, 2026-10-12)
             'fmc' => ['label' => 'File Movement Card (FMC)', 'tasks' => ['fmc_commissioned']],
@@ -336,25 +369,32 @@ return [
             'approval' => ['label' => 'Approval', 'awaiting_head' => true],
         ]],
         'cadastral_gis' => ['group' => 'GIS Unit', 'entries' => [
-            'buffer' => ['label' => 'Buffer Check', 'steps' => ['gis_buffer']],
+            'buffer' => ['label' => 'Buffer Analysis', 'steps' => ['gis_buffer']],
             'approval' => ['label' => 'Approval', 'awaiting_head' => true],
         ]],
     ],
 
     /*
     | File types offered at intake, per application type. Verification can be on
-    | any file type. Under Direct Allocation only OP asks for a sub-type; every other
-    | Direct file takes the Direct route (user's answer, 2026-10-10). `tenure`
-    | preselects Statutory / Customary when the file is registered for Verification.
+    | any file type; it first asks Conversion or Direct Allocation and then lists that
+    | group's file types (the `workflows` each type belongs to). Per type (user's voice
+    | note, 2026-10-20):
+    |   `tenure`  Statutory / Customary under Verification: fixed, null = asked, false = not
+    |             asked or stored (DCIV/LPCC, user 2026-10-20).
+    |   `route`   Resettlement / Direct: 'direct_allocation' = fixed Direct, 'ask' = asked
+    |             (OP only), null = none (Conversion File). Under Direct Allocation it is the
+    |             file's sub-type; under Verification its allocation_route.
     */
     'file_types' => [
-        'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary'],
-        'quarry' => ['label' => 'Quarry File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary'],
-        'sit' => ['label' => 'SIT File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary'],
-        'gkn' => ['label' => 'GKN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory'],
-        'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory'],
-        'op' => ['label' => 'OP File', 'workflows' => ['direct', 'verification'], 'asks_sub_type' => true, 'tenure' => 'statutory'],
-        'dciv' => ['label' => 'DCIV/LPCC File', 'workflows' => ['conversion', 'direct', 'verification']],
+        // Conversion (Customary): Conversion File, Quarry, SIT and DCIV/LPCC. Direct Allocation
+        // (Statutory): GKN, Misc KN, DCIV/LPCC and OP (user's sidebar doc, 2026-10-20).
+        'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => null],
+        'quarry' => ['label' => 'Quarry File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => 'direct_allocation'],
+        'sit' => ['label' => 'SIT File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
+        'dciv' => ['label' => 'DCIV/LPCC File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => false, 'route' => 'direct_allocation'],
+        'gkn' => ['label' => 'GKN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
+        'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
+        'op' => ['label' => 'OP File', 'workflows' => ['direct', 'verification'], 'asks_sub_type' => true, 'tenure' => 'statutory', 'route' => 'ask'],
         // LPCC is the same file type as DCIV (user, 2026-10-15): one DCIV/LPCC File option.
     ],
 
@@ -380,7 +420,7 @@ return [
         'conversion' => [
             'label' => 'Conversion',
             'short' => 'Conversion',
-            'applies_to' => 'Conversion, Quarry, SIT, and DCIV/LPCC files under Conversion',
+            'applies_to' => 'Customary – Conversion Files, Quarry File, SIT File and DCIV/LPCC',
             'colour' => 'yellow',
             'icon' => 'repeat',
             'phases' => [
@@ -392,7 +432,7 @@ return [
                 6 => 'Survey Examination & Final Charting',
                 7 => 'Billing & Final Handoff',
             ],
-            'start' => 'dc_review',
+            'start' => 'registry_intake',
             'steps' => $p1Review('Not recommended') + [
                 'info_commission' => [
                     'phase' => 1, 'desk' => 'ad_information', 'label' => 'Commission the File Movement Card (FMC)',
@@ -403,7 +443,9 @@ return [
                     'phase' => 1, 'desk' => 'ad_report', 'label' => 'Charting, Land 12, Yes/No form, correspondence file',
                     'tasks' => [
                         'charted' => 'Charting card done (sheet charting is outside KLAES)',
-                        'land12' => 'Land 12 and Yes/No form',
+                        // Separate lines (transcript, 2026-10-16): Land 12, then the Yes/No form.
+                        'land12' => 'Land 12',
+                        'yes_no' => 'Yes/No form',
                         'correspondence_created' => 'Correspondence file created',
                     ],
                     'next' => 'compensation_check',
@@ -417,12 +459,11 @@ return [
         'direct' => [
             'label' => 'Direct Allocation',
             'short' => 'Direct',
-            'applies_to' => 'Direct Allocation, GKN, Misc KN, and DCIV/LPCC files under Direct Allocation: Resettlement or Direct',
+            'applies_to' => 'Statutory – Direct Allocation Files, GKN File, Misc KN File and DCIV/LPCC (if they fall under the purview of Direct Allocation): Resettlement or Direct Allocation',
             'colour' => 'blue',
             'icon' => 'map-pin',
-            // Every Direct Allocation file chooses Resettlement or Direct at intake, not
-            // only OP files (user, 2026-10-12).
-            'asks_sub_type' => true,
+            // Only OP files choose Resettlement or Direct; GKN, Misc KN and DCIV/LPCC are Direct
+            // (user's voice note, 2026-10-20; file_types `route`).
             'sub_type_label' => 'Route',
             'sub_types' => [
                 'resettlement' => 'Resettlement',
@@ -438,7 +479,7 @@ return [
                 6 => 'Survey Examination & Final Charting',
                 7 => 'Billing & Final Handoff',
             ],
-            'start' => 'dc_review',
+            'start' => 'registry_intake',
             'steps' => $p1Review('Not recommended', false) + [
                 'info_commission' => [
                     'phase' => 1, 'desk' => 'ad_information', 'label' => 'Commission FMC, check layout plan, 1st charting',
@@ -453,7 +494,9 @@ return [
                     'phase' => 1, 'desk' => 'ad_report', 'label' => '2nd charting, Land 12, Yes/No form, correspondence file',
                     'tasks' => [
                         'chart_second' => '2nd charting done',
-                        'land12' => 'Land 12 and Yes/No form',
+                        // Separate lines (transcript, 2026-10-16): Land 12, then the Yes/No form.
+                        'land12' => 'Land 12',
+                        'yes_no' => 'Yes/No form',
                         'correspondence_created' => 'Correspondence file created',
                     ],
                     'route_by' => 'sub_type',
@@ -497,7 +540,7 @@ return [
                 2 => 'Charting Verification',
                 3 => 'File Return',
             ],
-            'start' => 'dc_review',
+            'start' => 'registry_intake',
             'steps' => $p1Review('Not recommended for verification') + [
                 'info_commission' => [
                     'phase' => 2, 'desk' => 'ad_information', 'label' => 'Commission FMC, check charting information',
@@ -526,6 +569,7 @@ return [
                 ],
                 'registry_return_requester' => [
                     'phase' => 3, 'desk' => 'registry', 'label' => 'Detach correspondence file, return main file to requester',
+                    'label_no_correspondence' => 'Return main file to requester',
                     'tasks' => ['correspondence_detached' => 'Correspondence file detached'],
                     'checks' => ['detached'],
                     'action_label' => 'Return main file to requester',

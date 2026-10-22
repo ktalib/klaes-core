@@ -89,6 +89,9 @@ class PlotExtensionController extends Controller
         // Which sidebar raised this. Both open the same register, and until this
         // column existed only the page title knew the difference.
         $data['source_module'] = \App\Support\ParcelUpdateSource::fromRequest($request);
+        // "File Already Decommissioned Before" — read from the records, not chosen.
+        $data['previously_decommissioned'] = app(\App\Services\PlotWorkflowService::class)
+            ->decommissionedBeforeAnswer([$data['file_no'] ?? null]);
 
         $record = PlotExtensionApplication::create($data);
 
@@ -135,6 +138,8 @@ class PlotExtensionController extends Controller
 
         $data = $validator->validated();
         $data['updated_by'] = Auth::id();
+        $data['previously_decommissioned'] = app(\App\Services\PlotWorkflowService::class)
+            ->decommissionedBeforeAnswer([$data['file_no'] ?? $record->file_no]);
 
         $record->update($data);
 

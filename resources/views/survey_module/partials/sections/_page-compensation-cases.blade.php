@@ -294,6 +294,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>S/N</th>
                         <th>Case No</th>
                         <th>Project</th>
                         <th>Location</th>
@@ -307,6 +308,7 @@
                 <tbody>
                     @forelse ($cases as $c)
                         <tr>
+                            <td>{{ $cases->firstItem() + $loop->index }}</td>
                             <td>
                                 <strong>{{ $c->case_ref }}</strong>
                                 <div style="font-size:11px;color:var(--gray-500);">
@@ -338,7 +340,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                            <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                                 <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                                 @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
                                     No cases match these filters.

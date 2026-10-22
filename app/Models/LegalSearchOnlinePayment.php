@@ -12,6 +12,12 @@ class LegalSearchOnlinePayment extends Model
     // (alongside online_ls_users and online_ls_search_logs).
     protected $connection = 'sqlsrv';
 
+    /** KLAES REV-M: a confirmed portal payment is copied into Bill Master, as paid (PortalBillMirror). */
+    protected static function booted(): void
+    {
+        static::saved(fn ($row) => app(\App\Services\Billing\Modules\PortalBillMirror::class)->legalSearch($row));
+    }
+
     protected $fillable = [
         'reference',
         'tracking_id',

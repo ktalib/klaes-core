@@ -205,27 +205,27 @@
                     If you need to modify any information, you can go back to the relevant step using the buttons below:
                 </p>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" onclick="goToStep(1)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 gap-1">
+                    <button type="button" onclick="goToStep(2)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 gap-1">
                         <i data-lucide="user" class="h-3 w-3"></i>
                         Personal Details
                     </button>
-                    <button type="button" onclick="goToStep(2)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-purple-100 text-purple-700 hover:bg-purple-200 gap-1">
+                    <button type="button" onclick="goToStep(3)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-purple-100 text-purple-700 hover:bg-purple-200 gap-1">
                         <i data-lucide="phone" class="h-3 w-3"></i>
                         Contact Details
                     </button>
-                    <button type="button" onclick="goToStep(3)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-orange-100 text-orange-700 hover:bg-orange-200 gap-1">
+                    <button type="button" onclick="goToStep(4)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-orange-100 text-orange-700 hover:bg-orange-200 gap-1">
                         <i data-lucide="award" class="h-3 w-3"></i>
                         Title Holder
                     </button>
-                    <button type="button" onclick="goToStep(4)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-red-100 text-red-700 hover:bg-red-200 gap-1">
+                    <button type="button" onclick="goToStep(5)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-red-100 text-red-700 hover:bg-red-200 gap-1">
                         <i data-lucide="shield" class="h-3 w-3"></i>
                         Mortgage & Encumbrance
                     </button>
-                    <button type="button" onclick="goToStep(5)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-teal-100 text-teal-700 hover:bg-teal-200 gap-1">
+                    <button type="button" onclick="goToStep(1)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-teal-100 text-teal-700 hover:bg-teal-200 gap-1">
                         <i data-lucide="map-pin" class="h-3 w-3"></i>
                         Plot Details
                     </button>
-                    <button type="button" onclick="goToStep(6)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-indigo-100 text-indigo-700 hover:bg-indigo-200 gap-1">
+                    <button type="button" onclick="goToStep(7)" class="inline-flex items-center justify-center rounded-md font-medium text-xs px-3 py-1.5 transition-all cursor-pointer bg-indigo-100 text-indigo-700 hover:bg-indigo-200 gap-1">
                         <i data-lucide="credit-card" class="h-3 w-3"></i>
                         Payment & Terms
                     </button>

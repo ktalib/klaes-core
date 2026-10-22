@@ -153,6 +153,7 @@
                                 <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left whitespace-nowrap">File No</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                 <th class="px-4 py-3 text-left">File Title</th>
                                 <th class="px-4 py-3 text-left">Plots</th>
                                 <th class="px-4 py-3 text-left">Location</th>
@@ -163,6 +164,11 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
+                            @php
+                                // File numbers each application produced once commissioned.
+                                $newFileNos = app(\App\Services\ParcelUpdateNewFiles::class)
+                                    ->forApplications($records, 'Separation', fn ($r) => [$r->file_no]);
+                            @endphp
                             @forelse($records as $record)
                                 @php
                                     // Same conditions as this row's menu: KAMMA until approved;
@@ -174,6 +180,7 @@
                                     <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 text-slate-700 font-bold">{{ $record->applicant_name ?: '—' }}</td>
                                     <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no }}</td>
+                                    @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
                                     <td class="px-4 py-3 text-slate-600">{{ $record->file_title }}</td>
                                     <td class="px-4 py-3 text-slate-600">{{ $record->num_plots }}</td>
                                     <td class="px-4 py-3 text-slate-600 text-xs">
@@ -311,7 +318,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="px-4 py-10 text-center text-slate-400">No records found.</td>
+                                    <td colspan="11" class="px-4 py-10 text-center text-slate-400">No records found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -342,6 +349,9 @@
 
             <form id="create-form" class="flex-1 overflow-y-auto p-8">
                 @csrf
+                {{-- Which sidebar raised it: the form posts to a bare route URL, so
+                     without this field every capture was stamped Deeds. --}}
+                <input type="hidden" name="mode" value="{{ \App\Support\ParcelUpdateSource::normalise(request('mode')) }}">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="md:col-span-1">
                         <label class="block text-xs font-bold text-slate-600 uppercase mb-2">File No <span class="text-red-500">*</span></label>
@@ -689,7 +699,6 @@
     function updateLocationPreview(index) {
         const card = document.getElementById(`location_card_${index}`);
         if (!card) return;
-        const plot  = card.querySelector(`[name="location_details[${index}][plot_no]"]`)?.value  || '';
         const house = card.querySelector(`[name="location_details[${index}][house_no]"]`)?.value || '';
         let street  = card.querySelector(`[name="location_details[${index}][street_name]"]`)?.value || '';
         if (street.toUpperCase() === 'OTHER') street = card.querySelector(`[name="location_details[${index}][street_name_other]"]`)?.value || 'OTHER';
@@ -698,7 +707,6 @@
         const lga   = card.querySelector(`[name="location_details[${index}][lga]"]`)?.value   || '';
         const state = card.querySelector(`[name="location_details[${index}][state]"]`)?.value || '';
         const parts = [];
-        if (plot)     parts.push(plot);
         if (house)    parts.push(`House No. ${house}`);
         if (street)   parts.push(street);
         if (district) parts.push(district);
@@ -777,6 +785,7 @@
                 const data = result.data;
                 Swal.fire({
                     title: 'KAMMA/Physical Planning Handshake',
+                    allowOutsideClick: false, // typed input: a stray click must not discard it
                     html: `
                         <div class="text-left text-sm space-y-4 p-2">
                             <div class="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-4">
@@ -871,6 +880,7 @@
     async function openApprovalDecision(id, canApprove = true) {
         const result = await Swal.fire({
             title: 'Approval decision',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             text: canApprove ? 'Choose whether to approve or reject this application.' : 'The Master JSI is not approved, so only rejection is available.',
             input: 'radio',
             inputOptions: canApprove ? { approve: 'Approve', reject: 'Reject' } : { reject: 'Reject' },
@@ -920,6 +930,7 @@
     async function rejectRecord(id) {
         const { value: reason } = await Swal.fire({
             title: 'Reject Application',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             input: 'textarea',
             inputLabel: 'Reason for rejection',
             inputPlaceholder: 'Enter reason here...',
@@ -1053,4 +1064,5 @@
         'reject' => route('plot-separation.reject', '__ID__'),
     ],
 ])
+@include('partials.decommissioned_before', ['dbSource' => '#file_no'])
 @endsection

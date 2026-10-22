@@ -536,6 +536,7 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50/50 border-b border-slate-200 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                            <th class="px-4 py-3 whitespace-nowrap">S/N</th>
                             <th class="px-4 py-3 whitespace-nowrap">File Number</th>
                             <th class="px-4 py-3 text-center whitespace-nowrap">Plot No</th>
                             <th class="px-4 py-3 whitespace-nowrap">Location</th>
@@ -546,8 +547,9 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-[11px]">
-                        <template x-for="member in batchMembers" :key="member.id">
+                        <template x-for="(member, i) in batchMembers" :key="member.id">
                             <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-4 py-3 whitespace-nowrap text-slate-500" x-text="i + 1"></td>
                                 <td class="px-4 py-3 font-mono font-bold text-blue-600 whitespace-nowrap" x-text="member.full_file_number"></td>
                                 <td class="px-4 py-3 text-center font-mono whitespace-nowrap" x-text="member.plot_no || '—'"></td>
                                 <td class="px-4 py-3 text-slate-500 whitespace-nowrap" x-text="member.location"></td>

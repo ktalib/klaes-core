@@ -111,6 +111,23 @@ class PlotMergerController extends Controller
      * @param  array  $details  one entry of location_details_json
      * @param  int    $idx      the plot's 1-based position, used only for the fallback
      */
+    /**
+     * "File Already Decommissioned Before" for every source plot of a merger, read from
+     * the decommissioning records (see PlotWorkflowService::decommissionedBeforeAnswer()).
+     */
+    private static function decommissionedBefore(?string $fileNo, $locationDetails): ?string
+    {
+        $files = collect(is_array($locationDetails) ? $locationDetails : [])
+            ->map(fn ($d) => is_array($d) ? trim((string) ($d['source_file_no'] ?? '')) : '')
+            ->prepend(trim((string) $fileNo))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return app(\App\Services\PlotWorkflowService::class)->decommissionedBeforeAnswer($files);
+    }
+
     private static function sourceRow(array $details, int $idx, $size): array
     {
         $value = fn (string $key) => (isset($details[$key]) && trim((string) $details[$key]) !== '')
@@ -218,6 +235,8 @@ class PlotMergerController extends Controller
                     'type' => 'merger_source',
                 ]);
             }
+
+            $application->update(['previously_decommissioned' => self::decommissionedBefore($request->file_no, $locationDetails)]);
 
             DB::connection('sqlsrv')->commit();
 
@@ -412,6 +431,7 @@ class PlotMergerController extends Controller
                 }
             }
 
+            $payload['previously_decommissioned'] = self::decommissionedBefore($request->file_no ?: $record->file_no, $locationDetails);
             $record->update($payload);
 
             $added = 0;
@@ -471,6 +491,16 @@ class PlotMergerController extends Controller
     public function approve(int $id)
     {
         $record = PlotMergerApplication::findOrFail($id);
+
+        // The approval is given on the strength of the recommendation memo, so it
+        // cannot come before it (row menu and batch bar both post here).
+        if (!$record->recommendation_generated_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Generate the recommendation before approving this merger.',
+            ], 422);
+        }
+
         $record->update([
             'status' => PlotMergerApplication::STATUS_APPROVED,
             'updated_by' => Auth::id(),
@@ -609,10 +639,84 @@ class PlotMergerController extends Controller
                 ->where('application_type', 'merger')
                 ->pluck('source_file_no')
                 ->toArray();
-            return $record;
+            return self::withSourceLocation($record);
         });
 
         return response()->json(['success' => true, 'data' => $records]);
+    }
+
+    /**
+     * Fill the merger's own location from its source plots where it is blank.
+     *
+     * The capture form records location per SOURCE plot (plot_application_sizes) and
+     * leaves the application's district / LGA / state / street empty, so File
+     * Commissioning, which backfills from the application, came up blank. The plots
+     * being merged are adjacent, so the value most of them share is the merged plot's.
+     *
+     * The plot number is all of them: a merger of plots A and B commissions as
+     * "A and B" (three or more as "A, B and C" — the same form instrument capture
+     * writes for a merger's Transfer of Title). Only filled when the application
+     * has no plot number of its own. The house number is still not filled.
+     */
+    private static function withSourceLocation($record)
+    {
+        if (trim((string) ($record->plot_no ?? '')) === '') {
+            $plots = [];
+            $rows = DB::connection('sqlsrv')->table('plot_application_sizes')
+                ->where('application_id', $record->id)
+                ->where('application_type', 'merger')
+                ->orderBy('id')
+                ->pluck('plot_number');
+            foreach ($rows as $plot) {
+                $plot = trim((string) $plot);
+                // "Plot 1", "Plot 2" are the capture form's card labels saved when no
+                // plot number was typed, not plot numbers.
+                if ($plot === '' || $plot === '—' || preg_match('/^plot\s*\d+$/i', $plot)) {
+                    continue;
+                }
+                if (!isset($plots[strtoupper($plot)])) {
+                    $plots[strtoupper($plot)] = $plot;
+                }
+            }
+            $plots = array_values($plots);
+            if (count($plots) > 1) {
+                $last = array_pop($plots);
+                $record->plot_no = implode(', ', $plots) . ' and ' . $last;
+            } elseif (count($plots) === 1) {
+                $record->plot_no = $plots[0];
+            }
+        }
+
+        if (!self::sourceLocationReady()) {
+            return $record;
+        }
+
+        $fields = ['street_name', 'district', 'lga', 'state'];
+        $blank  = array_filter($fields, fn ($f) => trim((string) ($record->{$f} ?? '')) === '');
+        if (empty($blank)) {
+            return $record;
+        }
+
+        $sources = DB::connection('sqlsrv')->table('plot_application_sizes')
+            ->where('application_id', $record->id)
+            ->where('application_type', 'merger')
+            ->get($blank);
+
+        foreach ($blank as $field) {
+            $counts = [];
+            foreach ($sources as $row) {
+                $value = trim((string) ($row->{$field} ?? ''));
+                if ($value !== '') {
+                    $counts[$value] = ($counts[$value] ?? 0) + 1;
+                }
+            }
+            if (!empty($counts)) {
+                arsort($counts);
+                $record->{$field} = array_key_first($counts);
+            }
+        }
+
+        return $record;
     }
 
     public function findByFileNo(string $fileNo): JsonResponse
@@ -635,7 +739,7 @@ class PlotMergerController extends Controller
             ->pluck('source_file_no')
             ->toArray();
 
-        return response()->json(['success' => true, 'data' => $record]);
+        return response()->json(['success' => true, 'data' => self::withSourceLocation($record)]);
     }
 
     public function destroy(int $id): JsonResponse

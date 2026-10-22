@@ -213,5 +213,7 @@
   </div>
 </div>
 
-<!-- Include Global File Number Modal for Reassignment -->
-@include('components.global-fileno-modal')
+{{-- The file picker is NOT included here: every page that includes this dialog
+     (pagetyping, scan_uploads, filearchive) includes components.global-fileno-modal
+     itself. A second copy duplicated every picker id, and the manual-entry Apply
+     read both previews, turning RES-2010-1539 into RES-2010-1539- (2026-10-21). --}}

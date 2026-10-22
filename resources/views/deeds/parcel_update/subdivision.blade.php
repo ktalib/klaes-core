@@ -159,6 +159,7 @@
                                 <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left whitespace-nowrap">File No</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                 <th class="px-4 py-3 text-left">File Title</th>
                                 <th class="px-4 py-3 text-left">Plots</th>
                                 <th class="px-4 py-3 text-left">Location</th>
@@ -169,6 +170,11 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
+                            @php
+                                // File numbers each application produced once commissioned.
+                                $newFileNos = app(\App\Services\ParcelUpdateNewFiles::class)
+                                    ->forApplications($records, 'Subdivision', fn ($r) => [$r->file_no]);
+                            @endphp
                             @forelse($records as $record)
                                 @php
                                     // The batch obeys the same blockers as this row's menu.
@@ -178,6 +184,7 @@
                                     <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchBlockers['planning'], 'canApprove' => !$batchBlockers['decision'], 'canReject' => !$batchBlockers['decision']]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 text-slate-700 font-bold">{{ $record->applicant_name ?: '—' }}</td>
                                     <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no }}</td>
+                                    @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
                                     <td class="px-4 py-3 text-slate-600">{{ $record->file_title }}</td>
                                     <td class="px-4 py-3 text-slate-600">
                                         {{ $record->num_plots }}
@@ -287,7 +294,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="px-4 py-10 text-center text-slate-400">No records found.</td>
+                                    <td colspan="11" class="px-4 py-10 text-center text-slate-400">No records found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -1812,6 +1819,7 @@
                 const data = result.data;
                 Swal.fire({
                     title: 'KAMMA/Physical Planning Handshake',
+                    allowOutsideClick: false, // typed input: a stray click must not discard it
                     html: `
                         <div class="text-left text-sm space-y-4 p-2">
                             <div class="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-4">
@@ -1949,6 +1957,7 @@
     async function openApprovalDecision(id) {
         const result = await Swal.fire({
             title: 'Approval decision',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             text: 'Choose whether to approve or reject this application.',
             input: 'radio',
             inputOptions: { approve: 'Approve', reject: 'Reject' },
@@ -1992,6 +2001,7 @@
     async function rejectRecord(id) {
         const { value: reason } = await Swal.fire({
             title: 'Reject Application',
+            allowOutsideClick: false, // typed input: a stray click must not discard it
             input: 'textarea',
             inputLabel: 'Reason for rejection',
             inputPlaceholder: 'Enter reason here...',
@@ -2148,4 +2158,5 @@
     ],
 ])
 
+@include('partials.decommissioned_before', ['dbSource' => '#file_no'])
 @endsection

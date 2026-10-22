@@ -835,6 +835,7 @@ class MlsFileNoController extends Controller
                         'land_use' => $record->land_use ?? null,
                         'property_description' => $record->property_description ?? null,
                         'property_location' => $record->property_location ?? null,
+                        'merger_ops' => $this->mergerOpsFor($record->merger_group_id ?? null),
                     ],
                     'source' => 'instrument_capture',
                 ]);
@@ -955,6 +956,7 @@ class MlsFileNoController extends Controller
                     'land_use' => $praRecord->land_use ?? null,
                     'property_description' => $praRecord->property_description ?? null,
                     'property_location' => $praRecord->location ?? null,
+                    'merger_ops' => $this->mergerOpsFor($praRecord->merger_group_id ?? null),
                 ],
                 'source' => 'pra',
             ]);
@@ -978,6 +980,52 @@ class MlsFileNoController extends Controller
                 'message' => 'Unable to fetch temp file details.',
             ], 500);
         }
+    }
+
+    /**
+     * Every source OP of a merger set, oldest first. A merged file is commissioned
+     * from several OPs but remembers only one of them (mls_file_no.source_pra_id);
+     * the rest are reached through the shared pra.merger_group_id. Land mergers keep
+     * the same holder, so there is no Transfer of Title row to follow.
+     * Empty when the OP is not part of a merger.
+     */
+    private function mergerOpsFor($mergerGroupId): array
+    {
+        $group = trim((string) $mergerGroupId);
+        if ($group === '') {
+            return [];
+        }
+
+        $rows = DB::connection('sqlsrv')
+            ->table('pra')
+            ->where('merger_group_id', $group)
+            ->where('is_merger_op', 1)
+            ->where(function ($q) {
+                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->count() < 2) {
+            return [];
+        }
+
+        return $rows->map(function ($op) {
+            return [
+                'source_pra_id' => $op->id ?? null,
+                'prop_id' => $op->prop_id ?? null,
+                'temp_fileno' => $op->temp_fileno ?? null,
+                'op_type' => $op->op_type ?? null,
+                'op_serial_number' => $op->op_serial_number ?? null,
+                'registration_number' => $op->regNo ?? null,
+                'party_1_name' => $op->Grantor ?? ($op->party_1 ?? null),
+                'party_2_name' => $op->Grantee ?? ($op->party_2 ?? null),
+                'plot_number' => $op->plot_no ?? null,
+                'lga' => $op->lgsaOrCity ?? null,
+                'property_description' => $op->property_description ?? null,
+                'property_location' => $op->location ?? null,
+            ];
+        })->values()->all();
     }
 
     /**
@@ -2601,7 +2649,11 @@ class MlsFileNoController extends Controller
                     if (Schema::connection('sqlsrv')->hasColumn('decommissioned_files', 'successor_file_no')) {
                         $copDecommissionRow['successor_file_no'] = $fullFileNumber;
                     }
-                    DB::connection('sqlsrv')->table('decommissioned_files')->insert($copDecommissionRow);
+                    // A file already in decommissioned_files is never recorded again — its first
+                    // decommission stands (user rule, 2026-10-21).
+                    if (!app(\App\Services\PlotWorkflowService::class)->activeDecommissionRecord($originalFileNo)) {
+                        DB::connection('sqlsrv')->table('decommissioned_files')->insert($copDecommissionRow);
+                    }
 
                     // Try to fetch new tracking ID from grouping table if not provided
                     $trackingId = $validated['tracking_id'] ?? null;
@@ -4963,6 +5015,9 @@ class MlsFileNoController extends Controller
                 'location_entries.*.phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
                 'location_entries.*.address' => 'nullable|string|max:500',
                 'location_entries.*.gender' => 'nullable|string|in:Male,Female,Corporate,Joint',
+                // Per-file purpose (a duplex's stages carry different land uses); the
+                // batch-wide purpose_id is the fallback.
+                'location_entries.*.purpose_id' => 'nullable|integer',
                 // Batch-wide applicant gender, as picked once on the form; an entry's own
                 // gender wins. Never validated here before, so every batch file was
                 // commissioned with no gender at all.
@@ -5553,7 +5608,7 @@ class MlsFileNoController extends Controller
                         'file_option' => $validated['file_option'],
                         'batch_no' => $batchNo,
                         'created_by' => $commissionedBy,
-                        'purpose_id' => $validated['purpose_id'] ?? null,
+                        'purpose_id' => !empty($entry['purpose_id']) ? (int) $entry['purpose_id'] : ($validated['purpose_id'] ?? null),
                         'source' => $sourceValue,
                         'sub_source' => $validated['sub_source'] ?? null,
                         'system_sub_type' => $batchSystemSubType,

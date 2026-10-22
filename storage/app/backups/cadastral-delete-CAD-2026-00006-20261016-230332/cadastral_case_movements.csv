@@ -1,0 +1,3 @@
+id,cadastral_case_id,from_step,from_desk,to_step,to_desk,outcome,remarks,acted_by,acted_at,created_at,updated_at
+235,20071,NULL,registry,registry_intake,registry,registered,NULL,1,"2026-10-16 22:56:14.017","2026-10-16 22:56:14.023","2026-10-16 22:56:14.023"
+236,20071,registry_intake,registry,registry_intake,registry,to_head,NULL,1,"2026-10-16 22:56:14.027","2026-10-16 22:56:14.027","2026-10-16 22:56:14.027"

@@ -19,7 +19,15 @@ class FileDecommissioningController extends Controller
     private const ARCHIVE_NUMBER_COLUMNS = ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo'];
     private const FALSE_NUMBER_COLUMNS = ['mls_file_no', 'kangis_file_no', 'new_kangis_file_no'];
 
-    /** One current listing row per retired file; the complete archive remains untouched. */
+    /**
+     * One listing row per retired file; the complete archive remains untouched.
+     *
+     * A file has ONE decommissioning record: a later workflow only adds its successors
+     * to it (PlotWorkflowService::decommissionFiles). Files retired twice before that
+     * rule (CON-AG-2010-110, CON-COM-2022-216, RES-RC-1982-448) are listed by their
+     * FIRST record, the one that stands; resolveRelatedFiles() still shows the later
+     * records' successors on that row.
+     */
     private function archiveListingQuery()
     {
         $conn = \Illuminate\Support\Facades\DB::connection('sqlsrv');
@@ -35,7 +43,7 @@ class FileDecommissioningController extends Controller
                     ->orWhereNull('false_decommissioning');
             })
             ->select('decommissioned_files.*')
-            ->selectRaw("ROW_NUMBER() OVER (PARTITION BY {$identity} ORDER BY decommissioning_date DESC, id DESC) AS archive_rank");
+            ->selectRaw("ROW_NUMBER() OVER (PARTITION BY {$identity} ORDER BY decommissioning_date ASC, id ASC) AS archive_rank");
 
         return $conn->query()->fromSub($ranked, 'decommissioned_files')->where('archive_rank', 1);
     }
@@ -333,7 +341,7 @@ class FileDecommissioningController extends Controller
                     'id' => $row->id,
                     'file_no' => $fileNos ? implode('<br>', array_map('e', $fileNos)) : 'N/A',
                     'temp_file_no' => $this->renderTempFileNo($tempFileNos[$this->tempFileKey($row, self::ARCHIVE_NUMBER_COLUMNS)] ?? null),
-                    'related_file' => $this->renderRelatedFile($relatedFiles[$this->relatedFileKey($row)] ?? []),
+                    'related_file' => $this->renderRelatedFile($relatedFiles[$this->relatedFileKey($row)] ?? [], trim($row->mlsfNo ?? '') ?: trim($row->kangisFileNo ?? '')),
                     'prop_id' => $propId !== null && trim((string) $propId) !== '' ? trim((string) $propId) : '-',
                     'file_name' => trim($row->FileName ?? '') ?: 'N/A',
                     'commissioning_date' => $row->commissioning_date ? Carbon::parse($row->commissioning_date)->format('d M Y, h:i A') : 'N/A',
@@ -497,6 +505,23 @@ class FileDecommissioningController extends Controller
             $rfnRows = collect();
         }
 
+        // Successors from EVERY real decommissioning record of the page's files. The list
+        // shows one row per file (its first record), so a file retired twice before the
+        // one-record rule still shows the second record's successors here.
+        $allSuccessors = [];
+        if (!empty($allNumbers)) {
+            $query = \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('decommissioned_files')
+                ->where(function ($w) use ($allNumbers) {
+                    $w->whereIn('mls_file_no', $allNumbers)->orWhereIn('file_no', $allNumbers);
+                })
+                ->whereNotNull('successor_file_no');
+            foreach (\App\Support\DecommissionScope::real($query)->orderBy('id')->get(['mls_file_no', 'file_no', 'successor_file_no']) as $rec) {
+                foreach (array_unique(array_filter([$norm($rec->mls_file_no), $norm($rec->file_no)])) as $key) {
+                    $allSuccessors[$key] = trim(($allSuccessors[$key] ?? '') . ',' . $rec->successor_file_no, ',');
+                }
+            }
+        }
+
         foreach ($data as $row) {
             // The row's own identifiers (normalized) — used to pick the counterpart side
             // and to avoid echoing the row's own number back.
@@ -554,7 +579,13 @@ class FileDecommissioningController extends Controller
             // by PlotWorkflowService at decommissioning time) when related_file_number has
             // no entry for it, or to fill in a successor the staging sync hasn't caught yet.
             // May be a CSV list (a batch subdivision retires the mother into several children).
-            foreach (explode(',', (string) ($row->successor_file_no ?? '')) as $succ) {
+            $successorCsv = (string) ($row->successor_file_no ?? '');
+            foreach (array_keys($own) as $ownKey) {
+                if (!empty($allSuccessors[$ownKey])) {
+                    $successorCsv .= ',' . $allSuccessors[$ownKey];
+                }
+            }
+            foreach (explode(',', $successorCsv) as $succ) {
                 $succ = trim($succ);
                 if ($succ === '') {
                     continue;
@@ -689,9 +720,10 @@ class FileDecommissioningController extends Controller
 
     /**
      * Render the Related File cell: show the first number, and when there are more,
-     * a "+N" pill that reveals the rest inline on click (handled in the view).
+     * a "+N · view all" button that opens the full list in the shared New FileNo(s)
+     * modal (a subdivision can list well over 100 successors).
      */
-    private function renderRelatedFile(array $items): string
+    private function renderRelatedFile(array $items, string $fileNo = ''): string
     {
         if (empty($items)) {
             return '-';
@@ -705,8 +737,8 @@ class FileDecommissioningController extends Controller
 
         return '<div class="rel-file-cell flex flex-wrap items-center gap-1">'
             . '<span class="text-gray-700">' . $first . '</span>'
-            . '<button type="button" class="rel-more inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200" title="Show all related files">+' . count($rest) . '</button>'
-            . '<span class="rel-rest hidden text-gray-700">, ' . e(implode(', ', $rest)) . '</span>'
+            . '<button type="button" class="pu-newfiles-open inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200 whitespace-nowrap" title="Show all related files"'
+            . ' data-files="' . e(json_encode(array_values($items))) . '" data-from="' . e($fileNo) . '" data-title="Related Files">+' . count($rest) . ' &middot; view all ' . count($items) . '</button>'
             . '</div>';
     }
 

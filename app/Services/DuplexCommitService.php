@@ -418,6 +418,8 @@ class DuplexCommitService
                     'applicant_name' => $duplex->applicant_name,
                     'file_no'        => $primary,
                     'purpose'        => strtoupper((string) ($payload['new_land_use'] ?? '')),
+                    // The purpose within the land use, as the single page records it.
+                    'new_purpose'    => $this->stagePurpose($payload),
                     'land_use'       => FileNumberLandUse::codeFor((string) $primary) ?: (string) $duplex->land_use,
                     'district'       => $duplex->district,
                     'lga'            => $duplex->lga,
@@ -596,6 +598,8 @@ class DuplexCommitService
                 'district'         => $this->pick($entry, 'district', $duplex->district),
                 'phone_no'         => $this->pick($entry, 'phone_no', $duplex->phone),
                 'address'          => $this->pick($entry, 'address', $duplex->address),
+                // The Purpose picked for this file on the commissioning screen.
+                'purpose_id'       => $this->pick($entry, 'purpose_id', null),
                 'original_file_no' => $inputs[0],
             ]);
         }
@@ -618,6 +622,7 @@ class DuplexCommitService
                 'file_name' => $this->pick($entry, 'file_name', $plot['holder'] ?? ($duplex->file_title ?: $duplex->applicant_name)),
                 'phone_no'  => $this->pick($entry, 'phone_no', $duplex->phone),
                 'address'   => $this->pick($entry, 'address', $duplex->address),
+                'purpose_id' => $this->pick($entry, 'purpose_id', null),
                 // Left empty on purpose: the batch path mints a fresh unique tracking id
                 // for every entry, and reuses the grouping record's where one exists.
                 'tracking_id' => $this->pick($entry, 'tracking_id', null),
@@ -715,6 +720,9 @@ class DuplexCommitService
             throw new \RuntimeException("Stage {$stage->rank} (Change of Purpose) has no new land use.");
         }
 
+        // fileNo => purpose name, matched the same way as the land use.
+        $purposes = $this->changeOfPurposeTargets($stage, $payload, $inputs, 'new_purpose');
+
         // Results must come back in INPUT order, not changed-then-untouched: the stage's
         // file rows are stored in input order, and a later stage lines its inputs up
         // against them positionally.
@@ -736,6 +744,8 @@ class DuplexCommitService
                 'land_use'                  => $targetLandUse,
                 'original_file_no'          => $fileNo,
                 'change_of_purpose_app_id'  => $appId,
+                // Picked on the commissioning screen, else the purpose the APU captured.
+                'purpose_id'                => $this->pick($entry, 'purpose_id', $this->purposeIdFor($newLandUse, $purposes[$fileNo] ?? null)),
                 'tracking_id'               => $this->trackingIdFor($stage),
                 'file_name'                 => $this->pick($entry, 'file_name', $duplex->file_title ?: $duplex->applicant_name),
                 'plot_no'                   => $this->pick($entry, 'plotNo', $duplex->plot_no),
@@ -773,14 +783,17 @@ class DuplexCommitService
     protected function changeOfPurposeTargets(
         DuplexParcelUpdateStage $stage,
         array $payload,
-        array $inputs
+        array $inputs,
+        string $field = 'new_land_use'
     ): array {
         $rows = array_values((array) ($payload['cop_rows'] ?? []));
+        // Land-use codes are compared upper-case; a purpose name is kept as written.
+        $clean = fn ($v) => $field === 'new_land_use' ? strtoupper(trim((string) $v)) : trim((string) $v);
 
         // Captured before per-file purposes existed: one land use for every file the
         // stage applied to. Still commissioned exactly as it was captured.
         if (empty($rows)) {
-            $legacy = strtoupper((string) ($payload['new_land_use'] ?? ''));
+            $legacy = $clean($payload[$field] ?? '');
 
             if ($legacy === '') {
                 return [];
@@ -807,7 +820,7 @@ class DuplexCommitService
         $byName = [];
 
         foreach ($rows as $row) {
-            $landUse = strtoupper(trim((string) ($row['new_land_use'] ?? '')));
+            $landUse = $clean($row[$field] ?? '');
             $name    = trim((string) ($row['file_no'] ?? ''));
 
             if ($landUse === '' || $name === '') {
@@ -832,6 +845,41 @@ class DuplexCommitService
         }
 
         return $targets;
+    }
+
+    /** The stage's purpose name when it has one answer (legacy field, or every row agreeing). */
+    protected function stagePurpose(array $payload): ?string
+    {
+        $values = array_values(array_unique(array_filter(array_map(
+            fn ($r) => trim((string) ($r['new_purpose'] ?? '')),
+            (array) ($payload['cop_rows'] ?? [])
+        ))));
+
+        if (count($values) === 1) {
+            return $values[0];
+        }
+
+        $single = trim((string) ($payload['new_purpose'] ?? ''));
+
+        return ($values === [] && $single !== '') ? $single : null;
+    }
+
+    /** purposes.id for a purpose name under a land-use code (RES/COM/IND/AGR), or null. */
+    protected function purposeIdFor(string $landUseCode, ?string $purpose): ?int
+    {
+        $purpose = trim((string) $purpose);
+        if ($purpose === '') {
+            return null;
+        }
+
+        $code = ['AGR' => 'AG', 'AGRIC' => 'AG'][strtoupper($landUseCode)] ?? strtoupper($landUseCode);
+        $id = DB::connection('sqlsrv')->table('purposes as p')
+            ->join('prefix as x', 'x.land_use_id', '=', 'p.landuseid')
+            ->where('x.prefix', $code)
+            ->whereRaw('UPPER(LTRIM(RTRIM(p.name))) = ?', [strtoupper($purpose)])
+            ->value('p.id');
+
+        return $id ? (int) $id : null;
     }
 
     protected function callBatch(array $payload): array

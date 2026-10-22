@@ -230,7 +230,7 @@
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">OP Serial Number <span class="text-red-500">*</span></label>
-                                    <input type="text" required pattern="[1-9][0-9]*" maxlength="100" class="opSerialNum w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                                    <input type="text" required pattern="[1-9][0-9]*|0[0-9]{5}" maxlength="100" class="opSerialNum w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
                                         value="{{ $opRow->op_serial_number ?? '' }}" placeholder="Enter OP serial number">
                                 </div>
                                 <div>
@@ -581,7 +581,11 @@
                 volEl.addEventListener('input', function() { stripAndSync(this); });
             }
             if (opSerEl) {
-                opSerEl.value = _stripLeadingZeros(opSerEl.value || '');
+                // A system-generated serial (000001 .. 099999) loads as it is; only what an
+                // officer types is cleaned, so the stored serial is never rewritten on open.
+                if (!/^(?!0{6})0[0-9]{5}$/.test((opSerEl.value || '').trim())) {
+                    opSerEl.value = _stripLeadingZeros(opSerEl.value || '');
+                }
                 opSerEl.addEventListener('input', function() { this.value = _stripLeadingZeros(this.value); });
             }
             syncRegNumber();
@@ -670,7 +674,7 @@
                     if (!fileName) { Swal.fire('Required', 'File Nameis required.', 'warning'); return; }
                     if (!customerType) { Swal.fire('Required', 'Customer Type is required.', 'warning'); return; }
 
-                    if (!/^[1-9][0-9]*$/.test((opSerEl?.value || '').trim())) { Swal.fire('Required', 'Enter a valid OP Serial Number without leading zeros.', 'warning'); return; }
+                    if (!/^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/.test((opSerEl?.value || '').trim())) { Swal.fire('Required', 'Enter a valid OP Serial Number without leading zeros.', 'warning'); return; }
                     var opTypeEl = card.querySelector('.opTypeRadio:checked');
                     var payload = {
                         pra_id:             parseInt(praId),

@@ -226,7 +226,8 @@
 {{-- MODAL (create/edit) — not rendered in view-only mode --}}
 @unless($viewOnly)
 <div id="linkage-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
-    <div class="fixed inset-0 modal-backdrop transition-opacity duration-300" onclick="closeLinkageModal()"></div>
+    {{-- No click-to-close on the backdrop: a stray click would discard a half-filled linkage --}}
+    <div class="fixed inset-0 modal-backdrop transition-opacity duration-300"></div>
 
     <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 z-10 w-full max-w-[92%] lg:max-w-6xl max-h-[92vh] overflow-hidden flex flex-col transition-all duration-300 transform scale-95 opacity-0" id="modal-content">
 
@@ -1063,7 +1064,9 @@ function removeSubdivisionChild(index) {
 // Keep child state in sync with editable inputs so values survive re-renders
 function updateSubdivisionChildField(index, field, value) {
     const child = subdivisionChildren.find(c => c.index === index);
-    if (child) child[field] = value;
+    if (!child) return;
+    child[field] = value;
+    if (child.batch_filled?.includes(field)) child.batch_filled = child.batch_filled.filter(f => f !== field);
 }
 
 // Inject hidden unindexed_file_numbers[] inputs from the un-indexed picks (Merger cards / Subdivision children)
@@ -1116,6 +1119,38 @@ function csvImportBlock(mode) {
                     <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Import CSV
                 </button>
             </div>
+            <div class="border-t border-blue-100 pt-3 space-y-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="list-ordered" class="w-4 h-4 text-blue-600"></i>
+                    <span class="text-xs font-bold uppercase tracking-wider text-blue-700">Or Import by Range</span>
+                </div>
+                <p class="text-[11px] text-slate-500">For a whole batch: pick the MLS prefix and the first and last serial (up to 2,000 files). Each file back-fills from the MLS file number table; blank title, plot no., district and LGA take the batch's values from the first file that has them. Location is built from district + LGA.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                    <div class="sm:col-span-6">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Prefix</label>
+                        <select id="manual-range-prefix" onchange="updateManualRangeCount()" class="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs">
+                            <option value="">Loading prefixes…</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">From</label>
+                        <input type="number" id="manual-range-from" min="0" step="1" placeholder="487" oninput="updateManualRangeCount()"
+                               class="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs font-mono">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">To</label>
+                        <input type="number" id="manual-range-to" min="0" step="1" placeholder="686" oninput="updateManualRangeCount()"
+                               class="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs font-mono">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <button type="button" id="manual-range-import-btn" onclick="runManualRangeImport('${mode}')"
+                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition whitespace-nowrap">
+                            <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i> Import
+                        </button>
+                    </div>
+                </div>
+                <p id="manual-range-count" class="text-[11px] font-semibold text-slate-500"></p>
+            </div>
             <div id="manual-csv-report" class="hidden"></div>
         </div>
     `;
@@ -1152,22 +1187,7 @@ function runManualCsvImport(mode) {
             if (!r.ok) throw new Error(data.error || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Import failed.'));
             return data;
         })
-        .then(data => {
-            const imported = (data.rows || []).filter(row => row.status === 'indexed' || row.status === 'unindexed');
-            if (mode === 'subdivision') applySubdivisionCsv(imported);
-            else                       applyMergerCsv(imported);
-            renderCsvReport(data);
-
-            if (imported.length === 0) {
-                Swal.fire({ icon: 'warning', title: 'Nothing Imported', text: 'No usable file numbers were found. Check the highlighted rows.' });
-            } else {
-                Swal.fire({ icon: 'success', title: 'Import Complete',
-                    html: `<strong>${imported.length}</strong> file(s) added to the grid for review.` +
-                          ((data.summary.invalid + data.summary.duplicates) > 0
-                            ? `<br><span class="text-amber-600 text-sm">${data.summary.invalid} invalid · ${data.summary.duplicates} duplicate row(s) skipped.</span>` : ''),
-                    timer: 2600, showConfirmButton: false });
-            }
-        })
+        .then(data => applyManualImportResult(mode, data))
         .catch(err => {
             Swal.fire({ icon: 'error', title: 'Import Failed', text: err.message || 'Unable to process the CSV.' });
         })
@@ -1176,6 +1196,120 @@ function runManualCsvImport(mode) {
             if (input) input.value = '';
             if (window.lucide) window.lucide.createIcons();
         });
+}
+
+// Shared by the CSV import and the range import: push usable rows into the grid.
+function applyManualImportResult(mode, data) {
+    const imported = (data.rows || []).filter(row => row.status === 'indexed' || row.status === 'unindexed');
+    if (mode === 'subdivision') applySubdivisionCsv(imported);
+    else                       applyMergerCsv(imported);
+    renderCsvReport(data);
+
+    if (imported.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'Nothing Imported', text: 'No usable file numbers were found. Check the highlighted rows.' });
+    } else {
+        const batchFilled = imported.filter(r => (r.batch_filled || []).length).length;
+        Swal.fire({ icon: 'success', title: 'Import Complete',
+            html: `<strong>${imported.length}</strong> file(s) added to the grid for review.` +
+                  (batchFilled ? `<br><span class="text-sky-700 text-sm">${batchFilled} filled from batch file ${data.batch_source}.</span>` : '') +
+                  ((data.summary.invalid + data.summary.duplicates) > 0
+                    ? `<br><span class="text-amber-600 text-sm">${data.summary.invalid} invalid · ${data.summary.duplicates} duplicate row(s) skipped.</span>` : ''),
+            timer: 3200, showConfirmButton: false });
+    }
+}
+
+// ─── IMPORT BY RANGE (PREFIX-FROM … PREFIX-TO, handled like a CSV) ───────────
+const MANUAL_RANGE_MAX = 2000;
+let manualRangePrefixes = null; // fetched once per page load
+
+function loadManualRangePrefixes() {
+    const select = document.getElementById('manual-range-prefix');
+    if (!select) return;
+
+    const fill = list => {
+        select.innerHTML = '<option value="">Select prefix…</option>' + list.map(p => `<option value="${p}">${p}</option>`).join('');
+        if (typeof $ !== 'undefined' && $.fn.select2) {
+            const $s = $(select);
+            if ($s.data('select2')) $s.select2('destroy');
+            $s.select2({ placeholder: 'Select prefix…', allowClear: true, width: '100%', dropdownAutoWidth: true })
+              .on('change', updateManualRangeCount);
+        }
+    };
+
+    if (manualRangePrefixes) { fill(manualRangePrefixes); return; }
+    fetch(`{{ route('admin.manual-linkage.range-prefixes') }}`, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => { manualRangePrefixes = data.prefixes || []; fill(manualRangePrefixes); })
+        .catch(() => { select.innerHTML = '<option value="">Could not load prefixes — reload the page</option>'; });
+}
+
+function updateManualRangeCount() {
+    const out    = document.getElementById('manual-range-count');
+    const prefix = document.getElementById('manual-range-prefix')?.value || '';
+    const fromV  = document.getElementById('manual-range-from')?.value;
+    const toV    = document.getElementById('manual-range-to')?.value;
+    if (!out) return;
+    if (!prefix || fromV === '' || toV === '') { out.textContent = ''; return; }
+
+    const from = parseInt(fromV, 10), to = parseInt(toV, 10);
+    if (isNaN(from) || isNaN(to) || to < from) {
+        out.className = 'text-[11px] font-semibold text-red-600';
+        out.textContent = '"To" must be the same as or higher than "From".';
+        return;
+    }
+    const count = to - from + 1;
+    out.className = 'text-[11px] font-semibold ' + (count > MANUAL_RANGE_MAX ? 'text-red-600' : 'text-slate-600');
+    out.textContent = `${prefix}-${from} → ${prefix}-${to} · ${count.toLocaleString()} file(s)` +
+        (count > MANUAL_RANGE_MAX ? ` — the limit is ${MANUAL_RANGE_MAX.toLocaleString()}` : '');
+}
+
+function runManualRangeImport(mode) {
+    const prefix = document.getElementById('manual-range-prefix')?.value || '';
+    const from   = parseInt(document.getElementById('manual-range-from')?.value, 10);
+    const to     = parseInt(document.getElementById('manual-range-to')?.value, 10);
+
+    if (!prefix)                 { Swal.fire({ icon: 'warning', title: 'Prefix Required', text: 'Select the file number prefix first.' }); return; }
+    if (isNaN(from) || isNaN(to)) { Swal.fire({ icon: 'warning', title: 'Range Required', text: 'Enter both the "From" and "To" serial numbers.' }); return; }
+    if (to < from)               { Swal.fire({ icon: 'warning', title: 'Invalid Range', text: '"To" must be the same as or higher than "From".' }); return; }
+    if (to - from + 1 > MANUAL_RANGE_MAX) {
+        Swal.fire({ icon: 'warning', title: 'Range Too Large', text: `A range can hold at most ${MANUAL_RANGE_MAX.toLocaleString()} files.` });
+        return;
+    }
+
+    const btn = document.getElementById('manual-range-import-btn');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="animate-pulse">Fetching…</span>'; }
+
+    const fd = new FormData();
+    fd.append('prefix', prefix);
+    fd.append('from', from);
+    fd.append('to', to);
+    fd.append('mode', mode);
+    fd.append('_token', '{{ csrf_token() }}');
+
+    fetch(`{{ route('admin.manual-linkage.range-import') }}`, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    })
+        .then(async r => {
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(data.error || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Import failed.'));
+            return data;
+        })
+        .then(data => applyManualImportResult(mode, data))
+        .catch(err => {
+            Swal.fire({ icon: 'error', title: 'Import Failed', text: err.message || 'Unable to fetch the range.' });
+        })
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+            if (window.lucide) window.lucide.createIcons();
+        });
+}
+
+// Small "from batch" tag shown beside a value filled from another file in the range
+function batchTag(source) {
+    return `<span class="ml-1 px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[8px] font-bold uppercase tracking-wider align-middle" title="Blank on this file — taken from ${source || 'the batch'}">from batch</span>`;
 }
 
 function applySubdivisionCsv(rows) {
@@ -1191,6 +1325,8 @@ function applySubdivisionCsv(rows) {
             plot_size:       d.plot_size || '',
             survey_plan_no:  d.survey_plan_no || '',
             unindexed:       !r.indexed,
+            batch_filled:    r.batch_filled || [],
+            batch_source:    r.batch_source || '',
         });
     });
     renderSubdivisionChildren();
@@ -1216,6 +1352,7 @@ function applyMergerCsv(rows) {
         const i = idx + 1;
         if (!r.indexed) markMergerCardUnindexed(i, r.file_number);
         applyMergerCsvExtras(i, r.details || {});
+        markMergerCardBatchFilled(i, r.batch_filled || [], r.batch_source);
     });
 
     // Plot sizes from the CSV → size inputs + total
@@ -1232,6 +1369,16 @@ function applyMergerCsv(rows) {
     const currentLabel = document.getElementById('manual_current_plot_label');
     if (currentLabel) currentLabel.textContent = rows.length ? '1' : '0';
     if (window.lucide) window.lucide.createIcons();
+}
+
+function markMergerCardBatchFilled(i, fields, source) {
+    const card = document.getElementById(`manual_merger_location_card_${i}`);
+    if (!card || !fields.length) return;
+    const labels = { file_title: 'title', plot_number: 'plot no.', district: 'district', lga: 'LGA', state: 'state', location: 'location' };
+    const anchor = card.querySelector('.source-file-display');
+    if (!anchor) return;
+    anchor.insertAdjacentHTML('afterend',
+        `<span class="mt-0.5 w-fit">${batchTag(source)}<span class="text-[9px] text-sky-700 ml-1">${fields.map(f => labels[f] || f).join(', ')}</span></span>`);
 }
 
 function applyMergerCsvExtras(i, details) {
@@ -1307,14 +1454,14 @@ function renderSubdivisionChildren() {
             <div class="pl-8 space-y-3">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">File Title</label>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">File Title${(child.batch_filled || []).includes('file_title') ? batchTag(child.batch_source) : ''}</label>
                         <input type="text" name="children[${child.index}][file_title]" id="sub-child-title-input-${child.index}"
                                value="${child.file_title || ''}" placeholder="Auto-fills when file is selected"
                                oninput="updateSubdivisionChildField(${child.index}, 'file_title', this.value)"
                                class="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs font-semibold">
                     </div>
                     <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Plot No</label>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Plot No${(child.batch_filled || []).includes('plot_number') ? batchTag(child.batch_source) : ''}</label>
                         <input type="text" name="children[${child.index}][plot_number]"
                                value="${child.plot_number}" placeholder="e.g. 45A"
                                oninput="updateSubdivisionChildField(${child.index}, 'plot_number', this.value)"
@@ -1322,7 +1469,7 @@ function renderSubdivisionChildren() {
                     </div>
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Property Location</label>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Property Location${(child.batch_filled || []).includes('location') ? batchTag(child.batch_source) : ''}</label>
                     <input type="text" name="children[${child.index}][location]" id="sub-child-location-input-${child.index}"
                            value="${child.location || ''}" placeholder="Auto-fills when file is selected"
                            oninput="updateSubdivisionChildField(${child.index}, 'location', this.value)"
@@ -2181,6 +2328,7 @@ function renderTailoredForm() {
     fieldsContainer.innerHTML = html;
     if (window.lucide) window.lucide.createIcons();
     initManualSelect2(fieldsContainer);
+    loadManualRangePrefixes();
 }
 
 // ─── Badge Rendering (shared helper, called by DOMContentLoaded closures) ────
@@ -2397,8 +2545,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ── Form Submit ───────────────────────────────────────────────────────────
+    // Set once the user confirms; blocks a second click / Enter from posting the linkage twice
+    let linkageSubmitting = false;
+    const submitBtn = document.getElementById('btn-submit-linkage');
+    // Coming Back to this page from the browser cache must not leave the button locked
+    window.addEventListener('pageshow', () => {
+        linkageSubmitting = false;
+        if (submitBtn && submitBtn.dataset.originalHtml) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+            submitBtn.innerHTML = submitBtn.dataset.originalHtml;
+            if (window.lucide) window.lucide.createIcons();
+        }
+    });
+
     linkageForm.addEventListener('submit', function (e) {
         e.preventDefault();
+        if (linkageSubmitting) return;
 
         if (selectedWorkflow === 'Merger') {
             // Validate merged result is selected
@@ -2574,6 +2737,14 @@ document.addEventListener('DOMContentLoaded', function () {
             confirmButtonText:  finalizing ? 'Yes, Finalize & Decommission' : 'Yes, Backfill Linkage',
         }).then(result => {
             if (result.isConfirmed) {
+                if (linkageSubmitting) return;
+                linkageSubmitting = true;
+                if (submitBtn) {
+                    submitBtn.dataset.originalHtml = submitBtn.innerHTML;
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+                    submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+                }
                 injectUnindexedInputs();
                 linkageForm.submit();
             }
@@ -2581,4 +2752,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+@include('partials.decommissioned_before', ['dbSource' => '#sub-parent-hidden', 'dbAnchor' => '#sub-parent-file-no'])
+@include('partials.decommissioned_before', ['dbSource' => '#hidden-inputs-container input[name="old_file_numbers[]"]', 'dbAnchor' => '#selected-files-list'])
 @endsection

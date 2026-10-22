@@ -99,6 +99,8 @@ class PlotSeparationController extends Controller
                 // column existed only the page title knew the difference.
                 'source_module' => \App\Support\ParcelUpdateSource::fromRequest($request),
                 'file_no'        => $request->file_no,
+                // "File Already Decommissioned Before" — read from the records, not chosen.
+                'previously_decommissioned' => app(\App\Services\PlotWorkflowService::class)->decommissionedBeforeAnswer([$request->file_no]),
                 'file_title'     => $request->file_title,
                 'applicant_name' => $request->applicant_name,
                 'num_plots'      => $request->num_plots,

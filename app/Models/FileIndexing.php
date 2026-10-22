@@ -312,6 +312,18 @@ class FileIndexing extends Model
                 [$model->gender, $model->gender_source] = $inferred;
             }
         });
+
+        // Every indexed file carries its own prop_id. Paths that never set one (DCIV, GKN,
+        // unit indexing, commissioning) left ~1,800 rows NULL in October 2026 alone.
+        // Resolved from the row's OWN number only. See resolveOwnPropId. Creation only.
+        static::creating(function (FileIndexing $model) {
+            if ($model->prop_id !== null && $model->prop_id !== '') {
+                return;
+            }
+
+            $model->prop_id = app(\App\Services\PropertyIdAllocationService::class)
+                ->resolveOwnPropId($model->file_number, $model->temp_file_no, $model->parent_prop_id);
+        });
     }
 
     /** Every write path folds onto the client's four values. See GenderNormalizer. */

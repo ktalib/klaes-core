@@ -114,6 +114,7 @@
                 </div>
 
                 <!-- Statistics Section -->
+                @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
                 <div class="px-6 py-6 bg-gray-50 border-b border-gray-200">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <!-- Total Decommissioned Files Card -->
@@ -162,6 +163,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 <!-- Search Section -->
                 <div class="px-6 py-6 bg-gray-50 border-b border-gray-200">
@@ -860,4 +862,5 @@
             }
         });
     </script>
+@include('deeds.parcel_update.partials.file_list_modal')
 @endsection

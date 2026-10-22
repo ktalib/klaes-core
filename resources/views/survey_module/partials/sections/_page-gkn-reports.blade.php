@@ -58,10 +58,11 @@
     <div class="dash-card" style="margin-bottom:20px;">
         <div class="card-header"><h3>By Land Use</h3></div>
         <table>
-            <thead><tr><th>Land Use</th><th>Parcels</th><th>Area (Ha)</th></tr></thead>
+            <thead><tr><th>S/N</th><th>Land Use</th><th>Parcels</th><th>Area (Ha)</th></tr></thead>
             <tbody>
                 @foreach ($byLandUse as $row)
                     <tr>
+                        <td>{{ $loop->iteration }}</td>
                         <td>{{ $row->land_use }}</td>
                         <td>{{ number_format($row->total) }}</td>
                         <td>{{ number_format((float) $row->area, 2) }}</td>
@@ -76,12 +77,13 @@
     <div class="table-scroll">
         <table>
             <thead>
-                <tr><th>GKN No.</th><th>Title</th><th>Location</th><th>Land Use</th>
+                <tr><th>S/N</th><th>GKN No.</th><th>Title</th><th>Location</th><th>Land Use</th>
                     <th>Area (Ha)</th><th>Status</th><th>Registered</th></tr>
             </thead>
             <tbody>
                 @forelse ($rows as $g)
                     <tr>
+                        <td>{{ $rows->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $g->gkn_number }}</strong></td>
                         <td>{{ $g->title ?: '—' }}</td>
                         <td>{{ $g->property_location ?: '—' }}</td>
@@ -91,7 +93,7 @@
                         <td>{{ optional($g->created_at)->format('Y-m-d') ?: '—' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--gray-500);">
+                    <tr><td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
                         No GKN records match these filters.
                     </td></tr>
                 @endforelse

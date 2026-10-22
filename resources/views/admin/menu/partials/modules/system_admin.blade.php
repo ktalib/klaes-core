@@ -30,28 +30,6 @@
           </a>
         </div>
       @endif
-      {{-- Departments hidden from the sidebar for now; the routes and pages are untouched. --}}
-      {{--
-      @if($hasRole('Departments') || $hasRole('System Settings') || $hasRole('Supper Admin'))
-        <a href="{{ route('departments.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('departments.*') ? 'active' : '' }}">
-          <i data-lucide="building" class="h-4 w-4 text-slate-500"></i>
-          <span>Departments</span>
-        </a>
-      @endif
-      --}}
-
-      {{-- User Roles hidden from the sidebar for now; the routes and pages are untouched. --}}
-      {{--
-      @if($hasRole('User Roles') || $hasRole('System Settings') || $hasRole('Supper Admin'))
-        <a href="{{ route('user-roles.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('user-roles.*') ? 'active' : '' }}">
-          <i data-lucide="shield" class="h-4 w-4 text-slate-500"></i>
-          <span>User Roles</span>
-        </a>
-      @endif
-      --}}
-
       @if($hasRole('User Account'))
         <a href="{{ route('user-activity-logs.index') }}?url=admin"
           class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('user-activity-log.index') ? 'active' : '' }}">
@@ -79,6 +57,22 @@
           class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('users.index') ? 'active' : '' }}">
           <i data-lucide="user-cog" class="h-4 w-4 text-slate-500"></i>
           <span>User Account</span>
+        </a>
+      @endif
+
+      @if($hasRole('Departments') || $hasRole('System Settings') || $hasRole('Supper Admin'))
+        <a href="{{ route('departments.index') }}"
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('departments.*') ? 'active' : '' }}">
+          <i data-lucide="building" class="h-4 w-4 text-slate-500"></i>
+          <span>Departments</span>
+        </a>
+      @endif
+
+      @if($hasRole('User Roles') || $hasRole('System Settings') || $hasRole('Supper Admin'))
+        <a href="{{ route('user-roles.index') }}"
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('user-roles.*') ? 'active' : '' }}">
+          <i data-lucide="shield" class="h-4 w-4 text-slate-500"></i>
+          <span>User Roles</span>
         </a>
       @endif
 
@@ -165,6 +159,48 @@
               <span>{{ $smsSenderId }}</span>
             </a>
           @endforeach
+        </div>
+      @endif
+
+      @if($hasRole('System Settings') || $hasRole('Supper Admin'))
+        <a href="{{ route('information-products.verification') }}"
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('information-products.verification') ? 'active' : '' }}">
+          <i data-lucide="scan-line" class="h-4 w-4 text-slate-500"></i>
+          <span>Verify QRCode</span>
+        </a>
+
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
+          data-section="klaesMobileApps">
+          <div class="flex items-center gap-2">
+            <i data-lucide="smartphone" class="h-4 w-4 text-slate-500"></i>
+            <span>KLAES Mobile Apps</span>
+          </div>
+          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="klaesMobileApps"></i>
+        </div>
+        @php
+          $mobileAppSlug = request()->routeIs('system-admin.mobile-apps.*') ? optional(request()->route('mobileApp'))->slug : null;
+        @endphp
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 {{ $mobileAppSlug ? '' : 'hidden' }}" data-content="klaesMobileApps">
+          <a href="{{ route('system-admin.mobile-apps.show', 'file-tracking') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $mobileAppSlug === 'file-tracking' ? 'active' : '' }}">
+            <i data-lucide="folder-search" class="h-4 w-4 text-slate-500"></i>
+            <span>File Tracking Mobile App</span>
+          </a>
+          <a href="{{ route('system-admin.mobile-apps.show', 'valuation-compensation') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $mobileAppSlug === 'valuation-compensation' ? 'active' : '' }}">
+            <i data-lucide="calculator" class="h-4 w-4 text-slate-500"></i>
+            <span>Valuation for Compensation Mobile App</span>
+          </a>
+          <a href="{{ route('system-admin.mobile-apps.show', 'special-assignment') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $mobileAppSlug === 'special-assignment' ? 'active' : '' }}">
+            <i data-lucide="briefcase" class="h-4 w-4 text-slate-500"></i>
+            <span>Special Assignment Mobile App</span>
+          </a>
+          <a href="{{ route('system-admin.mobile-apps.show', 'survey') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $mobileAppSlug === 'survey' ? 'active' : '' }}">
+            <i data-lucide="map" class="h-4 w-4 text-slate-500"></i>
+            <span>Survey Mobile App</span>
+          </a>
         </div>
       @endif
     </div>

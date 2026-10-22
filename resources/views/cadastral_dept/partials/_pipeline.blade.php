@@ -7,6 +7,8 @@
 @php
   $cdC = $c ?? 'blue';
   $cdN = count($pipeline);
+  // Numbered from 0 when the first step is step zero (Registry intake, user 2026-10-18).
+  $cdBase = ! empty(($pipeline[0] ?? [])['zero']) ? 0 : 1;
 @endphp
 <div class="overflow-x-auto pb-1">
   <ol class="flex items-start w-full" style="min-width: {{ $cdN * 64 }}px;">
@@ -40,12 +42,12 @@
             <i data-lucide="flag" class="w-4 h-4"></i>
           </span>
         @else
-          <span class="relative z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white border-2 border-gray-300 text-xs font-bold text-gray-400">{{ $loop->iteration }}</span>
+          <span class="relative z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white border-2 border-gray-300 text-xs font-bold text-gray-400">{{ $loop->index + $cdBase }}</span>
         @endif
 
         <span class="mt-1 px-0.5 text-xs leading-tight
                      {{ $cdP['state'] === 'current' ? 'font-bold text-' . $cdC . '-800' : ($cdP['state'] === 'done' ? 'font-semibold text-gray-700' : 'text-gray-400') }}">
-          {{ $cdIsEnd ? $cdP['label'] : $cdP['desk'] }}
+          {!! $cdIsEnd ? e($cdP['label']) : str_replace('/', '/<wbr>', e($cdP['desk'])) !!}
         </span>
       </li>
     @endforeach

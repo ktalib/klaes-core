@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FileIndexing;
 use App\Models\FileTracker;
 use App\Services\EBulkSmsService;
+use App\Services\FileTracking\FileQrResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,11 +57,43 @@ class MobileTrackerController extends Controller
             ], 422);
         }
 
-        $identifier = trim($request->input('qr_code'));
+        // A file picked from a multi-match prompt (see the 409 below) wins over the raw scan.
+        $identifier = trim((string) ($request->input('file_number') ?: $request->input('qr_code')));
+        $resolvedFileNumber = null;
+        $unresolvedMessage = null;
 
-        $tracker = FileTracker::where('tracking_id', $identifier)
-            ->orWhere('file_number', $identifier)
-            ->first();
+        $tracker = $this->findTracker($identifier);
+
+        // Not a bare tracking ID / file number: decode it the way File Movement
+        // (Department) does, so every KLAES QR (tracking-sheet JSON, KLAES-Q1 tokens,
+        // /verify-file/ URLs, pipe text, search reports, COP-/CON- slips, ...) works.
+        if (!$tracker) {
+            $resolved = app(FileQrResolver::class)->resolve($identifier);
+            $matches = $resolved['matches'];
+
+            if (count($matches) > 1) {
+                return response()->json([
+                    'success'      => false,
+                    'needs_choice' => true,
+                    'message'      => $resolved['message'] ?: 'This QR matches more than one file — pick the right one.',
+                    'matches'      => array_map(fn ($m) => [
+                        'file_number' => $m['file_number'],
+                        'file_title'  => $m['file_title'],
+                        'tracking_id' => $m['tracking_id'],
+                    ], $matches),
+                ], 409);
+            }
+
+            if ($matches) {
+                $resolvedFileNumber = $matches[0]['file_number'];
+                $tracker = ($matches[0]['tracking_id'] ? $this->findTracker($matches[0]['tracking_id']) : null)
+                    ?: $this->findTracker($resolvedFileNumber);
+                // From here on the file is known by its real number, not the raw payload.
+                $identifier = $resolvedFileNumber;
+            } else {
+                $unresolvedMessage = $resolved['message'];
+            }
+        }
 
         // If no tracker exists yet, try to auto-create from fileNumber / file_indexings
         if (!$tracker) {
@@ -72,6 +105,7 @@ class MobileTrackerController extends Controller
                       ->orWhereRaw('UPPER(NewKANGISFileNo) = ?', [$needle])
                       ->orWhereRaw('UPPER(kangisFileNo) = ?', [$needle])
                       ->orWhereRaw('UPPER(mlsfNo) = ?', [$needle])
+                      ->orWhere('st_file_no', $needle)
                       ->orWhereRaw('UPPER(FileName) = ?', [$needle]);
                 })
                 ->select(['id', 'tracking_id', 'NewKANGISFileNo', 'kangisFileNo', 'mlsfNo', 'FileName', 'type', 'application_id'])
@@ -79,15 +113,18 @@ class MobileTrackerController extends Controller
 
             if (!$fileRecord) {
                 return response()->json([
-                    'success' => false,
-                    'message' => "No file tracker found for: {$identifier}",
+                    'success'     => false,
+                    'file_number' => $resolvedFileNumber,
+                    'message'     => $resolvedFileNumber
+                        ? "File {$resolvedFileNumber} has no file tracker yet — log the file first."
+                        : ($unresolvedMessage ?? "No file tracker found for: {$identifier}"),
                 ], 404);
             }
 
-            $fileNumber = $fileRecord->NewKANGISFileNo
-                ?? $fileRecord->kangisFileNo
-                ?? $fileRecord->mlsfNo
-                ?? $identifier;
+            // The number the QR named, when there is one; a fileNumber row carries
+            // several numbers and the first non-empty column is not necessarily it.
+            $fileNumber = $resolvedFileNumber
+                ?: ($fileRecord->NewKANGISFileNo ?: ($fileRecord->kangisFileNo ?: ($fileRecord->mlsfNo ?: $identifier)));
 
             $knConfig   = config('NewKangisFTUnitsWorkFlow', []);
             $step1      = $knConfig[1] ?? ['to_code' => 'CS', 'to_name' => 'Commission Section'];
@@ -480,5 +517,22 @@ class MobileTrackerController extends Controller
             'next_office'         => $officeName,
             'workflow_step'       => $step,
         ]);
+    }
+
+    /**
+     * The newest tracker carrying this value as its tracking ID or file number.
+     * (Newest first: a file re-logged after a cancelled tracker has several.)
+     */
+    private function findTracker(?string $value): ?FileTracker
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        return FileTracker::where('tracking_id', $value)
+            ->orWhere('file_number', $value)
+            ->orderByDesc('id')
+            ->first();
     }
 }

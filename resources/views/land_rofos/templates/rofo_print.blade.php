@@ -71,6 +71,14 @@
             print-color-adjust: exact;
         }
 
+        /* Test switch: ?rofo-security-paper=1 (or rofo_security_paper=1) lays the
+           scanned stock under the letter, on screen and on paper, so a test print on
+           plain paper shows where the text falls against the stock's own artwork,
+           barcode and serial. Without the flag the layer stays off, as above. */
+        .page-container.with-security-paper .security-bg {
+            display: block;
+        }
+
         .content-wrapper {
             flex: 1;
             margin: 6mm 8mm 0 8mm;
@@ -737,6 +745,11 @@
         // a proof URL cannot become an official print.
         $isWhiteCopy    = !empty($isWhiteCopy);
 
+        // Test-print switch for the security paper background (see .with-security-paper).
+        // Never on a White Copy: a proof must not look like it is on security stock.
+        $showSecurityPaper = !$isWhiteCopy
+            && (request()->boolean('rofo-security-paper') || request()->boolean('rofo_security_paper'));
+
         $isReissuance   = request()->boolean('supersede');
         $reissueSource  = strtolower(trim((string) request('reissue_source', '')));
         // Every re-issued letter, KLAES or pre-KLAES, prints the full set: Original,
@@ -810,7 +823,8 @@
         // The White Copy is black & white by definition — it prints on ordinary
         // paper on whatever printer is nearest.
         $isBwCopy = $isWhiteCopy || in_array($version, ['Duplicate', 'Triplicate'], true);
-        $pageClass = ($isBwCopy ? ' copy-bw' : '') . ($isWhiteCopy ? ' white-copy' : '');
+        $pageClass = ($isBwCopy ? ' copy-bw' : '') . ($isWhiteCopy ? ' white-copy' : '')
+            . ($showSecurityPaper ? ' with-security-paper' : '');
     @endphp
     <!-- PAGE 1 – Signature line uses exact CSS technique, no double lines -->
         {{-- <div class="page-container" id="page1-{{ $index }}" style="{{ $index > 0 ? 'page-break-before: always;' : '' }} background-image: url('/assets/images/pages/backgrand.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat;">     --}}

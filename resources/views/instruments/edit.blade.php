@@ -51,63 +51,30 @@
 
                 @include('components.global-fileno-modal')
 
-                <!-- Templates for Instrument Types -->
-                <template id="template-power-of-attorney">
-                    @include('instruments.partials.types.simple-duration')
-                </template>
-                <template id="template-irrevocable-power-of-attorney">
-                    @include('instruments.partials.types.simple-duration')
-                </template>
-                <template id="template-occupancy-permit">
-                    @include('instruments.partials.types.simple-duration')
-                </template>
-                <template id="template-deed-of-mortgage">
-                    @include('instruments.partials.types.deed-of-mortgage')
-                </template>
-                <template id="template-tripartite-mortgage">
-                    @include('instruments.partials.types.tripartite-mortgage')
-                </template>
-                <template id="template-deed-of-assignment">
-                    @include('instruments.partials.types.deed-of-assignment')
-                </template>
-                <template id="template-deed-of-lease">
-                    @include('instruments.partials.types.deed-of-lease')
-                </template>
-                <template id="template-deed-of-sub-lease">
-                    @include('instruments.partials.types.deed-of-sub-lease')
-                </template>
-                <template id="template-deed-of-sub-division">
-                    @include('instruments.partials.types.deed-of-sub-division')
-                </template>
-                <template id="template-deed-of-merger">
-                    @include('instruments.partials.types.deed-of-merger')
-                </template>
-                <template id="template-deed-of-surrender-release">
-                    @include('instruments.partials.types.deed-of-surrender-release')
-                </template>
-                <template id="template-devolution-order">
-                    @include('instruments.partials.types.devolution-order')
-                </template>
-                <template id="template-deed-of-gift">
-                    @include('instruments.partials.types.deed-of-gift')
-                </template>
-                <!-- Sidebar Templates -->
-                <template id="template-deed-of-mortgage-sidebar">
-                    @include('instruments.partials.types.sidebars.tripartite-mortgage')
-                </template>
-                <template id="template-tripartite-mortgage-sidebar">
-                    @include('instruments.partials.types.sidebars.tripartite-mortgage')
-                </template>
-                <template id="template-deed-of-surrender-release-sidebar">
-                    @include('instruments.partials.types.sidebars.deed-of-surrender-release')
-                </template>
+                @include('instruments.partials.type_templates')
             </div>
         </div>
     </div>
 
     {{-- Scripts --}}
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+    {{-- Same config the capture page sets up: the TP lookup and the RDS / CoR links read it. --}}
+    <script>
+        window.InstrumentCaptureConfig = {
+            csrfToken: "{{ csrf_token() }}",
+            urls: {
+                tpLookupSearch: "{{ route('instruments.tpLookups.search') }}",
+                tpLookupStore: "{{ route('instruments.tpLookups.store') }}",
+                generateRds: "{{ url('instrument_registration/generate-rds') }}",
+                viewRds: "{{ url('instrument_registration/view-rds') }}",
+                printRds: "{{ url('instrument_registration/print-rds') }}",
+                generateCor: "{{ url('coroi/generate') }}",
+                viewCor: "{{ route('coroi.index') }}"
+            }
+        };
+    </script>
     <script src="{{ asset('js/instruments-capture.js') }}?v={{ time() }}"></script>
     <!-- Paints the Deeds workflow strip beside the file number. -->
     <script src="{{ asset('js/deeds-pipeline.js') }}?v={{ @filemtime(public_path('js/deeds-pipeline.js')) }}"></script>

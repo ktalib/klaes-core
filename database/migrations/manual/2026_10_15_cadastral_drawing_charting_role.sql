@@ -1,7 +1,7 @@
 -- Cadastral Department: AD Drawing & Charting desk role (updated workflow doc, 2026-10-15).
--- NOT YET RUN. Target: sqlsrv (klas @ 10.50.1.1). Idempotent: inserts only when missing.
+-- Run 2026-10-21 (user_roles id 10125). Target: sqlsrv (klas @ 10.50.1.1). Idempotent: inserts only when missing.
 -- Name matches config/cadastral_dept.php desk_roles.ad_drawing and the sidebar gate.
--- Until it runs, only Cad - Records / Supper Admin can work the desk.
+-- Before it ran, only Cad - Records / Supper Admin could work the desk.
 -- Grant per user by adding the name to users.assign_role (User Account screen).
 -- Undo: DELETE FROM user_roles WHERE department_id = 10 AND name = 'Cad - Drawing & Charting'
 --       after removing it from every users.assign_role.

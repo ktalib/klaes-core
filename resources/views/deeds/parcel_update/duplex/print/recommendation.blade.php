@@ -34,23 +34,11 @@
             : rtrim(rtrim(number_format($f, 2, '.', ','), '0'), '.');
     };
 
-    $sizesOf = function ($stage) use ($num) {
-        $list = collect((array) data_get($stage->payload, 'plots', []))
-            ->pluck('size')
-            ->filter(fn ($v) => $v !== null && $v !== '' && (float) $v > 0)
-            ->map(fn ($v) => (float) $v)
-            ->values();
-
-        if ($list->isEmpty()) {
-            return ['list' => '', 'total' => '', 'has' => false];
-        }
-
-        return [
-            'list'  => $list->map($num)->implode(' + '),
-            'total' => $num($list->sum()),
-            'has'   => true,
-        ];
-    };
+    // Repeated sizes are counted ("82 parcels of 450 m² each (total 36,900 m²)") rather
+    // than written out 82 times - the same summary the SPU memos print.
+    $sizesOf = fn ($stage) => \App\Support\ParcelSizeSummary::fromValues(
+        collect((array) data_get($stage->payload, 'plots', []))->pluck('size')
+    );
 
     /**
      * The parcels' dimensions, lettered, the way the Ministry's memo states them:
@@ -61,10 +49,13 @@
      * Sides, not a length and a width — these are surveyed polygons. Printed only for
      * the parcels that have them, so a stage captured before dimensions existed reads
      * exactly as it did before.
+     *
+     * Parcels with identical sides are stated once — "A – CD (82 parcels): 15.00m x
+     * 30.00m each." — so a large subdivision no longer runs the memo onto extra pages.
+     * Past Z the letters run on AA, AB, ...
      */
     $dimensionsOf = function ($stage) use ($num) {
-        $letters = range('A', 'Z');
-        $lines   = [];
+        $byIndex = [];
 
         foreach (array_values((array) data_get($stage->payload, 'plots', [])) as $i => $plot) {
             $sides = collect((array) ($plot['dimensions'] ?? []))
@@ -79,10 +70,10 @@
                 continue;
             }
 
-            $lines[] = ($letters[$i] ?? ($i + 1)) . ': ' . $sides->implode(' x ') . '.';
+            $byIndex[$i] = $sides->implode(' x ');
         }
 
-        return $lines;
+        return \App\Support\ParcelSizeSummary::groupedDimensionLines($byIndex);
     };
 
     // How many parcels each stage RECEIVES, walked forward through the chain. A merger
@@ -127,8 +118,9 @@
         $applies = count((array) data_get($stage->payload, 'applies_to', [])) ?: $plots;
         $size    = $sizesOf($stage);
 
-        // "of 1,500 + 2,000 + 3,000 m² (total 6,500 m²)" — appended wherever a parcel is named.
-        $sizePhrase = $size['has'] ? ' of ' . $size['list'] . ' m²' : '';
+        // "of 1,500 + 2,000 + 3,000 m²" / "of 450 m² each (total 36,900 m²)" — appended
+        // wherever a parcel is named.
+        $sizePhrase = $size['phrase'];
 
         // What this stage acts on, named where it is known.
         // Cast: sqlsrv hands rank back as a STRING, so a strict === 1 never matched and
@@ -151,7 +143,7 @@
             },
             'point' => match ($stage->type) {
                 'merger'      => 'Merger of ' . $actsOn
-                                 . ($size['has'] ? ' measuring ' . $size['list'] . ' m²' : '')
+                                 . $size['total_phrase']
                                  . ' into a single parcel in favour of ' . $applicant . '.',
                 'subdivision' => 'Subdivision of plot no. ' . Str::upper((string) ($duplex->plot_no ?: $title))
                                  . ' into ' . $plots . ' parcels' . $sizePhrase

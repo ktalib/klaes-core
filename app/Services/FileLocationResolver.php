@@ -126,7 +126,18 @@ class FileLocationResolver
         }
 
         // ── 0. Manual override set from the File Quick Search interface ──
-        if ($indexing && !empty($indexing->location_status_manual) && !empty($indexing->tracking_status)) {
+        //      Only while it is the newest word on the file. A tracker completed /
+        //      cancelled / logged back in AFTER the stamp outranks it: completing a
+        //      tracker does not touch the indexing row, so without this check a stamp
+        //      saying IN_TRANSIT outlived the file's return and blocked new requests
+        //      (RES-1991-814, 2026-10-16).
+        $manualIsStale = $indexing && $tracker
+            && !empty($indexing->location_status_manual)
+            && $this->isTerminalTrackerStatus($tracker->status)
+            && !empty($tracker->updated_at)
+            && strtotime((string) $tracker->updated_at) > strtotime((string) $indexing->location_status_manual);
+
+        if ($indexing && !$manualIsStale && !empty($indexing->location_status_manual) && !empty($indexing->tracking_status)) {
             $meta = $this->actionMetaFor($indexing->tracking_status, $this->indexingRegistry($indexing), $this->isDcivFile($indexing));
             return $this->result($fileNumber, $indexing->tracking_status, array_merge([
                 'current_location' => $indexing->current_location,

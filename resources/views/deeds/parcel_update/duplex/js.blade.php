@@ -56,6 +56,11 @@
 
     const blankEntry = () => ({ file_title: '', plot_no: '', district: '', lga: '' });
 
+    // Change of Purpose reference data — see purposeOptionsHtml() further down.
+    const PURPOSES_BY_USE = {};          // 'RES' -> ['HIGH DENSITY', ...]
+    const CURRENT_PURPOSE = {};          // file no -> its purpose today (or null)
+    const purposeLookups  = {};          // file no -> pending fetch
+
     // ---------------------------------------------------------------- helpers
     function post(url, body) {
         return fetch(url, {
@@ -77,6 +82,9 @@
     function icons() { if (window.lucide) window.lucide.createIcons(); }
 
     // ---------------------------------------------------------------- step 1
+    // Read by the "File Already Decommissioned Before" panel (partials.decommissioned_before).
+    window.dxSourceFiles = function () { return state.sources.map(function (s) { return s.fileNumber; }); };
+
     window.openDuplexWizard = function () {
         state.step = 1;
         state.sources = [];
@@ -96,6 +104,7 @@
         document.getElementById('dx-plot-no-main').value = '';
         document.getElementById('dx-district').value = '';
         document.getElementById('dx-lga').value = '';
+        syncDistrictWidget();
         updateAddressPreview();
         document.getElementById('dx-duplex-badge').classList.add('hidden');
 
@@ -154,12 +163,25 @@
         if (!window.GlobalFileNoModal) return toast('error', 'File selector unavailable');
 
         window.GlobalFileNoModal.open({
-            callback: function (picked) {
+            callback: async function (picked) {
                 const fileNumber = (picked.fileNumber || '').trim();
                 if (!fileNumber) return;
                 if (state.sources.some(s => s.fileNumber === fileNumber)) {
                     return toast('info', 'Already added', fileNumber + ' is already on this duplex.');
                 }
+
+                // One open duplex per file — the server refuses a second at save, so
+                // say so now rather than after the whole plan has been built.
+                try {
+                    const res = await fetch(`{{ route('duplex-parcel-update.open-for') }}?file_no=${encodeURIComponent(fileNumber)}`,
+                        { headers: { 'Accept': 'application/json' } }).then(r => r.json());
+                    if (res && res.data) {
+                        return toast('warning', 'Already on ' + res.data.duplex_id,
+                            fileNumber + ' is already on ' + res.data.duplex_id + ' (' + res.data.status + '). '
+                            + 'Open that duplex to continue it, or delete it before starting a new one.');
+                    }
+                } catch (e) { /* the save-time check still applies */ }
+
                 state.sources.push({ fileNumber, title: picked.file_title || '' });
 
                 syncEntriesToSources();
@@ -226,10 +248,85 @@
         const entry = state.entries[state.entries.length - 1];
         if (!entry) return;
 
-        if (!entry.district.trim()) entry.district = district || soleMatchIn('dx-district', where);
+        if (!entry.district.trim()) entry.district = district || soleMatchIn('dx-district-select', where);
         if (!entry.lga.trim())      entry.lga      = lga || soleMatchIn('dx-lga', where);
 
         renderEntry();
+    }
+
+    // ------------------------------------------------ district: search + Other
+    /*
+     | The district is picked from a searchable list (Select2) with exactly one "Other"
+     | that asks for the name. The value itself is held in the hidden #dx-district, so
+     | the entry, the address preview and the save all read one place regardless of
+     | which route it came by.
+     */
+    const DISTRICT_OTHER = '__OTHER__';
+    const normPlace = v => String(v || '').trim().replace(/\s+/g, ' ').toUpperCase();
+
+    function districtOptionFor(value) {
+        const sel = document.getElementById('dx-district-select');
+        const want = normPlace(value);
+        if (!sel || !want) return null;
+        return [...sel.options].find(o => o.value !== DISTRICT_OTHER && o.value && normPlace(o.value) === want) || null;
+    }
+
+    function initDistrictSelect2() {
+        const sel = document.getElementById('dx-district-select');
+        if (!sel || !window.jQuery || !jQuery.fn.select2 || jQuery(sel).hasClass('select2-hidden-accessible')) return;
+        jQuery(sel).select2({
+            width: '100%',
+            placeholder: '-- Select --',
+            dropdownParent: jQuery('#duplex-wizard'),
+        });     // the select's own onchange carries the value across
+    }
+
+    /** The officer changed the list or typed the Other name: write it to #dx-district. */
+    window.dxDistrictChanged = function () {
+        const sel   = document.getElementById('dx-district-select');
+        const other = document.getElementById('dx-district-other');
+        const hold  = document.getElementById('dx-district');
+        if (!sel || !hold) return;
+
+        const isOther = sel.value === DISTRICT_OTHER;
+        if (other) {
+            other.classList.toggle('hidden', !isOther);
+            other.disabled = !isOther || sel.disabled;
+            other.required = isOther;
+            if (!isOther) other.value = '';
+        }
+
+        if (isOther) {
+            // A name already on the list is that option, not a second spelling of it.
+            const match = districtOptionFor(other?.value);
+            hold.value = match ? match.value : normPlace(other?.value);
+        } else {
+            hold.value = sel.value;
+        }
+
+        dxEntryTouched();
+        updateAddressPreview();
+    };
+
+    /** Show #dx-district's value in the widgets (a list match, or Other + the name). */
+    function syncDistrictWidget() {
+        initDistrictSelect2();
+        const sel   = document.getElementById('dx-district-select');
+        const other = document.getElementById('dx-district-other');
+        const value = document.getElementById('dx-district')?.value || '';
+        if (!sel) return;
+
+        const match = districtOptionFor(value);
+        sel.value = !value ? '' : (match ? match.value : DISTRICT_OTHER);
+        if (other) {
+            const isOther = sel.value === DISTRICT_OTHER;
+            other.value = isOther ? value : '';
+            other.classList.toggle('hidden', !isOther);
+            other.disabled = !isOther || sel.disabled;
+        }
+        if (window.jQuery && jQuery(sel).hasClass('select2-hidden-accessible')) {
+            jQuery(sel).trigger('change.select2');     // repaint only, no change event
+        }
     }
 
     /** The one option named in a free-text location line, or nothing. */
@@ -241,6 +338,7 @@
 
         const hits = [...el.options]
             .map(o => o.value.trim())
+            .filter(v => v !== DISTRICT_OTHER)
             .filter(v => v.length >= 4
                 && haystack.includes(' ' + v.toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' '));
 
@@ -312,6 +410,7 @@
 
             el.value = entry[field] || '';
         });
+        syncDistrictWidget();
 
         document.getElementById('dx-entry-file').textContent =
             source ? source.fileNumber : '—';
@@ -659,17 +758,23 @@
               + ' class="swal2-input" style="margin:0 0 12px;width:100%" value="'
               + (entry.count && entry.count <= total ? entry.count : '') + '">';
 
+        const arrivingPurpose = laterCopCurrentPurpose(index);
+
         Swal.fire({
             icon: 'question',
             title: 'Change of Purpose',
             html: 'You pick <i>which</i> plots on the Stages step — they have no numbers yet.'
-                + '<div style="margin-top:16px;text-align:left;font-size:13px">'
+                + '<div data-cop-scope style="margin-top:16px;text-align:left;font-size:13px">'
                 + countField
                 + '<label style="display:block;font-weight:700;margin-bottom:4px">'
-                + 'They arrive as <span style="font-weight:400">' + arrivingLabel + '</span>. '
+                + 'They arrive as <span style="font-weight:400">' + arrivingLabel
+                + (arrivingPurpose ? ' · ' + arrivingPurpose : '') + '</span>. '
                 + 'What do they become?</label>'
-                + '<select id="dx-later-use" class="swal2-select" style="margin:0;width:100%">'
-                + '<option value="">— New purpose —</option>' + options + '</select>'
+                + '<select id="dx-later-use" class="swal2-select" style="margin:0 0 10px;width:100%" onchange="dxRefreshPurpose(this)">'
+                + '<option value="">— New land use —</option>' + options + '</select>'
+                + '<select id="dx-later-purpose" data-purpose-for="#dx-later-use" class="swal2-select" style="margin:0;width:100%"'
+                + (entry.new_land_use && purposeRequired(entry.new_land_use) ? '' : ' disabled') + '>'
+                + purposeOptionsHtml(entry.new_land_use, entry.new_purpose) + '</select>'
                 + '</div>',
             showCancelButton: true,
             confirmButtonText: 'Set',
@@ -683,18 +788,23 @@
                     ? total
                     : parseInt(document.getElementById('dx-later-count')?.value, 10);
                 const use = document.getElementById('dx-later-use')?.value || '';
+                const purpose = document.getElementById('dx-later-purpose')?.value || '';
 
                 if (!n || n < 1) return Swal.showValidationMessage('Enter how many plots change purpose.');
                 if (n > total) return Swal.showValidationMessage('Only ' + total + ' plots will exist.');
-                if (!use) return Swal.showValidationMessage('Pick the purpose those plots change to.');
+                if (!use) return Swal.showValidationMessage('Pick the land use those plots change to.');
+                if (purposeRequired(use) && !purpose) return Swal.showValidationMessage('Pick the new purpose.');
+                const same = copSameAsCurrent(arriving, arrivingPurpose, use, purpose);
+                if (same) return Swal.showValidationMessage(same);
 
-                return { count: n, use };
+                return { count: n, use, purpose };
             },
         }).then(r => {
             if (!r.isConfirmed) return dropLaterCop(index);
 
             entry.count = r.value.count;
             entry.new_land_use = r.value.use;
+            entry.new_purpose = r.value.purpose || '';
             entry.current_land_use = arriving || null;
             renderRanks();
         });
@@ -720,6 +830,20 @@
 
         const first = state.sources[0]?.fileNumber;
         return first ? landUseCode(first) : '';
+    }
+
+    /** laterCopCurrentUse()'s twin for the purpose within the land use. */
+    function laterCopCurrentPurpose(index) {
+        for (let i = index - 1; i >= 0; i--) {
+            const p = state.plan[i];
+            if (p.type === 'change_of_purpose') {
+                if (p.new_land_use) return normPurpose(p.new_purpose);
+                const rows = Array.isArray(p.cop_rows) ? p.cop_rows.filter(r => r.new_land_use) : [];
+                if (rows.length) return normPurpose(rows[0].new_purpose);
+            }
+        }
+
+        return normPurpose(currentPurposeOf(state.sources[0]?.fileNumber || ''));
     }
 
     /**
@@ -829,9 +953,19 @@
         if (!entry) return;
 
         const rows = copRows().slice();
-        rows[i] = Object.assign({}, rows[i], { new_land_use: value });
+        // A new land use offers its own purposes, so the old pick no longer applies.
+        rows[i] = Object.assign({}, rows[i], { new_land_use: value, new_purpose: '' });
         entry.cop_rows = rows;
         renderRanks();
+    };
+
+    window.onCopNewPurposeChange = function (i, value) {
+        const entry = copEntry();
+        if (!entry) return;
+
+        const rows = copRows().slice();
+        rows[i] = Object.assign({}, rows[i], { new_purpose: value });
+        entry.cop_rows = rows;
     };
 
     function renderCopTable() {
@@ -860,10 +994,12 @@
                 : '';
 
             const unknown = row.file_no && !row.current_land_use;
+            if (row.file_no) ensureCurrentPurpose(row.file_no);
+            const fileKey = String(row.file_no || '').trim().toUpperCase();
 
             return `
                 <div class="grid grid-cols-12 gap-2 items-center">
-                    <div class="col-span-5">
+                    <div class="col-span-3">
                         <select onchange="onCopFileChange(${i}, this.value)"
                             class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
                             <option value="">— Select file —</option>
@@ -876,14 +1012,23 @@
                             class="w-full px-3 py-2 rounded-xl border text-xs font-semibold
                                    ${unknown ? 'border-amber-200 bg-amber-50 text-amber-700 italic'
                                              : 'border-slate-200 bg-slate-50 text-slate-600'}">
+                        <p class="text-[10px] font-semibold text-slate-500 mt-0.5 px-1 truncate"
+                           data-cur-purpose-for="${fileKey}">${currentPurposeOf(fileKey)}</p>
                     </div>
-                    <div class="col-span-3">
+                    <div class="col-span-2">
                         <select onchange="onCopPurposeChange(${i}, this.value)"
                             class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
-                            <option value="">— New purpose —</option>
+                            <option value="">— Land use —</option>
                             ${LAND_USE_OPTIONS
                                 .map(c => `<option value="${c}" ${c === row.new_land_use ? 'selected' : ''}>
                                                ${LAND_USE_LABELS[c] || c} (${c})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-span-3">
+                        <select onchange="onCopNewPurposeChange(${i}, this.value)"
+                            ${row.new_land_use && purposeRequired(row.new_land_use) ? '' : 'disabled'}
+                            class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:bg-slate-50 disabled:text-slate-400">
+                            ${purposeOptionsHtml(row.new_land_use, row.new_purpose)}
                         </select>
                     </div>
                     <div class="col-span-1 flex justify-end">
@@ -1070,6 +1215,10 @@
 
     function renderRanks() {
         state.plan.forEach((p, i) => { p.rank = i + 1; });
+        // What each source file is today, for the Change of Purpose "same as now" check.
+        if (state.plan.some(p => p.type === 'change_of_purpose')) {
+            state.sources.forEach(s => ensureCurrentPurpose(s.fileNumber));
+        }
 
 
         renderTypePicker();
@@ -2162,10 +2311,11 @@
                     </div>
 
                     <div class="grid grid-cols-12 gap-2 mb-1.5 px-1">
-                        <span class="col-span-4 text-[10px] font-black uppercase tracking-wider text-slate-400">File Number</span>
+                        <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">File Number</span>
                         <span class="col-span-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Current</span>
+                        <span class="col-span-2 text-[10px] font-black uppercase tracking-wider text-slate-400">New Land Use</span>
                         <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">New Purpose</span>
-                        <span class="col-span-3 text-[10px] font-black uppercase tracking-wider text-slate-400">Holding No.</span>
+                        <span class="col-span-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Holding No.</span>
                     </div>
 
                     <div class="space-y-2">
@@ -2178,26 +2328,38 @@
                             // step. Minted when the stage is saved, so before that it
                             // says so rather than showing a blank box.
                             const held = heldFor[row.file_no];
+                            const fileKey = String(row.file_no || '').trim().toUpperCase();
+                            ensureCurrentPurpose(fileKey);
 
                             return `
-                            <div class="dx-stage-cop-row grid grid-cols-12 gap-2 items-center">
-                                <div class="col-span-4">
+                            <div class="dx-stage-cop-row grid grid-cols-12 gap-2 items-center" data-cop-scope>
+                                <div class="col-span-3">
                                     <input type="text" readonly value="${esc(row.file_no)}"
                                         class="dx-cop-file w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black holding-no">
                                 </div>
                                 <div class="col-span-2">
                                     <input type="text" readonly value="${esc(current)}"
                                         class="dx-cop-current w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                                    <p class="text-[10px] font-semibold text-slate-500 mt-0.5 px-1 truncate"
+                                       data-cur-purpose-for="${esc(fileKey)}">${esc(currentPurposeOf(fileKey))}</p>
                                 </div>
-                                <div class="col-span-3">
-                                    <select class="dx-cop-new w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">
-                                        <option value="">— New purpose —</option>
+                                <div class="col-span-2">
+                                    <select class="dx-cop-new w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+                                        onchange="dxRefreshPurpose(this)">
+                                        <option value="">— Land use —</option>
                                         ${LAND_USE_OPTIONS.map(c => `
                                             <option value="${c}" ${c === row.new_land_use ? 'selected' : ''}>
                                                 ${LAND_USE_LABELS[c] || c} (${c})</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="col-span-3">
+                                    <select class="dx-cop-purpose w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold disabled:bg-slate-50 disabled:text-slate-400"
+                                        data-purpose-for=".dx-cop-new" data-selected="${esc(row.new_purpose || '')}"
+                                        ${row.new_land_use && purposeRequired(row.new_land_use) ? '' : 'disabled'}>
+                                        ${purposeOptionsHtml(row.new_land_use, row.new_purpose)}
+                                    </select>
+                                </div>
+                                <div class="col-span-2">
                                     <input type="text" readonly value="${esc(held || '')}"
                                         placeholder="reserving…"
                                         data-file="${esc(row.file_no)}" ${held ? 'data-issued="1"' : ''}
@@ -2256,10 +2418,15 @@
                     <div id="dx-cop-apply" class="mt-4"></div>
                     <div id="dx-cop-plots" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
                 </div>
-                <div class="grid md:grid-cols-2 gap-5">
+                <div class="grid md:grid-cols-2 gap-5" data-cop-scope>
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Current land use</label>
                         <input type="text" id="dx-current-landuse" readonly value="${currentLandUse}"
+                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Current purpose</label>
+                        <input type="text" id="dx-current-purpose" readonly value="${esc(purposeEnteringStage(state.stageIndex))}"
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold">
                     </div>
                     <div>
@@ -2267,12 +2434,21 @@
                         {{-- Pre-selected from what was answered on step 1, and from the
                              stage's own payload when coming back to it. Without this the
                              box reset to "Select" every time the panel was reopened. --}}
-                        <select id="dx-new-landuse" onchange="onAppliesChange()"
+                        <select id="dx-new-landuse" onchange="dxRefreshPurpose(this); onAppliesChange()"
                             class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm">
                             <option value="">— Select —</option>
                             ${LAND_USE_OPTIONS.map(c => `
                                 <option value="${c}" ${c === (saved.new_land_use || '') ? 'selected' : ''}>
                                     ${LAND_USE_LABELS[c] || c} (${c})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">New purpose *</label>
+                        <select id="dx-new-purpose" data-purpose-for="#dx-new-landuse" onchange="onAppliesChange()"
+                            data-selected="${esc(saved.new_purpose || '')}"
+                            ${saved.new_land_use && purposeRequired(saved.new_land_use) ? '' : 'disabled'}
+                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm disabled:bg-slate-50 disabled:text-slate-400">
+                            ${purposeOptionsHtml(saved.new_land_use || '', saved.new_purpose || '')}
                         </select>
                     </div>
                 </div>`;
@@ -2622,6 +2798,131 @@
         return (LAND_USE_LABELS[code] ? LAND_USE_LABELS[code] + ' (' + code + ')' : code);
     }
 
+    // ------------------------------------------- purpose within the land use
+    /*
+     | A Change of Purpose is about the PURPOSE, not only the land use — the single
+     | Change of Purpose page lets RESIDENTIAL HIGH DENSITY become LOW DENSITY, and
+     | refuses only when both the land use and the purpose stay the same. The duplex
+     | follows the same rule, from the same reference lists (/api/reference/*).
+     */
+    // PURPOSES_BY_USE, CURRENT_PURPOSE and purposeLookups are declared beside `state`.
+    const sameUseCode = (c) => {
+        c = String(c || '').trim().toUpperCase();
+        return ({ AG: 'AGR', AGRIC: 'AGR', MIXED: 'MIX' })[c] || c;
+    };
+    const normPurpose = (v) => String(v || '').trim().toUpperCase().replace(/\s+/g, ' ');
+
+    (function loadPurposeLists() {
+        const get = (u) => fetch(u, { headers: { 'Accept': 'application/json' } }).then(r => r.json());
+        Promise.all([get('/api/reference/land-uses'), get('/api/reference/purposes')])
+            .then(([lu, pu]) => {
+                const codeById = {};
+                (lu.data || []).forEach(l => {
+                    const plain = (l.prefixes || []).find(p => !String(p).includes('-'));
+                    if (plain) codeById[l.id] = sameUseCode(plain);
+                });
+                (pu.data || []).forEach(p => {
+                    const code = codeById[p.landuseid];
+                    if (!code) return;
+                    (PURPOSES_BY_USE[code] = PURPOSES_BY_USE[code] || []).push(p.name);
+                });
+                if (typeof renderRanks === 'function') renderRanks();
+                document.querySelectorAll('select[data-purpose-for]').forEach(refreshPurposeSelect);
+            })
+            .catch(() => {});
+    })();
+
+    /** The purposes a land use offers, as <option>s, `selected` kept. */
+    function purposeOptionsHtml(code, selected) {
+        const list = PURPOSES_BY_USE[sameUseCode(code)] || [];
+        if (!code) return '<option value="">— Pick land use first —</option>';
+        if (!list.length) return '<option value="">— No purposes listed —</option>';
+        const pesc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return '<option value="">— New purpose —</option>' + list.map(n =>
+            `<option value="${pesc(n)}" ${normPurpose(n) === normPurpose(selected) ? 'selected' : ''}>${pesc(n)}</option>`
+        ).join('');
+    }
+
+    /** Re-fill a purpose <select> from the land-use <select> it names. */
+    function refreshPurposeSelect(sel) {
+        const scope = sel.closest('[data-cop-scope]') || document;
+        const use = scope.querySelector(sel.dataset.purposeFor)?.value || '';
+        const keep = sel.value || sel.dataset.selected || '';
+        sel.innerHTML = purposeOptionsHtml(use, keep);
+        sel.disabled = !use || !(PURPOSES_BY_USE[sameUseCode(use)] || []).length;
+    }
+    window.dxRefreshPurpose = function (landUseSelect) {
+        const scope = landUseSelect.closest('[data-cop-scope]') || document;
+        scope.querySelectorAll('select[data-purpose-for]').forEach(s => { s.value = ''; s.dataset.selected = ''; refreshPurposeSelect(s); });
+    };
+
+    /** A purpose is needed whenever the chosen land use has a list to choose from. */
+    function purposeRequired(code) {
+        return (PURPOSES_BY_USE[sameUseCode(code)] || []).length > 0;
+    }
+
+    /** The file's purpose today, looked up once (same answer the single page uses). */
+    function ensureCurrentPurpose(fileNo) {
+        fileNo = String(fileNo || '').trim().toUpperCase();
+        if (!fileNo || fileNo.startsWith('DPX-') || fileNo in CURRENT_PURPOSE || purposeLookups[fileNo]) return;
+        purposeLookups[fileNo] = fetch(`{{ route('change-of-purpose.applicant-details') }}?file_no=${encodeURIComponent(fileNo)}`,
+                { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(res => {
+                CURRENT_PURPOSE[fileNo] = (res && res.data && res.data.current_purpose) || null;
+                document.querySelectorAll(`[data-cur-purpose-for="${fileNo}"]`).forEach(el => {
+                    el.textContent = CURRENT_PURPOSE[fileNo] || '';
+                });
+                const box = document.getElementById('dx-current-purpose');
+                if (box) box.value = purposeEnteringStage(state.stageIndex);
+            })
+            .catch(() => { CURRENT_PURPOSE[fileNo] = null; });
+    }
+    const currentPurposeOf = (fileNo) => CURRENT_PURPOSE[String(fileNo || '').trim().toUpperCase()] || '';
+
+    /**
+     * The purpose the parcels ARRIVING at a stage carry — landUseEnteringStage()'s
+     * twin. The source file's own purpose to begin with, then whatever the last
+     * Change of Purpose before this stage set, when it set exactly one.
+     */
+    function purposeEnteringStage(index) {
+        let purpose = currentPurposeOf(state.sources[0]?.fileNumber || '');
+
+        for (let i = 0; i < index; i++) {
+            const earlier = state.stages[i];
+            if (!earlier || earlier.type !== 'change_of_purpose') continue;
+
+            const payload = earlier.payload || {};
+            const planned = state.plan.find(p => Number(p.rank) === Number(earlier.rank)) || {};
+            const rows = Array.isArray(payload.cop_rows) ? payload.cop_rows
+                : (Array.isArray(planned.cop_rows) ? planned.cop_rows : []);
+            const values = rows.length ? rows.map(r => r.new_purpose)
+                : [payload.new_purpose || planned.new_purpose];
+            const distinct = [...new Set(values.map(normPurpose).filter(Boolean))];
+
+            if (distinct.length === 1) purpose = distinct[0];
+            else purpose = '';
+        }
+
+        return purpose;
+    }
+
+    /**
+     * The single page's rule: refused only when the land use AND the purpose both stay
+     * the same. Returns the message to show, or '' when the change is a real one.
+     */
+    function copSameAsCurrent(fromUse, fromPurpose, toUse, toPurpose) {
+        if (!fromUse || !toUse || sameUseCode(fromUse) !== sameUseCode(toUse)) return '';
+        if (!normPurpose(toPurpose)) {
+            return 'The land use is not changing, so pick the new purpose within '
+                + (LAND_USE_LABELS[sameUseCode(toUse)] || toUse) + '.';
+        }
+        if (normPurpose(fromPurpose) && normPurpose(fromPurpose) === normPurpose(toPurpose)) {
+            return 'The new land use and purpose (' + normPurpose(toPurpose) + ') are the same as the current ones.';
+        }
+        return '';
+    }
+
     /**
      * Restyle the chips and rewrite the explanation whenever the selection or the new
      * land use changes. Naming the actual files is the whole point: "H01 and H02 become
@@ -2650,8 +2951,9 @@
             : arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
 
         const select  = document.getElementById('dx-new-landuse');
+        const purpose = document.getElementById('dx-new-purpose')?.value || '';
         const newUse  = select && select.value
-            ? select.options[select.selectedIndex].textContent.trim()
+            ? select.options[select.selectedIndex].textContent.trim() + (purpose ? ' — ' + purpose : '')
             : 'the new land use';
 
         const currentUse = document.getElementById('dx-current-landuse')?.value.trim() || 'their current land use';
@@ -2983,13 +3285,24 @@
                 file_no:          r.querySelector('.dx-cop-file')?.value || '',
                 current_land_use: landUseCode(r.querySelector('.dx-cop-file')?.value || ''),
                 new_land_use:     r.querySelector('.dx-cop-new')?.value || '',
+                new_purpose:      r.querySelector('.dx-cop-purpose')?.value || '',
             }));
 
-            const missing = rows.filter(r => !r.new_land_use).map(r => r.file_no);
+            const missing = rows.filter(r => !r.new_land_use
+                || (purposeRequired(r.new_land_use) && !r.new_purpose)).map(r => r.file_no);
             if (missing.length) {
                 toast('warning', 'New purpose missing',
-                    'Say what ' + missing.join(', ') + ' changes to.');
+                    'Say what ' + missing.join(', ') + ' changes to — the land use and the purpose.');
                 return null;
+            }
+
+            for (const r of rows) {
+                const same = copSameAsCurrent(r.current_land_use, currentPurposeOf(r.file_no),
+                    r.new_land_use, r.new_purpose);
+                if (same) {
+                    toast('warning', r.file_no + ': nothing changes', same);
+                    return null;
+                }
             }
 
             payload.cop_rows   = rows;
@@ -3007,8 +3320,19 @@
             const from = landUseEnteringStage(state.stageIndex);
             if (from) payload.current_land_use = from;
             payload.applies_to = [...panel.querySelectorAll('.dx-applies:checked')].map(e => e.value);
+            payload.new_purpose = document.getElementById('dx-new-purpose')?.value || '';
             if (!payload.new_land_use) {
                 toast('warning', 'New land use required', 'Pick the land use this file is changing to.');
+                return null;
+            }
+            if (purposeRequired(payload.new_land_use) && !payload.new_purpose) {
+                toast('warning', 'New purpose required', 'Pick the new purpose within the land use.');
+                return null;
+            }
+            const same = copSameAsCurrent(from, purposeEnteringStage(state.stageIndex),
+                payload.new_land_use, payload.new_purpose);
+            if (same) {
+                toast('warning', 'Nothing changes', same);
                 return null;
             }
             if (!payload.applies_to.length) {
@@ -3122,19 +3446,16 @@
         document.getElementById('dx-applicant').disabled = locked;
         document.getElementById('dx-file-title').disabled = locked;
         // The arrows still work when locked — reading the other files is not editing.
-        ['dx-plot-no-main', 'dx-district', 'dx-lga'].forEach(id => {
+        ['dx-plot-no-main', 'dx-district-select', 'dx-lga'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.disabled = locked;
         });
+        syncDistrictWidget();
         // Quantities and plot sizes stay editable. What is fixed once the duplex row
         // exists is the PLAN — which updates, in what order, on which files — because
         // the stage rows and holding numbers were built from it. How many plots a stage
         // makes, and how big they are, is ordinary data the officer must be able to
         // correct without deleting the duplex and starting again.
-        ['dx-plot-no-main', 'dx-district', 'dx-lga'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.disabled = locked;
-        });
         document.querySelectorAll('[onclick^="pickSourceFile"], [onclick^="removeSource"]')
             .forEach(el => { el.disabled = locked; el.classList.toggle('hidden', locked); });
 
@@ -3260,6 +3581,12 @@
             // Checked in the order the fields now appear on the card.
             if (!state.sources.length) return toast('warning', 'Pick at least one source file');
 
+            if (document.getElementById('dx-district-select')?.value === DISTRICT_OTHER
+                && ['', 'OTHER'].includes(normPlace(document.getElementById('dx-district-other')?.value))) {
+                document.getElementById('dx-district-other')?.focus();
+                return toast('warning', 'Specify the district', 'You picked Other — type the district name.');
+            }
+
             dxEntryTouched();
 
             const applicant = document.getElementById('dx-applicant').value.trim();
@@ -3305,6 +3632,16 @@
                         'Every row needs both a file number and the purpose it is changing to. '
                         + 'Remove any row you do not need.');
                 }
+
+                for (const r of copCompleteRows()) {
+                    if (purposeRequired(r.new_land_use) && !normPurpose(r.new_purpose)) {
+                        return toast('warning', 'New purpose missing',
+                            'Pick the new purpose for ' + r.file_no + '.');
+                    }
+                    const same = copSameAsCurrent(r.current_land_use, currentPurposeOf(r.file_no),
+                        r.new_land_use, r.new_purpose);
+                    if (same) return toast('warning', r.file_no + ': nothing changes', same);
+                }
             }
 
             renderQuantities();
@@ -3315,6 +3652,9 @@
             collectQuantities();
 
             const res = await post('{{ route('duplex-parcel-update.store') }}', {
+                // Which sidebar raised it (?mode=land vs Deeds). The page URL never
+                // reaches this POST, so without it every duplex saved as Deeds.
+                mode: @json(\App\Support\ParcelUpdateSource::normalise(request('mode'))),
                 // One field feeds both columns - they are the same thing here.
                 // One value per file, in file order. The server stores a JSON array
                 // when there is more than one and a plain string when there is only one,
@@ -3350,6 +3690,7 @@
                     // know what its plots become — carried so step 3 opens with it set.
                     if (p.type === 'change_of_purpose' && p.new_land_use) {
                         stage.new_land_use = p.new_land_use;
+                        if (p.new_purpose) stage.new_purpose = p.new_purpose;
                         if (p.current_land_use) stage.current_land_use = p.current_land_use;
                     }
                     return stage;

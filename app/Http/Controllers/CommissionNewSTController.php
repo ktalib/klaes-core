@@ -1508,10 +1508,13 @@ class CommissionNewSTController extends Controller
         try {
             $connection = DB::connection('sqlsrv');
 
+            // Same ST handover already logged, or the mother already decommissioned by any
+            // other workflow — a file is never recorded in decommissioned_files twice.
             $already = $connection->table('decommissioned_files')
                 ->where('file_no', $motherFileNo)
                 ->where('successor_file_no', $stFileNo)
-                ->exists();
+                ->exists()
+                || app(\App\Services\PlotWorkflowService::class)->activeDecommissionRecord($motherFileNo) !== null;
 
             if ($already) {
                 return;

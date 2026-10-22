@@ -77,10 +77,11 @@ class ScanUploadsController extends Controller
     {
         $validated = $request->validate([
             'file_number' => 'required|string|max:255',
+            'registry' => 'nullable|string|max:100',
         ]);
 
         try {
-            $manifest = $this->blindScanIngestionService->discover($validated['file_number']);
+            $manifest = $this->blindScanIngestionService->discover($validated['file_number'], $validated['registry'] ?? null);
 
             return response()->json([
                 'success' => true,

@@ -69,6 +69,9 @@ class FileIndexingBillService
                     $this->insertBill($fileIndexing, $fileNumber, FileIndexingBill::TYPE_GRANT_RENT, self::SOURCE_GRANT_RENT, $row);
                 }
             });
+
+            // KLAES REV-M: keep Bill Legacy in step (same LGB- refs; removed bills cancelled).
+            app(\App\Services\Billing\Modules\LegacyIndexingBillSync::class)->afterIndexingSave((int) $fileIndexing->id);
         } catch (\Throwable $e) {
             // A billing failure must not break file indexing — log and move on.
             Log::warning('FileIndexingBillService: failed to sync bills', [

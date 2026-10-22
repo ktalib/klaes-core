@@ -48,6 +48,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th style="width:38px;">S/N</th>
                         <th style="width:38px;"><input type="checkbox" onclick="toggleAllOpTargets(this)" /></th>
                         <th>Case Ref</th>
                         <th>Beneficiary</th>
@@ -59,6 +60,7 @@
                 <tbody>
                     @forelse ($candidates as $c)
                         <tr>
+                            <td>{{ $loop->iteration }}</td>
                             <td><input type="checkbox" name="targets[]" value="{{ $c['key'] }}" class="op-target" /></td>
                             <td><strong>{{ $c['case']->case_ref }}</strong></td>
                             <td>{{ $c['beneficiary'] ?: '— no beneficiary on file —' }}</td>
@@ -82,7 +84,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" style="text-align:center;padding:24px;color:var(--gray-500);">
+                            <td colspan="7" style="text-align:center;padding:24px;color:var(--gray-500);">
                                 <i class="fas fa-check-circle" style="font-size:22px;display:block;margin-bottom:8px;opacity:.4;"></i>
                                 Nothing awaiting an OP. Approve a case first —
                                 <a href="{{ route('survey-module.compensation.cases') }}">go to cases</a>.
@@ -128,6 +130,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>OP No.</th>
                     <th>Case Ref</th>
                     <th>Beneficiary</th>
@@ -145,6 +148,7 @@
                         $done   = $op->steps->where('status', 'done')->count();
                     @endphp
                     <tr>
+                        <td>{{ $ops->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $op->op_number }}</strong></td>
                         <td>{{ optional($op->case)->case_ref ?: '—' }}</td>
                         <td>{{ optional($op->beneficiary)->full_name ?: '—' }}</td>
@@ -186,7 +190,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-file-signature" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No occupancy permits yet. Tick an approved case above and press
                             <strong>Generate Selected</strong>.

@@ -15,18 +15,20 @@ use Illuminate\Support\Facades\Schema;
 /**
  * The Yes/No form at AD Cad Report (client PDF "This is Yes or No form",
  * 2026-10-11): the official "Report on Application – Cadastral Department",
- * done with Land 12 under the step's `land12` task.
+ * under the step's own `yes_no` task, apart from Land 12 (transcript, 2026-10-16).
  *
  * Copied from the old module's questionnaire (ReportController::saveApplication,
  * CadastralReport refs and area), so the two forms read and print alike. The
- * `land12` task is still ticked by hand, because Land 12 has no screen here,
- * but not before this form's seven questions are answered.
+ * `yes_no` task is ticked by hand once the seven questions are answered, which
+ * locks the form. Land 12 (`land12`) is ticked by hand on its own.
+ * Area is entered in square metres; hectares = m2 / 10,000 (no acres).
  */
 class YesNoForms
 {
     private const CONN = 'sqlsrv';
 
-    public const TASK = 'land12';
+    public const TASK = 'yes_no';
+    public const LAND12_TASK = 'land12';
 
     /** Charting stages, best source first, for prefilling the area. */
     private const CHART_PREFERENCE = ['second', 'single', 'first', 'check'];
@@ -44,7 +46,7 @@ class YesNoForms
         }
     }
 
-    /** True when the current step asks for Land 12 and the Yes/No form. */
+    /** True when the current step asks for the Yes/No form. */
     public function dueNow(CadastralCase $case): bool
     {
         return $case->isOpen()
@@ -171,7 +173,7 @@ class YesNoForms
                 ['complete' => $complete], "Yes/No form for {$case->case_ref}" . ($complete ? ' (complete)' : ' (incomplete)'));
 
             return $complete
-                ? 'Yes/No form saved. All seven questions are answered; tick "Land 12 and Yes/No form" once Land 12 is done.'
+                ? 'Yes/No form saved. All seven questions are answered; tick "Yes/No form" on the file page to lock it.'
                 : 'Yes/No form saved. Still to answer: ' . implode(', ', array_map(fn ($c) => 'Q' . substr($c, 1, 1), $form->unanswered())) . '.';
         });
     }

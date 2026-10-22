@@ -458,8 +458,7 @@
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
                             <i data-lucide="git-fork" class="h-4 w-4 text-violet-600 flex-shrink-0"></i>
                             <h3 id="batch-card-title" class="text-sm font-bold text-violet-900 uppercase tracking-tight">Children of</h3>
-                            <span id="batch-mother-label" class="font-mono font-black text-slate-900 text-sm">&mdash;</span>
-                            <span id="batch-children-count"
+                            <span id="batch-mother-label" class="font-mono font-black text-slate-900 text-sm">&mdash;</span>                            <span id="batch-children-count"
                                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-600 text-white">0 children</span>
                             <span id="batch-saved-remaining-count" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">0 remaining</span>
                             <span id="batch-saved-rofo-count" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">0 RoFO generated</span>
@@ -938,7 +937,7 @@
                              A second box asking for the same file number is the thing this
                              option must not become. --}}
                         <p id="subdivision-template-note" class="{{ $useSubdivisionTemplate ? '' : 'hidden' }} mt-4 rounded-lg bg-violet-100/70 px-3 py-2 text-[11px] font-semibold text-violet-900">
-                            Set the mother file in <span class="font-black uppercase tracking-wider">Mother File Number</span> below.
+                            Set the mother file in <span class="font-black uppercase tracking-wider">Grand Mother/Mother FileNo</span> below.
                             It does not have to be in the register &mdash; the file number selector's
                             <span class="font-black uppercase tracking-wider">Manual</span> method builds one from its parts.
                             It prints on the <span class="font-black uppercase tracking-wider">as per plan No.</span> line of the R of O.
@@ -952,7 +951,7 @@
                             {{-- Under Use Subdivision Template this same field IS the mother
                                  file number, so the heading says so rather than making the
                                  officer know that "old file number" means "mother" here. --}}
-                            <h3 class="text-sm font-bold text-amber-900 uppercase tracking-tight"><span id="atx-old-fileno-title">Mother File No</span> <span class="text-red-500">*</span></h3>
+                            <h3 class="text-sm font-bold text-amber-900 uppercase tracking-tight"><span id="atx-old-fileno-title">Grand Mother/Mother FileNo</span> <span class="text-red-500">*</span></h3>
                         </div>
                         <div class="flex gap-2 items-center" id="atx-old-fileno-manual">
                             {{-- readonly by default: an old file number is picked from the
@@ -2114,14 +2113,14 @@
             <i data-lucide="folder-input" class="w-5 h-5"></i>
             {{-- Wording is swapped by openModal(): under Use Subdivision Template this
                  same prompt asks for the mother file instead. --}}
-            <h3 id="atx-old-fileno-modal-title" class="text-base font-bold">Mother File No Required</h3>
+            <h3 id="atx-old-fileno-modal-title" class="text-base font-bold">Grand Mother/Mother FileNo Required</h3>
         </div>
         <div class="px-6 py-5 space-y-4">
             <p class="text-sm text-slate-600">
                 <span id="atx-old-fileno-modal-type" class="font-semibold text-slate-900">This application</span><span id="atx-old-fileno-modal-lead"> derives from an existing file. Select the old (parent) file number from the file number selector.</span>
             </p>
             <div>
-                <label id="atx-old-fileno-modal-label" class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Mother File No</label>
+                <label id="atx-old-fileno-modal-label" class="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Grand Mother/Mother FileNo</label>
                 <div class="flex gap-2">
                     <input type="text" id="atx-old-fileno-modal-value" readonly
                         placeholder="Nothing selected yet"
@@ -2317,8 +2316,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // and may be doing so with no application type set at all — which would
         // otherwise leave the sentence starting on a blank.
         var subdivision = subdivisionTemplateOn();
-        if (modalTitle) modalTitle.textContent = 'Mother File No Required';
-        if (modalLabel) modalLabel.textContent = 'Mother File No';
+        if (modalTitle) modalTitle.textContent = 'Grand Mother/Mother FileNo Required';
+        if (modalLabel) modalLabel.textContent = 'Grand Mother/Mother FileNo';
         if (modalLead) {
             modalLead.textContent = subdivision
                 ? ' was subdivided from a mother file. Pick it with the file number selector — or build it there with the Manual method if it is not in the register.'
@@ -2379,7 +2378,7 @@ document.addEventListener('DOMContentLoaded', function () {
         field.placeholder = subdivision
             ? 'No mother file selected'
             : 'No mother file no selected';
-        if (titleLabel) titleLabel.textContent = 'Mother File No';
+        if (titleLabel) titleLabel.textContent = 'Grand Mother/Mother FileNo';
         if (manualHelpEl) manualHelpEl.classList.toggle('hidden', subdivision);
         if (subdivHelp) subdivHelp.classList.toggle('hidden', !subdivision);
         if (subdivNote) subdivNote.classList.toggle('hidden', !subdivision);
@@ -3110,6 +3109,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (cardTitle)  cardTitle.textContent = regular ? 'Selected files' : 'Children of';
         if (motherLabel) motherLabel.classList.toggle('hidden', regular);
         if (colFileNo)  colFileNo.textContent = regular ? 'File No' : 'Child File No';
+        setLineage([]);
         if (footerNote) {
             footerNote.textContent = BATCH_EDIT
                 ? 'Rows in this lower table are saved in the batch. Untick one to move it back to Remaining Records; '
@@ -3496,9 +3496,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (m.children_used) {
             label += ' left of ' + m.children_total + ' (' + m.children_used + ' already done)';
         }
-        if (m.subdivided_as) {
-            label += ' · subdivided as ' + m.subdivided_as;
-        }
+        // A grandmother is listed on its own: the mother its Change of Purpose produced
+        // (m.subdivided_as) is not shown here (user rule, 2026-10-22).
         return label;
     }
 
@@ -4600,9 +4599,23 @@ document.addEventListener('DOMContentLoaded', function () {
     // table with blank registry rows.
     var childLoadSeq = 0;
 
+    // The picker lists the file as it was before any Change of Purpose, but the
+    // subdivision was done on the number the CoP produced — so the rows are the
+    // picked file's grandchildren, and the card says so. The CoP mother itself is
+    // not named: where there is a grandmother, only the grandmother is shown.
+    function setLineage(via) {
+        via = Array.isArray(via) ? via : [];
+        var grand = !isRegular() && via.length > 0;
+        if (!isRegular()) {
+            if (cardTitle) cardTitle.textContent = grand ? 'Grandchildren of' : 'Children of';
+            if (colFileNo) colFileNo.textContent = grand ? 'Grandchild File No' : 'Child File No';
+        }
+    }
+
     function loadChildren(mother) {
         var ticket = ++childLoadSeq;
 
+        setLineage([]);
         motherLabel.textContent = mother;
         if (motherField) motherField.value = mother;
         rowsBody.innerHTML = '<tr><td colspan="11" class="px-3 py-10 text-center text-xs text-slate-500">'
@@ -4614,6 +4627,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (ticket !== childLoadSeq) return;
+                setLineage(data.via_change_of_purpose);
                 if (!data.success) {
                     rowsBody.innerHTML = '';
                     setStatus(data.message || 'Could not load children.', 'error');
@@ -4640,6 +4654,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (inherited) {
                     setStatus('Grant conditions inherited from the mother file ' + inherited
                         + '. Step through the files to adjust any of them before saving.', 'warn');
+                } else if (data.held_count) {
+                    setStatus(data.held_count + ' file(s) linked to this mother are on hold until their lineage is confirmed, so they are not listed.', 'warn');
                 }
             })
             .catch(function () {

@@ -102,6 +102,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Tree Type</th>
                     <th>Category</th>
                     <th>Unit Price (₦)</th>
@@ -115,6 +116,7 @@
             <tbody>
                 @forelse ($treeTypes as $t)
                     <tr>
+                        <td>{{ $treeTypes->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $t->name }}</strong></td>
                         <td>{{ $t->category ?: '—' }}</td>
                         <td>{{ number_format((float) $t->default_unit_price, 2) }}</td>
@@ -141,7 +143,7 @@
                         </td>
                     </tr>
                     <tr id="ttEdit{{ $t->id }}" style="display:none;">
-                        <td colspan="8" style="background:var(--gray-50);">
+                        <td colspan="9" style="background:var(--gray-50);">
                             <form method="POST" action="{{ route('survey-module.compensation.trees.update', $t) }}">
                                 @csrf @method('PUT')
                                 <div class="form-row" style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
@@ -185,7 +187,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-tree" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No tree types in the catalogue yet.
                             <a href="#" onclick="toggleTreeCatalogueForm();return false;">Add the first one</a>.
@@ -285,6 +287,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>S/N</th>
                             <th>Tree Type</th>
                             <th>Quantity</th>
                             <th>Unit Price (₦)</th>
@@ -295,6 +298,7 @@
                     <tbody>
                         @forelse ($selectedCase->trees as $line)
                             <tr>
+                                <td>{{ $loop->iteration }}</td>
                                 <td><strong>{{ $line->tree_type }}</strong></td>
                                 <td>{{ number_format((int) $line->quantity) }}</td>
                                 <td>{{ number_format((float) $line->unit_price, 2) }}</td>
@@ -313,7 +317,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" style="text-align:center;padding:24px;color:var(--gray-500);">
+                                <td colspan="6" style="text-align:center;padding:24px;color:var(--gray-500);">
                                     No tree lines on {{ $selectedCase->case_ref }} yet. Add the first one above.
                                 </td>
                             </tr>

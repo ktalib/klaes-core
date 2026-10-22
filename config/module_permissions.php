@@ -90,6 +90,12 @@ return [
         'phone.*',
         'theme.*',
         'impersonate*',
+        // Deleting a scanned page is open to every user (user, 2026-10-21): the Document
+        // Viewer "Delete page" (File Digital Library - Doc-WARE) and the Page Typing trash
+        // icon (Document Page Types). Both names contain "delete", so without this the
+        // gate refused everyone who lacked that module's Delete tick.
+        'filearchive.pages.delete',
+        'pagetyping.api.delete-page',
     ],
 
     /*

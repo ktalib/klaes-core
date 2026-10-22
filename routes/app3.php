@@ -419,6 +419,8 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('duplex-parcel-update')->name('duplex-parcel-update.')->group(function () {
         Route::get('/', [DuplexParcelUpdateController::class, 'index'])->name('index');
         Route::post('/', [DuplexParcelUpdateController::class, 'store'])->name('store');
+        // Is this file already on an open duplex? Asked as the source file is picked.
+        Route::get('/open-for', [DuplexParcelUpdateController::class, 'openFor'])->name('open-for');
         Route::get('/{id}', [DuplexParcelUpdateController::class, 'show'])->name('show')->where('id', '[0-9]+');
         Route::post('/{id}/stages/{stageId}', [DuplexParcelUpdateController::class, 'saveStage'])->name('save-stage')->where(['id' => '[0-9]+', 'stageId' => '[0-9]+']);
         Route::post('/{id}/stages/{stageId}/reject', [DuplexParcelUpdateController::class, 'rejectStage'])->name('reject-stage')->where(['id' => '[0-9]+', 'stageId' => '[0-9]+']);
@@ -607,7 +609,14 @@ Route::middleware(['auth'])->group(function () {
         // Bulk CSV import for Subdivision child plots / Merger source plots
         Route::get('/csv-template', [ManualFileLinkageController::class, 'downloadCsvTemplate'])->name('csv-template');
         Route::post('/csv-import', [ManualFileLinkageController::class, 'bulkImportCsv'])->name('csv-import');
+        // Import by Range: PREFIX-FROM … PREFIX-TO treated as a CSV of file numbers
+        Route::get('/range-prefixes', [ManualFileLinkageController::class, 'rangePrefixes'])->name('range-prefixes');
+        Route::post('/range-import', [ManualFileLinkageController::class, 'rangeImport'])->name('range-import');
     });
+
+    // "File Already Decommissioned Before" check shared by the SPU / APU / Legacy Parcel Update forms
+    Route::get('parcel-update/decommissioned-before', \App\Http\Controllers\DecommissionedBeforeController::class)
+        ->name('parcel-update.decommissioned-before');
 
     // Match Existing FileNo (MLSFileNo) Routes
     Route::prefix('mls-file-no-matching')->name('mls-file-no-matching.')->group(function () {
@@ -1647,4 +1656,40 @@ Route::prefix('valuation-compensations/mobile')->name('valuation-compensations.m
         Route::get('/workers/{projectId}', [App\Http\Controllers\ValuationMobileController::class, 'getProjectWorkers'])->name('workers');
         Route::post('/save', [App\Http\Controllers\ValuationMobileController::class, 'store'])->name('save');
     });
+});
+
+// KLAES REV-M: Bill Master listings (bill_master). UI only for now; the billing workflows come later.
+Route::middleware(['auth', 'XSS'])->prefix('revenue')->name('revenue.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\Revenue\DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/bills', [App\Http\Controllers\Revenue\BillMasterController::class, 'all'])->name('bills.all');
+    Route::get('/bills/{type}', [App\Http\Controllers\Revenue\BillMasterController::class, 'index'])
+        ->where('type', '[a-z_]+')->name('bills.index');
+    // Bill flow: generate (file lookup + preview), view, POS invoice, payment, Paystack return.
+    Route::get('/bills/{type}/lookup', [App\Http\Controllers\Revenue\BillMasterController::class, 'lookup'])->where('type', '[a-z_]+')->name('bills.lookup');
+    Route::post('/bills/{type}/generate', [App\Http\Controllers\Revenue\BillMasterController::class, 'store'])->where('type', '[a-z_]+')->name('bills.store');
+    Route::get('/bill/{ref}', [App\Http\Controllers\Revenue\BillMasterController::class, 'show'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('bills.show');
+    Route::post('/bill/{ref}/generate', [App\Http\Controllers\Revenue\BillMasterController::class, 'generateExisting'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('bills.generate');
+    Route::get('/bill/{ref}/invoice', [App\Http\Controllers\Revenue\BillMasterController::class, 'invoice'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('bills.invoice');
+    Route::post('/bill/{ref}/pay', [App\Http\Controllers\Revenue\BillMasterController::class, 'pay'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('bills.pay');
+    Route::get('/paystack/callback', [App\Http\Controllers\Revenue\BillMasterController::class, 'paystackCallback'])->name('bills.paystack.callback');
+    Route::get('/bill/{ref}/contact', [App\Http\Controllers\Revenue\BillMasterController::class, 'contact'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('bills.contact');
+    Route::post('/bill/{ref}/sms', [App\Http\Controllers\Revenue\BillMasterController::class, 'sendSms'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('bills.sms');
+    // On-the-fly bills (Bill Master page): bill type + Revenue Code lines.
+    Route::get('/on-the-fly/file', [App\Http\Controllers\Revenue\BillMasterController::class, 'fileInfo'])->name('bills.on-the-fly.file');
+    Route::post('/on-the-fly', [App\Http\Controllers\Revenue\BillMasterController::class, 'storeOnTheFly'])->name('bills.on-the-fly.store');
+    // Payment cycles (recurring bills) and reconciliation.
+    Route::get('/cycles', [App\Http\Controllers\Revenue\CycleController::class, 'index'])->name('cycles.index');
+    Route::post('/cycles/{ref}/raise', [App\Http\Controllers\Revenue\CycleController::class, 'raise'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('cycles.raise');
+    Route::post('/cycles/{ref}/remind', [App\Http\Controllers\Revenue\CycleController::class, 'remind'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('cycles.remind');
+    Route::get('/reconciliation', [App\Http\Controllers\Revenue\ReconciliationController::class, 'index'])->name('reconciliation.index');
+    Route::post('/reconciliation/mark', [App\Http\Controllers\Revenue\ReconciliationController::class, 'mark'])->name('reconciliation.mark');
+    Route::post('/reconciliation/verify/{payment}', [App\Http\Controllers\Revenue\ReconciliationController::class, 'verify'])->whereNumber('payment')->name('reconciliation.verify');
+    Route::post('/reconciliation/totals/{ref}', [App\Http\Controllers\Revenue\ReconciliationController::class, 'fixTotals'])->where('ref', 'BILL-[0-9]{4}-[0-9]+')->name('reconciliation.totals');
+    Route::get('/legacy', [App\Http\Controllers\Revenue\BillMasterController::class, 'legacy'])->name('legacy.index');
+    // Receipting: official receipts (RCT-), Original / Duplicate / Triplicate.
+    Route::get('/receipts/awaiting', [App\Http\Controllers\Revenue\ReceiptController::class, 'awaiting'])->name('receipts.awaiting');
+    Route::post('/receipts/issue/{payment}', [App\Http\Controllers\Revenue\ReceiptController::class, 'issue'])->whereNumber('payment')->name('receipts.issue');
+    Route::get('/receipts/{mode}', [App\Http\Controllers\Revenue\ReceiptController::class, 'index'])->where('mode', 'e-receipt|print')->name('receipts.index');
+    Route::get('/receipt/{no}', [App\Http\Controllers\Revenue\ReceiptController::class, 'show'])->where('no', 'RCT-[0-9]{4}-[0-9]+')->name('receipts.show');
+    Route::get('/receipt/{no}/print', [App\Http\Controllers\Revenue\ReceiptController::class, 'print'])->where('no', 'RCT-[0-9]{4}-[0-9]+')->name('receipts.print');
 });

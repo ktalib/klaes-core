@@ -1,0 +1,7 @@
+id,cadastral_case_id,from_step,from_desk,to_step,to_desk,outcome,remarks,acted_by,acted_at,created_at,updated_at
+237,20072,,registry,registry_intake,registry,registered,,1,"2026-10-17 05:23:57.237","2026-10-17 05:23:57.240","2026-10-17 05:23:57.240"
+238,20072,registry_intake,registry,registry_intake,registry,to_head,,1,"2026-10-17 05:23:57.277","2026-10-17 05:23:57.277","2026-10-17 05:23:57.277"
+239,20072,registry_intake,registry,registry_receive_back,registry,forward,"Fast-forwarded by the admin to ""Receive main file back"" to demonstrate the EDMS update; the steps in between were skipped (2026-10-18).",1,"2026-10-18 16:22:02.273","2026-10-18 16:22:02.273","2026-10-18 16:22:02.273"
+245,20072,registry_receive_back,registry,registry_to_land,registry,forward,"Moved back by the admin to ""Send main file to Land"" to demonstrate the page count taken when the file leaves (2026-10-18).",1,"2026-10-18 17:56:14.293","2026-10-18 17:56:14.293","2026-10-18 17:56:14.293"
+246,20072,registry_to_land,registry,land_processing,director_land,forward,,1,"2026-10-18 17:59:00.273","2026-10-18 17:59:00.277","2026-10-18 17:59:00.277"
+247,20072,land_processing,director_land,registry_receive_back,registry,forward,,1,"2026-10-18 17:59:18.910","2026-10-18 17:59:18.917","2026-10-18 17:59:18.917"

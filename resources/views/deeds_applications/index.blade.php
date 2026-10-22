@@ -632,14 +632,16 @@
         const isSt = trigger.dataset.isSt === 'true';
         const rect = trigger.getBoundingClientRect();
 
-        // Build content
+        // Build content. Every attribute value is escaped: a ' in a name
+        // (e.g. Ma'aruf) otherwise ends the attribute and breaks JSON.parse.
+        const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         let html = '';
         if (isSt) {
           html = `
                       <button type="button" class="view-st-global flex items-center gap-3 w-full px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 transition font-bold"
-                          data-party1="${app.mother_party1 || ''}"
-                          data-file-no="${app.file_number || ''}"
-                          data-units='${JSON.stringify(app.st_units || [])}'>
+                          data-party1="${esc(app.mother_party1)}"
+                          data-file-no="${esc(app.file_number)}"
+                          data-units="${esc(JSON.stringify(app.st_units || []))}">
                           <i data-lucide="eye" class="h-4 w-4"></i>
                           <span>View Units</span>
                       </button>
@@ -652,7 +654,7 @@
           if (canUpdate) {
             html += `
                           <button type="button" class="edit-consent-btn flex items-center gap-3 w-full px-4 py-2.5 text-xs text-amber-600 hover:bg-amber-50 transition font-bold cursor-pointer"
-                              data-id="${app.id}" data-app='${JSON.stringify(app)}'>
+                              data-id="${esc(app.id)}" data-app="${esc(JSON.stringify(app))}">
                               <i data-lucide="edit-3" class="h-4 w-4"></i>
                               <span>Update Application</span>
                           </button>
@@ -671,7 +673,6 @@
           // opens the new letter. Handled by .consent-print-needs-type in
           // public/js/consent_applications.js.
           const needsType = !app.transaction_type;
-          const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
           if (canPrint) {
             html += `

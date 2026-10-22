@@ -49,9 +49,11 @@ class WorkflowDefinitionTest extends TestCase
     {
         [$desks, $end] = $this->walk('conversion', ['gis_buffer' => 'inside_10km']);
 
-        // Updated workflow doc (2026-10-15): 28 steps.
+        // Updated workflow doc (2026-10-15): 28 steps, after Registry's intake, which waits for
+        // the Head of Registry's approval (client, 2026-10-16).
         $this->assertSame('completed', $end);
         $this->assertSame([
+            'registry',                                                                         // intake
             'director_cadastral', 'deputy_director_cadastral', 'ad_information', 'ad_report',   // phase 1 (1-4)
             'compensation_unit', 'dsg', 'director_cadastral', 'cadastral_gis',                 // phase 2 (5-8)
             'kamma', 'permanent_secretary', 'director_cadastral',                              // phase 3 (9-11)
@@ -76,7 +78,7 @@ class WorkflowDefinitionTest extends TestCase
         foreach (['conversion', 'direct', 'verification'] as $wf) {
             [$desks, $end] = $this->walk($wf, ['dc_review' => 'not_recommended'], 'resettlement');
             $this->assertSame('returned', $end, $wf);
-            $this->assertSame(['director_cadastral', 'registry'], $desks, $wf);
+            $this->assertSame(['registry', 'director_cadastral', 'registry'], $desks, $wf);
         }
     }
 
@@ -152,12 +154,12 @@ class WorkflowDefinitionTest extends TestCase
         $this->assertNotContains('compensation_unit', $allocation);
         // Direct Allocation: Land checks genuineness, then later processes the R of O.
         $this->assertSame(2, count(array_keys($allocation, 'director_land')));
-        // From D Cad on (step 7), both follow the Conversion sequence to the end.
+        // From D Cad on (step 7, after the intake), both follow the Conversion sequence to the end.
         [$conversion] = $this->walk('conversion');
         foreach ([$resettlement, $allocation] as $desks) {
-            $this->assertSame(array_slice($conversion, 6), array_slice($desks, array_search('cadastral_gis', $desks) - 1));
+            $this->assertSame(array_slice($conversion, 7), array_slice($desks, array_search('cadastral_gis', $desks) - 1));
         }
-        $this->assertSame(array_slice($conversion, 0, 7), array_slice($resettlement, 0, 7));
+        $this->assertSame(array_slice($conversion, 0, 8), array_slice($resettlement, 0, 8));
     }
 
     public function test_direct_cannot_forward_from_report_without_sub_type(): void
@@ -172,7 +174,7 @@ class WorkflowDefinitionTest extends TestCase
 
         $this->assertSame('completed', $end);
         $this->assertSame([
-            'director_cadastral', 'deputy_director_cadastral',
+            'registry', 'director_cadastral', 'deputy_director_cadastral',
             'ad_information', 'ad_report', 'deputy_director_cadastral', 'director_cadastral',
             'ad_information', 'registry',
         ], $desks);
@@ -186,7 +188,7 @@ class WorkflowDefinitionTest extends TestCase
 
     public function test_missing_tasks_and_external_recorder(): void
     {
-        $this->assertSame(['land12', 'correspondence_created'], $this->engine->missingTasks('conversion', 'report_charting', ['charted']));
+        $this->assertSame(['land12', 'yes_no', 'correspondence_created'], $this->engine->missingTasks('conversion', 'report_charting', ['charted']));
         $this->assertSame('director_cadastral', $this->def->actingDesk('conversion', 'kamma_advice'));
         $this->assertSame('registry', $this->def->actingDesk('conversion', 'land_processing'));
         $this->assertSame('ad_information', $this->def->actingDesk('conversion', 'field_survey'));
@@ -220,5 +222,15 @@ class WorkflowDefinitionTest extends TestCase
             $this->assertSame('Send to Deeds', $this->engine->actions($wf, 'registry_dispatch')[0]['label']);
         }
         $this->assertSame('Return main file to requester', $this->engine->actions('verification', 'registry_return_requester')[0]['label']);
+    }
+
+    public function test_registered_file_starts_at_registry_and_goes_to_d_cad(): void
+    {
+        // The client (2026-10-16): no file goes to D Cad without the Head of Registry's approval.
+        foreach (['conversion', 'direct', 'verification'] as $wf) {
+            $this->assertSame('registry_intake', $this->def->startStep($wf), $wf);
+            $this->assertSame('registry', $this->def->step($wf, 'registry_intake')['desk'], $wf);
+            $this->assertSame('dc_review', $this->engine->nextStep($wf, 'registry_intake', $this->engine->actions($wf, 'registry_intake')[0]['outcome']), $wf);
+        }
     }
 }

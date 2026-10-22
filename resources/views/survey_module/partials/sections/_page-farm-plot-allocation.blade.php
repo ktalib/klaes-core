@@ -134,6 +134,7 @@
         <table class="farm-data-table">
             <thead>
                 <tr>
+                    <th class="col-sr">S/N</th>
                     <th class="col-sr">SR</th>
                     <th class="col-fno">F. No.</th>
                     <th class="col-name">Farmers Name</th>
@@ -159,6 +160,7 @@
                         $muted      = 'color:var(--gray-400);font-weight:300;';
                     @endphp
                     <tr>
+                        <td class="col-sr">{{ $rows->firstItem() + $loop->index }}</td>
                         <td class="col-sr">{{ $row->sr }}</td>
                         <td class="col-fno" @if (! $isHead) style="{{ $muted }}" @endif>{{ $isHead ? $row->f_no : '↳' }}</td>
                         <td class="col-name text-left" @if (! $isHead) style="{{ $muted }}" @endif>{{ $isHead ? $row->farmer_name : '↳' }}</td>
@@ -205,7 +207,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12" style="text-align:center;padding:24px;color:var(--gray-500);">
+                        <td colspan="13" style="text-align:center;padding:24px;color:var(--gray-500);">
                             <i class="fas fa-info-circle"></i>
                             No plot rows {{ $case ? 'on ' . $case->case_ref : 'in the register' }} yet.
                             <a href="#" onclick="togglePlotFarmerForm();return false;">Add a farmer</a> to start.

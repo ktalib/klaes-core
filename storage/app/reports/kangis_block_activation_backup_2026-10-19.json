@@ -1,0 +1,820 @@
+{
+    "land_files": [
+        "COM-1986-139",
+        "COM-1986-5(T)",
+        "COM-1986-50",
+        "COM-1987-35",
+        "COM-1998-20",
+        "COM-1998-26",
+        "COM-2006-88",
+        "COM-2009-24",
+        "COM-2009-26",
+        "COM-2010-123",
+        "COM-2012-47",
+        "COM-2012-82",
+        "COM-2014-112",
+        "COM-2014-92",
+        "COM-2015-30",
+        "COM-2015-35",
+        "COM-2015-399",
+        "COM-2015-461",
+        "COM-2015-70",
+        "COM-2016-192",
+        "COM-2016-206",
+        "COM-2016-297",
+        "COM-2016-301",
+        "COM-2016-303",
+        "COM-2016-369",
+        "COM-2017-57",
+        "COM-2018-245",
+        "COM-2018-56",
+        "COM-2018-73",
+        "COM-2022-323",
+        "COM-RC-1982-86",
+        "COM-RC-1984-8",
+        "CON-AG-1992-81",
+        "CON-AG-2010-64",
+        "CON-AG-2013-12",
+        "CON-AG-2014-56",
+        "CON-AG-2014-79",
+        "CON-AG-2018-26",
+        "CON-AG-RC-1994-2",
+        "CON-COM-1992-81",
+        "CON-COM-2004-31",
+        "CON-COM-2005-53",
+        "CON-COM-2005-93",
+        "CON-COM-2008-179",
+        "CON-COM-2009-23",
+        "CON-COM-2010-103",
+        "CON-COM-2012-151",
+        "CON-COM-2012-159",
+        "CON-COM-2012-162",
+        "CON-COM-2014-41",
+        "CON-COM-2014-79",
+        "CON-COM-2015-259",
+        "CON-COM-2015-330",
+        "CON-COM-2015-331",
+        "CON-COM-2015-332",
+        "CON-COM-2015-333",
+        "CON-COM-2016-2",
+        "CON-COM-2016-213",
+        "CON-COM-2016-65",
+        "CON-COM-2017-274",
+        "CON-COM-2018-23",
+        "CON-COM-2019-181",
+        "CON-COM-2019-31",
+        "CON-COM-2021-319",
+        "CON-COM-2026-27",
+        "CON-IND-2014-17",
+        "CON-IND-2014-18",
+        "CON-IND-2014-19",
+        "CON-IND-2014-20",
+        "CON-IND-2014-21",
+        "CON-IND-2015-1",
+        "CON-IND-2020-10",
+        "CON-RES-1989-473",
+        "CON-RES-1995-431",
+        "CON-RES-2004-59",
+        "CON-RES-2013-171",
+        "CON-RES-2013-370",
+        "CON-RES-2014-762",
+        "CON-RES-2018-315",
+        "CON-RES-RC-1983-16",
+        "IND-1982-65",
+        "IND-1984-9",
+        "IND-2018-2",
+        "IND-2018-8",
+        "IND-RC-1982-60",
+        "RES-1981-629",
+        "RES-1985-2036",
+        "RES-1987-2110",
+        "RES-1992-5170",
+        "RES-1993-3745",
+        "RES-1993-8376",
+        "RES-1995-1480",
+        "RES-1995-1513",
+        "RES-2000-6527",
+        "RES-2001-242",
+        "RES-2002-4967",
+        "RES-2004-544",
+        "RES-2005-1447",
+        "RES-2012-3344",
+        "RES-2014-1633",
+        "RES-2014-2034",
+        "RES-2014-2617",
+        "RES-2014-2696",
+        "RES-2015-7006",
+        "RES-2017-455",
+        "SIT-2016-120"
+    ],
+    "rows_before": [
+        {
+            "id": "143843",
+            "file_number": "COM-1986-139",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143791",
+            "file_number": "COM-1986-50",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143033",
+            "file_number": "COM-1987-35",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143019",
+            "file_number": "COM-1998-20",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143024",
+            "file_number": "COM-1998-26",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143678",
+            "file_number": "COM-2006-88",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133714",
+            "file_number": "COM-2009-24",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133770",
+            "file_number": "COM-2009-26",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "132864",
+            "file_number": "COM-2010-123",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "134017",
+            "file_number": "COM-2012-47",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143277",
+            "file_number": "COM-2012-82",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "134293",
+            "file_number": "COM-2014-112",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "139692",
+            "file_number": "COM-2014-92",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143383",
+            "file_number": "COM-2015-30",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143239",
+            "file_number": "COM-2015-35",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "195726",
+            "file_number": "COM-2015-399",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133808",
+            "file_number": "COM-2015-461",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143661",
+            "file_number": "COM-2015-70",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143775",
+            "file_number": "COM-2016-192",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "132093",
+            "file_number": "COM-2016-206",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133927",
+            "file_number": "COM-2016-297",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143669",
+            "file_number": "COM-2016-301",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "139125",
+            "file_number": "COM-2016-303",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143728",
+            "file_number": "COM-2016-369",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133823",
+            "file_number": "COM-2017-57",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143467",
+            "file_number": "COM-2018-245",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "149972",
+            "file_number": "COM-2018-56",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "205527",
+            "file_number": "COM-2018-73",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "168334",
+            "file_number": "COM-2022-323",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143418",
+            "file_number": "COM-RC-1982-86",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "154364",
+            "file_number": "COM-RC-1984-8",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143776",
+            "file_number": "CON-AG-2010-64",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "134489",
+            "file_number": "CON-AG-2013-12",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143677",
+            "file_number": "CON-AG-2014-56",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143658",
+            "file_number": "CON-AG-2014-79",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143739",
+            "file_number": "CON-AG-2018-26",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "149901",
+            "file_number": "CON-AG-RC-1994-2",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "98793",
+            "file_number": "CON-COM-1992-81",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133976",
+            "file_number": "CON-COM-2004-31",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "131988",
+            "file_number": "CON-COM-2005-53",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143653",
+            "file_number": "CON-COM-2005-93",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143006",
+            "file_number": "CON-COM-2008-179",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "115410",
+            "file_number": "CON-COM-2009-23",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143754",
+            "file_number": "CON-COM-2010-103",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143464",
+            "file_number": "CON-COM-2012-151",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "144301",
+            "file_number": "CON-COM-2012-159",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133077",
+            "file_number": "CON-COM-2012-162",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "134843",
+            "file_number": "CON-COM-2014-41",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133585",
+            "file_number": "CON-COM-2014-79",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "113221",
+            "file_number": "CON-COM-2015-259",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "157497",
+            "file_number": "CON-COM-2015-330",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "157825",
+            "file_number": "CON-COM-2015-332",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "157532",
+            "file_number": "CON-COM-2015-333",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133981",
+            "file_number": "CON-COM-2016-2",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143172",
+            "file_number": "CON-COM-2016-213",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "135799",
+            "file_number": "CON-COM-2016-65",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143773",
+            "file_number": "CON-COM-2017-274",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "113962",
+            "file_number": "CON-COM-2018-23",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "146087",
+            "file_number": "CON-COM-2019-181",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133705",
+            "file_number": "CON-COM-2019-31",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "205422",
+            "file_number": "CON-COM-2021-319",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "181767",
+            "file_number": "CON-COM-2026-27",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "74042",
+            "file_number": "CON-IND-2014-17",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "74040",
+            "file_number": "CON-IND-2014-18",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "103734",
+            "file_number": "CON-IND-2014-19",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "74031",
+            "file_number": "CON-IND-2014-20",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "74041",
+            "file_number": "CON-IND-2014-21",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "133692",
+            "file_number": "CON-IND-2015-1",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "144344",
+            "file_number": "CON-IND-2020-10",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "124803",
+            "file_number": "CON-RES-1989-473",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143569",
+            "file_number": "CON-RES-1995-431",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "157094",
+            "file_number": "CON-RES-2004-59",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143521",
+            "file_number": "CON-RES-2013-171",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "205447",
+            "file_number": "CON-RES-2013-370",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "172176",
+            "file_number": "CON-RES-2014-762",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143494",
+            "file_number": "CON-RES-2018-315",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143730",
+            "file_number": "IND-1982-65",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "135944",
+            "file_number": "IND-1984-9",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143176",
+            "file_number": "IND-2018-2",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143758",
+            "file_number": "IND-2018-8",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "116050",
+            "file_number": "IND-RC-1982-60",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143524",
+            "file_number": "RES-1981-629",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "124653",
+            "file_number": "RES-1985-2036",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "144090",
+            "file_number": "RES-1987-2110",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143620",
+            "file_number": "RES-1992-5170",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143596",
+            "file_number": "RES-1993-3745",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "70491",
+            "file_number": "RES-1993-8376",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "110312",
+            "file_number": "RES-1995-1480",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143886",
+            "file_number": "RES-1995-1513",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143566",
+            "file_number": "RES-2000-6527",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143567",
+            "file_number": "RES-2001-242",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "175944",
+            "file_number": "RES-2002-4967",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "205541",
+            "file_number": "RES-2004-544",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143570",
+            "file_number": "RES-2005-1447",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "143598",
+            "file_number": "RES-2012-3344",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "207250",
+            "file_number": "RES-2014-2034",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "135446",
+            "file_number": "RES-2014-2617",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "165047",
+            "file_number": "RES-2014-2696",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "150236",
+            "file_number": "RES-2015-7006",
+            "general_registry": "Lands Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        },
+        {
+            "id": "135673",
+            "file_number": "SIT-2016-120",
+            "general_registry": "SIT Registry",
+            "kangis_link_count": null,
+            "allow_multiple_kangis": null
+        }
+    ],
+    "not_indexed": [
+        "COM-1986-5(T)",
+        "CON-AG-1992-81",
+        "CON-COM-2015-331",
+        "CON-RES-RC-1983-16",
+        "RES-2014-1633",
+        "RES-2017-455"
+    ]
+}

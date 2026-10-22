@@ -256,6 +256,7 @@
         if (window.Swal) {
             const r = await Swal.fire({
                 title: 'Reject duplex', input: 'text', inputLabel: 'Reason',
+                allowOutsideClick: false, // typed input: a stray click must not discard it
                 showCancelButton: true, confirmButtonText: 'Reject',
             });
             if (!r.isConfirmed) return;

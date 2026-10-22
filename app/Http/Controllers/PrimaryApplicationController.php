@@ -703,6 +703,9 @@ class PrimaryApplicationController extends Controller
                     'applicationID' => date('Y') . '-' . str_pad($applicationId, 2, '0', STR_PAD_LEFT),
                 ]);
 
+            // KLAES REV-M: the initial bill in Bill Master, already paid from the receipts captured here.
+            app(\App\Services\Billing\Modules\StInitialBillMirror::class)->forPrimary((int) $applicationId);
+
             try {
                 $this->saveSharedUtilitiesToTable($request, $applicationId);
             } catch (Throwable $utilitiesException) {

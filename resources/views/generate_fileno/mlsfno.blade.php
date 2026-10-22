@@ -96,16 +96,27 @@
                                 <button 
                                     id="tab-generator" 
                                     onclick="switchTab('generator')"
-                                    class="tab-button group relative py-3 px-6 text-sm font-semibold rounded-t-lg transition-all duration-200">
+                                    class="tab-button active group relative py-3 px-6 text-sm font-semibold rounded-t-lg transition-all duration-200">
                                     <div class="flex items-center space-x-2">
                                         <i data-lucide="file-text" class="w-5 h-5"></i>
                                         <span>MLPP File Number Generator</span>
                                     </div>
                                     <div class="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-sm transition-all duration-200"></div>
                                 </button>
-                                <button 
+                                <button
+                                    id="tab-batches"
+                                    onclick="switchTab('batches')"
+                                    class="tab-button group relative py-3 px-6 text-sm font-semibold rounded-t-lg transition-all duration-200">
+                                    <div class="flex items-center space-x-2">
+                                        <i data-lucide="layers" class="w-5 h-5"></i>
+                                        <span>Batch Commissioned</span>
+                                    </div>
+                                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-transparent rounded-t-sm transition-all duration-200"></div>
+                                </button>
+                                <button
                                     id="tab-consolidation" 
                                     onclick="switchTab('consolidation')"
+                                    style="margin-left: auto;"
                                     class="tab-button group relative py-3 px-6 text-sm font-semibold rounded-t-lg transition-all duration-200">
                                     <div class="flex items-center space-x-2">
                                         <i data-lucide="file-bar-chart" class="w-5 h-5"></i>
@@ -225,11 +236,17 @@
                                         onclick="bulkDeleteSelectedRecords()"
                                         class="inline-flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md text-sm font-semibold transition-colors shadow-sm">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                    <span>Global Delete</span>
+                                    <span>Master Delete</span>
                                 </button>
                             </div>
                         </div>
                         @endif
+
+                        {{-- Shown only on the Batch Commissioned tab (switchTab in mls_js). --}}
+                        <div id="mlsfBatchModeNote" class="hidden mb-3 flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-2.5 text-sm">
+                            <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
+                            <span>Showing only files commissioned in a batch. Each batch is one row; open its actions to see or print every file in it.</span>
+                        </div>
 
                         <!-- DataTable -->
                         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -281,6 +298,7 @@
                         </div>
                     </div>
                     <!-- End of File Generator Tab -->
+
 
                     <!-- Tab Content: Consolidation Report -->
                     <div id="content-consolidation" class="tab-content hidden">
@@ -440,15 +458,11 @@
                                 <p class="text-sm text-gray-500 mt-1">Fill in the details to generate a new MLPP file number</p>
                             </div>
                             <div class="flex items-center gap-3">
-                                {{-- Refreshes the CARD, not one panel: the serial map behind every file
-                                     type is read once when the modal opens, and a duplex's plan once when
-                                     it is picked. Either can move while the card sits open — another
-                                     officer commissioning in the same series, or a Change of Purpose
-                                     selection being changed — so both are re-read in place rather than by
-                                     closing and re-opening. --}}
+                                {{-- Starts the card over: clears everything entered and leaves it as a
+                                     freshly opened card (latest serials included). Asks first. --}}
                                 <button type="button" id="duplexRefreshBtn"
                                         onclick="window.refreshCommissionCard()"
-                                        title="Re-read the next available serials, and the duplex plan when one is selected"
+                                        title="Clear the form and start fresh"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-blue-700 hover:border-blue-200 transition-colors">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                     Refresh
@@ -993,7 +1007,7 @@
                                                 <label for="purpose" class="block text-xs font-medium text-gray-600 mb-1">
                                                     Purpose
                                                 </label>
-                                                 <select id="purpose" name="purpose_id" x-model="purpose" @change="updatePreview()"
+                                                 <select id="purpose" name="purpose_id" x-model="purpose" @change="$nextTick(() => { rememberEntryPurpose(); updatePreview(); })"
                                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                          :disabled="fileOption === 'sit'" required>
                                                     <option value="">Select Purpose</option>
@@ -3259,6 +3273,35 @@
             .tab-button:not(.active) .absolute {
                 background-color: transparent !important;
             }
+
+            /* Each tab keeps its own colour, active or not. */
+            #tab-generator { color: #2563eb; background-color: #eff6ff; }
+            #tab-batches { color: #059669; background-color: #ecfdf5; }
+            #tab-generator:not(.active):hover { background-color: #dbeafe; }
+            #tab-batches:not(.active):hover { background-color: #d1fae5; }
+            #tab-generator.active, #tab-batches.active { background-color: #ffffff; }
+            #tab-generator.active .absolute { background-color: #2563eb !important; }
+            #tab-batches.active .absolute { background-color: #059669 !important; }
+
+            /* Consolidated Report sits on the right as a solid button, not a tab. */
+            #tab-consolidation,
+            #tab-consolidation:not(.active) {
+                color: #ffffff;
+                background-color: #7c3aed;
+                border-radius: 0.5rem;
+                align-self: center;
+                margin-bottom: 0.375rem;
+                padding-top: 0.5rem;
+                padding-bottom: 0.5rem;
+                box-shadow: 0 1px 3px rgba(124, 58, 237, 0.35);
+            }
+            #tab-consolidation:not(.active):hover { color: #ffffff; background-color: #6d28d9; }
+            #tab-consolidation.active {
+                color: #ffffff;
+                background-color: #5b21b6;
+                box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+            }
+            #tab-consolidation .absolute { display: none; }
 
             .tab-content {
                 animation: fadeIn 0.3s ease-in;

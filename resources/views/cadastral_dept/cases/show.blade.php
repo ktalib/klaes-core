@@ -5,7 +5,17 @@
   $wf = $def->workflow($case->workflow);
   $c = $wf['colour'];
   $tasks = (array) ($step['tasks'] ?? []);
-  $allDone = count($tasks) === $done->count();
+  // As CaseWorkflow: with no correspondence file there is nothing to detach or attach; no new
+  // pages back from Land, no DMS update; and the main file's page count must be entered.
+  $cdNeeded = array_keys($tasks);
+  if (! trim((string) $case->correspondence_fileno)) {
+      $cdNeeded = array_diff($cdNeeded, \App\Services\CadastralDept\CorrespondenceCustody::TASKS);
+  }
+  if (($pageCounts['triggered'] ?? null) === false) {
+      $cdNeeded = array_diff($cdNeeded, [\App\Services\CadastralDept\EdmsUpdate::TASK]);
+  }
+  $allDone = collect($cdNeeded)->every(fn ($k) => isset($done[$k]))
+      && (empty($pageCounts['direction']) || ! empty($pageCounts['recorded']));
   $needsSubType = $case->isOpen() && isset($step['route_by']) && ! $case->sub_type;
 @endphp
 <div class="flex-1 overflow-auto bg-gray-50">
@@ -30,10 +40,17 @@
       </div>
       <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <dt class="text-gray-500">File type</dt><dd>{{ $case->fileTypeLabel() }}</dd>
-        @if ($wf['sub_types'] ?? null)
+        @php
+          // The answers follow the file type (file_types tenure / route, 2026-10-20); a Verification
+          // row with no answer is left out (files registered when the question was not asked).
+          $cdFt = $def->fileTypes()[$case->file_type] ?? [];
+          $cdShowTenure = $case->workflow !== 'verification' || $case->sub_type;
+          $cdShowRoute = $case->allocation_route || ($cdFt['route'] ?? null) === 'ask';
+        @endphp
+        @if (($wf['sub_types'] ?? null) && $cdShowTenure)
           <dt class="text-gray-500">{{ $wf['sub_type_label'] ?? 'Route' }}</dt><dd>{{ $wf['sub_types'][$case->sub_type] ?? 'Not set' }}</dd>
         @endif
-        @if ($wf['asks_allocation_route'] ?? null)
+        @if (($wf['asks_allocation_route'] ?? null) && $cdShowRoute)
           <dt class="text-gray-500">Resettlement / Direct</dt><dd>{{ $def->subTypes($wf['asks_allocation_route'])[$case->allocation_route ?? ''] ?? 'Not set' }}</dd>
         @endif
         <dt class="text-gray-500">Came from</dt><dd>{{ $case->fileSourceLabel() }}</dd>
@@ -114,13 +131,17 @@
       @endforeach
     </div>
 
+    @php
+      // A file with no correspondence file has nothing to detach or attach, so the step's name leaves it out (user, 2026-10-18).
+      $cdStepLabel = ! trim((string) $case->correspondence_fileno) && ! empty($step['label_no_correspondence']) ? $step['label_no_correspondence'] : ($step['label'] ?? '');
+    @endphp
     {{-- The process, step by step: done, where it is now, and the way on. --}}
     {{-- Tinted in the workflow's colour (user, 2026-10-15). --}}
     <div class="rounded-xl border border-{{ $c }}-200 bg-{{ $c }}-50 px-5 py-4 mb-6">
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h3 class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-{{ $c }}-800"><i data-lucide="{{ $wf['icon'] ?? 'folder' }}" class="w-4 h-4"></i>Process · {{ $wf['label'] }}@if ($case->sub_type && isset($wf['sub_types'][$case->sub_type])) ({{ $wf['sub_types'][$case->sub_type] }})@endif</h3>
         @if ($case->isOpen())
-          <span class="text-xs font-semibold text-{{ $c }}-800">Now: {{ $step['label'] }}</span>
+          <span class="text-xs font-semibold text-{{ $c }}-800">Now: {{ $cdStepLabel }}</span>
         @endif
       </div>
       @include('cadastral_dept.partials._pipeline', ['pipeline' => $pipeline, 'c' => $c])
@@ -132,7 +153,7 @@
         @if ($case->isOpen())
           <div class="rounded-xl border-2 border-{{ $c }}-300 bg-white p-5">
             <div class="text-xs font-bold uppercase text-{{ $c }}-700">Now at: {{ $def->deskLabel($step['desk']) }}</div>
-            <div class="text-lg font-bold text-gray-800">{{ $step['label'] }}</div>
+            <div class="text-lg font-bold text-gray-800">{{ $cdStepLabel }}</div>
             @php $cdBack = $case->sentBack(); @endphp
             @if ($cdBack)
               <div class="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -155,6 +176,9 @@
 
             @if ($tasks)
               <ul class="mt-4 space-y-2">
+                @if ($pageCounts['direction'])
+                  @include('cadastral_dept.partials._page_count_row')
+                @endif
                 @foreach ($tasks as $key => $label)
                   <li class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 {{ isset($done[$key]) ? 'border-green-200 bg-green-50' : 'border-gray-200' }}">
                     <span class="text-sm {{ isset($done[$key]) ? 'text-green-800' : 'text-gray-700' }}">
@@ -174,13 +198,23 @@
                       <span class="text-xs text-gray-500">Not needed: no correspondence file</span>
                     @elseif (in_array($key, ['correspondence_detached', 'correspondence_attached'], true) && $custodyInstalled && ! isset($done[$key]))
                       @php $cdCustodyAction = $key === 'correspondence_detached' ? 'detach' : 'attach'; @endphp
+                      @php $cdCustodyWhy = app(\App\Services\CadastralDept\PageCounts::class)->custodyBlocker($case, $cdCustodyAction); @endphp
+                      @if ($cdCustodyWhy)
+                        {{-- Count first, then detach; DMS update first, then attach (client, 2026-10-18). --}}
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-gray-200 text-gray-500 text-xs font-semibold cursor-not-allowed" title="{{ $cdCustodyWhy }}">
+                          <i data-lucide="lock" class="w-3 h-3"></i> {{ $cdCustodyAction === 'detach' ? 'Detach correspondence file' : 'Attach correspondence file' }}
+                        </span>
+                        <span class="text-xs text-gray-500">{{ $cdCustodyWhy }}</span>
+                      @else
                       {{-- Opens the side-by-side preview (partials/_custody_preview); the note is asked there. --}}
                       <button type="button" class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold"
                               data-custody-open="{{ $cdCustodyAction }}" data-url="{{ route('cadastral-dept.cases.correspondence.custody.save', $case->id) }}"
                               data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-title="{{ $case->file_title }}"
-                              data-corr="{{ $case->correspondence_fileno }}" data-csf="{{ $case->shadow_fileno }}">
+                              data-corr="{{ $case->correspondence_fileno }}" data-csf="{{ $case->shadow_fileno }}"
+                              >
                         {{ $cdCustodyAction === 'detach' ? 'Detach correspondence file' : 'Attach correspondence file' }}
                       </button>
+                      @endif
                     @elseif ($key === 'bill_generated')
                       <span class="flex items-center gap-2">
                         @if (isset($done[$key]))
@@ -221,8 +255,23 @@
                           <span class="text-xs text-gray-500">{{ $key === 'job_its' ? 'Attach the job and surveyor first' : 'Commission the field jacket first' }}</span>
                         @endif
                       </span>
-                    @elseif ($key === 'land12' && $yesNoInstalled)
-                      {{-- Land 12 has no screen here: the tick stays manual, once the Yes/No form is complete. --}}
+                    @elseif ($key === 'land12')
+                      {{-- Land 12 on its own line (transcript, 2026-10-16): the Cadastral to Land (Land 12) page, then the tick. --}}
+                      <span class="flex items-center gap-2">
+                        @if (isset($done[$key]))
+                          <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @else
+                          <a href="{{ route('survey-report.index') }}?url=cadastral" target="_blank" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 text-xs font-semibold">Open Land 12</a>
+                          <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
+                                data-confirm-title="Mark Land 12 done?" data-confirm="Land 12: ticked as done for {{ $case->case_ref }}.">
+                            @csrf
+                            <input type="hidden" name="task" value="{{ $key }}">
+                            <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
+                          </form>
+                        @endif
+                      </span>
+                    @elseif ($key === 'yes_no' && $yesNoInstalled)
+                      {{-- The Yes/No form: ticked by hand once its questions are answered, which locks it. --}}
                       <span class="flex items-center gap-2">
                         @if (isset($done[$key]))
                           <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
@@ -235,11 +284,54 @@
                         </a>
                         @if (! isset($done[$key]) && $yesNoForm?->isComplete())
                           <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
-                                data-confirm-title="Mark Land 12 done?" data-confirm="The Yes/No form is then locked and cannot be changed.">
+                                data-confirm-title="Mark the Yes/No form done?" data-confirm="The Yes/No form is then locked and cannot be changed.">
                             @csrf
                             <input type="hidden" name="task" value="{{ $key }}">
                             <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
                           </form>
+                        @endif
+                      </span>
+                    @elseif ($key === 'planning_advice_uploaded')
+                      {{-- KAMMA / Physical Planning's advice, filed into EDMS when the file comes back (PlanningAdvice). --}}
+                      <span class="flex items-center gap-2">
+                        @if (isset($done[$key]))
+                          <span class="text-xs text-gray-500">{{ $done[$key]->note }} · {{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @elseif ($planningAdviceDue)
+                          <button type="button" onclick="document.getElementById('cd-pa-modal').classList.remove('hidden')"
+                                  class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Upload Planning Advice</button>
+                        @else
+                          <span class="text-xs text-gray-500">Documents table not installed</span>
+                        @endif
+                      </span>
+                    @elseif ($key === 'edms_updated' && $edms)
+                      {{-- Registry, file back from Land: the new pages into DMS (EdmsUpdate), triggered by the page count (PageCounts). --}}
+                      @php $cdDmsTrig = $pageCounts['direction'] === 'back' ? $pageCounts['triggered'] : true; @endphp
+                      <span class="flex flex-wrap items-center justify-end gap-2">
+                        @if (isset($done[$key]))
+                          <span class="text-xs text-gray-500">{{ $done[$key]->note }} · {{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @elseif ($cdDmsTrig === false)
+                          <span class="text-xs text-gray-500">Not needed: no new pages came back</span>
+                        @elseif ($cdDmsTrig === null)
+                          <span class="text-xs text-gray-500">Enter the page count it came back with first</span>
+                        @elseif (! $edms['indexed'])
+                          <span class="text-xs text-red-700">Not in the file index: DMS cannot be updated from here</span>
+                        @else
+                          <span class="text-xs {{ $edms['complete'] ? 'text-green-700' : 'text-yellow-700' }}">
+                            @if ($pageCounts['new_pages'] > 0){{ $pageCounts['new_pages'] }} new page(s) · @endif{{ $edms['new_pages'] }} file(s) uploaded · {{ $edms['typed'] }} page-typed
+                          </span>
+                          <button type="button" onclick="document.getElementById('cd-dms-modal').classList.remove('hidden')"
+                                  class="px-3 py-1 rounded-md {{ $edms['new_pages'] ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">DMS update</button>
+                          @if ($edms['new_pages'])
+                            <a href="{{ $edms['type_url'] }}" target="_blank" class="px-3 py-1 rounded-md {{ $edms['complete'] ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">Page type</a>
+                          @endif
+                          @if ($edms['complete'])
+                            <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
+                                  data-confirm-title="DMS updated?" data-confirm="{{ $edms['new_pages'] }} new page(s) uploaded and page-typed for {{ $case->file_number }}.">
+                              @csrf
+                              <input type="hidden" name="task" value="{{ $key }}">
+                              <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
+                            </form>
+                          @endif
                         @endif
                       </span>
                     @elseif (isset($done[$key]))
@@ -301,7 +393,12 @@
                 <div class="mt-4 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-900">
                   <i data-lucide="user-check" class="w-4 h-4 inline -mt-0.5"></i>
                   Sent to the {{ $headInfo['head'] }} for approval.
-                  {{ $headInfo['is_head'] ? 'Send it on below, or return it to the staff with a reason.' : 'Waiting for the ' . $headInfo['head'] . ' to send it on.' }}
+                  @if ($headInfo['is_head'])
+                    You are the {{ $headInfo['head'] }}{{ ! empty($headInfo['vacant']) ? ' (the post is not assigned to anyone yet, so the admin holds it)' : '' }}.
+                    Approve it to send it on, or return it to the staff with a reason if something must be redone.
+                  @else
+                    Waiting for the {{ $headInfo['head'] }} to approve it.
+                  @endif
                 </div>
               @elseif (! $headInfo['is_head'])
                 <p class="mt-4 text-xs text-gray-500">When the work is done, send the file to the {{ $headInfo['head'] }}. Only the {{ $headInfo['head'] }} sends it to the next unit.</p>
@@ -355,6 +452,34 @@
           <div class="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
             Closed {{ optional($case->closed_at)->format('d M Y H:i') }}:
             {{ $case->status === 'returned' ? 'sent back to ' . $case->fileSourceLabel() . '.' : 'completed.' }}
+          </div>
+        @endif
+
+        @if ($planningAdvice->isNotEmpty())
+          {{-- KAMMA / Physical Planning's Planning Advice, to view or download (PlanningAdvice). --}}
+          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mt-6 mb-3">Planning Advice</h3>
+          <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                <tr><th class="px-3 py-2">S/N</th><th class="px-3 py-2">Document</th><th class="px-3 py-2">Uploaded</th><th class="px-3 py-2 text-right">Action</th></tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @foreach ($planningAdvice as $pa)
+                  <tr>
+                    <td class="px-3 py-2 text-gray-500">{{ $loop->iteration }}</td>
+                    <td class="px-3 py-2">{{ $pa->original_name }}</td>
+                    <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ \Illuminate\Support\Carbon::parse($pa->created_at)->format('d M Y H:i') }}</td>
+                    <td class="px-3 py-2 text-right">
+                      @if ($pa->url)
+                        @include('cadastral_dept.partials._row_actions', ['items' => [['View / download', 'download', $pa->url, true]]])
+                      @else
+                        <span class="text-xs text-red-700">Scan missing</span>
+                      @endif
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
           </div>
         @endif
 
@@ -499,6 +624,43 @@
   @include('cadastral_dept.field_jackets._attach_job_modal')
 @endif
 
+@if ($planningAdviceDue)
+  {{-- Upload KAMMA / Physical Planning's Planning Advice (PlanningAdvice). --}}
+  <div id="cd-pa-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
+    <form method="POST" enctype="multipart/form-data" action="{{ route('cadastral-dept.cases.planning-advice.store', $case->id) }}"
+          data-confirm-title="Upload the Planning Advice?" data-confirm="The documents are filed into {{ $case->file_number }}'s DMS folder."
+          class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
+      @csrf
+      <div>
+        <div class="text-xs font-bold uppercase text-gray-500">{{ $case->case_ref }} · {{ $case->file_number }}</div>
+        <div class="text-lg font-bold text-gray-800">Upload Planning Advice</div>
+        <p class="text-xs text-gray-500 mt-1">From {{ $def->deskLabel($step['desk']) }}: the advice and what they found on the field, on the JSI. PDF, JPG or PNG, up to {{ \App\Services\Cadastral\CadastralDocuments::MAX_KB / 1024 }} MB each.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">JSI <span class="text-red-600">*</span></label>
+        <select name="jsi" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">Choose the JSI</option>
+          @foreach (\App\Services\CadastralDept\PlanningAdvice::JSI_TYPES as $cdJsi => $cdJsiLabel)
+            <option value="{{ $cdJsi }}" @selected(old('jsi', $case->workflow === 'conversion' ? 'conversion' : '') === $cdJsi)>{{ $cdJsiLabel }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Documents <span class="text-red-600">*</span></label>
+        <input type="file" name="documents[]" multiple required accept=".pdf,.jpg,.jpeg,.png" class="w-full text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Comments</label>
+        <textarea name="comments" rows="3" maxlength="2000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">{{ old('comments') }}</textarea>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="document.getElementById('cd-pa-modal').classList.add('hidden')" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
+        <button class="px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold">Upload</button>
+      </div>
+    </form>
+  </div>
+@endif
+
 @if ($pndItsDefault !== null)
   {{-- P&D's plain I to S: the instruction to AD Cad Info to attach a job and a surveyor. --}}
   <div id="cd-pnd-its-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
@@ -554,11 +716,14 @@
 
 @if ($fmcBackfill !== null)
   @php
-    // Filled from the records and locked; a blank one is left for the officer.
+    // Filled from the records and locked; a blank one is left for the officer. Block No. and
+    // Layout No. come before Plot No. (user, 2026-10-20).
     $cdFmcFields = [
         'file_title' => 'File Title', 'allottee_name' => 'Allottee Name',
+        'block_no' => 'Block No.', 'layout_no' => 'Layout No.',
         'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location',
     ];
+    $cdFmcShort = ['block_no', 'layout_no'];   // 50 characters, upper case
   @endphp
   <div id="cd-fmc-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
     <form method="POST" action="{{ route('cadastral-dept.cases.fmc.store', $case->id) }}" data-confirm-title="Commission the FMC?" data-confirm="A File Movement Card is created for {{ $case->file_number }}." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
@@ -575,18 +740,10 @@
             @if (isset($fmcBackfill[$name]))
               <input type="text" value="{{ $fmcBackfill[$name] }}" disabled class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700">
             @else
-              <input type="text" name="{{ $name }}" value="{{ old($name) }}" maxlength="255" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <input type="text" name="{{ $name }}" value="{{ old($name) }}" maxlength="{{ in_array($name, $cdFmcShort, true) ? 50 : 255 }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm{{ in_array($name, $cdFmcShort, true) ? ' uppercase' : '' }}">
             @endif
           </div>
         @endforeach
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Block No.</label>
-          <input type="text" name="block_no" value="{{ old('block_no') }}" maxlength="50" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Layout No.</label>
-          <input type="text" name="layout_no" value="{{ old('layout_no') }}" maxlength="50" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase">
-        </div>
       </div>
       <div class="text-xs text-gray-500">Date and time of commissioning are recorded automatically.</div>
       <div class="flex justify-end gap-2">
@@ -598,5 +755,8 @@
 @endif
 @if ($custodyInstalled)
   @include('cadastral_dept.partials._custody_preview')
+  @if ($edms && $pageCounts['direction'] === 'back' && $pageCounts['triggered'] && $case->isOpen())
+    @include('cadastral_dept.partials._dms_update_modal')
+  @endif
 @endif
 @endsection

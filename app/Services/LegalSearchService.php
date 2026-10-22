@@ -58,14 +58,14 @@ class LegalSearchService
 
         $conn = DB::connection('sqlsrv');
 
-        // Preserve exactly what the user typed — before KANGIS canonicalization below rewrites
-        // $fileNo — so the file-number display ("SEARCHED (LINKED)") always leads with the
+        // Preserve exactly what the user typed â before KANGIS canonicalization below rewrites
+        // $fileNo â so the file-number display ("SEARCHED (LINKED)") always leads with the
         // number actually searched, whichever format it was in.
         $searchedFileNo = $fileNo;
 
         // A KANGIS number (e.g. "MLKN 2455") is an alias of a mother MLS file. Resolve it to
-        // the mother's MLS number up front so the ENTIRE search — SME family detection, prop_id
-        // expansion, and File Information — runs identically to searching the MLS number directly.
+        // the mother's MLS number up front so the ENTIRE search â SME family detection, prop_id
+        // expansion, and File Information â runs identically to searching the MLS number directly.
         // Without this, a KANGIS search is diverted into the SME branch, which bypasses prop_id
         // expansion and therefore never sees the mother's consolidated parcel.
         // Fail-open: only rewrites a confidently-mapped KANGIS-format input; otherwise unchanged.
@@ -85,12 +85,12 @@ class LegalSearchService
         // Sectional Titling: when the searched file is an ST mother/scheme (searched by its
         // LAND number, e.g. RES-2025-115, or the ST number, e.g. ST-RES-2026-2), its unit
         // files' transactions are keyed to the ST number (deed_registrations.parent_fileno)
-        // or the unit numbers, NOT the land number — so a mother search would otherwise miss
+        // or the unit numbers, NOT the land number â so a mother search would otherwise miss
         // them. Resolve the scheme number + unit numbers and (a) add them to the file-number
         // search set and (b) whitelist them past the cross-property contamination guard. This
         // is a SEPARATE channel from allowedSmeFileNos so it never triggers the SME-mode
         // bypass of the mother's own prop_id expansion. A UNIT search returns [] here
-        // (sibling exclusion — the unit's own number already pulls its own transactions).
+        // (sibling exclusion â the unit's own number already pulls its own transactions).
         $stRelatedFileNos = $this->resolveStRelatedFileNos($conn, $fileNo);
         $filters['stRelatedFileNos'] = $stRelatedFileNos;
 
@@ -108,14 +108,14 @@ class LegalSearchService
         // A subdivided / merged / separated mother whose own history was never captured under
         // its own number owns NO row in any of the four tables. The searches above then return
         // nothing, and because every later expansion collects prop_ids from rows already found,
-        // there is nothing to expand from — the file reads as "no records" even though its
+        // there is nothing to expand from â the file reads as "no records" even though its
         // fragments exist and point straight at it (production: CON-IND-2024-9, 530 children,
         // 0 own rows).
         //
         // Expansion elsewhere runs sideways (same prop_id) and upward (child -> ancestor); this
         // is the one downward step: rows whose parent_prop_id IS the searched mother's prop_id.
         // Only `pra` carries parent_prop_id, and the fragments are pra rows, so one indexed
-        // predicate covers it — no 500-way OR list of file numbers.
+        // predicate covers it â no 500-way OR list of file numbers.
         //
         // Deliberately narrow: it fires ONLY when the searched file found nothing of its own AND
         // was decommissioned by a split. A search that already returns rows cannot change shape,
@@ -207,7 +207,7 @@ class LegalSearchService
             // STOPGAP (2026-08-30): drop prop_id-sourced rows that name no file at all.
             //
             // These arrived on the parcel, not on the file, and carry only a TEMP
-            // placeholder of their own — so nothing ties them to the file being read.
+            // placeholder of their own â so nothing ties them to the file being read.
             // RES-2024-2184 was showing a deed_registrations Occupancy Permit granted to
             // HAMZA ALHAJI SANI in KAGADAMA (fileno TEMP-05506, parent_fileno NULL)
             // purely because it shares prop_id 62492: a different grant, to a different
@@ -215,7 +215,7 @@ class LegalSearchService
             //
             // Suppression, not a fix: the row is real and belongs SOMEWHERE, and the
             // right answer is to give it its file number. Until then it is better absent
-            // than attributed to a file it has no established connection to — a legal
+            // than attributed to a file it has no established connection to â a legal
             // search report is read as a statement about one file's title.
             $extraFH   = $this->dropUnattributableParcelRows($extraFH);
             $extraCofO = $this->dropUnattributableParcelRows($extraCofO);
@@ -262,7 +262,7 @@ class LegalSearchService
 
         // Guard against cross-property contamination.
         // related_file_number recertification links and SME (related_fileno) expansion can pull
-        // in transaction records that belong to a DIFFERENT property (different prop_id) — e.g.
+        // in transaction records that belong to a DIFFERENT property (different prop_id) â e.g.
         // a KANGIS recertification row tying RES-2026-2270 (prop_id A) to MLKN 3020 (prop_id B).
         // Establish the prop_id(s) that genuinely belong to the searched file number, then drop
         // any transaction row whose prop_id differs. Merger parents (parent_prop_id) are kept.
@@ -344,7 +344,7 @@ class LegalSearchService
             // The searched file's explicit lineage set (SME siblings derived from related_fileno).
             // These are legitimately linked files (e.g. a merger's source files) and must survive
             // the contamination guard even when their prop_id was never linked/remapped to the
-            // searched file — as happens with manual-linkage backfilled mergers/subdivisions.
+            // searched file â as happens with manual-linkage backfilled mergers/subdivisions.
             $smeAllowed = [];
             foreach (($allowedSmeFileNos ?? []) as $sme) {
                 $s = trim((string) $sme);
@@ -353,15 +353,15 @@ class LegalSearchService
                 }
             }
             // ST scheme siblings (unit numbers + scheme number) are legitimately linked to the
-            // searched mother — keep their (often prop_id-less) transaction rows past the guard.
+            // searched mother â keep their (often prop_id-less) transaction rows past the guard.
             foreach (($stRelatedFileNos ?? []) as $stFn) {
                 $s = trim((string) $stFn);
                 if ($s !== '') {
                     $smeAllowed[strtoupper($s)] = true;
                 }
             }
-            // The searched file's OWN number variants (base ↔ "(T)"). A temporary "(T)" file is
-            // the same physical file as its base — the SQL layer already matches both — so its
+            // The searched file's OWN number variants (base â "(T)"). A temporary "(T)" file is
+            // the same physical file as its base â the SQL layer already matches both â so its
             // rows must never be dropped as "cross-property" merely because capture stamped them
             // with a different prop_id (a "(T)" is allocated its own prop_id in PropID_Master, and
             // mis-assigned prop_ids are common on captured deeds). Kept by file number only: the
@@ -377,7 +377,7 @@ class LegalSearchService
             // Build the sets of LEGITIMATELY-linked files/parcels so only they survive a
             // prop_id-ONLY match; everything else that collides on a (mis)assigned prop_id is
             // dropped. This self-disables once no unrelated file shares a prop_id.
-            //   1) OP/TOT parcels — an Occupancy Permit (temp, or temp+land) and its Transfer of
+            //   1) OP/TOT parcels â an Occupancy Permit (temp, or temp+land) and its Transfer of
             //      Title (land) legitimately share ONE prop_id. Keyed by prop_id.
             $opTotPropIds = [];
             foreach ($all as $row) {
@@ -388,7 +388,7 @@ class LegalSearchService
                     }
                 }
             }
-            //   2) PropID_Master-registered aliases of the searched parcel(s) — the KANGIS/MLS/temp
+            //   2) PropID_Master-registered aliases of the searched parcel(s) â the KANGIS/MLS/temp
             //      number formats of the SAME file, which must never be treated as "unrelated".
             $masterAliasFiles = [];
             if (!empty($searchedPropIds)) {
@@ -424,14 +424,14 @@ class LegalSearchService
                     }
 
                     // Keep rows belonging to the searched file's explicit lineage set (related_fileno
-                    // siblings), regardless of prop_id — otherwise a merger's source files whose
+                    // siblings), regardless of prop_id â otherwise a merger's source files whose
                     // prop_id was never remapped are wrongly dropped as "cross-property".
                     if ($rowFileNo !== '' && isset($smeAllowed[strtoupper($rowFileNo)])) {
                         return true;
                     }
 
                     // Rows stored under the searched file's own base/"(T)" variant are the
-                    // searched file's own transactions — always keep them, whatever prop_id
+                    // searched file's own transactions â always keep them, whatever prop_id
                     // capture stamped on them.
                     if ($rowFileNo !== '' && isset($selfVariantFiles[strtoupper($rowFileNo)])) {
                         return true;
@@ -491,11 +491,11 @@ class LegalSearchService
             $all = array_merge($all, $dcivCommissioningRows);
         }
 
-        // When the searched file is a Sectional Titling (ST) file — a primary ST
+        // When the searched file is a Sectional Titling (ST) file â a primary ST
         // file (ST-COM-2025-5) or one of its commissioned unit files
-        // (ST-COM-2025-5-001) — surface the scheme's commissioning lifecycle:
+        // (ST-COM-2025-5-001) â surface the scheme's commissioning lifecycle:
         // an "ST File Commissioning" row for the primary application and an
-        // "ST File Commissioning – Fragmentation" row for each commissioned unit.
+        // "ST File Commissioning â Fragmentation" row for each commissioned unit.
         $stCommissioningRows = $this->fetchStCommissioningRows($conn, $fileNo, $all);
         if (!empty($stCommissioningRows)) {
             $all = array_merge($all, $stCommissioningRows);
@@ -549,7 +549,7 @@ class LegalSearchService
             // history (Change of Purpose, Change of Name, recertification, amendment, cancellation).
             // For a SPLIT/MERGE (Plot Subdivision / Merger / Separation), the successors get NEW
             // prop_ids, so the searched file's own history (e.g. a subdivided mother's Deed of
-            // Mortgage) is not represented anywhere else — keep it instead of wiping it out.
+            // Mortgage) is not represented anywhere else â keep it instead of wiping it out.
             $decomReason = $decommissioned[strtoupper($fileNo)] ?? null;
             $isSplitOrMerge = $decomReason !== null
                 && preg_match('/subdivision|merg|separation|fragment/i', (string) $decomReason);
@@ -582,20 +582,20 @@ class LegalSearchService
         // during per-lifecycle arrangement, never as a global pre-group shuffle.
 
         // Change of Purpose and Subdivision are Ministry-initiated actions, so Party 1 (the
-        // grantor/authority) is always the Ministry — not the file owner. Normalize it here so
+        // grantor/authority) is always the Ministry â not the file owner. Normalize it here so
         // both the on-screen timeline and the printed report (which reads party_1 from these
         // transactions) are consistent. Party 2 (the owner/beneficiary) is left untouched.
         // Recertification Party 1 (grantor/authority) is the issuing body: a Ministry
         // recertification ("Ministry Of Land & Physical Planning Recertification") is issued
         // by the Ministry; every other recertification (KANGIS) is issued by the Kano
-        // Geographic Information Service — never the file owner.
+        // Geographic Information Service â never the file owner.
         foreach ($all as &$_row) {
             $_type = strtolower((string) ($_row['transaction_type'] ?? ''));
             if (str_contains($_type, 'recertification')) {
                 // 'land recertification' is required here: fetchRelatedRecertificationRows() has
                 // already rewritten a Ministry recert's type via recertDisplayLabel() to
                 // "Land Recertification (File Commissioning)", which contains neither 'ministry'
-                // nor 'physical planning' — without this token every Ministry recertification
+                // nor 'physical planning' â without this token every Ministry recertification
                 // would be credited to KANGIS (and contradict makePrintMinistryRecertRow()).
                 $_row['party_1'] = (str_contains($_type, 'ministry')
                         || str_contains($_type, 'physical planning')
@@ -635,7 +635,7 @@ class LegalSearchService
             }
         }
 
-        // The picked indexing row may be only a LOOSE match — found via its
+        // The picked indexing row may be only a LOOSE match â found via its
         // related_fileno pointing back at the searched file (e.g. a surviving
         // subdivision child of a decommissioned mother). Its own file_number is
         // then a DIFFERENT file and must not masquerade as the searched number
@@ -643,7 +643,7 @@ class LegalSearchService
         $ownIndexedNumber = null;
         if ($fileIndexingData) {
             // Treat the picked indexing row as the searched file's OWN record ONLY when it
-            // matches the searched number (or the temp number the user searched) — never a
+            // matches the searched number (or the temp number the user searched) â never a
             // related/child row that merely sorted to the top of $all. Matching against the
             // whole $primaryCandidates set (which includes $all[0]) let a subdivision mother
             // that is not itself indexed borrow a CHILD's number for the File Information
@@ -659,7 +659,7 @@ class LegalSearchService
         }
 
         // Size: the file indexing record is the editable source of truth (the Edit File
-        // Information modal writes to file_indexings.plot_size), so it takes priority —
+        // Information modal writes to file_indexings.plot_size), so it takes priority â
         // this mirrors buildPrintReport() so the on-screen "Size" and the printed report
         // agree, and a manually-entered size actually shows after a refresh.
         $fileSize = null;
@@ -705,11 +705,11 @@ class LegalSearchService
             }
         }
 
-        // Temporary "(T)" file number tied to the searched file — displayed as a
+        // Temporary "(T)" file number tied to the searched file â displayed as a
         // second line beside the primary file number in the File Information card.
         $tempFileNumber = $this->resolveTempFileNumber($conn, $fileNo, $fileIndexingData);
 
-        // DCIV investigation flag — a searched file tied to a DCIV (on either side
+        // DCIV investigation flag â a searched file tied to a DCIV (on either side
         // of master_dciv_links) is marked Under Investigation.
         $investigation = $this->resolveDcivInvestigation([$fileNo], $all);
 
@@ -746,13 +746,13 @@ class LegalSearchService
             $fileNo
         );
 
-        // W/R/C flag — file tagged [WRC] in duplicate_fileno (matched by number
+        // W/R/C flag â file tagged [WRC] in duplicate_fileno (matched by number
         // variants or prop_id). Used to conditionally reveal the W/R/C remark
         // editor in the LS comments panel (mirrors the report's own gating).
         $isWrcFile = $this->resolveIsWrcFile($conn, $fileNo, $all[0]['prop_id'] ?? null);
 
         // Lon/Lat from the file indexing record, formatted "longitude, latitude"
-        // — mirrors the printed report's Lon/Lat field.
+        // â mirrors the printed report's Lon/Lat field.
         $fileLonLat = null;
         $fiLon = trim((string) ($fileIndexingData->longitude ?? ''));
         $fiLat = trim((string) ($fileIndexingData->latitude ?? ''));
@@ -762,7 +762,7 @@ class LegalSearchService
             $fileLonLat = $fiLon !== '' ? $fiLon : $fiLat;
         }
 
-        // "SEARCHED (LINKED)" file-number display — same rule used by the printable report and
+        // "SEARCHED (LINKED)" file-number display â same rule used by the printable report and
         // Pay-Per-Search template, so the LS Timeline shows the identical KANGIS/MLS pairing.
         $fileNumberDisplay = $this->resolveFileNumberDisplay(
             $conn,
@@ -783,7 +783,7 @@ class LegalSearchService
 
         // An "-RC-" file's recertification now reads off its own commissioning row
         // ("File Commissioning & Recertification"), so its separate recert line is folded
-        // away here — for the screen and, since buildPrintReport() calls search(), the slip.
+        // away here â for the screen and, since buildPrintReport() calls search(), the slip.
         $all = $this->dropMergedRecertRows($all);
 
         $all = $this->tagRowsWithLifecycleFileNo(
@@ -816,7 +816,7 @@ class LegalSearchService
             $lifecycleMeta[$fno] = $this->resolveLifecycleFileMeta($conn, $fno);
         }
 
-        // Authoritative block order (Rule 11): ancestors first — including TRANSITIVE grandparents,
+        // Authoritative block order (Rule 11): ancestors first â including TRANSITIVE grandparents,
         // which orderLifecycleFiles resolves by walking the whole successor chain. Handed to the JS so
         // the on-screen timeline matches the print report instead of re-deriving from the searched
         // file's DIRECT predecessors only (which missed the grandmother).
@@ -851,7 +851,7 @@ class LegalSearchService
             'file_related_fileno' => $fileIndexingData->related_fileno ?? null,
             'file_index_number' => $fileIndexingData->file_number ?? null,
             // Whether the searched file has its own file_indexings row. Drives whether
-            // the synthetic "File Commissioning" row is shown in the timeline — an
+            // the synthetic "File Commissioning" row is shown in the timeline â an
             // un-indexed file must not display one.
             'is_indexed' => $this->isFileIndexed($ownIndexedNumber ?? $fileNo),
             'file_temp_number' => $tempFileNumber,
@@ -878,11 +878,11 @@ class LegalSearchService
     /**
      * Enrich a resolved lineage with per-file commissioning info so the timeline
      * can render the commissioning chain the client requires: searched file's
-     * commissioning → history → subdivision/CoP/merger → successor commissioning.
+     * commissioning â history â subdivision/CoP/merger â successor commissioning.
      *
      * Adds:
-     *  - previous_files: [{file_no, commissioning_date, file_title}, …] for each
-     *    predecessor (informational only — predecessors get no commissioning row)
+     *  - previous_files: [{file_no, commissioning_date, file_title}, â¦] for each
+     *    predecessor (informational only â predecessors get no commissioning row)
      *  - successor_files / successor_commissioning_date / successor_file_title
      *
      * The successor walk is RECURSIVE (breadth-first, generation by generation): a child
@@ -920,12 +920,12 @@ class LegalSearchService
         }
 
         // successor_file_no may be a CSV list (batch subdivision retires the mother
-        // into several children at once) — resolve each successor separately so the
+        // into several children at once) â resolve each successor separately so the
         // timeline can render one File Commissioning row per child instead of a
         // single row captioned with the raw comma-joined string.
         $lineage['successor_files'] = [];
 
-        // Never revisit the searched file or a number already emitted — guards against a
+        // Never revisit the searched file or a number already emitted â guards against a
         // cyclic decommission chain looping forever.
         $seen = [];
         if ($rootFileNo !== null && trim($rootFileNo) !== '') {
@@ -989,7 +989,7 @@ class LegalSearchService
     /**
      * Best-effort file title/holder lookup for a bare file number
      * (file_indexings.file_title, else fileNumber.FileName, else the party
-     * name on the file's own transaction — see below).
+     * name on the file's own transaction â see below).
      */
     private function resolveFileTitleForNumber($conn, string $fileNo): ?string
     {
@@ -1018,7 +1018,7 @@ class LegalSearchService
             }
 
             // A newly created lineage file (e.g. a subdivision/change-of-purpose
-            // child) has no file_indexings or fileNumber record yet — its only
+            // child) has no file_indexings or fileNumber record yet â its only
             // record is its own PRA/file-history transaction. Fall back to that
             // transaction's party (grantee before grantor), same heuristic used
             // for the searched file's own title.
@@ -1043,7 +1043,7 @@ class LegalSearchService
                 }
             }
         } catch (\Throwable $e) {
-            // Title is cosmetic — never break search.
+            // Title is cosmetic â never break search.
         }
 
         return null;
@@ -1055,7 +1055,7 @@ class LegalSearchService
      *
      *  - is_superseded / successor_file_no: set when the searched file was itself decommissioned
      *    by a land transaction (from decommissioned_files.successor_file_no).
-     *  - previous_file_nos: the file(s) that came before this one — the parents recorded on the
+     *  - previous_file_nos: the file(s) that came before this one â the parents recorded on the
      *    file's own file_indexings.related_fileno, plus any files superseded INTO this file.
      */
     private function resolveFileLineage($conn, string $fileNo): array
@@ -1138,7 +1138,7 @@ class LegalSearchService
                 }
             }
         } catch (\Throwable $e) {
-            // Lineage is best-effort — never break search.
+            // Lineage is best-effort â never break search.
         }
 
         // Parents recorded on the file's own indexing row.
@@ -1215,7 +1215,7 @@ class LegalSearchService
         // Build the set of file numbers this search is "about": the searched file plus every
         // file number already resolved into the result set, each expanded to its base/"(T)"
         // variants. Recertification rows almost always carry an empty prop_id, so they can only
-        // be reached by matching a stored endpoint string — matching against all of the
+        // be reached by matching a stored endpoint string â matching against all of the
         // property's known numbers (not just the raw searched text) widens reach past exact
         // matches and format drift the file is otherwise known by.
         $candidateNumbers = [];
@@ -1245,7 +1245,7 @@ class LegalSearchService
         }
 
         // Normalized set of the searched identifiers (uppercase, whitespace-collapsed, per-segment
-        // leading zeros stripped) — used below to decide which endpoint of each link to display.
+        // leading zeros stripped) â used below to decide which endpoint of each link to display.
         $norm = function ($v) {
             $v = strtoupper(trim((string) $v));
             $v = preg_replace('/\s+/', ' ', $v);
@@ -1262,8 +1262,8 @@ class LegalSearchService
         // The searched file's OWN identity (all number formats it is known by), as opposed to
         // $searchedSet which also contains ancestors pulled into the result set via prop_id
         // expansion. Built from the typed file number plus every number column of the existing
-        // rows that DIRECTLY match it — so a file's MLS+KANGIS aliases are covered, but an
-        // ancestor's numbers are not. Used below to reject sibling links (mother ↔ another
+        // rows that DIRECTLY match it â so a file's MLS+KANGIS aliases are covered, but an
+        // ancestor's numbers are not. Used below to reject sibling links (mother â another
         // subdivision child) that only matched because the mother is present in the result set.
         $searchedOwnSet = [];
         if ($fileNo !== '') {
@@ -1319,12 +1319,12 @@ class LegalSearchService
 
         $rows = $query->orderBy('rfn.id')->get();
 
-        // Second hop — a recertification of a newly-discovered ancestor. The query above only
+        // Second hop â a recertification of a newly-discovered ancestor. The query above only
         // matches links whose endpoint is one of the SEARCHED file's own numbers. A
         // recertification frequently sits one link further out: searching a Change-of-Purpose
         // child (e.g. CON-COM-2026-430) surfaces its mother (CON-AG-2014-35) through a
         // Subdivision link, but the KANGIS Recertification belongs to that mother
-        // (CON-AG-2014-35 ↔ MLKN 2455), whose endpoints aren't in the searched candidate set —
+        // (CON-AG-2014-35 â MLKN 2455), whose endpoints aren't in the searched candidate set â
         // so it never appears. Collect the endpoints just discovered that are NOT already
         // searched candidates (the ancestors), and pull in ONLY their Recertification links.
         // Restricting the extra hop to recertifications keeps the family's recert visible
@@ -1375,7 +1375,7 @@ class LegalSearchService
             }
         }
 
-        // These synthetic rows have no transaction date of their own — related_file_number only
+        // These synthetic rows have no transaction date of their own â related_file_number only
         // records when the LINK was created. Displaying that link-creation timestamp made every
         // recently-linked row read as "today" instead of the real transaction date. Borrow the
         // actual date from the linked file's pra history: gather each endpoint's transaction dates
@@ -1394,7 +1394,7 @@ class LegalSearchService
         // Endpoints decommissioned via the Manual Linkage tool: its "Manual Linkage: X -> Y"
         // reason names a successor but not a real transaction date, so the family/link-creation
         // date fallbacks below would be misleading here too (same reasoning as
-        // fetchDecommissionLineageRows) — these must not display a Transaction Date either.
+        // fetchDecommissionLineageRows) â these must not display a Transaction Date either.
         $manualLinkageFiles = [];
         if (!empty($endpointNos) && Schema::connection($conn->getName())->hasTable('decommissioned_files')) {
             try {
@@ -1440,7 +1440,7 @@ class LegalSearchService
         // Family transaction date: the most recent real transaction already on this timeline.
         // Used as the date for links that have no transaction date of their own AND no per-endpoint
         // pra date to borrow (e.g. a KANGIS Recertification, whose endpoints are an old KANGIS file
-        // and the searched file) — such a link was established as part of the family's current
+        // and the searched file) â such a link was established as part of the family's current
         // transaction, so it should read as that date, not the link-creation timestamp.
         $familyMaxSort = null;
         foreach ($existingRows as $er) {
@@ -1454,7 +1454,7 @@ class LegalSearchService
         foreach ($rows as $row) {
 
             // Sibling guard. A specific file was searched, yet this related_file_number link has
-            // BOTH endpoints pointing at OTHER files — it only matched because an ANCESTOR of the
+            // BOTH endpoints pointing at OTHER files â it only matched because an ANCESTOR of the
             // searched file (e.g. the subdivision mother) is present in the result set, dragging in
             // the mother's links to her OTHER children (the searched file's siblings). Those
             // siblings are not this file's own relations, so drop the link. Recertification links
@@ -1475,7 +1475,7 @@ class LegalSearchService
                 }
             }
 
-            // Display the endpoint that is NOT the searched file. A link stores two endpoints —
+            // Display the endpoint that is NOT the searched file. A link stores two endpoints â
             // file_number (parent) and related_fileno (counterpart). When the searched file is the
             // related_fileno side, echoing related_fileno back would show the user their own number;
             // flip to file_number so the linked parent is shown instead. When matched on the
@@ -1495,7 +1495,7 @@ class LegalSearchService
             // A KANGIS Recertification records the recertification of a KANGIS-legacy file
             // (e.g. "MLKN 2455") that also carries an MLS number (e.g. "CON-AG-2014-35"). The
             // event belongs to the KANGIS file, so the row must display the KANGIS-format
-            // endpoint — never the MLS counterpart — regardless of which side was searched.
+            // endpoint â never the MLS counterpart â regardless of which side was searched.
             // The generic flip above can't achieve this: when both endpoints are family numbers
             // it fires for neither, and the reciprocal-collapse below then prefers the
             // not-searched endpoint (the MLS number). Pin the displayed side to the KANGIS-format
@@ -1569,12 +1569,12 @@ class LegalSearchService
 
             foreach ($relatedNos as $relNo) {
             // A related_fileno endpoint that points back at the searched file itself (any of its
-            // own number formats) is redundant — the file is already represented by its own rows,
+            // own number formats) is redundant â the file is already represented by its own rows,
             // so it must never appear in the timeline as a separate "Related Fileno" row.
             if (isset($searchedOwnSet[$norm($relNo)])) {
                 continue;
             }
-            // Manual Linkage endpoints never get a real transaction date (see above) —
+            // Manual Linkage endpoints never get a real transaction date (see above) â
             // suppress the display value per-endpoint even though $displayDate/$sortDate were
             // computed once for the whole (possibly multi-file) related_file_number row.
             $relIsManualLinkage = isset($manualLinkageFiles[$norm($relNo)]);
@@ -1613,7 +1613,7 @@ class LegalSearchService
             // A KANGIS Recertification's true date is NOT recorded anywhere: related_file_number
             // stores only the link, and "KANGIS Recertification" is not a pra transaction type, so
             // the resolution above can never find a real per-endpoint date for it. It therefore
-            // falls through to $familyMaxSort — the family's most recent transaction — which prints
+            // falls through to $familyMaxSort â the family's most recent transaction â which prints
             // a confident but invented date (typically the KANGIS C of O's, making the two rows look
             // like one event). Print a dash instead: unknown must read as unknown. sort_date is left
             // intact so the row keeps its timeline position.
@@ -1678,8 +1678,8 @@ class LegalSearchService
         // Collapse reciprocal recertification pairs: the same link is often stored twice
         // (A -> B from file_indexings and B -> A from pra), and the two sources disagree on
         // zero-padding ("MLKN 2455" vs "MLKN 02455"), so the duplicate also fails its title
-        // lookup. Compare endpoints zero-insensitively, keep one row per pair — preferring the
-        // side that points AWAY from the searched file — and display the cleaner number.
+        // lookup. Compare endpoints zero-insensitively, keep one row per pair â preferring the
+        // side that points AWAY from the searched file â and display the cleaner number.
         $normNo = function ($v) {
             $v = strtoupper(trim((string) $v));
             $v = preg_replace('/\s+/', ' ', $v);
@@ -1737,7 +1737,7 @@ class LegalSearchService
 
         // Canonicalise zero-padded numbers that had no clean reciprocal sibling to borrow from
         // (e.g. a lone "MLKN 02455" row): when the stripped form is a known file number anywhere,
-        // display that instead — which also lets the title lookups below resolve.
+        // display that instead â which also lets the title lookups below resolve.
         foreach ($out as $i => $r) {
             $current = trim((string) ($r['fileno'] ?? ''));
             if ($current === '') {
@@ -1844,7 +1844,7 @@ class LegalSearchService
 
         // Collapse rows that are indistinguishable on screen. A single event (e.g. the mother
         // being subdivided into three children) is stored as three separate related_file_number
-        // links, each flipping to display the same counterpart — producing three identical
+        // links, each flipping to display the same counterpart â producing three identical
         // "<mother> | Subdivision" rows. The reciprocal-collapse pass above can't merge them
         // because each is a distinct unordered pair. Since the displayed columns (file number,
         // type, parties, date) are identical, keep only the first of each visual group.
@@ -1910,7 +1910,7 @@ class LegalSearchService
      * Build synthetic timeline rows for the decommission events that PRODUCED the searched
      * file: every decommissioned_files row whose successor_file_no names the searched file
      * (exact member of the possibly-CSV successor list). E.g. viewing CON-COM-2026-430 shows
-     * "CON-AG-2026-108 — Change of Purpose to CON-COM-2026-430" with the decommission date.
+     * "CON-AG-2026-108 â Change of Purpose to CON-COM-2026-430" with the decommission date.
      * Files already displayed as Related Fileno rows (recertification links) are skipped to
      * avoid duplicates. Best-effort: returns [] on any failure.
      */
@@ -1928,7 +1928,7 @@ class LegalSearchService
                 return [];
             }
 
-            // false_decommissioning = 1 rows are Title-Status flags (not real decommissions) —
+            // false_decommissioning = 1 rows are Title-Status flags (not real decommissions) â
             // excluded here for the same reason getDecommissionedFileNumbers() excludes them.
             $candidatesQuery = $conn->table('decommissioned_files')
                 ->where('successor_file_no', 'like', '%' . $fileNo . '%');
@@ -1963,7 +1963,7 @@ class LegalSearchService
             $needle = strtoupper($fileNo);
             $out = [];
             foreach ($candidates as $d) {
-                // successor_file_no may be a CSV list (batch subdivision) — require an exact
+                // successor_file_no may be a CSV list (batch subdivision) â require an exact
                 // member match so LIKE cannot over-match similar numbers.
                 $successors = array_map(fn($v) => strtoupper(trim($v)), explode(',', (string) $d->successor_file_no));
                 if (!in_array($needle, $successors, true)) {
@@ -1977,14 +1977,14 @@ class LegalSearchService
 
                 // Labelled "File Decommissioning" to match the row shown when this predecessor
                 // is searched directly (see the synthetic row built from $lineage['is_superseded']
-                // below) — the specific event (Change of Purpose / Subdivision / Merger / ...)
+                // below) â the specific event (Change of Purpose / Subdivision / Merger / ...)
                 // stays visible in 'comments' via the raw decommissioning_reason text.
                 $reason = trim((string) ($d->decommissioning_reason ?? ''));
                 $label = 'File Decommissioning';
 
                 // decommissioning_date is when the record was administratively archived
                 // (often years after the real-world transaction it describes), not a genuine
-                // transaction date — kept as sort_date for chronological placement, but not
+                // transaction date â kept as sort_date for chronological placement, but not
                 // shown in the Transaction Date column.
                 $sortDate = null;
                 if ($d->decommissioning_date) {
@@ -1993,18 +1993,18 @@ class LegalSearchService
                     } catch (\Exception $e) { /* ignore */ }
                 }
 
-                // A file's life on the timeline runs commissioned → … → decommissioned. This
+                // A file's life on the timeline runs commissioned â â¦ â decommissioned. This
                 // predecessor's decommissioning is being shown, so surface its File Commissioning
-                // row too, directly ABOVE it — the pair belongs in the lineage block after the
+                // row too, directly ABOVE it â the pair belongs in the lineage block after the
                 // searched file's own transactions, not floated to the top of the timeline (only
                 // the SEARCHED file's commissioning opens the report).
                 //
                 // Pairing is achieved by giving this row the SAME sort-relevant fields as the
                 // decommission row below (source_table, id, transaction_date, sort_date) and
-                // emitting it first: both sorters key on weight → timestamp → id, and both are
+                // emitting it first: both sorters key on weight â timestamp â id, and both are
                 // stable (PHP 8 usort / ES2019 Array.sort), so an identical key preserves this
                 // emission order. Legacy predecessors have no genuine KLAES commissioning date,
-                // so the year embedded in the file number (CON-RES-2005-148 → 2005) is reported
+                // so the year embedded in the file number (CON-RES-2005-148 â 2005) is reported
                 // in the comment instead.
                 $commDate = rescue(
                     fn () => $this->resolveCommissioningInfo($oldNo)['date'],
@@ -2090,11 +2090,11 @@ class LegalSearchService
      *
      * Transaction Date resolution:
      *  - If the DCIV file number was actually generated through the "DCIV File Number
-     *    Commissioning" page (/dciv/generation), a matching dciv_file_no row exists —
+     *    Commissioning" page (/dciv/generation), a matching dciv_file_no row exists â
      *    its genuine commissioning_date is used.
      *  - Otherwise (e.g. a DCIV/LPCC number linked manually or migrated in without going
      *    through that page) there is no real commissioning date on record, so the year
-     *    embedded in the DCIV file number itself (e.g. DCIV-2025-8 → 2025) is shown instead.
+     *    embedded in the DCIV file number itself (e.g. DCIV-2025-8 â 2025) is shown instead.
      */
     private function fetchDcivCommissioningRows($conn, string $fileNo, array $existingRows): array
     {
@@ -2145,7 +2145,7 @@ class LegalSearchService
                 }
                 $seen[$key] = true;
 
-                // Title is informational only — dciv_file_no.file_name first, then the
+                // Title is informational only â dciv_file_no.file_name first, then the
                 // file's own indexing title.
                 $title = trim((string) $conn->table('dciv_file_no')
                     ->whereRaw('UPPER(LTRIM(RTRIM(full_file_number))) = ?', [$key])
@@ -2159,7 +2159,7 @@ class LegalSearchService
                         ->value('file_title');
                 }
 
-                // dciv_file_no.commissioning_date is NOT trusted on its own — many DCIV/LPCC
+                // dciv_file_no.commissioning_date is NOT trusted on its own â many DCIV/LPCC
                 // rows there were backfilled/migrated with a timestamp that has nothing to do
                 // with a genuine commissioning event. Reuse the same authoritative check used
                 // for the searched file's own "File Commissioning" row (mls_file_no, then the
@@ -2231,15 +2231,15 @@ class LegalSearchService
     /**
      * Sectional Titling (ST) commissioning lifecycle rows.
      *
-     * When the searched file is an ST file — a primary ST file number such as
-     * ST-COM-2025-5, or one of its commissioned unit files ST-COM-2025-5-001 —
+     * When the searched file is an ST file â a primary ST file number such as
+     * ST-COM-2025-5, or one of its commissioned unit files ST-COM-2025-5-001 â
      * surface the scheme's commissioning lifecycle as synthetic timeline rows:
      *   - one "ST File Commissioning" row for the PRIMARY application, and
-     *   - one "ST File Commissioning – Fragmentation" row per commissioned unit.
+     *   - one "ST File Commissioning â Fragmentation" row per commissioned unit.
      *
      * Scope (per client spec):
-     *   - Searching the PRIMARY  → primary commissioning + every commissioned unit.
-     *   - Searching a UNIT       → primary commissioning + THAT unit only (siblings
+     *   - Searching the PRIMARY  â primary commissioning + every commissioned unit.
+     *   - Searching a UNIT       â primary commissioning + THAT unit only (siblings
      *     excluded, mirroring the standard subdivided-unit rule).
      *
      * Authoritative source: st_file_numbers. `np_fileno` groups a scheme;
@@ -2249,8 +2249,8 @@ class LegalSearchService
      */
     /**
      * ST scheme file numbers whose TRANSACTIONS must be pulled into a mother/scheme
-     * search: the ST scheme number (np_fileno) — so deed_registrations.parent_fileno
-     * matches surface unit deeds — plus every commissioned unit file number. Returns []
+     * search: the ST scheme number (np_fileno) â so deed_registrations.parent_fileno
+     * matches surface unit deeds â plus every commissioned unit file number. Returns []
      * for a non-ST file OR for a UNIT search (a unit already pulls its own transactions
      * by its own number; siblings are deliberately excluded).
      */
@@ -2284,7 +2284,7 @@ class LegalSearchService
             }
 
             // A UNIT search (searched number is a non-PRIMARY unit's own fileno) adds
-            // nothing — sibling exclusion; the unit's own number already pulls its rows.
+            // nothing â sibling exclusion; the unit's own number already pulls its rows.
             foreach ($match as $m) {
                 $type = strtoupper((string) ($m->file_no_type ?? ''));
                 $fn = strtoupper(trim((string) ($m->fileno ?? '')));
@@ -2327,8 +2327,8 @@ class LegalSearchService
             }
 
             // Locate the searched file in st_file_numbers. An ST scheme file may be
-            // identified by ANY of its numbers — the ST np_fileno (ST-RES-2026-2), the
-            // applied/MLS number (RES-2025-115), or a unit's fileno — so match on all
+            // identified by ANY of its numbers â the ST np_fileno (ST-RES-2026-2), the
+            // applied/MLS number (RES-2025-115), or a unit's fileno â so match on all
             // three. (The old ST- prefix gate missed primaries stored under their MLS
             // number.) PRIMARY rows sort first so first() yields the scheme's primary.
             $match = $conn->table('st_file_numbers')
@@ -2474,10 +2474,10 @@ class LegalSearchService
             }
 
             // The land ("mother") file number is the primary's applied/MLS number
-            // (e.g. RES-2025-115) — the number a Land File Commissioning row is keyed on.
+            // (e.g. RES-2025-115) â the number a Land File Commissioning row is keyed on.
             // The mother has TWO commissioning events that must BOTH display, in order:
-            //   Land File Commissioning (mls_fileno) → transactions → ST File Commissioning
-            //   (np_fileno) → transactions. So the ST primary row is DISPLAYED on its ST
+            //   Land File Commissioning (mls_fileno) â transactions â ST File Commissioning
+            //   (np_fileno) â transactions. So the ST primary row is DISPLAYED on its ST
             // number ($primaryNo) but tagged to the land file's lifecycle group
             // (lifecycle_file_no) so it folds INTO the mother block, and flagged
             // (_st_primary_commissioning + _pinned) so the frontend places it by DATE among
@@ -2500,7 +2500,7 @@ class LegalSearchService
                 ->whereNotNull('fileno');
 
             if ($searchedUnitNo !== null) {
-                // Unit search → only the searched unit (sibling exclusion).
+                // Unit search â only the searched unit (sibling exclusion).
                 $unitsQuery->whereRaw('UPPER(LTRIM(RTRIM(fileno))) = ?', [strtoupper($searchedUnitNo)]);
             }
 
@@ -2516,13 +2516,13 @@ class LegalSearchService
                     continue;
                 }
                 $seenUnits[$key] = true;
-                if (isset($existing['ST FILE COMMISSIONING – FRAGMENTATION|' . $key])) {
+                if (isset($existing['ST FILE COMMISSIONING â FRAGMENTATION|' . $key])) {
                     continue;
                 }
-                $out[] = $buildRow($unitNo, 'ST File Commissioning – Fragmentation', $u);
+                $out[] = $buildRow($unitNo, 'ST File Commissioning â Fragmentation', $u);
             }
 
-            // 3. The ST applications behind those files — the mother application, and
+            // 3. The ST applications behind those files â the mother application, and
             // the unit (child) applications under the same scope as the units above.
             return array_merge($out, $this->stApplicationRows($conn, $primaryNo, $landFileNo, $searchedUnitNo, $existing));
         } catch (\Throwable $e) {
@@ -2584,7 +2584,7 @@ class LegalSearchService
                         ? 'Approved ' . $approved->format('M j, Y')
                         : 'Status: ' . $status;
                 }
-                return implode(' · ', array_merge($parts, $extra)) ?: '-';
+                return implode(' Â· ', array_merge($parts, $extra)) ?: '-';
             };
 
             $rowId = -950000;
@@ -2663,7 +2663,7 @@ class LegalSearchService
                 }
                 $seen[$key] = true;
                 $unitLabel = trim((string) ($sub->unit_number ?? ''));
-                $label = 'ST Unit Application' . ($unitLabel !== '' ? ' – ' . $unitLabel : '');
+                $label = 'ST Unit Application' . ($unitLabel !== '' ? ' â ' . $unitLabel : '');
                 if (isset($existing[strtoupper($label) . '|' . $key])) {
                     continue;
                 }
@@ -2714,21 +2714,21 @@ class LegalSearchService
      * Resolve a file's commissioning date for the default "File Commissioning" /
      * "Temporary File" timeline records. Returns both the formatted date and the
      * exact file number (fileNumber.mlsfNo) that was commissioned, so the UI can
-     * attach the date to the correct row — a "(T)" temporary file that was
+     * attach the date to the correct row â a "(T)" temporary file that was
      * commissioned must show the date on its own row, not on the permanent one.
      *
      * Returns ['date' => 'M j, Y'|'-', 'number' => string|null]. The date is
      * populated when the file was commissioned within KLAES and has a genuine
      * stored commissioning_date. A KLAES commissioning may legitimately postdate
-     * the file's transactions — old files are recommissioned into the system
-     * long after their history — so the stored date is always trusted.
+     * the file's transactions â old files are recommissioned into the system
+     * long after their history â so the stored date is always trusted.
      *
      * mls_file_no.full_file_number is the authoritative record of every file
      * commissioned through KLAES regardless of module (MLS commissioning, File
      * Indexing, etc.), so it is checked first. The legacy fileNumber table
      * (SOURCE starting with 'MLS_Commissioned') is checked next for older
-     * records that predate mls_file_no. file_indexings.created_at — the date
-     * the file actually entered KLAES — is the final fallback so the timeline
+     * records that predate mls_file_no. file_indexings.created_at â the date
+     * the file actually entered KLAES â is the final fallback so the timeline
      * still shows a real date rather than nothing. Only when none of the three
      * has anything on record (truly legacy files) does the caller fall back
      * further to the bare year embedded in the file number.
@@ -2738,14 +2738,14 @@ class LegalSearchService
         $default = ['date' => '-', 'number' => null, 'source' => null, 'source_label' => null];
 
         // Match ALL variants of the file number (base, base(T)), not just the two
-        // exact strings passed in — a temporary file may be commissioned under its
+        // exact strings passed in â a temporary file may be commissioned under its
         // "(T)" number while the search/index number is the base (or vice versa).
         $candidates = $this->fileNumberVariants($fileNumber, $altFileNo);
         if (empty($candidates)) {
             return $default;
         }
 
-        // 1. mls_file_no — authoritative source for every file commissioned in
+        // 1. mls_file_no â authoritative source for every file commissioned in
         // KLAES, including ones (like File Indexing) that never get a matching
         // 'MLS_Commissioned%' row in the legacy fileNumber table.
         $mlsRecord = DB::connection('sqlsrv')->table('mls_file_no')
@@ -2758,7 +2758,7 @@ class LegalSearchService
 
         // Presence in mls_file_no is THE authoritative signal that a file was
         // commissioned through KLAES. A file absent from mls_file_no was NOT
-        // KLAES-commissioned — its File Commissioning row must show only the bare
+        // KLAES-commissioned â its File Commissioning row must show only the bare
         // year embedded in the file number (the caller's fallback), never a legacy
         // fileNumber or file_indexings date. So bail out to year-only here.
         if (!$mlsRecord) {
@@ -2768,7 +2768,7 @@ class LegalSearchService
         $number = trim((string) $mlsRecord->full_file_number) ?: null;
 
         // How the file was commissioned ('Direct Allocation', 'OP Direct Allocation',
-        // 'OP Resettlement', 'Conversion', …). Drives the Root of Title annotation on
+        // 'OP Resettlement', 'Conversion', â¦). Drives the Root of Title annotation on
         // the timeline's File Commissioning row.
         $source = trim((string) ($mlsRecord->source ?? '')) ?: null;
         $sourceLabel = $this->commissioningSourceLabel($source, $mlsRecord->file_option ?? null);
@@ -2792,7 +2792,7 @@ class LegalSearchService
             $number = $number ?: (trim((string) $record->mlsfNo) ?: null);
 
             // Only a genuine, stored commissioning_date is trustworthy. Do NOT fall back
-            // to fileNumber.created_at — for a legacy file digitized into KLAES that is
+            // to fileNumber.created_at â for a legacy file digitized into KLAES that is
             // merely the digitization timestamp, not the date the land was actually
             // commissioned.
             if ($record->commissioning_date) {
@@ -2804,11 +2804,11 @@ class LegalSearchService
         }
 
         // 3. No genuine commissioning date anywhere. Fall back to the date the
-        // file was indexed into KLAES (file_indexings.created_at) — but ONLY
+        // file was indexed into KLAES (file_indexings.created_at) â but ONLY
         // when the file was commissioned as a new file at indexing time, i.e.
         // the year embedded in the file number matches the indexing year. For
-        // a legacy file (e.g. RES-2001-… indexed in 2026) created_at is merely
-        // the digitization timestamp — the client requires those to stay blank,
+        // a legacy file (e.g. RES-2001-â¦ indexed in 2026) created_at is merely
+        // the digitization timestamp â the client requires those to stay blank,
         // so the caller falls back to the bare year from the file number.
         $indexedAt = DB::connection('sqlsrv')->table('file_indexings')
             ->whereNull('deleted_at')
@@ -2856,7 +2856,7 @@ class LegalSearchService
      * Resolve the "commissioning holder" name for the File Commissioning / Temporary File
      * rows: the assignor (Party 1) of the file's Deed of Assignment registered through KLAES
      * (instrument capture). At commissioning the file belonged to the original allottee, who
-     * is precisely the ASSIGNOR of the first KLAES-captured Deed of Assignment — the file
+     * is precisely the ASSIGNOR of the first KLAES-captured Deed of Assignment â the file
      * title, by contrast, reflects the latest owner (the assignee). Matching the searched
      * file's number variants (base and "(T)"). Returns the grantor name, or null when the
      * file has no KLAES-registered Deed of Assignment.
@@ -2897,19 +2897,19 @@ class LegalSearchService
      * The rule repairs LEGACY files, whose title drifted to a later owner over decades. A
      * file opened in the KLAES era already carries the right holder on its title, and there
      * the rule actively misfires: a file created by a Transfer of Title would take Party 2
-     * from the OP that preceded it — i.e. the PREVIOUS owner — instead of its own holder.
+     * from the OP that preceded it â i.e. the PREVIOUS owner â instead of its own holder.
      */
     private const GRANT_HOLDER_EXEMPT_FROM_YEAR = 2026;
 
     /**
-     * The instruments Party 2 of a File Commissioning row is read from, in preference order —
+     * The instruments Party 2 of a File Commissioning row is read from, in preference order â
      * first match wins and the search stops there.
      *
      * WHICH party is read differs per instrument, because the original allottee sits on a
      * different side of each deal:
-     *   - Right of Occupancy / Occupancy Permit — the State GRANTS to the allottee, so the
+     *   - Right of Occupancy / Occupancy Permit â the State GRANTS to the allottee, so the
      *     allottee is Party 2.
-     *   - Transfer of Title / Deed of Assignment — the allottee GIVES the land away, so they
+     *   - Transfer of Title / Deed of Assignment â the allottee GIVES the land away, so they
      *     are Party 1 (the transferor / assignor).
      *
      * Mirrored by COMMISSIONING_HOLDER_SOURCES in resources/views/legal_search/js.blade.php,
@@ -2936,14 +2936,14 @@ class LegalSearchService
     }
 
     /**
-     * The allottee the file was commissioned for, read off the instrument that opened it —
+     * The allottee the file was commissioned for, read off the instrument that opened it â
      * see COMMISSIONING_HOLDER_SOURCES for the order and for which party each one contributes.
      * The File Commissioning row carries that name rather than the file title, which tracks
      * the CURRENT owner and drifts as the land changes hands.
      *
-     * Exempt from GRANT_HOLDER_EXEMPT_FROM_YEAR onward — see that constant.
+     * Exempt from GRANT_HOLDER_EXEMPT_FROM_YEAR onward â see that constant.
      *
-     * Returns null when the file has none of those instruments — callers keep whatever name
+     * Returns null when the file has none of those instruments â callers keep whatever name
      * they already had.
      *
      * Rows on the searched file win over rows on linked files, so a KANGIS alias or a
@@ -2951,7 +2951,7 @@ class LegalSearchService
      *
      * @param array    $transactions            Normalized timeline rows, already date-sorted,
      *                                          so the FIRST Deed of Assignment reached is the
-     *                                          earliest — i.e. the original allottee assigning
+     *                                          earliest â i.e. the original allottee assigning
      *                                          the land away, not a mid-chain owner.
      * @param callable $canonicalTransactionType The caller's type canonicaliser.
      */
@@ -2996,14 +2996,14 @@ class LegalSearchService
      * Place the synthetic commissioning rows into a print-report row list
      * according to the lineage chain:
      *
-     *   searched file's commissioning (+ its "(T)" temp row) → history →
-     *   subdivision/CoP/merger row → successor commissioning (after the
+     *   searched file's commissioning (+ its "(T)" temp row) â history â
+     *   subdivision/CoP/merger row â successor commissioning (after the
      *   parcel-update row that retired the searched file).
      *
      * Only the SEARCHED file gets a "File Commissioning" row at the top.
      * Predecessor ("mother") files appear through their real transactions
      * (CofO, recertification, parcel-update rows) but never as a synthetic
-     * commissioning row — the client flagged a predecessor commissioning row
+     * commissioning row â the client flagged a predecessor commissioning row
      * (MLKN 2455) as misleading when it was not the searched number.
      */
     private function placeCommissioningRows(
@@ -3067,7 +3067,7 @@ class LegalSearchService
         // (lineage previous_files) get NO synthetic commissioning row.
         $rows = array_merge($searchedPair, $rows);
 
-        // "File Decommissioning" row — when the searched file has itself been decommissioned,
+        // "File Decommissioning" row â when the searched file has itself been decommissioned,
         // its own history ends at the decommission. Insert the row immediately BEFORE the first
         // parcel-update row (the Subdivision / CoP / Merger event that retired it), i.e. right
         // after the file's last own transaction, so the successor commissioning rows below land
@@ -3119,7 +3119,7 @@ class LegalSearchService
             }
         }
 
-        // Successor commissioning — one row PER successor (a batch subdivision
+        // Successor commissioning â one row PER successor (a batch subdivision
         // retires the mother into several children), placed after the last
         // parcel-update row (the transaction that retired the searched file),
         // else at the very end.
@@ -3143,7 +3143,7 @@ class LegalSearchService
             }
 
             // This successor was itself later retired (e.g. a Subdivision child retired by a
-            // Change of Purpose) — its own File Decommissioning row sits directly below its
+            // Change of Purpose) â its own File Decommissioning row sits directly below its
             // commissioning, ahead of the grandchild's commissioning row.
             if (!empty($succ['is_superseded'])) {
                 $sDecNo = trim((string) ($succ['decommission_file_no'] ?? '')) ?: $succNo;
@@ -3214,7 +3214,7 @@ class LegalSearchService
 
     /**
      * Extract the commissioning year embedded in a land file number, e.g.
-     * "RES-2001-3874" → "2001", "CON-RES-1993-387" → "1993". Matches a
+     * "RES-2001-3874" â "2001", "CON-RES-1993-387" â "1993". Matches a
      * dash-delimited 4-digit segment starting with 19 or 20 so serial numbers of
      * the same length (e.g. "3874") aren't mistaken for a year.
      */
@@ -3236,7 +3236,7 @@ class LegalSearchService
 
     /**
      * Whether the searched file is tagged [WRC] (Withdrawn / Revoked / Cancelled)
-     * in duplicate_fileno — matched by its file number variants or prop_id. Mirrors
+     * in duplicate_fileno â matched by its file number variants or prop_id. Mirrors
      * the gating used when rendering the W/R/C notice on the report.
      */
     private function resolveIsWrcFile($conn, ?string $fileNo, $propId = null): bool
@@ -3267,7 +3267,7 @@ class LegalSearchService
 
     /**
      * Whether a file number (or its "(T)"/base variant) exists as an indexed or commissioned
-     * file. Used to decide whether a transaction-less search still warrants a print report —
+     * file. Used to decide whether a transaction-less search still warrants a print report â
      * a commissioned file always has at least its commissioning event.
      */
     private function reportFileExists(string $fileNo): bool
@@ -3296,7 +3296,7 @@ class LegalSearchService
 
     /**
      * Whether the searched file (or its "(T)"/base variant) has its OWN row in
-     * file_indexings — i.e. it has actually been indexed, as opposed to merely
+     * file_indexings â i.e. it has actually been indexed, as opposed to merely
      * commissioned (present in fileNumber) or loosely linked via another file's
      * related_fileno. Used to gate the synthetic "File Commissioning" timeline row:
      * a file that is not yet indexed must not show a commissioning row.
@@ -3351,7 +3351,7 @@ class LegalSearchService
      * numbers. A file can be indexed under several sibling rows (e.g. a base
      * number and its temporary "(T)" number, or a title-less shell alongside the
      * titled record). Exact matches on file_number/temp_file_no win over loose
-     * related_fileno matches, and — crucially — a row that actually carries a
+     * related_fileno matches, and â crucially â a row that actually carries a
      * file_title is preferred over an otherwise-equal title-less sibling so the
      * File Name (Party 2 on the File Commissioning row) resolves correctly.
      */
@@ -3445,13 +3445,13 @@ class LegalSearchService
      *
      * TRY_CONVERT without a style uses the connection's language. This server runs
      * us_english (mdy), so a day-first string like '17-06-1982' has no valid month and
-     * converts to NULL — silently. The row then reaches the timeline carrying no date at
+     * converts to NULL â silently. The row then reaches the timeline carrying no date at
      * all and sinks to the bottom whatever its real date is, which is what pinned the 1982
      * C of O on CON-AG-1982-172 below a 1984 assignment. CofO_staging alone stores ~5,971
      * transaction_date and ~5,319 cofo_date values in that format.
      *
      * Order matters: the default (mdy) conversion is tried FIRST, so a genuinely ambiguous
-     * value — both parts <= 12, e.g. '06-07-1984' — keeps the mdy reading it has always
+     * value â both parts <= 12, e.g. '06-07-1984' â keeps the mdy reading it has always
      * had. Styles 105 (dd-mm-yyyy) and 103 (dd/mm/yyyy) only rescue values that currently
      * yield NULL, so no row already displaying a date changes meaning.
      */
@@ -3926,14 +3926,14 @@ class LegalSearchService
             }
 
             // Sectional Titling scheme expansion (ST mother/scheme search): pull the units'
-            // transactions by also matching the ST scheme number (→ deed_registrations.parent_fileno)
-            // and each unit file number. Additive — never replaces the searched number.
+            // transactions by also matching the ST scheme number (â deed_registrations.parent_fileno)
+            // and each unit file number. Additive â never replaces the searched number.
             if (!empty($f['stRelatedFileNos'])) {
                 $searchFileNos = array_merge($searchFileNos, $f['stRelatedFileNos']);
             }
 
             // Expand to base/"(T)" variants so searching the temp file number (e.g.
-            // "RES-2003-537(T)") finds records stored under the base number and vice versa —
+            // "RES-2003-537(T)") finds records stored under the base number and vice versa â
             // both refer to the same physical file.
             $searchFileNos = $this->fileNumberVariants(...$searchFileNos);
             
@@ -3978,7 +3978,7 @@ class LegalSearchService
             });
         }
 
-        // LGA filter — actual column names differ per table
+        // LGA filter â actual column names differ per table
         if ($f['lga'] !== '') {
             $escaped = str_replace(['%', '_'], ['\%', '\_'], $f['lga']);
             if ($isDeed) {
@@ -3998,7 +3998,7 @@ class LegalSearchService
                 // file_history_staging, pra have districtName
                 $query->whereRaw("UPPER(districtName) LIKE UPPER(?)", ["%{$escaped}%"]);
             } else {
-                // CofO_staging has no districtName — fall back to location
+                // CofO_staging has no districtName â fall back to location
                 $query->whereRaw("UPPER(location) LIKE UPPER(?)", ["%{$escaped}%"]);
             }
         }
@@ -4016,14 +4016,14 @@ class LegalSearchService
             }
         }
 
-        // Plot number filter — deed_registrations uses plot_number
+        // Plot number filter â deed_registrations uses plot_number
         if ($f['plotNumber'] !== '') {
             $escaped = str_replace(['%', '_'], ['\%', '\_'], $f['plotNumber']);
             $plotCol = $isDeed ? 'plot_number' : 'plot_no';
             $query->whereRaw("UPPER(CAST({$plotCol} AS NVARCHAR(100))) LIKE UPPER(?)", ["%{$escaped}%"]);
         }
 
-        // Size filter — file_history_staging/pra use plot_size, deed uses size, CofO has neither
+        // Size filter â file_history_staging/pra use plot_size, deed uses size, CofO has neither
         if ($f['size'] !== '') {
             $escaped = str_replace(['%', '_'], ['\%', '\_'], $f['size']);
             if ($isDeed) {
@@ -4031,10 +4031,10 @@ class LegalSearchService
             } else if (!$isCofO) {
                 $query->whereRaw("UPPER(CAST(plot_size AS NVARCHAR(100))) LIKE UPPER(?)", ["%{$escaped}%"]);
             }
-            // CofO_staging has no size column — skip
+            // CofO_staging has no size column â skip
         }
 
-        // Caveat filter — all 3 staging tables use is_caveated (bit), deed has nothing
+        // Caveat filter â all 3 staging tables use is_caveated (bit), deed has nothing
         if ($f['caveat'] !== '' && !$isDeed) {
             $caveatBit = (strtolower($f['caveat']) === 'yes') ? 1 : 0;
             $query->where('is_caveated', $caveatBit);
@@ -4134,7 +4134,7 @@ class LegalSearchService
      *
      * A bulk import on 2025-11-20 stamped ~10.9k file_indexings rows with a value that is not
      * the file's real prop_id (see propid:reconcile-indexing). Because PropID_Master maps those
-     * stray ids to real — but unrelated — files, trusting the stored value drags a stranger's
+     * stray ids to real â but unrelated â files, trusting the stored value drags a stranger's
      * transactions onto the timeline, and the cross-property guard downstream then reads that
      * stranger as a legitimate PropID_Master "alias" of the searched parcel and keeps it.
      * Production: CON-RES-1985-523's indexing row carries 16669, which PropID_Master registers
@@ -4143,7 +4143,7 @@ class LegalSearchService
      * PropID_Master is the canonical registry, so the check is simply: does IT give the searched
      * file a prop_id, and is the stored one a different id already spoken for by another file?
      *
-     * Fail-open — this only ever REJECTS an id we can positively attribute elsewhere:
+     * Fail-open â this only ever REJECTS an id we can positively attribute elsewhere:
      *   - searched file absent from PropID_Master  -> trust the stored id (nothing to check against)
      *   - stored id is one of the file's own ids   -> trust it
      *   - stored id registered to nobody           -> trust it (harmless; matches no other file)
@@ -4158,7 +4158,7 @@ class LegalSearchService
             return false;
         }
 
-        // A comma-separated lineage list is not a single id — leave those to the caller.
+        // A comma-separated lineage list is not a single id â leave those to the caller.
         if (strpos($propId, ',') !== false) {
             return false;
         }
@@ -4180,14 +4180,14 @@ class LegalSearchService
                 ->all();
 
             if (empty($ownPropIds)) {
-                return false; // not registered — nothing authoritative to contradict the stored id
+                return false; // not registered â nothing authoritative to contradict the stored id
             }
             if (in_array($propId, $ownPropIds, true)) {
                 return false; // the stored id IS one of the file's own
             }
 
             // The stored id disagrees with the registry. Reject it only if it is positively
-            // registered to some OTHER file — that is the case that contaminates a timeline.
+            // registered to some OTHER file â that is the case that contaminates a timeline.
             // Compared in PHP rather than SQL: the alias columns are frequently NULL, and
             // "NULL NOT IN (...)" is UNKNOWN, which would silently discard the very rows
             // being examined.
@@ -4263,8 +4263,8 @@ class LegalSearchService
      *
      * Returns null unless the file really is a split-decommissioned mother, so the
      * caller's fallback stays scoped to that case. The prop_id comes from
-     * PropID_Master — the same authority the Decommissioned Files screen uses for its
-     * PropID column — because a mother in this state has no prop_id on its own
+     * PropID_Master â the same authority the Decommissioned Files screen uses for its
+     * PropID column â because a mother in this state has no prop_id on its own
      * file_indexings row to read (verified on production: CON-IND-2024-9).
      *
      * A 1:1 rename-type decommission (recertification, change of purpose/name,
@@ -4563,7 +4563,7 @@ class LegalSearchService
             'volumeNo',
             'regNo',
             // file_history_staging genuinely has reg_date/reg_time columns
-            // (unlike pra/CofO_staging — see below), so these map 1:1.
+            // (unlike pra/CofO_staging â see below), so these map 1:1.
             'reg_date',
             'reg_time',
             'plot_no',
@@ -4641,7 +4641,7 @@ class LegalSearchService
             'pageNo',
             'volumeNo',
             'regNo',
-            // pra has no reg_date/reg_time columns at all — its registration
+            // pra has no reg_date/reg_time columns at all â its registration
             // date/time is tracked as deeds_date/deeds_time instead.
             'deeds_date',
             'deeds_time',
@@ -4713,7 +4713,7 @@ class LegalSearchService
 
         $conn = DB::connection('sqlsrv');
 
-        // A KANGIS number is an alias of a mother MLS file — resolve it up front so
+        // A KANGIS number is an alias of a mother MLS file â resolve it up front so
         // the picker lists the same records a search for the mother would.
         $canonical = $this->resolveKangisCanonical($conn, $fileNo);
         if (!empty($canonical)) {
@@ -4769,12 +4769,12 @@ class LegalSearchService
      * Backs the "Existing Records for this File" table in the Add Property Record
      * dialog. The raw union below (findRecordsForFileNumberAllSources) lists every
      * row every source holds, which means the operator sees the same deed twice
-     * whenever File History and PRA both carry it — and in no particular order.
+     * whenever File History and PRA both carry it â and in no particular order.
      *
      * Rather than grow a second set of dedupe and ordering rules that would drift
      * from the timeline's (it has drifted before: the Property Timeline modal once
      * kept both copies of a duplicated PRA deed), this reads the rows straight out
-     * of buildPrintReport() — the same engine behind the Legal Search timeline, the
+     * of buildPrintReport() â the same engine behind the Legal Search timeline, the
      * certified slip and the Property Timeline modal. Its verdict on what is a
      * duplicate, and its arrangement, are the ones the operator already sees
      * elsewhere for the same file.
@@ -4783,8 +4783,8 @@ class LegalSearchService
      * the parcel with it: without it a KANGIS alias's own rows join the list as
      * untyped "Related Fileno" entries the modal does not show.
      *
-     * The engine's synthetic rows are then dropped. It emits lifecycle events —
-     * File Commissioning, Recertification, Temporary File, Decommissioning — that
+     * The engine's synthetic rows are then dropped. It emits lifecycle events â
+     * File Commissioning, Recertification, Temporary File, Decommissioning â that
      * are derived, not captured: they name no instrument and have no registration
      * of their own. This panel exists to be compared against an instrument being
      * keyed in, so it lists only rows that came from one of the four real source
@@ -4817,7 +4817,7 @@ class LegalSearchService
                 $rows = $report['payload']['data']['rows'] ?? [];
             }
         } catch (\Throwable $e) {
-            // The panel is an aid, never a gate — a failed engine run must leave the
+            // The panel is an aid, never a gate â a failed engine run must leave the
             // operator with the raw union rather than an empty table.
             Log::warning('findTimelineRecordsForFileNumber: report engine failed', [
                 'file_no' => $fileNo,
@@ -4847,7 +4847,7 @@ class LegalSearchService
      *
      * The report formats for paper: "-" stands in for an absent value and the
      * registration particulars arrive pre-joined as "serial/page/volume" with 0 for
-     * each missing part. Both are unpicked here — the table has its own em-dash for
+     * each missing part. Both are unpicked here â the table has its own em-dash for
      * empty, and its duplicate check compares the three parts separately, where a
      * "0" means "not recorded" and must not read as the serial number zero.
      */
@@ -4880,7 +4880,7 @@ class LegalSearchService
     }
 
     /**
-     * The parcel's prop_id from PropID_Master, the canonical registry — file_indexings
+     * The parcel's prop_id from PropID_Master, the canonical registry â file_indexings
      * carries a wrong prop_id on a large share of legacy rows. Null when the file is
      * not registered there, which leaves the timeline unscoped rather than empty.
      */
@@ -4947,7 +4947,7 @@ class LegalSearchService
         // rather than leading the list with an unknown.
         //
         // sort_date is the unformatted value normalizeRow() carries for exactly
-        // this purpose — transaction_date is already display-formatted.
+        // this purpose â transaction_date is already display-formatted.
         $sortKey = static function (array $row): int {
             $parsed = strtotime((string) ($row['sort_date'] ?? $row['transaction_date'] ?? ''));
 
@@ -5162,7 +5162,7 @@ class LegalSearchService
      * Set of genuinely decommissioned file numbers (normalised UPPER/trimmed), used to hide
      * superseded originals from search results. Rows flagged false_decommissioning = 1 are
      * Title-Status markers, not real decommissions, so they are excluded from this set.
-     * Fails open (returns []) if the audit table is unavailable — search must never break.
+     * Fails open (returns []) if the audit table is unavailable â search must never break.
      */
     private function getDecommissionedFileNumbers($conn): array
     {
@@ -5194,8 +5194,8 @@ class LegalSearchService
 
             // Map each decommissioned file number to its decommissioning_reason (or '' if unknown).
             // Callers use isset() for presence AND read the reason to distinguish a 1:1 rename
-            // (Change of Purpose / recertification — successor inherits the prop_id) from a
-            // split/merge (Subdivision / Merger — successors get NEW prop_ids).
+            // (Change of Purpose / recertification â successor inherits the prop_id) from a
+            // split/merge (Subdivision / Merger â successors get NEW prop_ids).
             $set = [];
             foreach ($rows as $r) {
                 $reason = $hasReason ? (string) ($r->decommissioning_reason ?? '') : '';
@@ -5410,14 +5410,14 @@ class LegalSearchService
      * A KANGIS Recertification with no KANGIS C of O to sit above belongs BELOW the
      * file's ordinary C of O, not above it.
      *
-     * placeKangisRecertBeforeCofo() pulls a recert above the C of O it recertifies —
+     * placeKangisRecertBeforeCofo() pulls a recert above the C of O it recertifies â
      * correct when that C of O is itself a KANGIS one, because the pair is a single
      * KANGIS exercise. When the file's C of O is an ordinary Ministry C of O the recert
      * did NOT produce it: the recertification came afterwards, against a title that
      * already existed, so printing it above reverses the actual sequence.
      *
-     * "KANGIS C of O" is decided by extractKangisLifecycleKey() — the same test the
-     * pairing above uses — so both halves of the rule agree on what a KANGIS row is.
+     * "KANGIS C of O" is decided by extractKangisLifecycleKey() â the same test the
+     * pairing above uses â so both halves of the rule agree on what a KANGIS row is.
      *
      * Runs as a post-pass so it is correct whichever order the sort left the two rows
      * in: a recert already below its C of O simply stays put.
@@ -5426,7 +5426,7 @@ class LegalSearchService
      * Lift each File Commissioning / Temporary File row above every row that ranks
      * BELOW it, so it leads its lifecycle block.
      *
-     * Rows that genuinely outrank commissioning keep their place above it — an Old KN
+     * Rows that genuinely outrank commissioning keep their place above it â an Old KN
      * commissioning (15), an Occupancy Permit (14) and its Transfer of Title (13) all
      * precede the commissioning line (12) by design.
      *
@@ -5617,9 +5617,9 @@ class LegalSearchService
     }
 
     /**
-     * Lifecycle-transaction rule: recertification exercises print in generation order —
-     * First KANGIS Recertification (old KNML/MLKN/KNGP, 2014–2024) before Second KANGIS
-     * Recertification (new KN, 2025–present) — and each generation's Certificate of
+     * Lifecycle-transaction rule: recertification exercises print in generation order â
+     * First KANGIS Recertification (old KNML/MLKN/KNGP, 2014â2024) before Second KANGIS
+     * Recertification (new KN, 2025âpresent) â and each generation's Certificate of
      * Occupancy stays with its own recertification.
      *
      * The date sort alone gets this wrong: a Second Recertification usually has no C of O
@@ -5780,7 +5780,7 @@ class LegalSearchService
             return 'kangis';
         // New KANGIS. A separator is tolerated ("KN 2690") because the registry writes both
         // forms; note this must stay disjoint from the old-MLS "KN 1234" files matched by
-        // isOldMlsKnFileNo(), which are Ministry recertifications, not KANGIS ones — those are
+        // isOldMlsKnFileNo(), which are Ministry recertifications, not KANGIS ones â those are
         // distinguished downstream by the link's stored transaction_type, not by shape.
         if (preg_match('/^KN[\s-]?\d{2,6}$/i', $cleanFileNo))
             return 'new_kangis';
@@ -5834,13 +5834,13 @@ class LegalSearchService
      * Decode a `timeline_order` / `excluded_keys` print param into "<table>:<id>" keys.
      *
      * The original wire format repeated the source table on every row
-     * ("file_history_staging:123,pra:456,…"). A subdivision mother with 100+ children
+     * ("file_history_staging:123,pra:456,â¦"). A subdivision mother with 100+ children
      * produces a few hundred timeline rows, which pushed the print URL past Apache's
-     * LimitRequestLine (8190 bytes) — the browser got "Request-URI Too Long" and the
+     * LimitRequestLine (8190 bytes) â the browser got "Request-URI Too Long" and the
      * report never rendered. The UI now sends a compact form that names each table once
      * and refers to it by index:
      *
-     *     v2:<table>~<table>|<tableIdx>-<id>,<tableIdx>-<id>,…
+     *     v2:<table>~<table>|<tableIdx>-<id>,<tableIdx>-<id>,â¦
      *
      * A row with no database id keeps an empty id ("0-"), so the decoded key is exactly
      * what the old format produced and the ranking/exclusion behaviour is unchanged.
@@ -5890,9 +5890,9 @@ class LegalSearchService
      * Shorten a comment that is mostly a list of file numbers.
      *
      * A batch Subdivision stores its decommissioning reason as the full successor list
-     * ("Subdivision → CON-COM-2026-521, CON-COM-2026-522, …"). With 100+ children that
+     * ("Subdivision â CON-COM-2026-521, CON-COM-2026-522, â¦"). With 100+ children that
      * single cell stretches the printed row down the whole page, so the report keeps the
-     * first few numbers and summarises the rest. Only the printed text is shortened —
+     * first few numbers and summarises the rest. Only the printed text is shortened â
      * decommissioned_files keeps the complete list.
      */
     private function condenseFileNumberList(string $text, int $keep = 5): string
@@ -5907,9 +5907,9 @@ class LegalSearchService
             return $text;
         }
 
-        // Only condense a genuine file-number list — prose that merely contains commas
+        // Only condense a genuine file-number list â prose that merely contains commas
         // (a caveat note, a general comment) must print in full. The first part carries
-        // the label ("Subdivision → CON-COM-2026-521"), so it is exempt from the check.
+        // the label ("Subdivision â CON-COM-2026-521"), so it is exempt from the check.
         foreach (array_slice($parts, 1) as $part) {
             if (!preg_match('/^[A-Z][A-Z0-9]*(?:[-\/ ][A-Z0-9]+)*$/i', $part) || !preg_match('/\d/', $part)) {
                 return $text;
@@ -5990,7 +5990,7 @@ class LegalSearchService
     public function buildPrintReport(array $q): array
     {
         $fileNo = trim((string) ($q['file_number'] ?? ''));
-        $searchedFileNo = $fileNo; // Preserve the user's searched file number — fallback may overwrite $fileNo later.
+        $searchedFileNo = $fileNo; // Preserve the user's searched file number â fallback may overwrite $fileNo later.
         $propId = trim((string) ($q['prop_id'] ?? ''));
         $displayFileNumber = trim((string) ($q['display_file_number'] ?? ''));
         $displayFileTitle = trim((string) ($q['display_file_title'] ?? ''));
@@ -6052,7 +6052,7 @@ class LegalSearchService
             return array_values(array_filter($rows, function ($row) use ($excludedKeys, $labelToDbKey) {
                 $id = (string) ($row['id'] ?? '');
                 if ($id === '') {
-                    return true; // synthetic rows have no db id — never excluded here
+                    return true; // synthetic rows have no db id â never excluded here
                 }
                 $label = (string) ($row['source_table'] ?? '');
                 $db = $labelToDbKey[$label] ?? $label;
@@ -6274,7 +6274,7 @@ class LegalSearchService
 
             // Include the row's own file number in the weak (no-reg-particulars) key. Without it,
             // distinct sibling files that share a transaction_type + parties + date collapse into
-            // one — e.g. three subdivision fragments, or two Change-of-Purpose children of the same
+            // one â e.g. three subdivision fragments, or two Change-of-Purpose children of the same
             // mother. A PRA row and its File-History twin carry the SAME file number, so they still
             // collapse as intended; only genuinely different files are now kept apart.
             $rowFileNo = '';
@@ -6373,7 +6373,7 @@ class LegalSearchService
             }
 
             // A bare 4-digit year (legacy commissioning rows carry e.g. "2005", the year
-            // embedded in the file number) must not reach Carbon::parse — strtotime reads
+            // embedded in the file number) must not reach Carbon::parse â strtotime reads
             // "2005" as the TIME 20:05 on TODAY's date, which dates the row to today and
             // sorts it to the very bottom. Anchor it to Jan 1 of that year instead.
             if (preg_match('/^(?:19|20)\d{2}$/', $text)) {
@@ -6394,7 +6394,7 @@ class LegalSearchService
 
         // Registration date FIRST for every event, without exception, falling back to the
         // transaction date only when no registration date is recorded. Mirrors
-        // getTransactionTimestamp() in resources/views/legal_search/js.blade.php — the two
+        // getTransactionTimestamp() in resources/views/legal_search/js.blade.php â the two
         // must agree or the printed slip orders rows differently from the screen.
         //
         // OP / TOT(OP) / RofO were previously keyed off transaction_date instead, which put
@@ -6428,14 +6428,14 @@ class LegalSearchService
 
         // Weights come from the shared map so the printed slip and the on-screen timeline
         // (resources/views/legal_search/js.blade.php) order a file identically. Returns null
-        // for floating events — the C of O, parcel updates, decommissionings — which are injected
+        // for floating events â the C of O, parcel updates, decommissionings â which are injected
         // chronologically rather than ranked. See LegalSearchTimelineWeights.
         $getTransPriorityWeight = function (array $row) use ($canonicalTransactionType): ?int {
             $txType = $canonicalTransactionType($row['transaction_type'] ?? ($row['instrument_type'] ?? ''));
             return LegalSearchTimelineWeights::weightFor($row, $txType);
         };
 
-        // The Timeline Weighting Method (spec §3) — the PHP twin of
+        // The Timeline Weighting Method (spec Â§3) â the PHP twin of
         // sortTimelineChronologically() in resources/views/legal_search/js.blade.php.
         // Weighted and floating events rank on different keys, so they are sorted in two
         // phases: mixing them in one comparator makes it intransitive (a floater is ordered
@@ -6468,7 +6468,7 @@ class LegalSearchService
             }
         }
 
-        // Phase 1 — weight DESC, then timestamp ASC, then id.
+        // Phase 1 â weight DESC, then timestamp ASC, then id.
         usort($weighted, function ($a, $b) use ($compareByDateThenId, $getTransPriorityWeight) {
             $wa = $getTransPriorityWeight($a);
             $wb = $getTransPriorityWeight($b);
@@ -6477,7 +6477,7 @@ class LegalSearchService
             return $compareByDateThenId($a, $b);
         });
 
-        // Phase 2 — inject each floater after the last weighted event dated on or before it,
+        // Phase 2 â inject each floater after the last weighted event dated on or before it,
         // so it lands chronologically without disturbing the hierarchy above it.
         usort($floating, $compareByDateThenId);
 
@@ -6506,7 +6506,7 @@ class LegalSearchService
             }
             // Advance to just before the next dated weighted event: past floaters already
             // parked on this anchor ($floating is sorted ascending, so this one belongs
-            // after them — a Decommissioning must not precede the Subdivision that caused
+            // after them â a Decommissioning must not precede the Subdivision that caused
             // it), and past UNDATED weighted rows, which have no position in time and must
             // stay attached to their weight group rather than be split off by a floater.
             $count = count($transactions);
@@ -6553,7 +6553,7 @@ class LegalSearchService
         $tc = fn($v) => $v && $v !== '-' ? mb_convert_case(mb_strtolower($v), MB_CASE_TITLE, 'UTF-8') : '-';
 
         // Title-casing a FILE NUMBER corrupts it ("KN2690" -> "Kn2690", "MLKN 3673" -> "Mlkn 3673").
-        // A recertification row's Comment column holds exactly that — the bare KANGIS number — so
+        // A recertification row's Comment column holds exactly that â the bare KANGIS number â so
         // comments are passed through $tcComment, which leaves a recognisable file number alone
         // and title-cases genuine prose as before.
         $tcComment = function ($v) use ($tc) {
@@ -6564,12 +6564,12 @@ class LegalSearchService
             if (preg_match('/^((MLKN|KNML|KNGP)\s?\d{1,6}([-_]\d{1,3})?|KN[\s-]?\d{2,6}|(CON-)?(RES|COM|IND|AG)(-RC)?-\d{4}-\d+)$/i', $s)) {
                 return strtoupper($s);
             }
-            // "Subdivision → CON-COM-2026-521, CON-COM-2026-522, …" — a batch subdivision
+            // "Subdivision â CON-COM-2026-521, CON-COM-2026-522, â¦" â a batch subdivision
             // reason. Shorten the successor list so the row does not run down the page, and
             // title-case only the label: the numbers after the arrow must print verbatim.
             $s = $this->condenseFileNumberList($s);
-            if (preg_match('/^(.*?)\s*(?:→|->)\s*(.+)$/u', $s, $m) && trim($m[1]) !== '') {
-                return $tc(trim($m[1])) . ' → ' . trim($m[2]);
+            if (preg_match('/^(.*?)\s*(?:â|->)\s*(.+)$/u', $s, $m) && trim($m[1]) !== '') {
+                return $tc(trim($m[1])) . ' â ' . trim($m[2]);
             }
             return $tc($s);
         };
@@ -6759,12 +6759,12 @@ class LegalSearchService
                 ? $cleanReg($serialNo) . '/' . $cleanReg($pageNoVal) . '/' . $cleanReg($volumeNo)
                 : '0/0/0';
 
-            // Transaction Date — shown in its own report column, distinct from the
+            // Transaction Date â shown in its own report column, distinct from the
             // registration date. Formatted like reg_date when parseable.
             $txnDate = trim((string) ($t['transaction_date'] ?? ''));
             if ($txnDate !== '' && $txnDate !== '-') {
                 // A bare 4-digit year (a legacy file's commissioning year, taken from its file
-                // number) prints as the year itself — Carbon::parse would read "2005" as the
+                // number) prints as the year itself â Carbon::parse would read "2005" as the
                 // time 20:05 today and stamp the row with today's date.
                 if (!preg_match('/^(?:19|20)\d{2}$/', $txnDate)) {
                     $parsedTxn = rescue(fn() => \Carbon\Carbon::parse($txnDate), null, false);
@@ -6777,7 +6777,7 @@ class LegalSearchService
             }
 
             $rowFileNo = (string) ($t['fileno'] ?: ($t['file_number'] ?: ($t['mlsFNo'] ?: '-')));
-            // A SYSTEM temporary number ("TEMP-xxx") is an internal placeholder — never
+            // A SYSTEM temporary number ("TEMP-xxx") is an internal placeholder â never
             // shown in the File No field.
             if ($this->isSystemTempFileNo($rowFileNo)) {
                 $rowFileNo = '-';
@@ -6788,8 +6788,8 @@ class LegalSearchService
             // grouped by the wrong one: pra #126911 is mlsFNo COM-2016-219 and fileno
             // COM-2026-219, and searching COM-2016-219 pushed that file's own Occupancy
             // Permit into a SECOND lifecycle block. There it sorted below the file's
-            // commissioning row — an OP outranks commissioning (14 against 12), but only
-            // within its own group — and rule 1 of annotateRootOfTitle() then refused to
+            // commissioning row â an OP outranks commissioning (14 against 12), but only
+            // within its own group â and rule 1 of annotateRootOfTitle() then refused to
             // root the title in an OP it read as belonging to another file.
             $rowLifecycle = $this->extractLifecycleFileNo($t);
             $normSearched = $searchedFileNo !== '' ? $this->normalizeLifecycleFileNo($searchedFileNo) : '';
@@ -6815,7 +6815,7 @@ class LegalSearchService
                 'caveat' => $t['caveat'] ?: '-',
                 'comments' => $t['is_caveated'] ? $tcComment($t['caveated_comment'] ?: ($t['comments'] ?: '-')) : $tcComment($t['comments'] ?: '-'),
                 // Extra metadata (ignored by the print slip) so consumers that render
-                // the same LS-weighed timeline on-screen — e.g. the PHS portal —
+                // the same LS-weighed timeline on-screen â e.g. the PHS portal â
                 // can show source badges and location identically to the slip.
                 'source_table' => $labelToDb[$t['source_table'] ?? ''] ?? ($t['source_table'] ?? ''),
                 'location' => $t['location'] ?? '',
@@ -6827,13 +6827,16 @@ class LegalSearchService
                 // distinct from the Land File Commissioning row and arrange places it
                 // chronologically (not hoisted) within the land block.
                 '_st_primary_commissioning' => $t['_st_primary_commissioning'] ?? null,
+                // Pinned rows (the mother's ST rows) float by date; LegalSearchTimelineWeights
+                // reads this, exactly as recordPriorityWeight() does on screen.
+                '_pinned' => $t['_pinned'] ?? null,
             ];
         }
 
         // KANGIS Recertification placement is applied per lifecycle transaction phase
         // inside groupTimelineByLifecycle().
 
-        // ── Default "File Commissioning" record (always the first timeline row) ──
+        // ââ Default "File Commissioning" record (always the first timeline row) ââ
         // Highest priority (weight 12), so it precedes every other transaction.
         // Commissioning Date = the file's genuine KLAES commissioning date
         // (fileNumber.SOURCE starting with 'MLS_Commissioned'). For a legacy file
@@ -6845,9 +6848,9 @@ class LegalSearchService
         // else (client, 2026-08-30: "it should just be the file title nothing more,
         // file title should not be the party 2 of the OP").
         //
-        // It used to be derived from the instrument that opened the file —
+        // It used to be derived from the instrument that opened the file â
         // COMMISSIONING_HOLDER_SOURCES, reading the grantee of a RofO/OP or the
-        // assignor of a ToT/Deed of Assignment — on the reasoning that the file title
+        // assignor of a ToT/Deed of Assignment â on the reasoning that the file title
         // tracks the CURRENT owner and drifts. In practice that put a name on the
         // commissioning row that the file itself does not carry: RES-2024-2184 is
         // titled SAYYIDI UBA WARU and was showing LAMASH, the grantee of a 2021 OP.
@@ -6859,7 +6862,7 @@ class LegalSearchService
         // and both document a rule that was deliberate before this and may be wanted again.
         $commissioningHolder = $fileTitle ?: '-';
 
-        // ── "Temporary File" record — printed directly below File Commissioning ──
+        // ââ "Temporary File" record â printed directly below File Commissioning ââ
         // Present when the searched file has a temporary "(T)" sibling, OR when the searched
         // file is itself the temporary "(T)" number. In the latter case resolveTempFileNumber()
         // returns null (there is no further child temp), so fall back to the searched "(T)" itself
@@ -6897,7 +6900,7 @@ class LegalSearchService
 
         // The File Commissioning row represents the permanent/main file, so it
         // always carries the main file number. When the searched file is itself a
-        // temporary "(T)" number, strip the "(T)" — the temporary number appears on
+        // temporary "(T)" number, strip the "(T)" â the temporary number appears on
         // its own "Temporary File" row directly below.
         $commissioningFileNo = preg_replace('/\s*\(\s*T\s*\)\s*$/i', '', (string) $fileNumber);
         $commissioningFileNo = trim($commissioningFileNo) !== '' ? trim($commissioningFileNo) : $fileNumber;
@@ -6961,8 +6964,8 @@ class LegalSearchService
             $tempRow['lifecycle_file_no'] = $this->normalizeLifecycleFileNo($tempFileNumber);
             $rows[] = $tempRow;
         }
-        // A KANGIS-format file (KNML/MLKN/KNGP/KN…) is an alias of a permanent land file,
-        // not a lifecycle of its own — it is never shown as a File Commissioning event
+        // A KANGIS-format file (KNML/MLKN/KNGP/KNâ¦) is an alias of a permanent land file,
+        // not a lifecycle of its own â it is never shown as a File Commissioning event
         // (only its Recertification appears). A SYSTEM temporary number ("TEMP-xxx") is an
         // internal placeholder and is suppressed the same way.
         if (!$this->isKangisFormat($commissioningFileNo) && !$this->isSystemTempFileNo($commissioningFileNo)) {
@@ -6985,7 +6988,7 @@ class LegalSearchService
         }
         unset($rowRef);
 
-        // Root of Title — printed as a comment on the row the applicant's title
+        // Root of Title â printed as a comment on the row the applicant's title
         // traces back to, matching the on-screen timeline.
         $rows = $this->annotateRootOfTitle(
             $rows,
@@ -7042,8 +7045,8 @@ class LegalSearchService
         // Match the instrument FAMILY, not one exact label. The digitised records
         // store mortgages as "MORTGAGE", "Deed of Mortgage", "Tripartite/Legal/
         // Equitable Mortgage" and discharges as "SURRENDER AND RELEASE" or "Deed of
-        // Surrender and Release" — so detection keys on the family word(s), never a
-        // fixed "deed of …" prefix (which silently missed the release rows and left
+        // Surrender and Release" â so detection keys on the family word(s), never a
+        // fixed "deed of â¦" prefix (which silently missed the release rows and left
         // a discharged mortgage flagged as active).
         $isMortgageType = fn($t) => stripos($t['transaction_type'] ?? '', 'mortgage') !== false;
         $isReleaseType = fn($t) => stripos($t['transaction_type'] ?? '', 'surrender') !== false
@@ -7056,14 +7059,26 @@ class LegalSearchService
         // mortgages than releases on the file. This correctly flags a file that
         // carries a second, unrelated mortgage (e.g. from a different lender) that
         // was never surrendered, and still auto-raises the remark for mortgages
-        // recorded only by registration particulars (no reg_date) — the searcher
+        // recorded only by registration particulars (no reg_date) â the searcher
         // should NOT have to save the Title Encumbrance Remark by hand. Excluded/
         // duplicate rows are already dropped from $transactions above. Mirrors the
         // frontend rule in showCommentSections() (js.blade.php).
-        $mortgageCount = collect($transactions)->filter($isMortgageType)->count();
-        $releaseCount = collect($transactions)->filter($isReleaseType)->count();
-        $hasMortgage = $mortgageCount > 0;
-        $mortgageCaveat = $mortgageCount > $releaseCount;
+        // Rule (user, 2026-10-19): a Surrender & Release placed AFTER the last
+        // mortgage in the timeline discharges the title, however many mortgages
+        // preceded it; a mortgage placed after the last release is active again.
+        // Position in the printed (timeline-ordered) list is used rather than raw
+        // dates, which disagree across sources for the same instrument.
+        $lastMortgageIdx = -1;
+        $lastReleaseIdx = -1;
+        foreach (array_values($transactions) as $idx => $t) {
+            if ($isReleaseType($t)) {
+                $lastReleaseIdx = $idx;
+            } elseif ($isMortgageType($t)) {
+                $lastMortgageIdx = $idx;
+            }
+        }
+        $hasMortgage = $lastMortgageIdx >= 0;
+        $mortgageCaveat = $hasMortgage && $lastReleaseIdx < $lastMortgageIdx;
 
         $isCaveated = (bool) $caveatedRecord || $mortgageCaveat;
 
@@ -7088,7 +7103,7 @@ class LegalSearchService
 
         // A record flagged via Title Status Update (title_status = 1, e.g. an
         // initiated Withdrawal/Cancellation/Revocation) means the title is NOT
-        // free from encumbrances, regardless of caveat/mortgage state — its
+        // free from encumbrances, regardless of caveat/mortgage state â its
         // title_status_remark takes precedence over the default wording.
         $flaggedTxn = collect($transactions)->first(fn($t) => (int) ($t['title_status'] ?? 0) === 1);
         $flaggedRemark = $flaggedTxn ? trim((string) ($flaggedTxn['title_status_remark'] ?? '')) : '';
@@ -7134,7 +7149,7 @@ class LegalSearchService
 
         // Ground Rent: the receipted payment on file (file_indexings) and the
         // manually-entered "Not Paid" comment are independent facts (e.g. an
-        // earlier year's charge was paid, a later year's is outstanding) — both
+        // earlier year's charge was paid, a later year's is outstanding) â both
         // print together when both are present, rather than one hiding the other.
         // An in-place edit of the "Last Paid" card on the Legal Search screen is
         // saved as a 'ground_rent_paid' comment (amount + date in `comment`) and
@@ -7153,14 +7168,14 @@ class LegalSearchService
         $groundRentParts = [];
         if ($fiGroundRentAmount && $fiGroundRentReceiptDate) {
             $grDate = rescue(fn() => \Carbon\Carbon::parse($fiGroundRentReceiptDate)->format('M j, Y'), null, false);
-            $groundRentParts[] = 'Ground Rent Including Land Use Charge (Amounting to ₦' . number_format($fiGroundRentAmount, 2) . ' paid on ' . ($grDate ?: $fiGroundRentReceiptDate) . ')';
+            $groundRentParts[] = 'Ground Rent Including Land Use Charge (Amounting to â¦' . number_format($fiGroundRentAmount, 2) . ' paid on ' . ($grDate ?: $fiGroundRentReceiptDate) . ')';
         }
         $groundRent = $comments->get('ground_rent');
         if ($groundRent) {
             if ($groundRent->amount) {
-                $notPaidText = 'Ground Rent Including Land Use Charge Not Paid (Amounting to ₦' . number_format($groundRent->amount, 2) . ')';
+                $notPaidText = 'Ground Rent Including Land Use Charge Not Paid (Amounting to â¦' . number_format($groundRent->amount, 2) . ')';
                 if ($groundRent->comment) {
-                    $notPaidText .= ' — ' . $groundRent->comment;
+                    $notPaidText .= ' â ' . $groundRent->comment;
                 }
                 $groundRentParts[] = $notPaidText;
             } elseif ($groundRent->comment) {
@@ -7186,7 +7201,7 @@ class LegalSearchService
         // the file has no CofO) and a saved No CofO remark. When a saved remark
         // is present it supersedes the auto note, so drop the auto note to avoid
         // printing the same sentence twice. Only the untouched positive defaults
-        // are dropped — a genuine caveat/mortgage/investigation/flagged warning
+        // are dropped â a genuine caveat/mortgage/investigation/flagged warning
         // won't exact-match and is always preserved.
         $autoFreeFromDefaults = [
             'Based on our available records, the subject title is currently at the Letter of Grant stage, hence Certificate of Occupancy is yet to be issued. However the title is free from encumbrances.',
@@ -7198,7 +7213,7 @@ class LegalSearchService
 
         // The standalone encumbrance reassurance ("...the subject title is free
         // from encumbrances") is redundant when another remark already carries
-        // that phrase — e.g. the no-CofO / Letter of Grant caveat note or a saved
+        // that phrase â e.g. the no-CofO / Letter of Grant caveat note or a saved
         // No CofO remark both end with "the title is free from encumbrances".
         // Suppress it so the reassurance doesn't print twice.
         if ($encumbranceComment
@@ -7256,7 +7271,7 @@ class LegalSearchService
                 if (str_starts_with($tag, '[WRC]')) {
                     $isWrcFile = true;
                 } elseif (str_starts_with($tag, '[COFO_COLLECTED]')) {
-                    // Collected is the stronger state — always overrides "ready".
+                    // Collected is the stronger state â always overrides "ready".
                     $cofoState = 'collected';
                 } elseif (str_starts_with($tag, '[COFO_READY]') && $cofoState === null) {
                     $cofoState = 'ready';
@@ -7270,7 +7285,7 @@ class LegalSearchService
             $wrcComment = $wrcOverride !== '' ? $wrcOverride : 'N.B. This Application has been Cancelled !!!';
 
             // A cancelled application must not also carry the reassuring
-            // "free from encumbrances / Letter of Grant" note — that would
+            // "free from encumbrances / Letter of Grant" note â that would
             // contradict the cancellation. Suppress that positive note. Genuine
             // adverse notes (active caveat / mortgage / investigation / flagged
             // title_status) still stand.
@@ -7290,16 +7305,31 @@ class LegalSearchService
             }
         }
 
-        // DCIV investigation flag: when the searched file — or any file number
-        // resolved onto the timeline rows — is tied to a DCIV in
+        // DCIV investigation flag: when the searched file â or any file number
+        // resolved onto the timeline rows â is tied to a DCIV in
         // master_dciv_links (on EITHER side), the property is under investigation.
         // NOTE: The DCIV "Under Investigation" note is injected into each matching
         // row's Comments cell inside search() (called above), so it already flows
-        // through into the report rows — no separate handling is needed here.
+        // through into the report rows â no separate handling is needed here.
 
         $generatedByText = 'Generated by ' . $generatedBy . ' at ' . $now->format('g:i A & d/m/Y');
 
         $qrData = substr(hash_hmac('sha256', $fileNumber . $now->timestamp, config('app.key')), 0, 11);
+
+        // Security serial printed under the QR, in the RofO letter's fraction format
+        // (letter over the first two digits, then the remaining six). One code per paid
+        // search: keyed on the TTC token, so a reprint of the same search keeps its serial.
+        // No token (e.g. Super Admin bypass) means no serial. A failure here must never
+        // block the report, so it is swallowed and the serial is simply left off.
+        $securitySerial = null;
+        if ($requesterToken && !empty($requesterToken->id)) {
+            $securitySerial = rescue(function () use ($requesterToken, $fileNo) {
+                $svc = app(\App\Services\SecurityCodeService::class);
+                $sc = $svc->getOrGenerateForDocument(trim((string) ($requesterToken->file_number ?? '')) ?: $fileNo, $requesterToken->id, 'Legal Search Report');
+
+                return $sc ? array_merge($svc->formatForDisplay($sc->code), ['code' => $sc->code]) : null;
+            }, null, false);
+        }
 
         if ($displayFileNumber !== '')
             $fileNumberDisplay = $displayFileNumber;
@@ -7318,11 +7348,11 @@ class LegalSearchService
 
         // Commencement date of the R of O term: the UI-passed date wins, then the
         // saved per-file date (ls_comment_staging 'commencement_date'), then the
-        // CofO/R of O grant's Transaction/Reg Date (CofO takes priority — see
+        // CofO/R of O grant's Transaction/Reg Date (CofO takes priority â see
         // commencementDateFromTransactions()). Residual Term = the land-use term
         // minus years elapsed since it, unless the Residual Term editor passed
         // an explicit value. The source badge ("CofO"/"RofO") only applies to
-        // the untouched auto-filled value — a UI-passed or staged override has
+        // the untouched auto-filled value â a UI-passed or staged override has
         // no associated source.
         $displayCommencementDate = trim((string) ($q['display_commencement_date'] ?? ''));
         $displayCommencementSource = trim((string) ($q['display_commencement_source'] ?? ''));
@@ -7343,7 +7373,7 @@ class LegalSearchService
         }
         // Term of the R of O: the value saved on the file indexing record (Edit File
         // Information) overrides the one derived from land use, and the Residual Term
-        // is computed from whichever applies — unless the Residual Term editor passed
+        // is computed from whichever applies â unless the Residual Term editor passed
         // an explicit value, which always wins.
         $termYearsOverride = null;
         if ($fiTerm !== null && preg_match('/\d+/', $fiTerm, $m)) {
@@ -7405,6 +7435,7 @@ class LegalSearchService
                     'full_name' => $generatedBy,
                     'rank' => $user ? trim((string) ($user->rank ?? '')) : '',
                     'qr_data' => $qrData,
+                    'security_serial' => $securitySerial,
                 ],
             ],
         ];
@@ -7413,9 +7444,9 @@ class LegalSearchService
     /**
      * Commencement date of the R of O term. Two possible sources, checked in
      * priority order (mirrors lsFindCommencementSource() in js.blade.php):
-     *   1. Certificate of Occupancy — earliest dated row's transaction_date.
-     *   2. Right of Occupancy — earliest dated row's Transaction Date
-     *      (falling back to Reg Date) — used only when no dated CofO exists.
+     *   1. Certificate of Occupancy â earliest dated row's transaction_date.
+     *   2. Right of Occupancy â earliest dated row's Transaction Date
+     *      (falling back to Reg Date) â used only when no dated CofO exists.
      * Returns [Carbon|null $date, 'CofO'|'RofO'|null $source].
      */
     private function commencementDateFromTransactions(array $transactions): array
@@ -7510,8 +7541,8 @@ class LegalSearchService
     /**
      * Determine whether a file is under DCIV investigation, and why.
      *
-     * A property is "Under Investigation" when the searched file — or any of the
-     * file-number variants resolved onto its timeline rows — appears in
+     * A property is "Under Investigation" when the searched file â or any of the
+     * file-number variants resolved onto its timeline rows â appears in
      * master_dciv_links on EITHER side: as the DCIV parent (dciv_file_number)
      * or as a linked child (related_file_number). The note is accompanied by the
      * DCIV's reason (dciv_reason) and parent file number when available.
@@ -7599,7 +7630,7 @@ class LegalSearchService
         $text = $investigation['note'] ?? 'Under Investigation';
         $reason = trim((string) ($investigation['reason'] ?? ''));
         if ($reason !== '') {
-            $text .= ' — ' . $reason;
+            $text .= ' â ' . $reason;
         }
         return $text;
     }
@@ -7630,10 +7661,10 @@ class LegalSearchService
      * Build the "SEARCHED (LINKED)" file-number display string shared by the on-screen LS
      * Timeline, the Pay-Per-Search template and the printable report. The SEARCHED number
      * always leads, with its counterpart parenthesised:
-     *   - Searched by the land/MLS file number (e.g. CON-AG-2014-35) → "CON-AG-2014-35 (MLKN 2455)"
-     *   - Searched by the KANGIS file number (e.g. MLKN 2455)       → "MLKN 2455 (CON-AG-2014-35)"
+     *   - Searched by the land/MLS file number (e.g. CON-AG-2014-35) â "CON-AG-2014-35 (MLKN 2455)"
+     *   - Searched by the KANGIS file number (e.g. MLKN 2455)       â "MLKN 2455 (CON-AG-2014-35)"
      * When no counterpart is on record the searched number is shown alone. Presentation
-     * only — the underlying stored values are never touched.
+     * only â the underlying stored values are never touched.
      *
      * @param array $transactions Normalized timeline rows (as produced by search()/buildPrintReport()).
      * @param string|null $indexedRelatedFileno Raw file_indexings.related_fileno CSV, if already loaded.
@@ -7658,7 +7689,7 @@ class LegalSearchService
         }
 
         // NOTE: file_indexings.related_fileno is a general lineage field (subdivision siblings,
-        // merger sources, KANGIS recerts — all mixed together), so it is deliberately NOT used
+        // merger sources, KANGIS recerts â all mixed together), so it is deliberately NOT used
         // here to seed $relatedMls: this display is exclusively for the KANGIS <-> MLS pairing
         // (see docblock above), and a land-format token from related_fileno (e.g. a Subdivision
         // predecessor like "RES-1999-469") is never a valid KANGIS counterpart. Only the
@@ -7705,7 +7736,7 @@ class LegalSearchService
         // Land-format search: the KANGIS alias is NOT on the searched file's own rows and
         // no "KANGIS Recertification" timeline row exists to seed $relatedMls. Resolve it
         // authoritatively (file_indexings related_fileno back-link, own rows, recert links)
-        // so e.g. "RES-1991-772" displays "RES-1991-772 (KNML 9213)". Fail-open: null → land-only.
+        // so e.g. "RES-1991-772" displays "RES-1991-772 (KNML 9213)". Fail-open: null â land-only.
         if (($relatedMls === null || $relatedMls === '') && $kangisNumber === null
             && $searchedFileNo !== '' && !$isKangis($searchedFileNo)) {
             $kangisNumber = $this->resolveKangisAliasForLandFile($conn, $resolvedFileNo, $transactions);
@@ -7714,7 +7745,7 @@ class LegalSearchService
         $display = $resolvedFileNo;
 
         // When the user searched the temporary "(T)" number, lead the display with the number
-        // they actually searched — the resolved/indexed number is the base permanent form
+        // they actually searched â the resolved/indexed number is the base permanent form
         // (e.g. searching "RES-2003-537(T)" resolves to "RES-2003-537"), but File Information
         // should reflect the searched temp file.
         $strip = fn($v) => trim((string) preg_replace('/\s*\(\s*T\s*\)\s*$/i', '', (string) $v));
@@ -7724,10 +7755,10 @@ class LegalSearchService
         }
 
         if ($isKangis($searchedFileNo)) {
-            // Searched by the KANGIS alias (e.g. "MLKN 3725") — it leads the display, with its
+            // Searched by the KANGIS alias (e.g. "MLKN 3725") â it leads the display, with its
             // land/MLS counterpart parenthesised: "MLKN 3725 (CON-IND-2021-18)". $display holds
             // the resolved land number here, so the land number is the counterpart (either the
-            // recert-derived $relatedMls or the resolved $resolvedFileNo — same value); using it
+            // recert-derived $relatedMls or the resolved $resolvedFileNo â same value); using it
             // as the counterpart rather than the lead is what avoids the old
             // "CON-IND-2021-18 (CON-IND-2021-18)" duplicate.
             $landNo = ($relatedMls && !$isKangis($relatedMls))
@@ -7747,7 +7778,7 @@ class LegalSearchService
                 $display = $resolvedFileNo . ' (' . $relatedMls . ')';
             }
         } else {
-            // Never append a parenthetical equal to the lead itself — guards against
+            // Never append a parenthetical equal to the lead itself â guards against
             // "MLKN 139 (MLKN 139)" when an upstream canonicalization has already resolved
             // the display lead ($resolvedFileNo) to the same KANGIS number.
             $lead = trim($display);
@@ -7770,9 +7801,9 @@ class LegalSearchService
      * input, so the caller can safely keep the original value (fail-open).
      *
      * Mapping sources, in order:
-     *   1. PropID_Master.kangisFileNo → the mother row's mlsFNo / primary_file_number
+     *   1. PropID_Master.kangisFileNo â the mother row's mlsFNo / primary_file_number
      *      (populated when a recertified file has been data-corrected onto the mother parcel).
-     *   2. related_file_number 'KANGIS Recertification' links → the MLS-formatted endpoint
+     *   2. related_file_number 'KANGIS Recertification' links â the MLS-formatted endpoint
      *      (covers files not yet data-corrected).
      * Leading zeros in the numeric part are ignored ("MLKN 02455" == "MLKN 2455").
      */
@@ -7781,7 +7812,7 @@ class LegalSearchService
         $fileNo = trim($fileNo);
         // Only attempt for KANGIS numbers; normal MLS searches short-circuit here.
         // Accepts BOTH generations: legacy MLKN/KNML/KNGP (optionally unit-suffixed, e.g.
-        // "MLKN 2280-1") and new-KANGIS "KN…". The new-KANGIS form was previously absent,
+        // "MLKN 2280-1") and new-KANGIS "KNâ¦". The new-KANGIS form was previously absent,
         // so every Second-Recertification file failed to resolve to its land file.
         if ($fileNo === '' || !preg_match('/^((MLKN|KNML|KNGP)\s?\d{1,6}([-_]\d{1,3})?|KN[\s-]?\d{2,6})$/i', $fileNo)) {
             return null;
@@ -7803,7 +7834,7 @@ class LegalSearchService
             return null;
         };
 
-        // 1) PropID_Master — mother row carrying this KANGIS alias. Both alias columns must be
+        // 1) PropID_Master â mother row carrying this KANGIS alias. Both alias columns must be
         //    searched: the columns are routinely mis-slotted (e.g. prop_id 147163 stores the MLS
         //    number in kangisFileNo and the OLD KANGIS number "MLKN 3673" in NewKANGISFileno), so
         //    matching kangisFileNo alone silently fails to canonicalise.
@@ -7822,7 +7853,7 @@ class LegalSearchService
             }
         } catch (\Throwable $e) { /* fail-open */ }
 
-        // 2) related_file_number — KANGIS Recertification link (either endpoint).
+        // 2) related_file_number â KANGIS Recertification link (either endpoint).
         try {
             $links = $conn->table('related_file_number')
                 ->where('transaction_type', 'like', '%Recertification%')
@@ -7840,7 +7871,7 @@ class LegalSearchService
         } catch (\Throwable $e) { /* fail-open */ }
 
         // 3) The KANGIS file's OWN file_indexings row (registry='KANGIS'), whose related_fileno
-        //    JSON lists the land file(s) it was recertified from — e.g. MLKN 1910 -> ["COM-2018-49"].
+        //    JSON lists the land file(s) it was recertified from â e.g. MLKN 1910 -> ["COM-2018-49"].
         //    This is the mirror of resolveKangisAliasForLandFile()'s reverse lookup and is often
         //    the ONLY record of the pairing: such a file has no recertification link row and no
         //    PropID_Master alias, so paths 1, 2 and 4 all miss it and the KANGIS rows would form
@@ -7859,7 +7890,7 @@ class LegalSearchService
             }
         } catch (\Throwable $e) { /* fail-open */ }
 
-        // 4) parent_prop_id walk — the canonical Option A shape: Land / Old KANGIS / New KANGIS
+        // 4) parent_prop_id walk â the canonical Option A shape: Land / Old KANGIS / New KANGIS
         //    each hold their OWN prop_id and point UPWARD via parent_prop_id. A new-KANGIS file
         //    created that way (e.g. KN2690 -> parent 147163) has no related_fileno of its own and
         //    no recertification link, so paths 1 and 2 both miss it. Resolve the parent prop_id to
@@ -7874,7 +7905,7 @@ class LegalSearchService
 
             if ($ownRow && trim((string) $ownRow->parent_prop_id) !== '') {
                 foreach (array_filter(array_map('trim', explode(',', (string) $ownRow->parent_prop_id))) as $parentPid) {
-                    // Never resolve to the file's own parcel — that is a self-reference, not a parent.
+                    // Never resolve to the file's own parcel â that is a self-reference, not a parent.
                     if ($parentPid === trim((string) $ownRow->prop_id)) {
                         continue;
                     }
@@ -7910,14 +7941,14 @@ class LegalSearchService
      * row that back-links to this land file via related_fileno; the KANGIS / New-KANGIS
      * columns carried on the file's own transaction rows; and related_file_number
      * "KANGIS Recertification" links. PropID_Master is deliberately NOT used as a value
-     * source here — its kangisFileNo is not reliably a KANGIS number (it can hold an MLS
+     * source here â its kangisFileNo is not reliably a KANGIS number (it can hold an MLS
      * successor, e.g. RES-1991-772 -> "RES-2021-4444").
      *
      * A KANGIS file is stored in its OWN file_indexings row (registry='KANGIS') whose
-     * related_fileno JSON lists the land file(s) it was recertified from — e.g.
+     * related_fileno JSON lists the land file(s) it was recertified from â e.g.
      * KNML 9213 -> ["RES-2021-4444","RES-1991-772","KN3754"]. A search by the land file
      * must therefore reverse-look that row up. Prefers a legacy KANGIS number
-     * (KNML/MLKN/KNGP) and falls back to a new-KANGIS ("KN…") number. Returns null when
+     * (KNML/MLKN/KNGP) and falls back to a new-KANGIS ("KNâ¦") number. Returns null when
      * nothing confidently maps (fail-open: the display simply stays land-only).
      *
      * @param  array  $transactions  the assembled timeline rows for the searched file
@@ -7945,7 +7976,7 @@ class LegalSearchService
             }
         };
 
-        // 1) file_indexings reverse lookup — the KANGIS row that lists this land file in
+        // 1) file_indexings reverse lookup â the KANGIS row that lists this land file in
         //    its related_fileno JSON. Match the QUOTED token so "RES-1991-772" cannot
         //    partial-match "RES-1991-7720".
         try {
@@ -7973,7 +8004,7 @@ class LegalSearchService
             }
         }
 
-        // 3) related_file_number "KANGIS Recertification" link — either endpoint.
+        // 3) related_file_number "KANGIS Recertification" link â either endpoint.
         if ($legacy === null && $newk === null) {
             try {
                 $links = $conn->table('related_file_number')
@@ -7998,7 +8029,7 @@ class LegalSearchService
      * Auto-detect the land use from a file number prefix when it is not otherwise recorded
      * (e.g. a legacy file with no file_indexings row). Follows the KLAES land-use prefix mapping:
      * handles direct (RES/COM/IND/AG), conversion (CON-RES ...), and recertification (RES-RC ...,
-     * CON-RES-RC ...) forms — the meaningful token is the land-use code, which this extracts by
+     * CON-RES-RC ...) forms â the meaningful token is the land-use code, which this extracts by
      * scanning the '-'/'_'-separated tokens. Returns null when no known code is present.
      */
     private function detectLandUseFromFileNumber(?string $fileNo): ?string
@@ -8061,7 +8092,7 @@ class LegalSearchService
             return [];
         }
 
-        // Rows that belong to the searched file itself — used both to seed parent_prop_ids and to
+        // Rows that belong to the searched file itself â used both to seed parent_prop_ids and to
         // record the file's OWN prop_ids so we never mistake them for ancestors.
         $ownPropIds = [];
         $seed = [];
@@ -8088,7 +8119,7 @@ class LegalSearchService
         }
 
         // Seed from the authoritative index sources too, so this works even in SME mode (where the
-        // main prop_id expansion — and the active-index lookup — are skipped) and even when the
+        // main prop_id expansion â and the active-index lookup â are skipped) and even when the
         // searched file has no transaction rows of its own yet.
         try {
             $fi = $conn->table('file_indexings')
@@ -8110,7 +8141,7 @@ class LegalSearchService
                 }
             }
         } catch (\Throwable $e) {
-            // ignore — fall back to whatever the records carry
+            // ignore â fall back to whatever the records carry
         }
 
         // Walk upward: for each ancestor prop_id, look up the row that OWNS it and fold in ITS
@@ -8227,7 +8258,7 @@ class LegalSearchService
         // 2. If the file is a child or decommissioned parent of an SME group,
         //    find the active parent record and include its related file numbers.
         if (!$isSme) {
-            // Rule 9 (bidirectional): match the file number as a WHOLE JSON token — the related_fileno
+            // Rule 9 (bidirectional): match the file number as a WHOLE JSON token â the related_fileno
             // column stores a JSON array (e.g. ["RES-1991-772"]), so bound the match with quotes to
             // avoid the substring false positive where "CON-AG-2014-3" matched "CON-AG-2014-35". A file
             // may be referenced by SEVERAL parents, so union them all rather than taking only the first.
@@ -8254,7 +8285,7 @@ class LegalSearchService
         }
 
         // Lineage completion. The related_fileno strings that flip on SME mode are frequently
-        // fragmented — a subdivided mother may have no active indexing row, and each child often
+        // fragmented â a subdivided mother may have no active indexing row, and each child often
         // references only one sibling. The authoritative family link lives on pra.parent_prop_id.
         // When SME mode is active, widen the allowed set to (a) the searched file's own-prop_id
         // aliases (e.g. a Change-of-Purpose rename that inherits the prop_id) and (b) its direct
@@ -8301,8 +8332,8 @@ class LegalSearchService
                     // under the KANGIS number (e.g. "MLKN 2455") even though the file's pra
                     // history was renamed to its MLS number (e.g. "CON-AG-2014-35"). Those rows
                     // share the mother's own prop_id but a file number that appears NOWHERE in
-                    // pra or related_fileno, so SME mode — which matches by file number and skips
-                    // prop_id expansion — would never surface them. Pull their file numbers into
+                    // pra or related_fileno, so SME mode â which matches by file number and skips
+                    // prop_id expansion â would never surface them. Pull their file numbers into
                     // the allowed set so the COFO/history reappears once the file is subdivided.
                     $aliasTables = [
                         'CofO_staging'         => ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno'],
@@ -8363,7 +8394,7 @@ class LegalSearchService
     /**
      * Does this row carry the given file number in ANY of its file-number columns?
      *
-     * Used only to keep a row with the file it names — see the lifecycle stamping
+     * Used only to keep a row with the file it names â see the lifecycle stamping
      * loop. Compared through normalizeLifecycleFileNo() so "(T)" variants, spacing
      * and case are judged the same way the grouping key itself is.
      */
@@ -8418,7 +8449,7 @@ class LegalSearchService
      *
      * KANGIS Recertification rows (and any CofO rows tied to a KANGIS alias) are
      * assigned to the MAIN MLS/ST file's lifecycle, because the recertification
-     * event conceptually belongs to that main file — not to the KANGIS alias.
+     * event conceptually belongs to that main file â not to the KANGIS alias.
      */
     /**
      * Parse the two numbers inside a "MAIN (ALIAS)" display string (e.g.
@@ -8463,7 +8494,7 @@ class LegalSearchService
      * grandmother CON-AG-2014-35). Blindly locking {MLKN 2455 => searched child} would fold the
      * KANGIS rows into the wrong block. Rule, per hint {kangis => searchedMain}:
      *   1. some row pairs the alias WITH the searched main  -> keep the searched main (this is the
-     *      original R1 lock — protects the KNML 6992 multi-recert case);
+     *      original R1 lock â protects the KNML 6992 multi-recert case);
      *   2. otherwise rows pair the alias with ANOTHER land file (recert row preferred) -> repoint
      *      the hint to that owner (the parent);
      *   3. no row pairs the alias at all -> keep the display hint (reverse-lookup-only aliases).
@@ -8577,7 +8608,7 @@ class LegalSearchService
 
             if ($kangisKey !== '' && isset($kangisToMain[$kangisKey])) {
                 // The row is keyed by a KANGIS alias with a known owning land file
-                // (hint-locked or recert-derived) — every KANGIS-keyed row for that
+                // (hint-locked or recert-derived) â every KANGIS-keyed row for that
                 // alias (C of O, Recertification, deed history) rolls into that file.
                 $lifecycle = $kangisToMain[$kangisKey];
             } elseif ($this->isKangisRecertificationRow($row)) {
@@ -8607,7 +8638,7 @@ class LegalSearchService
             // `mlsFNo` is the file being searched. pra #126911 is mlsFNo COM-2016-219
             // and fileno COM-2026-219: searching COM-2016-219 pushed its own Occupancy
             // Permit into a second lifecycle block, where it sorted BELOW that file's
-            // File Commissioning row — an OP outranks commissioning (14 against 12) but
+            // File Commissioning row â an OP outranks commissioning (14 against 12) but
             // only within its own group. The visible symptoms were an OP third in the
             // timeline, the Root of Title falling through to "Allocation List" (rule 1
             // rejects an OP that is not on the file), and a second commissioning block.
@@ -8618,12 +8649,12 @@ class LegalSearchService
             if ($normPrimary !== '' && $lifecycle !== $normPrimary && $this->rowNamesFileNo($row, $normPrimary)) {
                 $lifecycle = $normPrimary;
             }
-            // A "(T)" temporary number is not its own lifecycle either — it is the SAME
+            // A "(T)" temporary number is not its own lifecycle either â it is the SAME
             // physical file as its base number (the service treats the two as variants
             // everywhere else). Roll its rows into the base file's group, so the file shows
             // ONE File Commissioning row with its "Temporary File" row beneath it, rather
             // than a second commissioning block for the "(T)". The rows keep displaying
-            // their own "(T)" number — only the grouping key is collapsed.
+            // their own "(T)" number â only the grouping key is collapsed.
             if ($lifecycle !== '' && preg_match('/\(\s*T\s*\)\s*$/i', $lifecycle)) {
                 $base = trim((string) preg_replace('/\s*\(\s*T\s*\)\s*$/i', '', $lifecycle));
                 if ($base !== '') {
@@ -8680,7 +8711,7 @@ class LegalSearchService
      * has just folded into an RC file's own commissioning line.
      *
      * Scoped to rows sitting on the RC file ITSELF. The identically-typed row belonging to the
-     * file's old Ministry "KN 3686" number is a different file's line — it survives, and ranks
+     * file's old Ministry "KN 3686" number is a different file's line â it survives, and ranks
      * above the commissioning row (LegalSearchTimelineWeights::OLD_KN_COMMISSIONING).
      */
     private function dropMergedRecertRows(array $rows): array
@@ -8780,18 +8811,18 @@ class LegalSearchService
 
     /**
      * A SYSTEM temporary file number (e.g. "TEMP-91950") is an internal placeholder from the
-     * deed-registration pipeline — not a real land file. Per the client: it never gets a File
+     * deed-registration pipeline â not a real land file. Per the client: it never gets a File
      * Commissioning or File Decommissioning row, and it never displays in the File No field.
      * (Distinct from a "(T)" temporary file, which is a genuine temporary file with its own
      * "Temporary File" timeline row.)
      */
     /**
      * Rows that reached this report on prop_id alone and cannot name the file they
-     * belong to — every file-number column empty or a TEMP placeholder.
+     * belong to â every file-number column empty or a TEMP placeholder.
      *
      * Applied ONLY to the prop_id expansion. Rows found by file number are untouched,
      * and so is the deliberate rollup of a TEMP-numbered OP capture that WAS found on
-     * the searched file — this drops only what arrived through the parcel with no
+     * the searched file â this drops only what arrived through the parcel with no
      * file identity of its own.
      *
      * @param  array<int,mixed>  $rows
@@ -8810,7 +8841,7 @@ class LegalSearchService
                 }
 
                 if (! $this->isSystemTempFileNo($value)) {
-                    return true;   // it names a real file — keep it
+                    return true;   // it names a real file â keep it
                 }
             }
 
@@ -8824,7 +8855,7 @@ class LegalSearchService
     }
 
     /**
-     * Root of Title — the foundational grant the applicant's title traces back to.
+     * Root of Title â the foundational grant the applicant's title traces back to.
      * PHP twin of resolveRootOfTitle() in legal_search/js.blade.php; the two must
      * agree so the printed report and the on-screen timeline never disagree about
      * where the title came from.
@@ -8837,7 +8868,7 @@ class LegalSearchService
      * "Direct Allocation" means the file came off an Allocation List, while
      * "OP Direct Allocation" / "OP Resettlement" mean it was opened on an OP.
      * mls_file_no covers only files commissioned through KLAES (~4.5% of
-     * file_indexings), so a legacy file has no route on record at all — there the
+     * file_indexings), so a legacy file has no route on record at all â there the
      * root is inferred from the earliest State grant (RofO, else CofO) instead.
      *
      * Sets 'root_of_title' on the one row it belongs to; the print templates render
@@ -8853,7 +8884,7 @@ class LegalSearchService
             preg_replace('/\s*\(\s*T\s*\)\s*$/i', '', (string) $commissioningFileNo)
         );
 
-        // A KANGIS alias (e.g. "MLKN 337") is not a lifecycle of its own — the whole report
+        // A KANGIS alias (e.g. "MLKN 337") is not a lifecycle of its own â the whole report
         // is rendered under the land file it resolves to, so no row would ever carry the
         // searched number. When that happens, adopt the lifecycle of the report's own
         // File Commissioning row instead, otherwise every row is judged "not this file"
@@ -8894,11 +8925,11 @@ class LegalSearchService
         };
 
         // 1. An Occupancy Permit captured on the file roots the title in that OP.
-        //    "Transfer of Title (OP)" is deliberately not a match — it moves a title
+        //    "Transfer of Title (OP)" is deliberately not a match â it moves a title
         //    that an OP already created.
         //
-        //    A file can carry more than one OP — a merger registers a permit per source
-        //    parcel — and they are jointly the root, so EVERY OP on the file is tagged
+        //    A file can carry more than one OP â a merger registers a permit per source
+        //    parcel â and they are jointly the root, so EVERY OP on the file is tagged
         //    rather than only the earliest. With a single OP this is the old behaviour.
         $targetIndex = null;
         $label = null;
@@ -8918,12 +8949,12 @@ class LegalSearchService
             $label = 'Occupancy Permit (OP)';
         }
 
-        // With no OP on the file the root is not an instrument at all — it is how the FILE
+        // With no OP on the file the root is not an instrument at all â it is how the FILE
         // itself was opened, so the remark belongs on the File Commissioning row. Only the
         // LABEL is derived below; the anchor is the commissioning row either way.
         //
         // Where to put the remark if this file has no File Commissioning row of its own
-        // (a KANGIS alias, or a file suppressed from commissioning) — better on the grant
+        // (a KANGIS alias, or a file suppressed from commissioning) â better on the grant
         // that established the root than nowhere.
         $fallbackIndex = null;
         $src = strtolower(trim(preg_replace('/\s+/', ' ', (string) $commissioningSource)));
@@ -8939,8 +8970,8 @@ class LegalSearchService
                 // Commissioning row), not at the replaced file's grants.
                 $label = 'Re-grant';
             } else {
-                // Rule 3 — "Other File Commissioning". The route is neither allocation
-                // nor OP (a Conversion, Re-grant, Subdivision…), so the title did not
+                // Rule 3 â "Other File Commissioning". The route is neither allocation
+                // nor OP (a Conversion, Re-grant, Subdivisionâ¦), so the title did not
                 // start at commissioning: the root is the earliest real instrument
                 // executed BEFORE the final commissioning, marked on that entry itself.
                 // Nothing before commissioning still has a root: the grant that created
@@ -8955,7 +8986,7 @@ class LegalSearchService
             }
         }
 
-        // 3. Nothing recorded at all — the file predates mls_file_no, which holds only
+        // 3. Nothing recorded at all â the file predates mls_file_no, which holds only
         //    files commissioned through KLAES (~4.5% of file_indexings). For those legacy
         //    files the root is read off the earliest State grant on the file: a Right of
         //    Occupancy (or, failing that, the Certificate of Occupancy) means the land came
@@ -8994,7 +9025,7 @@ class LegalSearchService
             }
             $fallbackIndex = $rofoIndex ?? $cofoIndex;
             // A file whose report holds nothing but its own File Commissioning row still
-            // has a root — the commissioning IS the root. Only give up when there is no
+            // has a root â the commissioning IS the root. Only give up when there is no
             // grant AND no commissioning row to anchor on, otherwise the remark silently
             // disappears for every legacy file with no dealings captured yet.
             if ($fallbackIndex === null) {
@@ -9010,6 +9041,24 @@ class LegalSearchService
                 }
             }
             $label = 'Allocation List';
+        }
+
+        // Allocation-list root (user, 2026-10-20): the title starts at the State grant, so
+        // the marker sits on the file's first Right of Occupancy row, never on File
+        // Commissioning — even when both carry the same year. Only a file with no RofO
+        // of its own falls back to the commissioning row below.
+        if ($targetIndex === null && $label === 'Allocation List') {
+            foreach ($rows as $i => $row) {
+                if (trim((string) ($row['source_table'] ?? '')) === 'File Commissioning') {
+                    continue;
+                }
+                $type = strtolower(trim((string) ($row['instrument_type'] ?? '')));
+                if ($type !== '' && str_contains($type, 'right of occupancy') && $belongsToOwnFile($row)) {
+                    $targetIndex = $i;
+                    $label = 'Right of Occupancy';
+                    break;
+                }
+            }
         }
 
         // Anchor on the File Commissioning row.
@@ -9036,12 +9085,12 @@ class LegalSearchService
     }
 
     /**
-     * Rule 3 — "Other File Commissioning": the earliest real instrument executed before
+     * Rule 3 â "Other File Commissioning": the earliest real instrument executed before
      * the file's final commissioning, as ['index' => int, 'label' => string], or null
      * when the file carries none.
      *
-     * "Real" excludes the synthetic rows the timeline builds for itself — commissioning,
-     * decommissioning, temporary-file and recertification markers — and the parcel-update
+     * "Real" excludes the synthetic rows the timeline builds for itself â commissioning,
+     * decommissioning, temporary-file and recertification markers â and the parcel-update
      * rows (subdivision, merger, change of purpose, extension, separation), which record
      * an administrative reshaping of the parcel rather than a dealing in the title.
      *
@@ -9053,13 +9102,13 @@ class LegalSearchService
      *
      * These files did NOT come off an allocation list: the land was already held
      * under an earlier title and the file was opened to convert or regularise it.
-     * So File Commissioning is not their root — some earlier instrument is.
+     * So File Commissioning is not their root â some earlier instrument is.
      *
      * Read from the number rather than mls_file_no.source because that column
      * answers for only a fraction of these files (3,127 rows carry
      * source = 'Conversion' against 44,510 CON- and 6,107 SLTR- files), and the
      * remainder fall through to the legacy branch which used to label every one
-     * of them "Allocation List" — the wrong root, asserted confidently.
+     * of them "Allocation List" â the wrong root, asserted confidently.
      *
      * Matches the prefix only: CON-RES-1982-709 and SLTR-2019-14 qualify;
      * a number that merely contains "con" does not.
@@ -9114,7 +9163,7 @@ class LegalSearchService
      * Order is deliberate and must not be relaxed into a commissioning default:
      *   1. the earliest real instrument executed BEFORE File Commissioning
      *   2. failing that, the first valid title document (RofO, else CofO)
-     *   3. failing both, NO root at all — the indicator is left off rather than
+     *   3. failing both, NO root at all â the indicator is left off rather than
      *      claiming an allocation that never happened
      *
      * @return array{index:int,label:string}|null
@@ -9122,7 +9171,7 @@ class LegalSearchService
     private function conversionRootOfTitle(array $rows, callable $belongsToOwnFile): ?array
     {
         // A conversion's earlier dealings sit on the file being CONVERTED, not on the
-        // new file — that is what a conversion is. CON-COM-1985-53 carries nothing of
+        // new file â that is what a conversion is. CON-COM-1985-53 carries nothing of
         // its own; its 1977 CofO and 1982 assignment both belong to AG-RC-1982-194.
         // Restricting candidates to this file's own lifecycle therefore finds nothing
         // and the root silently disappears, which is the opposite of the rule.
@@ -9141,7 +9190,7 @@ class LegalSearchService
     /**
      * @param bool $candidatesMustBeOwnFile  Whether a candidate instrument has to sit on
      *        THIS file's lifecycle. False for a Conversion/SLTR, whose earlier dealings sit
-     *        on the predecessor being converted — see conversionRootOfTitle(). The
+     *        on the predecessor being converted â see conversionRootOfTitle(). The
      *        commissioning cut-off is always taken from this file's OWN commissioning
      *        regardless, so relaxing this widens WHICH instruments qualify, never WHEN.
      */
@@ -9229,12 +9278,12 @@ class LegalSearchService
 
     /**
      * Display label for a recertification timeline row, per the client spec:
-     *   - OLD KANGIS file (KNML/MLKN/KNGP)   -> "First KANGIS Recertification"  (the 2014–2024 exercise)
-     *   - NEW KANGIS file (KN + digits)      -> "Second KANGIS Recertification" (the 2025–present exercise)
+     *   - OLD KANGIS file (KNML/MLKN/KNGP)   -> "First KANGIS Recertification"  (the 2014â2024 exercise)
+     *   - NEW KANGIS file (KN + digits)      -> "Second KANGIS Recertification" (the 2025âpresent exercise)
      *   - Ministry / Physical Planning recert -> "Ministry of Land and Physical Planning Recertification"
      *
      * First-vs-Second is decided by the LINKED KANGIS file's own number format ($kangisNo), not by the
-     * searched file. Only a stored type that already denotes a recertification is relabelled — an untyped
+     * searched file. Only a stored type that already denotes a recertification is relabelled â an untyped
      * or non-recert related row keeps its stored/neutral label (never masquerades as a recert).
      */
     private function recertDisplayLabel(?string $kangisNo, ?string $storedType): string
@@ -9251,7 +9300,7 @@ class LegalSearchService
             // file (Rules 6/7): old KNML/MLKN/KNGP -> First, new KN -> Second. When NEITHER
             // endpoint is a KANGIS number, a stored "KANGIS Recertification" type is spurious
             // (e.g. a land file wrongly linked as a recert, RES-1999-113) and must NOT be
-            // relabelled a KANGIS recert — keep it neutral so it never shows a KANGIS line.
+            // relabelled a KANGIS recert â keep it neutral so it never shows a KANGIS line.
             if (!$this->isKangisFormat($kangisNo)) {
                 return 'Related File';
             }
@@ -9265,7 +9314,7 @@ class LegalSearchService
     /**
      * Suppress redundant neutral "Related File" link rows (source 'Related Fileno' with no real
      * transaction type). Per the client: when the related file number ALREADY displays with its
-     * own transactions in the timeline, the bare link row adds nothing — drop it. Only when the
+     * own transactions in the timeline, the bare link row adds nothing â drop it. Only when the
      * related file has NO transactions of its own does the link row remain, and then its
      * Instrument/Transaction Type displays blank instead of the "Related File" placeholder.
      */
@@ -9602,7 +9651,7 @@ class LegalSearchService
      * for, read off COMMISSIONING_HOLDER_SOURCES in order.
      *
      * Operates on PRINT rows, so Party 1/2 are the 'grantor'/'grantee' keys and the type is
-     * the formatted label — matched by str_contains, since a print label carries decoration
+     * the formatted label â matched by str_contains, since a print label carries decoration
      * the canonicaliser would otherwise have stripped ("Occupancy Permit (Op)"). Rows on $fno
      * itself win over rows on other files in the lifecycle. Returns null when the file has
      * none of those instruments, leaving the caller's existing name in place.
@@ -9682,7 +9731,7 @@ class LegalSearchService
      */
     private function makePrintTemporaryFileRow(string $fileNo, array $meta): array
     {
-        // Same Party 2 as the File Commissioning row above it — see makePrintCommissioningRow().
+        // Same Party 2 as the File Commissioning row above it â see makePrintCommissioningRow().
         $holder = $meta['commissioning_holder'] ?: (($meta['grant_holder'] ?? null) ?: ($meta['file_title'] ?: '-'));
 
         return [
@@ -9766,7 +9815,7 @@ class LegalSearchService
             $type = (string) ($row['transaction_type'] ?? '');
 
             // The old Ministry "KN 6071" row is typed "File Commissioning" but belongs to the KN
-            // file, not to the group it is folded into — it must not satisfy the land file's own
+            // file, not to the group it is folded into â it must not satisfy the land file's own
             // commissioning row, which would then never be synthesized.
             $isForeignOldKnRow = $this->isOldMlsKnFileNo(
                 (string) ($row['file_no'] ?? ($row['fileno'] ?? ($row['file_number'] ?? ($row['mlsFNo'] ?? ''))))
@@ -9776,12 +9825,12 @@ class LegalSearchService
                 || $instrument === 'File Commissioning' || $instrument === 'DCIV File Commissioning')) {
                 $hasCommissioning[$fno] = true;
             }
-            // A unit ST "ST File Commissioning – Fragmentation" row IS that unit's
-            // commissioning event — don't also synthesize a generic "File Commissioning"
+            // A unit ST "ST File Commissioning â Fragmentation" row IS that unit's
+            // commissioning event â don't also synthesize a generic "File Commissioning"
             // for it (which would replace the real ST label + date). The mother's ST
-            // primary row is tagged to the LAND lifecycle, which already carries its own
-            // Land File Commissioning row, so this is a no-op there.
-            if ($source === 'ST File Commissioning') {
+            // primary row is tagged to the LAND lifecycle but is NOT the land file's own
+            // commissioning: counting it suppressed the Land File Commissioning row.
+            if ($source === 'ST File Commissioning' && empty($row['_st_primary_commissioning'])) {
                 $hasCommissioning[$fno] = true;
             }
             if ($source === 'File Decommissioning' || $instrument === 'File Decommissioning') {
@@ -9804,7 +9853,7 @@ class LegalSearchService
             }
 
             // Every KANGIS number carried by a row of this lifecycle is an alias of the land
-            // file — the evidence that the file went through a KANGIS recertification exercise.
+            // file â the evidence that the file went through a KANGIS recertification exercise.
             // A SPACED "KN 6071" is not such evidence: it is the old Ministry file number, and
             // identifyFileNumberType() reads it as new-KANGIS only because its regex tolerates a
             // separator. Synthesizing a "Second KANGIS Recertification" for it would invent a
@@ -9833,8 +9882,8 @@ class LegalSearchService
             // and temporary-file rows only, never to supporting rows.
             $meta['grant_holder'] = $this->resolveGrantHolderFromPrintRows($rows, (string) $fno);
 
-            // A KANGIS-format file (KNML/MLKN/KNGP/KN…) is an alias of a land file, never
-            // its own lifecycle — suppress its synthetic Commissioning/Decommissioning
+            // A KANGIS-format file (KNML/MLKN/KNGP/KNâ¦) is an alias of a land file, never
+            // its own lifecycle â suppress its synthetic Commissioning/Decommissioning
             // rows (its Recertification, classified separately, still appears). A SYSTEM
             // temporary number ("TEMP-xxx") is an internal placeholder and is suppressed
             // the same way.
@@ -9846,11 +9895,11 @@ class LegalSearchService
 
             // Rule 4 (superseded): an "-RC-" land file used to get its own Ministry of Land
             // and Physical Planning Recertification line here. That event now reads off the
-            // file's commissioning row instead — see commissioningLabelFor() — so nothing is
+            // file's commissioning row instead â see commissioningLabelFor() â so nothing is
             // synthesized, and any real row of that type on the file itself is folded away by
             // dropMergedRecertRows(). makePrintMinistryRecertRow() is kept for reference.
 
-            // Rules 6/7: a land file that carries a KANGIS number WAS recertified — the KANGIS
+            // Rules 6/7: a land file that carries a KANGIS number WAS recertified â the KANGIS
             // number is the product of the exercise. That line must show even when no
             // related_file_number link records it: the alias is frequently known only from the
             // KANGIS file_indexings row's related_fileno back-link (see
@@ -9942,7 +9991,7 @@ class LegalSearchService
         }
 
         // The mother ST "ST File Commissioning" event is DISTINCT from the mother's
-        // "Land File Commissioning" event — both classify as 'File Commissioning' but must
+        // "Land File Commissioning" event â both classify as 'File Commissioning' but must
         // coexist in the same land lifecycle block, so give the ST primary its own key.
         if (!empty($row['_st_primary_commissioning'])) {
             return 'ST File Commissioning';
@@ -9951,7 +10000,7 @@ class LegalSearchService
         // Likewise the old Ministry "KN 6071" file's commissioning: a DIFFERENT file's event
         // from the land file's own, though both classify as 'File Commissioning' and share the
         // group. Key it by its own number so the two coexist rather than one deduping the
-        // other away — the land file's row scores higher and was silently winning.
+        // other away â the land file's row scores higher and was silently winning.
         $ownNo = $this->extractOwnFileNo($row);
         if ($type === 'File Commissioning' && $this->isOldMlsKnFileNo($ownNo)) {
             return $type . '|' . $this->normalizeLifecycleFileNo($ownNo);
@@ -10101,7 +10150,7 @@ class LegalSearchService
             }
 
             // Same effective start / relationship: fall back to the numeric serial in
-            // the file number (e.g. RES-2026-123 → 123). Serials are generally assigned
+            // the file number (e.g. RES-2026-123 â 123). Serials are generally assigned
             // sequentially within a year, so this gives a chronological, deterministic
             // order when commissioning/transaction dates cannot distinguish files.
             $sa = $this->extractSerialFromFileNumber($a);
@@ -10125,7 +10174,7 @@ class LegalSearchService
         if ($fileNo === '') {
             return null;
         }
-        // Strip temp suffix so CON-AG-2026-108(T) → CON-AG-2026-108.
+        // Strip temp suffix so CON-AG-2026-108(T) â CON-AG-2026-108.
         $fileNo = preg_replace('/\s*\(\s*T\s*\)\s*$/i', '', $fileNo);
         if (preg_match('/(\d+)$/', $fileNo, $m)) {
             return (int) $m[1];
@@ -10155,13 +10204,13 @@ class LegalSearchService
             $schema = Schema::connection($conn->getName());
             if ($schema->hasTable('decommissioned_files')
                 && $schema->hasColumn('decommissioned_files', 'successor_file_no')) {
-                // Forward walk: primary → successors → ... → fileNo?
+                // Forward walk: primary â successors â ... â fileNo?
                 $forward = $this->walkLifecycleChain($conn, $primaryNorm, $fileNorm, 'forward');
                 if ($forward !== null) {
                     return 1;
                 }
 
-                // Backward walk: primary ← predecessors ← ... ← fileNo?
+                // Backward walk: primary â predecessors â ... â fileNo?
                 $backward = $this->walkLifecycleChain($conn, $fileNorm, $primaryNorm, 'forward');
                 if ($backward !== null) {
                     return -1;
@@ -10187,7 +10236,7 @@ class LegalSearchService
 
         // RC-prefix files (e.g. COM-RC-1982-233) carry the "-RC-" token because they are the
         // OLDER Ministry/Physical-Planning file that was later recertified INTO a newer MLS
-        // number — by definition a predecessor of that land file, regardless of embedded year
+        // number â by definition a predecessor of that land file, regardless of embedded year
         // or whether a decommissioned_files/related_fileno chain links them (per user: an RC
         // file must render before the land file it was recertified into).
         $fileIsRc = $this->isRecertLandFile($fileNo);
@@ -10228,11 +10277,11 @@ class LegalSearchService
                 $successorQuery = $conn->table('decommissioned_files')
                     ->whereRaw('UPPER(LTRIM(RTRIM(file_no))) = ?', [$current['file']]);
 
-                // Real decommissions only — matching every other reader here. Excludes
+                // Real decommissions only â matching every other reader here. Excludes
                 // false_decommissioning = 1 (a Title Status flag: the file was never
                 // decommissioned and has no successor). An ST handover (2) IS a real
-                // decommissioning and its successor_file_no — the Sectional Titling
-                // primary that took the land file over — is walked like any other.
+                // decommissioning and its successor_file_no â the Sectional Titling
+                // primary that took the land file over â is walked like any other.
                 if (Schema::connection($conn->getName())->hasColumn('decommissioned_files', 'false_decommissioning')) {
                     $successorQuery->where(function ($q) {
                         $q->where('false_decommissioning', '<>', \App\Support\DecommissionScope::FALSE_DECOMMISSIONING)->orWhereNull('false_decommissioning');
@@ -10324,7 +10373,7 @@ class LegalSearchService
             //
             // OP / TOT(OP) / RofO were previously keyed off transaction_date here, which
             // ordered them differently from every other row. Mirrors getTransactionTimestamp()
-            // in js.blade.php — the two must agree or screen and slip disagree.
+            // in js.blade.php â the two must agree or screen and slip disagree.
             $candidates = [$r['reg_date'] ?? null, $r['deeds_date'] ?? null, $r['transaction_date'] ?? null];
 
             $candidates = array_merge($candidates, [
@@ -10342,7 +10391,7 @@ class LegalSearchService
 
                 // A bare commissioning year ("1982") must anchor to 1 January. Carbon::parse()
                 // fills the missing month and day from TODAY, so it read that row as 10 Aug
-                // 1982 on this run and as a different date tomorrow — enough to sort the year's
+                // 1982 on this run and as a different date tomorrow â enough to sort the year's
                 // own C of O above the commissioning line, and to make the order drift with the
                 // calendar. Mirrors the same branch in buildPrintReport()'s parser.
                 if (preg_match('/^(?:19|20)\d{2}$/', $d)) {
@@ -10359,7 +10408,7 @@ class LegalSearchService
 
         // Two phases, matching buildPrintReport() and sortTimelineChronologically() in
         // js.blade.php. This sorter used to read a null weight as 0 and rank floating events
-        // in one pass with the weighted ones — which pinned every floater to the C of O's old
+        // in one pass with the weighted ones â which pinned every floater to the C of O's old
         // rank and sank it beneath the file's dealings, silently undoing the chronological
         // placement the other two sorters had already agreed on.
         $compareByDateThenSn = function (array $a, array $b) use ($ts): int {
@@ -10384,7 +10433,7 @@ class LegalSearchService
             }
         }
 
-        // Phase 1 — weight DESC, then timestamp ASC, then sn.
+        // Phase 1 â weight DESC, then timestamp ASC, then sn.
         usort($weightedRows, function (array $a, array $b) use ($weightOf, $compareByDateThenSn): int {
             $wa = $weightOf($a);
             $wb = $weightOf($b);
@@ -10394,7 +10443,7 @@ class LegalSearchService
             return $compareByDateThenSn($a, $b);
         });
 
-        // Phase 2 — inject each floater after the last DATED weighted event on or before it.
+        // Phase 2 â inject each floater after the last DATED weighted event on or before it.
         usort($floatingRows, $compareByDateThenSn);
 
         $isDatedWeighted = function (array $item) use ($weightOf, $ts): bool {
@@ -10434,7 +10483,7 @@ class LegalSearchService
         // A recert with no KANGIS C of O of its own goes BELOW the ordinary C of O.
         $transactions = $this->placeUnpairedRecertBelowCofo($transactions);
 
-        // A File Commissioning row is NO LONGER hoisted to the head of its block — it takes
+        // A File Commissioning row is NO LONGER hoisted to the head of its block â it takes
         // the position its weight earns, so an Occupancy Permit (14) and its Transfer of
         // Title (13) read ABOVE the commissioning line (12). One exception survives:
         //
@@ -10446,14 +10495,16 @@ class LegalSearchService
         // commissioning line is GONE: an RC file's recertification is now named by the
         // commissioning row itself, and the only rows still carrying that label belong to the
         // file's old Ministry "KN 3686" number, which must rank ABOVE the commissioning row
-        // (OLD_KN_COMMISSIONING = 15) — the splice was dragging them back underneath it.
+        // (OLD_KN_COMMISSIONING = 15) â the splice was dragging them back underneath it.
         $floatingCommissioning = [];
         $otherTransactions = [];
         foreach ($transactions as $t) {
             $evt = $this->classifyLifecycleEventType($t);
             $isComm = ($evt === 'File Commissioning' || $evt === 'Temporary File');
 
-            if ($isComm && $this->rowIsFloating($t, $canonicalTransactionType)) {
+            // A pinned row (the mother's ST File Commissioning) floats so it sits by DATE;
+            // hoisting it would undo that and lift a 2026 ST event above decades of history.
+            if ($isComm && empty($t['_pinned']) && $this->rowIsFloating($t, $canonicalTransactionType)) {
                 $floatingCommissioning[] = $t;
             } else {
                 $otherTransactions[] = $t;
@@ -10496,7 +10547,7 @@ class LegalSearchService
         }
 
         // A KANGIS Recertification (First or Second) closes the file's KANGIS chapter, so it
-        // reads LAST in the transaction band — directly above the File Decommissioning that
+        // reads LAST in the transaction band â directly above the File Decommissioning that
         // retires the file, since decommissioning rows are appended after this. Its weight
         // (8) would otherwise rank it above the file's own dealings.
         //
@@ -10527,8 +10578,8 @@ class LegalSearchService
         // that chapter from its predecessor: parking the pair at the foot of the band prints
         // 2021 events under a 2026 commissioning line. When every dated row of the recert
         // block predates the file's own commissioning row, the block is spliced in directly
-        // ABOVE that commissioning row instead (rows outranking commissioning — an OP, a
-        // Transfer of Title, the old KN line — keep their place above it).
+        // ABOVE that commissioning row instead (rows outranking commissioning â an OP, a
+        // Transfer of Title, the old KN line â keep their place above it).
         $recertTs = null;
         foreach ($recertBlock as $r) {
             $t = $ts($r);
@@ -10559,8 +10610,8 @@ class LegalSearchService
     }
 
     /**
-     * True when every row is a Sectional Titling row — an "ST File Commissioning" source,
-     * an "ST …" instrument (ST Assignment, ST Fragmentation), or a "(ST)" instrument
+     * True when every row is a Sectional Titling row â an "ST File Commissioning" source,
+     * an "ST â¦" instrument (ST Assignment, ST Fragmentation), or a "(ST)" instrument
      * (Right of Occupancy (ST)). Used to scope the ST chronological re-sort.
      */
     private function allStRows(array $rows): bool
@@ -10584,7 +10635,7 @@ class LegalSearchService
      * @param array  $rows           Print-format rows (already weighted/floating sorted).
      * @param string $primaryFileNo  The searched file number (lifecycle owner).
      * @param string $searchedFileNo The original user-typed file number.
-     * @return array Rows ordered by lifecycle file, then commissioning → transactions → decommissioning.
+     * @return array Rows ordered by lifecycle file, then commissioning â transactions â decommissioning.
      */
     private function groupTimelineByLifecycle(array $rows, string $primaryFileNo, string $searchedFileNo, array $aliasHints = []): array
     {

@@ -129,7 +129,18 @@ class DeskController extends Controller
                     $done = $doneQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
                     $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
                     $sent = $done->filter(fn ($c) => $c->isOpen())->values();
-                } elseif (array_intersect_key($queue, array_flip(['steps', 'to', 'at', 'awaiting_head']))) {
+                } elseif (!empty($queue['awaiting_head'])) {
+                    // Approval keeps the files this unit sent to its head once they have moved on,
+                    // read only, wherever they are now and even once completed (user, 2026-10-16).
+                    $doneQuery = $filter(CadastralCase::query()->with(['receiver']))
+                        ->whereNotIn('id', $here->pluck('id'))
+                        ->where(fn ($q) => $q->where('current_desk', '!=', $desk)->orWhere('status', '!=', CadastralCase::STATUS_IN_PROGRESS))
+                        ->whereHas('movements', fn ($m) => $m->where('outcome', \App\Services\CadastralDept\HeadApproval::TO_HEAD)->where('to_desk', $desk));
+                    $sentTotal = (clone $doneQuery)->count();
+                    $done = $doneQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+                    $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
+                    $sent = $done->filter(fn ($c) => $c->isOpen())->values();
+                } elseif (array_intersect_key($queue, array_flip(['steps', 'to', 'at']))) {
                     $sent = $closed = collect();
                 }
                 // A Send ('ready') list keeps the desk's sent-on and finished files.
@@ -162,7 +173,7 @@ class DeskController extends Controller
             'term' => $term,
             'queueKey' => $queueKey,
             'queueLabel' => $queue['label'] ?? null,
-            'queueKeepsDone' => !empty($queue['tasks']),   // task list: done files stay, read only
+            'queueKeepsDone' => !empty($queue['tasks']) || !empty($queue['awaiting_head']),   // task and Approval lists: done files stay, read only
             // Header as the sidebar names it: the list opened, or the desk's whole-inbox
             // entry (Intake Queue, All files at ...), or the desk itself (D Cad).
             'pageTitle' => $queue['label'] ?? $this->sidebarTitle($def, $desk),
@@ -176,7 +187,7 @@ class DeskController extends Controller
     {
         $q = $def->queues()[$desk] ?? null;
         foreach ((array) ($q['entries'] ?? []) as $entry) {
-            if (!array_intersect(['steps', 'tasks', 'to', 'at', 'ready', 'awaiting_head'], array_keys($entry))) {
+            if (!array_intersect(['steps', 'tasks', 'to', 'at', 'ready', 'awaiting_head', 'dms'], array_keys($entry))) {
                 return $entry['label'];
             }
         }
@@ -195,6 +206,21 @@ class DeskController extends Controller
         $def = $engine->definition();
         $step = $def->step($case->workflow, $case->current_step);
         $missing = $engine->missingTasks($case->workflow, $case->current_step, $case->doneTaskKeys());
+        // No correspondence file: nothing to detach or attach (as CaseWorkflow).
+        if (!trim((string) $case->correspondence_fileno)) {
+            $missing = array_values(array_diff($missing, CorrespondenceCustody::TASKS));
+        }
+        // The main file's page count to and from Land (PageCounts): no new pages, no DMS update;
+        // a count still to enter is one more thing to do on the file page.
+        $pageCounts = app(\App\Services\CadastralDept\PageCounts::class);
+        $countDue = false;
+        if ($pageCounts->direction($case)) {
+            $pc = $pageCounts->state($case);
+            $countDue = !$pc['recorded'];
+            if ($pc['triggered'] === false) {
+                $missing = array_values(array_diff($missing, [\App\Services\CadastralDept\EdmsUpdate::TASK]));
+            }
+        }
 
         // Registry's correspondence task is done from the menu: Attach Land File / Detach Correspondence.
         $custody = null;
@@ -202,7 +228,12 @@ class DeskController extends Controller
             $custody = in_array('correspondence_detached', $missing, true) ? 'detach'
                 : (in_array('correspondence_attached', $missing, true) ? 'attach' : null);
         }
-        $open = count($missing) - ($custody ? 1 : 0);
+        // Count first, then detach; DMS update first, then attach (client, 2026-10-18): until then
+        // the menu says to finish the tasks on the file page.
+        if ($custody && $pageCounts->custodyBlocker($case, $custody)) {
+            $custody = null;
+        }
+        $open = count($missing) - ($custody ? 1 : 0) + ($countDue ? 1 : 0);
 
         // Field jacket work, in order (transcript, 2026-10-16): P&D commissions the jacket and
         // issues the I to S; AD Cad Info attaches the job and surveyor, then issues the instruction.
@@ -245,7 +276,7 @@ class DeskController extends Controller
         // The staff's single "Send to <head>" is not the step's question.
         $question = $head['required'] && !$head['is_head'] ? null : ($step['question'] ?? null);
 
-        return ['tasks_open' => $open, 'custody' => $custody, 'jacket' => $jacket, 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
+        return ['tasks_open' => $open, 'custody' => $custody, 'jacket' => $jacket, 'edms' => in_array(\App\Services\CadastralDept\EdmsUpdate::TASK, $missing, true), 'actions' => ($failing || $custody) ? [] : $actions, 'failing' => $failing,
             'question' => $question, 'decision' => $decision, 'head' => $head];
     }
 }

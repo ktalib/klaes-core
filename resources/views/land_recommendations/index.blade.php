@@ -206,7 +206,7 @@
                             <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                 <th class="px-4 py-4 text-center w-10"></th>
                                 <th class="px-4 py-4 text-center whitespace-nowrap">S/N</th>
-                                <th class="px-6 py-4 whitespace-nowrap">Mother File No</th>
+                                <th class="px-6 py-4 whitespace-nowrap">Grand Mother/Mother FileNo</th>
                                 <th class="px-6 py-4 whitespace-nowrap">Batch Ref</th>
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Children</th>
                                 <th class="px-6 py-4 text-center whitespace-nowrap">Approved</th>
@@ -270,7 +270,7 @@
                                         <span class="text-[10px] font-bold text-slate-400">&mdash;</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-slate-600 whitespace-nowrap">
+                                <td class="px-6 py-4 text-slate-600 whitespace-nowrap uppercase">
                                     @if($creator)
                                         {{-- Opens the shared profile card (js/user-profile-card.js). --}}
                                         <span class="upc-trigger" data-user-card data-user-id="{{ $creator->id }}"
@@ -322,7 +322,7 @@
                                                  x-transition:leave-start="opacity-100 scale-100"
                                                  x-transition:leave-end="opacity-0 scale-95"
                                                  :style="menuStyle"
-                                                 class="w-64 rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
+                                                 class="lr-action-menu w-72 rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
                                                  style="display: none;">
                                                 <div class="py-1 text-left">
                                                     {{-- Every item in this menu is laid out the same way: a fixed
@@ -359,13 +359,16 @@
                                                              Download closes once a signed copy is on file (Reset reopens
                                                              it); Upload opens once the brief has been downloaded. --}}
                                                         @php $briefDownloaded = !empty($b->brief_downloaded_at); @endphp
+                                                        <div class="px-4 pt-1.5 pb-0.5 text-[10px] font-black uppercase tracking-wider text-slate-400 truncate" title="Mother file {{ $b->mother_file_no }}">
+                                                            Brief Recommendation (mother)
+                                                        </div>
                                                         @if($batchDoc)
                                                             <span title="The signed brief Recommendation is already uploaded. Use Reset upload to start again."
                                                                 class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
                                                                 <i data-lucide="file-text" class="h-4 w-4 shrink-0 text-slate-200"></i>
                                                                 <span class="flex-1 leading-tight italic">
-                                                                    Brief Recommendation (mother)
-                                                                    <span class="block text-[10px] font-medium not-italic text-emerald-600">Signed brief Recommendation already uploaded</span>
+                                                                    Download brief
+                                                                    <span class="block text-[10px] font-medium not-italic text-emerald-600">Signed copy already uploaded</span>
                                                                 </span>
                                                             </span>
                                                         @else
@@ -373,7 +376,7 @@
                                                                 onclick="openBatchBrief(@js($b->rofo_batch_id), @js($b->mother_file_no), {{ (int) $total }}, false, {{ $briefDownloaded ? 'true' : 'false' }})"
                                                                 class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-sky-700 hover:bg-sky-50 transition">
                                                                 <i data-lucide="file-text" class="h-4 w-4 shrink-0"></i>
-                                                                <span class="flex-1 leading-tight">Brief Recommendation (mother)</span>
+                                                                <span class="flex-1 leading-tight">Download brief</span>
                                                             </button>
                                                         @endif
 
@@ -382,14 +385,14 @@
                                                                 onclick="uploadMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), {{ (int) $total }}, {{ $batchDoc ? 'true' : 'false' }})"
                                                                 class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-violet-700 hover:bg-violet-50 transition">
                                                                 <i data-lucide="upload" class="h-4 w-4 shrink-0"></i>
-                                                                <span class="flex-1 leading-tight">{{ $batchDoc ? 'Replace signed brief Recommendation (mother)' : 'Upload signed brief Recommendation (mother)' }}</span>
+                                                                <span class="flex-1 leading-tight">{{ $batchDoc ? 'Replace signed copy' : 'Upload signed copy' }}</span>
                                                             </button>
                                                         @else
                                                             <span title="Download the Brief Recommendation (mother) first, then upload the signed copy."
                                                                 class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
                                                                 <i data-lucide="upload" class="h-4 w-4 shrink-0 text-slate-200"></i>
                                                                 <span class="flex-1 leading-tight italic">
-                                                                    Upload signed brief Recommendation (mother)
+                                                                    Upload signed copy
                                                                     <span class="block text-[10px] font-medium not-italic text-amber-600">Download the brief first</span>
                                                                 </span>
                                                             </span>
@@ -403,8 +406,10 @@
                                                                 onclick="viewMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), @js($batchDoc->summary()), @js($batchDoc->mime_type), {{ (int) $total }})"
                                                                 class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition">
                                                                 <i data-lucide="image" class="h-4 w-4 shrink-0"></i>
-                                                                <span class="flex-1 leading-tight">View signed brief Recommendation (mother)</span>
-                                                                <span class="shrink-0 text-[10px] font-medium text-slate-400">{{ $batchDoc->summary() }}</span>
+                                                                <span class="flex-1 leading-tight">
+                                                                    View signed copy
+                                                                    <span class="block text-[10px] font-medium text-slate-400 truncate">{{ $batchDoc->summary() }}</span>
+                                                                </span>
                                                             </button>
 
                                                             {{-- Replace corrects a wrong scan; this is for a scan that
@@ -423,7 +428,7 @@
                                                                  makes the menu change shape under the officer. --}}
                                                             <span class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed">
                                                                 <i data-lucide="image" class="h-4 w-4 shrink-0 text-slate-200"></i>
-                                                                <span class="flex-1 leading-tight italic">View signed brief Recommendation (nothing uploaded)</span>
+                                                                <span class="flex-1 leading-tight italic">View signed copy (none yet)</span>
                                                             </span>
                                                         @endif
 
@@ -452,7 +457,7 @@
                                                                     <i data-lucide="check-circle" class="h-4 w-4 shrink-0 text-slate-200"></i>
                                                                     <span class="flex-1 leading-tight">
                                                                         Approve all (<span data-approve-all-count="{{ $b->rofo_batch_id }}">{{ $pending }}</span>)
-                                                                        <span class="block text-[10px] font-medium not-italic text-amber-600">Upload the signed brief Recommendation (mother) first</span>
+                                                                        <span class="block text-[10px] font-medium not-italic text-amber-600">Upload the signed brief (mother) first</span>
                                                                     </span>
                                                                 </span>
                                                                 {{-- Hidden for now (2026-10-10): set $showBatchOverride to true to
@@ -709,14 +714,14 @@
                                         </button>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->landuse_purpose }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->landuse_purpose }}</td>
                                 <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->display_location }}</td>
-                                <td class="px-4 py-2 text-blue-600 whitespace-nowrap font-medium italic">{{ $rec->resolved_applicant_address ?? $rec->applicant_address ?? 'N/A' }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->plot_number }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->layout_plan_no }}</td>
+                                <td class="px-4 py-2 text-blue-600 whitespace-nowrap font-medium italic uppercase">{{ $rec->resolved_applicant_address ?? $rec->applicant_address ?? 'N/A' }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->plot_number }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->layout_plan_no }}</td>
                                 <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->term }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->ground_rent, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->development_period_label }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->development_period_label }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->preparation_fees, 2) }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->development_value, 2) }}</td>
                                 {{-- <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">{{$rec->development_charge}}</td> --}}
@@ -735,7 +740,7 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">
                                     @if($rec->creator)
                                         <span class="upc-trigger" data-user-card data-user-id="{{ $rec->creator->id }}"
                                             title="{{ __('View profile') }}">{{ $rec->creator->name }}</span>
@@ -797,7 +802,7 @@
                                                  x-transition:leave-start="opacity-100 scale-100"
                                                  x-transition:leave-end="opacity-0 scale-95"
                                                  :style="menuStyle"
-                                                 class="whitespace-nowrap text-left rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
+                                                 class="lr-action-menu w-72 text-left rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
                                                  style="display: none;">
                                                 <div class="py-1">
                                                                                                         @canDo('Letter of Grant (RofO)', 'edit')
@@ -815,13 +820,16 @@
                                                              signed copy, which approval waits for. Download closes once a
                                                              signed copy is on file; Upload opens once the brief is downloaded. --}}
                                                         @php $briefDownloaded = !empty($rec->brief_rec_downloaded_at); @endphp
+                                                        <div class="px-4 pt-1.5 pb-0.5 text-[10px] font-black uppercase tracking-wider text-slate-400 truncate" title="Mother file {{ $subTplMother }}">
+                                                            Brief Recommendation (mother)
+                                                        </div>
                                                         @if($subTplDocs->count())
                                                             <span title="The signed brief Recommendation is already uploaded."
                                                                   class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
                                                                 <i data-lucide="file-text" class="h-4 w-4 text-slate-200"></i>
                                                                 <span class="flex-1 leading-tight">
-                                                                    Brief Recommendation (mother)
-                                                                    <span class="block text-[10px] font-medium not-italic text-emerald-600">Signed brief Recommendation already uploaded</span>
+                                                                    Download brief
+                                                                    <span class="block text-[10px] font-medium not-italic text-emerald-600">Signed copy already uploaded</span>
                                                                 </span>
                                                             </span>
                                                         @else
@@ -830,8 +838,8 @@
                                                                     class="flex w-full items-center px-4 py-2.5 text-sm text-sky-700 hover:bg-sky-50 transition gap-2 font-bold">
                                                                 <i data-lucide="file-text" class="h-4 w-4"></i>
                                                                 <span class="flex-1 leading-tight">
-                                                                    Brief Recommendation (mother)
-                                                                    <span class="block text-[10px] font-medium text-slate-500">Mother file {{ $subTplMother }}</span>
+                                                                    Download brief
+                                                                    <span class="block text-[10px] font-medium text-slate-500 truncate">Mother file {{ $subTplMother }}</span>
                                                                 </span>
                                                             </button>
                                                         @endif
@@ -843,14 +851,14 @@
                                                                     onclick="uploadMotherRecommendation(@js($subTplKey), @js($subTplMother), 1, false, {{ $subTplDocs->count() ? 'true' : 'false' }})"
                                                                     class="flex w-full items-center px-4 py-2.5 text-sm {{ $subTplDocs->count() ? 'text-slate-700 hover:bg-slate-50' : 'text-violet-700 hover:bg-violet-50' }} transition gap-2 font-bold">
                                                                 <i data-lucide="upload" class="h-4 w-4"></i>
-                                                                {{ $subTplDocs->count() ? 'Upload another signed brief Recommendation (mother)' : 'Upload signed brief Recommendation (mother)' }}
+                                                                {{ $subTplDocs->count() ? 'Upload another signed copy' : 'Upload signed copy' }}
                                                             </button>
                                                         @else
                                                             <span title="Download the Brief Recommendation (mother) first, then upload the signed copy."
                                                                   class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
                                                                 <i data-lucide="upload" class="h-4 w-4 text-slate-200"></i>
                                                                 <span class="flex-1 leading-tight">
-                                                                    Upload signed brief Recommendation (mother)
+                                                                    Upload signed copy
                                                                     <span class="block text-[10px] font-medium not-italic text-amber-600">Download the brief first</span>
                                                                 </span>
                                                             </span>
@@ -864,14 +872,14 @@
                                                                 class="flex w-full items-center px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition gap-2 font-bold">
                                                             <i data-lucide="file-check-2" class="h-4 w-4"></i>
                                                             <span class="flex-1 leading-tight">
-                                                                View signed brief Recommendation (mother){{ $subTplDocs->count() > 1 ? ' ' . ($i + 1) : '' }}
-                                                                <span class="block text-[10px] font-medium not-italic text-slate-500">{{ $doc->original_name }}</span>
+                                                                View signed copy{{ $subTplDocs->count() > 1 ? ' ' . ($i + 1) : '' }}
+                                                                <span class="block text-[10px] font-medium not-italic text-slate-500 truncate" title="{{ $doc->original_name }}">{{ $doc->original_name }}</span>
                                                             </span>
                                                         </button>
                                                         @empty
                                                         <span class="flex items-center px-4 py-2.5 text-sm text-slate-300 cursor-not-allowed gap-2 italic">
                                                             <i data-lucide="file-check-2" class="h-4 w-4 text-slate-200"></i>
-                                                            View signed brief Recommendation (nothing uploaded)
+                                                            View signed copy (none yet)
                                                         </span>
                                                         @endforelse
 
@@ -922,7 +930,7 @@
                                                             <i data-lucide="check-circle" class="h-4 w-4 text-slate-200"></i>
                                                             <span class="flex-1 leading-tight">
                                                                 Approve
-                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the signed Brief Recommendation first</span>
+                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the signed brief (mother) first</span>
                                                             </span>
                                                         </span>
                                                         @if(auth()->user()?->assign_role === 'Supper Admin')
@@ -989,7 +997,7 @@
                                                             <i data-lucide="file-check-2" class="h-4 w-4"></i>
                                                             <span class="flex-1 leading-tight">
                                                                 View recommendation
-                                                                <span class="block text-[10px] font-medium text-slate-500">Inherited from {{ $subTplMother !== '' ? $subTplMother : 'the mother file' }}</span>
+                                                                <span class="block text-[10px] font-medium text-slate-500 truncate">Inherited from {{ $subTplMother !== '' ? $subTplMother : 'the mother file' }}</span>
                                                             </span>
                                                         </button>
                                                         @else
@@ -998,7 +1006,7 @@
                                                             <i data-lucide="printer" class="h-4 w-4 text-slate-200"></i>
                                                             <span class="flex-1 leading-tight">
                                                                 Print
-                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the signed brief Recommendation (mother) first</span>
+                                                                <span class="block text-[10px] font-medium not-italic text-violet-600">Upload the signed brief (mother) first</span>
                                                             </span>
                                                         </span>
                                                         @endif
@@ -1726,11 +1734,11 @@
                     : '')
                 + '<td class="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400">' + c.seq + '</td>'
                 + '<td class="px-4 py-2.5 font-mono text-xs font-bold text-slate-900">' + escHtml(c.file_number) + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-700"><div>' + escHtml(c.applicant_name) + '</div>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-700"><div class="uppercase">' + escHtml(c.applicant_name) + '</div>'
                 + (window.applicantPhoneActionButtonHtml ? window.applicantPhoneActionButtonHtml(c.applicant_phone, c.applicant_name, c.file_number) : '') + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-600">' + escHtml(c.plot_number) + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-600">' + escHtml(c.location) + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-600">' + escHtml(c.purpose) + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + escHtml(c.plot_number) + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + escHtml(c.location) + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + escHtml(c.purpose) + '</td>'
                 + '<td class="px-4 py-2.5 text-center">' + statusPill(c.status, 'approved', 'Approved', 'Pending') + '</td>'
                 + '<td class="px-4 py-2.5 text-center">' + statusPill(c.rofo_status, 'generated', 'Generated', 'Pending') + '</td>'
                 + '<td class="px-4 py-2.5 text-right whitespace-nowrap">'
@@ -2848,6 +2856,13 @@
 
 @push('styles')
 <style>
+    /* Row action menu: fixed width with wrapping, every item left-aligned
+       (a <button> centres its text by default), long file names truncated. */
+    .lr-action-menu a,
+    .lr-action-menu button,
+    .lr-action-menu > div > span { text-align: left; white-space: normal; }
+    .lr-action-menu .flex-1 { min-width: 0; }
+    .lr-action-menu i, .lr-action-menu svg { flex-shrink: 0; }
     .oss-label {
         margin-top: 3.5mm;
         font-size: 3.2mm;

@@ -200,6 +200,13 @@ Route::middleware(['auth', 'XSS'])->get('/file-search/scans', function () {
     return view('search.index');
 })->name('file-search.scans');
 
+// Preview of the next system-generated OP serial for "This OP has no serial number"
+// (PRA card, File Indexing OP section, Property Transaction card). Read-only: the real
+// number is assigned on save by App\Services\OpSerialGenerator.
+Route::middleware(['auth', 'XSS'])->get('/op-serial/next-preview', function () {
+    return response()->json(['next' => app(\App\Services\OpSerialGenerator::class)->peekNext()]);
+})->name('op-serial.next-preview');
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -1409,6 +1416,7 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'fileindexing'], func
     Route::get('/leaderboard-data', [FileIndexingController::class, 'leaderboardData'])->name('fileindexing.leaderboard-data');
     Route::get('/api/sltr-grouping-details', [App\Http\Controllers\FileIndexingController::class, 'getSltrGroupingDetails'])->name('fileindexing.api.sltr-grouping-details');
     Route::get('/api/check-temp-association', [App\Http\Controllers\FileIndexingController::class, 'checkTempAssociation'])->name('fileindexing.api.check-temp-association');
+    Route::get('/api/kangis-land-file', [App\Http\Controllers\FileIndexingController::class, 'kangisLandFileStatus'])->name('fileindexing.api.kangis-land-file');
 
     // Other authenticated routes
     Route::get('/search-applications', [App\Http\Controllers\FileIndexController::class, 'searchApplications'])->name('fileindexing.search-applications');
@@ -1465,6 +1473,21 @@ Route::middleware(['auth', 'XSS'])->group(function () {
         '/system-admin/folder-watcher',
         'system-admin.folder-watcher'
     )->name('system-admin.folder-watcher');
+
+    // System Admin > KLAES Mobile Apps: APK, icon and details per app.
+    Route::get('/system-admin/mobile-apps/{mobileApp}', [App\Http\Controllers\SystemAdmin\MobileAppController::class, 'show'])
+        ->name('system-admin.mobile-apps.show');
+    Route::post('/system-admin/mobile-apps/{mobileApp}', [App\Http\Controllers\SystemAdmin\MobileAppController::class, 'update'])
+        ->name('system-admin.mobile-apps.update');
+});
+
+// Public download pages for the mobile apps: the link that gets shared, so a
+// phone can install the app before its user has ever signed in.
+Route::prefix('apps')->name('mobile-apps.')->group(function () {
+    Route::get('/{mobileApp}', [App\Http\Controllers\SystemAdmin\MobileAppController::class, 'publicPage'])->name('public');
+    Route::get('/{mobileApp}/download', [App\Http\Controllers\SystemAdmin\MobileAppController::class, 'download'])
+        ->middleware('throttle:30,1')->name('download');
+    Route::get('/{mobileApp}/icon', [App\Http\Controllers\SystemAdmin\MobileAppController::class, 'icon'])->name('icon');
 });
 
 Route::get(

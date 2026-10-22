@@ -178,6 +178,10 @@ class SpaRecordPurgeService
         // 2. Delete, children first, all or nothing.
         $deleted = [];
         DB::connection('sqlsrv')->transaction(function () use ($rows, $cop, $user, &$deleted) {
+            // KLAES REV-M: Bill Master keeps its copy of each bill, flagged cancelled.
+            foreach (($rows['spa_bills'] ?? collect()) as $spaBill) {
+                app(\App\Services\Billing\Modules\SpasBillMirror::class)->cancel((int) $spaBill->id, (string) ($user->name ?? $user->id ?? 'system'));
+            }
             foreach ($rows as $table => $set) {
                 if ($set->isNotEmpty()) {
                     $deleted[$table] = DB::connection('sqlsrv')->table($table)->whereIn('id', $set->pluck('id'))->delete();

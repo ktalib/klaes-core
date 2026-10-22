@@ -126,12 +126,14 @@
                                         x-model="indexing_type"
                                         required>
                                         <option value="Regular" {{ (isset($record) && $record->indexing_type == 'Regular') ? 'selected' : '' }}>Regular Indexing</option>
-                                        <option value="Block" {{ (isset($record) && $record->indexing_type == 'Block') ? 'selected' : '' }}>Block Indexing</option>
+                                        <option value="Block" {{ (isset($record) && $record->indexing_type == 'Block') ? 'selected' : '' }}>Land Block Indexing</option>
+                                        {{-- Never picked by hand: selected when the KANGIS Block Indexing box is ticked (Yes), see create-indexing-dialog.js. --}}
+                                        <option value="KANGIS Block" disabled {{ (isset($record) && $record->indexing_type == 'KANGIS Block') ? 'selected' : '' }}>KANGIS Block Indexing</option>
                                     </select>
                                 </div>
 
                                 {{-- Title Status (optional) — mirrors the standalone Title Status module.
-                                     Hidden entirely for SLTR / KANGIS / DCIV registries (see
+                                     Hidden entirely for SLTR / DCIV registries (see
                                      handleRegistryFieldToggling in create-indexing-dialog.js). --}}
                                 <div class="form-group mt-6" id="ts-title-status-block">
 
@@ -1137,7 +1139,7 @@
                             }
                         });
 
-                        if (this.indexing_type === 'Regular' && params.length > 0) {
+                        if (this.indexing_type !== 'Block' && params.length > 0) {
                             const firstTitle = params[0].title;
                             const holderInput = document.getElementById('current-holder');
                             if (holderInput) {
@@ -1199,7 +1201,7 @@
                     }, { deep: true });
 
                     this.$watch('indexing_type', (type) => {
-                        if (type === 'Regular' && this.fileParams.length > 0) {
+                        if (type !== 'Block' && this.fileParams.length > 0) {
                             const firstTitle = this.fileParams[0].title;
                             const holderInput = document.getElementById('current-holder');
                             if (holderInput) {
@@ -1957,8 +1959,8 @@
                 }
             });
 
-            // Called by handleRegistryFieldToggling() when the chosen registry (SLTR /
-            // KANGIS / DCIV) hides both Title Status cards — drop any selection so a
+            // Called by handleRegistryFieldToggling() when the chosen registry (SLTR or
+            // DCIV) hides both Title Status cards — drop any selection so a
             // stale status isn't submitted with the hidden fields.
             window.tsClearSelections = function () {
                 typeCbs().forEach(cb => { cb.checked = false; });

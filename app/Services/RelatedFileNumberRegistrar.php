@@ -85,8 +85,11 @@ class RelatedFileNumberRegistrar
             // Index the existing rows by normalized number so a re-save updates in place
             // instead of stacking duplicates.
             $byKey = [];
+            // A KANGIS land row lists several numbers ("KNGP 10, KNGP 7"): index each one.
             foreach ($existing as $row) {
-                $byKey[$this->key($row->related_fileno)][] = $row;
+                foreach ($this->listItems($row->related_fileno) as $item) {
+                    $byKey[$this->key($item)][] = $row;
+                }
             }
 
             $propIdValue = ($propId !== null && $propId !== '') ? (string) $propId : null;
@@ -147,7 +150,7 @@ class RelatedFileNumberRegistrar
         $ids  = [];
 
         foreach ($existing as $row) {
-            if (isset($kept[$this->key($row->related_fileno)])) {
+            if (array_filter($this->listItems($row->related_fileno), fn ($item) => isset($kept[$this->key($item)]))) {
                 continue;
             }
             if (!$this->isGeneric($row->transaction_type)) {
@@ -215,6 +218,164 @@ class RelatedFileNumberRegistrar
     }
 
     /** Match key: case- and whitespace-insensitive, the way the register is read back. */
+    /**
+     * KANGIS Registry save (user, 2026-10-20): a land file that is already in the register
+     * gets no new row. Its row (File Number = the land file) lists the KANGIS files related
+     * to it — "KNGP 10, KNGP 7, KNGP 9" — and this KANGIS file is added to that list. With no
+     * row yet, one is made for the land file. A KANGIS record that already has its own row
+     * for the land file (written before this rule) is left as it is. Land files dropped from the record ($removedLandNos)
+     * lose this KANGIS number from their list. Best-effort, like sync().
+     *
+     * @param  string[]  $landNos
+     * @param  string[]  $removedLandNos
+     */
+    public function attachKangis(string $kangisNo, int $kangisId, array $landNos, array $removedLandNos = []): void
+    {
+        $kangisNo = trim($kangisNo);
+        if ($kangisNo === '' || !$kangisId) {
+            return;
+        }
+        try {
+            if (!Schema::connection('sqlsrv')->hasTable(self::TABLE)) {
+                return;
+            }
+            $conn = DB::connection('sqlsrv');
+            $now = now();
+
+            foreach ($this->uniqueNumbers($landNos) as $landNo) {
+                $conn->transaction(function () use ($conn, $now, $kangisNo, $kangisId, $landNo) {
+                    // This KANGIS record already has its own row for the land file (written before
+                    // this rule): left as it is (user, 2026-10-20).
+                    $ownRow = $conn->table(self::TABLE)
+                        ->where('source_table', 'file_indexings')
+                        ->where('source_id', $kangisId)
+                        ->whereRaw("REPLACE(UPPER(LTRIM(RTRIM(related_fileno))), ' ', '') = ?", [$this->compact($landNo)])
+                        ->exists();
+                    if ($ownRow) {
+                        return;
+                    }
+                    $row = $this->landRow($conn, $landNo);
+                    if ($row) {
+                        $items = $this->listItems($row->related_fileno);
+                        if (!array_filter($items, fn ($i) => $this->compact($i) === $this->compact($kangisNo))) {
+                            $items[] = $kangisNo;
+                            $conn->table(self::TABLE)->where('id', $row->id)->update([
+                                'related_fileno' => $this->clip(implode(', ', $items), 500),
+                                'updated_at' => $now,
+                            ]);
+                        }
+                    } else {
+                        $land = $conn->table('file_indexings')
+                            ->whereRaw("REPLACE(UPPER(LTRIM(RTRIM(file_number))), ' ', '') = ?", [$this->compact($landNo)])
+                            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                            ->where(fn ($q) => $q->whereNull('general_registry')->orWhere('general_registry', '!=', 'KANGIS Registry'))
+                            ->orderBy('id')
+                            ->first(['id', 'file_number', 'file_title', 'prop_id', 'location']);
+                        $conn->table(self::TABLE)->insert([
+                            'related_fileno' => $this->clip($kangisNo, 500),
+                            'prop_id' => $land && $land->prop_id !== null ? (string) $land->prop_id : null,
+                            'source_table' => 'file_indexings',
+                            'source_id' => $land ? (int) $land->id : $kangisId,
+                            'file_number' => $this->clip($land->file_number ?? $landNo, 255),
+                            'file_title' => $this->clip($land->file_title ?? null, 500),
+                            'location' => $this->clip($land->location ?? null, 500),
+                            'transaction_type' => self::DEFAULT_TYPE,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                    }
+                });
+            }
+
+            if ($removedLandNos) {
+                $this->detachKangis($kangisNo, $removedLandNos);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('RelatedFileNumberRegistrar::attachKangis failed', [
+                'kangis' => $kangisNo,
+                'land_files' => $landNos,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Take a KANGIS number off its land files' rows (land file removed from the KANGIS
+     * record, or the KANGIS record deleted). A row left with nothing in it is removed.
+     *
+     * @param  string[]  $landNos
+     */
+    public function detachKangis(string $kangisNo, array $landNos): void
+    {
+        try {
+            $conn = DB::connection('sqlsrv');
+            foreach ($this->uniqueNumbers($landNos) as $landNo) {
+                $row = $this->landRow($conn, $landNo);
+                if (!$row) {
+                    continue;
+                }
+                $items = $this->listItems($row->related_fileno);
+                $kept = array_values(array_filter($items, fn ($i) => $this->compact($i) !== $this->compact($kangisNo)));
+                if (count($kept) === count($items)) {
+                    continue;
+                }
+                if ($kept) {
+                    $conn->table(self::TABLE)->where('id', $row->id)->update([
+                        'related_fileno' => $this->clip(implode(', ', $kept), 500),
+                        'updated_at' => now(),
+                    ]);
+                } else {
+                    $conn->table(self::TABLE)->where('id', $row->id)->delete();
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('RelatedFileNumberRegistrar::detachKangis failed', [
+                'kangis' => $kangisNo,
+                'land_files' => $landNos,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** The land file's own generic row (File Number = the land file), oldest first. */
+    private function landRow($conn, string $landNo): ?object
+    {
+        return $conn->table(self::TABLE)
+            ->whereRaw("REPLACE(UPPER(LTRIM(RTRIM(file_number))), ' ', '') = ?", [$this->compact($landNo)])
+            ->where(fn ($q) => $q->whereNull('transaction_type')->orWhereIn(DB::raw('LOWER(LTRIM(RTRIM(transaction_type)))'), ['', 'other', 'related file']))
+            ->orderByRaw("CASE WHEN source_table = 'file_indexings' THEN 0 ELSE 1 END")
+            ->orderBy('id')
+            ->get(['id', 'related_fileno'])
+            // Only a row listing KANGIS numbers only: a land-to-land link is never mixed in.
+            ->first(fn ($r) => $this->listItems($r->related_fileno)
+                && !array_filter($this->listItems($r->related_fileno), fn ($i) => !preg_match('/^(KNML|MLKN|MNKL|KNGP|KN)\s*\d/i', trim($i))));
+    }
+
+    /** "KNGP 10, KNGP 7" -> ['KNGP 10', 'KNGP 7']; a single number -> [it]. */
+    private function listItems(?string $value): array
+    {
+        return array_values(array_filter(array_map('trim', explode(',', (string) $value)), fn ($v) => $v !== ''));
+    }
+
+    /** @return string[] */
+    private function uniqueNumbers(array $numbers): array
+    {
+        $out = [];
+        foreach ($numbers as $n) {
+            $n = trim((string) $n);
+            if ($n !== '') {
+                $out[$this->compact($n)] = $n;
+            }
+        }
+
+        return array_values($out);
+    }
+
+    private function compact(?string $fileNo): string
+    {
+        return strtoupper(preg_replace('/\s+/', '', trim((string) $fileNo)));
+    }
+
     private function key(?string $fileNo): string
     {
         return strtoupper(preg_replace('/\s+/', ' ', trim((string) $fileNo)));

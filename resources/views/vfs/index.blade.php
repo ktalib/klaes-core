@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Virtual Folder System')
+@section('page-title', 'Virtual File/Folder System (Folio)')
 
 @push('styles')
     @include('vfs.assets.style')
@@ -106,10 +106,10 @@
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-200 text-left">
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">PROP ID</th>
                             <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">FILE NUMBER</th>
                             <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">HOLDER &amp; PROPERTY</th>
                             <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">REGISTRY</th>
-                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">PROP ID</th>
                             <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">PAGES</th>
                             <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">LEGAL STATUS</th>
                             <th class="px-4 py-2"></th>
@@ -118,6 +118,7 @@
                     <tbody>
                     @forelse($files as $row)
                         <tr class="border-b border-gray-100 {{ $row->vfs_pages === 0 ? 'bg-gray-50' : '' }}">
+                            <td class="px-4 py-3 text-xs text-gray-600">{{ $row->prop_id ?: '—' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
                                     <span class="rounded-sm {{ $row->vfs_state['rail'] ?? 'bg-gray-200' }}" style="width: 3px; height: 26px;"></span>
@@ -145,7 +146,6 @@
                                     {{ $row->vfs_registry_badge['label'] }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-xs text-gray-600">{{ $row->prop_id ?: '—' }}</td>
                             <td class="px-4 py-3 text-xs {{ $row->vfs_pages === 0 ? 'text-gray-400' : 'text-gray-600' }}">{{ $row->vfs_pages }}</td>
                             <td class="px-4 py-3">
                                 @if($row->vfs_state)

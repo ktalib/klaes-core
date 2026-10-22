@@ -40,9 +40,23 @@ class ScanningController extends Controller
                 'pending_page_typing' => $this->getPendingPageTypingCount(),
                 'total_scanned' => Scanning::on('sqlsrv')->count(),
             ];
+            // From the Cadastral sidebar (?cadastral=1): the cards count the Cadastral files only.
+            if ($request->boolean('cadastral')) {
+                $ids = \App\Models\CadastralDept\CadastralCase::openIndexingIds() ?: [0];
+                $scans = fn () => Scanning::on('sqlsrv')->whereIn('file_indexing_id', $ids);
+                $stats = [
+                    'uploads_today' => $scans()->whereDate('created_at', today())->count(),
+                    'pending_page_typing' => $scans()->whereNotExists(fn ($q) => $q->select(\DB::raw(1))->from('pagetypings')
+                        ->whereColumn('pagetypings.scanning_id', 'scannings.id')->whereNull('pagetypings.deleted_at'))->count(),
+                    'total_scanned' => $scans()->count(),
+                ];
+            }
 
-            // Get recent scanning records grouped by FileNo (one row per FileNo)
-            $recentScans = $this->getGroupedScannedFiles();
+            // Get recent scanning records grouped by FileNo (one row per FileNo). From the Cadastral
+            // sidebar (?cadastral=1, 2026-10-20) only the files of open Cadastral cases are listed.
+            $recentScans = $this->getGroupedScannedFiles(
+                $request->boolean('cadastral') ? \App\Models\CadastralDept\CadastralCase::openIndexingIds() : null
+            );
 
             return view('scanning.index', compact(
                 'PageTitle',
@@ -1182,19 +1196,21 @@ class ScanningController extends Controller
     /**
      * Get grouped scanned files (one row per FileNo)
      */
-    private function getGroupedScannedFiles()
+    private function getGroupedScannedFiles(?array $onlyIds = null)
     {
         try {
-            // Get file indexings that have scanned documents, grouped by file_number
+            // Get file indexings that have scanned documents, grouped by file_number. With $onlyIds
+            // (Cadastral files) every listed file shows, scanned or not, so Scan More can add to it.
             $groupedScans = FileIndexing::on('sqlsrv')
                 ->with([
                     'scannings' => function ($query) {
                         $query->with('uploader')->orderBy('created_at', 'desc');
                     }
                 ])
-                ->whereHas('scannings')
+                ->when($onlyIds === null, fn ($q) => $q->whereHas('scannings'))
+                ->when($onlyIds !== null, fn ($q) => $q->whereIn('id', $onlyIds ?: [0]))
                 ->orderBy('updated_at', 'desc')
-                ->limit(20)
+                ->limit($onlyIds === null ? 20 : 500)
                 ->get()
                 ->map(function ($fileIndexing) {
                     $latestScan = $fileIndexing->scannings->first();

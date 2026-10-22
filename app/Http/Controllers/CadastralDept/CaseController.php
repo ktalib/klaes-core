@@ -17,6 +17,8 @@ use App\Services\CadastralDept\DeedsDispatchChecks;
 use App\Services\CadastralDept\FieldJackets;
 use App\Services\CadastralDept\FileMovementCards;
 use App\Services\CadastralDept\IntakeLookup;
+use App\Services\CadastralDept\PageCounts;
+use App\Services\CadastralDept\PropertyIndexCards;
 use App\Services\CadastralDept\VerificationFileStatus;
 use App\Services\CadastralDept\WorkflowDefinition;
 use App\Services\CadastralDept\WorkflowEngine;
@@ -170,9 +172,25 @@ class CaseController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        $message = "{$case->case_ref}: {$case->file_number} registered and sent to " . $case->deskShort() . '.';
+        $heads = app(\App\Services\CadastralDept\HeadApproval::class);
+        $message = $heads->awaiting($case)
+            ? "{$case->case_ref}: {$case->file_number} registered; it waits for the " . $heads->headOf($case->current_desk) . "'s approval (AD CAD Registry > Approval) before going to D Cad."
+            : "{$case->case_ref}: {$case->file_number} registered and sent to " . $case->deskShort() . '.';
         if ($case->duplicate_flag) {
             $message .= ' Note, possible duplicate: ' . $case->duplicate_note;
+        }
+
+        // The file is now under process: its Property Index Card is generated from the Legal
+        // Search records and filed to EDMS (user, 2026-10-16). After the case is saved, and never
+        // a reason to fail the registration; a failure is kept on the card's row to retry.
+        if (PropertyIndexCards::installed()) {
+            try {
+                $pic = app(PropertyIndexCards::class)->generate($case->file_number, 'intake', (int) $case->id, auth()->id());
+                $message .= " Property Index Card filed ({$pic->transactions_count} transaction(s)).";
+            } catch (\Throwable $e) {
+                Log::warning('Property Index Card on registration failed', ['case' => $case->id, 'file_no' => $case->file_number, 'error' => $e->getMessage()]);
+                $message .= ' The Property Index Card could not be generated; generate it from Generate Property Index Card.';
+            }
         }
 
         return redirect()->route('cadastral-dept.desks.show', 'registry')->with('success', $message);
@@ -225,7 +243,7 @@ class CaseController extends Controller
             'headInfo' => $headInfo,
             'done' => $case->tasks->where('step', $case->current_step)->keyBy('task_key'),
             'progress' => $engine->phaseProgress($case->workflow, $case->current_step, !$case->isOpen()),
-            'pipeline' => $engine->pipeline($case->workflow, $case->sub_type, $case->movements,
+            'pipeline' => $engine->stepBar($case->workflow, $case->sub_type, $case->movements,
                 $case->isOpen() ? $case->current_step : null, $case->isOpen() ? null : $case->status),
             'fmc' => $fmc,
             'fmcBackfill' => $fmcBackfill,
@@ -239,6 +257,13 @@ class CaseController extends Controller
             'surveyors' => $jobDue ? $jackets->surveyors() : collect(),
             'waitingJobs' => $jobDue ? $jackets->waitingJobs() : collect(),
             'pndItsDefault' => $pndItsDefault,
+            'planningAdvice' => app(\App\Services\CadastralDept\PlanningAdvice::class)->documents($case),
+            'planningAdviceDue' => \App\Services\CadastralDept\PlanningAdvice::installed() && app(\App\Services\CadastralDept\PlanningAdvice::class)->due($case),
+            // Registry, file back from Land: the EDMS update's progress (EdmsUpdate).
+            'edms' => $case->isOpen() && isset(($def->step($case->workflow, $case->current_step)['tasks'] ?? [])[\App\Services\CadastralDept\EdmsUpdate::TASK])
+                ? app(\App\Services\CadastralDept\EdmsUpdate::class)->status($case) : null,
+            // The main file's page count to and from Land (PageCounts).
+            'pageCounts' => app(PageCounts::class)->state($case),
             'itsDefault' => $itsDefault,
             'yesNoInstalled' => YesNoForms::installed(),
             'yesNoForm' => app(YesNoForms::class)->forCase($case),
@@ -290,6 +315,22 @@ class CaseController extends Controller
         }, 'Case moved.');
     }
 
+    /** KAMMA / Physical Planning's Planning Advice, filed into EDMS when the file comes back (PlanningAdvice). */
+    public function uploadPlanningAdvice(Request $request, int $case, \App\Services\CadastralDept\PlanningAdvice $advice)
+    {
+        $data = $request->validate([
+            'documents' => 'required|array|min:1|max:10',
+            'documents.*' => \App\Services\Cadastral\CadastralDocuments::fileRule(),
+            'jsi' => 'required|string|in:' . implode(',', array_keys(\App\Services\CadastralDept\PlanningAdvice::JSI_TYPES)),
+            'comments' => 'nullable|string|max:2000',
+        ], ['documents.required' => 'Choose the Planning Advice document(s).', 'jsi.required' => 'Choose the JSI.']
+            + \App\Services\Cadastral\CadastralDocuments::messages('documents.*'));
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $advice->upload($case, $request->file('documents', []), $data['jsi'], $data['comments'] ?? null, auth()->id()),
+            'Planning Advice uploaded.');
+    }
+
     /** Create (or match) the file's correspondence file at AD Cad Report. */
     public function createCorrespondence(int $case, CorrespondenceStep $step)
     {
@@ -301,13 +342,100 @@ class CaseController extends Controller
     /** Registry: detach or attach the correspondence file (ticks the step's task). */
     public function correspondenceCustody(Request $request, int $case, CorrespondenceCustody $custody)
     {
-        $data = $request->validate(['action' => 'required|in:detach,attach', 'note' => 'nullable|string|max:1000']);
+        $data = $request->validate(['action' => 'required|in:detach,attach', 'note' => 'nullable|string|max:1000', 'pages' => 'nullable|integer|min:1|max:100000']);
         $case = CadastralCase::findOrFail($case);
+        $counts = app(PageCounts::class);
 
-        return $this->attempt(fn () => $custody->record($case, $data['action'], $data['note'] ?? null, auth()->id()),
+        // Detach to Land / attach back from Land also take the main file's page count (PageCounts).
+        return $this->attempt(function () use ($case, $data, $custody, $counts) {
+            $pagesMsg = null;
+            if ($counts->direction($case)) {
+                if (!empty($data['pages'])) {
+                    $pagesMsg = $counts->record($case, (int) $data['pages'], auth()->id());
+                } elseif (!$counts->atStep($case)) {
+                    throw WorkflowGuardException::because('Enter the number of pages in the main file.');
+                }
+            }
+            $msg = $custody->record($case->fresh(), $data['action'], $data['note'] ?? null, auth()->id());
+
+            return trim($msg . ' ' . $pagesMsg);
+        },
             $data['action'] === 'detach'
                 ? "{$case->case_ref}: correspondence file detached from {$case->file_number}."
                 : "{$case->case_ref}: correspondence file attached to {$case->file_number}.");
+    }
+
+    /**
+     * DMS update modal (user, 2026-10-18): the new pages the main file came back from Land with,
+     * uploaded from the file page. Filed like Cadastral's other documents (CadastralDocuments, as
+     * the Planning Advice): EDMS/SCAN_UPLOAD/Cadastral_Registry/{Type?}/{FILE NUMBER}/A4/, a
+     * scannings row with registry Cadastral Registry (so Page Typing sees it) and a pointer to the
+     * case. Only when the file is back from Land with new pages.
+     */
+    public function dmsUpload(Request $request, int $case, PageCounts $counts, \App\Services\Cadastral\CadastralDocuments $documents): JsonResponse
+    {
+        $request->validate([
+            'documents' => 'required|array|min:1|max:50',
+            'documents.*' => 'required|file|mimes:pdf,jpg,jpeg,png|max:' . \App\Services\Cadastral\CadastralDocuments::MAX_KB,
+        ], ['documents.*.mimes' => 'Only PDF, JPG and PNG pages can be uploaded.', 'documents.*.max' => 'Each page must be 10 MB or less.']);
+        $case = CadastralCase::findOrFail($case);
+        $state = $counts->state($case);
+        if ($state['direction'] !== 'back' || $state['triggered'] !== true) {
+            return response()->json(['success' => false, 'message' => $state['triggered'] === false
+                ? 'No new pages came back from Land, so DMS needs no update.'
+                : 'Enter the number of pages the main file came back with first.'], 422);
+        }
+        if (!\App\Services\Cadastral\CadastralDocuments::installed()) {
+            return response()->json(['success' => false, 'message' => 'The Cadastral documents table has not been created yet.'], 422);
+        }
+        try {
+            $indexing = $documents->requireIndexing($case->file_indexing_id ? (int) $case->file_indexing_id : null, $case->file_number, 'documents');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => collect($e->errors())->flatten()->first() ?: 'This file has no DMS folder.'], 422);
+        }
+
+        $files = $request->file('documents');
+        try {
+            $paths = DB::connection('sqlsrv')->transaction(function () use ($files, $indexing, $documents, $case) {
+                $out = [];
+                foreach ($files as $file) {
+                    $out[] = $documents->file($file, $indexing, \App\Services\Cadastral\CadastralDocuments::OWNER_DEPT_CASE, (int) $case->id,
+                        \App\Services\Cadastral\CadastralDocuments::KIND_DMS_UPDATE, "{$case->case_ref}: DMS update, page back from Land")['path'];
+                }
+
+                return $out;
+            });
+        } catch (\Throwable $e) {
+            $documents->discardWritten();   // disk writes do not roll back with the transaction
+            Log::warning('Cadastral DMS update upload failed', ['case' => $case->id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => $e instanceof \Illuminate\Validation\ValidationException
+                ? (collect($e->errors())->flatten()->first() ?: 'The upload failed.') : 'The upload failed: ' . $e->getMessage()], 422);
+        }
+
+        // Marked for Type More, as ScanningController::upload marks a file it adds pages to.
+        try {
+            DB::connection('sqlsrv')->table('file_indexings')->where('id', $indexing->id)->update(['is_updated' => 1]);
+        } catch (\Throwable $e) {
+            Log::warning('Could not mark the file for Type More', ['file_indexing_id' => $indexing->id, 'error' => $e->getMessage()]);
+        }
+        $edms = app(\App\Services\CadastralDept\EdmsUpdate::class)->status($case);
+
+        return response()->json([
+            'success' => true,
+            'message' => count($paths) . ' page file(s) filed to ' . $case->file_number . "'s DMS folder.",
+            'paths' => $paths,
+            'dms' => ['new_pages' => $edms['new_pages'], 'typed' => $edms['typed']],
+        ]);
+    }
+
+    /** The main file's page count going to Land or coming back (PageCounts). */
+    public function pageCount(Request $request, int $case, PageCounts $counts)
+    {
+        $data = $request->validate(['pages' => 'required|integer|min:1|max:100000']);
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $counts->record($case, (int) $data['pages'], auth()->id()), 'Page count recorded.');
     }
 
     /**

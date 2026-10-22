@@ -177,6 +177,7 @@
                                 <th class="px-4 py-3 text-left">Duplex ID</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
                                 <th class="px-4 py-3 text-left">Source File(s)</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                 <th class="px-4 py-3 text-left">Stages (execution order)</th>
                                 <th class="px-4 py-3 text-left">Source</th>
                                 <th class="px-4 py-3 text-left">Date</th>
@@ -186,6 +187,10 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
+                            @php
+                                // Final file numbers each duplex produced once committed.
+                                $newFileNos = app(\App\Services\ParcelUpdateNewFiles::class)->forDuplexes($records);
+                            @endphp
                             @forelse ($records as $record)
                             <tr class="hover:bg-slate-50/60">
                                 <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['file' => $record->duplex_id]){{ $records->firstItem() + $loop->index }}</td>
@@ -205,6 +210,7 @@
                                         @endforelse
                                     </div>
                                 </td>
+                                @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->duplex_id])
                                 <td class="px-4 py-3">
                                     {{-- Ranked badges, in execution order — the same colours the
                                          wizard uses, so the two screens read as one thing. --}}
@@ -503,7 +509,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="10" class="px-4 py-16 text-center">
+                                <td colspan="11" class="px-4 py-16 text-center">
                                     <i data-lucide="layers" class="w-8 h-8 text-slate-300 mx-auto"></i>
                                     <p class="text-sm font-bold text-slate-500 mt-3">No duplex records yet</p>
                                     <p class="text-xs text-slate-400 mt-1">Start one to carry several parcel updates as a single instruction.</p>
@@ -540,6 +546,9 @@
 
 @section('footer-scripts')
 <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+{{-- Searchable District on the wizard; same build the other KLAES pages load. --}}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script>window.jQuery && !jQuery.fn.select2 && document.write('<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"><\/script>');</script>
 @include('deeds.parcel_update.duplex.js', [
     'types' => $types,
     'streetNames' => $streetNames,
@@ -587,4 +596,5 @@
         'reject' => route('duplex-parcel-update.reject', '__ID__'),
     ],
 ])
+@include('partials.decommissioned_before', ['dbSource' => 'dxSourceFiles', 'dbSourceIsFunction' => true, 'dbAnchor' => '#dx-sources'])
 @endsection

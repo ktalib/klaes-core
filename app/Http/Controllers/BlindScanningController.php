@@ -27,6 +27,76 @@ class BlindScanningController extends Controller
         $this->pdfToImageService = $pdfToImageService;
     }
 
+    /** Image types a blind-scan folder may hold; everything else (Thumbs.db, desktop.ini, .lnk) is skipped. */
+    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'webp', 'pdf'];
+
+    /**
+     * Administrators see every user's uploads. Same rule the rest of KLAES
+     * uses: "Supper Admin" (the app's spelling) in users.assign_role.
+     */
+    private function isBlindScanAdmin(): bool
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+
+        return collect(explode(',', (string) $user->assign_role))
+            ->map(fn ($role) => strtolower(trim($role)))
+            ->contains('supper admin');
+    }
+
+    /**
+     * Resolve the registry picked on the page to its BLIND_SCAN folder.
+     *
+     * The dropdown sends registries.code (LANDS, CAD, DCIV, ...); older callers
+     * sent "lands"/"cadastral". Before this, anything other than those two words
+     * fell through to Lands, so every upload landed in Lands_Registry_Raw.
+     *
+     * @return array{0:string,1:string,2:string} [folder, registry_type, canonical name]
+     */
+    private function resolveBlindRegistry(?string $value): array
+    {
+        $value = trim((string) $value);
+        $name = $value;
+
+        if ($value !== '') {
+            $row = DB::connection('sqlsrv')->table('registries')
+                ->where('code', $value)
+                ->orWhere('name', $value)
+                ->first(['name']);
+            if ($row) {
+                $name = $row->name;
+            }
+        }
+
+        $paths = app(\App\Services\Edms\EdmsDocumentPathResolver::class);
+        $canonical = $paths->registryName($name !== '' ? $name : 'Lands Registry');
+        $folder = $paths->blindScanRegistryFolder($canonical);
+        $type = strtolower(trim(preg_replace('/\s+registry$/i', '', $canonical)));
+
+        return [$folder, mb_substr($type, 0, 50), $canonical];
+    }
+
+    /** Folder names under BLIND_SCAN that hold registry trees, e.g. Lands_Registry_Raw. */
+    private function isRegistryRawFolder(string $name): bool
+    {
+        return (bool) preg_match('/_Raw$/i', $name);
+    }
+
+    /**
+     * Whether the current user uploaded anything into this folder
+     * ("Lands_Registry_Raw/RES-1981-141"). Seeks on the status + uploaded_by
+     * index before comparing the (unindexable) path column.
+     */
+    private function userOwnsFolder(string $relativeFolder): bool
+    {
+        return BlindScanning::whereIn('status', [BlindScanning::STATUS_PENDING, BlindScanning::STATUS_CONVERTED, BlindScanning::STATUS_ARCHIVED])
+            ->where('uploaded_by', (string) Auth::id())
+            ->where('local_pc_path', $relativeFolder)
+            ->exists();
+    }
+
     /**
      * Display the blind scanning interface
      */
@@ -431,65 +501,83 @@ class BlindScanningController extends Controller
     }
 
     /**
-     * Handle migration of blind scanning files
+     * Handle migration of blind scanning files.
+     *
+     * The page sends a folder in batches (batch_index / batch_total), so a large
+     * folder never hits the request-size limit and the progress bar is real.
+     * A batch can be retried safely: a file already on the server with the same
+     * size is skipped, never overwritten, and only files written by this request
+     * are recorded in blind_scannings. Adding scans to a file that already has a
+     * folder is allowed — they join it rather than being refused.
      */
     public function migrate(Request $request)
     {
         try {
-            // Validate the request
-            if (empty($request->input('folderName'))) {
-                return response()->json([
-                    'ok' => false,
-                    'error' => 'Missing folderName'
-                ], 400);
+            $rawFileNumber = trim((string) $request->input('folderName'));
+            if ($rawFileNumber === '') {
+                return response()->json(['ok' => false, 'error' => 'Select a file number first.'], 400);
             }
 
-            $folderName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $request->input('folderName'));
-            $uploadMethod = $request->input('uploadMethod', 'zip');
-            $registryType = $request->input('registry_type', 'lands');
-
-            if (!in_array($registryType, ['lands', 'cadastral'])) {
-                $registryType = 'lands';
+            $folderName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $rawFileNumber);
+            $folderName = trim($folderName, '._');
+            if ($folderName === '') {
+                return response()->json(['ok' => false, 'error' => 'That file number cannot be used as a folder name.'], 422);
             }
 
-            $registrySubfolder = $registryType === 'cadastral' ? 'Cadastral_Registry_Raw' : 'Lands_Registry_Raw';
+            $uploadMethod = $request->input('uploadMethod', 'direct');
+            $registryInput = $request->input('registry', $request->input('registry_type'));
+            if (trim((string) $registryInput) === '') {
+                return response()->json(['ok' => false, 'error' => 'Select the registry first.'], 422);
+            }
+            [$registrySubfolder, $registryType] = $this->resolveBlindRegistry($registryInput);
 
-            // Create storage directory structure
             $storagePath = file_storage_path('app/public/EDMS/BLIND_SCAN/' . $registrySubfolder);
-            if (!is_dir($storagePath)) {
-                if (!mkdir($storagePath, 0775, true)) {
-                    return response()->json([
-                        'ok' => false,
-                        'error' => 'Could not create storage directory'
-                    ], 500);
-                }
+            if (!is_dir($storagePath) && !mkdir($storagePath, 0775, true) && !is_dir($storagePath)) {
+                return response()->json(['ok' => false, 'error' => 'Could not create the registry folder on the server.'], 500);
             }
 
-            // Target directory
             $targetPath = $storagePath . DIRECTORY_SEPARATOR . $folderName;
-            if (is_dir($targetPath)) {
-                return response()->json([
-                    'ok' => false,
-                    'error' => 'Folder already exists on server'
-                ], 409);
+            if (!is_dir($targetPath) && !mkdir($targetPath, 0775, true) && !is_dir($targetPath)) {
+                return response()->json(['ok' => false, 'error' => 'Could not create the file folder on the server.'], 500);
             }
 
-            if (!mkdir($targetPath, 0775, true)) {
-                return response()->json([
-                    'ok' => false,
-                    'error' => 'Could not create target folder'
-                ], 500);
-            }
+            $batchIndex = max(0, (int) $request->input('batch_index', 0));
+            $batchTotal = max(1, (int) $request->input('batch_total', 1));
+            $isFinalBatch = $batchIndex >= $batchTotal - 1;
+            $localPcPath = $registrySubfolder . '/' . $folderName;
 
-            // Handle different upload methods
             if ($uploadMethod === 'direct') {
-                // Handle direct file uploads
-                if (!$this->handleDirectUpload($request, $targetPath)) {
+                $result = $this->handleDirectUpload($request, $targetPath);
+                if (!$result['saved'] && !$result['skipped']) {
                     return response()->json([
                         'ok' => false,
-                        'error' => 'Failed to upload files directly'
-                    ], 500);
+                        'error' => $result['failed']
+                            ? 'The server could not save: ' . implode(', ', array_slice($result['failed'], 0, 5))
+                            : 'No image files were received.',
+                    ], 422);
                 }
+
+                $registered = $result['saved']
+                    ? $this->saveFilesToDatabase($targetPath, $folderName, $registryType, $localPcPath, $result['saved'], $registrySubfolder)
+                    : 0;
+
+                if ($isFinalBatch) {
+                    $this->logMigration($localPcPath, $targetPath);
+                }
+
+                return response()->json([
+                    'ok' => true,
+                    'message' => $isFinalBatch ? 'Migration completed successfully' : 'Batch saved',
+                    'serverPath' => '/storage/EDMS/BLIND_SCAN/' . $registrySubfolder . '/' . $folderName,
+                    'registryFolder' => $registrySubfolder,
+                    'saved' => count($result['saved']),
+                    'skipped' => count($result['skipped']),
+                    'renamed' => $result['renamed'],
+                    'rejected' => $result['rejected'],
+                    'failed' => $result['failed'],
+                    'registered' => $registered,
+                    'final' => $isFinalBatch,
+                ]);
             } else {
                 // Handle ZIP upload (fallback)
                 if (!$request->hasFile('zip')) {
@@ -510,19 +598,28 @@ class BlindScanningController extends Controller
                 // Extract ZIP file using alternative method
                 $zipPath = $uploadedFile->getPathname();
 
+                // Files already in the folder were recorded earlier; only the
+                // ones the archive adds get rows.
+                $before = array_flip($this->relativeFilesIn($targetPath));
+
                 if (!$this->extractZipFile($zipPath, $targetPath)) {
                     return response()->json([
                         'ok' => false,
                         'error' => 'Failed to extract ZIP file'
                     ], 500);
                 }
+
+                $added = array_values(array_filter(
+                    $this->relativeFilesIn($targetPath),
+                    fn ($relative) => !isset($before[$relative])
+                ));
             }
 
             // Log the migration
-            $this->logMigration($folderName, $targetPath);
+            $this->logMigration($localPcPath, $targetPath);
 
             // Save files to database
-            $this->saveFilesToDatabase($targetPath, $folderName, $registryType, $registrySubfolder . '/' . $folderName);
+            $this->saveFilesToDatabase($targetPath, $folderName, $registryType, $localPcPath, $added ?? [], $registrySubfolder);
 
             // Generate public URL
             $publicUrl = '/storage/EDMS/BLIND_SCAN/' . $registrySubfolder . '/' . $folderName;
@@ -549,7 +646,39 @@ class BlindScanningController extends Controller
     /**
      * Save migrated files to database
      */
-    private function saveFilesToDatabase($targetPath, $folderName, $registryType = 'lands', $localPcPath = null)
+    /**
+     * Every file under a folder, as forward-slash paths relative to it.
+     */
+    private function relativeFilesIn(string $folder): array
+    {
+        if (!is_dir($folder)) {
+            return [];
+        }
+
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($folder, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $files[] = str_replace('\\', '/', substr($file->getPathname(), strlen($folder) + 1));
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * Record a folder's files in blind_scannings.
+     *
+     * @param array|null $onlyRelativePaths When given, only these files (paths
+     *        relative to $targetPath) are recorded — the ones this upload wrote.
+     *        That keeps a second upload into an existing folder from recording
+     *        its earlier files again, and keeps PDF page images the conversion
+     *        writes from being recorded twice.
+     * @return int rows inserted
+     */
+    private function saveFilesToDatabase($targetPath, $folderName, $registryType = 'lands', $localPcPath = null, ?array $onlyRelativePaths = null, ?string $registrySubfolder = null)
     {
         try {
             $fileNumber = $this->extractFileNumberFromFolderName($folderName);
@@ -558,7 +687,14 @@ class BlindScanningController extends Controller
                 new \RecursiveDirectoryIterator($targetPath, \RecursiveDirectoryIterator::SKIP_DOTS)
             );
 
-            $registrySubfolder = $registryType === 'cadastral' ? 'Cadastral_Registry_Raw' : 'Lands_Registry_Raw';
+            $registrySubfolder = $registrySubfolder
+                ?: ($registryType === 'cadastral' ? 'Cadastral_Registry_Raw' : 'Lands_Registry_Raw');
+            $onlySet = $onlyRelativePaths === null
+                ? null
+                : array_flip(array_map(fn ($p) => strtolower(str_replace('\\', '/', $p)), $onlyRelativePaths));
+            if ($onlySet !== null && !$onlySet) {
+                return 0;
+            }
             $totalA4Count = 0;
             $totalA3Count = 0;
             $totalPages = 0;
@@ -580,7 +716,14 @@ class BlindScanningController extends Controller
                     continue;
                 }
 
+                if ($onlySet !== null && !isset($onlySet[strtolower($relativePath)])) {
+                    continue;
+                }
+
                 $extension = strtolower($file->getExtension());
+                if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+                    continue;
+                }
                 if ($extension === 'pdf') {
                     $conversionResult = $this->convertPdfAndQueuePages(
                         $file,
@@ -673,7 +816,7 @@ class BlindScanningController extends Controller
                 'records_inserted' => $totalInserted
             ]);
 
-            return true;
+            return $totalInserted;
         } catch (\Exception $e) {
             Log::error('Failed to save files to database', [
                 'folder' => $folderName,
@@ -844,141 +987,36 @@ class BlindScanningController extends Controller
     }
 
     /**
-     * Synchronize the migration log with folders present on disk
+     * Record folders copied onto the server outside this page (e.g. by Windows
+     * Explorer) that have no blind_scannings rows yet. Admin only.
+     *
+     * Uploads through the page record their own rows, so this is only for
+     * bulk copies. It used to walk all 140k+ folders inside one web request
+     * and was fired automatically by every open page, timing out each time.
+     * Now it hands the work to blind-scan:register for recently added folders;
+     * the scheduler runs the same command every night.
      */
     public function syncMigrationLog(Request $request)
     {
+        if (!$this->isBlindScanAdmin()) {
+            return response()->json(['ok' => false, 'error' => 'Only an administrator can register copied folders.'], 403);
+        }
+
         try {
-            $basePath = file_storage_path('app/public/EDMS/BLIND_SCAN');
+            @set_time_limit(900);
+            $days = max(1, min((int) $request->input('days', 2), 30));
 
-            if (!is_dir($basePath)) {
-                return response()->json([
-                    'ok' => false,
-                    'error' => 'BLIND_SCAN storage path is missing.',
-                    'resolved_path' => $basePath
-                ], 404);
-            }
-
-            $logFile = file_storage_path('app/public/EDMS/BLIND_SCAN/_migrations.json');
-            $existingLogs = [];
-
-            if (file_exists($logFile)) {
-                $content = file_get_contents($logFile);
-                if ($content) {
-                    $existingLogs = json_decode($content, true) ?: [];
-                }
-            }
-
-            $knownFolders = collect($existingLogs)
-                ->pluck('folder')
-                ->filter()
-                ->map(function ($folder) {
-                    return strtolower($folder);
-                })
-                ->values()
-                ->all();
-
-            $newEntries = [];
-            $dbAddedCount = 0;
-            $dbSkippedCount = 0;
-            $errors = [];
-            $scanDirs = [
-                '' => $basePath,
-                'Lands_Registry_Raw' => $basePath . DIRECTORY_SEPARATOR . 'Lands_Registry_Raw',
-                'Cadastral_Registry_Raw' => $basePath . DIRECTORY_SEPARATOR . 'Cadastral_Registry_Raw'
-            ];
-
-            foreach ($scanDirs as $subName => $dirPath) {
-                if (!is_dir($dirPath))
-                    continue;
-
-                $items = scandir($dirPath) ?: [];
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..' || $item === '_migrations.json' || str_contains(strtolower($item), 'registry_raw')) {
-                        continue;
-                    }
-
-                    $fullPath = $dirPath . DIRECTORY_SEPARATOR . $item;
-                    if (!is_dir($fullPath))
-                        continue;
-
-                    // Compute relative path for folder identification
-                    $relativeFolder = $subName ? $subName . '/' . $item : $item;
-
-                    if (in_array(strtolower($relativeFolder), $knownFolders, true)) {
-                        continue;
-                    }
-
-                    $timestamp = @filemtime($fullPath) ?: time();
-                    $entry = [
-                        'when' => date('Y-m-d H:i:s', $timestamp),
-                        'folder' => $relativeFolder,
-                        'serverPath' => '/storage/EDMS/BLIND_SCAN/' . ($subName ? $subName . '/' : '') . $item,
-                        'user' => auth()->user()->name ?? 'System'
-                    ];
-
-                    try {
-                        $alreadySynced = BlindScanning::where('local_pc_path', $relativeFolder)->exists();
-
-                        if (!$alreadySynced) {
-                            $registryType = 'lands';
-                            if (str_contains(strtolower($subName), 'cadastral'))
-                                $registryType = 'cadastral';
-
-                            $this->saveFilesToDatabase($fullPath, $item, $registryType, $relativeFolder);
-                            $dbAddedCount++;
-                            $entry['db_status'] = 'synced';
-                        } else {
-                            $dbSkippedCount++;
-                            $entry['db_status'] = 'already_synced';
-                        }
-
-                        $newEntries[] = $entry;
-                    } catch (\Exception $syncException) {
-                        Log::error('Failed to sync blind scan folder to database', [
-                            'folder' => $relativeFolder,
-                            'error' => $syncException->getMessage()
-                        ]);
-
-                        $errors[] = [
-                            'folder' => $relativeFolder,
-                            'message' => $syncException->getMessage()
-                        ];
-                    }
-                }
-            }
-
-            if (empty($newEntries)) {
-                return response()->json([
-                    'ok' => true,
-                    'added' => [],
-                    'added_count' => 0,
-                    'db_added_count' => $dbAddedCount,
-                    'db_skipped_count' => $dbSkippedCount,
-                    'logs' => $existingLogs,
-                    'errors' => $errors,
-                    'message' => empty($errors) ? 'No new folders detected.' : 'No new entries logged. See errors for details.'
-                ]);
-            }
-
-            $combined = array_merge($newEntries, $existingLogs);
-
-            usort($combined, function ($a, $b) {
-                return strcmp($b['when'] ?? '', $a['when'] ?? '');
-            });
-
-            $combined = array_slice($combined, 0, 100);
-
-            file_put_contents($logFile, json_encode($combined, JSON_PRETTY_PRINT));
+            \Illuminate\Support\Facades\Artisan::call('blind-scan:register', [
+                '--registry' => 'all',
+                '--since' => now()->subDays($days)->toDateString(),
+                '--user' => (string) Auth::id(),
+            ]);
+            $output = trim(\Illuminate\Support\Facades\Artisan::output());
 
             return response()->json([
                 'ok' => true,
-                'added' => $newEntries,
-                'added_count' => count($newEntries),
-                'db_added_count' => $dbAddedCount,
-                'db_skipped_count' => $dbSkippedCount,
-                'errors' => $errors,
-                'logs' => $combined
+                'message' => 'Registered folders added in the last ' . $days . ' day(s).',
+                'output' => $output,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to sync blind scan migration log', [
@@ -1021,25 +1059,43 @@ class BlindScanningController extends Controller
                 ]);
             }
 
-            // Check if user is admin
-            $isAdmin = Auth::check() && Auth::user()->type == 'super admin';
+            $isAdmin = $this->isBlindScanAdmin();
             $currentUserId = Auth::id();
+            // Admins may narrow the browser to their own uploads.
+            $mineOnly = !$isAdmin || $request->boolean('mine');
+            $segments = $subPath === '' ? [] : explode('/', str_replace('\\', '/', $subPath));
 
-            // Get user's allowed folders from database
-            $allowedFolders = [];
-            if (!$isAdmin) {
-                // Get folders uploaded by this user
-                $userFolders = BlindScanning::where('uploaded_by', $currentUserId)
-                    ->select('local_pc_path')
-                    ->distinct()
-                    ->pluck('local_pc_path')
-                    ->toArray();
+            // Inside a file folder: only its uploader (or an admin) may look.
+            if (!$isAdmin && count($segments) >= 2 && $this->isRegistryRawFolder($segments[0])) {
+                if (!$this->userOwnsFolder($segments[0] . '/' . $segments[1])) {
+                    return response()->json(['ok' => false, 'error' => 'You can only open folders you uploaded.'], 403);
+                }
+            }
 
-                $allowedFolders = array_map('strtolower', $userFolders);
+            // A registry folder (Lands_Registry_Raw) holds 140k+ file folders:
+            // never list it from disk. Show recent uploads from the database,
+            // or search the folder names when the user types a file number.
+            if (count($segments) === 1 && $this->isRegistryRawFolder($segments[0])) {
+                return response()->json($this->listRegistryFolder($segments[0], trim((string) $request->get('q', '')), $mineOnly, $isAdmin));
             }
 
             $items = [];
             $files = scandir($fullPath);
+
+            // Inside a file folder: who uploaded each file, from its rows.
+            $fileUploaders = [];
+            $folderUploader = null;
+            if (count($segments) >= 2 && $this->isRegistryRawFolder($segments[0])) {
+                $rows = DB::connection('sqlsrv')->table('blind_scannings')
+                    ->where('local_pc_path', $segments[0] . '/' . $segments[1])
+                    ->get(['document_path', 'uploaded_by']);
+                $userNames = $this->userNames($rows->pluck('uploaded_by'));
+                foreach ($rows as $row) {
+                    $label = $row->uploaded_by === null ? null : ($userNames[(string) $row->uploaded_by] ?? 'User #' . $row->uploaded_by);
+                    $fileUploaders[strtolower(str_replace('\\', '/', (string) $row->document_path))] = $label;
+                    $folderUploader = $folderUploader ?? $label;
+                }
+            }
 
             if ($files) {
                 foreach ($files as $file) {
@@ -1050,38 +1106,25 @@ class BlindScanningController extends Controller
                     $filePath = $fullPath . DIRECTORY_SEPARATOR . $file;
                     $isDir = is_dir($filePath);
 
-                    // Filter directories based on user permissions
-                    if ($isDir && !$isAdmin) {
-                        $lowerFile = strtolower($file);
-                        $relativeItemPath = strtolower(($subPath ? str_replace('\\', '/', $subPath) . '/' : '') . $file);
-
-                        if (empty($subPath)) {
-                            // Root level: Allow system folders, filter others
-                            $isSystemFolder = in_array($lowerFile, ['lands_registry_raw', 'cadastral_registry_raw']);
-                            if (!$isSystemFolder && !in_array($relativeItemPath, $allowedFolders)) {
-                                continue;
-                            }
-                        } else {
-                            // Subfolder level: If inside a system folder, apply filter
-                            $lowerSubPath = strtolower($subPath);
-                            if (in_array($lowerSubPath, ['lands_registry_raw', 'cadastral_registry_raw'])) {
-                                if (!in_array($relativeItemPath, $allowedFolders)) {
-                                    continue;
-                                }
-                            }
-                        }
+                    // At the top level show only the registry folders; stray
+                    // files/folders there are not a user's uploads.
+                    if (empty($subPath) && (!$isDir || !$this->isRegistryRawFolder($file))) {
+                        continue;
                     }
 
                     // Build the public URL for files - storage symlink points to storage/app/public
                     $publicPath = 'storage/EDMS/BLIND_SCAN/' . ($subPath ? $subPath . '/' : '') . $file;
                     $publicUrl = $isDir ? null : url($publicPath);
 
+                    $relativeDoc = strtolower('EDMS/BLIND_SCAN/' . ($subPath ? str_replace('\\', '/', $subPath) . '/' : '') . $file);
                     $items[] = [
                         'name' => $file,
                         'type' => $isDir ? 'dir' : 'file',
                         'size' => $isDir ? null : filesize($filePath),
                         'mtime' => filemtime($filePath),
-                        'href' => $publicUrl
+                        'href' => $publicUrl,
+                        // A subfolder (A4/A3) shows the folder's uploader.
+                        'uploaded_by' => $isDir ? $folderUploader : ($fileUploaders[$relativeDoc] ?? null),
                     ];
                 }
             }
@@ -1112,6 +1155,7 @@ class BlindScanningController extends Controller
                 'crumbs' => $crumbs,
                 'items' => $items,
                 'isAdmin' => $isAdmin,
+                'mineOnly' => $mineOnly,
                 'userId' => $currentUserId
             ]);
 
@@ -1124,54 +1168,124 @@ class BlindScanningController extends Controller
     }
 
     /**
+     * The folders shown for one registry folder (e.g. Lands_Registry_Raw).
+     *
+     * Without a search: the most recently uploaded folders, from the database
+     * (indexed on created_at, so it is quick). With a search: folder names on
+     * disk containing the text, matched by the filesystem itself. Non-admins
+     * only ever get their own folders.
+     */
+    private function listRegistryFolder(string $registryFolder, string $search, bool $mineOnly, bool $isAdmin): array
+    {
+        $limit = 300;
+        $base = file_storage_path('app/public/EDMS/BLIND_SCAN/' . $registryFolder);
+        $items = [];
+        $note = null;
+
+        if ($search !== '') {
+            $needle = preg_replace('/[^A-Za-z0-9_\-\. ]/', '', $search);
+            $matches = $needle === '' ? [] : (glob($base . DIRECTORY_SEPARATOR . '*' . $needle . '*', GLOB_ONLYDIR) ?: []);
+            $names = array_map('basename', $matches);
+            natcasesort($names);
+            $names = array_values($names);
+
+            if ($mineOnly && $names) {
+                $owned = BlindScanning::whereIn('status', [BlindScanning::STATUS_PENDING, BlindScanning::STATUS_CONVERTED, BlindScanning::STATUS_ARCHIVED])
+                    ->where('uploaded_by', (string) Auth::id())
+                    ->where('local_pc_path', 'like', $registryFolder . '/%')
+                    ->distinct()
+                    ->pluck('local_pc_path')
+                    ->map(fn ($p) => strtolower(basename(str_replace('\\', '/', $p))))
+                    ->flip();
+                $names = array_values(array_filter($names, fn ($n) => isset($owned[strtolower($n)])));
+            }
+
+            if (count($names) > $limit) {
+                $note = 'Showing the first ' . $limit . ' of ' . count($names) . ' folders matching "' . $search . '". Type more of the file number to narrow it.';
+                $names = array_slice($names, 0, $limit);
+            }
+
+            // Who uploaded each matching folder (one query for all of them).
+            $uploaders = [];
+            if ($names) {
+                $uploaders = DB::connection('sqlsrv')->table('blind_scannings')
+                    ->whereIn('local_pc_path', array_map(fn ($n) => $registryFolder . '/' . $n, $names))
+                    ->groupBy('local_pc_path')
+                    ->select('local_pc_path', DB::raw('MAX(uploaded_by) AS uploaded_by'))
+                    ->pluck('uploaded_by', 'local_pc_path')
+                    ->mapWithKeys(fn ($u, $p) => [strtolower(basename(str_replace('\\', '/', $p))) => $u])
+                    ->all();
+            }
+            $userNames = $this->userNames(array_values($uploaders));
+
+            foreach ($names as $name) {
+                $path = $base . DIRECTORY_SEPARATOR . $name;
+                $uploader = $uploaders[strtolower($name)] ?? null;
+                $items[] = [
+                    'name' => $name, 'type' => 'dir', 'size' => null, 'mtime' => @filemtime($path) ?: null, 'href' => null,
+                    'uploaded_by' => $uploader === null ? null : ($userNames[(string) $uploader] ?? 'User #' . $uploader),
+                ];
+            }
+        } else {
+            $query = DB::connection('sqlsrv')->table('blind_scannings')
+                ->where('created_at', '>=', now()->subDays(60))
+                ->where('local_pc_path', 'like', $registryFolder . '/%');
+            if ($mineOnly) {
+                $query->whereIn('status', [BlindScanning::STATUS_PENDING, BlindScanning::STATUS_CONVERTED, BlindScanning::STATUS_ARCHIVED])
+                    ->where('uploaded_by', (string) Auth::id());
+            }
+            $rows = $query->groupBy('local_pc_path')
+                ->select('local_pc_path', DB::raw('MAX(created_at) AS last_at'), DB::raw('COUNT(*) AS files'), DB::raw('MAX(uploaded_by) AS uploaded_by'))
+                ->orderByDesc(DB::raw('MAX(created_at)'))
+                ->limit($limit)
+                ->get();
+            $userNames = $this->userNames($rows->pluck('uploaded_by'));
+
+            foreach ($rows as $row) {
+                $name = basename(str_replace('\\', '/', $row->local_pc_path));
+                $items[] = [
+                    'name' => $name,
+                    'type' => 'dir',
+                    'size' => null,
+                    'mtime' => $row->last_at ? strtotime($row->last_at) : null,
+                    'href' => null,
+                    'files' => (int) $row->files,
+                    'uploaded_by' => $row->uploaded_by === null ? null : ($userNames[(string) $row->uploaded_by] ?? 'User #' . $row->uploaded_by),
+                ];
+            }
+            $note = ($mineOnly ? 'Your' : 'All') . ' uploads in the last 60 days, newest first. Search by file number to find older folders.';
+        }
+
+        return [
+            'ok' => true,
+            'root' => '/storage/EDMS/BLIND_SCAN',
+            'sub' => $registryFolder,
+            'crumbs' => [['name' => $registryFolder, 'path' => $registryFolder]],
+            'items' => $items,
+            'note' => $note,
+            'searchable' => true,
+            'isAdmin' => $isAdmin,
+            'mineOnly' => $mineOnly,
+            'userId' => Auth::id(),
+        ];
+    }
+
+    /**
      * API endpoint to get migration logs
      */
-    public function apiLogs()
+    public function apiLogs(Request $request)
     {
         try {
-            $logFile = file_storage_path('app/public/EDMS/BLIND_SCAN/_migrations.json');
-            $logs = [];
-
-            if (file_exists($logFile)) {
-                $content = file_get_contents($logFile);
-                if ($content) {
-                    $logs = json_decode($content, true) ?: [];
-                }
-            }
-
-            // Check if user is admin
-            $isAdmin = Auth::check() && Auth::user()->type == 'super admin';
-            $currentUserId = Auth::id();
-            $currentUserName = Auth::user()->name ?? '';
-
-            // Filter logs based on user permissions
-            if (!$isAdmin) {
-                $logs = array_filter($logs, function ($log) use ($currentUserName, $currentUserId) {
-                    // Match by user name in the log OR by checking BlindScanning records
-                    if (isset($log['user']) && $log['user'] === $currentUserName) {
-                        return true;
-                    }
-
-                    // Check if the folder belongs to the current user
-                    if (isset($log['folder'])) {
-                        $folderExists = BlindScanning::where('local_pc_path', $log['folder'])
-                            ->where('uploaded_by', $currentUserId)
-                            ->exists();
-                        return $folderExists;
-                    }
-
-                    return false;
-                });
-
-                // Re-index array after filtering
-                $logs = array_values($logs);
-            }
+            $isAdmin = $this->isBlindScanAdmin();
+            $mineOnly = !$isAdmin || $request->boolean('mine');
+            $logs = $this->uploadSummary($mineOnly, (int) $request->get('days', 30), 300);
 
             return response()->json([
                 'ok' => true,
                 'logs' => $logs,
                 'isAdmin' => $isAdmin,
-                'userId' => $currentUserId
+                'mineOnly' => $mineOnly,
+                'userId' => Auth::id()
             ]);
 
         } catch (\Exception $e) {
@@ -1185,49 +1299,175 @@ class BlindScanningController extends Controller
     /**
      * API endpoint returning aggregated counts per file_number and paper_size
      */
-    public function aggregates()
+    /**
+     * Per-folder summary of recent uploads: pages by paper size, how many have
+     * already been taken into Scan Upload (status converted), uploader, dates.
+     * Grouped in SQL over the created_at index — this used to load every row
+     * in blind_scannings (1.7M+) into PHP on each page load.
+     */
+    private function uploadSummary(bool $mineOnly, int $days, int $limit): array
+    {
+        $days = max(1, min($days ?: 30, 365));
+
+        $query = DB::connection('sqlsrv')->table('blind_scannings')
+            ->where('created_at', '>=', now()->subDays($days));
+        if ($mineOnly) {
+            $query->whereIn('status', [BlindScanning::STATUS_PENDING, BlindScanning::STATUS_CONVERTED, BlindScanning::STATUS_ARCHIVED])
+                ->where('uploaded_by', (string) Auth::id());
+        }
+
+        $rows = $query->groupBy('local_pc_path')
+            ->select(
+                'local_pc_path',
+                DB::raw('MAX(file_number) AS file_number'),
+                DB::raw('MAX(registry_type) AS registry_type'),
+                DB::raw('MAX(uploaded_by) AS uploaded_by'),
+                DB::raw('COUNT(*) AS files'),
+                DB::raw("SUM(CASE WHEN paper_size = 'A3' THEN 1 ELSE 0 END) AS a3"),
+                DB::raw("SUM(CASE WHEN paper_size = 'A4' OR paper_size IS NULL THEN 1 ELSE 0 END) AS a4"),
+                DB::raw("SUM(CASE WHEN status = 'converted' THEN 1 ELSE 0 END) AS converted"),
+                DB::raw('MIN(created_at) AS first_at'),
+                DB::raw('MAX(created_at) AS last_at')
+            )
+            ->orderByDesc(DB::raw('MAX(created_at)'))
+            ->limit($limit)
+            ->get();
+
+        $userIds = $rows->pluck('uploaded_by')->filter(fn ($id) => is_numeric($id))->unique()->values();
+        $names = $userIds->isEmpty()
+            ? collect()
+            : \App\Models\User::whereIn('id', $userIds->all())->get()->mapWithKeys(fn ($u) => [(string) $u->id => $u->name]);
+
+        return $rows->map(function ($row) use ($names) {
+            $folder = str_replace('\\', '/', (string) $row->local_pc_path);
+            $files = (int) $row->files;
+            $converted = (int) $row->converted;
+
+            return [
+                'folder' => $folder,
+                'file_number' => $row->file_number ?: basename($folder),
+                'registry' => str_contains($folder, '/') ? str_replace('_', ' ', preg_replace('/_Raw$/i', '', explode('/', $folder)[0])) : ucfirst((string) $row->registry_type),
+                'registry_type' => $row->registry_type,
+                'user' => $names[(string) $row->uploaded_by] ?? ($row->uploaded_by ? 'User #' . $row->uploaded_by : 'System'),
+                'files' => $files,
+                'a4' => (int) $row->a4,
+                'a3' => (int) $row->a3,
+                'converted' => $converted,
+                'progress' => $converted === 0 ? 'Awaiting Scan Upload' : ($converted >= $files ? 'Moved to Scan Upload' : "Partly moved ({$converted}/{$files})"),
+                'when' => $row->last_at,
+                'first_at' => $row->first_at,
+                'serverPath' => '/storage/EDMS/BLIND_SCAN/' . $folder,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * Dashboard figures: pages and file folders uploaded today, this week and
+     * in total, and how many pages are still waiting for Scan Upload. All
+     * served by indexes (created_at, status + uploaded_by), so they are cheap.
+     */
+    private function dashboardStats(bool $mineOnly): array
+    {
+        $base = function () use ($mineOnly) {
+            $query = DB::connection('sqlsrv')->table('blind_scannings');
+            if ($mineOnly) {
+                $query->whereIn('status', [BlindScanning::STATUS_PENDING, BlindScanning::STATUS_CONVERTED, BlindScanning::STATUS_ARCHIVED])
+                    ->where('uploaded_by', (string) Auth::id());
+            }
+            return $query;
+        };
+        $counts = fn ($query) => $query->selectRaw('COUNT(*) AS pages, COUNT(DISTINCT file_number) AS folders')->first();
+
+        $today = $counts($base()->where('created_at', '>=', now()->startOfDay()));
+        $week = $counts($base()->where('created_at', '>=', now()->startOfWeek()));
+        // The all-users total walks 1.7M+ rows for its folder count (~2.5s) and
+        // hardly moves, so it is cached briefly. Personal totals are instant.
+        $total = $mineOnly
+            ? $counts($base())
+            : (object) \Illuminate\Support\Facades\Cache::remember('blind_scan.dashboard.total_all', 300, function () use ($counts, $base) {
+                return (array) $counts($base());
+            });
+        $byStatus = $base()->groupBy('status')->select('status', DB::raw('COUNT(*) AS n'))->pluck('n', 'status');
+
+        $topToday = [];
+        if (!$mineOnly) {
+            $rows = DB::connection('sqlsrv')->table('blind_scannings')
+                ->where('created_at', '>=', now()->startOfDay())
+                ->groupBy('uploaded_by')
+                ->select('uploaded_by', DB::raw('COUNT(*) AS pages'), DB::raw('COUNT(DISTINCT file_number) AS folders'))
+                ->orderByDesc(DB::raw('COUNT(*)'))
+                ->limit(5)
+                ->get();
+            $names = $this->userNames($rows->pluck('uploaded_by'));
+            $topToday = $rows->map(fn ($r) => [
+                'user' => $names[(string) $r->uploaded_by] ?? ($r->uploaded_by ? 'User #' . $r->uploaded_by : 'System'),
+                'pages' => (int) $r->pages,
+                'folders' => (int) $r->folders,
+            ])->all();
+        }
+
+        return [
+            'today' => ['pages' => (int) ($today->pages ?? 0), 'folders' => (int) ($today->folders ?? 0)],
+            'week' => ['pages' => (int) ($week->pages ?? 0), 'folders' => (int) ($week->folders ?? 0)],
+            'total' => ['pages' => (int) ($total->pages ?? 0), 'folders' => (int) ($total->folders ?? 0)],
+            'awaiting' => (int) ($byStatus[BlindScanning::STATUS_PENDING] ?? 0),
+            'moved' => (int) ($byStatus[BlindScanning::STATUS_CONVERTED] ?? 0),
+            'top_today' => $topToday,
+            'scope' => $mineOnly ? 'mine' : 'all',
+        ];
+    }
+
+    /** users.id => display name for the given uploaded_by values. */
+    private function userNames($ids): array
+    {
+        $ids = collect($ids)->filter(fn ($id) => is_numeric($id))->map(fn ($id) => (int) $id)->unique()->values();
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return \App\Models\User::whereIn('id', $ids->all())->get()
+            ->mapWithKeys(fn ($u) => [(string) $u->id => $u->name])
+            ->all();
+    }
+
+    public function aggregates(Request $request)
     {
         try {
-            // Fetch minimal fields to avoid heavy payloads
-            $rows = BlindScanning::select('id', 'file_number', 'paper_size', 'original_filename', 'document_path', 'created_at')
-                ->orderBy('file_number')
-                ->orderBy('created_at', 'desc')
-                ->get();
+            $isAdmin = $this->isBlindScanAdmin();
+            $mineOnly = !$isAdmin || $request->boolean('mine');
 
-            $grouped = [];
-            foreach ($rows as $r) {
-                $fn = $r->file_number ?? 'UNASSIGNED';
-                if (!isset($grouped[$fn])) {
-                    $grouped[$fn] = [
-                        'file_number' => $fn,
-                        'counts' => [],
-                        'total' => 0,
-                        'records' => []
-                    ];
+            // Expanding a row loads that folder's files on demand.
+            $folder = trim(str_replace('\\', '/', (string) $request->get('folder', '')), '/');
+            if ($folder !== '') {
+                if (!$isAdmin && !$this->userOwnsFolder($folder)) {
+                    return response()->json(['success' => false, 'message' => 'You can only view folders you uploaded.'], 403);
                 }
+                // The summary row passes its first upload time so the lookup can
+                // seek on the created_at index; the path column is unindexable.
+                $since = strtotime((string) $request->get('since', '')) ?: null;
+                $records = BlindScanning::where('local_pc_path', $folder)
+                    ->when($since, fn ($q) => $q->where('created_at', '>=', date('Y-m-d H:i:s', $since - 60)))
+                    ->orderBy('id')
+                    ->limit(2000)
+                    ->get(['id', 'original_filename', 'paper_size', 'document_path', 'status', 'created_at'])
+                    ->map(fn ($r) => [
+                        'id' => $r->id,
+                        'original_filename' => $r->original_filename,
+                        'paper_size' => $r->paper_size ?? 'A4',
+                        'document_path' => $r->document_path,
+                        'status' => $r->status,
+                        'created_at' => $r->created_at,
+                    ]);
 
-                $size = $r->paper_size ?? 'A4';
-                if (!isset($grouped[$fn]['counts'][$size])) {
-                    $grouped[$fn]['counts'][$size] = 0;
-                }
-                $grouped[$fn]['counts'][$size]++;
-                $grouped[$fn]['total']++;
-
-                $grouped[$fn]['records'][] = [
-                    'id' => $r->id,
-                    'original_filename' => $r->original_filename,
-                    'paper_size' => $size,
-                    'document_path' => $r->document_path,
-                    'created_at' => $r->created_at,
-                ];
+                return response()->json(['success' => true, 'records' => $records]);
             }
-
-            // Re-index by numeric array preserving order
-            $result = array_values($grouped);
 
             return response()->json([
                 'success' => true,
-                'data' => $result
+                'data' => $this->uploadSummary($mineOnly, (int) $request->get('days', 30), 1000),
+                'stats' => $this->dashboardStats($mineOnly),
+                'isAdmin' => $isAdmin,
+                'mineOnly' => $mineOnly,
             ]);
         } catch (\Exception $e) {
             Log::error('Aggregates endpoint failed', ['error' => $e->getMessage()]);
@@ -1402,109 +1642,104 @@ class BlindScanningController extends Controller
     /**
      * Handle direct file uploads without zipping
      */
-    private function handleDirectUpload(Request $request, $targetPath)
+    /**
+     * Save one batch of uploaded files into the file's folder.
+     *
+     * @return array{saved:array, skipped:array, renamed:array, rejected:array, failed:array}
+     *   saved    relative paths written (these get blind_scannings rows)
+     *   skipped  already on the server with the same size — a retried batch
+     *   renamed  "old => new" when a different file already had the name
+     *   rejected not an image/PDF (Thumbs.db, desktop.ini, shortcuts)
+     *   failed   could not be written
+     */
+    private function handleDirectUpload(Request $request, $targetPath): array
     {
-        try {
-            Log::info('Starting direct file upload', [
-                'target_path' => $targetPath,
-                'files_count' => count($request->allFiles())
-            ]);
-
-            $files = $request->allFiles();
-            $paths = $request->input('paths', []);
-
-            if (empty($files)) {
-                Log::error('No files found in request');
-                return false;
-            }
-
-            $uploadedCount = 0;
-
-            // Process each uploaded file
-            foreach ($files as $key => $fileArray) {
-                if (is_array($fileArray)) {
-                    foreach ($fileArray as $index => $file) {
-                        $this->processUploadedFile($file, $paths[$index] ?? null, $targetPath);
-                        $uploadedCount++;
-                    }
-                } else {
-                    $this->processUploadedFile($fileArray, $paths[0] ?? null, $targetPath);
-                    $uploadedCount++;
-                }
-            }
-
-            Log::info('Direct upload completed', [
-                'uploaded_count' => $uploadedCount,
-                'target_path' => $targetPath
-            ]);
-
-            return $uploadedCount > 0;
-
-        } catch (\Exception $e) {
-            Log::error('Direct upload failed', [
-                'error' => $e->getMessage(),
-                'target_path' => $targetPath
-            ]);
-            return false;
+        $result = ['saved' => [], 'skipped' => [], 'renamed' => [], 'rejected' => [], 'failed' => []];
+        $paths = $request->input('paths', []);
+        $files = $request->file('files', []);
+        if (!is_array($files)) {
+            $files = [$files];
         }
+
+        foreach ($files as $index => $file) {
+            $outcome = $this->processUploadedFile($file, $paths[$index] ?? null, $targetPath);
+            $result[$outcome['status']][] = $outcome['status'] === 'renamed'
+                ? $outcome['from'] . ' => ' . $outcome['path']
+                : $outcome['path'];
+            if ($outcome['status'] === 'renamed') {
+                $result['saved'][] = $outcome['path'];
+            }
+        }
+
+        if ($result['failed'] || $result['renamed']) {
+            Log::warning('Blind scan upload batch had issues', [
+                'target_path' => $targetPath,
+                'failed' => $result['failed'],
+                'renamed' => $result['renamed'],
+            ]);
+        }
+
+        return $result;
     }
 
     /**
-     * Process a single uploaded file
+     * Save a single uploaded file.
+     *
+     * Never overwrites: the same name with the same size is a re-sent file and
+     * is skipped; the same name with different content is kept beside the
+     * original as "name (2).jpg".
+     *
+     * @return array{status:string, path:string, from?:string}
      */
-    private function processUploadedFile($file, $relativePath, $targetPath)
+    private function processUploadedFile($file, $relativePath, $targetPath): array
     {
+        $name = $file ? $file->getClientOriginalName() : '';
+        $filePath = str_replace('\\', '/', (string) ($relativePath ?: $name));
+        // Strip traversal and drive/absolute prefixes.
+        $segments = array_values(array_filter(explode('/', $filePath), fn ($s) => $s !== '' && $s !== '.' && $s !== '..'));
+        $filePath = implode('/', $segments);
+
+        if (!$file || !$file->isValid() || $filePath === '') {
+            return ['status' => 'failed', 'path' => $filePath ?: ($name ?: 'unknown')];
+        }
+
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+            return ['status' => 'rejected', 'path' => $filePath];
+        }
+
         try {
-            if (!$file || !$file->isValid()) {
-                Log::warning('Invalid file skipped', ['relative_path' => $relativePath]);
-                return false;
-            }
-
-            // Use the relative path if provided, otherwise use the original name
-            $filePath = $relativePath ?: $file->getClientOriginalName();
-
-            // Sanitize the file path to prevent directory traversal
-            $filePath = str_replace(['../', '..\\'], '', $filePath);
-            $filePath = ltrim($filePath, '/\\');
-
-            // Create the full destination path
             $destinationPath = $targetPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $filePath);
-
-            // Create directory structure if it doesn't exist
             $destinationDir = dirname($destinationPath);
-            if (!is_dir($destinationDir)) {
-                if (!mkdir($destinationDir, 0775, true)) {
-                    Log::error('Failed to create directory', ['dir' => $destinationDir]);
-                    return false;
+            if (!is_dir($destinationDir) && !mkdir($destinationDir, 0775, true) && !is_dir($destinationDir)) {
+                return ['status' => 'failed', 'path' => $filePath];
+            }
+
+            $status = 'saved';
+            $from = $filePath;
+            if (is_file($destinationPath)) {
+                if (filesize($destinationPath) === $file->getSize()) {
+                    return ['status' => 'skipped', 'path' => $filePath];
                 }
+                $base = pathinfo($destinationPath, PATHINFO_FILENAME);
+                $n = 2;
+                do {
+                    $candidate = $destinationDir . DIRECTORY_SEPARATOR . $base . ' (' . $n . ').' . $extension;
+                    $n++;
+                } while (is_file($candidate));
+                $destinationPath = $candidate;
+                $filePath = (str_contains($filePath, '/') ? dirname($filePath) . '/' : '') . basename($candidate);
+                $status = 'renamed';
             }
 
-            // Capture file metadata before moving, as the temp file will be gone after move
-            $fileSize = $file->getSize();
-            $originalName = $file->getClientOriginalName();
+            $file->move($destinationDir, basename($destinationPath));
 
-            // Move the uploaded file to its destination
-            if ($file->move($destinationDir, basename($destinationPath))) {
-                Log::info('File uploaded successfully', [
-                    'original_name' => $originalName,
-                    'destination' => $destinationPath,
-                    'size' => $fileSize
-                ]);
-                return true;
-            } else {
-                Log::error('Failed to move file', [
-                    'original_name' => $originalName,
-                    'destination' => $destinationPath
-                ]);
-                return false;
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error processing uploaded file', [
-                'error' => $e->getMessage(),
-                'relative_path' => $relativePath
-            ]);
-            return false;
+            return $status === 'renamed'
+                ? ['status' => 'renamed', 'path' => $filePath, 'from' => $from]
+                : ['status' => 'saved', 'path' => $filePath];
+        } catch (\Throwable $e) {
+            Log::error('Blind scan file could not be saved', ['path' => $filePath, 'error' => $e->getMessage()]);
+            return ['status' => 'failed', 'path' => $filePath];
         }
     }
 

@@ -16,6 +16,9 @@
                     ? $currentUser->assign_role
                     : array_filter(array_map('trim', explode(',', (string) ($currentUser->assign_role ?? ''))));
                 $isSupperAdminRole = in_array('Supper Admin', $assignRoles, true);
+                // Generate Property Index Card is a button here (items 37-38, 2026-10-20), for Registry, which generates the cards.
+                $canGeneratePic = $currentUser && \App\Services\CadastralDept\PropertyIndexCards::installed()
+                    && app(\App\Services\CadastralDept\DeskAccess::class)->canWorkDesk($currentUser, 'registry');
             @endphp
             <div class="container mx-auto py-6 space-y-6">
                 <!-- Page Header -->
@@ -24,7 +27,13 @@
                     <p class="text-gray-500">Capture and manage property index cards</p>
                 </div> --}}
         
-                <div class="flex items-center justify-end mb-4">
+                <div class="flex items-center justify-end gap-2 mb-4">
+                    @if($canGeneratePic)
+                        <a href="{{ route('cadastral-dept.pic.index') }}" class="inline-flex items-center rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                            <i class="fas fa-id-card mr-2"></i>
+                            Generate Property Index Card
+                        </a>
+                    @endif
                     @if($isSupperAdminRole)
                         <a href="{{ route('pra-pic-audit.index') }}" class="inline-flex items-center rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
                             <i class="fas fa-chart-bar mr-2"></i>

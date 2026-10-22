@@ -555,6 +555,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (event.isTrusted) {
                 delete this.dataset.autofilled;
             }
+            if (this.value.trim() !== '') {
+                setFieldError('consideration_error', '');
+                this.classList.remove('border-red-400');
+            }
         });
     }
 
@@ -1203,9 +1207,35 @@ document.addEventListener('DOMContentLoaded', function () {
         return !!(el && el.offsetParent !== null);
     }
 
+    /**
+     * The consideration must be entered before a consent is saved: the letter
+     * works the registration fee and stamp duty out from it. The field is
+     * readonly until the pencil unlocks it, and the browser skips `required`
+     * on readonly inputs, so it is checked here. Mirrored server-side in
+     * ConsentApplicationController::considerationRules().
+     */
+    function checkConsideration() {
+        const field = document.getElementById('consideration_figures');
+        if (!field || field.disabled) return true;
+        const raw = field.value.trim();
+        const digits = raw.replace(/[^0-9.]/g, '');
+        const ok = raw !== '' && !raw.startsWith('-') && digits !== '' && Number(digits) > 0;
+        setFieldError('consideration_error', ok ? '' : 'Consideration is required. Click the pencil to unlock the field and enter the amount in figures.');
+        field.classList.toggle('border-red-400', !ok);
+        if (!ok) {
+            const errorEl = document.getElementById('consideration_error');
+            if (errorEl) errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return ok;
+    }
+
     function validateWizardStep(stepNumber) {
         const stepEl = wizardSteps.find(step => Number(step.dataset.step) === stepNumber);
         if (!stepEl) return true;
+
+        if (stepEl.contains(document.getElementById('consideration_figures')) && !checkConsideration()) {
+            return false;
+        }
 
         // Step 1's two required choices get inline messages. The file number is
         // readonly — filled only by the selector — and the browser skips
@@ -1292,6 +1322,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function resetWizard() {
         currentWizardStep = 1;
+        setFieldError('consideration_error', '');
+        document.getElementById('consideration_figures')?.classList.remove('border-red-400');
         updateWizardControls();
     }
 
@@ -3361,6 +3393,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // Basic validation
             if (!form.checkValidity()) {
                 form.reportValidity();
+                return;
+            }
+
+            if (!checkConsideration()) {
                 return;
             }
 

@@ -30,7 +30,9 @@ class DcivFileNo extends Model
         'related_fileno',
         'dciv_reason',
         // Free-text attribute, not the serial_number in the file number
-        'dciv_serial_no'
+        'dciv_serial_no',
+        // auto | manual | indexing - only 'auto' (and legacy NULL) shows as COMMISSIONED
+        'origin',
     ];
 
     protected $casts = [

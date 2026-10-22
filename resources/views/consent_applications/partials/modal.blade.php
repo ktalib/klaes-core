@@ -330,8 +330,8 @@
                             <div class="space-y-3 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">House No <span class="text-red-500">*</span></label>
-                                        <input type="text" id="applicant_house_no" name="applicant_house_no" required
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">House No</label>
+                                        <input type="text" id="applicant_house_no" name="applicant_house_no"
                                             class="address-component-applicant w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:border-blue-500 transition"
                                             placeholder="e.g. 12">
                                     </div>
@@ -756,6 +756,7 @@
                                 {{-- Only set to 1 once the operator actually edits the amount, so
                                      the server keeps billing off the valuation otherwise. --}}
                                 <input type="hidden" name="bill_basis_overridden" id="bill_basis_overridden" value="">
+                                <p class="text-xs text-red-600 mt-1 hidden" id="consideration_error"></p>
                                 <p class="text-[11px] text-amber-600 mt-1 hidden" id="consideration-override-note">
                                     Overridden — Consideration and Stamp Duty are calculated from this amount.
                                 </p>

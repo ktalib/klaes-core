@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', function () {
     window.handleSubmit = handleSubmit;
     window.populateForm = populateForm;
     const isInstrumentCaptureCreatePage = window.location.pathname.toLowerCase().includes('/instruments/create');
+    // instruments/edit: saves the one record through PUT /instruments/{id}.
+    const isInstrumentEditPage = /\/instruments\/\d+\/edit\/?$/i.test(window.location.pathname);
     // Serial-only OP lookup (fetch candidates, let the user pick one) is restricted
     // to the MLS File Number Generator page. Everywhere else keeps the 5-field
     // disambiguation flow — see the comment in lookupOpSerialNumberAndAutofill().
@@ -1485,8 +1487,12 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
 
+    // The fields the property description is built from.
+    const PROPERTY_DESCRIPTION_FIELDS = ['house_no', 'plotNumber', 'desc_lga', 'desc_district', 'propertyState', 'manual_district', 'streetName', 'manual_street_name'];
+    let propertyDescriptionReleaseBound = false;
+
     // Property Description Auto-update listeners
-    ['house_no', 'plotNumber', 'desc_lga', 'desc_district', 'propertyState', 'manual_district', 'streetName', 'manual_street_name'].forEach(id => {
+    PROPERTY_DESCRIPTION_FIELDS.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             const eventType = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -1912,6 +1918,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateSolicitorOfficeAddress() {
         const addressField = document.getElementById('solicitorAddress');
         if (!addressField) return;
+        // Edit: the stored address stands until the officer changes the location
+        // (released by the listener below).
+        if (addressField.dataset.keepStored === '1') return;
 
         const parts = getSolicitorAddressParts();
         addressField.value = parts.join(', ');
@@ -1959,6 +1968,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
     window.handleSolicitorDistrictChange = handleSolicitorDistrictChange;
     window.updateSolicitorOfficeAddress = updateSolicitorOfficeAddress;
+
+    // Release the Edit hold on the solicitor address when the officer, not the
+    // form restoring itself, changes the solicitor's location.
+    (function bindSolicitorAddressRelease() {
+        const ids = ['solicitorDistrict', 'solicitorDistrictOther', 'solicitorDistrictCustom', 'solicitorLga', 'solicitorCity', 'solicitorState'];
+        const release = (target) => {
+            const field = document.getElementById('solicitorAddress');
+            if (!field || field.dataset.keepStored !== '1' || !target || !ids.includes(target.id)) return;
+            delete field.dataset.keepStored;
+            // A new state reloads its LGAs first; that handler recomposes itself.
+            if (target.id !== 'solicitorState') updateSolicitorOfficeAddress();
+        };
+        ['input', 'change'].forEach(type => document.addEventListener(type, (e) => {
+            if (e.isTrusted) release(e.target);
+        }, true));
+        if (window.jQuery) {
+            jQuery(document).on('select2:select select2:unselect', (e) => release(e.target));
+        }
+    })();
 
     function attachSolicitorListeners() {
         const sidebarToggle = document.getElementById('includeSolicitorSidebar');
@@ -3784,7 +3812,8 @@ document.addEventListener('DOMContentLoaded', function () {
             'tripartite-mortgage': 'Mortgage'
         };
         if (!consentGatedTypes.hasOwnProperty(currentInstrumentType)) return true;
-        if (duplicateCheckState.isUpdateMode) return true;
+        // Editing a registered instrument: its consent was checked at capture.
+        if (duplicateCheckState.isUpdateMode || window.editRecordData) return true;
 
         const fileNo = (elements.displayFileno?.value || '').trim();
         if (!fileNo) return true; // no file yet — don't block
@@ -4903,6 +4932,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function getSubmitLabel() {
+        if (isInstrumentEditPage) return 'Update Instrument';
         const override = (window.ossOpSubmitLabel || '').toString().trim();
         if (override) return override;
         // A CofO draws its number from a pagination vault rather than the deed
@@ -5009,6 +5039,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setOssOpSubmitMode(isContinueMode) {
+        if (isInstrumentEditPage) return;
         if (window.ossOpContext !== true && window.ffrExistingManualRegistration !== true && isInstrumentCaptureCreatePage) return;
         window.ossOpSubmitLabel = isContinueMode
             ? 'Continue with File Commissioning'
@@ -6020,7 +6051,22 @@ document.addEventListener('DOMContentLoaded', function () {
         return `${hh}:${mm}`;
     }
 
+    // True while populateForm() is writing a saved record into the form.
+    let restoringRecord = false;
+
     function populateForm(data) {
+        restoringRecord = true;
+        try {
+            populateFormFields(data);
+        } finally {
+            restoringRecord = false;
+        }
+    }
+
+    function populateFormFields(data) {
+        // The consent gate and the duplicate / OP checks stand down for an update.
+        duplicateCheckState.isUpdateMode = true;
+
         // Configure form for UPDATE
         let methodField = elements.registrationForm.querySelector('input[name="_method"]');
         if (!methodField) {
@@ -6039,9 +6085,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
         safeSetValue('firstPartyName', data.party_1_name);
         safeSetValue('secondPartyName', data.party_2_name);
-        safeSetValue('firstPartyStreet', data.party_1_address);
+        // party_N_street is the stored address with its district / LGA / state
+        // taken back off (InstrumentController::withEditableAddressParts());
+        // saving appends them again, so the full address must not go back in.
+        const street = (n) => data[`party_${n}_street`] ?? data[`party_${n}_address`];
+        restoreSelectOrManual('firstPartyStreet', street(1));
         safeSetValue('firstPartyPhone', data.party_1_phone);
-        safeSetValue('secondPartyStreet', data.party_2_address);
+        safeSetValue('firstPartyHouseNo', data.party_1_house_no);
+        safeSetValue('firstPartyPlotNo', data.party_1_plot_no);
+        restoreSelectOrManual('secondPartyStreet', street(2));
+        safeSetValue('secondPartyHouseNo', data.party_2_house_no);
+        safeSetValue('secondPartyPlotNo', data.party_2_plot_no);
         safeSetValue('secondPartyPhone', data.party_2_phone);
         safeSetValue('secondPartyGender', data.party_2_gender);
 
@@ -6051,9 +6105,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggle.checked = true;
                 toggle.dispatchEvent(new Event('change'));
                 safeSetValue('coMortgagorName', data.party_3_name);
-                safeSetValue('coMortgagorAddress', data.party_3_address);
-                safeSetValue('coMortgagorDistrict', data.party_3_district);
-                safeSetValue('coMortgagorState', data.party_3_state);
+                safeSetValue('coMortgagorAddress', street(3));
+                restoreSelectOrManual('coMortgagorDistrict', data.party_3_district);
+                restoreStateOrClear('coMortgagorState', data.party_3_state);
                 safeSetValue('coMortgagorLga', data.party_3_lga);
                 safeSetValue('coMortgagorPhone', data.party_3_phone);
             }
@@ -6065,9 +6119,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggle.checked = true;
                 toggle.dispatchEvent(new Event('change'));
                 safeSetValue('thirdPartyName', data.party_4_name);
-                safeSetValue('thirdPartyAddress', data.party_4_address);
-                safeSetValue('thirdPartyDistrict', data.party_4_district);
-                safeSetValue('thirdPartyState', data.party_4_state);
+                safeSetValue('thirdPartyAddress', street(4));
+                restoreSelectOrManual('thirdPartyDistrict', data.party_4_district);
+                restoreStateOrClear('thirdPartyState', data.party_4_state);
                 safeSetValue('thirdPartyLga', data.party_4_lga);
                 safeSetValue('thirdPartyPhone', data.party_4_phone);
             }
@@ -6079,9 +6133,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 toggle.checked = true;
                 toggle.dispatchEvent(new Event('change'));
                 safeSetValue('party5Name', data.party_5_name);
-                safeSetValue('party5Address', data.party_5_address);
-                safeSetValue('party5District', data.party_5_district);
-                safeSetValue('party5State', data.party_5_state);
+                safeSetValue('party5Address', street(5));
+                restoreSelectOrManual('party5District', data.party_5_district);
+                restoreStateOrClear('party5State', data.party_5_state);
                 safeSetValue('party5Lga', data.party_5_lga);
                 safeSetValue('party5Phone', data.party_5_phone);
             }
@@ -6096,7 +6150,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
         safeSetValue('solicitorName', data.solicitor_name);
+        safeSetValue('solicitorPhone', data.solicitor_phone);
+        // The stored office address, unchanged. Picking a district / LGA / state
+        // normally rewrites this field; on Edit that waits until the officer
+        // changes one of them (see updateSolicitorOfficeAddress()).
         safeSetValue('solicitorAddress', data.solicitor_address);
+        const solicitorAddressEl = document.getElementById('solicitorAddress');
+        if (solicitorAddressEl && data.solicitor_address) solicitorAddressEl.dataset.keepStored = '1';
         safeSetValue('plotDescription', data.property_description);
         safeSetValue('plotLocation', data.properties_location || data.location); // Fallback
         safeSetValue('house_no', data.house_no);
@@ -6148,28 +6208,24 @@ document.addEventListener('DOMContentLoaded', function () {
         safeSetValue('leaseTerm', data.leaseTerm || data.lease_term);
         safeSetValue('subLeaseAmount', data.subLeaseAmount || data.sub_lease_amount);
         // Populate State and then LGA
+        restoreStateOrClear('firstPartyState', data.party_1_state);
         if (data.party_1_state) {
-            safeSetValue('firstPartyState', data.party_1_state);
             fetchLgas(data.party_1_state, 'firstPartyLga', data.party_1_lga || data.party_1_city);
         }
-        if (data.party_1_district) {
-            safeSetValue('firstPartyDistrict', data.party_1_district);
-        }
+        restoreSelectOrManual('firstPartyDistrict', data.party_1_district);
 
+        restoreStateOrClear('secondPartyState', data.party_2_state);
         if (data.party_2_state) {
-            safeSetValue('secondPartyState', data.party_2_state);
             fetchLgas(data.party_2_state, 'secondPartyLga', data.party_2_lga || data.party_2_city);
         }
-        if (data.party_2_district) {
-            safeSetValue('secondPartyDistrict', data.party_2_district);
+        restoreSelectOrManual('secondPartyDistrict', data.party_2_district);
+
+        if (data.party_3_state) {
+            fetchLgas(data.party_3_state, 'coMortgagorLga', data.party_3_lga || data.party_3_city);
         }
 
-        if (data.party_3_district) {
-            safeSetValue('coMortgagorDistrict', data.party_3_district);
-        }
-
+        restoreStateOrClear('solicitorState', data.solicitor_state);
         if (data.solicitor_state) {
-            safeSetValue('solicitorState', data.solicitor_state);
             fetchLgas(data.solicitor_state, 'solicitorLga', data.solicitor_lga || data.solicitor_city);
         }
         if (data.solicitor_district) {
@@ -6201,7 +6257,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // setCofoVariant() above has already loaded that variant's options.
         if (data.cofo_type) {
             safeSetValue('cofoType', data.cofo_type);
-        } else if (data.op_type) {
+        } else if (data.op_type && currentInstrumentType !== 'occupancy-permit') {
+            // An OP keeps its type in op_type (the radio below); copying it into
+            // the CofO Type select wrote it into cofo_type on save.
             safeSetValue('cofoType', data.op_type);
         } else if (data.coo_recertification) {
             safeSetValue('cofoType', 'Recertification');
@@ -6257,13 +6315,118 @@ document.addEventListener('DOMContentLoaded', function () {
             safeSetValue('lpkn_no', data.lpkn_no);
         }
 
-        // Refresh property description once all fields are set
-        updatePropertyDescription();
+        // Property LGA: the record's lga when it has one (the select is
+        // prefilled from it server-side). Older captures stored the LGA only
+        // inside the description ("1793, CHALAWA MADOBI, KUMBOTSO, KANO"), so
+        // take it from there, but only on an exact match with a listed LGA.
+        const descLga = document.getElementById('desc_lga');
+        if (descLga && !getSelectValueById('desc_lga') && data.property_description) {
+            const parts = String(data.property_description).split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+            const hit = Array.from(descLga.options).find(o => o.value && parts.includes(o.value.trim().toLowerCase()));
+            if (hit) {
+                hit.selected = true;
+                descLga.dispatchEvent(new Event('change', { bubbles: true }));
+                if (window.jQuery && jQuery.fn.select2 && jQuery(descLga).hasClass('select2-hidden-accessible')) {
+                    jQuery(descLga).trigger('change.select2');
+                }
+            }
+        }
+
+        // Property District: the record's district, matched exactly. Captures
+        // that filled only this section's District never stored it (see
+        // InstrumentCaptureService::postedDistrict()), so fall back to the
+        // district named in the description, on an exact option match only.
+        const descParts = String(data.property_description || '').split(',').map(p => p.trim()).filter(Boolean);
+        const descDistrict = document.getElementById('desc_district');
+        if (data.district) {
+            restoreSelectOrManual('desc_district', data.district);
+        } else if (descDistrict) {
+            const hit = Array.from(descDistrict.options).find(o => o.value && !isOtherValue(o.value)
+                && descParts.some(p => p.toLowerCase() === o.value.trim().toLowerCase()));
+            if (hit) safeSetValue('desc_district', hit.value);
+        }
+
+        // Keep the description as registered, less a leading plot / house number:
+        // the plot has its own field and is no longer part of the description.
+        // It is rebuilt from the fields only once the officer changes one of them.
+        const plotNos = [data.plot_number, data.house_no].filter(Boolean).map(v => String(v).trim().toLowerCase());
+        let storedDescription = data.property_description;
+        if (descParts.length > 1) {
+            const first = descParts[0].toLowerCase().replace(/^(plot|house)\s*(no\.?)?\s*/, '');
+            // A number only: "PIECE OF LAND" sometimes sits in the plot field too.
+            if (/\d/.test(first) && plotNos.includes(first)) storedDescription = descParts.slice(1).join(', ');
+        }
+        keepStoredPropertyDescription(storedDescription);
 
         updateRegistrationParticulars();
 
         // Update Submit Button Text
         applySubmitButtonLabel();
+    }
+
+    /**
+     * Edit mode: put a stored value back into a select exactly as saved.
+     * setSelectOrManual() matches loosely, which is right for autofill but would
+     * swap a saved street or district for a different option that merely
+     * contains it. Here only an exact (case-insensitive) option counts;
+     * anything else goes into the select's "Others" + specify field verbatim.
+     */
+    function restoreSelectOrManual(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // An empty saved value clears whatever an earlier autofill put there.
+        if (value == null || String(value).trim() === '') {
+            const config = manualSelectConfig[id];
+            const manual = document.getElementById(config ? config.inputId : ('manual_' + id));
+            if (manual) manual.value = '';
+            if (config && config.containerId) document.getElementById(config.containerId)?.classList.add('hidden');
+            restoreStateOrClear(id, '');
+            return;
+        }
+        if (el.tagName !== 'SELECT') {
+            safeSetValue(id, value);
+            return;
+        }
+        const wanted = String(value).trim();
+        const exact = Array.from(el.options).find(o => o.value.trim().toLowerCase() === wanted.toLowerCase());
+        if (exact) {
+            safeSetValue(id, exact.value);
+            return;
+        }
+        const other = Array.from(el.options).find(o => isOtherValue(o.value));
+        const config = manualSelectConfig[id];
+        const manual = document.getElementById(config ? config.inputId : ('manual_' + id));
+        if (other && manual) {
+            safeSetValue(id, other.value);
+            manual.value = wanted;
+            if (config && config.containerId) document.getElementById(config.containerId)?.classList.remove('hidden');
+            return;
+        }
+        safeSetValue(id, wanted);
+        if (el.value !== wanted) {
+            el.appendChild(new Option(wanted, wanted, true, true));
+            safeSetValue(id, wanted);
+        }
+    }
+
+    /**
+     * Edit mode: a State select defaults to Kano. When the record has no state
+     * for that party, clear it, or saving would write Kano onto a party (or an
+     * absent co-mortgagor / solicitor) that never had one.
+     */
+    function restoreStateOrClear(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (value != null && String(value).trim() !== '') {
+            safeSetValue(id, value);
+            return;
+        }
+        el.value = '';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.jQuery && jQuery.fn.select2 && jQuery(el).hasClass('select2-hidden-accessible')) {
+            jQuery(el).trigger('change.select2');
+        }
+        updateCustomSelect(id, '');
     }
 
     function safeSetValue(id, value) {
@@ -6282,6 +6445,13 @@ document.addEventListener('DOMContentLoaded', function () {
             el.value = value;
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
+            // Text inputs upper-case themselves on input (components/instrument-input).
+            // Opening a record must not rewrite what it holds, so the stored text
+            // goes back as it was; anything the officer types is still upper-cased.
+            if (restoringRecord && el.tagName === 'INPUT' && el.value !== String(value)
+                && el.value === String(value).toUpperCase()) {
+                el.value = value;
+            }
             if (window.jQuery && jQuery.fn.select2 && jQuery(el).hasClass('select2-hidden-accessible')) {
                 jQuery(el).trigger('change.select2');
             }
@@ -6689,6 +6859,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 typeKey = foundKey;
                 type = instrumentTypes[foundKey];
             }
+        }
+
+        // A stored SLTR / ST "... Certificate of Occupancy" is a tab of the CofO
+        // form, not a form of its own (populateForm() selects the tab).
+        if (!type && Object.values(cofoVariants).some(v =>
+            v.instrumentType.toLowerCase() === String(instrumentType).trim().toLowerCase())) {
+            typeKey = 'certificate-of-occupancy';
+            type = instrumentTypes[typeKey];
         }
 
         if (!type) {
@@ -8181,6 +8359,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function checkForExistingOpByFields() {
         if (currentInstrumentType !== 'occupancy-permit') return;
+        // On Edit the matching OP is the record being edited.
+        if (duplicateCheckState.isUpdateMode || window.editRecordData) return;
         if (opLookupMatchedRecord) return;
         if (_opCandidateCheckInFlight) return;
 
@@ -8305,9 +8485,42 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePropertyDescription();
     }
 
+
+    /**
+     * Edit mode: show the stored description and hold it until the officer
+     * changes a property field themselves. Programmatic changes (populateForm,
+     * the LGA fetch that lands afterwards) do not release it; a trusted input /
+     * change event or a Select2 pick does, and the description is then rebuilt.
+     */
+    function keepStoredPropertyDescription(stored) {
+        const descEl = document.getElementById('propertyDescription');
+        if (!descEl || stored == null || String(stored).trim() === '') return;
+        descEl.value = stored;
+        descEl.dataset.keepStored = '1';
+
+        if (propertyDescriptionReleaseBound) return;
+        propertyDescriptionReleaseBound = true;
+
+        const release = (target) => {
+            const el = document.getElementById('propertyDescription');
+            if (!el || el.dataset.keepStored !== '1') return;
+            if (!target || !PROPERTY_DESCRIPTION_FIELDS.includes(target.id)) return;
+            delete el.dataset.keepStored;
+            updatePropertyDescription();
+        };
+        ['input', 'change'].forEach(type => document.addEventListener(type, (e) => {
+            if (e.isTrusted) setTimeout(() => release(e.target), 0);
+        }, true));
+        if (window.jQuery) {
+            jQuery(document).on('select2:select select2:unselect', (e) => setTimeout(() => release(e.target), 0));
+        }
+    }
+
     function updatePropertyDescription() {
         // Skip auto-update while consent auto-fill is populating dropdowns
         if (window._suppressPropertyDescUpdate) return;
+        // Edit mode: the registered description stands until a field is changed.
+        if (document.getElementById('propertyDescription')?.dataset.keepStored === '1') return;
 
         const house = document.getElementById('house_no')?.value?.trim() || '';
         const plot = document.getElementById('plotNumber')?.value?.trim() || '';
@@ -8316,13 +8529,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const state = document.getElementById('propertyState')?.value?.trim() || 'Kano';
         const streetName = getSelectOrManualValue('streetName', 'manual_street_name');
 
+        // The plot / house number has its own field and column, so it is not
+        // repeated in the description: street, district, LGA, state.
         const parts = [];
-        // If both house and plot exist, show only plot. Otherwise show whichever is present.
-        if (plot) {
-            parts.push(plot);
-        } else if (house) {
-            parts.push(`House No ${house}`);
-        }
         if (streetName && streetName !== 'Select Street Name') parts.push(streetName);
         if (district && district !== 'Select District') parts.push(district);
         if (lga && lga !== 'Select LGA') parts.push(lga);
@@ -8447,6 +8656,50 @@ document.addEventListener('DOMContentLoaded', function () {
             subType = instrumentName;
         }
 
+        // Edit updates the record in place: InstrumentCaptureService::update()
+        // never allocates registration particulars, so the confirmation says so
+        // and shows the ones the record keeps.
+        if (isInstrumentEditPage) {
+            const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const kept = (document.getElementById('registration_number')?.value || '').toString().trim();
+            const result = await Swal.fire({
+                title: 'Confirm Update',
+                html: `
+                    <div class="text-left">
+                        <p class="text-gray-600 mb-4">You are about to update this <b>${esc(instrumentName)}</b>${subType && subType !== instrumentName ? ` &mdash; <span class="text-blue-600 font-bold">${esc(subType)}</span>` : ''}.</p>
+                        <div class="bg-blue-50/50 rounded-2xl border border-blue-100 p-4">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <i data-lucide="lock" class="h-5 w-5 text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold text-gray-800">Registration Particulars</p>
+                                    <p class="text-xs text-gray-500">${kept ? `Kept as <b>${esc(kept)}</b>` : 'Kept as recorded'}</p>
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-emerald-600 font-medium bg-emerald-50/50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">
+                                <i data-lucide="info" class="h-3 w-3"></i> No new registration number is issued. Only the details you changed are saved.
+                            </p>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Confirm & Update',
+                cancelButtonText: 'Review Form',
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#94a3b8',
+                customClass: {
+                    popup: 'rounded-2xl border-none shadow-2xl p-6',
+                    confirmButton: 'rounded-xl px-6 py-3 font-bold',
+                    cancelButton: 'rounded-xl px-6 py-3 font-bold'
+                },
+                didRender: () => {
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            });
+            return result.isConfirmed;
+        }
+
         // A backfill takes a number this register skipped instead of the next one
         // in sequence, so the confirmation must say which number is being taken -
         // it is the one thing about this capture that cannot be undone by a later
@@ -8486,7 +8739,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 title: 'Confirm Registration',
                 html: `
                     <div class="text-left">
-                        <p class="text-gray-600 mb-4">You are about to register <b>${instrumentName}</b> ${subType !== instrumentName ? `â€” <span class="text-blue-600 font-bold">${subType}</span>` : ''}.</p>
+                        <p class="text-gray-600 mb-4">You are about to register <b>${instrumentName}</b> ${subType !== instrumentName ? `&mdash; <span class="text-blue-600 font-bold">${subType}</span>` : ''}.</p>
                         
                         <div class="bg-blue-50/50 rounded-2xl border border-blue-100 p-4 relative overflow-hidden">
                             <div class="absolute -right-4 -bottom-4 opacity-5">
@@ -8579,6 +8832,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         normalizeAssignmentGiftBookletCode();
+
+        // Edit updates this record and nothing else. The OP capture flows below
+        // (OSS, FEFR "Capture Existing OP", commissioned-file mode, a matched
+        // lookup) all write NEW rows, so none of them may run from Edit.
+        if (isInstrumentEditPage) {
+            window.ossOpContext = false;
+            window.ossOpSubmitLabel = '';
+            window.ffrExistingManualRegistration = false;
+            window.ffrDirectOpMode = false;
+            window.opCommissionedFileMode = false;
+            opLookupMatchedRecord = null;
+        }
 
         // Commissioned-file mode owns the submit outright: it writes the OP + ToT pair itself
         // rather than registering an instrument, so it must intercept ahead of every branch
@@ -9222,6 +9487,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
                 elements.submitBtn.disabled = false;
                 elements.submitBtn.innerHTML = originalContent;
+                return;
+            }
+
+            if (data.success && isInstrumentEditPage) {
+                // An update registers nothing, so none of the new-registration
+                // panel below (RDS / CoR generation) applies. Back to the list.
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Instrument Updated',
+                    text: data.message || 'The instrument was updated. Its registration particulars are unchanged.',
+                    confirmButtonColor: '#2563eb'
+                });
+                window.location.href = getCaptureEndpoints().base;
                 return;
             }
 

@@ -33,13 +33,20 @@ class CommissioningChecklistService
     private const SUCCESSOR_SCAN_LIMIT = 100;
 
     public const ITEMS = [
-        'mls_file_no'       => 'MLS File No',
+        'mls_file_no'       => 'MLPP File No',
         'file_number'       => 'fileNumber',
         'entity'            => 'Entity Table',
         'customer'          => 'Customers',
         'file_indexing'     => 'File Indexings',
         'old_file_number'   => 'Old File Numbers',
-        'oss_application'   => 'OSS Applications',
+        'oss_application'   => 'Land Application',
+        // Every commissioning opens (or reuses) the holder's LAAS Portal account
+        // and files the new number on it as a portal application.
+        'laas_account'      => 'LAAS Portal Account',
+        // The file's Land EDMS scan folder.
+        'edms_folio'        => 'Folio (EDMS)',
+        'sms_commissioning' => 'Commissioning SMS',
+        'sms_portal'        => 'Portal Sign-in SMS',
         'file_tracking'     => 'File Tracking',
         'decommissioned'    => 'Decommissioned (parcel update)',
     ];
@@ -89,7 +96,7 @@ class CommissioningChecklistService
 
         $mls = $this->keyed('mls_file_no', 'full_file_number', $numbers,
             ['id', 'full_file_number', 'file_option', 'source', 'sub_source', 'system_sub_type', 'old_fileno',
-             'batch_no', 'tracking_id', 'source_pra_id', 'source_instrument_capture_id', 'is_deleted']);
+             'batch_no', 'tracking_id', 'source_pra_id', 'source_instrument_capture_id', 'is_deleted', 'created_at']);
         $fileNumberRows = $this->fileNumberRows($numbers);
         $entities = $this->keyed('entities_staging', 'file_number', $numbers, ['id', 'file_number', 'is_decommissioned']);
         $customers = $this->keyed('customers_staging', 'file_number', $numbers, ['id', 'file_number', 'deleted_at', 'is_decommissioned']);
@@ -98,6 +105,12 @@ class CommissioningChecklistService
         $oss = $this->keyed('oss_applications', 'file_no', $numbers, ['id', 'file_no', 'system_source', 'is_deleted', 'deleted_at']);
         $trackers = $this->keyed('file_tracker', 'file_number', $numbers, ['id', 'file_number', 'tracking_id', 'current_office_name', 'receiving_officer_name']);
         $decommission = $this->parentDecommissioning($numbers, $mls, $indexings, $fileNumberRows);
+        [$folios, $applicants] = $this->laasRows($numbers);
+        $commissioningSms = $this->commissioningSmsRows($numbers, $mls);
+        $portalSms = $this->portalSmsRows($folios);
+        // Commissioning SMS were only logged from this date; older files have no record either way.
+        $smsLogStart = DB::connection($this->connection)->table('sms_dispatch_logs')
+            ->whereIn('message_key', ['land_fc', 'oss_fc', 'st_fc'])->min('created_at');
 
         $files = [];
         foreach ($numbers as $number) {
@@ -119,6 +132,15 @@ class CommissioningChecklistService
                 'file_indexing'   => $this->indexingItem($indexings[$k] ?? []),
                 'old_file_number' => $this->oldNumberItem($m, $oldNumbers[$k] ?? []),
                 'oss_application' => $this->ossItem($m, $oss[$k] ?? []),
+                'laas_account'    => $this->laasAccountItem($folios[$k] ?? [], $applicants),
+                'edms_folio'      => $this->edmsFolioItem($number),
+                'sms_commissioning' => empty($commissioningSms[$k]) && $m && $smsLogStart && !empty($m->created_at)
+                        && strtotime((string) $m->created_at) < strtotime((string) $smsLogStart)
+                    ? $this->na('Commissioned before SMS logging began (' . date('d M Y', strtotime((string) $smsLogStart)) . ')')
+                    : $this->smsItem($commissioningSms[$k] ?? [], 'No commissioning SMS recorded for this file', self::MISSING),
+                'sms_portal'      => $folios[$k] ?? null
+                    ? $this->smsItem($portalSms[$k] ?? [], 'No sign-in SMS recorded (the account may have been opened without texting)', self::WARN)
+                    : $this->na('No portal account, so no sign-in SMS'),
                 'file_tracking'   => empty($trackers[$k]) && $this->isRetired($fileNumberRows[$k] ?? [])
                     // An intermediate file retired by a later parcel update (a CoP output
                     // subdivided at once) is never handed on; its successors carry tracking.
@@ -232,7 +254,7 @@ class CommissioningChecklistService
             && ($r->is_deleted === null || (int) $r->is_deleted === 0)));
         if ($live) {
             $r = $live[0];
-            return $this->ok('#' . $r->id . (!empty($r->system_source) ? ' · ' . $r->system_source : ''));
+            return $this->ok('#' . $r->id . (!empty($r->system_source) ? ' · ' . $this->sourceLabel($r->system_source) : ''));
         }
 
         // Mirrors MlsCommissioningOssApplicationService::sync(): an OSS commissioning
@@ -247,8 +269,205 @@ class CommissioningChecklistService
         }
 
         return $rows
-            ? $this->warn('Only deleted OSS applications (#' . $rows[0]->id . ')')
-            : $this->missing('No OSS application mirror');
+            ? $this->warn('Only deleted Land applications (#' . $rows[0]->id . ')')
+            : $this->missing('No Land application');
+    }
+
+    /** "MLS_FILE_NUMBER_GENERATOR" reads as "MLPP File Number Generator". */
+    private function sourceLabel(string $source): string
+    {
+        $words = array_filter(explode('_', strtoupper(trim($source))));
+        return implode(' ', array_map(function ($w) {
+            if ($w === 'MLS') return 'MLPP';
+            if (in_array($w, ['OSS', 'OP', 'ST', 'SLTR', 'KANGIS', 'DCIV'], true)) return $w;
+            return ucfirst(strtolower($w));
+        }, $words));
+    }
+
+    /** The holder's portal account, reached through the file's portal application. */
+    private function laasAccountItem(array $folios, array $applicants): array
+    {
+        if (!$folios) {
+            return $this->missing('No LAAS Portal account holds this file');
+        }
+        $applicant = $applicants[(int) $folios[0]->laas_applicant_id] ?? null;
+        if (!$applicant) {
+            return $this->warn('Portal application ' . $folios[0]->reference_no . ' points at a missing account (#' . $folios[0]->laas_applicant_id . ')');
+        }
+        $who = trim((string) ($applicant->username ?: $applicant->email ?: ('Account #' . $applicant->id)));
+        return $this->ok($who . (!empty($applicant->last_login_at) ? ' · has signed in' : ' · not signed in yet'));
+    }
+
+    /**
+     * The file's Land EDMS folder on disk (EDMS/SCAN_UPLOAD/Lands_Registry/{FILE}),
+     * created at commissioning by EdmsScanUploadFolderService::ensureWithFolios.
+     */
+    private function edmsFolioItem(string $fileNumber): array
+    {
+        $folders = app(\App\Services\EdmsScanUploadFolderService::class);
+        $name = $folders->folderName($fileNumber);
+        if ($name === '') {
+            return $this->warn('The file number cannot be used as a folder name');
+        }
+
+        // The file's own Land (Lands Registry) folder is the folio that matters here.
+        $path = \App\Services\EdmsScanUploadFolderService::BASE_PATH . '/' . $folders->registrySlug('Lands Registry') . '/' . $name;
+        try {
+            return \Illuminate\Support\Facades\Storage::disk('public')->exists($path)
+                ? $this->ok('Land')
+                : $this->missing('No Land EDMS folder');
+        } catch (\Throwable $e) {
+            return $this->warn('The EDMS store could not be read');
+        }
+    }
+
+    /**
+     * One SMS outcome: sent (but flag a dummy number such as 08000000000, which the
+     * gateway accepts although nobody receives it), skipped, failed, or none at all.
+     *
+     * @param array<int,object> $rows newest first; each has status, phone, reason, at
+     */
+    private function smsItem(array $rows, string $none, string $noneStatus): array
+    {
+        if (!$rows) {
+            return ['status' => $noneStatus, 'detail' => $none];
+        }
+        $r = $rows[0];
+        $phone = trim((string) ($r->phone ?? ''));
+        $to = $phone !== '' ? ' to ' . $this->displayPhone($phone) : '';
+        $when = !empty($r->at) ? ' · ' . date('d M Y H:i', strtotime((string) $r->at)) : '';
+
+        switch (strtolower((string) $r->status)) {
+            case 'sent':
+                return $this->isPlaceholderPhone($phone)
+                    ? $this->warn('Sent' . $to . ' — a placeholder number, so the holder was not reached. Update the contact.' . $when)
+                    : $this->ok('Sent' . $to . $when);
+            case 'skipped':
+                if ($this->isPlaceholderPhone($phone) || (string) ($r->reason ?? '') === \App\Support\PlaceholderPhone::REASON) {
+                    return $this->warn('Not sent — ' . ($phone !== '' ? $this->displayPhone($phone) . ' is ' : 'the number is ')
+                        . 'a placeholder; the applicant gave no phone. Update the contact.' . $when);
+                }
+                return $this->warn('Not sent' . $to . (!empty($r->reason) ? ': ' . $r->reason : '') . $when);
+            case 'pending':
+            case 'queued':
+                return $this->warn('Queued' . $to . ', not yet confirmed sent' . $when);
+            default:
+                return $this->missing('Failed' . $to . (!empty($r->reason) ? ': ' . $r->reason : '') . $when);
+        }
+    }
+
+    private function displayPhone(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        return str_starts_with($digits, '234') && strlen($digits) === 13 ? '0' . substr($digits, 3) : $phone;
+    }
+
+    private function isPlaceholderPhone(string $phone): bool
+    {
+        return \App\Support\PlaceholderPhone::is($phone);
+    }
+
+    /**
+     * The commissioning SMS (land_fc / oss_fc / st_fc) per file. A single file is
+     * logged under its own number; a batch sends one text per applicant, logged
+     * under the range label with the batch number in its dedupe key.
+     *
+     * @return array<string,array<int,object>>
+     */
+    private function commissioningSmsRows(array $numbers, array $mls): array
+    {
+        $db = DB::connection($this->connection);
+        $keys = ['land_fc', 'oss_fc', 'st_fc'];
+        $cols = ['id', 'status', 'phone', 'failure_reason as reason', 'file_number', 'dedupe_key', 'created_at as at'];
+        $out = [];
+
+        foreach (array_chunk($numbers, 1000) as $chunk) {
+            foreach ($db->table('sms_dispatch_logs')->whereIn('message_key', $keys)->whereIn('file_number', $chunk)
+                ->orderByDesc('id')->get($cols) as $r) {
+                $out[$this->key($r->file_number)][] = $r;
+            }
+        }
+
+        $byBatch = [];
+        foreach ($numbers as $number) {
+            $k = $this->key($number);
+            $m = $this->firstActive($mls[$k] ?? [], 'is_deleted');
+            if (empty($out[$k]) && $m && trim((string) $m->batch_no) !== '') {
+                $byBatch[trim((string) $m->batch_no)][] = $k;
+            }
+        }
+        foreach ($byBatch as $batchNo => $keysInBatch) {
+            $rows = $db->table('sms_dispatch_logs')->whereIn('message_key', $keys)
+                ->where('dedupe_key', 'like', '%:batch:' . str_replace(['%', '_'], ['[%]', '[_]'], $batchNo) . ':%')
+                ->orderByDesc('id')->get($cols)->all();
+            foreach ($keysInBatch as $k) {
+                $out[$k] = $rows;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * The portal sign-in SMS, stamped as an event on the file's portal application.
+     *
+     * @param array<string,array<int,object>> $folios
+     * @return array<string,array<int,object>>
+     */
+    private function portalSmsRows(array $folios): array
+    {
+        $appToFile = [];
+        foreach ($folios as $k => $rows) {
+            foreach ($rows as $r) {
+                $appToFile[(int) $r->id] = $k;
+            }
+        }
+        $out = [];
+        foreach (array_chunk(array_keys($appToFile), 1000) as $chunk) {
+            foreach (DB::connection($this->connection)->table('laas_application_events')
+                ->whereIn('laas_application_id', $chunk)->whereNotNull('sms_status')
+                ->orderByDesc('id')
+                ->get(['laas_application_id', 'sms_status as status', 'sms_to as phone', 'sms_sent_at', 'created_at', 'body']) as $e) {
+                // A skipped event carries its reason in the body.
+                $e->reason = $e->status === 'sent' ? null : $e->body;
+                $e->at = $e->sms_sent_at ?: $e->created_at;
+                $out[$appToFile[(int) $e->laas_application_id]][] = $e;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Current portal applications per file (a file moved to another holder keeps
+     * a transferred-out row on the old account; that one does not count), and the
+     * accounts they sit on.
+     *
+     * @return array{0:array<string,array<int,object>>,1:array<int,object>}
+     */
+    private function laasRows(array $numbers): array
+    {
+        $db = DB::connection($this->connection);
+        $folios = [];
+        $ids = [];
+        foreach (array_chunk($numbers, 1000) as $chunk) {
+            $rows = $db->table('laas_applications')
+                ->whereIn('file_number', $chunk)
+                ->where(function ($q) {
+                    $q->whereNull('lifecycle_status')->orWhere('lifecycle_status', '<>', 'transferred_out');
+                })
+                ->orderByDesc('id')
+                ->get(['id', 'file_number', 'reference_no', 'laas_applicant_id', 'lifecycle_status']);
+            foreach ($rows as $r) {
+                $folios[$this->key($r->file_number)][] = $r;
+                $ids[(int) $r->laas_applicant_id] = true;
+            }
+        }
+        $applicants = [];
+        foreach (array_chunk(array_keys($ids), 1000) as $chunk) {
+            foreach ($db->table('laas_applicants')->whereIn('id', $chunk)->get(['id', 'username', 'email', 'last_login_at']) as $a) {
+                $applicants[(int) $a->id] = $a;
+            }
+        }
+        return [$folios, $applicants];
     }
 
     // ---- parcel-update decommissioning ---------------------------------------

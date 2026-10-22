@@ -44,7 +44,8 @@ class SmsDispatchLog extends Model
     public const SKIP_DISABLED = 'This message is switched off in the SMS Control Centre.';
     public const SKIP_NO_PHONE = 'No phone number was available for this recipient.';
     public const SKIP_BAD_PHONE = 'The phone number on file is not a usable Nigerian mobile number.';
-    public const SKIP_SHARED_PHONE = 'The number on file is shared across many files and was not confirmed as this applicant.';
+    public const SKIP_PLACEHOLDER_PHONE = \App\Support\PlaceholderPhone::REASON;
+    public const SKIP_SHARED_PHONE ='The number on file is shared across many files and was not confirmed as this applicant.';
     public const SKIP_NO_TEMPLATE = 'This message has no wording configured.';
 
     protected $fillable = [

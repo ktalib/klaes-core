@@ -619,6 +619,20 @@
             },
             error: function(xhr) {
                 const message = xhr.responseJSON ? xhr.responseJSON.message : 'Something went wrong';
+                // Same file + same receipt: the payment is spent. Send the officer back
+                // to collect a new payment, then take the new receipt number.
+                if (xhr.responseJSON && xhr.responseJSON.duplicate_receipt) {
+                    Swal.fire({
+                        title: 'New Payment Required',
+                        text: message,
+                        icon: 'warning',
+                        confirmButtonText: 'Enter New Receipt No.',
+                        confirmButtonColor: '#4f46e5'
+                    }).then(() => {
+                        $('#receipt_number').val('').addClass('border-red-500').trigger('focus');
+                    });
+                    return;
+                }
                 Swal.fire('Error', message, 'error');
             },
             complete: function() {
@@ -626,6 +640,8 @@
             }
         });
     });
+
+    $('#receipt_number').on('input', function() { $(this).removeClass('border-red-500'); });
 
     // ---- Row Actions Menu (Token Reset / Delete) ----
     let activeTokenId = null;

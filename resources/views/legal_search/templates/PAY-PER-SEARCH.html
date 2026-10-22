@@ -111,7 +111,7 @@
        and 4. Label columns size to their longest label; value columns size
        to their content up to a cap, then wrap. */
     .prop-details {
-      font-size: 12px;
+      font-size: 10px;
       margin-bottom: 5px;
       width: 100%;
       display: grid;
@@ -125,12 +125,23 @@
     }
 
     .prop-details .lbl {
-      font-weight: bold;
+      font-weight: normal;
       white-space: nowrap;
       /* Guaranteed breathing room between a label and its value. */
-      padding-right: 10px;
+      padding-right: 14px;
+      position: relative;
     }
 
+    /* Short, thin divider between each label and its value: one text line high
+       and lighter than the full-height section dividers (.sp) below. */
+    .prop-details .lbl::after {
+      content: '';
+      position: absolute;
+      right: 6px;
+      top: 1px;
+      height: 1.1em;
+      border-left: 0.3px solid #999;
+    }
     .prop-details .val {
       min-width: 0;
       /* Long values (e.g. Lon/Lat) wrap inside their own section instead of
@@ -147,16 +158,36 @@
        instead of 4 short broken segments, each segment is stretched to its
        row's full height and extended by half the row-gap on each side to
        bridge the gap to the segment above/below it. */
+    /* Property Details text is regular weight throughout (values arrive in <strong>). */
+    .prop-details strong,
+    .prop-details .root-of-title {
+      font-weight: normal;
+    }
+
     .prop-details .sp {
       align-self: stretch;
       margin: -3px 0;
-      border-left: 0.5px solid #000;
+      position: relative;
+    }
+
+    /* Double rule: two explicit 1px lines with a 3px gap. A 3px "double" border
+       is split into sub-pixel strokes and collapses to one line at some zooms. */
+    .prop-details .sp::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      box-sizing: border-box;
+      border-left: 1px solid #000;
+      border-right: 1px solid #000;
     }
 
     .transaction-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10px;
+      font-size: 12px;
       table-layout: fixed;
       margin-bottom: 2px;
     }
@@ -174,16 +205,22 @@
        midline instead of floating at the top of a taller wrapped row. Headers stay top. */
     .transaction-table td {
       vertical-align: middle;
+      font-weight: bold;
+    }
+
+    /* Cells are already bold; keep nested <strong> (e.g. Reg. time) at the same weight. */
+    .transaction-table td strong {
+      font-weight: inherit;
     }
 
     /* DYNAMIC FONT REDUCTION CLASSES FOR WRAPPING ROWS */
     .transaction-table tr.row-compact td {
-      font-size: 8.5px !important;
+      font-size: 10.5px !important;
       line-height: 1.15 !important;
     }
 
     .transaction-table tr.row-tight td {
-      font-size: 7.5px !important;
+      font-size: 9.5px !important;
       line-height: 1.1 !important;
     }
 
@@ -369,6 +406,49 @@
       margin-left: 10px;
     }
 
+    /* QR with the security serial beneath it, in red. */
+    .qr-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-right: 8px;
+    }
+
+    .security-serial {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-top: 3px;
+      color: #dc2626;
+      font-weight: 900;
+      line-height: 1;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .security-serial .ss-frac {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      font-size: 7px;
+    }
+
+    .security-serial .ss-top {
+      border-bottom: 1px solid #dc2626;
+      padding-bottom: 1px;
+    }
+
+    .security-serial .ss-bot {
+      padding-top: 1px;
+    }
+
+    .security-serial .ss-end {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+
     #qr-code canvas {
       width: 44px !important;
       height: 44px !important;
@@ -536,7 +616,14 @@
             <h2>LEGAL SEARCH REPORT</h2>
             <h3>On-Premise Pay-per-Search</h3>
           </div>
-          <div id="qr-code" style="margin-right:8px;"></div>
+          <div class="qr-block">
+            <div id="qr-code"></div>
+            <!-- Security serial (RofO fraction format), filled from d.security_serial. -->
+            <div id="security-serial" class="security-serial" style="display:none;">
+              <span class="ss-frac"><span class="ss-top" id="ss-alpha"></span><span class="ss-bot" id="ss-start"></span></span>
+              <span class="ss-end" id="ss-end"></span>
+            </div>
+          </div>
           <div class="logo-box"><img src="http://app.klaes.ng/assets/logo/ministry2.png" alt="Logo" /></div>
         </div>
       </header>
@@ -580,7 +667,8 @@
         <div class="lbl">Residual Term:</div>
         <div class="val"><strong id="report-rent">-</strong></div>
         <div class="sp"></div>
-        <div id="report-date-line" style="grid-column: span 2; font-weight: bold; font-size: 12px;"></div>
+        <div class="lbl">Date:</div>
+        <div class="val" id="report-date-line" style="font-size: 12px;"></div>
         
         <!-- Row 4 -->
         <div class="lbl">Plot Description:</div>
@@ -592,11 +680,12 @@
         <div class="lbl">Search Type:</div>
         <div class="val"><strong id="report-search-type">-</strong></div>
         <div class="sp"></div>
-        <!-- Root of Title, sitting directly beneath the Date line in the same column.
-             Hidden entirely when the file has none on record, rather than printing a
-             label with a dash after it. -->
-        <div id="report-root-of-title-line" class="root-of-title"
-             style="grid-column: span 2; font-size: 11px; display: none;"></div>
+        <!-- Root of Title, directly beneath the Date row. When the file has none on
+             record both cells are blanked (visibility, not display, so the grid keeps
+             its 4 sections per row) rather than printing a label with a dash. -->
+        <div class="lbl" id="report-root-of-title-lbl" style="visibility: hidden;">Root of Title:</div>
+        <div class="val root-of-title" id="report-root-of-title-line"
+             style="font-size: 11px; visibility: hidden;"></div>
 
         <!-- Row 5: Requester Details from the Transaction Token Control (TTC) token. -->
         <div class="lbl">Token No:</div>
@@ -783,19 +872,20 @@
     // 1. DYNAMIC FONT REDUCTION LOGIC
     function autoFitTableRows() {
       const rows = document.querySelectorAll('#report-transactions-body tr');
-      const MAX_TARGET_HEIGHT = 28; // Threshold in pixels before downsizing font (~2 lines + padding)
+      const MAX_TARGET_HEIGHT = 34; // Threshold in pixels before downsizing font (~2 lines at 12px + padding)
 
       rows.forEach(row => {
         row.classList.remove('row-compact', 'row-tight');
+        return; // Every row stays at the table font size so the text is uniform; long rows wrap instead.
         let currentHeight = row.getBoundingClientRect().height;
 
-        // Apply 8.5px font reduction if height exceeds target
+        // Apply 10.5px font reduction if height exceeds target
         if (currentHeight > MAX_TARGET_HEIGHT) {
           row.classList.add('row-compact');
           currentHeight = row.getBoundingClientRect().height;
         }
 
-        // Apply 7.5px font reduction if it still exceeds target
+        // Apply 9.5px font reduction if it still exceeds target
         if (currentHeight > MAX_TARGET_HEIGHT) {
           row.classList.remove('row-compact');
           row.classList.add('row-tight');
@@ -919,7 +1009,8 @@
             return '';
           };
 
-          setText('report-date-line', d.date_line);
+          // "Date:" is its own label cell now, so drop the prefix from the value.
+          setText('report-date-line', d.date_line ? String(d.date_line).replace(/^\s*Date:\s*/i, '') : d.date_line);
           setText('report-file-number', d.file_number);
           setText('report-file-title', d.file_title ? String(d.file_title).toUpperCase() : d.file_title);
           setText('report-district-lga', d.lon_lat);
@@ -933,10 +1024,12 @@
           // Root of Title beneath the Date line. buildPrintReport() lifts this off the
           // timeline row it annotated, so the header and that row always agree.
           const rootLine = document.getElementById('report-root-of-title-line');
+          const rootLbl = document.getElementById('report-root-of-title-lbl');
           if (rootLine) {
             const root = (d.root_of_title || '').trim();
-            rootLine.textContent = root ? ('Root of Title: ' + root) : '';
-            rootLine.style.display = root ? '' : 'none';
+            rootLine.textContent = root;
+            rootLine.style.visibility = root ? 'visible' : 'hidden';
+            if (rootLbl) rootLbl.style.visibility = root ? 'visible' : 'hidden';
           }
           const commencementText = (d.commencement_date && d.commencement_source)
             ? `${d.commencement_date} (${d.commencement_source})`
@@ -1045,6 +1138,20 @@
 
           if (Array.isArray(d.rows) && d.rows.length > 0) {
             renderTransactions(d.rows);
+          }
+
+          // Security serial under the QR (RofO fraction: letter over 2 digits, then 6).
+          const ss = d.security_serial;
+          const ssBox = document.getElementById('security-serial');
+          if (ssBox) {
+            if (ss && ss.digits_end) {
+              document.getElementById('ss-alpha').textContent = ss.alphabet || '';
+              document.getElementById('ss-start').textContent = ss.digits_start || '';
+              document.getElementById('ss-end').textContent = ss.digits_end;
+              ssBox.style.display = '';
+            } else {
+              ssBox.style.display = 'none';
+            }
           }
 
           // QR Code rendering

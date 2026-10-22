@@ -108,6 +108,9 @@ class SpaBillingService
                     ]);
                 }
 
+                // KLAES REV-M: the same bill in Bill Master, under its BILL- reference.
+                app(\App\Services\Billing\Modules\SpasBillMirror::class)->sync($bill, $actor ?? 'system', true);
+
                 return $bill;
             });
         } catch (\Throwable $e) {
@@ -123,7 +126,7 @@ class SpaBillingService
         }
     }
 
-    /** SPAS-BILL-YYYY-### — the same numbering hand-entered bills use. */
+    /** The Bill Master ref (BILL-YYYY-######) — the same numbering hand-entered bills use. */
     private function nextReference(): string
     {
         return SpaBill::nextReference();

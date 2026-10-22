@@ -50,13 +50,10 @@
             <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-projects"></i>
           </div>
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-projects">
-            <a href="{{ route('survey-module.compensation.projects.create') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects.create') ? 'active' : '' }}">
-              <i data-lucide="plus-circle" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Create Project</span>
-            </a>
-            <a href="{{ route('survey-module.compensation.projects') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects') ? 'active' : '' }}">
+            {{-- Create Project is a button on the Projects page. --}}
+            <a href="{{ route('survey-module.compensation.projects') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects', 'survey-module.compensation.projects.create', 'survey-module.compensation.projects.edit') ? 'active' : '' }}">
               <i data-lucide="folder" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>All Projects</span>
+              <span>Projects</span>
             </a>
           </div>
 
@@ -77,13 +74,10 @@
               <i data-lucide="tree-pine" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Economic Trees</span>
             </a>
-            <a href="{{ route('survey-module.compensation.cases.register') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.cases.register') ? 'active' : '' }}">
-              <i data-lucide="user-plus" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Register Case</span>
-            </a>
-            <a href="{{ route('survey-module.compensation.cases') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.cases') ? 'active' : '' }}">
+            {{-- Register Case is a button on the Cases page. --}}
+            <a href="{{ route('survey-module.compensation.cases') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.cases', 'survey-module.compensation.cases.register', 'survey-module.compensation.cases.show', 'survey-module.compensation.cases.edit') ? 'active' : '' }}">
               <i data-lucide="list" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>All Cases</span>
+              <span>Cases</span>
             </a>
             <a href="{{ route('survey-module.compensation.calculator') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.calculator') ? 'active' : '' }}">
               <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -127,13 +121,7 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn">
-          @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin'))
-          <a href="{{ route('survey-module.gkn.dashboard') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.dashboard') ? 'active' : '' }}">
-            <i data-lucide="gauge" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Dashboard</span>
-          </a>
-
-          @endif
+          {{-- GKN Dashboard hidden from the sidebar (user, 2026-10-21); the page and route remain. --}}
 
           {{-- e.i Generate New FileNo — sits under GKN --}}
           @if($hasRole('Generate New FileNo (GKNFileNo)') || $hasRole('Supper Admin'))
@@ -144,13 +132,10 @@
           @endif
 
           @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin'))
-          <a href="{{ route('survey-module.gkn.lands') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.lands') ? 'active' : '' }}">
+          {{-- Register GKN is the button on Government Lands. --}}
+          <a href="{{ route('survey-module.gkn.lands') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.lands', 'survey-module.gkn.register', 'survey-module.gkn.edit') ? 'active' : '' }}">
             <i data-lucide="landmark" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Government Lands</span>
-          </a>
-          <a href="{{ route('survey-module.gkn.register') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.register') ? 'active' : '' }}">
-            <i data-lucide="plus-circle" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Register GKN</span>
           </a>
           <a href="{{ route('survey-module.gkn.reports') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.reports') ? 'active' : '' }}">
             <i data-lucide="bar-chart-3" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -228,6 +213,10 @@
             <a href="{{ route('survey-module.workflow.examination') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.examination') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP Verification</span>
+            </a>
+            <a href="{{ route('survey-module.workflow.cadastral-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.cadastral-files') ? 'active' : '' }}">
+              <i data-lucide="folder-search" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Cadastral Files</span>
             </a>
           </div>
         @endif

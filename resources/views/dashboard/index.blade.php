@@ -467,7 +467,7 @@
                         <i data-lucide="hash" class="h-4 w-4 text-white/80"></i>
                     </div>
                     <div class="text-3xl font-bold text-white relative z-10 mt-2" id="fs-total-filenumbers"><span class="loading-shimmer">Loading…</span></div>
-                    <p class="text-xs text-white/80 mt-2 relative z-10">Ministry &amp; KANGIS</p>
+                    <p class="text-xs text-white/80 mt-2 relative z-10">Ministry, KANGIS &amp; Cadastral</p>
                 </div>
 
                 <div class="gradient-card hover-scale rounded-lg p-5 shadow-enhanced h-full flex flex-col justify-between" style="--gradient-start:#2563eb;--gradient-end:#3b82f6;">

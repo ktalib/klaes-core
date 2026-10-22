@@ -105,6 +105,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>File Ref</th>
                     <th>From</th>
                     <th>To</th>
@@ -118,6 +119,7 @@
             <tbody>
                 @forelse ($movements as $m)
                     <tr>
+                        <td>{{ $movements->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $m->file_ref }}</strong></td>
                         <td>{{ $m->from_office ?: '—' }}</td>
                         <td>{{ $m->to_office ?: '—' }}</td>
@@ -145,7 +147,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-exchange-alt" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No file movements logged yet. Use the form above to send the first file out.
                         </td>

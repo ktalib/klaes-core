@@ -188,6 +188,7 @@ class TitleStatusController extends Controller
 
         $records = [];
         $routed  = 0;
+        $skipped = [];
         foreach (array_values($types) as $i => $type) {
             $rowData                = $data;
             $rowData['title_type']  = $type;
@@ -205,7 +206,25 @@ class TitleStatusController extends Controller
                 continue;
             }
 
+            // One live Re-grant per file pair. Saving the dialog twice, or capturing the
+            // other direction from the same file, left two rows (COM-RC-1983-5 had both
+            // "Re-granted From" and "Re-granted To" COM-2016-107) and the register showed
+            // both. The mirror row on the other file (B "From" A for A "To" B) is still fine.
+            if (in_array($type, TitleStatusApplication::REGRANT_TYPES, true)
+                && $this->liveRegrantForPair($rowData['file_no'] ?? '', $rowData['see_fileno'] ?? '')) {
+                $skipped[] = $type;
+                continue;
+            }
+
             $records[] = TitleStatusApplication::create($rowData);
+        }
+
+        if (empty($records) && $routed === 0 && !empty($skipped)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A Re-grant linking ' . trim($data['file_no']) . ' and ' . trim((string) ($data['see_fileno'] ?? ''))
+                    . ' is already on record. Correct it from the Re-grant register instead of capturing it again.',
+            ], 422);
         }
 
         // Flag source files and push to archive tables. A Title Status update raised from
@@ -615,5 +634,26 @@ class TitleStatusController extends Controller
             'reason'              => 'nullable|string',
             'remark'              => 'nullable|string',
         ];
+    }
+
+    /**
+     * Whether a live Re-grant already links these two files with this file on the
+     * file_no side, in either direction. Without a see_fileno there is no pair to
+     * compare, so the bare legacy "Re-grant" is never blocked here.
+     */
+    private function liveRegrantForPair(string $fileNo, string $seeFileno): bool
+    {
+        $fileNo    = trim($fileNo);
+        $seeFileno = trim($seeFileno);
+        if ($fileNo === '' || $seeFileno === '') {
+            return false;
+        }
+
+        return TitleStatusApplication::query()
+            ->whereIn('title_type', TitleStatusApplication::REGRANT_TYPES)
+            ->whereRaw('UPPER(LTRIM(RTRIM(file_no))) = ?', [strtoupper($fileNo)])
+            ->whereRaw('UPPER(LTRIM(RTRIM(see_fileno))) = ?', [strtoupper($seeFileno)])
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->exists();
     }
 }

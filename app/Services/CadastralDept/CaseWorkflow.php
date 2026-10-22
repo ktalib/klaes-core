@@ -73,28 +73,36 @@ class CaseWorkflow
             throw WorkflowGuardException::because("A {$fileType['label']} cannot go through " . $def->workflow($workflow)['label'] . '.');
         }
 
-        // Verification always asks (Statutory / Customary); under Direct Allocation only OP
-        // asks, and every other file takes the default (Direct).
+        // Statutory / Customary and Resettlement / Direct come from the file type (file_types
+        // `tenure` and `route`, user's voice note 2026-10-20): a fixed value is set here whatever
+        // the form sent; only an open one is asked. Direct Allocation: only OP asks its route.
         $subType = ($data['sub_type'] ?? '') ?: null;
-        if (!empty($def->workflow($workflow)['asks_sub_type'])) {
-            if (!$subType || !isset($def->subTypes($workflow)[$subType])) {
-                throw WorkflowGuardException::because('Choose whether this ' . $def->workflow($workflow)['label'] . ' is ' . implode(' or ', $def->subTypes($workflow)) . '.');
+        $allocationRoute = null;
+        $route = $fileType['route'] ?? null;
+        if ($workflow === 'verification') {
+            $tenures = $def->subTypes('verification');
+            if (($fileType['tenure'] ?? null) === false) {
+                $subType = null;   // not asked for this file type (DCIV/LPCC)
+            } elseif (!empty($fileType['tenure'])) {
+                $subType = $fileType['tenure'];
+            } elseif (!$subType || !isset($tenures[$subType])) {
+                throw WorkflowGuardException::because("Choose whether this {$fileType['label']} is " . implode(' or ', $tenures) . '.');
             }
-        } elseif (!empty($fileType['asks_sub_type'])) {
+            $routesFrom = $def->workflow('verification')['asks_allocation_route'] ?? 'direct';
+            if ($route === 'ask') {
+                $allocationRoute = ($data['allocation_route'] ?? '') ?: null;
+                if (!$allocationRoute || !isset($def->subTypes($routesFrom)[$allocationRoute])) {
+                    throw WorkflowGuardException::because("Choose whether this {$fileType['label']} is " . implode(' or ', $def->subTypes($routesFrom)) . '.');
+                }
+            } elseif ($route) {
+                $allocationRoute = $route;
+            }
+        } elseif ($route === 'ask' && $def->subTypes($workflow)) {
             if (!$subType || !isset($def->subTypes($workflow)[$subType])) {
                 throw WorkflowGuardException::because("Choose whether this {$fileType['label']} is " . implode(' or ', $def->subTypes($workflow)) . '.');
             }
         } else {
-            $subType = $def->defaultSubType($workflow);
-        }
-
-        // Verification: Resettlement or Direct as well, from Direct Allocation's sub-types.
-        $allocationRoute = null;
-        if ($routesFrom = $def->workflow($workflow)['asks_allocation_route'] ?? null) {
-            $allocationRoute = ($data['allocation_route'] ?? '') ?: null;
-            if (!$allocationRoute || !isset($def->subTypes($routesFrom)[$allocationRoute])) {
-                throw WorkflowGuardException::because('Choose whether this ' . $def->workflow($workflow)['label'] . ' file is ' . implode(' or ', $def->subTypes($routesFrom)) . '.');
-            }
+            $subType = $route && isset($def->subTypes($workflow)[$route]) ? $route : $def->defaultSubType($workflow);
         }
 
         if (!isset($def->fileSources()[$data['file_source'] ?? ''])) {
@@ -153,6 +161,11 @@ class CaseWorkflow
 
             // The registration itself: Registry to the first desk, as one movement.
             $this->move($case, null, $start, 'registered', $data['remarks'] ?? null, $userId, 'registry');
+            // A first step with a unit head (registry_intake): registering is the staff's send to the
+            // head, so the file waits in AD CAD Registry > Approval and only the head sends it to D Cad.
+            if (app(HeadApproval::class)->required($case)) {
+                $this->move($case, $start, $start, HeadApproval::TO_HEAD, $data['remarks'] ?? null, $userId);
+            }
             $this->audit->logAction('Cadastral Case Opened', 'CadastralCase', $case->id, null,
                 $case->only(['case_ref', 'workflow', 'sub_type', 'file_type', 'file_source', 'file_number']),
                 "{$case->case_ref} registered for {$fileNumber} and sent to " . $def->deskLabel($case->current_desk));
@@ -195,6 +208,30 @@ class CaseWorkflow
         }
         if (isset(ChartingCards::TASK_STAGE[$taskKey])) {
             throw WorkflowGuardException::because('Fill in the charting card; saving it ticks this task.');
+        }
+        if ($taskKey === PlanningAdvice::TASK) {
+            throw WorkflowGuardException::because('Upload the Planning Advice; that ticks this task.');
+        }
+        if ($taskKey === EdmsUpdate::TASK) {
+            if (app(PageCounts::class)->direction($case)) {
+                $pages = app(PageCounts::class)->state($case);
+                if ($pages['triggered'] === null) {
+                    throw WorkflowGuardException::because('Enter the number of pages the main file came back with first.');
+                }
+                if ($pages['triggered'] === false) {
+                    throw WorkflowGuardException::because('No new pages came back from Land, so DMS needs no update.');
+                }
+            }
+            $edms = app(EdmsUpdate::class)->status($case);
+            if (!$edms['indexed']) {
+                throw WorkflowGuardException::because('This file is not in the file index, so DMS cannot be updated from here.');
+            }
+            if (!$edms['complete']) {
+                throw WorkflowGuardException::because($edms['new_pages'] === 0
+                    ? 'Scan and upload the new pages first (Scan / upload pages).'
+                    : "Page-type the new pages first: {$edms['typed']} of {$edms['new_pages']} done.");
+            }
+            $note = "{$edms['new_pages']} new page(s) uploaded and page-typed";
         }
         // Land 12 has no screen here, so its tick stays manual, but only once the Yes/No form is answered.
         if ($taskKey === YesNoForms::TASK && YesNoForms::installed() && !app(YesNoForms::class)->isComplete($case)) {
@@ -345,6 +382,18 @@ class CaseWorkflow
         // No correspondence file (a Verification file can have none): nothing to detach or attach.
         if (!trim((string) $case->correspondence_fileno)) {
             $missing = array_values(array_diff($missing, CorrespondenceCustody::TASKS));
+        }
+        // The main file's page count to and from Land (PageCounts): it must be entered, and
+        // when no new pages came back there is nothing to update in DMS.
+        $counts = app(PageCounts::class);
+        if ($counts->direction($case)) {
+            $pages = $counts->state($case);
+            if (!$pages['recorded']) {
+                throw WorkflowGuardException::because('Enter the number of pages in the main file first.');
+            }
+            if ($pages['triggered'] === false) {
+                $missing = array_values(array_diff($missing, [EdmsUpdate::TASK]));
+            }
         }
         if ($missing) {
             $labels = array_intersect_key((array) $def->step($case->workflow, $case->current_step)['tasks'], array_flip($missing));

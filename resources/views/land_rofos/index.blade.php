@@ -36,6 +36,8 @@
                             <input type="hidden" name="view" value="only">
                         @endif
                         <input type="hidden" name="tab" value="{{ $tab }}">
+                        {{-- Marks a search typed here, so the controller may move to the tab holding the file. --}}
+                        <input type="hidden" name="searched" value="1">
                         @if($rofoReadOnly)
                             <input type="hidden" name="url" value="cadastral">
                         @endif
@@ -64,6 +66,7 @@
             </div>
 
             <!-- Statistics Cards -->
+            @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
             <div class="grid grid-cols-1 md:grid-cols-2 {{ $ossViewOnly ? 'lg:grid-cols-3' : 'lg:grid-cols-4' }} gap-6 mb-10">
                 <!-- Daily OSS (first card, OSS view only) -->
                 @if($ossViewOnly)
@@ -179,6 +182,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             @php $tabBaseParams = array_filter(['search' => request('search'), 'view' => $ossViewOnly ? 'only' : null, 'url' => $rofoReadOnly ? 'cadastral' : null]); @endphp
             <div class="flex items-center gap-2 mb-4 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full sm:w-max">
@@ -290,7 +294,7 @@
                                         <span class="text-[10px] font-bold text-slate-400">&mdash;</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-slate-600 whitespace-nowrap">
+                                <td class="px-6 py-4 text-slate-600 whitespace-nowrap uppercase">
                                     @if($creator)
                                         {{-- Opens the shared profile card (js/user-profile-card.js). --}}
                                         <span class="upc-trigger" data-user-card data-user-id="{{ $creator->id }}"
@@ -341,8 +345,8 @@
                                                  double-quoted attribute at the first one and leave the browser with
                                                  `openBatchPrintManager(` — a parse error, and a dead button. @js
                                                  escapes them to &quot; so the handler survives the attribute. --}}
-                                            onclick="openBatchPrintManager(@js($b->rofo_batch_id))"
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-[11px] font-bold rounded-lg hover:bg-violet-700 transition">
+                                            onclick="openBatchPrintManager(@js($b->rofo_batch_id), this, {{ (int) $generated }})"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-[11px] font-bold rounded-lg hover:bg-violet-700 transition disabled:opacity-60 disabled:cursor-wait">
                                             <i data-lucide="printer" class="h-3.5 w-3.5"></i> Print batch ({{ $generated }})
                                         </button>
                                     @else
@@ -461,7 +465,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-2 text-slate-700 whitespace-nowrap">
-                                    <div>{{ $rec->applicant_name }}</div>
+                                    <div class="uppercase">{{ $rec->applicant_name }}</div>
                                     @if(trim((string) $rec->applicant_phone) !== '')
                                         <button type="button" data-applicant-phone-action
                                                 data-phone="{{ $rec->applicant_phone }}"
@@ -472,13 +476,13 @@
                                         </button>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->purpose_of_clause }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->location }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->plot_number }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->layout_plan_no }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->purpose_of_clause }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->location }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->plot_number }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->layout_plan_no }}</td>
                                 <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->term }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->ground_rent, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->development_period }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->development_period }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->survey_fees, 2) }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->development_value, 2) }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">{{ is_numeric($rec->development_charge) ? '₦'.number_format($rec->development_charge, 2) : ($rec->development_charge ?: '₦0.00') }}</td>
@@ -520,10 +524,10 @@
                                         ? $rec->created_at
                                         : ($rec->updated_at ?: $rec->created_at);
                                 @endphp
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $reissueUser->name ?? 'System' }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $reissueUser->name ?? 'System' }}</td>
                                 <td class="px-4 py-2 text-slate-600 text-xs whitespace-nowrap">{{ $reissueAt ? $reissueAt->format('Y-m-d h:i A') : 'N/A' }}</td>
                                 @endif
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">
                                     @if($rec->creator)
                                         <span class="upc-trigger" data-user-card data-user-id="{{ $rec->creator->id }}"
                                             title="{{ __('View profile') }}">{{ $rec->creator->name }}</span>
@@ -1457,7 +1461,7 @@ function bpmRenderTable() {
                       + 'title="Run 1 printed the Original. Only the Duplicate and Triplicate are outstanding.">Office copies due</span>'
                     : '') + '</td>' +
             '<td class="px-4 py-2.5 text-slate-700 whitespace-nowrap uppercase text-xs">' + (rec.applicant_name||'') + '</td>' +
-            '<td class="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">' + (rec.location||'') + '</td>' +
+            '<td class="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap uppercase">' + (rec.location||'') + '</td>' +
             '<td class="px-4 py-2.5 text-center"><span class="text-xs font-bold ' + (rec.land_rofo_serial_no ? 'text-emerald-700' : 'text-slate-300 italic') + '">' + (rec.land_rofo_serial_no || 'None') + '</span></td>';
         tbody.appendChild(tr);
     });
@@ -1746,6 +1750,26 @@ function rofoChildSecurityPaperButton(c, printed) {
     return '<span class="rofo-child-spc">' + enter + reset + '</span>';
 }
 
+// The serial block under a batch child's file number, drawn as the main list draws
+// it: the green security serial the letter prints, then the red Security Paper Code.
+function rofoChildSerialHtml(c) {
+    var html = '';
+    var sc = c.security_serial;
+    if (sc) {
+        html += '<div style="display:flex; align-items:center; gap:5px; margin-top:3px; letter-spacing:normal;" title="Security Serial No.">'
+            + '<span style="line-height:1; color:#059669; display:inline-flex; flex-direction:column; align-items:center; font-weight:900; font-family:Arial, sans-serif;">'
+            +   '<span style="border-bottom:1.5px solid #059669; padding-bottom:1px; font-size:11px;">' + rofoEscHtml(sc.alphabet) + '</span>'
+            +   '<span style="padding-top:1px; font-size:11px;">' + rofoEscHtml(sc.digits_start) + '</span>'
+            + '</span>'
+            + '<span style="font-size:18px; font-weight:900; letter-spacing:0.1em; color:#059669; font-family:\'Courier New\', monospace;">' + rofoEscHtml(sc.digits_end) + '</span>'
+            + '</div>';
+    }
+    if (c.serial_no) {
+        html += '<div style="margin-top:3px; font-size:18px; font-weight:900; letter-spacing:0.1em; color:#dc2626; font-family:\'Courier New\', monospace;" title="Security Paper Code">' + rofoEscHtml(c.serial_no) + '</div>';
+    }
+    return html;
+}
+
 // Redraw one child's serial and code buttons from the server, rather than reloading
 // the page, which would fold the batch up.
 function rofoRefreshChildRow(id) {
@@ -1758,7 +1782,7 @@ function rofoRefreshChildRow(id) {
             if (!fresh) return null;
             _rofoChildById[String(id)] = fresh;
             var printed = (fresh.print_count > 0 || fresh.print_stage === 'complete' || fresh.print_stage === 'originals');
-            row.querySelector('.rofo-child-serial').textContent = fresh.serial_no || '—';
+            row.querySelector('.rofo-child-serial').innerHTML = rofoChildSerialHtml(fresh);
             var btns = row.querySelector('.rofo-child-spc');
             if (btns) btns.outerHTML = rofoChildSecurityPaperButton(fresh, printed);
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -1835,12 +1859,12 @@ document.addEventListener('click', function (e) {
                 var generated = String(c.rofo_status || '').toLowerCase() === 'generated';
                 return '<tr class="border-b border-violet-100/70 hover:bg-white/70" data-rofo-child="' + c.id + '">'
                     + '<td class="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400">' + c.seq + '</td>'
-                    + '<td class="px-4 py-2.5 font-mono text-xs font-bold text-slate-900">' + rofoEscHtml(c.file_number) + '</td>'
-                    + '<td class="px-4 py-2.5 text-xs text-slate-700"><div>' + rofoEscHtml(c.applicant_name) + '</div>'
+                    + '<td class="px-4 py-2.5 font-mono text-xs font-bold text-slate-900"><div>' + rofoEscHtml(c.file_number) + '</div>'
+                    +   '<div class="rofo-child-serial">' + rofoChildSerialHtml(c) + '</div></td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-700"><div class="uppercase">' + rofoEscHtml(c.applicant_name) + '</div>'
                     + (window.applicantPhoneActionButtonHtml ? window.applicantPhoneActionButtonHtml(c.applicant_phone, c.applicant_name, c.file_number) : '') + '</td>'
-                    + '<td class="px-4 py-2.5 text-xs text-slate-600">' + rofoEscHtml(c.plot_number) + '</td>'
-                    + '<td class="px-4 py-2.5 text-xs text-slate-600">' + rofoEscHtml(c.location) + '</td>'
-                    + '<td class="rofo-child-serial px-4 py-2.5 font-mono text-[11px] text-slate-500">' + rofoEscHtml(c.serial_no || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + rofoEscHtml(c.plot_number) + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + rofoEscHtml(c.location) + '</td>'
                     + '<td class="px-4 py-2.5 text-center">' + rofoPill(generated, 'Generated', 'Pending') + '</td>'
                     + '<td class="px-4 py-2.5 text-center">' + rofoPrintStagePill(c) + '</td>'
                     + '<td class="px-4 py-2.5 text-right whitespace-nowrap">'
@@ -1898,7 +1922,6 @@ document.addEventListener('click', function (e) {
                 +   '<th class="px-4 py-2.5">Applicant</th>'
                 +   '<th class="px-4 py-2.5">Plot No</th>'
                 +   '<th class="px-4 py-2.5">Location</th>'
-                +   '<th class="px-4 py-2.5">Serial No</th>'
                 +   '<th class="px-4 py-2.5 text-center">RofO</th>'
                 +   '<th class="px-4 py-2.5 text-center">Printed</th>'
                 +   '<th class="px-4 py-2.5 text-right">Actions</th>'
@@ -1922,32 +1945,99 @@ document.addEventListener('click', function (e) {
 // come up already ticked and the date panel only appears when there is something to
 // fill in. The printing itself stays on the batch pipeline below; the manager only
 // names the pass.
-function openBatchPrintManager(batchId) {
-    loadRofoBatchChildren(batchId)
-        .then(function (data) {
-            var ids = data.children
-                .filter(function (c) { return String(c.rofo_status).toLowerCase() === 'generated'; })
-                .map(function (c) { return c.id; });
+//
+// A large batch (1,500+ letters) takes a few seconds to load, so the proofread
+// question is asked straight away and the batch loads behind it; by the time the
+// operator answers it is usually ready. The button is disabled from the first click
+// until the load settles, so it cannot be fired twice.
+function openBatchPrintManager(batchId, btn, count) {
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.dataset.label = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin"></i> Preparing…';
+        if (window.lucide) lucide.createIcons();
+    }
+    var release = function () {
+        if (!btn) return;
+        btn.disabled = false;
+        if (btn.dataset.label) btn.innerHTML = btn.dataset.label;
+        if (window.lucide) lucide.createIcons();
+    };
 
-            if (!ids.length) {
+    var prep = loadRofoBatchChildren(batchId)
+        .then(function (data) {
+            var generated = data.children
+                .filter(function (c) { return String(c.rofo_status).toLowerCase() === 'generated'; });
+            var ids = generated.map(function (c) { return c.id; });
+            if (!ids.length) return { ids: [], generated: [] };
+
+            return rofoBatchLookup(ids).then(function (r) {
+                return { ids: ids, generated: generated, status: r.status, missing: r.missing, dates: r.dates };
+            });
+        });
+    prep.then(release, release);
+
+    // Waits for the load if the operator answered before it finished, then runs fn.
+    var whenReady = function (fn) {
+        var settled = false;
+        prep.then(function () { settled = true; }, function () { settled = true; });
+        setTimeout(function () {
+            if (settled) return;
+            Swal.fire({
+                title: 'Preparing the batch…',
+                html: '<div style="font-size:13px;color:#475569">Loading ' + (count || '') + ' RofOs.</div>',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: function () { Swal.showLoading(); }
+            });
+        }, 0);
+        prep.then(function (d) {
+            if (!d.ids.length) {
                 Swal.fire({ icon: 'info', title: 'Nothing to print', text: 'No RofO in this batch has been generated yet.' });
                 return;
             }
-
-            // The Batches tab: a real batch, so the two-run split is on offer.
-            rofoOpenBatchManagerFor(ids, batchId, true);
-        })
-        .catch(function (err) {
-            Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Network error.' });
+            fn(d);
+        }).catch(function (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: (err && err.message) || 'Network error.' });
         });
+    };
+
+    var n = count || 0;
+    WhiteCopy.confirmProofread({
+        subject: (n ? n + ' RofO' + (n === 1 ? '' : 's') + ' in ' : '') + batchId,
+        onYes: function () {
+            // The Batches tab: a real batch, so the two-run split is on offer — and
+            // the choice to print only some of it.
+            whenReady(function (d) {
+                if (d.generated.length > 1) {
+                    rofoAskPrintScope(d.ids, batchId, d.status, d.missing, true, d.dates, d.generated);
+                } else {
+                    openRofoBatchManagerConfirmed(d.ids, batchId, d.status, d.missing, true, d.dates);
+                }
+            });
+        },
+        onWhiteCopy: function () {
+            whenReady(function (d) { submitBatchWhiteCopy(d.ids, rofoCsrf(), null); });
+        }
+    });
 }
 
 // Reads how the run stands and what dates are missing, then hands both to the
 // manager. Used by the Batches tab and by a hand-picked selection alike — the two
 // differ only in where the ids came from.
-function rofoOpenBatchManagerFor(ids, label, splitPasses) {
+function rofoOpenBatchManagerFor(ids, label, splitPasses, children) {
     if (!ids || !ids.length) return;
 
+    rofoBatchLookup(ids).then(function (r) {
+        openRofoBatchManager(ids, label, r.status, r.missing, splitPasses, r.dates, children);
+    });
+}
+
+// The two lookups the manager is opened with — print status and dates of issue —
+// for whichever ids are about to be printed. Split out so a selection picked after
+// the proofread question is read for itself, not for the whole batch.
+function rofoBatchLookup(ids) {
     var csrf = rofoCsrf();
     var post = function (url) {
         return fetch(url, {
@@ -1960,7 +2050,7 @@ function rofoOpenBatchManagerFor(ids, label, splitPasses) {
 
     // Neither lookup is a gate: if one fails the manager still opens, just without
     // a tick or without knowing which dates are missing.
-    Promise.all([
+    return Promise.all([
         post('{{ route('land-rofos.batch-print-status') }}').catch(function () { return null; }),
         post('{{ route('land-rofos.issue-dates') }}').catch(function () { return null; })
     ]).then(function (res) {
@@ -1977,7 +2067,7 @@ function rofoOpenBatchManagerFor(ids, label, splitPasses) {
             .filter(function (d, i, a) { return a.indexOf(d) === i; })
             .sort();
 
-        openRofoBatchManager(ids, label, status, missing, splitPasses, dates);
+        return { status: status, missing: missing, dates: dates };
     });
 }
 
@@ -1985,14 +2075,283 @@ function rofoOpenBatchManagerFor(ids, label, splitPasses) {
 // proofread question belongs — a batch is the run that puts the most paper through
 // the printer at once, and the most security stock. Answering "no" prints white
 // copies of the whole batch instead, which is the thing that was actually needed.
-function openRofoBatchManager(ids, label, status, missing, splitPasses, dates) {
+function openRofoBatchManager(ids, label, status, missing, splitPasses, dates, children) {
     WhiteCopy.confirmProofread({
         subject: ids.length + ' RofO' + (ids.length === 1 ? '' : 's') + ' in ' + label,
-        onYes: function () { openRofoBatchManagerConfirmed(ids, label, status, missing, splitPasses, dates); },
+        onYes: function () {
+            // A whole batch from the Batches tab: ask whether all of it goes, or
+            // only some. A hand-picked selection has already been chosen.
+            if (children && children.length > 1) {
+                rofoAskPrintScope(ids, label, status, missing, splitPasses, dates, children);
+                return;
+            }
+            openRofoBatchManagerConfirmed(ids, label, status, missing, splitPasses, dates);
+        },
         // No window is opened here: submitBatchWhiteCopy posts a form with
         // target=_blank, which a pop-up blocker leaves alone — unlike a
         // window.open() this far from the original click.
         onWhiteCopy: function () { submitBatchWhiteCopy(ids, rofoCsrf(), null); }
+    });
+}
+
+// Second question after the proofread one. A large batch takes a long time to
+// render and print in one go, so the operator can send only the RofOs they need.
+function rofoAskPrintScope(ids, label, status, missing, splitPasses, dates, children) {
+    Swal.fire({
+        icon: 'question',
+        title: 'Print all RofOs or select specific ones?',
+        html: '<div style="font-size:13px;color:#475569;line-height:1.6">'
+            + 'This batch has <b>' + ids.length + '</b> generated RofO' + (ids.length === 1 ? '' : 's') + '. '
+            + 'Printing them all at once can take a long time. You can choose only the ones you need.'
+            + '</div>',
+        showCancelButton: true,
+        showDenyButton: true,
+        // Selecting comes first (left, and the default): on a large batch it is the
+        // lighter choice. SweetAlert orders confirm before deny, so "Select" is the
+        // confirm button and "Print all" the deny.
+        confirmButtonText: 'Select specific RofOs',
+        denyButtonText: 'Print all (' + ids.length + ')',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#7c3aed',
+        denyButtonColor: '#2563eb',
+        cancelButtonColor: '#94a3b8'
+    }).then(function (r) {
+        if (r.isConfirmed) {
+            rofoSelectBatchChildren(label, children);
+        } else if (r.isDenied) {
+            openRofoBatchManagerConfirmed(ids, label, status, missing, splitPasses, dates);
+        }
+    });
+}
+
+// The picker. What is ticked here prints through the Print Manager's "All Copies"
+// pass only (splitPasses off) — Original, Duplicate and Triplicate of each, in one
+// run — which is how a hand-picked selection already prints from this page.
+// "CON-RES-2026-4055" -> { prefix: 'CON-RES-2026-', num: 4055 }; "4055" -> { prefix: '', num: 4055 }.
+// The trailing number is the file's place in its series; the prefix keeps CON-COM and
+// CON-RES runs apart when a full file number is typed.
+function rofoSplitFileNo(v) {
+    var s = String(v || '').trim().toUpperCase().replace(/\s+/g, '');
+    var m = s.match(/^(.*?)(\d+)$/);
+    if (!m) return { prefix: '', num: null };
+    return { prefix: /[A-Z]/.test(m[1]) ? m[1] : '', num: parseInt(m[2], 10) };
+}
+
+function rofoSelectBatchChildren(label, children) {
+    var esc = rofoEscHtml;
+    // Printed rows are tinted so a part-printed batch reads at a glance; the legend
+    // above the table names both colours.
+    var PRINTED_BG = '#dcfce7', PRINTED_EDGE = '#16a34a';
+    var UNPRINTED_BG = '#ffffff', UNPRINTED_EDGE = '#cbd5e1';
+
+    var rows = children.map(function (c, i) {
+        var printed = parseInt(c.print_count, 10) || 0;
+        var hay = [c.file_number, c.applicant_name, c.plot_number, c.location].join(' ').toLowerCase();
+        var parts = rofoSplitFileNo(c.file_number);
+        return '<tr data-hay="' + esc(hay) + '" data-num="' + (parts.num === null ? '' : parts.num) + '"'
+            + ' data-prefix="' + esc(parts.prefix) + '"'
+            + ' style="border-top:1px solid #e2e8f0;background:' + (printed > 0 ? PRINTED_BG : UNPRINTED_BG)
+            + ';box-shadow:inset 3px 0 0 ' + (printed > 0 ? PRINTED_EDGE : UNPRINTED_EDGE) + '">'
+            + '<td style="padding:6px 8px;text-align:center"><input type="checkbox" class="rofo-pick" value="' + c.id + '"></td>'
+            + '<td class="rofo-sn" style="padding:6px 8px;text-align:center;color:#64748b">' + (i + 1) + '</td>'
+            + '<td style="padding:6px 8px;font-weight:700;white-space:nowrap">' + esc(c.file_number || '') + '</td>'
+            + '<td style="padding:6px 8px">' + esc(c.applicant_name || '') + '</td>'
+            + '<td style="padding:6px 8px;white-space:nowrap">' + esc(c.plot_number || '—') + '</td>'
+            + '<td style="padding:6px 8px">' + esc(c.location || '') + '</td>'
+            + '<td style="padding:6px 8px;text-align:center">'
+            +   (printed > 0
+                    ? '<span style="font-size:10px;font-weight:700;color:#047857">' + printed + '×</span>'
+                    : '<span style="font-size:10px;font-weight:700;color:#94a3b8">Not yet</span>')
+            + '</td>'
+            + '</tr>';
+    }).join('');
+
+    var th = 'padding:8px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#5b21b6;background:#f5f3ff;position:sticky;top:0;z-index:1';
+
+    Swal.fire({
+        title: 'Select RofOs to print',
+        width: 960,
+        html:
+            '<div style="text-align:left;font-size:12px">'
+            + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+            +   '<input id="rofo-pick-search" type="search" placeholder="Search file no., applicant, plot or location…"'
+            +     ' style="flex:1;min-width:220px;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:12px">'
+            +   '<label style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#334155">'
+            +     '<input id="rofo-pick-all" type="checkbox"> Select all shown</label>'
+            +   '<label style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#334155">'
+            +     '<input id="rofo-pick-unprinted" type="checkbox"> Not yet printed only</label>'
+            + '</div>'
+            // Range: most of a batch was commissioned in sequence, so "4055 to 4100"
+            // picks a run of file numbers without ticking them one by one. A full file
+            // number (CON-RES-2026-4055) also works and limits the run to that prefix.
+            + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">'
+            +   '<span style="font-weight:800;color:#334155">Range</span>'
+            +   '<span style="color:#64748b">from</span>'
+            +   '<input id="rofo-range-from" type="text" placeholder="e.g. 4055" autocomplete="off"'
+            +     ' style="width:170px;border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:12px">'
+            +   '<span style="color:#64748b">to</span>'
+            +   '<input id="rofo-range-to" type="text" placeholder="e.g. 4100" autocomplete="off"'
+            +     ' style="width:170px;border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:12px">'
+            +   '<button id="rofo-range-go" type="button" style="background:#7c3aed;color:#fff;font-weight:700;border-radius:6px;padding:5px 12px;font-size:12px">Load range</button>'
+            +   '<button id="rofo-range-clear" type="button" style="background:#e2e8f0;color:#334155;font-weight:700;border-radius:6px;padding:5px 12px;font-size:12px">Show all</button>'
+            +   '<span id="rofo-range-msg" style="color:#475569"></span>'
+            + '</div>'
+            + '<div style="display:flex;gap:14px;align-items:center;margin-bottom:6px;color:#475569">'
+            +   '<span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:' + PRINTED_BG + ';border:1px solid ' + PRINTED_EDGE + '"></span> Printed</span>'
+            +   '<span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:' + UNPRINTED_BG + ';border:1px solid ' + UNPRINTED_EDGE + '"></span> Not printed</span>'
+            + '</div>'
+            + '<div id="rofo-pick-scroll" style="max-height:50vh;overflow:auto;border:1px solid #ddd6fe;border-radius:8px">'
+            +   '<table data-column-picker="off" style="width:100%;border-collapse:collapse">'
+            +   '<thead><tr>'
+            +     '<th style="' + th + ';width:36px"></th>'
+            +     '<th style="' + th + ';width:48px;text-align:center">S/N</th>'
+            +     '<th style="' + th + ';text-align:left">File Number</th>'
+            +     '<th style="' + th + ';text-align:left">Applicant</th>'
+            +     '<th style="' + th + ';text-align:left">Plot No.</th>'
+            +     '<th style="' + th + ';text-align:left">Location</th>'
+            +     '<th style="' + th + ';text-align:center">Printed</th>'
+            +   '</tr></thead><tbody id="rofo-pick-body">' + rows + '</tbody></table>'
+            + '</div>'
+            + '<p style="margin-top:8px;color:#64748b">Each selected RofO prints <b>All Copies</b> — Original, Duplicate and Triplicate — in one run.</p>'
+            + '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'Print selected (0)',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#7c3aed',
+        cancelButtonColor: '#94a3b8',
+        focusConfirm: false,
+        didOpen: function (popup) {
+            var body      = popup.querySelector('#rofo-pick-body');
+            var search    = popup.querySelector('#rofo-pick-search');
+            var all       = popup.querySelector('#rofo-pick-all');
+            var unprinted = popup.querySelector('#rofo-pick-unprinted');
+            var btn       = Swal.getConfirmButton();
+            var trs       = Array.prototype.slice.call(body.querySelectorAll('tr'));
+            var printedOf = {};
+            children.forEach(function (c) { printedOf[c.id] = (parseInt(c.print_count, 10) || 0) > 0; });
+
+            var visible = function () { return trs.filter(function (tr) { return tr.style.display !== 'none'; }); };
+            var refresh = function () {
+                var n = body.querySelectorAll('.rofo-pick:checked').length;
+                btn.textContent = 'Print selected (' + n + ')';
+                var shown = visible();
+                all.checked = shown.length > 0 && shown.every(function (tr) { return tr.querySelector('.rofo-pick').checked; });
+            };
+            var rFrom  = popup.querySelector('#rofo-range-from');
+            var rTo    = popup.querySelector('#rofo-range-to');
+            var rMsg   = popup.querySelector('#rofo-range-msg');
+            var scroll = popup.querySelector('#rofo-pick-scroll');
+            var range  = null;   // { lo, hi, prefix } while a range is loaded
+
+            var inRange = function (tr) {
+                if (!range) return true;
+                var n = tr.getAttribute('data-num');
+                if (n === '') return false;
+                n = parseInt(n, 10);
+                return n >= range.lo && n <= range.hi
+                    && (!range.prefix || tr.getAttribute('data-prefix') === range.prefix);
+            };
+
+            var filter = function () {
+                var q = search.value.trim().toLowerCase();
+                var sn = 0;
+                trs.forEach(function (tr) {
+                    var id = tr.querySelector('.rofo-pick').value;
+                    var show = (!q || tr.getAttribute('data-hay').indexOf(q) !== -1)
+                        && (!unprinted.checked || !printedOf[id])
+                        && inRange(tr);
+                    tr.style.display = show ? '' : 'none';
+                    // S/N follows what is displayed, not the batch position.
+                    if (show) tr.querySelector('.rofo-sn').textContent = ++sn;
+                });
+                refresh();
+            };
+
+            var loadRange = function () {
+                Swal.resetValidationMessage();
+                var a = rofoSplitFileNo(rFrom.value), b = rofoSplitFileNo(rTo.value);
+                if (a.num === null && b.num === null) {
+                    Swal.showValidationMessage('Type a file number or its last digits in From and To, e.g. 4055 to 4100.');
+                    return;
+                }
+                if (a.num === null) a = b;
+                if (b.num === null) b = a;
+                if (a.prefix && b.prefix && a.prefix !== b.prefix) {
+                    Swal.showValidationMessage('From and To must be the same kind of file number (' + a.prefix + '… / ' + b.prefix + '…).');
+                    return;
+                }
+                range = {
+                    lo: Math.min(a.num, b.num),
+                    hi: Math.max(a.num, b.num),
+                    prefix: a.prefix || b.prefix || ''
+                };
+                filter();
+
+                // The range becomes the selection: anything ticked before is cleared,
+                // so the count on the button is exactly what the range holds (after
+                // the search / not-yet-printed filters, if those are on).
+                trs.forEach(function (tr) { tr.querySelector('.rofo-pick').checked = false; });
+                var hit = visible();
+                hit.forEach(function (tr) { tr.querySelector('.rofo-pick').checked = true; });
+                refresh();
+
+                if (!hit.length) {
+                    rMsg.innerHTML = '<b style="color:#b91c1c">No RofO in this batch falls in that range.</b>';
+                } else {
+                    var printedHit = hit.filter(function (tr) { return printedOf[tr.querySelector('.rofo-pick').value]; }).length;
+                    rMsg.innerHTML = '<b>' + hit.length + '</b> loaded and selected'
+                        + (printedHit ? ' · <span style="color:#15803d;font-weight:700">' + printedHit + ' already printed</span>' : '');
+                }
+                scroll.scrollTop = 0;
+            };
+
+            popup.querySelector('#rofo-range-go').addEventListener('click', loadRange);
+            [rFrom, rTo].forEach(function (inp) {
+                inp.addEventListener('keydown', function (e) {
+                    // Enter loads the range rather than submitting the dialog.
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); loadRange(); }
+                });
+            });
+            popup.querySelector('#rofo-range-clear').addEventListener('click', function () {
+                range = null;
+                rFrom.value = rTo.value = '';
+                rMsg.textContent = '';
+                Swal.resetValidationMessage();
+                filter();
+            });
+
+            search.addEventListener('input', filter);
+            unprinted.addEventListener('change', filter);
+            all.addEventListener('change', function () {
+                visible().forEach(function (tr) { tr.querySelector('.rofo-pick').checked = all.checked; });
+                refresh();
+            });
+            body.addEventListener('change', function (e) {
+                if (e.target.classList.contains('rofo-pick')) refresh();
+            });
+            refresh();
+        },
+        preConfirm: function () {
+            var picked = Array.prototype.map.call(
+                Swal.getPopup().querySelectorAll('.rofo-pick:checked'),
+                function (cb) { return parseInt(cb.value, 10); }
+            );
+            if (!picked.length) {
+                Swal.showValidationMessage('Select at least one RofO to print.');
+                return false;
+            }
+            return picked;
+        }
+    }).then(function (r) {
+        if (!r.isConfirmed || !r.value) return;
+        var picked = r.value;
+
+        // Status and dates are read again for just these letters, so the manager
+        // reports on what is about to print rather than on the whole batch.
+        rofoBatchLookup(picked).then(function (res) {
+            openRofoBatchManagerConfirmed(picked, label + ' — ' + picked.length + ' selected',
+                res.status, res.missing, false, res.dates);
+        });
     });
 }
 
@@ -3195,5 +3554,23 @@ function submitBatchPrint(ids, csrf, printWindow, copies, windowName, reload, ex
         : ['' => 'All Statuses', 'generated' => 'RofO Generated', 'pending' => 'Awaiting Generation', 'oss' => 'OSS Only'],
 ]])
 @include('components.applicant-phone-actions')
+
+@if(session('search_tab_moved'))
+<script>
+    // The search was moved to the tab that holds the file — say so.
+    window.addEventListener('load', function () {
+        if (typeof Swal === 'undefined') return;
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: @json(session('search_tab_moved')),
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+        });
+    });
+</script>
+@endif
 
 @endsection

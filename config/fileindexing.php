@@ -75,6 +75,24 @@ return [
         )
     )),
 
+    /*
+    |--------------------------------------------------------------------------
+    | KANGIS Block Indexing
+    |--------------------------------------------------------------------------
+    |
+    | On a KANGIS Registry index the land (MLS) file is the Related File No, and
+    | it may be related to one KANGIS file only. The "KANGIS Block Indexing" box
+    | on the KANGIS index marks the land file "multiple KANGIS files"
+    | (file_indexings.allow_multiple_kangis); its kangis_link_count then counts
+    | the KANGIS files (App\Services\FileIndexing\KangisBlockIndexing).
+    |
+    | Only these usernames see and may tick the box; '*' means every signed-in
+    | user (client decisions: 2026-10-17 admin1 only; 2026-10-20 everyone).
+    |
+    */
+
+    'kangis_block_usernames' => ['*'],
+
     'demo_fill' => [
         'enabled' => env('FILEINDEX_DEMO_FILL', false),
 

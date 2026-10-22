@@ -22,6 +22,39 @@ class RofoController extends Controller
 {
     use ExecutesMasterDelete;
 
+    /**
+     * Set `security_serial` on each unit to the serial its printed RofO carries, as the
+     * Land RofO table shows it. printRofO() issues one 'ST ROFO' code per rofo row and
+     * reuses the first unused one, so the earliest unused code per rofo id is the one on
+     * the paper. Read only: a unit never printed has no code and shows none.
+     */
+    private function attachSecuritySerials($units): void
+    {
+        $units = collect($units);
+        $rofoIds = $units->pluck('rofo_id')->filter()->unique()->values()->all();
+        if (empty($rofoIds)) {
+            return;
+        }
+
+        $codeService = app(\App\Services\SecurityCodeService::class);
+        $serials = [];
+        foreach (array_chunk($rofoIds, 1000) as $chunk) {
+            $codes = DB::connection('sqlsrv')->table('security_codes')
+                ->whereIn('document_id', $chunk)
+                ->where('document_type', 'ST ROFO')
+                ->where('is_used', 0)
+                ->orderBy('id')
+                ->get(['document_id', 'code']);
+            foreach ($codes as $c) {
+                $serials[$c->document_id] ??= $codeService->formatForDisplay($c->code);
+            }
+        }
+
+        foreach ($units as $unit) {
+            $unit->security_serial = $serials[$unit->rofo_id ?? null] ?? null;
+        }
+    }
+
     private function getAvailableSecurityPapers()
     {
         return SecurityPaperCodeService::availableQuery()->get();
@@ -183,6 +216,8 @@ class RofoController extends Controller
                 'messages' => 'No unit applications found for this primary.',
             ], 404);
         }
+
+        $this->attachSecuritySerials($units);
 
         return view('programmes.partials.rofo_pua_units_modal', [
             'mother' => $payload['mother'],
@@ -658,6 +693,8 @@ class RofoController extends Controller
             ->all();
 
         $whiteCopyDone = array_flip(\App\Models\PrintLog::whiteCopyPrinted('ST RofO', $proofFileNos));
+
+        $this->attachSecuritySerials($suaSubapplications ?? collect());
 
         return view('programmes.rofo', compact(
             'motherApplications',

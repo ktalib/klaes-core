@@ -126,6 +126,9 @@ class DuplexParcelUpdateController extends Controller
             'stages.*.cop_rows.*.file_no'          => 'required_with:stages.*.cop_rows|string|max:100',
             'stages.*.cop_rows.*.current_land_use' => 'nullable|string|max:50',
             'stages.*.cop_rows.*.new_land_use'     => 'required_with:stages.*.cop_rows|string|max:50',
+            // The purpose within that land use (LOW DENSITY, COMMERCIAL (SHOPS), ...).
+            'stages.*.cop_rows.*.new_purpose'      => 'nullable|string|max:255',
+            'stages.*.new_purpose'                 => 'nullable|string|max:255',
             // A LATER Change of Purpose cannot name its files at step 1 — they are the
             // previous stage's plots — so it carries a count and the purpose they take.
             'stages.*.new_land_use'                => 'nullable|string|max:50',
@@ -166,6 +169,16 @@ class DuplexParcelUpdateController extends Controller
             ], 422);
         }
 
+        // One live duplex per file: a file already on an open duplex is continued
+        // there, not started again. Deleted, rejected and committed ones do not count.
+        if ($clash = $this->openDuplexFor($data['source_file_nos'])) {
+            return response()->json([
+                'success' => false,
+                'message' => "{$clash['file']} is already on {$clash['duplex_id']} ({$clash['status']}). "
+                    . 'Open that duplex to continue it, or delete it before starting a new one.',
+            ], 422);
+        }
+
         DB::connection('sqlsrv')->beginTransaction();
         try {
             $duplexId = $this->holding->allocateDuplexId();
@@ -191,6 +204,9 @@ class DuplexParcelUpdateController extends Controller
                 'file_title'      => DuplexParcelUpdate::encodeList($data['file_title'] ?? null)
                     ?: $data['applicant_name'],
                 'source_file_nos' => $data['source_file_nos'],
+                // "File Already Decommissioned Before" per source file, read from the records.
+                'previously_decommissioned' => app(\App\Services\PlotWorkflowService::class)
+                    ->decommissionedBeforeAnswer($data['source_file_nos']),
                 'stages'          => $stages->all(),
                 'status'          => DuplexParcelUpdate::STATUS_DRAFT,
                 'land_use'        => $landUse,
@@ -296,6 +312,69 @@ class DuplexParcelUpdateController extends Controller
      * cannot name files there — they do not exist yet — so it brings the purpose those
      * plots take, and step 3 asks only which of them.
      */
+    /** GET ?file_no= — the open duplex a file is already on, so the wizard can stop early. */
+    public function openFor(Request $request): JsonResponse
+    {
+        $clash = $this->openDuplexFor([(string) $request->query('file_no', '')]);
+
+        return response()->json(['success' => true, 'data' => $clash]);
+    }
+
+    /**
+     * The first of these files that already sits on an open duplex, or null.
+     * Compared case- and space-insensitively; source_file_nos is a JSON list, so the
+     * (small) set of open duplexes is read and matched here.
+     */
+    protected function openDuplexFor(array $fileNos, ?int $exceptId = null): ?array
+    {
+        $norm = fn ($v) => preg_replace('/\s+/', '', strtoupper((string) $v));
+        $wanted = array_filter(array_map($norm, $fileNos));
+        if (!$wanted) {
+            return null;
+        }
+
+        $open = DuplexParcelUpdate::visible()
+            ->whereNotIn('status', [DuplexParcelUpdate::STATUS_REJECTED, DuplexParcelUpdate::STATUS_COMMITTED])
+            ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->orderByDesc('id')
+            ->get(['id', 'duplex_id', 'status', 'source_file_nos']);
+
+        foreach ($open as $duplex) {
+            foreach ((array) $duplex->source_file_nos as $file) {
+                if (in_array($norm($file), $wanted, true)) {
+                    return ['file' => trim((string) $file), 'duplex_id' => $duplex->duplex_id, 'status' => $duplex->status];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Why a Change of Purpose row would change nothing, or null when it is a real change.
+     * Same land use is fine as long as the purpose moves; the purpose must then be named.
+     */
+    protected function copChangesNothing(string $fileNo, string $newLandUse, ?string $newPurpose): ?string
+    {
+        $fileNo = strtoupper(trim($fileNo));
+        $current = \App\Support\FileNumberLandUse::codeFor($fileNo);
+        $alias = fn ($c) => ['AG' => 'AGR', 'AGRIC' => 'AGR', 'MIXED' => 'MIX'][strtoupper(trim((string) $c))] ?? strtoupper(trim((string) $c));
+
+        if ($fileNo === '' || !$current || $alias($current) !== $alias($newLandUse)) {
+            return null;
+        }
+
+        if (trim((string) $newPurpose) === '') {
+            return "{$fileNo}: the land use is not changing, so name the new purpose.";
+        }
+
+        $currentPurpose = \App\Services\ChangeOfPurposeDetails::currentPurpose($fileNo);
+
+        return \App\Services\ChangeOfPurposeDetails::samePurpose($currentPurpose, $newPurpose)
+            ? "{$fileNo}: the new land use and purpose (" . strtoupper(trim($newPurpose)) . ') are the same as the current ones.'
+            : null;
+    }
+
     protected function seedStagePayload(array $stage, array $copRows): ?array
     {
         $payload = [];
@@ -312,6 +391,11 @@ class DuplexParcelUpdateController extends Controller
         $current = strtoupper(trim((string) ($stage['current_land_use'] ?? '')));
         if ($current !== '') {
             $payload['current_land_use'] = $current;
+        }
+
+        $newPurpose = trim((string) ($stage['new_purpose'] ?? ''));
+        if ($newPurpose !== '') {
+            $payload['new_purpose'] = $newPurpose;
         }
 
         return $payload ?: null;
@@ -558,6 +642,8 @@ class DuplexParcelUpdateController extends Controller
             'cop_rows.*.file_no'        => 'required_with:cop_rows|string|max:100',
             'cop_rows.*.current_land_use' => 'nullable|string|max:50',
             'cop_rows.*.new_land_use'   => 'required_with:cop_rows|string|max:50',
+            'cop_rows.*.new_purpose'    => 'nullable|string|max:255',
+            'new_purpose'               => 'nullable|string|max:255',
             'plots'             => 'nullable|array',
             'plots.*.size'      => 'nullable|numeric|min:0',
             // The parcel's sides, in survey order: "60.00 x 21.00 x 46.00 x 21.00 x 42.71".
@@ -592,6 +678,19 @@ class DuplexParcelUpdateController extends Controller
                 'success' => false,
                 'message' => 'Say which files are changing purpose, and what each one is changing to.',
             ], 422);
+        }
+
+        // The single Change of Purpose page's rule: the land use may stay as long as
+        // the purpose changes; only the same land use AND purpose is refused. Checked
+        // here for the real files a first leg names — a holding number has no record
+        // of its own to compare against.
+        if ($stage->type === 'change_of_purpose') {
+            foreach ((array) ($data['cop_rows'] ?? []) as $row) {
+                if ($message = $this->copChangesNothing((string) ($row['file_no'] ?? ''),
+                        (string) ($row['new_land_use'] ?? ''), $row['new_purpose'] ?? null)) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
+            }
         }
 
         DB::connection('sqlsrv')->beginTransaction();
@@ -629,6 +728,7 @@ class DuplexParcelUpdateController extends Controller
             $payload = [
                 'plots'            => array_values($data['plots'] ?? []),
                 'new_land_use'     => $data['new_land_use'] ?? null,
+                'new_purpose'      => trim((string) ($data['new_purpose'] ?? '')) ?: null,
                 'current_land_use' => $currentLandUse ?: null,
                 'cop_rows'       => $copRows,
                 'applies_to'     => $appliesTo,

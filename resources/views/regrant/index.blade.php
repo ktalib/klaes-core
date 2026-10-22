@@ -88,6 +88,7 @@
         </div>
 
         {{-- Two cards, mirroring the two tabs below. Each links to its own tab. --}}
+        @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('regrant.index') }}?tab=register{{ $regrantKeep }}"
                class="px-4 py-2 rounded-lg bg-white border text-center min-w-[132px] transition hover:border-indigo-300 hover:shadow-sm {{ $tab === 'register' ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-200' }}">
@@ -100,6 +101,7 @@
                 <p class="text-lg font-bold text-red-600">{{ number_format($stats['due_total']) }}</p>
             </a>
         </div>
+        @endif
     </div>
 
     {{-- Tabs --}}
@@ -171,6 +173,7 @@
                 <table class="w-full text-sm">
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <th class="px-4 py-3 text-center">S/N</th>
                             <th class="px-4 py-3">File No</th>
                             <th class="px-4 py-3">Re-granted From</th>
                             <th class="px-4 py-3">File Title / Holder</th>
@@ -193,6 +196,7 @@
                                 $isDerived  = blank($r->see_fileno) && filled($linkedFrom);
                             @endphp
                             <tr class="hover:bg-slate-50/70">
+                                <td class="px-4 py-3 text-center text-slate-500 whitespace-nowrap">{{ $records->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{{ $r->file_no }}</td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     @if (filled($linkedFrom))
@@ -259,7 +263,7 @@
                                 @endif
                             </tr>
                         @empty
-                            <tr><td colspan="{{ $canCorrect ? 9 : 8 }}" class="px-4 py-10 text-center text-slate-400">No Re-grant records found.</td></tr>
+                            <tr><td colspan="{{ $canCorrect ? 10 : 9 }}" class="px-4 py-10 text-center text-slate-400">No Re-grant records found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -283,6 +287,7 @@
                 <table class="w-full text-sm">
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr class="text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <th class="px-4 py-3 text-center">S/N</th>
                             <th class="px-4 py-3">File No</th>
                             <th class="px-4 py-3">Instrument</th>
                             <th class="px-4 py-3">Holder</th>
@@ -298,6 +303,7 @@
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($records as $r)
                             <tr class="hover:bg-slate-50/70" data-file-no="{{ $r->file_no }}">
+                                <td class="px-4 py-3 text-center text-slate-500 whitespace-nowrap">{{ $records->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{{ $r->file_no }}</td>
                                 <td class="px-4 py-3">
                                     <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase
@@ -344,7 +350,7 @@
                                 <td class="px-4 py-3 text-slate-600 max-w-[300px] truncate" title="{{ $r->location }}">{!! $dash($r->location) !!}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="9" class="px-4 py-10 text-center text-slate-400">No files are currently due for re-grant.</td></tr>
+                            <tr><td colspan="10" class="px-4 py-10 text-center text-slate-400">No files are currently due for re-grant.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

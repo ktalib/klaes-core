@@ -1428,9 +1428,10 @@
             columnDefs: dtColumnDefs
         }));
 
+        // The approved table has one more column, 3 New FileNo(s), so Date is 10 and Actions 11.
         var approvedTable = $('#cop-approved-table').DataTable(Object.assign({}, dtOptions, {
-            order: [[9, 'desc']],
-            columnDefs: dtColumnDefs
+            order: [[10, 'desc']],
+            columnDefs: [{ orderable: false, targets: [0, 3, 11] }]
         }));
 
         document.getElementById('cop-search')?.addEventListener('input', function () {

@@ -1776,7 +1776,123 @@ class InstrumentController extends Controller
             return redirect()->route('instruments.index')->with('error', 'Record not found');
         }
 
+        $record = $this->withEditableAddressParts($record);
+
         return view('instruments.edit', compact('PageTitle', 'PageDescription', 'states', 'record', 'lgas', 'districts', 'streetNames'));
+    }
+
+    /**
+     * Split each stored address back into the parts the capture form edits.
+     *
+     * Capture saves a party's address as its street with the district, LGA and
+     * state appended (InstrumentCaptureService::mapParties()), and keeps those
+     * three in their own columns too. Put the whole string back in the Street
+     * box and the next save appends them a second time, so the street is
+     * recovered by taking that tail back off. An address that does not end
+     * with its own parts is left whole rather than guessed at.
+     *
+     * The solicitor has no state or LGA columns, so those are read off the end
+     * of the address against the States / StatLGAs tables. Its address is not
+     * split: update() stores the solicitor address as posted.
+     */
+    private function withEditableAddressParts(object $record): object
+    {
+        $parties = [1 => 'party_1', 2 => 'party_2', 3 => 'party_3', 4 => 'party_4', 5 => 'party_5'];
+        foreach ($parties as $prefix) {
+            $address = $record->{"{$prefix}_address"} ?? null;
+            $record->{"{$prefix}_street"} = $this->stripAddressTail($address, [
+                $record->{"{$prefix}_district"} ?? null,
+                ($record->{"{$prefix}_lga"} ?? null) ?: ($record->{"{$prefix}_city"} ?? null),
+                $record->{"{$prefix}_state"} ?? null,
+            ]);
+        }
+
+        // The solicitor address itself goes back unchanged (the form composes
+        // it, and update() stores it as posted); only state and LGA, which have
+        // no columns, are read off its end for the two dropdowns.
+        [$state, $lga] = $this->splitSolicitorAddress(
+            $record->solicitor_address ?? null,
+            $record->solicitor_district ?? null
+        );
+        $record->solicitor_state = $state;
+        $record->solicitor_lga = $lga;
+
+        return $record;
+    }
+
+    /**
+     * The address with the given trailing parts removed, or the address
+     * unchanged when it does not end with them. Parts may be separated by
+     * spaces (capture) or commas (the solicitor modal).
+     */
+    private function stripAddressTail(?string $address, array $parts): ?string
+    {
+        if ($address === null || trim($address) === '') {
+            return $address;
+        }
+
+        $tokens = [];
+        foreach ($parts as $part) {
+            foreach (preg_split('/[\s,]+/u', trim((string) $part), -1, PREG_SPLIT_NO_EMPTY) as $token) {
+                $tokens[] = preg_quote($token, '/');
+            }
+        }
+        if ($tokens === []) {
+            return $address;
+        }
+
+        $pattern = '/(^|[\s,]+)' . implode('[\s,]+', $tokens) . '[\s,]*$/iu';
+        if (!preg_match($pattern, $address)) {
+            return $address;
+        }
+
+        return rtrim(preg_replace($pattern, '', $address), " \t,");
+    }
+
+    /**
+     * [state, lga, street] read off the end of a composed solicitor address.
+     * Nulls for state and LGA (and the whole address as the street) when the
+     * address does not end with a known state and one of its LGAs.
+     */
+    private function splitSolicitorAddress(?string $address, ?string $district): array
+    {
+        if ($address === null || trim($address) === '') {
+            return [null, null, $address];
+        }
+
+        $states = DB::connection('sqlsrv')->table('States')->get(['StateID', 'StateName']);
+        // Longest names first, so "Kano Municipal" wins over a shorter name it ends with.
+        $byLength = fn ($names) => $names->sortByDesc(fn ($name) => mb_strlen((string) $name))->values();
+
+        foreach ($byLength($states->pluck('StateName')) as $stateName) {
+            $afterState = $this->stripAddressTail($address, [$stateName]);
+            if ($afterState === $address) {
+                continue;
+            }
+
+            $stateId = $states->firstWhere('StateName', $stateName)->StateID;
+            $lgas = DB::connection('sqlsrv')->table('StatLGAs')->where('StateID', $stateId)->pluck('LGAName');
+
+            foreach ($byLength($lgas) as $lgaName) {
+                $afterLga = $this->stripAddressTail($afterState, [$lgaName]);
+                if ($afterLga === $afterState) {
+                    continue;
+                }
+
+                // Capture appended the district as posted, which is the literal
+                // "Other" when the officer typed a custom one.
+                foreach (array_filter([$district, 'Other']) as $candidate) {
+                    $afterDistrict = $this->stripAddressTail($afterLga, [$candidate]);
+                    if ($afterDistrict !== $afterLga) {
+                        return [$stateName, $lgaName, $afterDistrict];
+                    }
+                }
+
+                return [$stateName, $lgaName, $afterLga];
+            }
+        }
+
+        return [null, null, $address];
     }
 
     private function getKanoLgasForSelect()
@@ -1858,7 +1974,11 @@ class InstrumentController extends Controller
             $result = $this->captureService->update($id, $request->all());
 
             if ($result['success']) {
-                $message = 'Instrument updated successfully. Ref: ' . ($result['reg_number'] ?? '');
+                // An update keeps its registration particulars and returns no new number.
+                $message = 'Instrument updated successfully. Its registration particulars are unchanged.';
+                if (!empty($result['consent_sync'])) {
+                    $message .= ' The party names on its consent application were updated to match.';
+                }
                 $this->captureLog()->info('Update succeeded', [
                     'ref' => $ref,
                     'instrument_capture_id' => $id,

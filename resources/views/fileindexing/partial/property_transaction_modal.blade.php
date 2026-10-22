@@ -83,6 +83,9 @@
                 // The one visible Category answer, whatever the instrument.
                 instrumentCategory: '',
                 opSerialNumber: '',
+                // This OP has no serial number: the system generates one on save (000001, ...).
+                opSerialNone: false,
+                opSerialPreview: '',
                 // Deed of Purchase: what was paid, and the receipt behind it.
                 considerationAmount: '',
                 receiptNo: '',
@@ -264,6 +267,8 @@
                     typeValue: '',
                     instrumentCategory: '',
                     opSerialNumber: '',
+                    opSerialNone: false,
+                    opSerialPreview: '',
                     // Deed of Purchase: what was paid, and the receipt behind it.
                     considerationAmount: '',
                     receiptNo: '',
@@ -441,6 +446,36 @@
                 return types
                     .filter((o) => String(o.label).trim().toUpperCase() !== 'LGA')
                     .concat([{ value: 'Other', label: 'Other' }]);
+            },
+
+            // This OP has no serial number: ask Yes / No before ticking, then preview the
+            // system serial(s) the save will assign (read-only; set on save).
+            async onOpSerialNoneChange(transaction) {
+                if (transaction.opSerialNone && window.KlaesOpSerialNone) {
+                    const yes = await window.KlaesOpSerialNone.confirm();
+                    if (!yes) { transaction.opSerialNone = false; return; }
+                }
+                const sys = /^(?!0{6})0[0-9]{5}$/.test(String(transaction.opSerialNumber || '').trim());
+                if (transaction.opSerialNone ? !sys : sys) transaction.opSerialNumber = '';
+                this.refreshOpSerialPreviews();
+            },
+
+            refreshOpSerialPreviews() {
+                const isSys = (v) => /^(?!0{6})0[0-9]{5}$/.test(String(v || '').trim());
+                const waiting = this.transactions.filter((t) => this.isOPTransaction(t.transactionType) && t.opSerialNone && !isSys(t.opSerialNumber));
+                if (!waiting.length || !window.KlaesOpSerialNone) return;
+                // The number shows inside the greyed box (placeholder, never posted).
+                window.KlaesOpSerialNone.next().then((serial) => {
+                    waiting.forEach((t, i) => {
+                        if (t.opSerialNone) t.opSerialPreview = window.KlaesOpSerialNone.offset(serial, i);
+                    });
+                });
+            },
+
+            opSerialPreviewText(t) {
+                if (!t || !t.opSerialNone) return '';
+                const v = String(t.opSerialNumber || '').trim();
+                return /^(?!0{6})0[0-9]{5}$/.test(v) ? 'System-generated serial: ' + v : (t.opSerialPreview || '');
             },
 
             // Permit Source (pra.op_source); Other asks for op_source_other.
@@ -1208,6 +1243,7 @@
 
                 if (!this.isOPTransaction(transaction.transactionType)) {
                     transaction.opSerialNumber = '';
+                    transaction.opSerialNone = false;
                     transaction.opSource = '';
                     transaction.opSourceOther = '';
                     transaction.opTypeOther = '';
@@ -1588,7 +1624,7 @@
                 }
 
                 const missingOpSerial = this.transactions.some(t =>
-                    this.isOPTransaction(t.transactionType) && !/^[1-9][0-9]*$/.test(String(t.opSerialNumber || '').trim())
+                    this.isOPTransaction(t.transactionType) && !t.opSerialNone && !/^[1-9][0-9]*$/.test(String(t.opSerialNumber || '').trim())
                 );
 
                 if (missingOpSerial) {
@@ -2199,16 +2235,28 @@
                                         <label class="block text-sm font-medium text-gray-700 mb-1">
                                             OP Serial Number <span class="text-red-500">*</span>
                                         </label>
-                                        <input type="text" x-model="transaction.opSerialNumber" :required="isOPTransaction(transaction.transactionType)" pattern="[1-9][0-9]*" maxlength="100"
+                                        <input type="text" x-model="transaction.opSerialNumber" :required="isOPTransaction(transaction.transactionType) && !transaction.opSerialNone" pattern="[1-9][0-9]*" maxlength="100"
                                             :name="'transactions[' + index + '][op_serial_number]'"
+                                            :readonly="transaction.opSerialNone"
+                                            :class="transaction.opSerialNone ? 'bg-gray-100 cursor-not-allowed' : ''"
                                             class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors"
-                                            placeholder="Enter OP serial number"
+                                            :placeholder="transaction.opSerialNone ? (transaction.opSerialPreview || 'Generated by the system on save') : 'Enter OP serial number'"
                                             @input="
                                                 let v = $event.target.value.replace(/[^0-9]/g, '');
                                                 v = v.replace(/^0+(\d)/, '$1');
                                                 transaction.opSerialNumber = v;
                                                 $event.target.value = v;
                                             ">
+                                        {{-- No serial on the paper: the system generates one on save (000001, ...).
+                                             Ticking drops a typed serial; unticking drops a system one so the real
+                                             serial is typed in its place (the server keeps the system one aside). --}}
+                                        <label class="mt-1 inline-flex items-center gap-2 text-xs text-gray-600">
+                                            <input type="checkbox" x-model="transaction.opSerialNone"
+                                                :name="'transactions[' + index + '][op_serial_none]'" value="1"
+                                                @change="onOpSerialNoneChange(transaction)"
+                                                class="h-4 w-4 rounded border-gray-300">
+                                            This OP has no serial number (the system will generate one)
+                                        </label>
                                     </div>
 
                                     {{-- Deed of Purchase only: what was paid and the
@@ -2513,6 +2561,9 @@
         z-index: 20000 !important;
     }
 </style>
+
+{{-- No OP serial number: Yes / No question and serial preview (shared with the PRA card and the indexing OP section). --}}
+<script src="{{ asset('js/op-serial-none.js') }}?v={{ @filemtime(public_path('js/op-serial-none.js')) }}"></script>
 
 <script>
     const PROPERTY_TRANSACTION_TYPE_MAP = {
@@ -2829,6 +2880,8 @@
                                             || record.instrument_subtype || record.instrumentSubtype || '',
                                         instrumentCategory: record.instrument_category || record.instrumentCategory || '',
                                         opSerialNumber: record.op_serial_number || record.opSerialNumber || '',
+                                        // A system-generated serial reopens ticked and greyed out.
+                                        opSerialNone: String(record.op_serial_generated ?? '') === '1' || record.op_serial_generated === true,
                                         cofoType: record.cofo_type || record.cofoType || '',
                                         serialNo: record.serialNo || record.serial_no || '',
                                         pageNo: record.pageNo || record.page_no || '',
@@ -2889,6 +2942,8 @@
                                     typeValue: '',
                                     instrumentCategory: '',
                                     opSerialNumber: '',
+                                    opSerialNone: false,
+                                    opSerialPreview: '',
                                     // Deed of Purchase: what was paid, and the receipt behind it.
                                     considerationAmount: '',
                                     receiptNo: '',
@@ -3258,7 +3313,9 @@
             instrument_category: t.instrumentCategory || '',
             cofo_type: t.cofoType || '',
             transaction_date: t.transactionDate || '',
-            op_serial_number: String(t.opSerialNumber || '').trim().replace(/^0+(\d)/, '$1'),
+            // Ticked: the server keeps / generates the system serial, so the box sends nothing.
+            op_serial_none: t.opSerialNone ? 1 : 0,
+            op_serial_number: t.opSerialNone ? '' : String(t.opSerialNumber || '').trim().replace(/^0+(\d)/, '$1'),
             // Deed of Purchase. This literal IS the payload — a field the form
             // shows but that is missing here posts nothing and is lost silently.
             consideration_amount: String(t.considerationAmount || '').trim(),

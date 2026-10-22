@@ -9,6 +9,7 @@
     
     <div class="p-6 space-y-6">
         {{-- ① Statistics Cards --}}
+        @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
 
             {{-- Daily Combined --}}
@@ -77,6 +78,7 @@
             </div>
 
         </div>
+        @endif
 
         {{-- ② Data Table Card --}}
         <div class="bg-white rounded-3xl border border-slate-200 shadow-xl">

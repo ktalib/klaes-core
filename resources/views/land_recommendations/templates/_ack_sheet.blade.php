@@ -317,9 +317,6 @@
       You can track the progress of your application using the QR code on this page
     </p>
 
-    <p>
-      Please keep the original acknowledgement letter in a safe place for future reference. It is one of the requirements for the collection of your new digital Right of Occupancy.
-    </p>
   </section>
 
   <!-- Contact Details -->

@@ -8,7 +8,7 @@ let formData = {};
 let ownersCount = 0;
 
 // Development flags
-let skipValidation = true; // Default to true for development
+let skipValidation = false; // Ctrl+Click on Next still bypasses for testing
 let autoFillEnabled = false;
 
 // Sample data for auto-fill
@@ -65,8 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set current date and update display
     setTimeout(() => {
         setCurrentDate();
-        fetchNextFileNumber();
-        fetchNewKangisFileNumber();
+        setupLandFilePicker();
         updateStepDisplay();
         setupDevelopmentControls();
         setupFileUploads();
@@ -905,7 +904,9 @@ async function fetchNewKangisFileNumber() {
 
 function updateStepDisplay() {
     console.log('Updating step display, current step:', currentStep);
-    
+    // Moving between steps saves the draft.
+    if (typeof draftStepChanged === 'function') draftStepChanged();
+
     // Hide all step contents
     document.querySelectorAll('.step-content').forEach(content => {
         content.classList.add('hidden');
@@ -973,6 +974,9 @@ async function nextStep(event) {
     console.log('nextStep called, currentStep:', currentStep);
     
     if (currentStep < totalSteps) {
+        // Nothing goes past step 1 without a land file, bypass or not.
+        if (!requireLandFile()) return;
+
         // Check for development bypass
         const forceSkip = event && (event.ctrlKey || event.metaKey);
         
@@ -981,7 +985,7 @@ async function nextStep(event) {
             currentStep++;
             
             // If moving to step 7 (summary), populate the summary
-            if (currentStep === 7) {
+            if (currentStep === totalSteps) {
                 populateApplicationSummary();
             }
             
@@ -1041,7 +1045,7 @@ function validateCurrentStep() {
     });
     
     // Additional validation for step 6 (terms agreement)
-    if (currentStep === 6) {
+    if (currentStep === 7) {
         const agreeTerms = document.getElementById('agreeTerms');
         if (agreeTerms && !agreeTerms.checked) {
             showFieldError('agreeTerms');
@@ -1105,21 +1109,23 @@ async function submitForm() {
             body: formBody
         });
 
-        const result = await response.json();
+        const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {
-            const msg = result?.message || 'Failed to submit application.';
-            throw new Error(msg);
+            const firstError = result?.errors ? Object.values(result.errors).flat()[0] : null;
+            throw new Error(firstError || result?.message || 'Failed to submit application.');
         }
 
-        showToast(`Application submitted successfully. Ref: ${result.reference}`, 'success');
+        draftClosed = true;
+        clearTimeout(draftTimer);
+        showToast(`Application submitted. Ref: ${result.reference}, KANGIS File No: ${result.kangis_file_no}`, 'success');
         // Redirect after short delay
         setTimeout(() => {
             window.location.href = '/recertification';
-        }, 1500);
-        
+        }, 2500);
+
     } catch (error) {
         console.error('Error submitting application:', error);
-        showToast('Failed to submit application. Please try again.', 'error');
+        showToast(error.message || 'Failed to submit application. Please try again.', 'error');
     } finally {
         // Reset loading state
         if (nextBtn) nextBtn.disabled = false;
@@ -1160,10 +1166,10 @@ function resetForm() {
     const skipValidationCheckbox = document.getElementById('dev-skip-validation');
     const autoFillCheckbox = document.getElementById('dev-auto-fill');
     
-    if (skipValidationCheckbox) skipValidationCheckbox.checked = true;
+    if (skipValidationCheckbox) skipValidationCheckbox.checked = false;
     if (autoFillCheckbox) autoFillCheckbox.checked = false;
     
-    skipValidation = true;
+    skipValidation = false;
     autoFillEnabled = false;
     
     // Set current date again
@@ -1366,7 +1372,7 @@ function populateApplicationSummary() {
     
     // Application Information
     document.getElementById('summary-application-date').textContent = getValue('applicationDate') || '-';
-    document.getElementById('summary-file-number').textContent = getValue('fileNumber') || '-';
+    document.getElementById('summary-file-number').textContent = getValue('landFileNo') || '-';
     document.getElementById('summary-application-type').textContent = formatText(getValue('applicationType'));
     document.getElementById('summary-application-reason').textContent = formatText(getValue('applicationReason'));
     
@@ -1449,7 +1455,7 @@ function populateApplicationSummary() {
     // Plot Details
     document.getElementById('summary-plot-number').textContent = formatText(getValue('plotNumber'));
     document.getElementById('summary-plot-size').textContent = getValue('plotSize') !== '-' ? getValue('plotSize') + ' hectares' : '-';
-    document.getElementById('summary-layout-district').textContent = formatText(getValue('layoutDistrict'));
+    document.getElementById('summary-layout-district').textContent = formatText(getValue('district'));
     document.getElementById('summary-lga').textContent = formatText(getValue('lga'));
     document.getElementById('summary-land-use').textContent = formatText(getValue('currentLandUse'));
     document.getElementById('summary-plot-status').textContent = formatText(getValue('plotStatus'));
@@ -1526,11 +1532,12 @@ function populateApplicationSummary() {
 
 // Function to go to a specific step (updated to handle summary population)
 function goToStep(stepNumber) {
+    if (stepNumber > 1 && !requireLandFile()) return;
     if (stepNumber >= 1 && stepNumber <= totalSteps) {
         currentStep = stepNumber;
-        
-        // If going to step 7 (summary), populate it
-        if (currentStep === 7) {
+
+        // If going to the summary, populate it
+        if (currentStep === totalSteps) {
             populateApplicationSummary();
         }
         
@@ -1571,23 +1578,738 @@ function setupLandUseFormTypeDisplay() {
         }
     };
     
-    // Add event listeners to all land use radio buttons
-    document.querySelectorAll('input[name="currentLandUse"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            if (this.checked) {
-                updateFormTypeDisplay(this.value);
-                showToast(`Form type updated to ${landUseFormTypes[this.value] || 'INDIVIDUAL FORM'}`, 'info');
-            }
+    const landUseSelect = document.getElementById('currentLandUse');
+    if (landUseSelect) {
+        landUseSelect.addEventListener('change', function() {
+            updateFormTypeDisplay(this.value);
         });
-    });
-    
-    // Check if there's already a selected land use and update display
-    const selectedLandUse = document.querySelector('input[name="currentLandUse"]:checked');
-    if (selectedLandUse) {
-        updateFormTypeDisplay(selectedLandUse.value);
+        if (landUseSelect.value) {
+            updateFormTypeDisplay(landUseSelect.value);
+        }
     }
     
     console.log('Land use form type display setup complete');
+}
+
+// ---------------------------------------------------------------------------
+// Land file: the starting point. Picked with the global file number selector;
+// what the records hold is filled in and locked, the clerk confirms the rest.
+// Locked fields are disabled (not posted); the server re-reads them on save.
+// ---------------------------------------------------------------------------
+const LAND_FILE_URL = @json(route('recertification.land-file'));
+let landFileLocked = [];
+let landFileFilled = []; // filled from the records but left editable (the holder's name)
+let applicantTypeAutoSet = false; // Applicant Type switched because the file title is an organisation
+let landFileReady = false;
+
+function setupLandFilePicker() {
+    const btn = document.getElementById('landFilePickBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+        if (!window.GlobalFileNoModal) {
+            showToast('The file number selector did not load. Refresh the page.', 'error');
+            return;
+        }
+        GlobalFileNoModal.open({
+            allowedTabs: ['mls'],
+            autoPopulateGenericFields: false,
+            callback: function (data) {
+                const no = (data && data.fileNumber) ? String(data.fileNumber).trim() : '';
+                if (no) loadLandFile(no);
+            }
+        });
+    });
+
+    const kBtn = document.getElementById('kangisFilePickBtn');
+    if (kBtn) {
+        kBtn.addEventListener('click', function () {
+            if (!window.GlobalFileNoModal) {
+                showToast('The file number selector did not load. Refresh the page.', 'error');
+                return;
+            }
+            GlobalFileNoModal.open({
+                allowedTabs: ['kangis'],
+                autoPopulateGenericFields: false,
+                callback: function (data) {
+                    const no = (data && data.fileNumber) ? String(data.fileNumber).trim() : '';
+                    if (no) setKangisFile(no, false);
+                }
+            });
+        });
+    }
+    const kClear = document.getElementById('kangisFileClearBtn');
+    if (kClear) kClear.addEventListener('click', () => setKangisFile('', false));
+}
+
+function requireLandFile() {
+    if (landFileReady) return true;
+    if (currentStep !== 1) goToStepUnchecked(1);
+    showFieldError('landFileNo');
+    showToast('Select the land file first. A recertification needs an existing land file.', 'error');
+    return false;
+}
+
+function goToStepUnchecked(stepNumber) {
+    currentStep = stepNumber;
+    updateStepDisplay();
+}
+
+function setLandFileStatus(message, tone) {
+    const el = document.getElementById('landFileStatus');
+    if (!el) return;
+    const tones = {
+        info: 'text-gray-600',
+        error: 'text-red-700 bg-red-50 border border-red-200 rounded-md p-2',
+        warn: 'text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2'
+    };
+    el.className = 'mt-3 text-sm ' + (tones[tone] || tones.info);
+    el.textContent = message || '';
+    el.classList.toggle('hidden', !message);
+}
+
+function clearLandFile() {
+    // Blank the editable names the previous file filled in.
+    landFileFilled.forEach(function (el) {
+        el.value = '';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    landFileFilled = [];
+    if (applicantTypeAutoSet) {
+        setApplicantType('Individual');
+        applicantTypeAutoSet = false;
+    }
+    // Unlock and blank everything the previous file filled in.
+    landFileLocked.forEach(function (el) {
+        el.disabled = false;
+        el.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        if (el.type === 'radio' || el.type === 'checkbox') {
+            el.checked = false;
+        } else {
+            el.value = '';
+            if (window.jQuery && jQuery(el).data('select2')) jQuery(el).trigger('change');
+        }
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    landFileLocked = [];
+    landFileReady = false;
+    document.getElementById('landFileNo').value = '';
+    document.getElementById('landFileDisplay').value = '';
+    document.getElementById('newKangisFileNo').value = '';
+    document.getElementById('landFileCard').classList.add('hidden');
+    setKangisDisplay('-', null);
+    setKangisFile('', false);
+    document.getElementById('kangisFilePickBtn').disabled = true;
+    document.getElementById('kangisFileHint').textContent =
+        'Select the land file first. A KANGIS number already on record is filled in and locked.';
+}
+
+// KANGIS File No: value + display; `locked` when it came from the records.
+function setKangisFile(fileNo, locked) {
+    const value = (fileNo || '').trim();
+    document.getElementById('kangisFileNo').value = value;
+    document.getElementById('kangisFileDisplay').value = value;
+    document.getElementById('kangisFilePickBtn').disabled = locked;
+    document.getElementById('kangisFileClearBtn').classList.toggle('hidden', locked || !value);
+    if (locked) {
+        document.getElementById('kangisFileHint').textContent = 'KANGIS File No from the records (locked).';
+    }
+}
+
+function setKangisDisplay(number, source) {
+    const display = document.getElementById('kangisFileNoDisplay');
+    const header = document.getElementById('new-kangis-file-number-display');
+    const badge = document.getElementById('kangisFileNoBadge');
+    if (display) display.textContent = number;
+    if (header) header.textContent = source === 'new' ? number + ' (on submit)' : number;
+    if (!badge) return;
+    badge.className = 'ml-auto text-xs px-2 py-0.5 rounded-full';
+    if (source === 'existing') {
+        badge.textContent = 'Existing KANGIS file';
+        badge.classList.add('bg-green-100', 'text-green-800');
+    } else if (source === 'new') {
+        badge.textContent = 'New KN number';
+        badge.classList.add('bg-blue-100', 'text-blue-800');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function lockField(el) {
+    el.disabled = true;
+    if (el.type !== 'radio' && el.type !== 'checkbox') el.classList.add('bg-gray-100', 'cursor-not-allowed');
+    landFileLocked.push(el);
+}
+
+function fillLandField(name, value) {
+    const form = document.getElementById('recertification-form');
+    if (!form || value === null || value === undefined || value === '') return;
+    const els = name === 'district'
+        ? [document.getElementById('district')].filter(Boolean)
+        : Array.from(form.querySelectorAll(`[name="${name}"]`));
+    if (!els.length) return;
+
+    const first = els[0];
+    if (first.type === 'radio') {
+        const match = els.find(r => r.value.toLowerCase() === String(value).toLowerCase());
+        if (!match) return; // not one of the listed choices: leave it for the clerk
+        match.checked = true;
+        match.dispatchEvent(new Event('change', { bubbles: true }));
+        els.forEach(lockField);
+        return;
+    }
+
+    // Occupation has one "other" choice with a specify box: an unlisted value goes there.
+    if (name === 'occupation' && first.tagName === 'SELECT') {
+        const wanted = String(value).trim().toLowerCase();
+        const listed = Array.from(first.options).find(o =>
+            o.value !== 'other' && (o.value.trim().toLowerCase() === wanted || o.text.trim().toLowerCase() === wanted));
+        const other = document.getElementById('otherOccupation');
+        if (listed || !other) {
+            first.value = listed ? listed.value : first.value;
+            if (!listed) return;
+            first.dispatchEvent(new Event('change', { bubbles: true }));
+            lockField(first);
+            return;
+        }
+        first.value = 'other';
+        if (typeof toggleOtherOccupation === 'function') toggleOtherOccupation();
+        other.value = String(value).trim();
+        lockField(first);
+        lockField(other);
+        return;
+    }
+
+    if (first.tagName === 'SELECT') {
+        const wanted = String(value).trim().toLowerCase();
+        let option = Array.from(first.options).find(o =>
+            o.value.trim().toLowerCase() === wanted || o.text.trim().toLowerCase() === wanted);
+        if (!option) {
+            option = new Option(String(value).trim(), String(value).trim());
+            first.add(option);
+        }
+        first.value = option.value;
+        if (window.jQuery && jQuery(first).data('select2')) jQuery(first).trigger('change');
+        first.dispatchEvent(new Event('change', { bubbles: true }));
+        lockField(first);
+        return;
+    }
+
+    first.value = value;
+    first.dispatchEvent(new Event('input', { bubbles: true }));
+    lockField(first);
+}
+
+// Fill a field from the records but leave it editable (a wrong split can be corrected).
+function fillEditableField(id, value) {
+    const el = document.getElementById(id);
+    if (!el || el.disabled || value === null || value === undefined || value === '') return;
+    if (el.tagName === 'SELECT') {
+        const wanted = String(value).trim().toLowerCase();
+        let option = Array.from(el.options).find(o =>
+            o.value.trim().toLowerCase() === wanted || o.text.trim().toLowerCase() === wanted);
+        if (!option) {
+            // A title the list lacks (e.g. a rank): add it above "Other".
+            option = new Option(String(value).trim(), String(value).trim());
+            const other = Array.from(el.options).find(o => o.value === 'Other');
+            el.add(option, other || null);
+        }
+        el.value = option.value;
+    } else {
+        el.value = String(value).trim();
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    landFileFilled.push(el);
+}
+
+// The file title, split on the server, goes to the applicant (Section A) and the
+// title holder (Section B). An organisation's title fills the organisation name.
+function setApplicantType(value) {
+    const type = document.getElementById('applicantType');
+    if (!type || type.disabled || type.value === value) return;
+    type.value = value;
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function fillHolderName(parts) {
+    if (!parts || parts.joint) return 0; // several holders: the officer fills them in
+    if (parts.organisation) {
+        // A company or government body: switch the Applicant Type so its name shows (changeable).
+        const type = document.getElementById('applicantType');
+        if (type && type.value === 'Individual') {
+            setApplicantType(parts.government ? 'Government Body' : 'Corporate');
+            applicantTypeAutoSet = true;
+        }
+        fillEditableField('organisationName', parts.organisation);
+        return 1;
+    }
+    const map = [
+        ['title', 'title', 'titleHolderTitle'],
+        ['surname', 'surname', 'titleHolderSurname'],
+        ['firstName', 'firstName', 'titleHolderFirstName'],
+        ['middleName', 'middleName', 'titleHolderMiddleName'],
+    ];
+    let filled = 0;
+    map.forEach(([key, applicantId, holderId]) => {
+        if (!parts[key]) return;
+        fillEditableField(applicantId, parts[key]);
+        fillEditableField(holderId, parts[key]);
+        filled++;
+    });
+    return filled;
+}
+
+async function loadLandFile(fileNo) {
+    clearLandFile();
+    document.getElementById('landFileDisplay').value = fileNo;
+    setLandFileStatus('Reading ' + fileNo + ' from the records...', 'info');
+
+    let data;
+    try {
+        const res = await fetch(LAND_FILE_URL + '?file_no=' + encodeURIComponent(fileNo), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        });
+        data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.message || 'Could not read the land file.');
+    } catch (e) {
+        document.getElementById('landFileDisplay').value = '';
+        setLandFileStatus(e.message, 'error');
+        return false;
+    }
+
+    if (data.decommissioned) {
+        document.getElementById('landFileDisplay').value = '';
+        setLandFileStatus(data.land_file + ' has been decommissioned and cannot be recertified.', 'error');
+        return false;
+    }
+    if (data.existing_application) {
+        document.getElementById('landFileDisplay').value = '';
+        setLandFileStatus(data.land_file + ' already has recertification application '
+            + data.existing_application.reference + '.', 'error');
+        return false;
+    }
+
+    document.getElementById('landFileNo').value = data.land_file;
+    document.getElementById('landFileDisplay').value = data.land_file;
+    clearFieldError('landFileNo');
+
+    // New KANGIS File No (KN series): the land file's own, or the next KN on submit.
+    const newKangis = data.new_kangis || {};
+    if (newKangis.source === 'existing') {
+        document.getElementById('newKangisFileNo').value = newKangis.file_no;
+        setKangisDisplay(newKangis.file_no, 'existing');
+    } else {
+        setKangisDisplay(newKangis.preview || 'KN (assigned on submit)', 'new');
+    }
+
+    // KANGIS File No: locked when the records hold one, otherwise the clerk may select it.
+    const kangis = data.kangis || {};
+    if (kangis.file_no) {
+        setKangisFile(kangis.file_no, true);
+    } else {
+        document.getElementById('kangisFilePickBtn').disabled = false;
+        document.getElementById('kangisFileHint').textContent =
+            'No KANGIS File No on record for this land file. Select it if the land has one.';
+    }
+
+    const fields = data.fields || {};
+    Object.keys(fields).forEach(name => fillLandField(name, fields[name]));
+    const namesFilled = fillHolderName(data.holder_parts);
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v || '-'; };
+    set('landFileHolder', data.holder_name);
+    set('landFilePlot', fields.plotNumber);
+    set('landFileDistrict', fields.district);
+    set('landFileLga', fields.lga);
+    set('landFileLocation', data.location);
+    document.getElementById('landFileCard').classList.remove('hidden');
+
+    const count = Object.keys(fields).length;
+    const isOrganisation = !!(data.holder_parts && data.holder_parts.organisation);
+    const nameNote = !namesFilled ? ''
+        : isOrganisation ? ' The file title is an organisation: Applicant Type was set to '
+            + document.getElementById('applicantType').value + ' and the name put in Organisation Name (both can be changed).'
+        : ' The name was split from the file title and can be edited.';
+    setLandFileStatus(count
+        ? count + ' field(s) filled from the records and locked. Confirm them and complete the rest.' + nameNote
+        : (namesFilled ? nameNote.trim() + ' Complete the rest of the form.'
+            : 'The records hold no further details for this file. Complete the form.'), count || namesFilled ? 'info' : 'warn');
+    const several = [];
+    if (kangis.candidates && kangis.candidates.length > 1) {
+        several.push('KANGIS files ' + kangis.candidates.join(', ') + ' (' + kangis.file_no + ' is used)');
+    }
+    if (newKangis.candidates && newKangis.candidates.length > 1) {
+        several.push('New KANGIS files ' + newKangis.candidates.join(', ') + ' (' + newKangis.file_no + ' is used)');
+    }
+    if (several.length) {
+        setLandFileStatus('This land file is related to several ' + several.join('; ') + '.', 'warn');
+    }
+
+    landFileReady = true;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    // Picking the land file is enough to start a draft (skipped while resuming one).
+    scheduleDraftSave(800);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Draft mode. Once a land file is chosen the form saves itself (debounced, and
+// on Save Draft) to recertification_drafts; ?draft=<key> reopens one. Uploaded
+// files cannot be kept, and fields locked from the records are re-read from
+// the records on resume rather than taken from the draft.
+// ---------------------------------------------------------------------------
+const DRAFTS_URL = @json(route('recertification.drafts.index'));
+const DRAFT_AUTOSAVE_MS = 4000;
+const DRAFT_SKIP = ['_token', 'draft_key', 'landFileNo', 'kangisFileNo', 'newKangisFileNo', 'applicantType'];
+let draftTimer = null;
+let draftSaving = false;
+let draftRestoring = false;
+let draftClosed = false;
+
+document.addEventListener('DOMContentLoaded', function () {
+    // After the wizard's own set-up (the applicant type toggle runs at ~300 ms).
+    setTimeout(setupDrafts, 600);
+});
+
+function draftKey() {
+    const el = document.getElementById('draft_key');
+    return el ? el.value : '';
+}
+
+function draftCsrf() {
+    const t = document.querySelector('#recertification-form input[name="_token"]');
+    return t ? t.value : '';
+}
+
+function setDraftStatus(text) {
+    const el = document.getElementById('draft-status');
+    if (el) el.textContent = text || '';
+}
+
+function setupDrafts() {
+    const form = document.getElementById('recertification-form');
+    const btn = document.getElementById('save-draft-btn');
+    if (!form || !btn) return;
+
+    btn.addEventListener('click', () => saveDraft(true));
+    const draftsBtn = document.getElementById('my-drafts-btn');
+    if (draftsBtn) draftsBtn.addEventListener('click', () => {
+        const panel = document.getElementById('drafts-panel');
+        const open = panel.classList.toggle('hidden') === false;
+        draftsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) loadDraftList();
+    });
+    form.addEventListener('input', scheduleDraftSave);
+    form.addEventListener('change', scheduleDraftSave);
+    // Leaving the page (closing the tab, Back to Applications) keeps the last changes.
+    window.addEventListener('pagehide', saveDraftOnLeave);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveDraftOnLeave();
+    });
+
+    if (!landFileReady) setDraftStatus('Autosave starts once a land file is selected');
+
+    const key = new URLSearchParams(window.location.search).get('draft');
+    if (key) {
+        resumeDraft(key).finally(loadDraftList);
+    } else {
+        loadDraftList();
+    }
+}
+
+let draftDirty = false;
+
+function scheduleDraftSave(delay) {
+    if (draftRestoring || draftClosed || !landFileReady) return;
+    clearTimeout(draftTimer);
+    draftDirty = true;
+    setDraftStatus('Unsaved changes');
+    draftTimer = setTimeout(() => saveDraft(false), typeof delay === 'number' ? delay : DRAFT_AUTOSAVE_MS);
+}
+
+function draftStepChanged() {
+    if (draftRestoring || draftClosed || !landFileReady) return;
+    clearTimeout(draftTimer);
+    setTimeout(() => saveDraft(false), 0);
+}
+
+function draftRequestBody() {
+    const values = collectDraftValues();
+    return JSON.stringify({
+        draft_key: draftKey(),
+        land_file_no: values.landFileNo || '',
+        applicant_name: draftApplicantName(values),
+        current_step: currentStep,
+        payload: JSON.stringify({ values: values, step: currentStep })
+    });
+}
+
+// Best effort: keepalive lets the request finish after the page has gone.
+function saveDraftOnLeave() {
+    if (!draftDirty || draftRestoring || draftClosed || !landFileReady) return;
+    clearTimeout(draftTimer);
+    draftDirty = false;
+    try {
+        fetch(DRAFTS_URL, {
+            method: 'POST',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': draftCsrf()
+            },
+            body: draftRequestBody()
+        }).catch(() => {});
+    } catch (e) { /* keepalive bodies are capped at 64 KB; the 4-second autosave has normally run already */ }
+}
+
+function collectDraftValues() {
+    const form = document.getElementById('recertification-form');
+    const values = {};
+    Array.from(form.elements).forEach(el => {
+        if (!el.name || el.type === 'file' || el.type === 'button' || el.name === '_token' || el.name === 'draft_key') return;
+        // Locked fields came from the records; they are read again on resume.
+        if (el.disabled) return;
+        if (el.type === 'radio') {
+            if (el.checked) values[el.name] = el.value;
+            return;
+        }
+        if (el.type === 'checkbox') {
+            if (el.name.endsWith('[]')) {
+                values[el.name] = values[el.name] || [];
+                if (el.checked) values[el.name].push(el.value);
+            } else {
+                values[el.name] = el.checked;
+            }
+            return;
+        }
+        if (el.tagName === 'SELECT' && el.multiple) {
+            values[el.name] = Array.from(el.selectedOptions).map(o => o.value);
+            return;
+        }
+        values[el.name] = el.value;
+    });
+    return values;
+}
+
+function draftApplicantName(values) {
+    if (values.applicantType === 'Corporate' || values.applicantType === 'Government Body') {
+        return values.organisationName || '';
+    }
+    if (values.applicantType === 'Multiple Owners') {
+        const key = Object.keys(values).find(n => /^owners\[\d+\]\[surname\]$/.test(n) && values[n]);
+        return key ? values[key] + ' and others' : '';
+    }
+    return [values.title, values.firstName, values.surname].filter(Boolean).join(' ');
+}
+
+async function saveDraft(manual) {
+    if (draftClosed) return;
+    if (!landFileReady) {
+        if (manual) showToast('Select the land file first. A draft is kept per land file.', 'error');
+        return;
+    }
+    if (draftSaving) { scheduleDraftSave(1500); return; }
+    clearTimeout(draftTimer);
+    draftSaving = true;
+    const btn = document.getElementById('save-draft-btn');
+    if (btn) btn.disabled = true;
+    setDraftStatus('Saving draft...');
+    draftDirty = false;
+
+    try {
+        const res = await fetch(DRAFTS_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': draftCsrf()
+            },
+            body: draftRequestBody()
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            if (res.status === 409) draftClosed = true;
+            throw new Error(data.message || 'The draft could not be saved.');
+        }
+        if (data.csrf_token) {
+            document.querySelectorAll('#recertification-form input[name="_token"]').forEach(t => { t.value = data.csrf_token; });
+        }
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('draft') !== draftKey()) {
+            url.searchParams.set('draft', draftKey());
+            window.history.replaceState(null, '', url.toString());
+        }
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setDraftStatus('Draft saved ' + time);
+        if (manual) showToast('Draft saved. Resume it any time from the recertification form.', 'success');
+    } catch (e) {
+        draftDirty = true;
+        setDraftStatus('Draft not saved');
+        if (manual) showToast(e.message, 'error');
+    } finally {
+        draftSaving = false;
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function loadDraftList() {
+    const panel = document.getElementById('drafts-panel');
+    const list = document.getElementById('drafts-list');
+    if (!panel || !list) return;
+    let drafts = [];
+    try {
+        const res = await fetch(DRAFTS_URL, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        const data = await res.json().catch(() => ({}));
+        drafts = (data.drafts || []).filter(d => d.draft_key !== draftKey());
+    } catch (e) {
+        return;
+    }
+    // The table opens from the My Saved Drafts button.
+    const countEl = document.getElementById('drafts-count');
+    if (countEl) countEl.textContent = drafts.length ? '(' + drafts.length + ')' : '';
+    const esc = v => String(v == null || v === '' ? '-' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    list.innerHTML = drafts.length ? '' : '<tr class="border-t border-gray-200"><td colspan="6" class="py-2 text-gray-500">No saved drafts.</td></tr>';
+    list.innerHTML += drafts.map((d, i) => `
+        <tr class="border-t border-gray-200">
+            <td class="py-1.5 pr-3">${i + 1}</td>
+            <td class="py-1.5 pr-3 font-mono">${esc(d.land_file_no)}</td>
+            <td class="py-1.5 pr-3">${esc(d.applicant_name)}</td>
+            <td class="py-1.5 pr-3">${esc(d.current_step)} of ${totalSteps}</td>
+            <td class="py-1.5 pr-3" title="${esc(d.last_saved_at)}">${esc(d.last_saved_human)}</td>
+            <td class="py-1.5 text-right whitespace-nowrap">
+                <a href="?draft=${encodeURIComponent(d.draft_key)}" class="inline-flex items-center gap-1 rounded-md border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700">
+                    <i data-lucide="play" class="h-3.5 w-3.5"></i> Resume
+                </a>
+                <button type="button" class="draft-discard ml-1 inline-flex items-center gap-1 rounded-md border border-red-300 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50" data-key="${esc(d.draft_key)}" data-file="${esc(d.land_file_no)}">
+                    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Discard
+                </button>
+            </td>
+        </tr>`).join('');
+
+    list.querySelectorAll('.draft-discard').forEach(b => b.addEventListener('click', () => discardDraft(b.dataset.key, b.dataset.file)));
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function discardDraft(key, fileNo) {
+    const question = 'Discard the draft for ' + fileNo + '?';
+    let ok;
+    if (window.Swal) {
+        ok = (await Swal.fire({ title: 'Discard draft', text: question, icon: 'warning', showCancelButton: true, confirmButtonText: 'Discard', confirmButtonColor: '#dc2626' })).isConfirmed;
+    } else {
+        ok = window.confirm(question);
+    }
+    if (!ok) return;
+    const res = await fetch(DRAFTS_URL + '/' + encodeURIComponent(key), {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': draftCsrf() }
+    });
+    showToast(res.ok ? 'Draft discarded.' : 'The draft could not be discarded.', res.ok ? 'success' : 'error');
+    loadDraftList();
+}
+
+function restoreDraftField(form, name, value) {
+    const els = Array.from(form.querySelectorAll(`[name="${CSS.escape(name)}"]`));
+    if (!els.length || els.some(el => el.disabled)) return;
+    const first = els[0];
+    if (first.type === 'file') return;
+    if (first.type === 'radio') {
+        els.forEach(r => { r.checked = (r.value === value); });
+        const checked = els.find(r => r.checked);
+        if (checked) checked.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+    }
+    if (first.type === 'checkbox') {
+        els.forEach(c => {
+            c.checked = Array.isArray(value) ? value.includes(c.value) : Boolean(value);
+            c.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        return;
+    }
+    if (first.tagName === 'SELECT') {
+        const wanted = Array.isArray(value) ? value : [value];
+        wanted.forEach(v => {
+            if (v !== '' && v != null && !Array.from(first.options).some(o => o.value === v)) first.add(new Option(v, v));
+        });
+        if (first.multiple) {
+            Array.from(first.options).forEach(o => { o.selected = wanted.includes(o.value); });
+        } else {
+            first.value = value == null ? '' : value;
+        }
+        if (window.jQuery && jQuery(first).data('select2')) jQuery(first).trigger('change');
+        first.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+    }
+    first.value = value == null ? '' : value;
+    first.dispatchEvent(new Event('input', { bubbles: true }));
+    first.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+async function resumeDraft(key) {
+    let draft;
+    try {
+        const res = await fetch(DRAFTS_URL + '/' + encodeURIComponent(key), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.message || 'Draft not found.');
+        draft = data.draft;
+    } catch (e) {
+        showToast('That draft could not be opened: ' + e.message, 'error');
+        const url = new URL(window.location.href);
+        url.searchParams.delete('draft');
+        window.history.replaceState(null, '', url.toString());
+        return;
+    }
+
+    const payload = draft.payload || {};
+    const values = payload.values || {};
+    const form = document.getElementById('recertification-form');
+    draftRestoring = true;
+    document.getElementById('draft_key').value = draft.draft_key;
+
+    try {
+        // The land file first: it re-reads and locks what the records hold.
+        if (!values.landFileNo || !(await loadLandFile(values.landFileNo))) {
+            showToast('The draft\'s land file ' + (values.landFileNo || '') + ' can no longer be used. See the message on step 1.', 'error');
+            return;
+        }
+        const kangisBtn = document.getElementById('kangisFilePickBtn');
+        if (values.kangisFileNo && kangisBtn && !kangisBtn.disabled) setKangisFile(values.kangisFileNo, false);
+
+        // Applicant type shows its section; owner blocks are rebuilt as 1..n.
+        const typeSelect = document.getElementById('applicantType');
+        if (typeSelect && values.applicantType) {
+            typeSelect.value = values.applicantType;
+            typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const ownerIndexes = [...new Set(Object.keys(values)
+            .map(n => (n.match(/^owners\[(\d+)\]/) || [])[1])
+            .filter(Boolean).map(Number))].sort((a, b) => a - b);
+        if (values.applicantType === 'Multiple Owners') {
+            while (ownersCount < ownerIndexes.length) addOwnerBlock();
+            setOwnersRequired(true);
+        }
+        const ownerMap = {};
+        ownerIndexes.forEach((old, i) => { ownerMap[old] = i + 1; });
+
+        Object.keys(values).forEach(name => {
+            if (DRAFT_SKIP.includes(name)) return;
+            const target = name.replace(/^owners\[(\d+)\]/, (m, i) => 'owners[' + (ownerMap[i] || i) + ']');
+            restoreDraftField(form, target, values[name]);
+        });
+
+        const step = Math.min(Math.max(parseInt(payload.step || draft.current_step || 1, 10), 1), totalSteps - 1);
+        goToStepUnchecked(step);
+        setDraftStatus('Draft resumed (saved ' + (draft.last_saved_human || '') + ')');
+        showToast('Draft resumed. Attach any documents again before submitting.', 'info');
+        const url = new URL(window.location.href);
+        url.searchParams.set('draft', draft.draft_key);
+        window.history.replaceState(null, '', url.toString());
+    } finally {
+        draftRestoring = false;
+    }
 }
 
 console.log('Standalone form wizard initialized with development features');

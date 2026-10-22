@@ -80,14 +80,21 @@ class CadastralDocuments
 
     public const KIND_SUPPORTING   = 'supporting';
     public const KIND_MANUAL_CHART = 'manual_chart';
+    /** Cadastral Department: KAMMA / Physical Planning's Planning Advice (transcript, 2026-10-16). */
+    public const KIND_PLANNING_ADVICE = 'planning_advice';
+    /** Cadastral Department: the new pages the main file came back from Land with (DMS update, 2026-10-18). */
+    public const KIND_DMS_UPDATE = 'dms_update';
 
     public const OWNER_STATUS_EVENT = 'cadastral_file_status_event';
     public const OWNER_REPORT       = 'cadastral_report';
+    public const OWNER_DEPT_CASE    = 'cadastral_case';
 
     /** scannings.document_type, so Scan Upload and Page Typing say where a page came from. */
     private const DOCUMENT_TYPES = [
         self::KIND_SUPPORTING   => 'Cadastral – File Status Document',
         self::KIND_MANUAL_CHART => 'Cadastral – Manual Chart',
+        self::KIND_PLANNING_ADVICE => 'Cadastral – Planning Advice',
+        self::KIND_DMS_UPDATE => 'Cadastral – DMS Update (pages back from Land)',
     ];
 
     /** hasTable costs a round trip; one answer per request (per process). */

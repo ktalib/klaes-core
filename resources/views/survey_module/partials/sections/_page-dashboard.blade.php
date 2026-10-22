@@ -91,7 +91,7 @@
 <div class="section-cards">
     @foreach ([
         ['survey-module.compensation.dashboard', 'fa-coins',        'Compensation', 'Cases needing attention', $sections['compensation'], 'pending'],
-        ['survey-module.gkn.dashboard',          'fa-building',     'GKN',          'Government land records', $sections['gkn'], 'indexed'],
+        ['survey-module.gkn.lands',              'fa-building',    'GKN',          'Government land records', $sections['gkn'], 'indexed'],
         ['survey-module.records.lpkn',           'fa-layer-group',  'LPKN',         'Layout plan registrations', $sections['lpkn'], 'not yet approved'],
         ['survey-module.workflow.examination',   'fa-check-double', 'Examination',  'QA/QC verification queue', $sections['examination'], 'awaiting review'],
     ] as [$route, $icon, $title, $blurb, $stat, $unit])

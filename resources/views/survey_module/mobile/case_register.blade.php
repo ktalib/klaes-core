@@ -57,7 +57,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     @include('survey_module.mobile._styles')
-    <style>:root { --page-w: 880px; }</style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root { --page-w: 880px; }
+        #caseMap { height: 260px; border-radius: 12px; border: 1px solid #e5e7eb; z-index: 0; }
+        .map-off { display: flex; align-items: center; justify-content: center; color: #6b7280; font-size: 13px; background: #f9fafb; }
+    </style>
 </head>
 <body class="has-mobile-footer has-register-actions">
 
@@ -181,10 +187,41 @@
                 </div>
             </div>
 
-            {{-- Property location: District, LGA, State. The plot number is its own field. --}}
+            {{-- Property order: House No. | Street, Plot No. | District, LGA | State, then Location. The plot number is its own field, never part of the location. --}}
             <div class="section-title"><i class="fas fa-location-dot"></i> Case property location</div>
             <div class="grid two">
-                <div class="field span-2" data-key="prop_district">
+                <div class="field" data-key="prop_house">
+                    <label for="propHouse">House No.</label>
+                    <input class="input" type="text" name="prop_house" id="propHouse" value="{{ old('prop_house', $case->prop_house) }}" placeholder="e.g. 12">
+                </div>
+
+                <div class="field" data-key="prop_street">
+                    <label>Street Name</label>
+                    <div class="picker" data-name="prop_street[]" data-url="{{ route('survey-module.lookup.streets') }}"
+                         data-other="streetOther" data-placeholder="Search street…">
+                        <div class="picker-box">
+                            @foreach ($curStreet as $v)
+                                <span class="tag" data-v="{{ $v }}"><span>{{ $v === 'Other' ? 'Other (specify)' : $v }}</span><button type="button" aria-label="Remove">×</button><input type="hidden" name="prop_street[]" value="{{ $v }}"></span>
+                            @endforeach
+                            <input class="picker-search" type="search" autocomplete="off" placeholder="Search street…">
+                        </div>
+                        <div class="picker-list"></div>
+                    </div>
+                </div>
+
+                <div class="field span-2" id="streetOther" data-key="prop_street_other" @style(['display:none' => ! in_array('Other', $curStreet, true)])>
+                    <label for="propStreetOther">Specify Street <span class="req">*</span></label>
+                    <input class="input" type="text" name="prop_street_other" id="propStreetOther"
+                           value="{{ old('prop_street_other', $case->prop_street_other) }}" placeholder="Type the street name">
+                    <div class="err">Type the street name.</div>
+                </div>
+
+                <div class="field" data-key="prop_plot">
+                    <label for="propPlot">Plot No.</label>
+                    <input class="input" type="text" name="prop_plot" id="propPlot" value="{{ old('prop_plot', $case->prop_plot) }}" placeholder="e.g. 4">
+                </div>
+
+                <div class="field" data-key="prop_district">
                     <label>District <span class="req">*</span></label>
                     <div class="picker" data-name="prop_district[]" data-url="{{ route('survey-module.lookup.districts') }}"
                          data-other="districtOther" data-placeholder="Search district…">
@@ -228,43 +265,6 @@
                             <option value="{{ $st }}" @selected($curState === $st)>{{ $st }}</option>
                         @endforeach
                     </select>
-                </div>
-
-                <div class="span-2">
-                    <details id="moreAddress" @if(old('prop_street') || old('prop_house') || old('prop_plot')) open @endif>
-                        <summary style="cursor:pointer;color:var(--primary-dark);font-weight:600;font-size:14px;padding:4px 0;">
-                            Street, house and plot number (optional)
-                        </summary>
-                        <div class="grid two" style="margin-top:12px;">
-                            <div class="field span-2" data-key="prop_street">
-                                <label>Street Name</label>
-                                <div class="picker" data-name="prop_street[]" data-url="{{ route('survey-module.lookup.streets') }}"
-                                     data-other="streetOther" data-placeholder="Search street…">
-                                    <div class="picker-box">
-                                        @foreach ($curStreet as $v)
-                                            <span class="tag" data-v="{{ $v }}"><span>{{ $v === 'Other' ? 'Other (specify)' : $v }}</span><button type="button" aria-label="Remove">×</button><input type="hidden" name="prop_street[]" value="{{ $v }}"></span>
-                                        @endforeach
-                                        <input class="picker-search" type="search" autocomplete="off" placeholder="Search street…">
-                                    </div>
-                                    <div class="picker-list"></div>
-                                </div>
-                            </div>
-                            <div class="field span-2" id="streetOther" data-key="prop_street_other" @style(['display:none' => ! in_array('Other', $curStreet, true)])>
-                                <label for="propStreetOther">Specify Street <span class="req">*</span></label>
-                                <input class="input" type="text" name="prop_street_other" id="propStreetOther"
-                                       value="{{ old('prop_street_other', $case->prop_street_other) }}" placeholder="Type the street name">
-                                <div class="err">Type the street name.</div>
-                            </div>
-                            <div class="field" data-key="prop_house">
-                                <label for="propHouse">House No.</label>
-                                <input class="input" type="text" name="prop_house" id="propHouse" value="{{ old('prop_house', $case->prop_house) }}" placeholder="e.g. 12">
-                            </div>
-                            <div class="field" data-key="prop_plot">
-                                <label for="propPlot">Plot No.</label>
-                                <input class="input" type="text" name="prop_plot" id="propPlot" value="{{ old('prop_plot', $case->prop_plot) }}" placeholder="e.g. 4">
-                            </div>
-                        </div>
-                    </details>
                 </div>
 
                 <div class="span-2">
@@ -320,6 +320,11 @@
                         </button>
                     </div>
                     <div class="hint" id="gpsHint">Stand on the land and tap Use GPS to fill this from the phone.</div>
+                </div>
+                <div class="field span-2">
+                    <label>Map</label>
+                    <div id="caseMap"></div>
+                    <div class="hint" id="mapHint">Tap the map to pin the land. The pin fills Coordinates and GPS Reading.</div>
                 </div>
                 <div class="field" data-key="gps_reading">
                     <label for="caseGps">GPS Reading</label>
@@ -767,7 +772,6 @@
             check(mark($('propState'), !$('propState').value, 'Select the state.'));
             if (pickerText('prop_street[]').indexOf('Other') !== -1) {
                 var so = !$('propStreetOther').value.trim();
-                if (so) $('moreAddress').open = true;
                 check(mark($('propStreetOther'), so));
             }
         }
@@ -828,6 +832,10 @@
 
         if (step === 3 || step === 4) refreshTotals();
         if (step === 5) fillReview();
+        if (step === 2 && map) setTimeout(function () {
+            map.invalidateSize();
+            if (marker) map.setView(marker.getLatLng(), Math.max(map.getZoom(), 16));
+        }, 0);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -913,14 +921,20 @@
         return (v >= 0 ? pos : neg) + ' ' + String(d).padStart(2, '0') + '°' + String(m).padStart(2, '0') + "'" + String(s).padStart(4, '0') + '"';
     }
 
+    // Writes both coordinate fields from one point and moves the map pin.
+    function setPoint(lat, lng) {
+        $('caseCoordinates').value = Math.abs(lat).toFixed(5) + '° ' + (lat >= 0 ? 'N' : 'S') + ', ' + Math.abs(lng).toFixed(5) + '° ' + (lng >= 0 ? 'E' : 'W');
+        $('caseGps').value = dms(lat, 'N', 'S') + ', ' + dms(lng, 'E', 'W');
+        pin(lat, lng, true);
+        dirty = true;
+    }
+
     function gps() {
         var hint = $('gpsHint'), btn = $('gpsBtn');
         if (!navigator.geolocation) { hint.textContent = 'This device or browser cannot read GPS.'; return; }
         btn.disabled = true; hint.textContent = 'Reading location…';
         navigator.geolocation.getCurrentPosition(function (p) {
-            var lat = p.coords.latitude, lng = p.coords.longitude;
-            $('caseCoordinates').value = Math.abs(lat).toFixed(5) + '° ' + (lat >= 0 ? 'N' : 'S') + ', ' + Math.abs(lng).toFixed(5) + '° ' + (lng >= 0 ? 'E' : 'W');
-            $('caseGps').value = dms(lat, 'N', 'S') + ', ' + dms(lng, 'E', 'W');
+            setPoint(p.coords.latitude, p.coords.longitude);
             hint.textContent = 'Filled from GPS · accuracy about ' + Math.round(p.coords.accuracy) + ' m.';
             btn.disabled = false; dirty = true;
         }, function (err) {
@@ -929,6 +943,46 @@
                 : 'Could not get a GPS fix. Move into the open and try again, or type the coordinates.';
             btn.disabled = false;
         }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    }
+
+    /* -------------------------------- map -------------------------------- */
+
+    var map = null, marker = null, KANO = [12.0022, 8.5920];
+
+    // Reads "12.00220° N, 8.59200° E" or "12.0022, 8.592"; null when it is not a usable point.
+    function parseCoords(text) {
+        var m = String(text || '').match(/(-?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EW])?/i);
+        if (!m) return null;
+        var lat = parseFloat(m[1]) * (/s/i.test(m[2] || '') ? -1 : 1);
+        var lng = parseFloat(m[3]) * (/w/i.test(m[4] || '') ? -1 : 1);
+        return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [lat, lng] : null;
+    }
+
+    function pin(lat, lng, centre) {
+        if (!map) return;
+        if (marker) marker.setLatLng([lat, lng]);
+        else {
+            marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            marker.on('dragend', function () { var p = marker.getLatLng(); setPoint(p.lat, p.lng); });
+        }
+        if (centre) map.setView([lat, lng], Math.max(map.getZoom(), 16));
+    }
+
+    function initMap() {
+        var box = $('caseMap');
+        if (!window.L) { box.classList.add('map-off'); box.textContent = 'The map could not load. Check the connection, or type the coordinates.'; return; }
+        map = L.map(box, { center: KANO, zoom: 11, dragging: !L.Browser.mobile, tap: false });
+        var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+        var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagery &copy; Esri' });
+        L.control.layers({ 'Street': street, 'Satellite': sat }, null, { position: 'topright' }).addTo(map);
+        map.on('click', function (e) { setPoint(e.latlng.lat, e.latlng.lng); });
+        if (L.Browser.mobile) $('mapHint').textContent = 'Tap the map to pin the land (pinch to zoom, drag the pin to adjust). The pin fills Coordinates and GPS Reading.';
+        var cur = parseCoords($('caseCoordinates').value);
+        if (cur) pin(cur[0], cur[1], true);
+        $('caseCoordinates').addEventListener('change', function () {
+            var p = parseCoords(this.value);
+            if (p) pin(p[0], p[1], true);
+        });
     }
 
     /* -------------------------------- boot -------------------------------- */
@@ -940,7 +994,7 @@
     window.addEventListener('beforeunload', function (ev) { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
     applyScheme(scheme || (PROJECTS[$('caseProject').value] || {}).scheme);
-    renumber(); refreshTotals(); updateLocation();
+    renumber(); refreshTotals(); updateLocation(); initMap();
 
     // A bounced submission: open the first step that holds an error.
     if (ERROR_KEYS.length) {

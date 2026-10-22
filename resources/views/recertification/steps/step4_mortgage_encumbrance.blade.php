@@ -1,5 +1,5 @@
 <!-- Step 4: Mortgage & Encumbrance Details -->
-<div id="step-content-4" class="step-content hidden">
+<div id="step-content-5" class="step-content hidden">
     <div class="bg-white border border-gray-200 rounded-lg">
         <div class="p-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold">MORTGAGE & ENCUMBRANCE DETAILS</h3>

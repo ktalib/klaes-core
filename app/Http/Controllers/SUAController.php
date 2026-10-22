@@ -372,6 +372,8 @@ class SUAController extends Controller
             $suaData = array_merge($suaData, $applicantData);
 
             $suaId = DB::connection('sqlsrv')->table('subapplications')->insertGetId($suaData);
+            // KLAES REV-M: the initial bill in Bill Master, already paid from the receipts captured here.
+            app(\App\Services\Billing\Modules\StInitialBillMirror::class)->forUnit((int) $suaId);
 
             // Save shared utilities to shared_utilities table
             $this->saveSharedUtilitiesToTable($request, $request->main_application_id, $suaId);

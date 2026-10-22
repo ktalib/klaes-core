@@ -641,7 +641,7 @@
             <strong>{{ $fees['payee_name'] }}</strong> before the Ministry can proceed with further processing;
             <div class="clause-sub is-outstanding">
                 <span class="clause-sub-no">i.</span>
-                <span>The sum of <span class="json-data">{{ \App\Services\ConsentBillCalculator::amountInWords($fees['stamp_duty_amount'] ?? 0) }}
+                <span>The sum of <span class="json-data">{{ $fees['stamp_duty_amount'] === null ? '_______________________' : \App\Services\ConsentBillCalculator::amountInWords($fees['stamp_duty_amount']) }}
                 ({{ $money($fees['stamp_duty_amount']) }})</span> being
                 <span class="json-data">{{ $rate($fees['stamp_duty_rate']) }}</span> for Stamp duty.</span>
             </div>

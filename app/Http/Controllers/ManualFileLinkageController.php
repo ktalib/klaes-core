@@ -14,6 +14,15 @@ use Illuminate\Support\Str;
 
 class ManualFileLinkageController extends Controller
 {
+    /** Most files one "Import by Range" may pull in. */
+    private const RANGE_IMPORT_MAX = 2000;
+
+    /**
+     * MLS file-number prefixes only: [CON-]RES|COM|IND|AG[-RC]-YYYY, or SIT-YYYY.
+     * fileNumber.mlsfNo also holds SLTR, ST-, GKN, DCIV, LPCC… numbers — those are not MLS.
+     */
+    private const MLS_PREFIX_PATTERN = '/^((CON-)?(RES|COM|IND|AG)(-RC)?|SIT)-(19|20)\d{2}$/';
+
     public function index()
     {
         $linkages = DB::connection('sqlsrv')
@@ -124,6 +133,9 @@ class ManualFileLinkageController extends Controller
      */
     /** Which module a linkage is being made from: 'Land' or 'Deeds'. */
     private string $linkageSource = 'Deeds';
+
+    /** "File Already Decommissioned Before" for this save's old files, written on every row. */
+    private ?string $previouslyDecommissioned = null;
 
     /**
      * Land opens this page as /manual-linkage?url=land_view, Deeds as /manual-linkage.
@@ -445,6 +457,9 @@ class ManualFileLinkageController extends Controller
             // Decommissioning only happens on the FINAL workflow (activation OFF).
             $filesToDecommission = array_values(array_diff($oldFileNumbers, $unindexedFiles));
             $workflowService = app(PlotWorkflowService::class);
+            // "File Already Decommissioned Before", read BEFORE this linkage retires the
+            // old files. Yes = this linkage's files are added to that existing record.
+            $this->previouslyDecommissioned = $workflowService->decommissionedBeforeAnswer($oldFileNumbers);
             // The old -> successor lineage pointer stored on decommissioned_files.successor_file_no
             // (read back by the Decommissioned Files list's Related File column and by Legal
             // Search's lineage resolver). A batch subdivision retires the mother into several
@@ -459,8 +474,18 @@ class ManualFileLinkageController extends Controller
             // per file inside its own try/catch, so a failure here used to leave the source
             // file live while the linkage still saved and the page still said "decommissioned".
             $decommissionWarnings = [];
+            // Files that were already decommissioned keep their first record — say so
+            $decommissionNote = '';
             if (($isFinalizeChain || !$useHoldingFile) && !empty($filesToDecommission)) {
                 $decommSummary = $workflowService->decommissionFiles($filesToDecommission, $decommReason, $commissionedBy, $successorFileNo, true);
+                $already = $decommSummary['already_decommissioned'] ?? [];
+                if ($already) {
+                    $decommissionNote = ' Already decommissioned, so not recorded again: ' . implode('; ', array_map(
+                        fn ($fileNo, $row) => $fileNo . ' (' . \Carbon\Carbon::parse($row->decommissioning_date)->format('d/m/Y')
+                            . ($row->decommissioning_reason ? ' — ' . \Illuminate\Support\Str::limit((string) $row->decommissioning_reason, 60) : '') . ')',
+                        array_keys($already), $already
+                    )) . '.';
+                }
                 $missed = array_values(array_diff($filesToDecommission, $decommSummary['archived'] ?? []));
                 if (!empty($missed) || !empty($decommSummary['errors'])) {
                     $decommissionWarnings = array_values(array_filter(array_merge(
@@ -710,7 +735,7 @@ class ManualFileLinkageController extends Controller
                 }
 
                 return redirect()->to($this->indexUrl())
-                    ->with('success', "Subdivision linkage saved: {$firstOldFile} → {$childCount} child plot(s) decommissioned and linked.");
+                    ->with('success', "Subdivision linkage saved: {$firstOldFile} → {$childCount} child plot(s) decommissioned and linked." . $decommissionNote);
 
             } else {
                 // --- Merger / Plot Extension / Change of Purpose -------------
@@ -920,7 +945,7 @@ class ManualFileLinkageController extends Controller
                 }
 
                 return redirect()->to($this->indexUrl())
-                    ->with('success', "Successfully linked manually processed files for {$workflowType}!");
+                    ->with('success', "Successfully linked manually processed files for {$workflowType}!" . $decommissionNote);
             }
 
         } catch (\Throwable $e) {
@@ -1002,6 +1027,7 @@ class ManualFileLinkageController extends Controller
             'linkage_group_id'   => $linkageGroupId,
             'holding_file_no'    => $holdingFileNo,
             'source'             => $this->linkageSource,
+            'previously_decommissioned' => $this->previouslyDecommissioned,
         ];
 
         foreach ($optional as $col => $value) {
@@ -1155,10 +1181,8 @@ class ManualFileLinkageController extends Controller
             return null;
         };
 
-        $rows    = [];
-        $seen    = [];
+        $entries = [];
         $rowNo   = 1; // header was row 1
-        $summary = ['total' => 0, 'imported' => 0, 'indexed' => 0, 'unindexed' => 0, 'duplicates' => 0, 'invalid' => 0];
 
         while (($data = fgetcsv($handle)) !== false) {
             $rowNo++;
@@ -1166,9 +1190,279 @@ class ManualFileLinkageController extends Controller
             if (count(array_filter($data, fn ($v) => trim((string) $v) !== '')) === 0) {
                 continue;
             }
-            $summary['total']++;
 
-            $fileNumber = strtoupper((string) ($col($data, ['file_number', 'fileno', 'file_no', 'mls_file_no', 'mlsfno']) ?? ''));
+            $entries[] = [
+                'row'         => $rowNo,
+                'file_number' => strtoupper((string) ($col($data, ['file_number', 'fileno', 'file_no', 'mls_file_no', 'mlsfno']) ?? '')),
+                // CSV-supplied overrides (fall back to the indexed record when blank)
+                'overrides'   => [
+                    'plot_number'    => $col($data, ['plot_number', 'plot_no', 'plot']),
+                    'file_title'     => $col($data, ['file_title', 'title', 'holder', 'applicant_name']),
+                    'plot_size'      => $col($data, ['plot_size', 'size']),
+                    'survey_plan_no' => $col($data, ['survey_plan_no', 'survey_plan', 'plan_no']),
+                    'house_no'       => $col($data, ['house_no', 'house']),
+                    'street_name'    => $col($data, ['street_name', 'street']),
+                    'district'       => $col($data, ['district']),
+                    'lga'            => $col($data, ['lga']),
+                    'state'          => $col($data, ['state']),
+                    'location'       => $col($data, ['location', 'address']),
+                ],
+            ];
+        }
+
+        fclose($handle);
+
+        if (count($entries) === 0) {
+            return response()->json(['error' => 'No data rows found in the CSV (only a header was detected).'], 422);
+        }
+
+        [$rows, $summary] = $this->resolveImportFiles($entries);
+
+        return response()->json(['mode' => $mode, 'summary' => $summary, 'rows' => $rows]);
+    }
+
+    /**
+     * Prefixes for the "Import by Range" picker (e.g. CON-RES-2026), read from the MLS
+     * file number table (mls_file_no) — not the general fileNumber table, which also
+     * holds ST / SLTR / KANGIS numbers.
+     */
+    public function rangePrefixes()
+    {
+        $prefixes = \Illuminate\Support\Facades\Cache::remember('manual_linkage.range_prefixes.mls_file_no', 600, function () {
+            return collect(DB::connection('sqlsrv')->select("
+                SELECT DISTINCT LEFT(v, LEN(v) - CHARINDEX('-', REVERSE(v))) AS prefix
+                FROM (SELECT LTRIM(RTRIM(full_file_number)) AS v FROM mls_file_no
+                      WHERE ISNULL(is_deleted, 0) = 0 AND full_file_number LIKE '%-%') x
+                WHERE CHARINDEX('-', REVERSE(v)) BETWEEN 2 AND 10
+                  AND RIGHT(v, CHARINDEX('-', REVERSE(v)) - 1) NOT LIKE '%[^0-9]%'
+            "))->pluck('prefix')
+              ->map(fn ($p) => strtoupper(trim((string) $p)))
+              ->filter(fn ($p) => preg_match(self::MLS_PREFIX_PATTERN, $p))
+              ->unique()->sort()->values()->all();
+        });
+
+        return response()->json(['prefixes' => $prefixes]);
+    }
+
+    /**
+     * "Import by Range": builds PREFIX-FROM … PREFIX-TO and runs it through the same
+     * checks as a CSV of file numbers. Each number must exist in the MLS file number
+     * table (mls_file_no); its details come from that row first, then from the indexed
+     * record. Because a range is one batch (one holder, one property), blank title, plot
+     * number, district, LGA and state are then filled from the first file that has them.
+     * Nothing is saved here — rows go to the review grid.
+     */
+    public function rangeImport(Request $request)
+    {
+        $validated = $request->validate([
+            'prefix' => ['required', 'string', 'max:50', 'regex:' . self::MLS_PREFIX_PATTERN . 'i'],
+            'from'   => 'required|integer|min:0',
+            'to'     => 'required|integer|gte:from',
+            'mode'   => 'required|in:subdivision,merger',
+        ], [
+            'prefix.regex' => 'Choose an MLS file number prefix from the list.',
+            'to.gte'       => 'The "To" number must be the same as or higher than "From".',
+        ]);
+
+        $from  = (int) $validated['from'];
+        $to    = (int) $validated['to'];
+        $count = $to - $from + 1;
+        if ($count > self::RANGE_IMPORT_MAX) {
+            return response()->json(['error' => 'A range can hold at most ' . number_format(self::RANGE_IMPORT_MAX)
+                . ' files; this one has ' . number_format($count) . '.'], 422);
+        }
+
+        $prefix  = strtoupper(trim($validated['prefix']));
+        $entries = [];
+        for ($serial = $from, $i = 1; $serial <= $to; $serial++, $i++) {
+            $entries[] = ['row' => $i, 'file_number' => $prefix . '-' . $serial, 'overrides' => []];
+        }
+
+        // The MLS rows for the range, keyed by file number
+        $mlsRows = [];
+        foreach (array_chunk(array_column($entries, 'file_number'), 1000) as $chunk) {
+            $found = DB::connection('sqlsrv')->table('mls_file_no')
+                ->whereIn('full_file_number', $chunk)
+                ->whereRaw('ISNULL(is_deleted, 0) = 0')
+                ->orderBy('id')
+                ->get();
+            foreach ($found as $m) {
+                $mlsRows[strtoupper(rtrim((string) $m->full_file_number, ' '))] ??= $m;
+            }
+        }
+
+        [$rows, $summary] = $this->resolveImportFiles($entries);
+
+        foreach ($rows as &$row) {
+            if (!isset($row['details'])) {
+                continue; // already invalid / duplicate
+            }
+            $mls = $mlsRows[$row['file_number']] ?? null;
+
+            // Range numbers come from the MLS file number table only
+            if (!$mls) {
+                $summary[$row['indexed'] ? 'indexed' : 'unindexed']--;
+                $summary['imported']--;
+                $summary['invalid']++;
+                $row['status']  = 'invalid';
+                $row['message'] = 'Not found in the MLS file number table.';
+                unset($row['details'], $row['indexed'], $row['in_mls']);
+                continue;
+            }
+
+            // MLS row first, indexed record for whatever the MLS row lacks
+            $d    = $row['details'];
+            $pick = function ($mlsValue, $fallback) {
+                $v = trim((string) $mlsValue);
+                return ($v !== '' && $v !== 'N/A') ? $v : $fallback;
+            };
+            $d['file_title']  = $pick($mls->file_name ?? null, $d['file_title']);
+            $d['plot_number'] = $pick($mls->plot_no ?? null, $d['plot_number']);
+            $d['house_no']    = $pick($mls->house_no ?? null, $d['house_no']);
+            $d['street_name'] = $pick($mls->street_name ?? null, $d['street_name']);
+            $d['lga']         = $pick($mls->lga ?? null, $d['lga']);
+            $d['state']       = $pick($mls->state ?? null, $d['state']);
+            $d['district']    = $this->knownDistrict($mls->district ?? null, $mls->location ?? null) ?: $d['district'];
+            $d['location']    = $this->locationFromParts($d);
+            $row['details']   = $d;
+        }
+        unset($row);
+
+        $batchSource = $this->fillBlanksFromBatch($rows);
+
+        return response()->json([
+            'mode'         => $validated['mode'],
+            'summary'      => $summary,
+            'rows'         => $rows,
+            'range'        => ['prefix' => $prefix, 'from' => $from, 'to' => $to],
+            'batch_source' => $batchSource,
+        ]);
+    }
+
+    /** Active district names, keyed upper-case, loaded once per request. */
+    private ?array $districtNames = null;
+
+    /**
+     * The district for a record: its own district, or — when that is blank — its location
+     * text if that is exactly a known district name (e.g. location "YARIMAWA").
+     */
+    private function knownDistrict(?string $district, ?string $locationText): string
+    {
+        $district = trim((string) $district);
+        if ($district !== '' && $district !== 'N/A') {
+            return $district;
+        }
+        if ($this->districtNames === null) {
+            $this->districtNames = [];
+            foreach (DB::connection('sqlsrv')->table('districts')->where('is_active', 1)->pluck('name') as $name) {
+                $this->districtNames[strtoupper(trim((string) $name))] = trim((string) $name);
+            }
+        }
+        return $this->districtNames[strtoupper(trim((string) $locationText))] ?? '';
+    }
+
+    /**
+     * Fill the blank shared details of every imported row from the first row (in range
+     * order) that has a district or LGA — one batch is one holder on one property, so
+     * title, plot number, district, LGA and state carry across. Location is then rebuilt
+     * from district + LGA. Filled fields are listed in `batch_filled` so the grid can tag
+     * them. Returns the donor file number, or null.
+     */
+    private function fillBlanksFromBatch(array &$rows): ?string
+    {
+        $shared = ['file_title', 'plot_number', 'district', 'lga', 'state'];
+
+        $donor = null;
+        foreach ($rows as $row) {
+            if (!isset($row['details'])) {
+                continue;
+            }
+            $d = $row['details'];
+            if (trim((string) $d['lga']) !== '' || trim((string) $d['district']) !== '') {
+                $donor = $row;
+                break;
+            }
+        }
+        if ($donor === null) {
+            return null;
+        }
+
+        foreach ($rows as &$row) {
+            if (!isset($row['details']) || $row['file_number'] === $donor['file_number']) {
+                continue;
+            }
+            $filled = [];
+            foreach ($shared as $field) {
+                $value = trim((string) ($donor['details'][$field] ?? ''));
+                if (trim((string) ($row['details'][$field] ?? '')) === '' && $value !== '') {
+                    $row['details'][$field] = $value;
+                    $filled[] = $field;
+                }
+            }
+            if ($filled) {
+                $location = $this->locationFromParts($row['details']);
+                if ($location !== $row['details']['location']) {
+                    $row['details']['location'] = $location;
+                    $filled[] = 'location';
+                }
+                $row['batch_filled'] = $filled;
+                $row['batch_source'] = $donor['file_number'];
+            }
+        }
+        unset($row);
+
+        return $donor['file_number'];
+    }
+
+    /** Property location is district + LGA (+ state) — never the plot number. */
+    private function locationFromParts(array $details): string
+    {
+        return implode(', ', array_filter(
+            [trim((string) ($details['district'] ?? '')), trim((string) ($details['lga'] ?? '')), trim((string) ($details['state'] ?? ''))],
+            fn ($v) => $v !== '' && $v !== 'N/A'
+        ));
+    }
+
+    /**
+     * Shared by the CSV import and the range import. Each entry is
+     * ['row' => n, 'file_number' => 'ABC-1', 'overrides' => [field => value|null]].
+     * Indexed files are back-filled from their record, un-indexed files are accepted as
+     * related file numbers, decommissioned files are rejected and repeats are flagged.
+     * Look-ups are batched so a 2,000-file range is a handful of queries.
+     *
+     * @return array{0: array, 1: array} [rows, summary]
+     */
+    private function resolveImportFiles(array $entries): array
+    {
+        $db  = DB::connection('sqlsrv');
+        $key = fn ($v) => strtoupper(rtrim((string) $v, ' ')); // SQL Server `=` ignores case and trailing spaces
+
+        $numbers = array_values(array_unique(array_filter(array_column($entries, 'file_number'), fn ($v) => $v !== '')));
+
+        $indexings = [];
+        $mls       = [];
+        $decomm    = [];
+        foreach (array_chunk($numbers, 1000) as $chunk) {
+            foreach ($db->table('file_indexings')->whereIn('file_number', $chunk)->orderBy('id')->get() as $r) {
+                $indexings[$key($r->file_number)] ??= $r;
+            }
+            foreach ($db->table('fileNumber')->whereIn('mlsfNo', $chunk)->select('mlsfNo')->get() as $r) {
+                $mls[$key($r->mlsfNo)] = true;
+            }
+            foreach ($db->table('decommissioned_files')->whereIn('mls_file_no', $chunk)->orderBy('decommissioning_date', 'desc')->get() as $r) {
+                $decomm[$key($r->mls_file_no)] ??= $r;
+            }
+        }
+
+        $rows    = [];
+        $seen    = [];
+        $summary = ['total' => 0, 'imported' => 0, 'indexed' => 0, 'unindexed' => 0, 'duplicates' => 0, 'invalid' => 0];
+
+        foreach ($entries as $entry) {
+            $summary['total']++;
+            $rowNo      = $entry['row'];
+            $fileNumber = $entry['file_number'];
+            $o          = array_map(fn ($v) => ($v === null || $v === '') ? null : $v, $entry['overrides'] ?? []);
 
             if ($fileNumber === '') {
                 $summary['invalid']++;
@@ -1184,63 +1478,39 @@ class ManualFileLinkageController extends Controller
             }
             $seen[$fileNumber] = $rowNo;
 
-            $indexing     = DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $fileNumber)->first();
-            $fileNoRecord = $indexing ? null : DB::connection('sqlsrv')->table('fileNumber')->where('mlsfNo', $fileNumber)->first();
+            $indexing = $indexings[$key($fileNumber)] ?? null;
+            $inMls    = isset($mls[$key($fileNumber)]);
 
             // Reject already-decommissioned files (archived — cannot be reused)
-            if (!$indexing && !$fileNoRecord) {
-                $decommissioned = DB::connection('sqlsrv')->table('decommissioned_files')
-                    ->where('mls_file_no', $fileNumber)
-                    ->orderBy('decommissioning_date', 'desc')
-                    ->first();
-                if ($decommissioned) {
-                    $summary['invalid']++;
-                    $rows[] = [
-                        'row'         => $rowNo,
-                        'file_number' => $fileNumber,
-                        'status'      => 'invalid',
-                        'message'     => 'Already decommissioned'
-                            . ($decommissioned->decommissioning_reason ? ': ' . $decommissioned->decommissioning_reason : '.'),
-                    ];
-                    continue;
-                }
+            if (!$indexing && !$inMls && ($decommissioned = $decomm[$key($fileNumber)] ?? null)) {
+                $summary['invalid']++;
+                $rows[] = [
+                    'row'         => $rowNo,
+                    'file_number' => $fileNumber,
+                    'status'      => 'invalid',
+                    'message'     => 'Already decommissioned'
+                        . ($decommissioned->decommissioning_reason ? ': ' . $decommissioned->decommissioning_reason : '.'),
+                ];
+                continue;
             }
-
-            // CSV-supplied overrides (fall back to the indexed record when blank)
-            $csvPlotNumber = $col($data, ['plot_number', 'plot_no', 'plot']);
-            $csvFileTitle  = $col($data, ['file_title', 'title', 'holder', 'applicant_name']);
-            $csvPlotSize   = $col($data, ['plot_size', 'size']);
-            $csvSurveyPlan = $col($data, ['survey_plan_no', 'survey_plan', 'plan_no']);
-            $csvHouseNo    = $col($data, ['house_no', 'house']);
-            $csvStreet     = $col($data, ['street_name', 'street']);
-            $csvDistrict   = $col($data, ['district']);
-            $csvLga        = $col($data, ['lga']);
-            $csvState      = $col($data, ['state']);
-            $csvLocation   = $col($data, ['location', 'address']);
 
             $indexed = (bool) $indexing;
 
             if ($indexed) {
-                $recordLocation = $indexing->location ?? null;
-                $builtLocation  = $csvLocation
-                    ?: ($recordLocation
-                        ?: implode(', ', array_filter([
-                            $csvPlotNumber ?: ($indexing->plot_number ?? null),
-                            $csvStreet, $csvDistrict ?: ($indexing->district ?? null),
-                            $csvLga ?: ($indexing->lga ?? null), $csvState,
-                        ], fn ($v) => $v && $v !== 'N/A')));
+                $district = $this->knownDistrict(($o['district'] ?? null) ?: ($indexing->district ?? null), ($o['location'] ?? null) ?: ($indexing->location ?? null));
+                $lga      = ($o['lga'] ?? null) ?: ($indexing->lga ?? '');
 
                 $details = [
-                    'file_title'     => $csvFileTitle  ?: ($indexing->file_title ?? ''),
-                    'plot_number'    => $csvPlotNumber ?: ($indexing->plot_number ?? ''),
-                    'house_no'       => $csvHouseNo    ?: '',
-                    'street_name'    => $csvStreet     ?: '',
-                    'district'       => $csvDistrict   ?: ($indexing->district ?? ''),
-                    'lga'            => $csvLga         ?: ($indexing->lga ?? ''),
-                    'state'          => $csvState       ?: '',
-                    'location'       => $builtLocation,
-                    'plot_size'      => $csvPlotSize   ?: ($indexing->plot_size ?? ''),
-                    'survey_plan_no' => $csvSurveyPlan ?: '',
+                    'file_title'     => ($o['file_title'] ?? null)     ?: ($indexing->file_title ?? ''),
+                    'plot_number'    => ($o['plot_number'] ?? null)    ?: ($indexing->plot_number ?? ''),
+                    'house_no'       => ($o['house_no'] ?? null)       ?: '',
+                    'street_name'    => ($o['street_name'] ?? null)    ?: '',
+                    'district'       => $district,
+                    'lga'            => $lga === 'N/A' ? '' : $lga,
+                    'state'          => ($o['state'] ?? null)          ?: '',
+                    'location'       => '',
+                    'plot_size'      => ($o['plot_size'] ?? null)      ?: ($indexing->plot_size ?? ''),
+                    'survey_plan_no' => ($o['survey_plan_no'] ?? null) ?: '',
                     'land_use'       => $indexing->land_use_type ?? '',
                     'prop_id'        => $indexing->prop_id ?? '',
                 ];
@@ -1248,21 +1518,22 @@ class ManualFileLinkageController extends Controller
             } else {
                 // Un-indexed → still accepted, recorded as a related file number on save
                 $details = [
-                    'file_title'     => $csvFileTitle  ?: '',
-                    'plot_number'    => $csvPlotNumber ?: '',
-                    'house_no'       => $csvHouseNo    ?: '',
-                    'street_name'    => $csvStreet     ?: '',
-                    'district'       => $csvDistrict   ?: '',
-                    'lga'            => $csvLga         ?: '',
-                    'state'          => $csvState       ?: '',
-                    'location'       => $csvLocation   ?: implode(', ', array_filter([$csvStreet, $csvDistrict, $csvLga, $csvState])),
-                    'plot_size'      => $csvPlotSize   ?: '',
-                    'survey_plan_no' => $csvSurveyPlan ?: '',
+                    'file_title'     => ($o['file_title'] ?? null)     ?: '',
+                    'plot_number'    => ($o['plot_number'] ?? null)    ?: '',
+                    'house_no'       => ($o['house_no'] ?? null)       ?: '',
+                    'street_name'    => ($o['street_name'] ?? null)    ?: '',
+                    'district'       => $this->knownDistrict($o['district'] ?? null, $o['location'] ?? null),
+                    'lga'            => ($o['lga'] ?? null)            ?: '',
+                    'state'          => ($o['state'] ?? null)          ?: '',
+                    'location'       => '',
+                    'plot_size'      => ($o['plot_size'] ?? null)      ?: '',
+                    'survey_plan_no' => ($o['survey_plan_no'] ?? null) ?: '',
                     'land_use'       => '',
                     'prop_id'        => '',
                 ];
                 $summary['unindexed']++;
             }
+            $details['location'] = $this->locationFromParts($details);
 
             $summary['imported']++;
             $rows[] = [
@@ -1271,17 +1542,12 @@ class ManualFileLinkageController extends Controller
                 'status'      => $indexed ? 'indexed' : 'unindexed',
                 'message'     => $indexed ? 'Verified indexed file.' : 'Not indexed — will be saved as a related file number.',
                 'indexed'     => $indexed,
+                'in_mls'      => $inMls,
                 'details'     => $details,
             ];
         }
 
-        fclose($handle);
-
-        if ($summary['total'] === 0) {
-            return response()->json(['error' => 'No data rows found in the CSV (only a header was detected).'], 422);
-        }
-
-        return response()->json(['mode' => $mode, 'summary' => $summary, 'rows' => $rows]);
+        return [$rows, $summary];
     }
 
     /**

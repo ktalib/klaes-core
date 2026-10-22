@@ -241,6 +241,12 @@ class LegalSearchTimelineWeights
      */
     public static function weightFor(array $row, string $canonicalType): ?int
     {
+        // Pinned rows (the ST mother's application + ST commissioning) are placed by date.
+        // Mirrors recordPriorityWeight() in js.blade.php.
+        if (!empty($row['_pinned'])) {
+            return null;
+        }
+
         $key = self::classify($row, $canonicalType);
 
         // The demotion lives here, not in classify(): callers test the classification to pick

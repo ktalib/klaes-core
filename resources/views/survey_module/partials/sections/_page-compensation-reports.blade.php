@@ -59,12 +59,13 @@
     <div class="table-scroll">
         <table>
             <thead>
-                <tr><th>Case</th><th>Project</th><th>Scheme</th><th>Location</th>
+                <tr><th>S/N</th><th>Case</th><th>Project</th><th>Scheme</th><th>Location</th>
                     <th>Area (Ha)</th><th>Status</th><th>Registered</th></tr>
             </thead>
             <tbody>
                 @forelse ($rows as $c)
                     <tr>
+                        <td>{{ $rows->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $c->case_ref }}</strong></td>
                         <td>{{ $c->project->name ?? '—' }}</td>
                         <td>
@@ -78,7 +79,7 @@
                         <td>{{ optional($c->created_at)->format('Y-m-d') ?: '—' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--gray-500);">
+                    <tr><td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
                         No cases match these filters.
                     </td></tr>
                 @endforelse

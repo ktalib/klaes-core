@@ -248,6 +248,9 @@
 
     /* ─── Select2 (themed to match) ──────────────────────────────── */
     #fileSearchSelect + .select2-container { flex:1; }
+    .qs-mode { display:flex; gap:6px; padding:4px; margin-bottom:14px; background:var(--surface-2); border:1px solid var(--border); border-radius:14px; }
+    .qs-mode button { flex:1; padding:10px 8px; border:0; border-radius:11px; background:transparent; color:var(--muted); font-weight:600; font-size:13px; cursor:pointer; }
+    .qs-mode button.active { background:var(--primary); color:#fff; box-shadow:var(--shadow-sm); }
     .select2-container--default .select2-selection--single { height:46px; background:var(--surface-2); border:1px solid var(--border-strong); border-radius:14px; display:flex; align-items:center; padding:0 14px; }
     .select2-container--default .select2-selection--single .select2-selection__rendered { color:var(--text); font-size:14px; line-height:normal; padding:0; }
     .select2-container--default .select2-selection--single .select2-selection__placeholder { color:var(--faint); }
@@ -582,9 +585,19 @@
     <div class="form-section">
       <div class="section-header">
         <span class="section-icon"><i class="fas fa-search"></i></span>
-        <div><h2>Search File</h2><p>Enter a file number or tracking ID</p></div>
+        <div><h2>Search File</h2><p>Scan the file's QR code or enter its file number</p></div>
       </div>
-      <div class="field-wrap">
+      {{-- Two ways in: scan any KLAES QR, or pick / type the file number. --}}
+      <div class="qs-mode" role="tablist" aria-label="Search by">
+        <button type="button" role="tab" data-qs-mode="qr" onclick="setQuickSearchMode('qr')"><i class="fas fa-qrcode"></i> Scan QR Code</button>
+        <button type="button" role="tab" data-qs-mode="fileno" class="active" onclick="setQuickSearchMode('fileno')"><i class="fas fa-hashtag"></i> File No.</button>
+      </div>
+      <div id="qsQrPane" style="display:none;">
+        <div class="scanner-container" style="min-height:260px;"><div id="qs-qr-reader" style="width:100%;min-height:260px;"></div></div>
+        <div id="qsQrStatus" class="scanner-status"><i class="fas fa-camera"></i> <span>Point the camera at the file's QR code</span></div>
+        <div id="qsQrChoice"></div>
+      </div>
+      <div class="field-wrap" id="qsFileNoPane">
         <label>File No / Tracking ID</label>
         <div style="display:flex;gap:8px;align-items:center;">
           <select id="fileSearchSelect" style="flex:1;min-width:0;"></select>
@@ -616,24 +629,8 @@
       <div id="scannerStatus" class="scanner-status">
         <i class="fas fa-camera"></i> <span>Click Start to begin scanning</span>
       </div>
-    </div>
-
-    {{-- Manual entry fallback --}}
-    <div class="form-section" style="margin-top:4px;">
-      <div class="section-header">
-        <span class="section-icon"><i class="fas fa-keyboard"></i></span>
-        <div><h2>Manual Entry</h2><p>Type a Tracking ID if camera is unavailable</p></div>
-      </div>
-      <div class="field-wrap">
-        <label>Tracking ID / File Number</label>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="manualScanInput" placeholder="e.g. TRK-XXXXXX" style="flex:1;">
-          <button id="manualScanBtn" class="btn" style="width:auto;padding:0 16px;flex-shrink:0;white-space:nowrap;">
-            <i class="fas fa-search"></i> Look up
-          </button>
-        </div>
-      </div>
-      <div id="manualScanResult"></div>
+      {{-- A QR that names more than one file: the officer picks the right one. --}}
+      <div id="scanChoice"></div>
     </div>
   </div>
 
@@ -716,6 +713,7 @@
 
     <form method="POST" action="{{ route('mobile.logout') }}">
       @csrf
+      <input type="hidden" name="push_token" id="pushTokenField" value="">
       <button type="submit" class="btn ghost-btn">
         <i class="fas fa-right-from-bracket"></i> Logout
       </button>
@@ -726,6 +724,7 @@
   <!-- Tab Bar -->
   <div class="tab-bar">
     <button class="tab-item" data-tab="dashboard"><i class="fas fa-house"></i><span>Home</span></button>
+    <button class="tab-item" data-tab="scanner"><i class="fas fa-qrcode"></i><span>Scan</span></button>
 
     {{-- SCB Monitors work the request queue rather than raising searches, so Quick
          Search is hidden for them (super admins keep it). --}}
@@ -746,7 +745,6 @@
     <button class="tab-item" data-tab="requests"><i class="fas fa-inbox"></i><span>SCB View</span></button>
     @endif
     @endif
-    <button class="tab-item" data-tab="scanner"><i class="fas fa-qrcode"></i><span>Scan</span></button>
     {{-- DFR tab commented out for now
     <button class="tab-item" data-tab="dfr" onclick="window.location='{{ route('mobile.digital-request') }}'"><i class="fas fa-paper-plane"></i><span>DFR</span></button>
     --}}
@@ -1092,11 +1090,15 @@ async function renderDashboard() {
     const wl = s.weekly_labels || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const wdTotal = s.weekly_activity || [0,0,0,0,0,0,0];
     const wdFound = s.weekly_found || [0,0,0,0,0,0,0];
-    const wdNotFound = s.weekly_not_found || [0,0,0,0,0,0,0];
-    const wdAwaiting = s.weekly_awaiting || [0,0,0,0,0,0,0];
     const cc = chartColors();
     if (weeklyChart) weeklyChart.destroy();
-    weeklyChart = new Chart(document.getElementById('weeklyChart').getContext('2d'), { type:'line', data:{ labels:wl, datasets:[{ label:'Total', data:wdTotal, borderColor:'#8b5cf6', backgroundColor:'rgba(139,92,246,0.12)', borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:'#8b5cf6', pointRadius:4 }]}, options:{ responsive:true, maintainAspectRatio:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{ size:9 }}}, x:{ grid:{ display:false }, ticks:{ color:cc.tick, font:{ size:9 }}}}}});
+    // The original Total line, plus the files Found each day.
+    weeklyChart = new Chart(document.getElementById('weeklyChart').getContext('2d'), { type:'line', data:{ labels:wl, datasets:[
+      { label:'Total', data:wdTotal, borderColor:'#8b5cf6', backgroundColor:'rgba(139,92,246,0.12)', borderWidth:2.5, fill:true, tension:0.4, pointBackgroundColor:'#8b5cf6', pointRadius:4 },
+      { label:'Found', data:wdFound, borderColor:'#10b981', backgroundColor:'#10b981', borderWidth:2, fill:false, tension:0.4, pointBackgroundColor:'#10b981', pointRadius:3 },
+    ]}, options:{ responsive:true, maintainAspectRatio:true, interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ display:true, position:'bottom', labels:{ color:cc.tick, font:{ size:10 }, boxWidth:10, boxHeight:10, usePointStyle:true, padding:12 } } },
+      scales:{ y:{ beginAtZero:true, grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{ size:9 }, precision:0 }}, x:{ grid:{ display:false }, ticks:{ color:cc.tick, font:{ size:9 }}}}}});
   } catch(e) { console.error(e); }
 }
 
@@ -1302,10 +1304,21 @@ async function startScanner() {
     return;
   }
   try {
-    const devices = await Html5Qrcode.getCameras();
-    if (!devices.length) { updateScanStatus('No camera found on this device.', 'error'); return; }
-    html5QrCode = new Html5Qrcode('qr-reader');
-    await html5QrCode.start(devices[0].id, { fps:10, qrbox:250 }, onScanSuccess, ()=>{});
+    await stopQuickSearchScanner();   // one camera stream at a time
+    if (html5QrCode && isScannerRunning) { await html5QrCode.stop(); isScannerRunning = false; }
+    // QR only, and the native BarcodeDetector where the WebView has it: KLAES
+    // tracking sheets and KLAES-Q1 tokens are dense codes the JS decoder misses.
+    html5QrCode = html5QrCode || new Html5Qrcode('qr-reader', {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      verbose: false,
+    });
+    // Rear camera (devices[0] is often the selfie camera), at HD so small print decodes.
+    await html5QrCode.start({ facingMode: 'environment' }, {
+      fps: 10,
+      qrbox: (w, h) => { const s = Math.floor(Math.min(w, h) * 0.8); return { width: s, height: s }; },
+      videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+    }, onScanSuccess, ()=>{});
     isScannerRunning = true;
     updateScanStatus('Camera ready — scanning', 'success');
     document.getElementById('startCameraBtn').innerHTML = '<i class="fas fa-sync"></i> Restart';
@@ -1334,24 +1347,62 @@ async function toggleFlash() {
   document.getElementById('flashToggleBtn').classList.toggle('flash-on', flashEnabled);
   document.getElementById('flashToggleBtn').innerHTML = flashEnabled ? '<i class="fas fa-bolt"></i> Flash ON' : '<i class="fas fa-bolt"></i> Flash';
 }
-async function onScanSuccess(text) {
+// The server decodes every KLAES QR shape (the File Movement (Department)
+// resolver), so the raw text goes up as-is. pickedFile is set when the officer
+// chose between several files the same QR names.
+async function onScanSuccess(text, _result, pickedFile) {
   const trimmed = text.trim();
-  updateScanStatus(`Scanned: ${trimmed.substring(0,35)}`,'success');
-  if (isScannerRunning && html5QrCode) html5QrCode.pause(true);
+  document.getElementById('scanChoice').innerHTML = '';
+  updateScanStatus(pickedFile ? `Logging ${esc(pickedFile)}…` : 'QR read — looking up the file…', 'info');
+  pauseScanner();
+  let waitForChoice = false;
   try {
     const res = await api(`${MOB_BASE}/tracker/scan-and-log`, {
       method:'POST',
-      body: JSON.stringify({ qr_code:trimmed, office_code:'MOB', office_name:'Mobile Scan', notes:'Scanned via mobile app' })
+      body: JSON.stringify({ qr_code:trimmed, file_number: pickedFile || null, office_code:'MOB', office_name:'Mobile Scan', notes:'Scanned via mobile app' })
     });
     if (res.success) {
       const t = res.tracker;
-      toast(`✅ ${t.file_title} — ${t.current_office||'logged'}`);
+      updateScanStatus(`<strong>${esc(t.file_number||'—')}</strong> · ${esc(t.file_title||'')} — ${esc(t.current_office||'logged')}`, 'success');
+      toast(`✅ ${t.file_number} — ${t.current_office||'logged'}`);
       await loadFiles();
+      openQuickSearchFor(t.file_number);
+    } else if (res.needs_choice && (res.matches||[]).length) {
+      waitForChoice = true;
+      updateScanStatus(esc(res.message || 'This QR matches more than one file — pick the right one.'), 'info');
+      renderScanChoice(trimmed, res.matches);
+    } else if (res.file_number) {
+      // A KLAES file with no tracker yet: still show it in Quick Search.
+      updateScanStatus(esc(res.message), 'info');
+      openQuickSearchFor(res.file_number);
     } else {
+      updateScanStatus(esc(res.message || 'File not found'), 'error');
       toast(res.message||'File not found','error');
     }
-  } catch(e) { toast('Scan error: '+e.message,'error'); }
-  setTimeout(()=>{ if(isScannerRunning&&html5QrCode) html5QrCode.resume(); }, 2500);
+  } catch(e) { updateScanStatus('Scan error: ' + esc(e.message), 'error'); toast('Scan error: '+e.message,'error'); }
+  if (!waitForChoice) setTimeout(resumeScanner, 2500);
+}
+// html5-qrcode throws on pause() when not scanning and on resume() when not paused.
+function pauseScanner() {
+  try { if (isScannerRunning && html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.SCANNING) html5QrCode.pause(true); } catch (e) {}
+}
+function resumeScanner() {
+  try { if (isScannerRunning && html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.PAUSED) html5QrCode.resume(); } catch (e) {}
+}
+function renderScanChoice(raw, matches) {
+  const box = document.getElementById('scanChoice');
+  box.innerHTML = matches.map((m, i) => `
+    <button type="button" class="result-card" data-i="${i}" style="display:block;width:100%;text-align:left;padding:12px 14px;margin-top:8px;cursor:pointer;border:1px solid var(--border-strong);">
+      <div style="font-weight:700;font-size:13px;">${esc(m.file_number||'—')}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">${esc(m.file_title||'')}</div>
+    </button>`).join('') +
+    `<button type="button" class="btn ghost-btn" data-cancel style="margin-top:8px;">Cancel</button>`;
+  box.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => onScanSuccess(raw, null, matches[+b.dataset.i].file_number)));
+  box.querySelector('[data-cancel]').addEventListener('click', () => {
+    box.innerHTML = '';
+    updateScanStatus('Camera ready — scanning', 'success');
+    resumeScanner();
+  });
 }
 function updateScanStatus(msg, type) {
   const el = document.getElementById('scannerStatus');
@@ -1359,45 +1410,10 @@ function updateScanStatus(msg, type) {
   el.innerHTML = `${icon} <span>${msg}</span>`;
 }
 
-async function manualLookup() {
-  const input = document.getElementById('manualScanInput');
-  const resultEl = document.getElementById('manualScanResult');
-  const val = input.value.trim();
-  if (!val) { resultEl.innerHTML = '<p style="color:#ef4444;font-size:12px;margin-top:6px;">Please enter a Tracking ID or File Number.</p>'; return; }
-
-  const btn = document.getElementById('manualScanBtn');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-  try {
-    const res = await api(`${API_BASE}/track/${encodeURIComponent(val)}`);
-    if (res && res.success && res.data) {
-      const t = res.data;
-      resultEl.innerHTML = `
-        <div class="result-card" style="padding:14px;margin-top:10px;">
-          <div style="font-weight:700;font-size:14px;">${esc(t.file_title||'—')}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:6px;">
-            <span style="margin-right:12px;"><i class="fas fa-hashtag" style="color:var(--primary);"></i> ${esc(t.file_number||'—')}</span>
-            <span><i class="fas fa-map-marker-alt" style="color:var(--primary);"></i> ${esc(t.current_office_name||t.receiving_office_name||'—')}</span>
-          </div>
-          <div style="font-size:11px;color:var(--faint);margin-top:6px;">
-            Tracking: ${esc(t.tracking_id||'—')} &nbsp;|&nbsp; Priority: ${esc(t.priority||'—')} &nbsp;|&nbsp; Status: ${esc(t.status||'—')}
-          </div>
-        </div>`;
-      input.value = '';
-      await loadFiles();
-    } else {
-      resultEl.innerHTML = `<p style="color:#ef4444;font-size:12px;margin-top:6px;"><i class="fas fa-times-circle"></i> No file found for "<strong>${esc(val)}</strong>".</p>`;
-    }
-  } catch(e) {
-    resultEl.innerHTML = `<p style="color:#ef4444;font-size:12px;margin-top:6px;">Error: ${esc(e.message)}</p>`;
-  }
-
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-search"></i> Look up';
-}
-
 // ─── Tab router ───────────────────────────────────────────────────────────
 function setActiveTab(tabId) {
   if (tabId !== 'scanner') stopScanner();
+  if (tabId !== 'files') stopQuickSearchScanner();
   // "requests-scb" is the same File Requests screen rendered in SCB (compact)
   // mode — a preview tab for super admins, who otherwise see the full cards.
   frCompact = IS_SUPER_ADMIN ? (tabId === 'requests-scb') : true;
@@ -1407,7 +1423,7 @@ function setActiveTab(tabId) {
   document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
   document.querySelector(`.tab-item[data-tab="${tabId}"]`)?.classList.add('active');
   if (tabId==='dashboard') renderDashboard();
-  if (tabId==='files')     $('#fileSearchSelect').select2('open');
+  if (tabId==='files')     { if (qsMode === 'qr') startQuickSearchScanner(); else $('#fileSearchSelect').select2('open'); }
   if (tabId==='scanner')   updateScanStatus('Click Start to begin scanning','info');
   if (tabId==='create')    initCreateForm();
   if (tabId==='requests' || tabId==='requests-scb') {
@@ -1479,13 +1495,25 @@ async function searchFile() {
     const res = await api(`${MOB_BASE}/files/search?q=${encodeURIComponent(val)}`);
     if (res && res.success && res.data) {
       const d = res.data;
-      const meta = LOC_STATUS_META[d.status] || { label:d.status, color:'#6b7185', icon:'fa-file' };
+      // Land file inside a KANGIS file: KANGIS Registry + (when that KANGIS file is
+      // out) the officer holding it. Mirrors the web Quick Search.
+      const kh = applyKangisContainer(d);
+      const meta = (kh && LOC_STATUS_META.IN_TRANSIT)
+        || LOC_STATUS_META[d.status] || { label:d.status, color:'#6b7185', icon:'fa-file' };
       // Detail rows mirror the web Quick Search (/create-file-tracker/quick-search):
       // an in-transit file is physically held by a Receiving Officer in their
       // department — show the holding Department as the location and label the
       // holder explicitly. Other statuses keep the expected archive/pool location.
       let detailRows;
-      if (d.status === 'IN_TRANSIT') {
+      if (kh) {
+        detailRows = [
+          ['Registry', d.registry],
+          ['Shelf/Rack', d.rack_shelf || '—'],
+          ['Receiving Officer (holder)', kh.receiving_officer_name],
+          ['Current Location', kh.current_location],
+          ['Held inside', `KANGIS file ${kh.file_number}`],
+        ];
+      } else if (d.status === 'IN_TRANSIT') {
         let dept = String(d.receiving_department || '').trim();
         if (dept && !/department$/i.test(dept)) dept = dept + ' Department';
         detailRows = [
@@ -1518,7 +1546,8 @@ async function searchFile() {
       lastFileSearch = d;
 
       // A land file is usually kept inside its KANGIS file, so the request is worded
-      // as going to the KANGIS Registry. The Registry (Origin) stays the land file's own.
+      // as going to the KANGIS Registry, and the Registry (Origin) is the KANGIS
+      // Registry too (set by applyKangisContainer()).
       const kangisFiles = Array.isArray(d.kangis_files) ? d.kangis_files : [];
       if (kangisFiles.length && d.next_action === 'Send File Search Request to SCB Monitor') {
         d.next_action = 'Send Request to KANGIS Registry';
@@ -1529,7 +1558,7 @@ async function searchFile() {
       // incl. their Found / Not-Found variants) warrants a physical check — some files
       // were missing from the start of the digitization exercise. The only case it does
       // NOT apply to is a file actively in transit (already being tracked/redirected).
-      const physicalNote = (d.status && !/^IN_TRANSIT/.test(d.status) && d.status !== 'MISSING_FILE')
+      const physicalNote = (!kh && d.status && !/^IN_TRANSIT/.test(d.status) && d.status !== 'MISSING_FILE')
         ? `<p style="margin-top:8px;font-size:13px;font-style:italic;color:#ef4444;line-height:1.6;">The SCBs would have to do a Physical Check to ascertain the availability of the File as some files were missing even from the beginning of the Digitization Exercise</p>`
         : '';
 
@@ -1561,12 +1590,13 @@ async function searchFile() {
       // number gets the Director Land action by default; choosing its indexed
       // record enables the SCB request flow.
       let ofsRegistry = '', ofsButton = '';
-      const renderScbForm = IS_OFS && d.can_send_fr && !isDciv && (!directsToLand || hasIndexedCandidate);
+      const renderScbForm = IS_OFS && !kh && d.can_send_fr && !isDciv && (!directsToLand || hasIndexedCandidate);
       const scbFormHidden = directsToLand && hasCandidates;
       if (renderScbForm) {
         const isMissing = d.is_missing_file;
+        const regName = d._kangisApplied ? d.registry : 'the Original Registry';
         const label = isMissing
-          ? (d.is_blind ? 'Send Blind Request to the Original Registry' : 'Send File Search Request to the Original Registry')
+          ? (d.is_blind ? `Send Blind Request to ${regName}` : `Send File Search Request to ${regName}`)
           : (d.next_action || (d.is_blind ? 'Send Blind Request to SCB Monitor' : 'Send File Search Request to SCB Monitor'));
         // Button colour matches the status label (e.g. In Pool Office = sky, In Archive = green).
         const grad  = `linear-gradient(135deg, ${meta.color}, ${shade(meta.color, 0.18)})`;
@@ -1680,6 +1710,10 @@ async function searchFile() {
         // }
         const subline = '';
         redirectSend = `<button class="btn" style="width:100%;margin-top:12px;padding:12px;font-size:13px;box-shadow:none;background:${grad};" onclick="redirectFromSearch(this)"><i class="fas fa-user-tag"></i> Re-direct Request to ${esc(office)}</button>` + subline;
+      } else if (IS_OFS && kh) {
+        // Land file inside a KANGIS file that is out: re-direct to that file's holder.
+        const grad = 'linear-gradient(135deg,#f59e0b,#d97706)';
+        redirectSend = `<button class="btn" style="width:100%;margin-top:12px;padding:12px;font-size:13px;box-shadow:none;background:${grad};" onclick="redirectFromSearch(this)"><i class="fas fa-user-tag"></i> Re-direct Request to ${esc(kh.receiving_officer_name || kh.current_location)}</button>`;
       }
 
       // A file under DCIV investigation is not blind-searched by the SCB — it is
@@ -2007,7 +2041,7 @@ async function searchFile() {
             <div style="margin-bottom:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 12px;">
               <div style="display:flex;align-items:center;gap:8px;">
                 <i class="fas fa-circle-info" style="color:#2563eb;"></i>
-                <span style="font-size:13px;font-weight:700;color:#1e40af;">This file was indexed and returned to the Original Registry before archiving.</span>
+                <span style="font-size:13px;font-weight:700;color:#1e40af;">This file was indexed and returned to the ${d._kangisApplied ? esc(d.registry) : 'Original Registry'} before archiving.</span>
               </div>
               ${(d.registry || d.rack_shelf) ? `
               <div style="margin-top:6px;padding-left:22px;display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#1e40af;">
@@ -2837,7 +2871,7 @@ async function sendFrFromSearch(btn) {
         ? `Request ${res.data?.request_no || ''} saved — file is in the missing list`
         : `${d.is_blind ? 'Blind ' : ''}Request ${res.data?.request_no || ''} sent to SCB`;
       toast(msg);
-      btn.outerHTML = `<div style="margin-top:12px;text-align:center;font-size:12px;font-weight:700;color:#10b981;"><i class="fas fa-check-circle"></i> Request ${esc(res.data?.request_no || '')} ${isMissing ? 'saved (Refer to Original Registry)' : 'sent to SCB Monitor'}</div>`;
+      btn.outerHTML = `<div style="margin-top:12px;text-align:center;font-size:12px;font-weight:700;color:#10b981;"><i class="fas fa-check-circle"></i> Request ${esc(res.data?.request_no || '')} ${isMissing ? `saved (Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'})` : 'sent to SCB Monitor'}</div>`;
       if (IS_OFS && document.getElementById('myReqContainer')) loadMyRequests();
     } else if (res.duplicate) {
       toast(res.message || 'This file already has an open request to SCB', 'error');
@@ -2855,11 +2889,47 @@ async function sendFrFromSearch(btn) {
 // OFS: re-direct an in-transit file's request straight to the office currently
 // holding it. Mirrors the Digital File Request "Send Request to {office}" redirect —
 // creates a redirected request routed to the last receiving officer's account.
+// A land file kept inside a KANGIS file lives in the KANGIS Registry, not its
+// original registry: show the KANGIS registry (also as the Registry (Origin)) and —
+// unless the land file is itself logged out — the KANGIS file's location and shelf.
+// Returns the in-transit KANGIS file whose holder should get the request instead of
+// the SCB, or null. Mirrors applyKangisContainer()/kangisHolder() on the web Quick
+// Search; display only, nothing is saved.
+function applyKangisContainer(d) {
+  const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
+  d._kangisHolder = null;
+  if (!ks.length) return null;
+  if (!d._kangisApplied) {
+    d._kangisApplied = true;
+    const k = ks.find(x => x.is_in_transit) || ks[0];
+    const kReg = /kangis/i.test(k.registry || '') ? k.registry : 'KANGIS Registry';
+    d.original_registry = d.registry;
+    d.registry = kReg;
+    d.origin_registry = kReg;
+    if (d.status !== 'IN_TRANSIT') {
+      if (k.current_location) d.current_location = k.current_location;
+      d.rack_shelf = k.rack_shelf || null;
+    }
+    if (typeof d.next_action === 'string') d.next_action = d.next_action.replace(/Original Registry/g, kReg);
+  }
+  const blocked = !d.can_send_fr || d.status === 'IN_TRANSIT'
+    || !!(d.duplicate_flag && d.duplicate_flag.directs_to_land)
+    || /DCIV Director/.test(d.next_action || '')
+    || (Array.isArray(d.duplicate_candidates) && d.duplicate_candidates.length > 1);
+  if (blocked) return null;
+  d._kangisHolder = ks.find(k => k.is_in_transit && (k.receiving_officer_name || k.current_location)) || null;
+  return d._kangisHolder;
+}
+
 async function redirectFromSearch(btn) {
   const d = lastFileSearch;
   if (!d) return;
   const original = btn.innerHTML;
-  const office = d.current_location || 'Current Office';
+  // Land file inside an out KANGIS file: the request goes to that file's holder.
+  const kh = d._kangisHolder || null;
+  const officer  = kh ? (kh.receiving_officer_name || null) : (d.receiving_officer_name || null);
+  const location = kh ? (kh.current_location || null) : (d.current_location || null);
+  const office = kh ? (officer || location || 'Current Office') : (d.current_location || 'Current Office');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
   try {
     const res = await api(`{{ route('digital-request.store') }}`, {
@@ -2869,9 +2939,10 @@ async function redirectFromSearch(btn) {
         file_title:            d.file_title || null,
         request_type:          'Physical',
         is_redirected:         true,
-        receiving_officer:     d.receiving_officer_name || null,
-        current_file_location: d.current_location || null,
-        current_file_holder:   d.receiving_officer_name || null,
+        receiving_officer:     officer,
+        current_file_location: location,
+        current_file_holder:   officer,
+        remarks:               kh ? `Land file kept inside KANGIS file ${kh.file_number}, which is currently with this officer — re-directed to the holder of the KANGIS file.` : null,
       }),
     });
     if (res.success) {
@@ -3560,11 +3631,112 @@ $('#fileSearchSelect').on('select2:select', searchFile);
 document.getElementById('fileSearchManual')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(blindAutoLoadTimer); searchFile(); } });
 document.getElementById('fileSearchManual')?.addEventListener('input', onBlindManualInput);
 
+// ─── Quick Search: Scan QR Code / File No. ────────────────────────────────
+// Scan QR reads any KLAES QR, the server decodes it to the file number (the
+// File Movement (Department) resolver), and the number is put into the File No.
+// picker and searched exactly as if it had been picked there.
+let qsQr = null, qsQrRunning = false, qsMode = 'fileno';
+function setQuickSearchMode(mode) {
+  qsMode = mode;
+  document.querySelectorAll('[data-qs-mode]').forEach(b => b.classList.toggle('active', b.dataset.qsMode === mode));
+  document.getElementById('qsQrPane').style.display = mode === 'qr' ? '' : 'none';
+  document.getElementById('qsFileNoPane').style.display = mode === 'qr' ? 'none' : '';
+  if (mode === 'qr') {
+    const blind = document.getElementById('fsBlindToggle');
+    if (blind?.checked) { blind.checked = false; toggleBlindSearch(); }
+    startQuickSearchScanner();
+  } else {
+    stopQuickSearchScanner();
+  }
+}
+function qsStatus(msg, type) {
+  const icon = type==='success'?'<i class="fas fa-check-circle" style="color:#10b981;"></i>':type==='error'?'<i class="fas fa-exclamation-triangle" style="color:#ef4444;"></i>':'<i class="fas fa-camera"></i>';
+  document.getElementById('qsQrStatus').innerHTML = `${icon} <span>${msg}</span>`;
+}
+async function startQuickSearchScanner() {
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    qsStatus('Camera requires HTTPS.', 'error'); return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { qsStatus('Camera not supported on this device.', 'error'); return; }
+  await stopScanner();           // one camera stream at a time
+  if (qsQrRunning) return;
+  document.getElementById('qsQrChoice').innerHTML = '';
+  try {
+    qsQr = qsQr || new Html5Qrcode('qs-qr-reader', {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      verbose: false,
+    });
+    await qsQr.start({ facingMode: 'environment' }, {
+      fps: 10,
+      qrbox: (w, h) => { const s = Math.floor(Math.min(w, h) * 0.8); return { width: s, height: s }; },
+      videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+    }, onQuickSearchQr, ()=>{});
+    qsQrRunning = true;
+    qsStatus('Point the camera at the file\'s QR code', 'info');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e?.name || e || '');
+    qsStatus(/NotAllowed|Permission/.test(msg) ? 'Camera permission denied — allow camera access and try again.' : 'Camera error: ' + esc(msg), 'error');
+  }
+}
+async function stopQuickSearchScanner() {
+  if (qsQr && qsQrRunning) { try { await qsQr.stop(); } catch (e) {} }
+  qsQrRunning = false;
+}
+async function onQuickSearchQr(text) {
+  try { if (qsQr.getState() === Html5QrcodeScannerState.SCANNING) qsQr.pause(true); } catch (e) {}
+  qsStatus('QR read — finding the file…', 'info');
+  let matches = [];
+  try {
+    const res = await api(`${MOB_BASE}/files/resolve-qr?q=${encodeURIComponent(text.trim())}`);
+    matches = res.matches || [];
+    if (!matches.length) {
+      qsStatus(esc(res.message || 'No KLAES file matches this QR.'), 'error');
+      setTimeout(() => { try { if (qsQrRunning && qsQr.getState() === Html5QrcodeScannerState.PAUSED) { qsQr.resume(); qsStatus('Point the camera at the file\'s QR code', 'info'); } } catch (e) {} }, 2500);
+      return;
+    }
+  } catch (e) { qsStatus('Lookup failed: ' + esc(e.message), 'error'); return; }
+
+  if (matches.length === 1) { quickSearchFileNo(matches[0].file_number); return; }
+
+  qsStatus('This QR matches more than one file — pick the right one.', 'info');
+  const box = document.getElementById('qsQrChoice');
+  box.innerHTML = matches.map((m, i) => `
+    <button type="button" class="result-card" data-i="${i}" style="display:block;width:100%;text-align:left;padding:12px 14px;margin-top:8px;cursor:pointer;border:1px solid var(--border-strong);">
+      <div style="font-weight:700;font-size:13px;">${esc(m.file_number)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">${esc(m.file_title||'')}</div>
+    </button>`).join('');
+  box.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => quickSearchFileNo(matches[+b.dataset.i].file_number)));
+}
+// After a scan on the QR Scanner screen: switch to Quick Search (File No. mode)
+// and search the scanned file. Skipped for users without the Search tab.
+function openQuickSearchFor(fileNo) {
+  if (!fileNo || !document.querySelector('.tab-item[data-tab="files"]')) return;
+  setTimeout(async () => {
+    await stopScanner();
+    qsMode = 'fileno';
+    document.querySelectorAll('[data-qs-mode]').forEach(b => b.classList.toggle('active', b.dataset.qsMode === 'fileno'));
+    document.getElementById('qsQrPane').style.display = 'none';
+    document.getElementById('qsFileNoPane').style.display = '';
+    setActiveTab('files');
+    $('#fileSearchSelect').select2('close');
+    quickSearchFileNo(fileNo);
+  }, 1200);
+}
+// The decoded number goes into the File No. picker, then the normal search runs.
+async function quickSearchFileNo(fileNo) {
+  document.getElementById('qsQrChoice').innerHTML = '';
+  await stopQuickSearchScanner();
+  qsStatus(`File No. <strong>${esc(fileNo)}</strong> — <a href="#" onclick="startQuickSearchScanner();return false;">scan another</a>`, 'success');
+  const $sel = $('#fileSearchSelect');
+  if (!$sel.find('option').filter((_, o) => o.value === fileNo).length) $sel.append(new Option(fileNo, fileNo, true, true));
+  $sel.val(fileNo).trigger('change');
+  searchFile();
+}
+
 document.getElementById('startCameraBtn')?.addEventListener('click', startScanner);
 document.getElementById('stopCameraBtn')?.addEventListener('click', stopScanner);
 document.getElementById('flashToggleBtn')?.addEventListener('click', toggleFlash);
-document.getElementById('manualScanBtn')?.addEventListener('click', manualLookup);
-document.getElementById('manualScanInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') manualLookup(); });
 document.getElementById('notificationBell')?.addEventListener('click', function(e) {
   e.stopPropagation(); document.getElementById('notificationPanel').classList.toggle('show');
 });
@@ -3595,6 +3767,34 @@ const VALID_TABS = ['dashboard','files','myreq','requests','scanner','profile'];
 const bootTab = (location.hash || '').replace('#','');
 setActiveTab(VALID_TABS.includes(bootTab) ? bootTab : 'dashboard');
 loadNotifications();
+// A tapped push notification opens the app on #notifications: show the bell panel.
+if (bootTab === 'notifications') {
+  setTimeout(() => document.getElementById('notificationPanel')?.classList.add('show'), 300);
+}
+// Same tap while the dashboard is already open: only the hash changes, no reload.
+window.addEventListener('hashchange', () => {
+  if (location.hash !== '#notifications') return;
+  setActiveTab('dashboard');
+  loadNotifications();
+  document.getElementById('notificationPanel')?.classList.add('show');
+});
+
+// ─── Push notifications (KLAES FTM app) ───────────────────────────────────
+// The Android app calls this after every page load with its FCM token. The
+// token also rides on the logout form so the server unlinks this phone.
+window.klaesRegisterPush = async function (token, platform, deviceName, appVersion) {
+  if (!token) return;
+  const field = document.getElementById('pushTokenField');
+  if (field) field.value = token;
+  try {
+    await api(`${MOB_BASE}/push/register`, {
+      method: 'POST',
+      body: JSON.stringify({ token, platform: platform || 'android', device_name: deviceName || null, app_version: appVersion || null }),
+    });
+  } catch (e) { console.warn('Push registration failed', e); }
+};
+// A push received while the app is open: refresh the bell straight away.
+window.klaesPushReceived = function () { loadNotifications(); };
 </script>
 </body>
 </html>

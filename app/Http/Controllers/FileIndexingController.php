@@ -31,6 +31,7 @@ use App\Services\FileRangeTrackingService;
 use App\Services\EdmsScanUploadFolderService;
 use App\Services\FileSnapshotService;
 use App\Support\FileIndexingYearPolicy;
+use App\Services\FileIndexing\KangisBlockIndexing;
 
 class FileIndexingController extends Controller
 {
@@ -1041,6 +1042,8 @@ class FileIndexingController extends Controller
             'occupancy_permit_op_type_other' => $record->op_type_other ?? null,
             'occupancy_permit_op_category' => $record->instrument_category ?? null,
             'occupancy_permit_op_serial_number' => $record->op_serial_number ?? null,
+            // A system-generated serial reopens with "This OP has no serial number" ticked.
+            'occupancy_permit_op_serial_generated' => !empty($record->op_serial_generated),
             'occupancy_permit_date' => $this->formatDateForForm($record->transaction_date ?? null),
             'occupancy_permit_file_number' => $record->mlsFNo ?? $fileNumber,
             'occupancy_permit_land_use' => $record->land_use ?? null,
@@ -1113,6 +1116,13 @@ class FileIndexingController extends Controller
                 }
             }
 
+            // KANGIS Block Indexing: only land files newly added to this record are checked.
+            $kangisBlock = $this->kangisBlockCheck($request, $existingRecord);
+            if ($kangisBlock instanceof \Illuminate\Http\JsonResponse) {
+                return $kangisBlock;
+            }
+            $this->applyKangisIndexingType($request, $existingRecord);
+
             $validated = $request->validate([
                 'file_number' => 'required|string|max:255',
                 'file_title' => 'required', // Allow array or string
@@ -1147,7 +1157,7 @@ class FileIndexingController extends Controller
                 'has_transaction' => 'nullable|boolean',
                 'is_problematic' => 'nullable|boolean',
                 'is_co_owned_plot' => 'nullable|boolean',
-                'indexing_type' => 'nullable|string|in:Regular,Block',
+                'indexing_type' => 'nullable|string|in:Regular,Block,KANGIS Block',
                 'file_classification' => 'nullable|string|max:50',
                 'file_classification_remarks' => 'nullable|string',
                 'shelf_label_id' => 'nullable|integer',
@@ -1225,7 +1235,7 @@ class FileIndexingController extends Controller
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
                 'occupancy_permit_op_type_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
-                'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled($request->input('has_occupancy_permit', false)),
+                'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN) && !filter_var($request->input('occupancy_permit_op_serial_none', false), FILTER_VALIDATE_BOOLEAN)),
                 'occupancy_permit_date' => 'nullable|date',
                 'occupancy_permit_file_number' => 'nullable|string|max:255',
                 'occupancy_permit_land_use' => 'nullable|string|max:255',
@@ -1417,6 +1427,10 @@ class FileIndexingController extends Controller
 
             DB::connection('sqlsrv')->transaction(function () use (&$validated, $id, $existingRecord, $request, $resolvedTestControl, $requestHasCofo, $normalizedPropId, $skipEntityCustomerUpdates, $isKangisRegistry) {
                 $updatePayload = Arr::only($validated, FileIndexing::columnWhitelist());
+                // The KANGIS Indexed Files page lists by registry; KN files arrive with none.
+                if (array_key_exists('registry', $updatePayload) && trim((string) $updatePayload['registry']) === '' && ($validated['general_registry'] ?? null) === KangisBlockIndexing::REGISTRY) {
+                    $updatePayload['registry'] = 'KANGIS';
+                }
 
                 // Flatten any array values in updatePayload (SQL Server columns expect strings)
                 // Pick the first value for most fields, except those we want as JSON.
@@ -1448,6 +1462,12 @@ class FileIndexingController extends Controller
 
                 if (isset($updatePayload['related_fileno']) && is_array($updatePayload['related_fileno'])) {
                     $updatePayload['related_fileno'] = json_encode($updatePayload['related_fileno']);
+                }
+
+                // KANGIS Block Indexing (user, 2026-10-20): editing a shared land file changes
+                // only its own title / first plot; the KANGIS holders' names and plots stay.
+                if (!KangisBlockIndexing::isKangisRegistry($existingRecord->general_registry ?? null)) {
+                    $updatePayload = app(KangisBlockIndexing::class)->keepKangisAdditions((int) $id, $updatePayload);
                 }
 
                 // Update the main file indexing record
@@ -1568,7 +1588,19 @@ class FileIndexingController extends Controller
                     // Keep the related_file_number register in step with the edit. Pruning is
                     // allowed only on an explicit submission (same rule as the links above),
                     // and only ever removes the untyped rows this form owns.
-                    app(\App\Services\RelatedFileNumberRegistrar::class)->sync(
+                    // KANGIS Registry: the land file's row lists this KANGIS file, no row of its own (user, 2026-10-20).
+                    if (KangisBlockIndexing::isKangisRegistry($fileIndexingModel->general_registry ?? null)) {
+                        $kangisLands = KangisBlockIndexing::landFilesFrom($relatedFileNos);
+                        $kangisLandKeys = array_map([KangisBlockIndexing::class, 'key'], $kangisLands);
+                        app(\App\Services\RelatedFileNumberRegistrar::class)->attachKangis(
+                            (string) $fileIndexingModel->file_number,
+                            (int) $fileIndexingModel->id,
+                            $kangisLands,
+                            $explicitRelatedSubmission
+                                ? array_values(array_filter(KangisBlockIndexing::landFilesFrom($existingRecord->related_fileno ?? null), fn ($n) => !in_array(KangisBlockIndexing::key($n), $kangisLandKeys, true)))
+                                : []
+                        );
+                    } else app(\App\Services\RelatedFileNumberRegistrar::class)->sync(
                         $fileIndexingModel->id,
                         $fileIndexingModel->file_number,
                         $fileIndexingModel->file_title,
@@ -1644,6 +1676,9 @@ class FileIndexingController extends Controller
                 'id' => $id,
                 'file_number' => $updatedRecord->file_number ?? 'unknown'
             ]);
+
+            // KANGIS Block Indexing: the box's Yes and the live KANGIS count on the land file.
+            $this->applyKangisBlock($kangisBlock, (int) $id);
 
             // Same "where did this record go?" card as the create path — an update
             // fans out across the same tables, so the operator sees the current state.
@@ -3529,6 +3564,13 @@ class FileIndexingController extends Controller
                 ], 422);
             }
 
+            // KANGIS Block Indexing: one land file per KANGIS file unless flagged.
+            $kangisBlock = $this->kangisBlockCheck($request);
+            if ($kangisBlock instanceof \Illuminate\Http\JsonResponse) {
+                return $kangisBlock;
+            }
+            $this->applyKangisIndexingType($request);
+
             // Check for duplicate file number before processing
             // Skip duplicate check when a KANGIS FileNo Placeholder is supplied —
             // the user is intentionally creating a new physical-variant record for
@@ -3737,7 +3779,7 @@ class FileIndexingController extends Controller
                 'customer_code' => 'nullable|string|max:255',
                 'customer_status' => 'nullable|string|max:50',
                 'property_address' => 'nullable|string',
-                'indexing_type' => 'nullable|string|in:Regular,Block',
+                'indexing_type' => 'nullable|string|in:Regular,Block,KANGIS Block',
                 'file_classification' => 'nullable|string|max:50',
                 'file_classification_remarks' => 'nullable|string',
                 // RoFO fields
@@ -3758,7 +3800,7 @@ class FileIndexingController extends Controller
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
                 'occupancy_permit_op_type_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
-                'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled($request->input('has_occupancy_permit', false)),
+                'occupancy_permit_op_serial_number' => \App\Support\OpSerial::rulesWhenEnabled(filter_var($request->input('has_occupancy_permit', false), FILTER_VALIDATE_BOOLEAN) && !filter_var($request->input('occupancy_permit_op_serial_none', false), FILTER_VALIDATE_BOOLEAN)),
                 'occupancy_permit_date' => 'nullable|date',
                 'occupancy_permit_file_number' => 'nullable|string|max:255',
                 'occupancy_permit_land_use' => 'nullable|string|max:255',
@@ -4241,13 +4283,27 @@ class FileIndexingController extends Controller
 
             $groupingAwaiting = $grouping->awaiting_fileno ?? $awaitingFileNo;
             $groupingIndexingMls = $grouping->indexing_mls_fileno ?? null;
-            $propIdForStore = $this->resolveTrustedPropId(
-                $request->input('prop_id'),
-                $validated['file_number'] ?? null,
-                $validated['related_fileno'] ?? null,
-                $groupingAwaiting,
-                $groupingIndexingMls
-            );
+            // With no prop_id from the form, resolveTrustedPropId would match on related_fileno
+            // too and could hand a child its parent's id. Resolve from the file's own number,
+            // and SAVE it: until 2026-10-19 this value reached the CofO/RofO/OP syncs but never
+            // the row itself, which is how thousands of rows ended up NULL.
+            $propIdForStore = $this->normalizePropIdInput($request->input('prop_id')) === null
+                ? $this->propertyIdAllocationService->resolveOwnPropId(
+                    $validated['file_number'] ?? null,
+                    $validated['temp_file_no'] ?? null,
+                    $validated['parent_prop_id'] ?? null
+                )
+                : $this->resolveTrustedPropId(
+                    $request->input('prop_id'),
+                    $validated['file_number'] ?? null,
+                    $validated['related_fileno'] ?? null,
+                    $groupingAwaiting,
+                    $groupingIndexingMls
+                );
+
+            if ($propIdForStore !== null) {
+                $validated['prop_id'] = $propIdForStore;
+            }
 
             $groupingSyncPayload = [
                 'tracking_id' => $trackingId,
@@ -4365,6 +4421,10 @@ class FileIndexingController extends Controller
 
             $fileIndexing = null;
             $persistableData = Arr::only($validated, FileIndexing::columnWhitelist());
+            // The KANGIS Indexed Files page lists by registry; KN files arrive with none.
+            if (trim((string) ($persistableData['registry'] ?? '')) === '' && ($validated['general_registry'] ?? null) === KangisBlockIndexing::REGISTRY) {
+                $persistableData['registry'] = 'KANGIS';
+            }
             if ($tempCandidate !== null) {
                 $persistableData['file_number'] = null;
             }
@@ -4409,6 +4469,10 @@ class FileIndexingController extends Controller
                     $persistableData['file_number'] = $validated['file_number'];
                     $persistableData['has_temp_file'] = 1;
                     $persistableData['temp_file_no'] = $existingTempRecord->temp_file_no;
+                    // A temp record that already has its identity keeps it.
+                    if ($existingTempRecord->prop_id !== null && $existingTempRecord->prop_id !== '') {
+                        unset($persistableData['prop_id']);
+                    }
                     $fileIndexing->update($persistableData);
                 } else {
                     $fileIndexing = FileIndexing::create($persistableData);
@@ -4638,6 +4702,9 @@ class FileIndexingController extends Controller
                 throw new \RuntimeException('Failed to persist file indexing record.');
             }
 
+            // KANGIS Block Indexing: the box's Yes and the live KANGIS count on the land file.
+            $this->applyKangisBlock($kangisBlock, (int) $fileIndexing->id);
+
             if ($validated['general_registry'] !== 'DCIV Registry') {
                 $this->syncCofORecord($fileIndexing, $request, $resolvedTestControl, $requestHasCofo ?? false, $propIdForStore);
             }
@@ -4674,7 +4741,14 @@ class FileIndexingController extends Controller
             // Register the same numbers in related_file_number. file_indexings.related_fileno
             // is the row's own JSON list; the register is what Legal Search and the Related
             // File Numbers page read, and indexing never wrote to it before.
-            app(\App\Services\RelatedFileNumberRegistrar::class)->sync(
+            // KANGIS Registry: the land file's row lists this KANGIS file, no row of its own (user, 2026-10-20).
+            if (KangisBlockIndexing::isKangisRegistry($fileIndexing->general_registry ?? null)) {
+                app(\App\Services\RelatedFileNumberRegistrar::class)->attachKangis(
+                    (string) ($fileIndexing->file_number ?? ''),
+                    (int) ($fileIndexing->id ?? 0),
+                    KangisBlockIndexing::landFilesFrom($relatedFileNos)
+                );
+            } else app(\App\Services\RelatedFileNumberRegistrar::class)->sync(
                 $fileIndexing->id ?? null,
                 $fileIndexing->file_number ?? null,
                 $fileIndexing->file_title ?? null,
@@ -5332,7 +5406,10 @@ class FileIndexingController extends Controller
 
     protected function syncOccupancyPermitRecord(FileIndexing $fileIndexing, Request $request, ?string $testControl = null, ?int $propId = null): void
     {
-        \App\Support\OpSerial::require($request->input('occupancy_permit_op_serial_number'), 'occupancy_permit_op_serial_number');
+        // The OP serial is settled further down, once the existing permit row is known:
+        // "This OP has no serial number" keeps / generates a system serial
+        // (App\Services\OpSerialGenerator), otherwise the typed one must be valid.
+        $noOpSerial = filter_var($request->input('occupancy_permit_op_serial_none', false), FILTER_VALIDATE_BOOLEAN);
         // Source is required on every permit: Other needs its "specify" text, and an LGA
         // one must name one of the 44 Local Governments as grantor.
         $opSourceErrors = \App\Support\OpSource::errors(
@@ -5437,31 +5514,43 @@ class FileIndexingController extends Controller
             $recordPayload['prop_id'] = $propId;
         }
 
-        $table = DB::connection('sqlsrv')->table('pra');
-        $candidates = DB::connection('sqlsrv')->table('pra')
-            ->where(fn ($q) => $q->where('mlsFNo', $fileIndexing->file_number)->orWhere('fileno', $fileIndexing->file_number))
-            ->where('instrument_type', 'like', '%Occupancy Permit%')
-            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()->get();
-        if ($candidates->count() > 1) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['occupancy_permit_op_serial_number' => 'This file has several OPs. Edit the exact OP through its transaction card.']);
-        }
-        $existing = $candidates->first();
+        // Its own short transaction: store() calls this after its main transaction has
+        // closed, and the row lock below plus a generated serial both need one (a save
+        // that fails hands its generated number back).
+        DB::connection('sqlsrv')->transaction(function () use ($fileIndexing, $request, $noOpSerial, $matchColumns, $recordPayload) {
+            $table = DB::connection('sqlsrv')->table('pra');
+            $candidates = DB::connection('sqlsrv')->table('pra')
+                ->where(fn ($q) => $q->where('mlsFNo', $fileIndexing->file_number)->orWhere('fileno', $fileIndexing->file_number))
+                ->where('instrument_type', 'like', '%Occupancy Permit%')
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->lockForUpdate()->get();
+            if ($candidates->count() > 1) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['occupancy_permit_op_serial_number' => 'This file has several OPs. Edit the exact OP through its transaction card.']);
+            }
+            $existing = $candidates->first();
 
-        if ($existing) {
-            $table->where('id', $existing->id)->update($recordPayload);
-            app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $existing->id, $existing->op_serial_number ?? null);
+            $recordPayload = array_merge($recordPayload, app(\App\Services\OpSerialGenerator::class)->resolve(
+                $noOpSerial,
+                $request->input('occupancy_permit_op_serial_number'),
+                $existing,
+                'occupancy_permit_op_serial_number'
+            ));
+
+            if ($existing) {
+                $table->where('id', $existing->id)->update($recordPayload);
+                app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $existing->id, $existing->op_serial_number ?? null);
+                $fileIndexing->update(['has_occupancy_permit' => true]);
+                return;
+            }
+
+            $recordPayload['created_at'] = now();
+            $recordPayload['created_by'] = Auth::id();
+
+            $newId = $table->insertGetId(array_merge($matchColumns, $recordPayload));
+            app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $newId);
+
+            // Update file indexing has_occupancy_permit flag
             $fileIndexing->update(['has_occupancy_permit' => true]);
-            return;
-        }
-
-        $recordPayload['created_at'] = now();
-        $recordPayload['created_by'] = Auth::id();
-
-        $newId = $table->insertGetId(array_merge($matchColumns, $recordPayload));
-        app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $newId);
-
-        // Update file indexing has_occupancy_permit flag
-        $fileIndexing->update(['has_occupancy_permit' => true]);
+        });
     }
 
     /**
@@ -7095,6 +7184,227 @@ class FileIndexingController extends Controller
      *                         list. Only then does an empty list mean "remove them all"; without
      *                         it an empty list is treated as "not submitted" and links are kept.
      */
+    /**
+     * KANGIS Block Indexing guard (user, 2026-10-17). On a KANGIS Registry record the
+     * land (MLS) file is the Related File No; it may be related to one KANGIS file only
+     * unless the land file is marked "multiple KANGIS files" — by the KANGIS Block
+     * Indexing box on this form (allowed users only) or on an earlier save
+     * (App\Services\FileIndexing\KangisBlockIndexing). On an edit only land files NEWLY
+     * added to the record are checked, so the existing multi-related records (exported
+     * for treatment) stay editable.
+     *
+     * Returns a 4xx response to refuse the save, otherwise what applyKangisBlock()
+     * does once the save has succeeded.
+     *
+     * @return \Illuminate\Http\JsonResponse|array{mark:string[], recount:string[], plots?:array}
+     */
+    protected function kangisBlockCheck(Request $request, ?object $existingRecord = null)
+    {
+        $before = ($existingRecord !== null && KangisBlockIndexing::isKangisRegistry($existingRecord->general_registry ?? null))
+            ? KangisBlockIndexing::landFilesFrom($existingRecord->related_fileno ?? null)
+            : [];
+
+        if (!KangisBlockIndexing::isKangisRegistry($request->input('general_registry'))) {
+            // A record moved off KANGIS Registry still frees its land files' count.
+            return ['mark' => [], 'recount' => $before];
+        }
+
+        $landFiles = KangisBlockIndexing::landFilesFrom($request->input('related_fileno'));
+        $multiple = $request->boolean(KangisBlockIndexing::REQUEST_FIELD);
+
+        if ($multiple && !KangisBlockIndexing::canUse($request->user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not allowed to use KANGIS Block Indexing.',
+                'error_type' => 'kangis_block_forbidden',
+            ], 403);
+        }
+
+        if (!$multiple) {
+            $beforeKeys = array_map([KangisBlockIndexing::class, 'key'], $before);
+            $added = array_values(array_filter($landFiles, fn ($no) => !in_array(KangisBlockIndexing::key($no), $beforeKeys, true)));
+
+            $service = app(KangisBlockIndexing::class);
+            $conflicts = $service->conflicts($added, isset($existingRecord->id) ? (int) $existingRecord->id : null);
+            if (!empty($conflicts)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $service->refusalMessage($conflicts),
+                    'error_type' => 'kangis_land_file_taken',
+                    'conflicts' => $conflicts,
+                ], 422);
+            }
+        }
+
+        // KANGIS Block Indexing (user, 2026-10-19): on a block land file (box ticked now or
+        // marked before), this KANGIS file's Plot No. is added to the land file's Plot
+        // Number list ("1, 2 and 4"); on an edit that changed it, the old plot is swapped.
+        // The plot is the Plot No. beside the land file's Related File Number row
+        // (related_plots), falling back to the Property Details Plot No.
+        $plots = [];
+        $plot = $request->input('plot_number');
+        $plot = trim((string) (is_array($plot) ? (array_values($plot)[0] ?? '') : $plot));
+        $rowPlots = [];
+        $rowNames = [];
+        foreach ((array) $request->input('related_plots', []) as $pair) {
+            $no = trim((string) (is_array($pair) ? ($pair['file_number'] ?? '') : ''));
+            $rowPlot = trim((string) (is_array($pair) ? ($pair['plot_number'] ?? '') : ''));
+            $rowName = trim((string) (is_array($pair) ? ($pair['name'] ?? '') : ''));
+            if ($no !== '' && $rowPlot !== '') {
+                $rowPlots[KangisBlockIndexing::key($no)] = $rowPlot;
+            }
+            // The Name beside the row (user, 2026-10-20): added to the land file's File Title.
+            if ($no !== '' && $rowName !== '') {
+                $rowNames[KangisBlockIndexing::key($no)] = $rowName;
+            }
+        }
+        // The rows' plots together are the KANGIS file's own Plot Number: "1, 2 and 3".
+        if (!empty($rowPlots)) {
+            $kangisPlots = [];
+            foreach ($rowPlots as $rowPlot) {
+                $kangisPlots[KangisBlockIndexing::key($rowPlot)] = $rowPlot;
+            }
+            $kangisPlot = KangisBlockIndexing::formatPlots($kangisPlots);
+            if (mb_strlen($kangisPlot) > KangisBlockIndexing::PLOT_NUMBER_MAX) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The Plot Numbers of the related land files are too long together for the KANGIS Plot Number ('
+                        . KangisBlockIndexing::PLOT_NUMBER_MAX . ' characters).',
+                    'error_type' => 'kangis_plot_too_long',
+                ], 422);
+            }
+            $current = $request->input('plot_number');
+            if (is_array($current)) {
+                $current[array_key_first($current) ?? 0] = $kangisPlot;
+                $request->merge(['plot_number' => $current]);
+            } else {
+                $request->merge(['plot_number' => $kangisPlot]);
+            }
+        }
+
+        $service = app(KangisBlockIndexing::class);
+        // Without row plots the Property Details value is used: a single land file takes it
+        // whole, several take its "1, 2 and 3" items by position. The old plot of a land
+        // file comes from the KANGIS file's old list the same way.
+        $byPosition = function (?string $value, array $files) {
+            $list = KangisBlockIndexing::plotList($value);
+            $out = [];
+            foreach (array_values($files) as $i => $file) {
+                $out[KangisBlockIndexing::key($file)] = count($files) === 1
+                    ? trim((string) $value)
+                    : (count($list) === count($files) ? $list[$i] : '');
+            }
+
+            return $out;
+        };
+        $fallback = empty($rowPlots) ? $byPosition($plot, $landFiles) : [];
+        $oldPlots = $byPosition($existingRecord->plot_number ?? null, $before);
+        $names = [];
+        $links = [];
+        foreach ($landFiles as $landFile) {
+            $key = KangisBlockIndexing::key($landFile);
+            $landPlot = $rowPlots[$key] ?? ($fallback[$key] ?? '');
+            $isBlock = $multiple || $service->allowsMultiple($landFile);
+            if ($landPlot !== '' && $isBlock) {
+                $oldPlot = $oldPlots[$key] ?? '';
+                $plots[] = [$landFile, $landPlot, $oldPlot !== '' ? $oldPlot : null, isset($existingRecord->id) ? (int) $existingRecord->id : null];
+            }
+            if (($rowNames[$key] ?? '') !== '' && $isBlock) {
+                $names[] = [$landFile, $rowNames[$key]];
+            }
+            if ($isBlock) {
+                $links[] = $landFile;
+            }
+        }
+        // Land files taken off this KANGIS record in an edit.
+        $landKeys = array_map([KangisBlockIndexing::class, 'key'], $landFiles);
+        $unlinks = array_values(array_filter($before, fn ($n) => !in_array(KangisBlockIndexing::key($n), $landKeys, true)));
+
+        return ['mark' => $multiple ? $landFiles : [], 'recount' => array_merge($landFiles, $before), 'plots' => $plots, 'names' => $names, 'links' => $links, 'unlinks' => $unlinks];
+    }
+
+    /**
+     * Indexing Type "KANGIS Block" (user, 2026-10-21) is set by the KANGIS Block Indexing
+     * box, never chosen: box ticked on a KANGIS Registry record -> "KANGIS Block". A record
+     * already saved as KANGIS Block keeps it on later edits (the box opens clear); anywhere
+     * else the value falls back to Regular. "Block" (Land Block Indexing) is untouched.
+     */
+    protected function applyKangisIndexingType(Request $request, ?object $existingRecord = null): void
+    {
+        $kangis = KangisBlockIndexing::isKangisRegistry($request->input('general_registry'));
+
+        if ($kangis && $request->boolean(KangisBlockIndexing::REQUEST_FIELD)) {
+            $request->merge(['indexing_type' => 'KANGIS Block']);
+            return;
+        }
+
+        if ($request->input('indexing_type') === 'KANGIS Block') {
+            $keep = $kangis && ($existingRecord->indexing_type ?? null) === 'KANGIS Block';
+            $request->merge(['indexing_type' => $keep ? 'KANGIS Block' : 'Regular']);
+        }
+    }
+
+    /** After a successful save: the box's Yes, then the live KANGIS count, on the land files. */
+    protected function applyKangisBlock($kangisBlock, ?int $kangisFileIndexingId = null): void
+    {
+        if (!is_array($kangisBlock) || (empty($kangisBlock['mark']) && empty($kangisBlock['recount']) && empty($kangisBlock['plots']) && empty($kangisBlock['names']) && empty($kangisBlock['links']) && empty($kangisBlock['unlinks']))) {
+            return;
+        }
+
+        try {
+            $service = app(KangisBlockIndexing::class);
+            $service->markMultiple($kangisBlock['mark'] ?? []);
+            $service->recount($kangisBlock['recount'] ?? []);
+            foreach ($kangisBlock['plots'] ?? [] as [$landFile, $plot, $replace, $kangisId]) {
+                if (!$service->addPlotToLandFile($landFile, $plot, $replace, $kangisId)) {
+                    Log::warning('KANGIS Block Indexing: land file Plot Number list too long, not updated', [
+                        'land_file' => $landFile,
+                        'plot' => $plot,
+                        'max' => KangisBlockIndexing::PLOT_NUMBER_MAX,
+                    ]);
+                }
+            }
+            foreach ($kangisBlock['names'] ?? [] as [$landFile, $name]) {
+                $service->addNameToLandFile($landFile, $name, $kangisFileIndexingId);
+            }
+            // The KANGIS files on a shared land file add up in its Related File No. (user, 2026-10-20).
+            if ($kangisFileIndexingId) {
+                foreach ($kangisBlock['links'] ?? [] as $landFile) {
+                    $service->addKangisToLandRelated($landFile, $kangisFileIndexingId);
+                }
+                $kangisNo = (string) DB::connection('sqlsrv')->table('file_indexings')->where('id', $kangisFileIndexingId)->value('file_number');
+                foreach ($kangisBlock['unlinks'] ?? [] as $landFile) {
+                    $service->removeKangisFromLandRelated($landFile, $kangisNo);
+                }
+            }
+        } catch (\Throwable $e) {
+            // The record is saved; a failed count must not turn that into an error.
+            Log::warning('KANGIS Block Indexing: land file update failed', [
+                'land_files' => $kangisBlock,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * GET fileindexing/api/kangis-land-file?land_file=&exclude_id= — where a land file
+     * stands, so the KANGIS form can confirm before relating it to another KANGIS file.
+     */
+    public function kangisLandFileStatus(Request $request)
+    {
+        $landFile = trim((string) $request->query('land_file', ''));
+        if ($landFile === '') {
+            return response()->json(['success' => false, 'message' => 'land_file is required.'], 422);
+        }
+
+        $excludeId = $request->query('exclude_id');
+
+        return response()->json(['success' => true] + app(KangisBlockIndexing::class)->status(
+            $landFile,
+            is_numeric($excludeId) ? (int) $excludeId : null
+        ) + ['can_mark_multiple' => KangisBlockIndexing::canUse($request->user())]);
+    }
+
     protected function syncRelatedFileLinks($mainRecord, array $relatedFileNos, array $relatedDetails = [], bool $allowClear = false)
     {
         // If no related file data is provided, skip the sync to prevent accidental deletion

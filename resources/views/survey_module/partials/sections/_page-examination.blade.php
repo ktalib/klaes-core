@@ -2,7 +2,7 @@
     use App\Http\Controllers\Survey\ExaminationController;
 
     $reviewing = $reviewing ?? null;
-    $formOpen  = !$reviewing && ($errors->any() || old('linked_ref') !== null);
+    $formOpen  = !$reviewing && ($errors->any() || old('linked_ref') !== null || $exam->linked_ref);
 
     $statusBadge = [
         'Queued'    => 'pending',
@@ -200,6 +200,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>S/N</th>
                     <th>Exam ID</th>
                     <th>Linked Case / GKN</th>
                     <th>Type</th>
@@ -213,6 +214,7 @@
             <tbody>
                 @forelse ($exams as $e)
                     <tr>
+                        <td>{{ $exams->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $e->exam_ref }}</strong></td>
                         <td>{{ $e->linked_ref ?: '—' }}</td>
                         <td>{{ $e->exam_type ?: '—' }}</td>
@@ -257,7 +259,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-clipboard-check" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'status', 'priority']))
                                 Nothing matches that filter.

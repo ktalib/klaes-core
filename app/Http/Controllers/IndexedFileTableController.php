@@ -53,7 +53,8 @@ class IndexedFileTableController extends Controller
 
             if ($registry !== '') {
                 if (strtoupper($registry) === 'KANGIS') {
-                    $baseQuery->whereIn('registry', ['KANGIS', 'KANGIS Registry']);
+                    // general_registry too: KN files saved with no registry value still belong here.
+                    $baseQuery->where(fn ($q) => $q->whereIn('registry', ['KANGIS', 'KANGIS Registry'])->orWhere('general_registry', 'KANGIS Registry'));
                 } else {
                     $baseQuery->where('registry', $registry);
                 }
@@ -298,7 +299,8 @@ class IndexedFileTableController extends Controller
 
             // Treat 'KANGIS' as covering both 'KANGIS' and 'KANGIS Registry'
             if ($registryUpper === 'KANGIS') {
-                $query->whereIn('file_indexings.registry', ['KANGIS', 'KANGIS Registry']);
+                // general_registry too: KN files saved with no registry value still belong here.
+                $query->where(fn ($q) => $q->whereIn('file_indexings.registry', ['KANGIS', 'KANGIS Registry'])->orWhere('file_indexings.general_registry', 'KANGIS Registry'));
                 $query->addSelect(DB::raw("(SELECT TOP 1 LTRIM(RTRIM(file_number)) FROM file_indexing_links WHERE file_indexing_id = file_indexings.id AND file_number IS NOT NULL AND LTRIM(RTRIM(file_number)) <> '' ORDER BY id ASC) as related_file_no"));
             } else {
                 $query->where('file_indexings.registry', $registry);

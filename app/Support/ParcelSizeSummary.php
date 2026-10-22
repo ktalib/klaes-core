@@ -42,25 +42,150 @@ class ParcelSizeSummary
             ->map(fn ($v) => (float) $v)
             ->values();
 
+        return self::fromNumbers($list);
+    }
+
+    /**
+     * The same summary from bare sizes (the duplex keeps them on its stage payload
+     * rather than as PlotApplicationSize rows).
+     *
+     * @param  iterable  $values  sizes in m²; blanks and zeros are skipped
+     */
+    public static function fromValues($values): array
+    {
+        return self::fromNumbers(
+            Collection::make($values ?? [])
+                ->filter(fn ($v) => $v !== null && $v !== '' && (float) $v > 0)
+                ->map(fn ($v) => (float) $v)
+                ->values()
+        );
+    }
+
+    private static function fromNumbers(Collection $list): array
+    {
         if ($list->isEmpty()) {
-            return ['list' => '', 'total' => '', 'has' => false, 'phrase' => '', 'total_phrase' => ''];
+            return ['list' => '', 'summary' => '', 'total' => '', 'has' => false, 'phrase' => '', 'total_phrase' => ''];
         }
 
         $formatted = $list->map(fn ($v) => self::number($v))->implode(' + ');
         $total     = self::number($list->sum());
+        $summary   = self::summary($list);
+        $repeats   = $summary !== $formatted;
+
+        // A memo for an 82-plot subdivision printed "450 + 450 + ... + 450 m²" eighty-two
+        // times over. Repeated sizes are counted instead — "82 parcels of 450 m² each",
+        // "80 × 450 + 2 × 600 m²" — and the total is always stated alongside, because a
+        // grouped run is harder to add up by eye. Sizes that never repeat read as before.
+        $uniform = $list->unique()->count() === 1 && $list->count() > 1;
+        $sized   = $uniform ? self::number($list[0]) . ' m² each' : $summary . ' m²';
+        $withSum = $list->count() > 1 ? ' (total ' . $total . ' m²)' : '';
 
         return [
-            'list'  => $formatted,
-            'total' => $total,
-            'has'   => true,
+            // Every size, in order. Kept for callers that want the full run.
+            'list'    => $formatted,
+            // The run with repeats counted: "80 × 450 + 2 × 600".
+            'summary' => $summary,
+            'total'   => $total,
+            'has'     => true,
             // " of 1,500 + 2,000 + 3,000 m²" — appended wherever a parcel is named.
-            'phrase' => ' of ' . $formatted . ' m²',
+            'phrase'  => ' of ' . $sized . ($repeats ? $withSum : ''),
             // The same, with the sum spelled out. Used where one number is clearer
             // than the run — a merger states what the merged parcel comes to.
-            'total_phrase' => $list->count() > 1
-                ? ' measuring ' . $formatted . ' m² (total ' . $total . ' m²)'
-                : ' measuring ' . $formatted . ' m²',
+            'total_phrase' => ' measuring ' . $sized . $withSum,
         ];
+    }
+
+    /**
+     * Sizes with repeats counted, in first-appearance order:
+     * [450, 450, 600, 450] -> "3 × 450 + 600". No unit — the caller appends m².
+     */
+    public static function summary($values): string
+    {
+        return Collection::make($values)
+            ->map(fn ($v) => (float) $v)
+            ->groupBy(fn ($v) => self::number($v), true)
+            ->map(fn ($group, $label) => $group->count() > 1 ? $group->count() . ' × ' . $label : $label)
+            ->implode(' + ');
+    }
+
+    /**
+     * The parcel letter the site plan uses: 0 -> A, 25 -> Z, 26 -> AA, 81 -> CD.
+     * Past Z the letters run on as a spreadsheet's columns do, rather than falling
+     * back to numbers that read like plot numbers.
+     */
+    public static function letter(int $index): string
+    {
+        $out = '';
+        for ($n = $index + 1; $n > 0; $n = intdiv($n - 1, 26)) {
+            $out = chr(65 + ($n - 1) % 26) . $out;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Lettered dimension lines, with parcels of identical dimensions stated once:
+     *
+     *     [0 => '15.00m x 30.00m', ..., 81 => '15.00m x 30.00m']
+     *         -> ['A – CD (82 parcels): 15.00m x 30.00m each.']
+     *     [0 => '60m x 21m', 1 => '21m x 95m', 2 => '60m x 21m']
+     *         -> ['A, C (2 parcels): 60m x 21m each.', 'B: 21m x 95m.']
+     *
+     * Keys are the parcel's position (so its letter matches the plan even where a
+     * parcel with no dimensions is skipped); groups keep first-appearance order and
+     * consecutive letters collapse into a range.
+     *
+     * @param  array<int,string>  $byIndex
+     * @return string[]
+     */
+    public static function groupedDimensionLines(array $byIndex): array
+    {
+        $groups = [];
+        foreach ($byIndex as $i => $text) {
+            $groups[$text][] = (int) $i;
+        }
+
+        $lines = [];
+        foreach ($groups as $text => $indexes) {
+            $count = count($indexes);
+            $lines[] = self::letterRanges($indexes)
+                . ($count > 1 ? ' (' . $count . ' parcels): ' . $text . ' each.' : ': ' . $text . '.');
+        }
+
+        return $lines;
+    }
+
+    /** [0,1,2,4,6,7] -> "A – C, E, G, H": runs of three or more become a range. */
+    private static function letterRanges(array $indexes): string
+    {
+        sort($indexes);
+        $parts = [];
+        $start = $prev = null;
+
+        $flush = function () use (&$parts, &$start, &$prev) {
+            if ($start === null) {
+                return;
+            }
+            if ($prev - $start >= 2) {
+                $parts[] = self::letter($start) . ' – ' . self::letter($prev);
+            } else {
+                for ($k = $start; $k <= $prev; $k++) {
+                    $parts[] = self::letter($k);
+                }
+            }
+        };
+
+        foreach ($indexes as $i) {
+            if ($prev !== null && $i === $prev + 1) {
+                $prev = $i;
+                continue;
+            }
+            $flush();
+            $start = $prev = $i;
+        }
+        $flush();
+
+        return implode(', ', $parts);
     }
 
     /**

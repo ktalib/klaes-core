@@ -33,6 +33,8 @@ class ChartingCards
         'chart_first' => 'first',
         'chart_second' => 'second',
         'charting_checked' => 'check',
+        // Final charting at AD Drawing & Charting: the same questions as the charting card (transcript, 2026-10-16).
+        'final_charting' => 'final',
     ];
 
     public const NOT_CHARTED_REASONS = [

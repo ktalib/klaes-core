@@ -3910,7 +3910,7 @@
           const search = state.pagination.pageTypeMore.search;
           const registry = state.pagination.pageTypeMore.registry;
           try {
-            const response = await fetch(`{{ route("pagetyping.api.pagetype-more-files") }}?page=${page}&limit=${state.pagination.pageTypeMore.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}`);
+            const response = await fetch(`{{ route("pagetyping.api.pagetype-more-files") }}?page=${page}&limit=${state.pagination.pageTypeMore.perPage}&search=${encodeURIComponent(search)}&registry=${encodeURIComponent(registry)}{!! request()->boolean('cadastral') ? '&cadastral=1' : '' !!}`);
             const data = await response.json();
             
             console.log('PageType More API Response:', data); // Debug log

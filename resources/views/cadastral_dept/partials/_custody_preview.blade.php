@@ -75,6 +75,16 @@
       <button type="button" id="cdc-replay" class="text-xs font-semibold text-blue-700 hover:underline">&#8635; Replay preview</button>
     </div>
 
+    {{-- To Land / back from Land: the main file's page count (PageCounts, recording 2026-10-18). --}}
+    <div id="cdc-pages-box" class="hidden rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+      <label class="block text-xs font-semibold text-gray-700 mb-1" for="cdc-pages" id="cdc-pages-label"></label>
+      <div class="flex flex-wrap items-center gap-2">
+        <input type="number" min="1" max="100000" name="pages" id="cdc-pages" class="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm">
+        <span class="text-xs text-gray-600" id="cdc-pages-hint"></span>
+      </div>
+      <div class="mt-1 text-sm font-semibold text-yellow-800 hidden" id="cdc-pages-new"></div>
+    </div>
+
     <div>
       <label class="block text-xs font-semibold text-gray-600 mb-1" for="cdc-note" id="cdc-note-label">Note (optional)</label>
       <input type="text" name="note" id="cdc-note" maxlength="1000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -118,6 +128,19 @@
       $('cdc-text').textContent = attach
         ? 'Preview: correspondence file ' + corr + ' is attached to land file ' + file + ' when you confirm.'
         : 'Preview: correspondence file ' + corr + ' is detached from land file ' + file + ' and kept here when you confirm.';
+      // Page count: data-pages-dir (out | back), data-pages (recorded or DMS count), data-pages-out (count it went with).
+      var dir = el.getAttribute('data-pages-dir') || '';
+      var box = $('cdc-pages-box'), pages = $('cdc-pages');
+      box.classList.toggle('hidden', !dir);
+      pages.disabled = !dir;
+      pages.required = !!dir && el.getAttribute('data-pages-recorded') !== '1';
+      pages.value = el.getAttribute('data-pages') || '';
+      pagesOut = parseInt(el.getAttribute('data-pages-out') || '', 10);
+      $('cdc-pages-label').textContent = dir === 'out' ? 'Pages in the main file going to Land' : 'Pages the main file came back with';
+      $('cdc-pages-hint').textContent = dir === 'out'
+        ? (el.getAttribute('data-pages-dms') ? 'DMS holds ' + el.getAttribute('data-pages-dms') + ' page(s); correct it to the folio.' : 'Count the folio.')
+        : (isNaN(pagesOut) ? 'No count was taken when it went to Land.' : 'It went to Land with ' + pagesOut + ' page(s).');
+      showNew();
       $('cdc-note').value = '';
       $('cdc-note').placeholder = attach ? 'Note (optional)' : 'Archived where? (optional)';
       var submit = $('cdc-submit');
@@ -127,6 +150,14 @@
       play();
     }
 
+    var pagesOut = NaN;
+    // "4 new pages" as the count is typed, when it came back with more than it went with.
+    function showNew() {
+      var n = parseInt($('cdc-pages').value, 10) - pagesOut, out = $('cdc-pages-new');
+      var show = $('cdc-action').value === 'attach' && !isNaN(n);
+      out.classList.toggle('hidden', !show);
+      out.textContent = !show ? '' : (n > 0 ? n + ' new page' + (n === 1 ? '' : 's') + ': the DMS update follows.' : 'No new pages: DMS needs no update.');
+    }
     function close() { modal.classList.add('hidden'); }
 
     document.addEventListener('click', function (e) {
@@ -136,6 +167,7 @@
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.classList.contains('hidden')) close(); });
     $('cdc-replay').addEventListener('click', play);
+    $('cdc-pages').addEventListener('input', showNew);
     // One submit only.
     $('cdc-form').addEventListener('submit', function () { $('cdc-submit').disabled = true; });
   })();

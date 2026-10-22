@@ -17,6 +17,35 @@
     @endforeach
 </div>
 
+{{-- ============ Bill types and their Revenue Codes (KLAES REV-M, one code per bill type) ============ --}}
+<div class="iw-card">
+    <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">
+        <div>
+            <div class="iw-card-title"><span class="iw-icon-tile green"><i data-lucide="hash" class="h-5 w-5"></i></span> Bill Type Revenue Codes <span class="ce-pill">{{ $billTypeCodes->count() }}</span></div>
+            <div class="iw-card-sub">One Revenue Code per KLAES REV-M bill type. Entering the code on an on-the-fly bill picks its bill type. Provisional 9xx0000 codes until the Ministry's are supplied.</div>
+        </div>
+    </div>
+    <div class="iw-card-body" data-column-picker="off">
+        <table class="ce-table">
+            <thead><tr><th>S/N</th><th>Revenue Code</th><th>Bill Type</th><th>Also used by</th><th>Recurring</th><th>Status</th></tr></thead>
+            <tbody>
+                @forelse($billTypeCodes as $bt)
+                    <tr>
+                        <td>{{ $loop->iteration }}</td>
+                        <td class="iw-mono" style="font-weight:700;color:#dc2626">{{ $bt->revenue_code ?: '—' }}</td>
+                        <td>{{ $bt->name }}</td>
+                        <td>{{ $bt->children->pluck('name')->implode(', ') ?: '—' }}</td>
+                        <td>{{ $bt->is_recurring ? config('billing.cycles.' . $bt->payment_cycle . '.label', 'Yes') : '—' }}</td>
+                        <td>@if($bt->is_active)<span class="ce-pill green">On</span>@else<span class="ce-pill">Off</span>@endif</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" class="ce-muted" style="text-align:center;padding:16px">No bill types.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
 {{-- ============ Register ============ --}}
 <div class="iw-card" x-data="{ editing: null, adding: false }" @keydown.escape.window="editing = null; adding = false">
     <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">

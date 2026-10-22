@@ -88,12 +88,12 @@
             <div><span>Survey officer</span><span>{{ $case->survey_officer ?: '—' }}</span></div>
             <div><span>Date</span><span>{{ optional($case->case_date)->format('d M Y') ?? '—' }}</span></div>
             <div><span>Area</span><span>{{ $case->area_ha !== null ? rtrim(rtrim((string) $case->area_ha, '0'), '.') . ' Ha' : '—' }}</span></div>
-            <div><span>Location</span><span>{{ $location ?: '—' }}</span></div>
-            <div><span>Coordinates</span><span>{{ $case->coordinates ?: '—' }}</span></div>
-            <div><span>GPS reading</span><span>{{ $case->gps_reading ?: '—' }}</span></div>
             @if ($case->prop_plot)
                 <div><span>Plot No.</span><span>{{ $case->prop_plot }}</span></div>
             @endif
+            <div><span>Location</span><span>{{ $location ?: '—' }}</span></div>
+            <div><span>Coordinates</span><span>{{ $case->coordinates ?: '—' }}</span></div>
+            <div><span>GPS reading</span><span>{{ $case->gps_reading ?: '—' }}</span></div>
             <div><span>Boundary file</span><span>{{ $case->boundary_file ?: '—' }}</span></div>
             <div class="wide"><span>Description</span><span>{{ $case->description ?: '—' }}</span></div>
         </div>

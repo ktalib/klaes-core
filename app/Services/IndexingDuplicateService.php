@@ -535,6 +535,18 @@ class IndexingDuplicateService
             return $archiveId;
         });
 
+        // KANGIS Block Indexing (user, 2026-10-20): a KANGIS record that is gone takes its
+        // name and plot back off its land files, and their KANGIS count is redone. After the
+        // commit, so the land files no longer see this record; a failure here only logs.
+        try {
+            app(\App\Services\FileIndexing\KangisBlockIndexing::class)->removeKangisFromLandFiles($row);
+        } catch (\Throwable $e) {
+            Log::warning('IndexingDuplicateService: KANGIS land file clean-up failed', [
+                'file_indexing_id' => $fileIndexingId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         // A file number the indexing row claims but fileNumber does not hold is not
         // fatal — but it leaves the registry untouched, so make it visible.
         if ($counts['fileNumber'] === 0) {

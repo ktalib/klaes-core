@@ -15,6 +15,7 @@ class PlotSubdivisionApplication extends Model
     public const STATUS_COMMISSIONED = 'commissioned';
 
     protected $fillable = [
+        'previously_decommissioned',
         'source_module',
         'file_no',
         'file_title',

@@ -20,34 +20,44 @@
         </a>
         @endif
 
-        <!-- b. File Tracker (Archive) -->
+        <!-- b. Find File (Archive) -->
         @if($hasRole('File Tracker/Tracking'))
         <a href="{{ route('track-file-archive.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('track-file-archive.index') && !request('url') ? 'active' : '' }}">
           <i data-lucide="archive" class="h-4 w-4 text-teal-500"></i>
-          <span>File Tracker (Archive)</span>
+          <span>Find File (Archive)</span>
         </a>
         @endif
 
-        <!-- c. Quick Search -->
-        @if($hasRole('File Tracker/Tracking'))
-        <a href="{{ route('create-file-tracker.quick-search') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.quick-search') && !request('url') ? 'active' : '' }}">
-          <i data-lucide="search" class="h-4 w-4 text-teal-500"></i>
-          <span>Quick Search</span>
-        </a>
+        <!-- c. File Tracker: i. Quick Search, ii. Log a File -->
+        @if($hasRole('File Tracker/Tracking') || $hasRole('Log a File'))
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="fileTracking-tracker">
+          <div class="flex items-center gap-2">
+            <i data-lucide="folder-search" class="h-4 w-4 text-teal-500"></i>
+            <span>File Tracker</span>
+          </div>
+          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="fileTracking-tracker"></i>
+        </div>
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="fileTracking-tracker">
+          @if($hasRole('File Tracker/Tracking'))
+          <a href="{{ route('create-file-tracker.quick-search') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.quick-search') && !request('url') ? 'active' : '' }}">
+            <i data-lucide="search" class="h-3.5 w-3.5 text-teal-400"></i>
+            <span>Quick Search</span>
+          </a>
+          @endif
+          @if($hasRole('Log a File'))
+          <a href="{{ route('create-file-tracker.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.index') && !request('url') ? 'active' : '' }}">
+            <i data-lucide="file-plus" class="h-3.5 w-3.5 text-teal-400"></i>
+            <span>Log a File</span>
+          </a>
+          @endif
+        </div>
         @endif
 
-        <!-- d. Log a File -->
-        @if($hasRole('Log a File'))
-        <a href="{{ route('create-file-tracker.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.index') && !request('url') ? 'active' : '' }}">
-          <i data-lucide="file-plus" class="h-4 w-4 text-teal-500"></i>
-          <span>Log a File (Archive)</span>
-        </a>
-        @endif
-        <!-- e. File Movement (Department) — in/out register for HC / PS / Directors' offices -->
+        <!-- d. Mail/File Movement (Departments) — in/out register for HC / PS / Directors' offices -->
         @if($hasRole('File Movement (Department)'))
         <a href="{{ route('secretariat-file-log.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('secretariat-file-log.*') ? 'active' : '' }}">
           <i data-lucide="arrow-left-right" class="h-4 w-4 text-teal-500"></i>
-          <span>File Movement (Department)</span>
+          <span>Mail/File Movement (Departments)</span>
         </a>
         @endif
       </div>

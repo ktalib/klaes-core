@@ -15,7 +15,7 @@
     appropriate, so the option not chosen is struck through and the chosen one
     is bold. An unanswered question keeps the plain "YES/NO".
 
-    Q8 acres are hectares x 2.47, the factor the form itself prints.
+    Q8 is square metres and hectares (m2 / 10,000); no acres (transcript, 2026-10-16).
     Date is the day the form was completed; "For:" is left for the Director
     Cadastral's hand signature.
 --}}
@@ -319,13 +319,13 @@
         <div class="q-item">
             <div class="q-main" style="font-weight: normal; margin-top: 5px;">
                 @if ($areaHa === null)
-                    <span class="q-text">8. Area applied for: (&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; acres) &nbsp;&nbsp; Hectares)</span>
+                    <span class="q-text">8. Area applied for: (&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sq. m) &nbsp;&nbsp; Hectares)</span>
                 @else
-                    <span class="q-text">8. Area applied for: ({!! $fill($fmtNum($areaAcres), '90px') !!} acres) &nbsp;&nbsp; {!! $fill($fmtNum($areaHa), '70px') !!} Hectares)</span>
+                    <span class="q-text">8. Area applied for: ({!! $fill($fmtNum($areaSqm), '90px') !!} sq. m) &nbsp;&nbsp; {!! $fill($fmtNum($areaHa), '70px') !!} Hectares)</span>
                 @endif
             </div>
             <div class="sub-group" style="margin-left: 110px;">
-                <span>(1 hectares = 2.47 acres)</span>
+                <span>(1 hectare = 10,000 sq. m)</span>
             </div>
         </div>
 

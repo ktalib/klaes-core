@@ -65,6 +65,7 @@
             </div>
 
             <!-- Statistics Cards -->
+            @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                 <!-- Daily Stats -->
                 <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
@@ -132,13 +133,20 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             <!-- Existing Records Table -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <h3 class="font-bold text-slate-800">{{ $dcivReadOnly ? 'DCIV Records' : 'Generated DCIV Records' }}</h3>
-                    <!-- Source legend -->
+                    <!-- Source filter + legend -->
                     <div class="flex items-center gap-3 flex-wrap">
+                        <select id="dciv-source-filter" aria-label="Filter by source"
+                                class="text-xs font-bold text-slate-600 border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                            <option value="">All sources</option>
+                            <option value="commissioned">Commissioned</option>
+                            <option value="indexed">Indexed File</option>
+                        </select>
                         <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source Key:</span>
                         <span class="inline-flex items-center gap-1.5">
                             <span class="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300 flex-shrink-0"></span>
@@ -402,12 +410,12 @@
                                                                         </div>
                                                                     </div>
                                                                     <div>
-                                                                        <label class="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Related File Title <span class="text-red-500">*</span></label>
-                                                                        <input type="text" 
-                                                                               x-model="rel.secondary_title" 
+                                                                        <label class="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Related File Title <span x-show="rel.is_found" class="text-red-500">*</span><span x-show="rel.file_number && !rel.is_found" class="normal-case font-semibold text-slate-400">(optional - not indexed)</span></label>
+                                                                        <input type="text"
+                                                                               x-model="rel.secondary_title"
                                                                                :readonly="rel.is_found"
-                                                                               :class="[rel.is_found ? 'bg-slate-100 cursor-not-allowed' : 'bg-white', enableRelatedFiles && !rel.secondary_title ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-300']"
-                                                                               placeholder="Enter Secondary Title" 
+                                                                               :class="[rel.is_found ? 'bg-slate-100 cursor-not-allowed' : 'bg-white', enableRelatedFiles && rel.is_found && !rel.secondary_title ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-300']"
+                                                                               :placeholder="rel.file_number && !rel.is_found ? 'Optional - file not indexed' : 'Enter Secondary Title'"
                                                                                class="w-full rounded-xl px-4 py-2.5 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
                                                                     </div>
                                                                 </div>
@@ -1073,12 +1081,19 @@ document.addEventListener('click', function(e) {
 });
 
 $(document).ready(function() {
+    $(document).on('change', '#dciv-source-filter', function () {
+        $('#dciv-records-table').DataTable().ajax.reload();
+    });
+
     var dcivTable = $('#dciv-records-table').DataTable({
         processing: true,
         serverSide: true,
         ajax: {
             url: '{{ route("dciv-generation.data") }}',
-            type: 'GET'
+            type: 'GET',
+            data: function (d) {
+                d.source_filter = $('#dciv-source-filter').val() || '';
+            }
         },
         pageLength: 20,
         order: [[11, 'desc']],
@@ -1108,11 +1123,12 @@ $(document).ready(function() {
             @endunless
         ],
         createdRow: function(row, data) {
-            const sourceTable = String(data.source_table || '').toLowerCase();
-            if (sourceTable.indexOf('file_index') !== -1) {
-                $(row).addClass('dciv-row-indexed');
-            } else if (sourceTable.indexOf('dciv_file_no') !== -1) {
+            // is_commissioned: false for File Indexing rows and for Manual-serial /
+            // indexing-mirrored dciv_file_no rows (see isCommissionedOrigin).
+            if (data.is_commissioned) {
                 $(row).addClass('dciv-row-commissioned');
+            } else {
+                $(row).addClass('dciv-row-indexed');
             }
         },
         drawCallback: function() {

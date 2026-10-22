@@ -1,0 +1,3 @@
+﻿ID,Sectional_Title_File_No,ref_id,application_id,sub_application_id,Scheme_Application_Fee,Site_Plan_Fee,survey_fee,Processing_Fee,Betterment_Charges,Unit_Application_Fees,Land_Use_Charge,property_value,Penalty_Fees,Payment_Status,created_at,updated_at,betterment_rate,Betterment_receipt,receipt_date,bill_balance_reciept,bill_balance_date,source,source_id,Change_of_Name,Application_Form
+4092,,OSS-1-00001,,,,,10000,3000,,,,,,paid,"2026-03-05 12:49:12.633","2026-03-05 12:49:12.633",,,,,,OSS_OP_APPLICATION_FEE,2028,25000,2000
+4096,,OSS-1-00002,,,,,10000,3000,,,,,,paid,"2026-03-13 12:42:46.227","2026-03-13 12:42:46.227",,,,,,OSS_OP_APPLICATION_FEE,75095,25000,2000

@@ -189,7 +189,9 @@ class VerificationReports
         [$numbers] = $this->safeIdentity($case);
         $db = DB::connection(self::CONN);
 
-        // Parcel update (APU/SPU): the file as a source or a result of an update.
+        // Parcel update: APU/SPU, and the Deeds merger / subdivision / separation /
+        // extension / change of purpose applications (user, 2026-10-21). Rejected rows and
+        // the 'hidden' File Indexing ticks (never processed) do not count.
         try {
             if ($numbers) {
                 $statuses = $db->table('duplex_parcel_update_files as f')
@@ -197,6 +199,9 @@ class VerificationReports
                     ->where(fn ($q) => $q->whereNull('u.is_deleted')->orWhere('u.is_deleted', 0))
                     ->where(fn ($q) => $q->whereIn('f.source_file_no', $numbers)->orWhereIn('f.final_file_no', $numbers))
                     ->pluck('u.status')->map(fn ($s) => strtolower((string) $s))->unique();
+                $statuses = $statuses->merge($this->parcelApplicationStatuses($db, $numbers))
+                    ->map(fn ($s) => $s === 'commissioned' ? 'committed' : $s)
+                    ->reject(fn ($s) => in_array($s, ['hidden', 'rejected', ''], true))->unique();
                 if ($statuses->contains('committed')) {
                     $out['parcel_update_status'] = 'Completed';
                 } elseif ($statuses->isNotEmpty()) {
@@ -245,6 +250,42 @@ class VerificationReports
         }
 
         return array_map(fn ($v) => $this->blank($v), $out);
+    }
+
+    /**
+     * Statuses of the Deeds parcel-update applications naming the file: as the
+     * application's file, a merger's source plot, or a change of purpose's parent.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function parcelApplicationStatuses($db, array $numbers)
+    {
+        $live = fn ($q, string $p = '') => $q->where(fn ($w) => $w->whereNull($p . 'is_deleted')->orWhere($p . 'is_deleted', 0));
+        $out = collect();
+        foreach (['plot_merger_applications', 'plot_subdivision_applications', 'plot_separation_applications', 'plot_extension_applications', 'change_of_purpose_applications'] as $table) {
+            try {
+                $q = $live($db->table($table))->where(function ($w) use ($table, $numbers) {
+                    $w->whereIn('file_no', $numbers);
+                    if ($table === 'change_of_purpose_applications') {
+                        $w->orWhereIn('parent_file_no', $numbers);
+                    }
+                });
+                $out = $out->merge($q->pluck('status'));
+            } catch (\Throwable $e) {
+                Log::warning('Verification report: parcel application check failed', ['table' => $table, 'error' => $e->getMessage()]);
+            }
+        }
+        try {
+            $out = $out->merge($live($db->table('plot_application_sizes as s'), 's.')
+                ->join('plot_merger_applications as m', 'm.id', '=', 's.application_id')
+                ->where('s.application_type', 'merger')->whereIn('s.source_file_no', $numbers)
+                ->where(fn ($w) => $w->whereNull('m.is_deleted')->orWhere('m.is_deleted', 0))
+                ->pluck('m.status'));
+        } catch (\Throwable $e) {
+            Log::warning('Verification report: merger source check failed', ['error' => $e->getMessage()]);
+        }
+
+        return $out->map(fn ($s) => strtolower(trim((string) $s)));
     }
 
     private function safeIdentity(CadastralCase $case): array

@@ -15,6 +15,7 @@ class PlotMergerApplication extends Model
     public const STATUS_COMMISSIONED = 'commissioned';
 
     protected $fillable = [
+        'previously_decommissioned',
         'source_module',
         'temp_file_no',
         'file_no',

@@ -64,8 +64,27 @@
     </div>
 </div>
 
+{{-- The two tables as tabs (user, 2026-10-21). Paging the indexing table (fi_page) opens on its tab;
+     otherwise the last tab used is remembered in this browser. --}}
+<div x-data="{ gknTab: {{ request()->filled('fi_page') ? "'indexed'" : "(function () { try { return localStorage.getItem('gknGenTab') || 'commissioned'; } catch (e) { return 'commissioned'; } })()" }} }"
+     x-init="$watch('gknTab', v => { try { localStorage.setItem('gknGenTab', v); } catch (e) {} })">
+<div class="flex gap-2 mb-4 border-b border-slate-200" role="tablist">
+    <button type="button" role="tab" @click="gknTab = 'commissioned'" :aria-selected="gknTab === 'commissioned'"
+            :class="gknTab === 'commissioned' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'"
+            class="-mb-px px-4 py-2.5 border-b-2 text-sm font-bold flex items-center gap-2">
+        Commissioned GKN Records
+        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black rounded-lg">{{ $records->total() }}</span>
+    </button>
+    <button type="button" role="tab" @click="gknTab = 'indexed'" :aria-selected="gknTab === 'indexed'"
+            :class="gknTab === 'indexed' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'"
+            class="-mb-px px-4 py-2.5 border-b-2 text-sm font-bold flex items-center gap-2">
+        File Indexing Records
+        <span class="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-black rounded-lg">{{ $indexedFiles->total() }}</span>
+    </button>
+</div>
+
 {{-- Commissioned GKN Records Table --}}
-<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+<div x-show="gknTab === 'commissioned'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
     <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
         <div class="flex items-center gap-3">
             <h3 class="font-bold text-slate-800">Commissioned GKN Records</h3>
@@ -79,6 +98,7 @@
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-slate-50/50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    <th class="px-6 py-4 whitespace-nowrap">S/N</th>
                     <th class="px-6 py-4 whitespace-nowrap">File Number</th>
                     <th class="px-6 py-4 whitespace-nowrap">Title / Name</th>
                     <th class="px-6 py-4 text-center whitespace-nowrap">Plot No</th>
@@ -96,6 +116,7 @@
             <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
                 @forelse($records as $record)
                 <tr class="hover:bg-emerald-50/40 transition-colors" style="background-color: #f0fdf4;">
+                    <td class="px-6 py-4 whitespace-nowrap">{{ $records->firstItem() + $loop->index }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex flex-col">
                             <span class="font-mono font-bold text-blue-600 text-xs">{{ $record->full_file_number }}</span>
@@ -141,7 +162,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="12" class="px-6 py-10 text-center text-slate-400 italic text-sm">No commissioned records found.</td>
+                    <td colspan="13" class="px-6 py-10 text-center text-slate-400 italic text-sm">No commissioned records found.</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -155,8 +176,12 @@
 </div>
 
 {{-- File Indexing Records Table --}}
-@if($indexedFiles->total() > 0)
-<div class="bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
+@if($indexedFiles->total() === 0)
+<div x-show="gknTab === 'indexed'" style="display:none" class="bg-white rounded-2xl shadow-sm border border-amber-100 px-6 py-10 text-center text-sm italic text-slate-400">
+    No file indexing records found.
+</div>
+@else
+<div x-show="gknTab === 'indexed'" class="bg-white rounded-2xl shadow-sm border border-amber-100 overflow-hidden">
     <div class="bg-amber-50/60 px-6 py-4 border-b border-amber-100 flex items-center justify-between">
         <div class="flex items-center gap-3">
             <h3 class="font-bold text-slate-800">File Indexing Records</h3>
@@ -170,6 +195,7 @@
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-amber-50/30 border-b border-amber-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    <th class="px-6 py-4 whitespace-nowrap">S/N</th>
                     <th class="px-6 py-4 whitespace-nowrap">File Number</th>
                     <th class="px-6 py-4 whitespace-nowrap">Title / Name</th>
                     <th class="px-6 py-4 text-center whitespace-nowrap">Plot No</th>
@@ -185,6 +211,7 @@
             <tbody class="divide-y divide-amber-50 text-sm text-slate-600">
                 @foreach($indexedFiles as $fi)
                 <tr class="hover:bg-amber-50 transition-colors" style="background-color: #fffbeb;">
+                    <td class="px-6 py-4 whitespace-nowrap">{{ $indexedFiles->firstItem() + $loop->index }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="font-mono font-bold text-blue-600 text-xs">{{ $fi->file_number }}</span>
                     </td>
@@ -220,3 +247,4 @@
     @endif
 </div>
 @endif
+</div>{{-- /tabs --}}

@@ -71,7 +71,8 @@ class PageTypingController extends Controller
                 'pending_count' => $this->getPendingPageTypingCount(),
                 'in_progress_count' => $this->getInProgressPageTypingCount(),
                 'completed_count' => $this->getCompletedPageTypingCount(),
-                'pagetype_more_count' => $this->getPageTypeMoreCount(),
+                // From the Cadastral sidebar (?cadastral=1): only open Cadastral cases' files.
+                'pagetype_more_count' => $this->getPageTypeMoreCount('', $request->boolean('cadastral') ? \App\Models\CadastralDept\CadastralCase::openIndexingIds() : null),
             ];
 
             $sourceCounts = ScanSource::fileCounts();
@@ -665,7 +666,7 @@ class PageTypingController extends Controller
     /**
      * Get PageType More count (files with is_updated = 1)
      */
-    private function getPageTypeMoreCount($registry = '')
+    private function getPageTypeMoreCount($registry = '', ?array $onlyIds = null)
     {
         try {
             // Check if is_updated column exists
@@ -680,6 +681,9 @@ class PageTypingController extends Controller
 
                 if ($registry) {
                     $query->where('registry', $registry);
+                }
+                if ($onlyIds !== null) {
+                    $query->whereIn('id', $onlyIds ?: [0]);
                 }
 
                 return $query->count();
@@ -725,6 +729,10 @@ class PageTypingController extends Controller
 
             if ($registry) {
                 $query->where('registry', $registry);
+            }
+            // From the Cadastral sidebar (?cadastral=1, 2026-10-20): only open Cadastral cases' files.
+            if ($request->boolean('cadastral')) {
+                $query->whereIn('id', \App\Models\CadastralDept\CadastralCase::openIndexingIds() ?: [0]);
             }
 
             // Apply search filter

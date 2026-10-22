@@ -30,6 +30,7 @@
                 </div>
             </div>
             @include('fileindexing.partials.year_override')
+            @include('fileindexing.partials.kangis_block_index')
         </div>
 
         <div id="kangis-placeholder-feedback" class="hidden mt-2 flex items-center gap-2 text-xs rounded px-3 py-1.5 border">
@@ -535,7 +536,7 @@
             </div>
 
             <div class="form-group">
-                <label for="original-holder" class="block text-sm font-medium text-gray-700 mb-2">Original Holder</label>
+                <label for="original-holder" class="block text-sm font-medium text-gray-700 mb-2">Original Holder <span class="text-red-500">*</span></label>
                 <div id="original-holders-wrapper" class="space-y-2">
                     @php
                         $raw_o_holders = isset($record) ? $record->original_holder : '';

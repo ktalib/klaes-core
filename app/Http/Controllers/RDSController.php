@@ -317,6 +317,8 @@ class RDSController extends Controller
         try {
             $data = $this->getPrintViewData($id);
             return view($this->printView, $data);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error("Error printing RDS: " . $e->getMessage(), [
                 'instrument_id' => $id,

@@ -1114,8 +1114,8 @@ class PropertyRecordController extends Controller
         // Add conditional validation for parties based on transaction type
         $validator->after(function ($validator) use ($request) {
             if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
-                if (!\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
-                    $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required.');
+                if (!$request->boolean('op_serial_none') && !\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
+                    $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required, or tick "This OP has no serial number".');
                 }
                 // Source is required on every permit: Other needs its "specify" text, and
                 // an LGA one must name one of the 44 Local Governments as grantor.
@@ -1137,7 +1137,7 @@ class PropertyRecordController extends Controller
                     }
                 }
                 foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
-                    if (!\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
+                    if (empty($reg['op_serial_none']) && !\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
                         $validator->errors()->add("extra_regs.{$index}.op_serial_number", 'A valid OP Serial Number is required for each OP registration.');
                     }
                 }
@@ -1659,6 +1659,16 @@ class PropertyRecordController extends Controller
             \Log::info('Final data for insertion:', $primaryRecordData);
 
             // Insert primary record into database
+            // OP serial: typed (no leading zero), or system-generated when "This OP has no
+            // serial number" is ticked (App\Services\OpSerialGenerator). Inside the open
+            // transaction, so a failed save hands its number back.
+            if (\App\Support\OpSerial::isMother($primaryRecordData)) {
+                $serialFields = app(\App\Services\OpSerialGenerator::class)
+                    ->resolve($request->boolean('op_serial_none'), $request->input('op_serial_number'), null, 'op_serial_number');
+                foreach ($serialFields as $column => $value) {
+                    if ($column === 'op_serial_number' || in_array($column, $columns, true)) $primaryRecordData[$column] = $value;
+                }
+            }
             $primaryRecordData = \App\Support\OpSerial::guard($primaryRecordData);
             $id = DB::connection('sqlsrv')->table($targetTable)->insertGetId($primaryRecordData);
             if ($targetTable === 'pra') app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $id);
@@ -1726,7 +1736,14 @@ class PropertyRecordController extends Controller
                         $extraData['instrument_category'] = $rowCategory;
                     }
                     $rowOpSerial = isset($reg['op_serial_number']) ? trim((string) $reg['op_serial_number']) : '';
-                    if ($rowOpSerial !== '' && array_key_exists('op_serial_number', $extraData)) {
+                    if (\App\Support\OpSerial::isMother($extraData)) {
+                        // Its own serial, never the primary row's: typed, or generated for this row.
+                        $rowSerialFields = app(\App\Services\OpSerialGenerator::class)
+                            ->resolve(!empty($reg['op_serial_none']), $rowOpSerial, null, 'extra_regs.op_serial_number');
+                        foreach ($rowSerialFields as $column => $value) {
+                            if ($column === 'op_serial_number' || in_array($column, $columns, true)) $extraData[$column] = $value;
+                        }
+                    } elseif ($rowOpSerial !== '' && array_key_exists('op_serial_number', $extraData)) {
                         $extraData['op_serial_number'] = $rowOpSerial;
                     }
                     $extraData = \App\Support\OpSerial::guard($extraData);
@@ -1937,8 +1954,8 @@ class PropertyRecordController extends Controller
         // Add conditional validation for parties based on transaction type
         $validator->after(function ($validator) use ($request) {
             if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
-                if (!\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
-                    $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required.');
+                if (!$request->boolean('op_serial_none') && !\App\Support\OpSerial::valid($request->input('op_serial_number'))) {
+                    $validator->errors()->add('op_serial_number', 'A valid OP Serial Number is required, or tick "This OP has no serial number".');
                 }
                 // Source is required on every permit: Other needs its "specify" text, and
                 // an LGA one must name one of the 44 Local Governments as grantor.
@@ -1960,7 +1977,7 @@ class PropertyRecordController extends Controller
                     }
                 }
                 foreach ((array) $request->input('extra_regs', []) as $index => $reg) {
-                    if (!\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
+                    if (empty($reg['op_serial_none']) && !\App\Support\OpSerial::valid($reg['op_serial_number'] ?? null)) {
                         $validator->errors()->add("extra_regs.{$index}.op_serial_number", 'A valid OP Serial Number is required for each OP registration.');
                     }
                 }
@@ -2282,8 +2299,16 @@ class PropertyRecordController extends Controller
             \Log::info('Data to be sent to database: ', $data);
 
             // Update the database record in the correct table
-            $data = app(\App\Services\OpSerialSourceResolver::class)->guard($data, (array) $existingProperty);
-            $affectedRows = DB::connection('sqlsrv')->transaction(function () use ($targetTable, $id, $data, $existingProperty) {
+            $affectedRows = DB::connection('sqlsrv')->transaction(function () use ($targetTable, $id, $data, $existingProperty, $request) {
+                // OP serial: typed, or kept / generated when "This OP has no serial number"
+                // is ticked. Settled against the locked row so a re-save never burns a number.
+                if ($targetTable === 'pra' && \App\Support\OpSerial::isMother(array_replace((array) $existingProperty, $data))
+                    && ($request->boolean('op_serial_none') || $request->exists('op_serial_number'))) {
+                    $locked = DB::connection('sqlsrv')->table('pra')->where('id', $id)->lockForUpdate()->first();
+                    $data = array_merge($data, app(\App\Services\OpSerialGenerator::class)
+                        ->resolve($request->boolean('op_serial_none'), $request->input('op_serial_number'), $locked, 'op_serial_number'));
+                }
+                $data = app(\App\Services\OpSerialSourceResolver::class)->guard($data, (array) $existingProperty);
                 $affected = DB::connection('sqlsrv')->table($targetTable)->where('id', $id)->update($data);
                 if ($targetTable === 'pra') app(\App\Services\OpSerialSynchronizer::class)->sync('pra', $id, $existingProperty->op_serial_number ?? null);
                 return $affected;
@@ -3485,7 +3510,9 @@ class PropertyRecordController extends Controller
                     $opSerialNumber = trim((string) ($transaction['op_serial_number'] ?? ''));
 
                     // Only the OP itself must carry a serial; a Transfer of Title (OP) need not.
-                    if (\App\Support\OpSerial::isMother(['transaction_type' => $transactionType]) && !\App\Support\OpSerial::valid($opSerialNumber)) {
+                    if (\App\Support\OpSerial::isMother(['transaction_type' => $transactionType])
+                        && empty($transaction['op_serial_none'])   // "no serial": the system generates it
+                        && !\App\Support\OpSerial::valid($opSerialNumber)) {
                         $validator->errors()->add(
                             "transactions.{$index}.op_serial_number",
                             'OP serial number is required for Occupancy Permit (OP) transactions.'
@@ -3736,6 +3763,9 @@ class PropertyRecordController extends Controller
                     'pra_created' => [],
                     'pra_updated' => [],
                 ];
+                // file_history_staging ids this request inserted (not duplicate hits); the
+                // duplicate-submission guard below must not match them.
+                $insertedThisRequest = [];
 
                 // Pre-fetch CofO table columns once (used only if needed)
                 $cofoTableColumns = null;
@@ -4048,9 +4078,13 @@ class PropertyRecordController extends Controller
                             return in_array($key, $praTableColumns, true);
                         }, ARRAY_FILTER_USE_KEY);
 
-                        // Duplicate check
+                        // Duplicate check. OPs inserted earlier in THIS request are other lines of
+                        // the same form, never a resubmit (see the file-history guard below).
                         $opDuplicateCheck = DB::connection('sqlsrv')->table(self::PRA_TABLE)
                             ->where('created_at', '>=', now()->subMinutes(2))
+                            ->when(!empty($persistedRecords['pra_created']), function ($q) use ($persistedRecords) {
+                                return $q->whereNotIn('id', $persistedRecords['pra_created']);
+                            })
                             ->where(function ($q) {
                                 $q->where('transaction_type', 'like', '%Occupancy Permit%')
                                     ->orWhere('instrument_type', 'like', '%Occupancy Permit%');
@@ -4073,8 +4107,23 @@ class PropertyRecordController extends Controller
                                 'existing_id' => $opDuplicateCheck->id,
                                 'fileno' => $fileNumber,
                             ]);
-                            $persistedRecords['created'][] = $opDuplicateCheck->id;
+                            // pra_created, not created: purgePraIndexingRecords() deletes every
+                            // indexing PRA row of this type it is not told to keep, so a resubmit
+                            // used to delete the OP the first submit had just saved.
+                            $persistedRecords['pra_created'][] = $opDuplicateCheck->id;
                             continue;
+                        }
+
+                        // OP serial: typed, or system-generated when "This OP has no serial
+                        // number" is ticked. Settled after the duplicate check, so a skipped
+                        // duplicate never takes a number; inside the save transaction.
+                        if (\App\Support\OpSerial::isMother(['transaction_type' => $transactionType])) {
+                            $praData = array_merge($praData, app(\App\Services\OpSerialGenerator::class)->resolve(
+                                !empty($transaction['op_serial_none']),
+                                $transaction['op_serial_number'] ?? null,
+                                null,
+                                'transactions.op_serial_number'
+                            ));
                         }
 
                         $newPraId = DB::connection('sqlsrv')->table(self::PRA_TABLE)
@@ -4152,6 +4201,16 @@ class PropertyRecordController extends Controller
                                 && !DB::connection('sqlsrv')->table('mls_file_no')->where('full_file_number', $fileNumber)->where('source_pra_id', $recordId)->exists())) {
                             throw ValidationException::withMessages(['transactions' => 'The selected OP does not belong to this file.']);
                         }
+                        // OP serial against the locked row: kept / generated when "no serial"
+                        // is ticked, a real one moving a system one to op_serial_generated_replaced.
+                        if (\App\Support\OpSerial::isMother(array_replace((array) $opBefore, $praData))) {
+                            $praData = array_merge($praData, app(\App\Services\OpSerialGenerator::class)->resolve(
+                                !empty($transaction['op_serial_none']),
+                                $transaction['op_serial_number'] ?? ($opBefore->op_serial_number ?? null),
+                                $opBefore,
+                                'transactions.op_serial_number'
+                            ));
+                        }
                         $praData = app(\App\Services\OpSerialSourceResolver::class)->guard($praData, (array) $opBefore);
                         DB::connection('sqlsrv')->table(self::PRA_TABLE)
                             ->where('id', $recordId)
@@ -4212,9 +4271,29 @@ class PropertyRecordController extends Controller
                             'prop_id' => $propId,
                         ]);
                     } else {
-                        // Check for duplicate submissions (within last 2 minutes) to prevent network lag issues
+                        // Check for duplicate submissions (within last 2 minutes) to prevent network lag issues.
+                        // Rows inserted earlier in THIS request are other lines of the same form, never a
+                        // resubmit, and a different party means a different dealing. Production:
+                        // RES-2024-3464 lost its second Sale Agreement (no particulars, same placeholder
+                        // date) because the guard matched the first one saved a moment before.
                         $duplicateCheck = DB::connection('sqlsrv')->table($propertyTable)
                             ->where('created_at', '>=', now()->subMinutes(2))
+                            ->when(!empty($insertedThisRequest), function ($q) use ($insertedThisRequest) {
+                                return $q->whereNotIn('id', $insertedThisRequest);
+                            })
+                            ->where(function ($q) use ($propertyData) {
+                                foreach (['Grantor', 'Grantee', 'party_1', 'party_2'] as $partyCol) {
+                                    if (!array_key_exists($partyCol, $propertyData)) {
+                                        continue;
+                                    }
+                                    $party = trim((string) $propertyData[$partyCol]);
+                                    if ($party === '') {
+                                        $q->where(fn($w) => $w->whereNull($partyCol)->orWhereRaw("LTRIM(RTRIM([{$partyCol}])) = ''"));
+                                    } else {
+                                        $q->whereRaw("UPPER(LTRIM(RTRIM([{$partyCol}]))) = ?", [strtoupper($party)]);
+                                    }
+                                }
+                            })
                             ->where('transaction_type', $propertyData['transaction_type'])
                             ->where(function ($query) use ($mlsFNo, $kangisFileNo, $newKangisFileNo, $fileNumber) {
                                 $query->where('fileno', $fileNumber);
@@ -4257,6 +4336,7 @@ class PropertyRecordController extends Controller
                             ->insertGetId($propertyData);
 
                         $persistedRecords['created'][] = $newRecordId;
+                        $insertedThisRequest[] = $newRecordId;
 
                         \Log::info('Created property record', [
                             'id' => $newRecordId,
@@ -4358,6 +4438,14 @@ class PropertyRecordController extends Controller
 
             return $response;
 
+        } catch (ValidationException $e) {
+            // A refusal raised inside the save (an OP serial rule, an OP not on this file):
+            // the transaction has rolled back; report it as the field error it is.
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?: 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             \Log::error('Error storing property record from indexing:', [
                 'message' => $e->getMessage(),

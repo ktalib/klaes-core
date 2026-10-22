@@ -1558,22 +1558,21 @@
             return true;
         });
 
-        // ── Global search – server-side with debounce ──
-        var _opSearchTimer = null;
+        // ── Global search – server-side, runs on Enter only ──
+        // Searching on every keystroke reloaded the page mid-typing.
         if (searchInput) {
-            searchInput.addEventListener('input', function () {
-                clearTimeout(_opSearchTimer);
-                var val = this.value;
-                _opSearchTimer = setTimeout(function () {
-                    var url = new URL(window.location.href);
-                    if (val) {
-                        url.searchParams.set('search', val);
-                    } else {
-                        url.searchParams.delete('search');
-                    }
-                    url.searchParams.delete('page');
-                    window.location.href = url.toString();
-                }, 600);
+            searchInput.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                var val = this.value.trim();
+                var url = new URL(window.location.href);
+                if (val) {
+                    url.searchParams.set('search', val);
+                } else {
+                    url.searchParams.delete('search');
+                }
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
             });
         }
 

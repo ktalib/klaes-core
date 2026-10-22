@@ -4,9 +4,9 @@
 
 @php
   $PageTitle = 'Misc KN';
-  $PageDescription = 'Miscellaneous cadastral and knowledge notes';
+  $PageDescription = 'Misc KN files from File Indexing';
 @endphp
 
 @section('survey-content')
-  @include('survey_module.partials.sections._page-misc-kn')
+  @include('survey_module.partials.sections._page-misc-kn-files')
 @endsection
