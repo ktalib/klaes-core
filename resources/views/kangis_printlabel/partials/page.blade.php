@@ -370,8 +370,11 @@
                                 >
                                     <i data-lucide="refresh-cw" class="h-4 w-4"></i>
                                 </button>
+                                {{-- Hidden by request (2026-10-22). Kept in the page, not removed, so
+                                     any script that looks it up still finds it; drop the style to show it again. --}}
                                 <button
                                     id="backfillSysBatchNoBtn"
+                                    style="display: none;"
                                     class="inline-flex items-center gap-1 justify-center rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100"
                                     title="Backfill missing Registry Batch No from source records"
                                 >

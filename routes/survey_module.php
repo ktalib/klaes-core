@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Survey\BeaconRegisterController;
 use App\Http\Controllers\Survey\BeneficiaryController;
 use App\Http\Controllers\Survey\CadastralFilesController;
 use App\Http\Controllers\Survey\CalculatorController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Survey\OpController;
 use App\Http\Controllers\Survey\PlotAllocationController;
 use App\Http\Controllers\Survey\ProjectController;
 use App\Http\Controllers\Survey\ReportController;
+use App\Http\Controllers\Survey\SurveyorListController;
 use App\Http\Controllers\Survey\TreeController;
 use Illuminate\Support\Facades\Route;
 
@@ -108,6 +110,14 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::put('/misc/{misc}', [MiscKnController::class, 'update'])->name('misc.update');
         Route::delete('/misc/{misc}', [MiscKnController::class, 'destroy'])->name('misc.destroy');
 
+        // Survey Department staff list (surveyors_list), user 2026-10-22
+        Route::prefix('surveyors')->name('surveyors.')->group(function () {
+            Route::get('/', [SurveyorListController::class, 'index'])->name('index');
+            Route::post('/', [SurveyorListController::class, 'store'])->name('store');
+            Route::put('/{surveyor}', [SurveyorListController::class, 'update'])->name('update');
+            Route::post('/{surveyor}/toggle', [SurveyorListController::class, 'toggle'])->name('toggle');
+        });
+
         Route::get('/lpkn', [LpknController::class, 'index'])->name('lpkn');
         foreach (['instruction', 'report', 'coordinates', 'observations'] as $section) {
             Route::get('/lpkn/' . $section, [LpknController::class, 'section'])
@@ -133,6 +143,16 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/cadastral-files', [CadastralFilesController::class, 'index'])->name('cadastral-files');
 
         Route::get('/occupancy', [OpController::class, 'workflow'])->name('occupancy');
+
+        // SURCON Beacon Register (user, 2026-10-22)
+        Route::prefix('beacon-register')->name('beacon-register.')->group(function () {
+            Route::get('/', [BeaconRegisterController::class, 'index'])->name('index');
+            Route::post('/', [BeaconRegisterController::class, 'store'])->name('store');
+            Route::put('/{entry}', [BeaconRegisterController::class, 'update'])->name('update');
+            Route::delete('/{entry}', [BeaconRegisterController::class, 'destroy'])->name('destroy');
+            Route::post('/{entry}/review', [BeaconRegisterController::class, 'review'])->name('review');
+            Route::post('/{entry}/audit', [BeaconRegisterController::class, 'audit'])->name('audit');
+        });
     });
 
     /* ---------------------------------- Tools ---------------------------------- */

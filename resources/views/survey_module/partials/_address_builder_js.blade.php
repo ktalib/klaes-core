@@ -43,6 +43,24 @@
         color: var(--primary);
         margin-right: 5px;
     }
+    /* Select2 4.1's inline search box is a <textarea>, so the prototype's
+       ".form-group textarea" rule (min-height 80px, border, padding) stretched
+       every multi-select. Reset it to a one-line field. */
+    .survey-proto .form-group .select2-container .select2-search--inline .select2-search__field {
+        min-height: 0;
+        height: 26px;
+        margin: 6px 0 0 4px;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+        resize: none;
+        font-size: 14px;
+        line-height: 26px;
+    }
+    .survey-proto .select2-container--default .select2-selection--multiple .select2-selection__rendered {
+        display: inline;
+        padding: 0 6px;
+    }
     .survey-proto .select2-container--default.select2-container--focus .select2-selection--single,
     .survey-proto .select2-container--default.select2-container--focus .select2-selection--multiple,
     .survey-proto .select2-container--default.select2-container--open .select2-selection--single,

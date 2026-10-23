@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', $app->name)
+@section('page-title', 'KLAES Mobile Apps')
 
 @section('content')
 @php
@@ -13,19 +13,24 @@
     @include('admin.header')
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <p class="text-sm uppercase tracking-wide text-blue-600 font-semibold">System Admin &middot; KLAES Mobile Apps</p>
-            <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ $app->name }}</h1>
-            <p class="text-gray-600 mt-1 text-sm">Upload the APK and app icon, describe the app, then share its download page.</p>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200">
+            <div class="p-6 pb-0">
+                <p class="text-sm uppercase tracking-wide text-blue-600 font-semibold">System Admin</p>
+                <h1 class="text-2xl font-bold text-gray-900 mt-1">KLAES Mobile Apps</h1>
+                <p class="text-gray-600 mt-1 text-sm">Pick an app, upload its APK and icon, describe it, then share its download page.</p>
+            </div>
 
-            <div class="flex flex-wrap gap-2 mt-4">
+            {{-- One tab per app; the sidebar has a single "KLAES Mobile Apps" entry. --}}
+            <nav class="flex overflow-x-auto px-4 mt-4 border-b border-slate-200" role="tablist" aria-label="Mobile apps">
                 @foreach($apps as $item)
+                    @php $isCurrent = $item->id === $app->id; @endphp
                     <a href="{{ route('system-admin.mobile-apps.show', $item->slug) }}"
-                       class="px-3 py-1.5 rounded-full text-sm border {{ $item->id === $app->id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50' }}">
+                       role="tab" aria-selected="{{ $isCurrent ? 'true' : 'false' }}"
+                       class="whitespace-nowrap px-4 py-3 -mb-px text-sm font-medium border-b-2 {{ $isCurrent ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">
                         {{ $item->name }}
                     </a>
                 @endforeach
-            </div>
+            </nav>
         </div>
 
         @if(session('success'))
@@ -50,7 +55,7 @@
                   id="mobileAppForm" class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
                 @csrf
 
-                <h2 class="text-lg font-semibold text-gray-900">App details</h2>
+                <h2 class="text-lg font-semibold text-gray-900">{{ $app->name }} &middot; details</h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="md:col-span-2">

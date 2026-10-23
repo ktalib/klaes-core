@@ -2650,8 +2650,12 @@ class MlsFileNoController extends Controller
                         $copDecommissionRow['successor_file_no'] = $fullFileNumber;
                     }
                     // A file already in decommissioned_files is never recorded again — its first
-                    // decommission stands (user rule, 2026-10-21).
-                    if (!app(\App\Services\PlotWorkflowService::class)->activeDecommissionRecord($originalFileNo)) {
+                    // decommission stands (user rule, 2026-10-21), and this new number is added
+                    // to that record's successors (2026-10-22: RES-2009-1265/1266, merged on
+                    // 8 Oct, then CoP'd to COM-2026-362/363 without either being listed).
+                    $copExtendedRecord = app(\App\Services\PlotWorkflowService::class)
+                        ->extendExistingDecommission($originalFileNo, $fullFileNumber);
+                    if (!$copExtendedRecord) {
                         DB::connection('sqlsrv')->table('decommissioned_files')->insert($copDecommissionRow);
                     }
 
@@ -2705,26 +2709,30 @@ class MlsFileNoController extends Controller
                         $this->columnsFor('fileNumber', $newFileNumberRow)
                     );
 
-                    app(\App\Services\PlotWorkflowService::class)->flagDecommissioned(
-                        'fileNumber',
-                        fn ($q) => $q->where('mlsfNo', $originalFileNo),
-                        'Change of Purpose to ' . $landUse,
-                        $commissionedBy,
-                        $fullFileNumber
-                    );
+                    // Already decommissioned: extendExistingDecommission() re-flagged the live
+                    // rows from the first record, so they keep its reason.
+                    if (!$copExtendedRecord) {
+                        app(\App\Services\PlotWorkflowService::class)->flagDecommissioned(
+                            'fileNumber',
+                            fn ($q) => $q->where('mlsfNo', $originalFileNo),
+                            'Change of Purpose to ' . $landUse,
+                            $commissionedBy,
+                            $fullFileNumber
+                        );
 
-                    // The commissioning register is retired with the rest. Without this
-                    // the parent kept reading as a live file there — and since the
-                    // subdivision batch picker takes `source` from this table, a plot
-                    // retired by a Change of Purpose still counted as an active
-                    // Subdivision child of its mother.
-                    app(\App\Services\PlotWorkflowService::class)->flagDecommissioned(
-                        'mls_file_no',
-                        fn ($q) => $q->where('full_file_number', $originalFileNo),
-                        'Change of Purpose to ' . $landUse,
-                        $commissionedBy,
-                        $fullFileNumber
-                    );
+                        // The commissioning register is retired with the rest. Without this
+                        // the parent kept reading as a live file there — and since the
+                        // subdivision batch picker takes `source` from this table, a plot
+                        // retired by a Change of Purpose still counted as an active
+                        // Subdivision child of its mother.
+                        app(\App\Services\PlotWorkflowService::class)->flagDecommissioned(
+                            'mls_file_no',
+                            fn ($q) => $q->where('full_file_number', $originalFileNo),
+                            'Change of Purpose to ' . $landUse,
+                            $commissionedBy,
+                            $fullFileNumber
+                        );
+                    }
 
                     // The successor's own commissioning record. This used to RENAME the
                     // parent's row — CON-RES-2026-3004's became CON-COM-2026-636's, still
@@ -2841,13 +2849,15 @@ class MlsFileNoController extends Controller
                             $this->columnsFor('file_indexings', $newIndexing)
                         );
 
-                        app(\App\Services\PlotWorkflowService::class)->flagDecommissioned(
-                            'file_indexings',
-                            fn ($q) => $q->where('file_number', $originalFileNo),
-                            'Change of Purpose to ' . $landUse,
-                            $commissionedBy,
-                            $fullFileNumber
-                        );
+                        if (!$copExtendedRecord) {
+                            app(\App\Services\PlotWorkflowService::class)->flagDecommissioned(
+                                'file_indexings',
+                                fn ($q) => $q->where('file_number', $originalFileNo),
+                                'Change of Purpose to ' . $landUse,
+                                $commissionedBy,
+                                $fullFileNumber
+                            );
+                        }
                     } else {
                         // Some legacy files only ever lived in the `fileNumber` table with no
                         // file_indexings counterpart (pre-dates indexing, or was migrated

@@ -44,8 +44,8 @@
     .ack-line span.fill { flex: 1; border-bottom: 1px dotted #111; margin-left: 4px; height: 1em; }
     a { color: #1f4e9c; }
 
-    /* KLAES mark: bottom-left corner. On paper it is fixed, so it repeats on every printed page. */
-    .klaes-footer { display: flex; justify-content: flex-start; margin-top: 24px; }
+    /* KLAES mark: bottom-right corner. On paper it is fixed, so it repeats on every printed page. */
+    .klaes-footer { display: flex; justify-content: flex-end; margin-top: 24px; }
     .klaes-footer img, .klaes-corner img { height: 30px; width: auto; }
     .klaes-corner { display: none; }
     .print-bar { text-align: center; margin: 12px 0; }
@@ -53,7 +53,7 @@
     @media print {
         body { padding: 0; }
         .no-print, .klaes-footer { display: none !important; }
-        .klaes-corner { display: block; position: fixed; left: 0; bottom: 0; }
+        .klaes-corner { display: block; position: fixed; right: 0; bottom: 0; }
         a { color: #1f4e9c !important; }
     }
 </style>

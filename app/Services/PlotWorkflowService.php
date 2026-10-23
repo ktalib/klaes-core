@@ -442,6 +442,54 @@ class PlotWorkflowService
     }
 
     /**
+     * "File Already Decommissioned Before: Yes" for workflows that write their own
+     * decommission (the Change of Purpose commissioning): add $successors to the file's
+     * first real record and re-flag its live rows from that record — original reason,
+     * merged successor list. Returns the record id, or null when the file has none
+     * (the caller then writes its new record as usual).
+     */
+    public function extendExistingDecommission(string $fileNo, string $successors): ?int
+    {
+        $existing = $this->activeDecommissionRecord($fileNo);
+        if (!$existing) {
+            return null;
+        }
+
+        $merged = $this->mergeSuccessorList($existing->successor_file_no ?? null, $successors);
+        if ($merged !== (string) ($existing->successor_file_no ?? '')
+            && Schema::connection('sqlsrv')->hasColumn('decommissioned_files', 'successor_file_no')) {
+            DB::connection('sqlsrv')->table('decommissioned_files')
+                ->where('id', $existing->id)
+                ->update(['successor_file_no' => $merged, 'updated_at' => now()]);
+        }
+
+        $reason = (string) ($existing->decommissioning_reason ?? '');
+        $by     = (string) ($existing->decommissioned_by ?? '');
+        $this->flagDecommissioned('fileNumber', fn ($q) => $q->where('mlsfNo', $fileNo)->orWhere('kangisFileNo', $fileNo), $reason, $by, $merged);
+        $this->flagDecommissioned('file_indexings', fn ($q) => $q->where('file_number', $fileNo)->orWhere('kangis_file_no', $fileNo), $reason, $by, $merged);
+        $this->flagDecommissioned('mls_file_no', fn ($q) => $q->where('full_file_number', $fileNo), $reason, $by, $merged);
+
+        // flagDecommissioned() stamps now(); the file was retired on the record's date.
+        if (!empty($existing->decommissioning_date)) {
+            foreach ([['fileNumber', ['mlsfNo', 'kangisFileNo']], ['file_indexings', ['file_number', 'kangis_file_no']], ['mls_file_no', ['full_file_number']]] as [$table, $columns]) {
+                $dates = array_values(array_filter(['decommissioned_at', 'decommissioning_date'],
+                    fn ($c) => Schema::connection('sqlsrv')->hasColumn($table, $c)));
+                if ($dates) {
+                    DB::connection('sqlsrv')->table($table)
+                        ->where(function ($q) use ($columns, $fileNo) {
+                            foreach ($columns as $c) {
+                                $q->orWhere($c, $fileNo);
+                            }
+                        })
+                        ->update(array_fill_keys($dates, $existing->decommissioning_date));
+                }
+            }
+        }
+
+        return (int) $existing->id;
+    }
+
+    /**
      * The value saved in an application's previously_decommissioned column: "Yes" / "No"
      * for one source file, "FILE=Yes; FILE=No" for several, null for none.
      */

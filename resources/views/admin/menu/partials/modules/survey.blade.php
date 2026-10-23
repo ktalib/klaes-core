@@ -1,10 +1,20 @@
 <!-- 15. Survey -->
+{{-- Menu order follows the Survey outline (user, 2026-10-22). Items without a page yet render as
+     muted "Soon" entries via $svSoon; give them a route when the page is built. --}}
 
     @if(
       $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') ||
       $hasRole('Survey - GIS') || $hasRole('Survey - E-Registry') ||
       $hasRole('Survey Reports') || $hasRole('Generate New FileNo (GKNFileNo)') || $hasRole('Supper Admin')
     )
+    @php
+      $svSoon = fn (string $label, string $icon) =>
+          '<a href="#" onclick="return false;" aria-disabled="true" title="Coming soon" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md opacity-60 cursor-default">'
+          . '<i data-lucide="' . e($icon) . '" class="h-3.5 w-3.5 text-pink-400"></i>'
+          . '<span>' . e($label) . '</span>'
+          . '<span class="ml-auto text-[10px] uppercase tracking-wide text-gray-400">Soon</span></a>';
+      $svRecords = $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin');
+    @endphp
     <div class="py-1 px-3 mb-0.5 border-t border-slate-100">
       <div class="sidebar-module-header flex items-center justify-between py-2 px-3 mb-0.5 cursor-pointer hover:bg-slate-50 rounded-md" data-module="survey">
         <div class="flex items-center gap-2">
@@ -24,8 +34,7 @@
         </a>
         @endif
 
-        @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin'))
-
+        @if($svRecords)
         {{-- b. Compensation --}}
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-compensation">
           <div class="flex items-center gap-2">
@@ -36,12 +45,25 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-compensation">
-          <a href="{{ route('survey-module.compensation.dashboard') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.dashboard') ? 'active' : '' }}">
-            <i data-lucide="gauge" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Dashboard</span>
-          </a>
 
-          {{-- Project Management --}}
+          {{-- b.i Records --}}
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-records">
+            <div class="flex items-center gap-2">
+              <i data-lucide="folder-open" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Records</span>
+            </div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-records"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-records">
+            {!! $svSoon('CO Files', 'folder') !!}
+            {!! $svSoon('Allocation Records', 'clipboard-list') !!}
+            <a href="{{ route('survey-module.workflow.examination') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.examination') ? 'active' : '' }}">
+              <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>OP Verification</span>
+            </a>
+          </div>
+
+          {{-- b.ii Project Management --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-projects">
             <div class="flex items-center gap-2">
               <i data-lucide="folder" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -50,14 +72,15 @@
             <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-projects"></i>
           </div>
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-projects">
+            {!! $svSoon('Commission CO File', 'file-plus') !!}
             {{-- Create Project is a button on the Projects page. --}}
             <a href="{{ route('survey-module.compensation.projects') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects', 'survey-module.compensation.projects.create', 'survey-module.compensation.projects.edit') ? 'active' : '' }}">
-              <i data-lucide="folder" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Projects</span>
+              <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>All Projects</span>
             </a>
           </div>
 
-          {{-- Compensation Cases --}}
+          {{-- b.iii Compensation Cases --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-cases">
             <div class="flex items-center gap-2">
               <i data-lucide="list" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -83,35 +106,19 @@
               <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Compensation Calculator</span>
             </a>
-            <a href="{{ route('survey-module.compensation.op') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op') ? 'active' : '' }}">
-              <i data-lucide="file-signature" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>OP Generation</span>
-            </a>
-            {{-- 6a. OP Workflow sits under OP Generation --}}
-            <a href="{{ route('survey-module.workflow.occupancy') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 ml-4 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.occupancy') ? 'active' : '' }}">
-              <i data-lucide="git-branch" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>OP Workflow</span>
-            </a>
             <a href="{{ route('survey-module.compensation.land') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.land') ? 'active' : '' }}">
               <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP Allocation</span>
             </a>
-            <a href="{{ route('survey-module.compensation.reports') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.reports') ? 'active' : '' }}">
-              <i data-lucide="bar-chart-3" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Reports</span>
-            </a>
           </div>
 
+          {{-- b.iv Complaints --}}
+          {!! $svSoon('Complaints', 'message-square-warning') !!}
         </div>
         @endif
 
-        @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin') || $hasRole('Generate New FileNo (GKNFileNo)'))
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-applications">
-          <div class="flex items-center gap-2"><i data-lucide="folders" class="h-4 w-4 text-pink-500"></i><span>Applications</span></div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-applications"></i>
-        </div>
-        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-applications">
-        {{-- c.i GKN --}}
+        {{-- c. GKN --}}
+        @if($svRecords || $hasRole('Generate New FileNo (GKNFileNo)'))
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn">
           <div class="flex items-center gap-2">
             <i data-lucide="building-2" class="h-4 w-4 text-pink-500"></i>
@@ -121,36 +128,47 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn">
-          {{-- GKN Dashboard hidden from the sidebar (user, 2026-10-21); the page and route remain. --}}
 
-          {{-- e.i Generate New FileNo — sits under GKN --}}
-          @if($hasRole('Generate New FileNo (GKNFileNo)') || $hasRole('Supper Admin'))
-          <a href="{{ route('gkn-generation.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('gkn-generation.index') ? 'active' : '' }}">
-            <i data-lucide="plus-square" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Generate New FileNo (GKNFileNo)</span>
-          </a>
-          @endif
+          {{-- c.i Applications --}}
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-applications">
+            <div class="flex items-center gap-2"><i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i><span>Applications</span></div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-applications"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-applications">
+            @if($svRecords)
+            {{-- GKN Files = the Government Lands register; Register GKN is its button. --}}
+            <a href="{{ route('survey-module.gkn.lands') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.lands', 'survey-module.gkn.register', 'survey-module.gkn.edit') ? 'active' : '' }}">
+              <i data-lucide="landmark" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>GKN Files</span>
+            </a>
+            @endif
+            {{-- Generate New FileNo is kept for users who hold only that role. --}}
+            @if($hasRole('Generate New FileNo (GKNFileNo)') || $hasRole('Supper Admin'))
+            <a href="{{ route('gkn-generation.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('gkn-generation.index') ? 'active' : '' }}">
+              <i data-lucide="plus-square" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Generate New FileNo (GKNFileNo)</span>
+            </a>
+            @endif
+            @if($svRecords)
+            <a href="{{ route('survey-module.records.lpkn') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn') && request('view') === 'lpkn' ? 'active' : '' }}">
+              <i data-lucide="layers" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>LPKN</span>
+            </a>
+            {!! $svSoon('LPPL', 'layers-3') !!}
+            <a href="{{ route('survey-module.records.misc') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.misc') ? 'active' : '' }}">
+              <i data-lucide="tags" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Misc KN</span>
+            </a>
+            @endif
+          </div>
 
-          @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin'))
-          {{-- Register GKN is the button on Government Lands. --}}
-          <a href="{{ route('survey-module.gkn.lands') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.lands', 'survey-module.gkn.register', 'survey-module.gkn.edit') ? 'active' : '' }}">
-            <i data-lucide="landmark" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Government Lands</span>
-          </a>
-          <a href="{{ route('survey-module.gkn.reports') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.reports') ? 'active' : '' }}">
-            <i data-lucide="bar-chart-3" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Reports</span>
-          </a>
-          @endif
-        </div>
-        @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin'))
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-lpkn">
-          <div class="flex items-center gap-2"><i data-lucide="layers" class="h-4 w-4 text-pink-500"></i><span>LPKN</span></div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-lpkn"></i>
-        </div>
-        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-lpkn">
+          @if($svRecords)
+          {{-- c.ii - c.vii --}}
           <a href="{{ route('survey-module.records.lpkn') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn') ? 'active' : '' }}">
             <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Layout Plan</span>
+          </a>
+          <a href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
+            <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors</span>
           </a>
           <a href="{{ route('survey-module.records.lpkn.instruction') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn.instruction') ? 'active' : '' }}">
             <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i><span>Instruction to Survey</span>
@@ -164,20 +182,16 @@
           <a href="{{ route('survey-module.records.lpkn.observations') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn.observations') ? 'active' : '' }}">
             <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Field Observations</span>
           </a>
-        </div>
-          <a href="{{ route('survey-module.records.misc') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.misc') ? 'active' : '' }}">
-            <i data-lucide="tags" class="h-3.5 w-3.5 text-pink-400"></i><span>Misc KN</span>
-          </a>
-        @endif
+          @endif
         </div>
         @endif
 
-        {{-- d. GIS --}}
+        {{-- d. Geo-informatics --}}
         @if($hasRole('Survey - GIS') || $hasRole('Survey - Records') || $hasRole('Survey Reports') || $hasRole('Supper Admin'))
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gis">
           <div class="flex items-center gap-2">
             <i data-lucide="map-pinned" class="h-4 w-4 text-pink-500"></i>
-            <span>GIS</span>
+            <span>Geo-informatics</span>
           </div>
           <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-gis"></i>
         </div>
@@ -200,7 +214,7 @@
         </div>
         @endif
 
-        @if($hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin'))
+        @if($svRecords)
         {{-- e. Examination/Verification --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-examination">
             <div class="flex items-center gap-2">
@@ -210,14 +224,16 @@
             <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-examination"></i>
           </div>
           <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-examination">
-            <a href="{{ route('survey-module.workflow.examination') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.examination') ? 'active' : '' }}">
-              <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>OP Verification</span>
+            {!! $svSoon('Register File', 'file-input') !!}
+            {!! $svSoon('Boundary Dispute', 'split') !!}
+            {!! $svSoon('Old Surveys', 'history') !!}
+            {!! $svSoon('Control Points', 'crosshair') !!}
+            <a href="{{ route('survey-module.workflow.beacon-register.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.beacon-register.*') ? 'active' : '' }}">
+              <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Beacon Register</span>
             </a>
-            <a href="{{ route('survey-module.workflow.cadastral-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.cadastral-files') ? 'active' : '' }}">
-              <i data-lucide="folder-search" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Cadastral Files</span>
-            </a>
+            {!! $svSoon('Coordinate Register', 'grid-3x3') !!}
+            {!! $svSoon('Surveyors\' Report', 'file-check') !!}
           </div>
         @endif
 
