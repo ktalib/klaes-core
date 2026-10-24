@@ -989,7 +989,7 @@ if (!function_exists('MessageReplace')) {
             if ($notification->module == 'user_create') {
                 $user = User::find($id);
                 $search = ['{company_name}', '{company_email}', '{company_phone_number}', '{company_address}', '{company_currency}', '{new_user_name}', '{app_link}', '{username}', '{password}'];
-                $replace = [$settings['company_name'], $settings['company_email'], $settings['company_phone'], $settings['company_address'], $settings['CURRENCY_SYMBOL'], $user->name, env('APP_URL'), $user->email, $notification['password']];
+                $replace = [$settings['company_name'], $settings['company_email'], $settings['company_phone'], $settings['company_address'], $settings['CURRENCY_SYMBOL'], $user->name, config('app.url'), $user->email, $notification['password']];
             }
             if ($notification->module == 'reminder_create') {
                 $reminder = Reminder::find($id);
@@ -1919,7 +1919,7 @@ if (!function_exists('HomePageSection')) {
                             <div class="row align-items-center">
                                 <div class="col my-1 wow fadeInUp" data-wow-delay="0.4s">
                                     <p class="mb-0 text-white text-opacity-75">
-                                        ' . __('Copyright') . ' ' . date('Y') . ' ' . env('APP_NAME') . '
+                                        ' . __('Copyright') . ' ' . date('Y') . ' ' . config('app.name') . '
                                     </p>
                                 </div>
                                 <div class="col-auto my-1">
@@ -2088,7 +2088,7 @@ if (!function_exists('QrCode2FA')) {
         // generate the QR code, indicating the address
         // of the web application and the user name
         // or email in this case
-        $company = env('APP_NAME');
+        $company = config('app.name');
         if ($user->type != 'super admin') {
             $company = isset(settings()['company_name']) && !empty(settings()['company_name']) ? settings()['company_name'] : $company;
         }

@@ -160,7 +160,7 @@
                         <span class="pointer-events-none absolute -right-3 -top-3 text-red-300"><i data-lucide="alert-triangle" class="h-16 w-16"></i></span>
                         <div class="relative flex items-start justify-between gap-2">
                             <div>
-                                <div class="text-[11px] font-semibold uppercase tracking-wide text-red-100">Total Missing</div>
+                                <div class="text-[11px] font-semibold uppercase tracking-wide text-red-100">Total Not With KLAES (NWK)</div>
                                 <div id="qs-rep-missing" class="mt-1 text-3xl font-extrabold leading-none text-white">—</div>
                             </div>
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-700 text-white shadow-md shadow-red-900">
@@ -323,7 +323,7 @@
             ['IN_POOL_OFFICE', 'In Pool Office'],
             ['FILE_NOT_FOUND', 'File Not Found'],
             ['REFER_TO_ORIGINAL_REGISTRY', 'Refer to Original Registry'],
-            ['MISSING_FILE', 'Missing File'],
+            ['MISSING_FILE', 'Not With KLAES (NWK)'],
         ];
         const STATUS_META = {
             IN_TRANSIT:                 { label: 'In Transit',                 cls: 'bg-amber-100 text-amber-800 border-amber-300',  icon: 'truck' },
@@ -336,7 +336,7 @@
             PENDING_FILE:               { label: 'Pending (Not Indexed)',      cls: 'bg-gray-100 text-gray-800 border-gray-300',    icon: 'help-circle' },
             BLIND_REQUEST_SENT:         { label: 'Blind Request Sent',         cls: 'bg-indigo-100 text-indigo-800 border-indigo-300', icon: 'send' },
             FILE_NOT_FOUND:             { label: 'File Not Found',             cls: 'bg-red-100 text-red-800 border-red-300',       icon: 'alert-triangle' },
-            MISSING_FILE:               { label: 'Missing File',               cls: 'bg-red-100 text-red-800 border-red-300',       icon: 'alert-triangle' },
+            MISSING_FILE:               { label: 'Not With KLAES (NWK)',               cls: 'bg-red-100 text-red-800 border-red-300',       icon: 'alert-triangle' },
             REFER_TO_ORIGINAL_REGISTRY: { label: 'Refer to Original Registry', cls: 'bg-gray-100 text-gray-800 border-gray-300',    icon: 'corner-up-right' },
         };
 
@@ -531,7 +531,7 @@
             // For In-Transit files the dedicated "Print Tracking Confirmation Slip" button
             // (above) already covers printing, so suppress the generic "Print Slip" button.
             if (d.slip_variant && d.status !== 'IN_TRANSIT') {
-                const labels = { tracking_sheet:'Print Tracking Sheet', missing:'Print Missing File Slip', refer_registry:'Print Refer-to-Original-Registry Slip', tracking_confirmation:'Print Slip' };
+                const labels = { tracking_sheet:'Print Tracking Sheet', missing:'Print NWK Slip', refer_registry:'Print Refer-to-Original-Registry Slip', tracking_confirmation:'Print Slip' };
                 out.push(`<a href="${SLIP_URL}?file_number=${fno}&variant=${d.slip_variant}" target="_blank"
                     class="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
                     <i data-lucide="printer" class="h-4 w-4"></i> ${labels[d.slip_variant] || 'Print Slip'}</a>`);
@@ -1408,9 +1408,9 @@
                             </dl>` : ''}
                         </div>` : ''}
                         ${isNotFound ? (() => {
-                            // Missing → red, Pending → amber; mirror the SCB Feedback colour coding.
+                            // NWK (Not With KLAES) → red, Pending → amber; mirror the SCB Feedback colour coding.
                             const nft = d.fr_not_found && d.fr_not_found.not_found_type
-                                ? (String(d.fr_not_found.not_found_type).toUpperCase() === 'MISSING' ? 'Missing' : 'Pending') : '';
+                                ? (String(d.fr_not_found.not_found_type).toUpperCase() === 'MISSING' ? 'NWK' : 'Pending') : '';
                             const c = nft === 'Pending'
                                 ? { bg:'bg-amber-50', bd:'border-amber-200', ic:'text-amber-600', tx:'text-amber-800', body:'text-amber-900', lbl:'text-amber-700', icon:'hourglass' }
                                 : { bg:'bg-red-50',   bd:'border-red-200',   ic:'text-red-600',   tx:'text-red-800',   body:'text-red-900',   lbl:'text-red-700',   icon:'alert-triangle' };
@@ -2138,7 +2138,7 @@
                         <i data-lucide="check" class="h-4 w-4"></i> Requester details updated on ${reqNo}</span>`
                         : isMissing
                         ? `<span class="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
-                        <i data-lucide="check" class="h-4 w-4"></i> Request ${reqNo} saved — file is in the missing list. Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'}.</span>`
+                        <i data-lucide="check" class="h-4 w-4"></i> Request ${reqNo} saved — file is on the Not With KLAES (NWK) list. Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'}.</span>`
                         : `<span class="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
                         <i data-lucide="check" class="h-4 w-4"></i> File Request ${reqNo} sent to SCB Monitors</span>`;
                     loadLog();
@@ -2708,7 +2708,7 @@
                 ['BLIND',     'Blind/Open', counts.blind_open],
                 ['FOUND',     'Found',      counts.found],
                 ['NOT_FOUND', 'Not Found',  counts.not_found],
-                ['MISSING',   'Missing',    counts.missing],
+                ['MISSING',   'NWK',        counts.missing],
                 ['PENDING',   'Awaiting',   counts.pending],
                 // ['', 'FSR History', counts.all],  // hidden for now
             ];
@@ -2764,11 +2764,11 @@
                             // alongside the response, e.g. "Not Found (Pending)", and give each
                             // kind its own colour — Missing red, Pending amber.
                             const nft       = (r.not_found && r.not_found_type)
-                                ? (String(r.not_found_type).toUpperCase() === 'MISSING' ? 'Missing' : 'Pending') : '';
+                                ? (String(r.not_found_type).toUpperCase() === 'MISSING' ? 'NWK' : 'Pending') : '';
                             const respLabel = nft ? `${r.scb_response} (${nft})` : r.scb_response;
                             const isReadyIndexing = !!r.ready_indexing;
                             const badge  = isReadyIndexing ? 'bg-amber-100 text-amber-800'
-                                : nft === 'Missing' ? 'bg-red-100 text-red-800'
+                                : nft === 'NWK' ? 'bg-red-100 text-red-800'
                                 : nft === 'Pending' ? 'bg-amber-100 text-amber-800'
                                 : (LOG_BADGE[r.scb_response] || 'bg-gray-100 text-gray-700');
                             const icon   = isReadyIndexing
@@ -2972,15 +2972,15 @@
             fbBox.innerHTML = `
                     <ul class="divide-y divide-gray-100">
                         ${rows.map(r => {
-                            // A blind / not-indexed file reported Not Found is surfaced as "Missing".
+                            // A blind / not-indexed file reported Not Found is surfaced as "NWK" (Not With KLAES).
                             const isMissing = r.not_found && r.is_blind;
                             // When the SCB picked a Not Found kind, spell it out, e.g. "Not Found (Pending)",
                             // and colour each kind distinctly — Missing red, Pending amber.
                             const nft = (r.not_found && r.not_found_type)
-                                ? (String(r.not_found_type).toUpperCase() === 'MISSING' ? 'Missing' : 'Pending') : '';
-                            const respLabel = nft ? `${r.scb_response} (${nft})` : (isMissing ? 'Missing' : r.scb_response);
+                                ? (String(r.not_found_type).toUpperCase() === 'MISSING' ? 'NWK' : 'Pending') : '';
+                            const respLabel = nft ? `${r.scb_response} (${nft})` : (isMissing ? 'NWK' : r.scb_response);
                             const badge = nft === 'Pending' ? 'bg-amber-100 text-amber-800'
-                                : (nft === 'Missing' || isMissing) ? 'bg-red-100 text-red-800'
+                                : (nft === 'NWK' || isMissing) ? 'bg-red-100 text-red-800'
                                 : (LOG_BADGE[r.scb_response] || 'bg-gray-100 text-gray-700');
                             const icon  = r.found ? 'check' : (r.not_found ? (nft === 'Pending' ? 'hourglass' : (isMissing ? 'help-circle' : 'x')) : 'clock');
                             const done  = r.front_desk_acted
@@ -3043,7 +3043,7 @@
                     file_number:       r.file_number || '',
                     file_title:        r.file_title || '',
                     request_type:      r.request_type || '',
-                    scb_response:      isMissing ? 'Missing' : (r.scb_response || ''),
+                    scb_response:      isMissing ? 'NWK' : (r.scb_response || ''),
                     requested_by:      r.requested_by || '',
                     receiving_officer: r.receiving_officer || '',
                     current_location:  r.current_location || r.location_type || '',
@@ -3055,7 +3055,7 @@
 
         // Human label for the active filter, used in filenames + the PDF subtitle.
         function exportScopeLabel() {
-            const map = { FOUND:'Found', NOT_FOUND:'Not Found', MISSING:'Missing', BLIND:'Blind-Open', PENDING:'Awaiting' };
+            const map = { FOUND:'Found', NOT_FOUND:'Not Found', MISSING:'NWK', BLIND:'Blind-Open', PENDING:'Awaiting' };
             return map[logStatus] || 'All';
         }
         function exportRangeLabel() {

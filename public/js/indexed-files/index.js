@@ -125,6 +125,10 @@ function renderRows(rows) {
     const genderClass = genderRowClass(row.gender);
     const genderData = `data-gender="${escapeHtml(genderAttr(row.gender))}"`;
     rowCache.set(String(row.id), row);
+    // Expandable Related / Temporary files (Change Request 22102026, items 4-6): the
+    // row is keyed by the number it shows (temp-only records show their temp number).
+    const rtFileNo = String(row.file_number || '').trim() || String(row.temp_file_no || '').trim();
+    const rtData = rtFileNo ? `data-rt-fileno="${escapeHtml(rtFileNo)}"` : '';
 
     // Cadastral: render cells driven by config.columns order
     if (isCadastralVariant && Array.isArray(config.columns)) {
@@ -183,7 +187,7 @@ function renderRows(rows) {
           }
         })
         .join('');
-      return `<tr class="hover:bg-gray-50 ${genderClass}" ${genderData} data-row-id="${row.id}">${rowCells}${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${buildActionsMenu(row, viewUrl)}</td>`}</tr>`;
+      return `<tr class="hover:bg-gray-50 ${genderClass}" ${genderData} ${rtData} data-row-id="${row.id}">${rowCells}${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${buildActionsMenu(row, viewUrl)}</td>`}</tr>`;
     }
 
     const rowCells = isKangisVariant
@@ -335,7 +339,7 @@ function renderRows(rows) {
       `;
 
     return `
-      <tr class="hover:bg-gray-50 ${genderClass}" ${genderData} data-row-id="${row.id}">
+      <tr class="hover:bg-gray-50 ${genderClass}" ${genderData} ${rtData} data-row-id="${row.id}">
         ${rowCells}
         ${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${buildActionsMenu(row, viewUrl)}</td>`}
       </tr>
@@ -344,6 +348,7 @@ function renderRows(rows) {
 
   dom.tableBody.innerHTML = fragments;
   bindActionHandlers();
+  if (window.RelatedTempExpand) window.RelatedTempExpand.scan(dom.tableBody);
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();
   }
@@ -574,6 +579,13 @@ function buildActionsMenu(row, viewUrl) {
           <span class="leading-snug">Move to Indexing Duplicates</span>
         </button>`;
 
+  // Move Transaction: takes chosen PRA / File History / CofO rows off this file
+  // (wrong, or not in this physical file). Super Admin only, like the two above.
+  const moveTransactionButton = !config.canMoveTransactions ? '' : `<button type="button" class="move-transaction-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50 transition-colors" data-file-id="${id}" data-file-number="${safeFileNumber}">
+          <i data-lucide="file-output" class="h-4 w-4 mt-0.5 shrink-0 text-rose-600"></i>
+          <span class="leading-snug">Move Transaction</span>
+        </button>`;
+
   const duplicateCallupButton = `<button type="button" class="duplicate-callup-btn block w-full text-left px-4 py-2.5 text-sm ${row.has_duplicate ? 'text-rose-700 hover:bg-rose-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-file-id="${id}" data-file-number="${safeFileNumber}" ${row.has_duplicate ? '' : 'disabled="disabled"'}>
           <i data-lucide="copy" class="h-4 w-4 mr-2.5 inline ${row.has_duplicate ? 'text-rose-600' : 'text-gray-300'}"></i>
           Duplicate Call-up Sheet
@@ -676,7 +688,7 @@ function buildActionsMenu(row, viewUrl) {
             ${editButton}
             ${trackingButton}
             ${updatePlaceholderButton}
-            ${moveToDuplicatesButton ? '<div class="border-t border-slate-50 my-1.5"></div>' + moveToDuplicatesButton : ''}
+            ${(moveTransactionButton || moveToDuplicatesButton) ? '<div class="border-t border-slate-50 my-1.5"></div>' + moveTransactionButton + moveToDuplicatesButton : ''}
           </div>
         </div>
       </div>
@@ -704,6 +716,7 @@ function buildActionsMenu(row, viewUrl) {
           ${mccFileNoButton}
           ${mppFileNoButton}
           ${updatePlaceholderButton}
+          ${moveTransactionButton}
           ${moveToDuplicatesButton}
           ${deleteButton ? '<div class="border-t border-slate-50 my-1.5"></div>' + deleteButton : ''}
         </div>
@@ -863,6 +876,15 @@ function handleTableBodyClick(event) {
     event.preventDefault();
     event.stopPropagation();
     handleMarkDuplicate(duplicateButton);
+    return;
+  }
+
+  const moveTransactionBtn = event.target.closest('.move-transaction-btn');
+  if (moveTransactionBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAllActionMenus();
+    handleMoveTransaction(moveTransactionBtn);
     return;
   }
 
@@ -3092,6 +3114,42 @@ function renderMovePreviewTable(title, rows, tone) {
 }
 
 /**
+ * Summary card for a move: one tile per group (indexing record, file number
+ * registry, property & title, file tracking, parties, linked rows) with its row
+ * count, plus the per-table breakdown underneath. `groups` is the server's
+ * `summary` array; `verb` is the action word on the card ("Snapshot & remove" /
+ * "Archived & removed").
+ */
+function renderMoveSummaryCard(groups, verb) {
+  if (!Array.isArray(groups) || groups.length === 0) {
+    return '';
+  }
+
+  const total = groups.reduce((sum, g) => sum + Number(g.total || 0), 0);
+
+  // Inline styles on purpose: the layout's Tailwind is the v2.2.19 CDN build,
+  // which has no rose palette and no arbitrary sizes, so class-only styling
+  // rendered this card as plain text.
+  const tiles = groups.map(g => `
+    <div style="background:#fff;border:1px solid #fecdd3;border-radius:8px;padding:8px 10px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">${escapeHtml(g.group)}</div>
+      <div style="font-size:20px;font-weight:700;color:#be123c;line-height:1.2;">${Number(g.total).toLocaleString()}</div>
+      <div style="font-size:11px;color:#64748b;line-height:1.35;">${(g.tables || []).map(t => `${escapeHtml(t.label)} (${Number(t.count).toLocaleString()})`).join('<br>')}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div style="margin-top:12px;text-align:left;background:#fff1f2;border:1px solid #fda4af;border-radius:12px;padding:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#be123c;">${escapeHtml(verb)}</span>
+        <span style="font-size:11px;font-weight:600;color:#be123c;">${total.toLocaleString()} row(s) in ${groups.length} group(s)</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;">${tiles}</div>
+    </div>
+  `;
+}
+
+/**
  * Plain-text equivalent of the preview, for the no-SweetAlert fallback.
  */
 function movePreviewToText(rows) {
@@ -3144,6 +3202,293 @@ function pickDuplicateOfFileNumber() {
 }
 
 /**
+ * Move Transaction: take chosen transactions off this file.
+ *
+ * Lists the file's transactions the way View Transactions / Legal Search show
+ * them; rows that cannot move (timeline-generated rows, registered deeds, rows
+ * recorded under another file) are greyed out with the reason. The operator ticks
+ * rows, gives a reason and optionally the file they belong to; the server gives
+ * them one system temp file no (MOV-DUP-#####), snapshots them into
+ * moved_transactions and deletes them from PRA / File History / CofO.
+ *
+ * Styling is inline: the layout's Tailwind v2.2.19 CDN lacks many utilities.
+ */
+async function handleMoveTransaction(button) {
+  const fileId = button.getAttribute('data-file-id');
+  const fileNumber = button.getAttribute('data-file-number') || `File #${fileId}`;
+  if (!fileId) {
+    return;
+  }
+
+  if (typeof window.Swal === 'undefined' || typeof window.Swal.fire !== 'function') {
+    alert('The dialog library did not load. Refresh the page and try again.');
+    return;
+  }
+
+  const base = `${window.location.origin}/api/indexed-files/${encodeURIComponent(fileId)}`;
+
+  const loadRows = async () => {
+    window.Swal.fire({
+      title: 'Loading transactions…',
+      html: `<p style="font-size:14px;color:#475569;">Reading the timeline of <strong>${escapeHtml(fileNumber)}</strong>.</p>`,
+      allowOutsideClick: false,
+      didOpen: () => window.Swal.showLoading()
+    });
+    const response = await fetch(`${base}/transactions-for-move`, {
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.message || 'Could not load the transactions.');
+    }
+    return payload;
+  };
+
+  let payload;
+  try {
+    payload = await loadRows();
+  } catch (error) {
+    await window.Swal.fire({ icon: 'error', title: 'Failed', text: error.message });
+    return;
+  }
+
+  const rows = payload.rows || [];
+  const movable = rows.filter(r => r.movable);
+  const selected = new Set();
+  let reason = '';
+
+
+  const th = 'padding:6px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap;';
+  const td = 'padding:6px 8px;font-size:12px;color:#334155;border-bottom:1px solid #f1f5f9;vertical-align:top;text-align:left;';
+
+  const renderTable = () => {
+    if (!rows.length) {
+      return '<p style="font-size:13px;color:#94a3b8;padding:12px;">This file has no transactions on its timeline.</p>';
+    }
+    const allChecked = movable.length > 0 && movable.every(r => selected.has(r.key));
+    const body = rows.map(r => {
+      const isChecked = r.movable && selected.has(r.key);
+      const rowStyle = r.movable
+        ? (isChecked ? 'background:#fff1f2;' : '')
+        : 'background:#f8fafc;color:#94a3b8;opacity:.75;';
+      const cellStyle = td + (r.movable ? '' : 'color:#94a3b8;');
+      return `
+        <tr style="${rowStyle}">
+          <td style="${cellStyle}">
+            <input type="checkbox" class="mt-row-check" data-key="${escapeHtml(r.key || '')}"
+                   ${r.movable ? '' : 'disabled'} ${isChecked ? 'checked' : ''}
+                   title="${r.movable ? 'Select to move' : escapeHtml(r.blocked_reason || 'Cannot be moved')}">
+          </td>
+          <td style="${cellStyle}">${r.sn}</td>
+          <td style="${cellStyle}">
+            <div style="font-weight:600;">${escapeHtml(r.transaction_type || '—')}</div>
+            ${r.movable ? '' : `<div style="font-size:11px;color:#b45309;margin-top:2px;">${escapeHtml(r.blocked_reason || 'Cannot be moved')}</div>`}
+          </td>
+          <td style="${cellStyle}">${escapeHtml(r.party_1 || '—')}</td>
+          <td style="${cellStyle}">${escapeHtml(r.party_2 || '—')}</td>
+          <td style="${cellStyle}white-space:nowrap;">${escapeHtml(r.reg_no || '—')}</td>
+          <td style="${cellStyle}white-space:nowrap;">${escapeHtml(r.transaction_date || '—')}</td>
+          <td style="${cellStyle}white-space:nowrap;">${escapeHtml(r.source_label || '')}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <div style="max-height:46vh;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead style="position:sticky;top:0;z-index:1;">
+            <tr>
+              <th style="${th}"><input type="checkbox" id="mt-check-all" ${allChecked ? 'checked' : ''} ${movable.length ? '' : 'disabled'} title="Select all movable"></th>
+              <th style="${th}">S/N</th>
+              <th style="${th}">Transaction</th>
+              <th style="${th}">Party 1</th>
+              <th style="${th}">Party 2</th>
+              <th style="${th}">Reg. No</th>
+              <th style="${th}">Trans Date</th>
+              <th style="${th}">Source</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>`;
+  };
+
+  // Loops so "Back" on the confirm card returns here with ticks and reason kept.
+  // "Belongs to" (file picker) removed for now (user, 2026-10-24); the server
+  // still accepts belongs_to and moved_transactions keeps the column.
+  for (;;) {
+    const result = await window.Swal.fire({
+      title: 'Move Transaction',
+      width: 980,
+      html: `
+        <p style="font-size:13px;color:#475569;text-align:left;margin-bottom:10px;">
+          Transactions on <strong>${escapeHtml(fileNumber)}</strong>, as the timeline shows them.
+          Tick the ones that are not in this physical file or were entered wrongly. Greyed rows cannot be moved.
+        </p>
+        ${renderTable()}
+        <div id="mt-selected-count" style="font-size:12px;color:#be123c;font-weight:600;text-align:left;margin-top:8px;"></div>
+        <div style="margin-top:12px;text-align:left;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#475569;">Reason <span style="color:#e11d48;">*</span></label>
+          <textarea id="mt-reason" rows="2" maxlength="500" placeholder="e.g. Not in this physical file / wrongly entered"
+                    style="width:100%;margin-top:4px;border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;font-size:13px;">${escapeHtml(reason)}</textarea>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Move selected',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#e11d48',
+      focusConfirm: false,
+      allowOutsideClick: false,
+      didOpen: (popup) => {
+        const updateCount = () => {
+          const el = popup.querySelector('#mt-selected-count');
+          if (el) {
+            el.textContent = selected.size ? `${selected.size} transaction(s) selected` : '';
+          }
+        };
+        const syncAll = () => {
+          const all = popup.querySelector('#mt-check-all');
+          if (all) {
+            all.checked = movable.length > 0 && movable.every(r => selected.has(r.key));
+          }
+        };
+        const paint = (box) => {
+          const tr = box.closest('tr');
+          if (tr) {
+            tr.style.background = box.checked ? '#fff1f2' : '';
+          }
+        };
+        popup.querySelectorAll('.mt-row-check:not([disabled])').forEach(box => {
+          box.addEventListener('change', () => {
+            const key = box.getAttribute('data-key');
+            if (box.checked) selected.add(key); else selected.delete(key);
+            paint(box);
+            syncAll();
+            updateCount();
+          });
+        });
+        const all = popup.querySelector('#mt-check-all');
+        if (all) {
+          all.addEventListener('change', () => {
+            popup.querySelectorAll('.mt-row-check:not([disabled])').forEach(box => {
+              box.checked = all.checked;
+              const key = box.getAttribute('data-key');
+              if (all.checked) selected.add(key); else selected.delete(key);
+              paint(box);
+            });
+            updateCount();
+          });
+        }
+        const reasonEl = popup.querySelector('#mt-reason');
+        if (reasonEl) {
+          reasonEl.addEventListener('input', () => { reason = reasonEl.value; });
+        }
+        updateCount();
+      },
+      preConfirm: () => {
+        if (selected.size === 0) {
+          window.Swal.showValidationMessage('Tick at least one transaction to move.');
+          return false;
+        }
+        if (reason.trim() === '') {
+          window.Swal.showValidationMessage('Enter the reason for moving.');
+          return false;
+        }
+        return true;
+      }
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    // Summary card of exactly what goes, as the last stop before the delete.
+    const picked = rows.filter(r => r.movable && selected.has(r.key));
+    const list = picked.map(r => `
+      <div style="background:#fff;border:1px solid #fecdd3;border-radius:8px;padding:8px 10px;">
+        <div style="font-size:12px;font-weight:700;color:#0f172a;">${escapeHtml(r.transaction_type || '—')}</div>
+        <div style="font-size:11px;color:#64748b;">${escapeHtml(r.source_label)} · ${escapeHtml(r.transaction_date || '—')} · Reg ${escapeHtml(r.reg_no || '—')}</div>
+        <div style="font-size:11px;color:#64748b;">${escapeHtml(r.party_1 || '—')} → ${escapeHtml(r.party_2 || '—')}</div>
+      </div>`).join('');
+
+    const confirm = await window.Swal.fire({
+      title: 'Move these transactions?',
+      icon: 'warning',
+      width: 640,
+      html: `
+        <div style="text-align:left;background:#fff1f2;border:1px solid #fda4af;border-radius:12px;padding:12px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#be123c;">Snapshot &amp; remove</span>
+            <span style="font-size:11px;font-weight:600;color:#be123c;">${picked.length} transaction(s) off ${escapeHtml(fileNumber)}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;">${list}</div>
+        </div>
+        <div style="text-align:left;font-size:12px;color:#475569;margin-top:10px;">
+          <div><strong>Temp file no:</strong> one system number (MOV-DUP-#####) for all of them, assigned on move.</div>
+          <div><strong>Reason:</strong> ${escapeHtml(reason)}</div>
+          <div style="margin-top:6px;color:#be123c;">They are deleted from their tables; the snapshot on the Moved Transactions page is kept.</div>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, move them',
+      cancelButtonText: 'Back',
+      confirmButtonColor: '#e11d48',
+      reverseButtons: true
+    });
+
+    if (!confirm.isConfirmed) {
+      continue;
+    }
+    break;
+  }
+
+  const csrfToken = getCsrfToken();
+  if (!csrfToken) {
+    await window.Swal.fire({ icon: 'error', title: 'Missing CSRF Token', text: 'Refresh the page and try again.' });
+    return;
+  }
+
+  try {
+    window.Swal.fire({ title: 'Moving…', allowOutsideClick: false, didOpen: () => window.Swal.showLoading() });
+    const response = await fetch(`${base}/move-transactions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ keys: Array.from(selected), reason: reason.trim() })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'The move failed.');
+    }
+
+    const moved = (result.moved || []).map(m => `
+      <div style="font-size:12px;color:#334155;">${escapeHtml(m.source_label)} #${escapeHtml(m.source_id)} — ${escapeHtml(m.transaction_type || '—')}</div>`).join('');
+
+    await window.Swal.fire({
+      icon: 'success',
+      title: 'Moved',
+      width: 560,
+      html: `
+        <p style="font-size:14px;color:#475569;">${escapeHtml(result.message || 'Moved.')}</p>
+        <div style="margin-top:12px;text-align:left;border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Temp File No</div>
+          <div style="font-size:18px;font-weight:700;color:#0f172a;font-family:monospace;">${escapeHtml(result.temp_file_no || '')}</div>
+          <div style="margin-top:6px;">${moved}</div>
+        </div>`
+    });
+
+    rowCache.delete(String(fileId));
+    await loadTable();
+    loadStats();
+  } catch (error) {
+    console.error('Move Transaction failed:', error);
+    await window.Swal.fire({ icon: 'error', title: 'Failed', text: error.message });
+  }
+}
+
+/**
  * Move an indexed file to indexing_duplicates. This deletes the record from the
  * indexing, file number, customer and entity tables, so the confirmation first
  * asks the server exactly which tables lose rows — and which record/transaction
@@ -3161,27 +3506,8 @@ async function handleMoveToIndexingDuplicates(button) {
 
   const hasSwal = typeof window.Swal !== 'undefined' && typeof window.Swal.fire === 'function';
 
-  // First gate: a plain yes/no. The detailed impact card (what gets deleted, and
-  // which file this duplicates) is the second confirmation, after the preview
-  // call — no point costing that request for a misclicked menu item.
-  const proceed = hasSwal
-    ? (await window.Swal.fire({
-        title: 'Move to Indexing Duplicates?',
-        text: `Are you sure you want to move ${fileNumber} to indexing duplicates?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Yes',
-        cancelButtonText: 'No',
-        confirmButtonColor: '#e11d48',
-        reverseButtons: true
-      })).isConfirmed
-    : window.confirm(`Move ${fileNumber} to indexing duplicates?`);
-
-  if (!proceed) {
-    closeAllActionMenus();
-    return;
-  }
-
+  // No plain yes/no first: the operator goes straight to the summary card of
+  // what will be snapshotted and removed, which is itself the confirmation.
   let preview = null;
   try {
     if (hasSwal) {
@@ -3247,23 +3573,20 @@ async function handleMoveToIndexingDuplicates(button) {
     return;
   }
 
-  const transactionTotal = Number(preview.transaction_total || 0);
-  const transactionWarning = transactionTotal > 0
-    ? `<p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-3 text-left">
-         This file number carries <strong>${transactionTotal.toLocaleString()}</strong> registered transaction record(s).
-         They are <strong>not</strong> deleted — but a file with real dealings is usually the original, not the duplicate.
-       </p>`
-    : '';
-
-  // PRA / CofO rows move with the record, so this one is a stop-and-think.
+  // PRA / CofO / FH rows move with the record, so this one is a stop-and-think.
   const deletedTransactionTotal = Number(preview.deleted_transaction_total || 0);
   const deletedTransactionWarning = deletedTransactionTotal > 0
     ? `<p class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded p-2 mt-3 text-left">
-         <strong>${deletedTransactionTotal.toLocaleString()}</strong> property/CofO record(s) will be
+         <strong>${deletedTransactionTotal.toLocaleString()}</strong> property / CofO / file history record(s) will be
          <strong>deleted</strong> along with this file (archived in the snapshot).
-         Make sure this is the duplicate and not the original.
+         A file with real dealings is usually the original — make sure this is the duplicate.
        </p>`
     : '';
+
+  // Grouped summary card; the flat table is the fallback for a server that
+  // does not send `summary`.
+  const deletionSummary = renderMoveSummaryCard(preview.summary, 'Snapshot & remove')
+    || renderMovePreviewTable('Will be deleted from', deletions, 'delete');
 
   // The file this one duplicates, stored on the archive record so the indexing
   // duplicates page can say what it was a duplicate of.
@@ -3285,12 +3608,12 @@ async function handleMoveToIndexingDuplicates(button) {
         html: `
           <p class="text-sm text-slate-600 text-left">
             <strong>${escapeHtml(fileNumber)}</strong> will be moved to indexing duplicates.
-            The rows below are deleted from the live tables (a full snapshot is archived).
+            Everything below is snapshotted into the archive, then removed from the live tables.
+            The file and its transactions get a system temp file no (<strong>MOV-DUP-#####</strong>) on the move.
           </p>
-          ${renderMovePreviewTable('Will be deleted from', deletions, 'delete')}
-          ${renderMovePreviewTable('Kept — still references this file', retained, 'keep')}
+          ${deletionSummary}
+          ${renderMovePreviewTable('Kept', retained, 'keep')}
           ${deletedTransactionWarning}
-          ${transactionWarning}
           <div class="mt-4 text-left">
             <p class="text-[11px] font-bold uppercase tracking-wider text-slate-600">Duplicate of</p>
             <div class="mt-1 flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
@@ -3403,8 +3726,15 @@ async function handleMoveToIndexingDuplicates(button) {
       await window.Swal.fire({
         icon: 'success',
         title: 'Moved',
+        width: 600,
         html: `
           <p class="text-sm text-slate-600">${escapeHtml(result.message || 'Moved.')}</p>
+          ${d.temp_file_no ? `<div style="margin-top:12px;text-align:left;border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;padding:10px 12px;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Temp File No (file &amp; transactions)</div>
+            <div style="font-size:18px;font-weight:700;color:#0f172a;font-family:monospace;">${escapeHtml(d.temp_file_no)}</div>
+          </div>` : ''}
+          ${renderMoveSummaryCard(d.summary, 'Archived & removed')}
+          ${d.mls_file_no_retained ? '<p class="text-xs text-slate-500 mt-2 text-left">The commissioning record (mls_file_no) was kept, so the file stays commissioned.</p>' : ''}
           ${registryNote}
         `
       });

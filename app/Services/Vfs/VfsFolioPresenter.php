@@ -36,6 +36,14 @@ class VfsFolioPresenter
     /** Tiles per page. The archive viewer loads every page at once; this must not. */
     public const PER_PAGE = 60;
 
+    /**
+     * Virtual folder for the documents KLAES itself issued at commissioning (the
+     * commissioning sheet and the LGA confirmation sheet). They are drawn on
+     * demand from the commissioning records, read-only, exactly as the LAAS folio
+     * draws them, so they show here without anyone printing and scanning them.
+     */
+    public const SYSTEM_FOLDER = '__commissioning';
+
     /** Hard ceiling regardless of what the request asks for. */
     private const MAX_PER_PAGE = 120;
 
@@ -635,6 +643,7 @@ class VfsFolioPresenter
             'location' => collect([$file->street_name, $file->location ?: $file->district, $file->lga])->filter()->implode(', '),
             'is_temporary' => $this->isTemporary($file),
             'page_count' => $file->pagetypings()->count(),
+            'system_count' => count($this->systemDocuments($file)),
             'structural_status' => $this->structuralStatus($file),
             'structural_class' => $this->structuralClass($this->structuralStatus($file)),
         ];
@@ -740,7 +749,80 @@ class VfsFolioPresenter
             ];
         }
 
+        $system = $this->systemDocuments($file);
+        if ($system) {
+            $folders[] = [
+                'key' => self::SYSTEM_FOLDER,
+                'label' => 'Commissioning',
+                'count' => count($system),
+                'classified' => true,
+                'system' => true,
+            ];
+        }
+
         return $folders;
+    }
+
+    /**
+     * The commissioning-stage documents KLAES issued for this file.
+     *
+     * @return array<int,array{key:string,title:string,date:?string,available:bool,note:?string}>
+     */
+    public function systemDocuments(FileIndexing $file): array
+    {
+        $fileNumber = trim((string) $file->file_number);
+        if ($fileNumber === '') {
+            return [];
+        }
+
+        try {
+            return app(\App\Services\Laas\LaasFolioService::class)->commissioningDocuments($fileNumber);
+        } catch (\Throwable $e) {
+            Log::info('VFS: commissioning documents could not be listed', ['file' => $fileNumber, 'error' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    /** Tiles for the Commissioning folder, shaped like page tiles plus is_system. */
+    private function systemDocumentPage(FileIndexing $file, int $page, int $perPage): LengthAwarePaginator
+    {
+        $tiles = collect($this->systemDocuments($file))->values()->map(function (array $doc, int $i) use ($file) {
+            $url = $doc['available']
+                ? route('vfs.system-document', ['fileIndexing' => $file->id, 'key' => $doc['key']])
+                : null;
+
+            return [
+                'id' => $doc['key'],
+                'label' => $doc['title'],
+                'page_type' => 'Commissioning',
+                'page_subtype' => null,
+                'page_number' => $i + 1,
+                'serial_number' => null,
+                'extension' => null,
+                'media_type' => 'system',
+                'viewer_url' => $url,
+                'thumbnail_url' => null,
+                'pdf_page_number' => null,
+                'scanning_id' => null,
+                'source_file_number' => $file->file_number,
+                'source_relative' => null,
+                'is_unmapped' => false,
+                'is_unavailable' => !$doc['available'],
+                'is_system' => true,
+                'note' => $doc['note'] ?? null,
+                'date' => $doc['date'] ?? null,
+                'qc_status' => null,
+            ];
+        });
+
+        return new LengthAwarePaginator(
+            $tiles->forPage($page, $perPage)->values(),
+            $tiles->count(),
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
     }
 
     /**
@@ -753,6 +835,10 @@ class VfsFolioPresenter
     public function documents(FileIndexing $file, ?string $folder = null, int $page = 1, ?int $perPage = null): LengthAwarePaginator
     {
         $perPage = min(max((int) ($perPage ?: self::PER_PAGE), 1), self::MAX_PER_PAGE);
+
+        if ($folder === self::SYSTEM_FOLDER) {
+            return $this->systemDocumentPage($file, $page, $perPage);
+        }
 
         $query = PageTyping::query()
             ->with(['scanning:id,file_indexing_id,document_path,display_order,original_filename,document_type,registry,edms_file_type,paper_size'])

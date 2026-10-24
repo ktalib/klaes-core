@@ -195,7 +195,7 @@
                                 $linkedFrom = filled($r->see_fileno) ? $r->see_fileno : ($r->derived_see_fileno ?? null);
                                 $isDerived  = blank($r->see_fileno) && filled($linkedFrom);
                             @endphp
-                            <tr class="hover:bg-slate-50/70">
+                            <tr class="hover:bg-slate-50/70" data-rt-fileno="{{ $r->file_no }}">
                                 <td class="px-4 py-3 text-center text-slate-500 whitespace-nowrap">{{ $records->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{{ $r->file_no }}</td>
                                 <td class="px-4 py-3 whitespace-nowrap">
@@ -302,7 +302,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($records as $r)
-                            <tr class="hover:bg-slate-50/70" data-file-no="{{ $r->file_no }}">
+                            <tr class="hover:bg-slate-50/70" data-file-no="{{ $r->file_no }}" data-rt-fileno="{{ $r->file_no }}">
                                 <td class="px-4 py-3 text-center text-slate-500 whitespace-nowrap">{{ $records->firstItem() + $loop->index }}</td>
                                 <td class="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{{ $r->file_no }}</td>
                                 <td class="px-4 py-3">
@@ -392,6 +392,18 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/related-temp-expand.js') }}?v={{ @filemtime(public_path('js/related-temp-expand.js')) }}"></script>
+<script>
+    // Related / Temporary files under each Re-grant row (Change Request 22102026, items 4-6).
+    // The chevron sits at the start of the row; the expansion lists every related file.
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('tbody').forEach(function (tb) {
+            if (tb.querySelector('tr[data-rt-fileno]') && window.RelatedTempExpand) {
+                window.RelatedTempExpand.scan(tb);
+            }
+        });
+    });
+</script>
 <script>
 const REGRANT_RAISE_URL = '{{ route('regrant.raise') }}';
 const REGRANT_CSRF      = '{{ csrf_token() }}';

@@ -4,7 +4,7 @@
     <div class="{{ $twoColumnGrid }}">
         <div class="md:col-span-2 space-y-2">
             {{ Form::label('application_name', __('Application Name'), ['class' => $labelClass]) }}
-            {{ Form::text('application_name', !empty($settings['app_name']) ? $settings['app_name'] : env('APP_NAME'), ['class' => $inputClass, 'placeholder' => __('Enter your application name'), 'required' => 'required']) }}
+            {{ Form::text('application_name', !empty($settings['app_name']) ? $settings['app_name'] : config('app.name'), ['class' => $inputClass, 'placeholder' => __('Enter your application name'), 'required' => 'required']) }}
         </div>
         <div class="space-y-2">
             {{ Form::label('logo', __('Logo'), ['class' => $labelClass]) }}

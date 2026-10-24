@@ -1297,6 +1297,104 @@ class FilearchiveController extends Controller
     }
 
     /**
+     * What "Delete File" would remove for one Doc-WARE card (Super Admin only).
+     * $id is a file_indexings id, or a storage-demo-* card id on the
+     * folder-listed archives.
+     */
+    public function deletePreview(Request $request, $id, \App\Services\Edms\EdmsFileDeletionService $deletions)
+    {
+        [$file, $folders, $fileNumber] = $this->resolveDeletionTarget((string) $id, (string) $request->get('url', ''));
+        if (!$file && !$folders) {
+            return response()->json(['success' => false, 'message' => 'File could not be resolved.'], 404);
+        }
+
+        $preview = $deletions->preview($file, $folders, $fileNumber);
+        unset($preview['scanning_ids'], $preview['pagetyping_ids']);
+
+        return response()->json(['success' => true, 'preview' => $preview]);
+    }
+
+    /**
+     * Doc-WARE "Delete File" (Super Admin only, route-gated by super.admin).
+     * Documents are moved to the EDMS trash with a manifest, never unlinked.
+     */
+    public function delete(Request $request, $id, \App\Services\Edms\EdmsFileDeletionService $deletions)
+    {
+        $data = $request->validate([
+            'reason' => 'required|string|min:5|max:1000',
+            'confirm_file_number' => 'required|string|max:255',
+        ]);
+
+        $module = (string) $request->get('url', '');
+        [$file, $folders, $fileNumber] = $this->resolveDeletionTarget((string) $id, $module);
+        if (!$file && !$folders) {
+            return response()->json(['success' => false, 'message' => 'File could not be resolved.'], 404);
+        }
+
+        $expected = $file ? $file->file_number : $fileNumber;
+        if (strcasecmp(trim($data['confirm_file_number']), trim((string) $expected)) !== 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The file number you typed does not match ' . $expected . '.',
+            ], 422);
+        }
+
+        try {
+            $result = $deletions->delete($file, trim($data['reason']), (int) Auth::id(), $folders, $fileNumber);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Doc-WARE delete failed', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Delete failed: ' . $e->getMessage()], 500);
+        }
+
+        foreach (['kangis', 'sltr', 'dciv', 'cadastral'] as $listing) {
+            self::bustFolderIndexCache($listing);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => sprintf(
+                '%s deleted: %d scan(s), %d typed page(s), %d file(s) moved to the EDMS trash.',
+                $expected,
+                $result['counts']['scannings'],
+                $result['counts']['pagetypings'],
+                $result['files_moved']
+            ),
+        ]);
+    }
+
+    /**
+     * @return array{0: ?FileIndexing, 1: string[], 2: ?string} the indexing row,
+     *         any card folder to sweep, and the file number shown on the card
+     */
+    private function resolveDeletionTarget(string $id, string $module): array
+    {
+        if (ctype_digit($id)) {
+            $file = FileIndexing::on('sqlsrv')->find((int) $id);
+
+            return [$file, [], $file ? $file->file_number : null];
+        }
+
+        if (!str_starts_with($id, 'storage-demo-')) {
+            return [null, [], null];
+        }
+
+        $folder = $this->decodeStorageDemoPath($id, $module);
+        if (!$folder || !$this->isStorageDemoDirectory($folder, $module)) {
+            return [null, [], null];
+        }
+
+        // The card is a folder named after the file number; if that number is
+        // indexed, its scans and typed pages go with the folder.
+        $fileNumber = strtoupper(basename($folder));
+        $file = FileIndexing::on('sqlsrv')->where('file_number', basename($folder))->first();
+
+        return [$file, [$folder], $file ? $file->file_number : $fileNumber];
+    }
+
+    /**
      * Printable File Movement History sheet for a file, populated from the
      * file tracker module's movement_log (all trackers ever opened for the
      * file number, so previously logged-out files keep their full history).

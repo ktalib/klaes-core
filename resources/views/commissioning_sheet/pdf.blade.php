@@ -41,6 +41,11 @@
         if ($isSt && strcasecmp($fileType, 'Conversion') === 0) {
             $fileType = 'ST Conversion';
         }
+        // An extension file prints as plain "Extension" (CR 22102026 #6); the register
+        // keeps its own "Extension File" value.
+        if (in_array(strtolower($fileType), ['extension file', 'file extension'], true)) {
+            $fileType = 'Extension';
+        }
         // Whether the shared row prints a Plot No or a Reason: the departments that hold a
         // plot number (Land / Sectional Titling) print the number, DCIV prints the reason.
         $isPlotNoRow = $isOss || $isSt;

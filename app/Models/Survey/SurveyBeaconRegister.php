@@ -26,6 +26,14 @@ class SurveyBeaconRegister extends SurveyModel
 
     public const PAYMENT_MODES = ['E-Payment', 'Cash', 'Other'];
 
+    /** Stored value => label. The first choice on the form. */
+    public const LAYOUT_TYPES = ['Government' => 'Government', 'Private' => 'Private'];
+
+    public function getLayoutTypeLabelAttribute(): ?string
+    {
+        return self::LAYOUT_TYPES[$this->layout_type] ?? null;
+    }
+
     /** Largest range one line may expand to; guards against a mistyped end number. */
     public const MAX_RANGE = 1000;
 
@@ -99,6 +107,21 @@ class SurveyBeaconRegister extends SurveyModel
         }
 
         return $out;
+    }
+
+    /** The line's file numbers, in the order picked (user, 2026-10-23). */
+    public function files()
+    {
+        return $this->hasMany(SurveyBeaconRegisterFile::class, 'survey_beacon_register_id')->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** @return array<int, string> */
+    public function fileNumberList(): array
+    {
+        $list = $this->exists ? $this->files->pluck('file_number')->all() : [];
+
+        // Lines saved before the list existed carry only the single column.
+        return $list ?: array_values(array_filter([$this->file_number]));
     }
 
     public function numbers()

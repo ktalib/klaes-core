@@ -527,7 +527,7 @@
                  server-side. --}}
             <div class="form-group hidden" id="root-of-title-group">
                 <label for="root-of-title" class="block text-sm font-medium text-gray-700 mb-2">
-                    Root of Title <span class="text-red-600">*</span>
+                    <span id="root-of-title-label-text">Root of Title</span> <span class="text-red-600">*</span>
                 </label>
                 <input type="text" name="root_of_title" id="root-of-title"
                     value="{{ isset($record) ? ($record->root_of_title ?? '') : '' }}"
@@ -572,7 +572,7 @@
             </div>
 
             <div class="form-group">
-                <label for="current-holder" class="block text-sm font-medium text-gray-700 mb-2">Current Holder</label>
+                <label for="current-holder" class="block text-sm font-medium text-gray-700 mb-2">Current Holder <span class="text-red-500">*</span></label>
                 <div id="current-holders-wrapper" class="space-y-2">
                     @php
                         $raw_c_holders = isset($record) ? $record->current_holder : '';

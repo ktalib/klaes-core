@@ -74,6 +74,12 @@
                     <input id="op_type_other" name="op_type_other" type="text" maxlength="100"
                         class="form-input text-xs py-1 mt-1 hidden" placeholder="Specify OP type *"
                         aria-label="Specify OP type" data-model="opTypeOther" autocomplete="off" disabled>
+                    {{-- Change of Ownership only (2026-10-23): Type "Other" reveals this required
+                         box (applySourceOtherRules()); saved in instrument_subtype_other. Type
+                         LGA needs no box: Party 1 becomes the Local Government picker. --}}
+                    <input id="instrument_subtype_other" name="instrument_subtype_other" type="text" maxlength="100"
+                        class="form-input text-xs py-1 mt-1 hidden" placeholder="Specify type *"
+                        aria-label="Specify type" data-model="subtypeOther" autocomplete="off" disabled>
                 </div>
                 <div class="hidden" data-role="instrument-category-group">
                     <label for="instrument_category" class="text-xs">Category</label>
@@ -100,10 +106,22 @@
                         <option value="Ministry">Ministry</option>
                         <option value="KANGIS">KANGIS</option>
                         <option value="LGA">LGA</option>
+                        <option value="Kano MDAs">Kano MDAs</option>
                         <option value="Other">Other</option>
                     </select>
-                    {{-- Shown, enabled and required only while Source is Other (applySourceOtherRules()
-                         in public/js/pra/form-controller.js); saved in pra.op_source_other. --}}
+                    {{-- Shown, enabled and required only while Source is Kano MDAs (kano_mdas, the
+                         list File Movement uses); the MDA is saved in pra.op_source_other. --}}
+                    <select id="op_source_mda" name="op_source_mda" class="form-select text-xs py-1 mt-1 hidden"
+                        data-model="opSourceMda" aria-label="Kano MDA" disabled>
+                        <option value="">Select MDA</option>
+                        @foreach(\App\Support\OpSource::mdas() as $mdaName)
+                            <option value="{{ $mdaName }}">{{ $mdaName }}</option>
+                        @endforeach
+                        <option value="Other">Other</option>
+                    </select>
+                    {{-- Shown, enabled and required only while Source is Other, or MDA is Other
+                         (applySourceOtherRules() in public/js/pra/form-controller.js); saved in
+                         pra.op_source_other. --}}
                     <input id="op_source_other" name="op_source_other" type="text" maxlength="100"
                         class="form-input text-xs py-1 mt-1 hidden" placeholder="Specify source *"
                         aria-label="Specify source" data-model="opSourceOther" autocomplete="off" disabled>

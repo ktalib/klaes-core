@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>{{ env('APP_NAME') }}</title>
+    <title>{{ config('app.name') }}</title>
     <style type="text/css">
         @media only screen and (max-width: 480px) {
             body, table, td, div, p, a { -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; }
@@ -82,7 +82,7 @@
                                         <img class="header-logo" src="http://app.klaes.ng/assets/logo/ministry2.jpeg" alt="Ministry Logo" width="52" height="52" style="max-width: 52px; width: 52px; height: auto; display: block; object-fit: contain;">
                                     </td>
                                     <td width="76%" style="text-align: center; vertical-align: middle; padding: 0 6px;">
-                                        <h3 class="header-title" style="margin: 0; color: #1e3a5f; font-size: 14px; font-weight: 700; line-height: 1.3; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ env('APP_NAME') }}</h3>
+                                        <h3 class="header-title" style="margin: 0; color: #1e3a5f; font-size: 14px; font-weight: 700; line-height: 1.3; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ config('app.name') }}</h3>
                                     </td>
                                     <td width="12%" style="text-align: right; vertical-align: middle; padding-left: 6px; overflow: hidden;">
                                         <img class="header-logo" src="http://app.klaes.ng/assets/logo/ministry1.jpg" alt="Ministry Logo" width="52" height="52" style="max-width: 52px; width: 52px; height: auto; display: block; object-fit: contain; margin-left: auto;">
@@ -136,7 +136,7 @@
                                 This is an automated email. Please do not reply to this message.
                             </p>
                             <p style="color: #9ca3af; margin: 10px 0; font-size: 11px;">
-                                &copy; {{ date('Y') }} {{ env('APP_NAME') }}. All rights reserved.
+                                &copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.
                             </p>
                         </td>
                     </tr>

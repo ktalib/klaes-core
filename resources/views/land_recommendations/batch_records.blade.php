@@ -1,11 +1,16 @@
-{{-- Read-only register of one batch.
+{{-- Register of one batch.
      The Batches tab's expander lists which files are in a batch; this shows what
      was actually captured against each of them, in the columns the letter prints
-     from. Nothing here changes a record — editing is still the batch edit form
-     and the per-record edit on the main list. --}}
+     from. Applicant name, address, plot no. and layout plan can be corrected in
+     place (double-click the cell, needs edit permission on Letter of Grant); every
+     other field is still the batch edit form or the per-record edit. --}}
 @extends('layouts.app')
 
 @section('content')
+@php
+    // Inline edit (Edit mode switch): users with edit on Letter of Grant (RofO).
+    $canInlineEdit = \App\Support\InlineEdit::canEdit();
+@endphp
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
     <div class="py-12 bg-slate-50 min-h-screen">
@@ -68,7 +73,7 @@
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap">
                     <h3 class="font-bold text-slate-800 uppercase tracking-wider text-xs flex items-center gap-2">
                         <i data-lucide="list" class="h-4 w-4 text-violet-600"></i>
                         Batch Records
@@ -76,6 +81,8 @@
                             · {{ number_format($summary['total']) }} record(s), whole
                         </span>
                     </h3>
+                    {{-- Filled by InlineBatchEdit.toggleHtml() below. --}}
+                    <div id="batch-records-edit-toggle"></div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[1800px]">
@@ -108,21 +115,20 @@
                             <tr class="hover:bg-violet-50/30 transition">
                                 <td class="px-4 py-2 text-center text-slate-400 font-bold whitespace-nowrap">{{ $rec->batch_seq ?: $i + 1 }}</td>
                                 <td class="px-4 py-2 font-mono font-bold text-slate-900 whitespace-nowrap">{{ $rec->file_number }}</td>
-                                <td class="px-4 py-2 text-blue-900 font-bold uppercase whitespace-nowrap">{{ $rec->applicant_name }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->landuse_purpose }}</td>
-                                <td class="px-4 py-2 text-slate-600 uppercase whitespace-nowrap">{{ $rec->display_location }}</td>
-                                <td class="px-4 py-2 text-blue-600 italic whitespace-nowrap">{{ $rec->applicant_address ?: '—' }}</td>
-                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap">{{ $rec->plot_number ?: '—' }}</td>
-                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap">{{ $rec->layout_plan_no ?: '—' }}</td>
-                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap">{{ $rec->term ?: '—' }}</td>
-                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap">₦{{ number_format($rec->ground_rent, 2) }}</td>
-                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap">{{ $rec->development_period_label ?: '—' }}</td>
-                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap">₦{{ number_format($rec->development_value, 2) }}</td>
-                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap">
-                                    {{ $rec->development_charge ? (is_numeric($rec->development_charge) ? '₦' . number_format($rec->development_charge, 2) : $rec->development_charge) : 'NIL' }}
-                                </td>
-                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap">₦{{ number_format($rec->survey_fees, 2) }}</td>
-                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap">₦{{ number_format($rec->preparation_fees, 2) }}</td>
+                                @php $ie = fn ($f) => \App\Support\InlineEdit::attrs($rec, $f, $canInlineEdit); @endphp
+                                <td class="px-4 py-2 text-blue-900 font-bold uppercase whitespace-nowrap"{{ $ie('applicant_name') }}>{{ $rec->applicant_name }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap"{{ $ie('land_use_purpose') }}>{{ $rec->landuse_purpose }}</td>
+                                <td class="px-4 py-2 text-slate-600 uppercase whitespace-nowrap"{{ $ie('location') }}>{{ $rec->display_location }}</td>
+                                <td class="px-4 py-2 text-blue-600 italic whitespace-nowrap"{{ $ie('applicant_address') }}>{{ $rec->applicant_address ?: '—' }}</td>
+                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap"{{ $ie('plot_number') }}>{{ $rec->plot_number ?: '—' }}</td>
+                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap"{{ $ie('layout_plan_no') }}>{{ $rec->layout_plan_no ?: '—' }}</td>
+                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap"{{ $ie('term') }}>{{ $rec->term ?: '—' }}</td>
+                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap"{{ $ie('ground_rent') }}>₦{{ number_format($rec->ground_rent, 2) }}</td>
+                                <td class="px-4 py-2 text-center text-slate-600 whitespace-nowrap" data-display="label"{{ $ie('development_period') }}>{{ $rec->development_period_label ?: '—' }}</td>
+                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap"{{ $ie('development_value') }}>₦{{ number_format($rec->development_value, 2) }}</td>
+                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap"{{ $ie('development_charge') }}>{{ $rec->development_charge ? (is_numeric($rec->development_charge) ? '₦' . number_format($rec->development_charge, 2) : $rec->development_charge) : 'NIL' }}</td>
+                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap"{{ $ie('survey_fees') }}>₦{{ number_format($rec->survey_fees, 2) }}</td>
+                                <td class="px-4 py-2 text-right text-slate-600 whitespace-nowrap"{{ $ie('preparation_fees') }}>₦{{ number_format($rec->preparation_fees, 2) }}</td>
                                 <td class="px-4 py-2 text-center text-slate-500 text-xs whitespace-nowrap">{{ $rec->page ?: '—' }}</td>
                                 <td class="px-4 py-2 text-center text-slate-500 text-xs whitespace-nowrap">{{ $rec->page_2 ?: '—' }}</td>
                                 <td class="px-4 py-2 text-center whitespace-nowrap">
@@ -163,3 +169,16 @@
     @include('admin.footer')
 </div>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/inline-batch-edit.js') }}?v={{ filemtime(public_path('js/inline-batch-edit.js')) }}"></script>
+<script>
+    InlineBatchEdit.init({
+        url: @json(url('land-recommendations/__ID__/inline-update')),
+        csrf: @json(csrf_token()),
+        canEdit: @json($canInlineEdit),
+        lookups: @json($canInlineEdit ? \App\Support\InlineEdit::lookups() : [])
+    });
+    document.getElementById('batch-records-edit-toggle').innerHTML = InlineBatchEdit.toggleHtml();
+</script>
+@endpush

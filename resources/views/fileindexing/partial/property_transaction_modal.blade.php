@@ -39,6 +39,8 @@
     // The CORE Legal Search report engine - the same payload the LS timeline, the Property
     // Timeline, the PHS portal and the online report are all built from.
     const FH_HISTORY_URL = @json(route('legal_search.print.data'));
+    // Source = Kano MDAs: the issuing MDA, from kano_mdas (App\Support\OpSource::mdas()).
+    const FH_OP_SOURCE_MDAS = @json(\App\Support\OpSource::mdas());
 </script>
   
 
@@ -73,8 +75,11 @@
                 opType: '',
                 // Permit Source (Ministry / KANGIS / LGA / Other) and the two specify boxes.
                 opSource: '',
+                opSourceMda: '',
                 opSourceOther: '',
                 opTypeOther: '',
+                // Change of Ownership Type Other: the specify text (instrument_subtype_other).
+                subtypeOther: '',
                 // Old OP / New OP. Asked only for Resettlement and Direct Allocation,
                 // and blank means the question was never put — see showOpCategory().
                 // The one visible Type answer. Copied into opType / cofoType by
@@ -262,8 +267,11 @@
                     status: 'Normal',
                     transactionDate: '',
                     opSource: '',
+                    opSourceMda: '',
                     opSourceOther: '',
                     opTypeOther: '',
+                    // Change of Ownership Type Other: the specify text (instrument_subtype_other).
+                    subtypeOther: '',
                     typeValue: '',
                     instrumentCategory: '',
                     opSerialNumber: '',
@@ -479,12 +487,23 @@
             },
 
             // Permit Source (pra.op_source); Other asks for op_source_other.
-            opSourceOptions: ['Ministry', 'KANGIS', 'LGA', 'Other'],
+            opSourceOptions: ['Ministry', 'KANGIS', 'LGA', 'Kano MDAs', 'Other'],
+            // Source = Kano MDAs names the MDA; its own Other reuses the specify box.
+            opSourceMdas: FH_OP_SOURCE_MDAS,
+
+            opSourceNeedsSpecify(t) {
+                return t.opSource === 'Other' || (t.opSource === 'Kano MDAs' && t.opSourceMda === 'Other');
+            },
+
+            handleOpSourceMdaChange(transaction) {
+                if (!this.opSourceNeedsSpecify(transaction)) transaction.opSourceOther = '';
+            },
 
             // Source changed: LGA turns the permit rules on (0/0/0, council grantor),
             // anything else turns them off; Other alone keeps its specify text.
             handleOpSourceChange(transaction) {
-                if (transaction.opSource !== 'Other') transaction.opSourceOther = '';
+                if (transaction.opSource !== 'Kano MDAs') transaction.opSourceMda = '';
+                if (!this.opSourceNeedsSpecify(transaction)) transaction.opSourceOther = '';
                 this.handleOpTypeChange(transaction);
                 this.applyLgaGrantorRules(transaction);
             },
@@ -493,13 +512,22 @@
             // Returns the message to show, or '' when the row's OP answers are complete.
             opAnswerProblem(t) {
                 const squash = (v) => String(v || '').replace(/\s+/g, ' ').trim();
-                if (!['Ministry', 'KANGIS', 'LGA', 'Other'].includes(t.opSource)) {
-                    return 'Source is required for an Occupancy Permit. Please select Ministry, KANGIS, LGA or Other.';
+                if (!['Ministry', 'KANGIS', 'LGA', 'Kano MDAs', 'Other'].includes(t.opSource)) {
+                    return 'Source is required for an Occupancy Permit. Please select Ministry, KANGIS, LGA, Kano MDAs or Other.';
+                }
+                if (t.opSource === 'Kano MDAs') {
+                    if (!t.opSourceMda) return 'Source is Kano MDAs: please select the MDA that issued the Occupancy Permit.';
+                    if (t.opSourceMda === 'Other') {
+                        const typed = squash(t.opSourceOther);
+                        if (!typed) return 'MDA is Other: please specify the MDA that issued the Occupancy Permit.';
+                        const listedMda = this.opSourceMdas.find((o) => o.toLowerCase() === typed.toLowerCase());
+                        if (listedMda) return listedMda + ' is already in the MDA list; select it instead of Other.';
+                    }
                 }
                 if (t.opSource === 'Other') {
                     const typed = squash(t.opSourceOther);
                     if (!typed) return 'Source is Other: please specify the Source of the Occupancy Permit.';
-                    const listed = ['Ministry', 'KANGIS', 'LGA'].find((o) => o.toLowerCase() === typed.toLowerCase());
+                    const listed = ['Ministry', 'KANGIS', 'LGA', 'Kano MDAs'].find((o) => o.toLowerCase() === typed.toLowerCase());
                     if (listed) return listed + ' is already in the Source list; select it instead of Other.';
                 }
                 if (t.typeValue === 'Other') {
@@ -515,6 +543,26 @@
 
             categoryOptionsFor(transaction) {
                 return (this.catalogEntryFor(transaction) || {}).categories || [];
+            },
+
+            // Change of Ownership (2026-10-23): a Type stored in instrument_subtype whose
+            // catalogue list offers Other asks for a specify box. An OP's Other is
+            // opTypeOther's, handled above.
+            showSubtypeOther(transaction) {
+                return !!transaction
+                    && this.typeColumnFor(transaction) === 'instrument_subtype'
+                    && transaction.typeValue === 'Other'
+                    && this.typeOptionsFor(transaction).some((o) => o.value === 'Other');
+            },
+
+            // The message to show, or '' when the Type answer is complete.
+            subtypeOtherProblem(t) {
+                if (!this.showSubtypeOther(t)) return '';
+                const typed = String(t.subtypeOther || '').replace(/\s+/g, ' ').trim();
+                if (!typed) return 'Type is Other: please specify the Type.';
+                const listed = this.typeOptionsFor(t)
+                    .find((o) => o.value !== 'Other' && String(o.label).toLowerCase() === typed.toLowerCase());
+                return listed ? listed.label + ' is already in the Type list; select it instead of Other.' : '';
             },
 
             // False for a stored value the catalogue no longer lists, so the select can go
@@ -549,6 +597,7 @@
                 transaction.cofoType = column === 'cofo_type' ? transaction.typeValue : '';
                 // The Type specify text belongs to an OP Type of Other alone.
                 if (!(column === 'op_type' && transaction.typeValue === 'Other')) transaction.opTypeOther = '';
+                if (!this.showSubtypeOther(transaction)) transaction.subtypeOther = '';
 
                 if (column === 'op_type') {
                     // handleOpTypeChange() does the party-1 rules AND the permit's own
@@ -1237,6 +1286,7 @@
                 if (!this.typeOptionsFor(transaction).some((o) => o.value === transaction.typeValue)) {
                     transaction.typeValue = '';
                 }
+                if (!this.showSubtypeOther(transaction)) transaction.subtypeOther = '';
                 if (!this.categoryOptionsFor(transaction).some((o) => o.value === transaction.instrumentCategory)) {
                     transaction.instrumentCategory = '';
                 }
@@ -1245,6 +1295,7 @@
                     transaction.opSerialNumber = '';
                     transaction.opSerialNone = false;
                     transaction.opSource = '';
+                    transaction.opSourceMda = '';
                     transaction.opSourceOther = '';
                     transaction.opTypeOther = '';
 
@@ -1664,7 +1715,8 @@
                 const opProblem = this.transactions
                     .filter(t => this.isOPTransaction(t.transactionType))
                     .map(t => this.opAnswerProblem(t))
-                    .find(Boolean);
+                    .find(Boolean)
+                    || this.transactions.map(t => this.subtypeOtherProblem(t)).find(Boolean);
                 if (opProblem) {
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({ icon: 'error', title: 'Validation Error', text: opProblem, confirmButtonText: 'OK' });
@@ -1681,7 +1733,7 @@
                 );
 
                 if (missingLgaGrantor) {
-                    const msg = 'Select the Local Government that issued the Occupancy Permit.';
+                    const msg = 'Issued by a Local Government: select the Local Government as Party 1.';
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({ icon: 'error', title: 'Validation Error', text: msg, confirmButtonText: 'OK' });
                     } else {
@@ -2085,12 +2137,26 @@
                                                 <option :value="option" x-text="option" :selected="transaction.opSource === option"></option>
                                             </template>
                                         </select>
-                                        <input type="text" x-show="transaction.opSource === 'Other'" x-cloak
+                                        <select x-show="transaction.opSource === 'Kano MDAs'" x-cloak
+                                            x-model="transaction.opSourceMda"
+                                            @change="handleOpSourceMdaChange(transaction)"
+                                            :required="transaction.opSource === 'Kano MDAs'" :disabled="transaction.opSource !== 'Kano MDAs'"
+                                            :name="'transactions[' + index + '][op_source_mda]'"
+                                            aria-label="Kano MDA"
+                                            :class="transaction.opSource === 'Kano MDAs' && !transaction.opSourceMda ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
+                                            class="mt-2 w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                            <option value="">Select MDA</option>
+                                            <template x-for="mda in opSourceMdas" :key="'mda-' + mda">
+                                                <option :value="mda" x-text="mda" :selected="transaction.opSourceMda === mda"></option>
+                                            </template>
+                                            <option value="Other" :selected="transaction.opSourceMda === 'Other'">Other</option>
+                                        </select>
+                                        <input type="text" x-show="opSourceNeedsSpecify(transaction)" x-cloak
                                             x-model="transaction.opSourceOther" maxlength="100"
-                                            :required="transaction.opSource === 'Other'" :disabled="transaction.opSource !== 'Other'"
+                                            :required="opSourceNeedsSpecify(transaction)" :disabled="!opSourceNeedsSpecify(transaction)"
                                             :name="'transactions[' + index + '][op_source_other]'"
-                                            placeholder="Specify source *" aria-label="Specify source"
-                                            :class="transaction.opSource === 'Other' && !String(transaction.opSourceOther || '').trim() ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
+                                            :placeholder="transaction.opSource === 'Kano MDAs' ? 'Specify MDA *' : 'Specify source *'" aria-label="Specify source"
+                                            :class="opSourceNeedsSpecify(transaction) && !String(transaction.opSourceOther || '').trim() ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
                                             class="mt-2 w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
 
@@ -2136,6 +2202,18 @@
                                             :name="'transactions[' + index + '][op_type_other]'"
                                             placeholder="Specify OP type *" aria-label="Specify OP type"
                                             :class="!String(transaction.opTypeOther || '').trim() ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
+                                            class="mt-2 w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        {{-- Change of Ownership Type "Other": one required specify box,
+                                             saved in instrument_subtype_other. LGA needs no box of its
+                                             own: Party 1 becomes the Local Government picker. --}}
+                                        <input type="text"
+                                            x-show="showSubtypeOther(transaction)" x-cloak
+                                            x-model="transaction.subtypeOther" maxlength="100"
+                                            :required="showSubtypeOther(transaction)"
+                                            :disabled="!showSubtypeOther(transaction)"
+                                            :name="'transactions[' + index + '][instrument_subtype_other]'"
+                                            placeholder="Specify type *" aria-label="Specify type"
+                                            :class="!String(transaction.subtypeOther || '').trim() ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'"
                                             class="mt-2 w-full px-3 py-2 text-sm border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                         <p x-show="isLgaOpType(transaction)" x-cloak class="mt-1 text-[11px] text-amber-700">
                                             Issued by a Local Government: registration number is fixed at 0/0/0 and
@@ -2871,8 +2949,15 @@
                                         transactionDate: formattedTransactionDate || '',
                                         opType: storedOpType,
                                         opSource: storedOpSource,
-                                        opSourceOther: record.op_source_other || '',
+                                        // Kano MDAs: a listed name reopens on the MDA select; an
+                                        // unlisted one as MDA Other with its text.
+                                        opSourceMda: storedOpSource === 'Kano MDAs' && record.op_source_other
+                                            ? (FH_OP_SOURCE_MDAS.includes(record.op_source_other) ? record.op_source_other : 'Other')
+                                            : '',
+                                        opSourceOther: storedOpSource === 'Kano MDAs' && FH_OP_SOURCE_MDAS.includes(record.op_source_other)
+                                            ? '' : (record.op_source_other || ''),
                                         opTypeOther: record.op_type_other || '',
+                                        subtypeOther: record.instrument_subtype_other || '',
                                         // The visible Type comes from whichever column this
                                         // instrument stores it in; the catalogue decides which.
                                         typeValue: storedOpType
@@ -2937,8 +3022,11 @@
                                     status: 'Normal',
                                     transactionDate: '',
                                     opSource: '',
+                                    opSourceMda: '',
                                     opSourceOther: '',
                                     opTypeOther: '',
+                                    // Change of Ownership Type Other: the specify text (instrument_subtype_other).
+                                    subtypeOther: '',
                                     typeValue: '',
                                     instrumentCategory: '',
                                     opSerialNumber: '',
@@ -3302,6 +3390,7 @@
             // Permit Source and the two "specify" boxes; pra keeps them (op_source,
             // op_source_other, op_type_other) and every other table drops them.
             op_source: t.opSource || '',
+            op_source_mda: t.opSource === 'Kano MDAs' ? (t.opSourceMda || '') : '',
             op_source_other: String(t.opSourceOther || '').replace(/\s+/g, ' ').trim(),
             op_type_other: String(t.opTypeOther || '').replace(/\s+/g, ' ').trim(),
             // The visible Type, sent under every column name it could belong to. Each
@@ -3310,6 +3399,7 @@
             // file_history_staging.
             type_value: t.typeValue || '',
             instrument_subtype: t.typeValue || '',
+            instrument_subtype_other: String(t.subtypeOther || '').replace(/\s+/g, ' ').trim(),
             instrument_category: t.instrumentCategory || '',
             cofo_type: t.cofoType || '',
             transaction_date: t.transactionDate || '',

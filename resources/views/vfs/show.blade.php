@@ -54,6 +54,21 @@
         }
     </style>
 
+    <div id="vfs-sheet-viewer" class="vfs-sheet-viewer" role="dialog" aria-modal="true" aria-labelledby="vfs-sheet-viewer-title">
+        <div class="vfs-sheet-viewer-panel shadow-lg">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200">
+                <div>
+                    <div id="vfs-sheet-viewer-title" class="text-sm font-semibold text-gray-900">Document</div>
+                    <div class="text-xs text-gray-500">{{ $file->file_number }} · issued by KLAES · read-only</div>
+                </div>
+                <button type="button" id="vfs-sheet-viewer-close" class="p-1 rounded hover:bg-gray-100" aria-label="Close">
+                    <i data-lucide="x" class="h-5 w-5 text-gray-600"></i>
+                </button>
+            </div>
+            <iframe id="vfs-sheet-viewer-frame" title="Document" src="about:blank"></iframe>
+        </div>
+    </div>
+
     <script>
     (function () {
         // Belt and braces: the toolbar is hidden above, but if edit mode were ever
@@ -74,6 +89,28 @@
                     startPageId: el.getAttribute('data-page-id') || null
                 });
             });
+        });
+
+        // Commissioning sheet / LGA confirmation sheet: drawn by KLAES, not scanned,
+        // so they open in their own read-only frame rather than the page viewer.
+        const sheetViewer = document.getElementById('vfs-sheet-viewer');
+        const sheetFrame = document.getElementById('vfs-sheet-viewer-frame');
+        const closeSheet = function () {
+            sheetViewer.classList.remove('is-open');
+            sheetFrame.src = 'about:blank';
+        };
+
+        document.querySelectorAll('[data-vfs-open-system]').forEach(function (el) {
+            el.addEventListener('click', function () {
+                document.getElementById('vfs-sheet-viewer-title').textContent = el.getAttribute('data-title') || 'Document';
+                sheetFrame.src = el.getAttribute('data-url');
+                sheetViewer.classList.add('is-open');
+            });
+        });
+        document.getElementById('vfs-sheet-viewer-close').addEventListener('click', closeSheet);
+        sheetViewer.addEventListener('click', function (e) { if (e.target === sheetViewer) closeSheet(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && sheetViewer.classList.contains('is-open')) closeSheet();
         });
 
         if (window.lucide && typeof window.lucide.createIcons === 'function') {

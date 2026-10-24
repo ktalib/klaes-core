@@ -60,6 +60,38 @@ class PlotExtensionController extends Controller
         ));
     }
 
+    /**
+     * The approved Plot Extension application for a file, for File Commissioning: picking
+     * the file under Extension File links the application, and commissioning marks it
+     * commissioned (MlsFileNoController::generateMlsFileNumber, extension flow).
+     */
+    public function findByFileNo(string $fileNumber): JsonResponse
+    {
+        $record = self::approvedForFile($fileNumber);
+
+        if (!$record) {
+            return response()->json(['success' => false, 'message' => 'No approved Plot Extension application found for this file number.'], 404);
+        }
+
+        return response()->json(['success' => true, 'data' => $record]);
+    }
+
+    /** Newest approved, not deleted, Plot Extension application for this file number. */
+    public static function approvedForFile(?string $fileNumber): ?PlotExtensionApplication
+    {
+        $fileNumber = trim((string) $fileNumber);
+        if ($fileNumber === '') {
+            return null;
+        }
+
+        return PlotExtensionApplication::query()
+            ->whereRaw('UPPER(LTRIM(RTRIM(file_no))) = ?', [mb_strtoupper($fileNumber)])
+            ->where('status', PlotExtensionApplication::STATUS_APPROVED)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
     public function show(int $id): JsonResponse
     {
         $record = PlotExtensionApplication::findOrFail($id);

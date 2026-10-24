@@ -2386,6 +2386,7 @@ class MlsFileNoController extends Controller
                 'merger_app_id' => 'nullable|integer',
                 'subdivision_app_id' => 'nullable|integer',
                 'separation_app_id' => 'nullable|integer',
+                'extension_app_id' => 'nullable|integer',
                 'change_of_purpose_app_id' => 'nullable|integer',
                 'file_option' => 'nullable|string|max:50',
                 'sit_reason' => 'nullable|string|max:1000',
@@ -3316,6 +3317,17 @@ class MlsFileNoController extends Controller
 
                 // Try to fetch tracking ID from grouping table if not provided
                 $trackingId = $validated['tracking_id'] ?? null;
+
+                // A File Extension ("X AND EXTENSION") is its own file and has no grouping
+                // row: it gets a tracking ID of its own, generated on the fly, never the
+                // mother's from grouping (Change Request 22102026, item 23). Any ID the form
+                // posted is ignored here — it was looked up off the mother's number.
+                $isOwnExtension = $fileOption === 'extension'
+                    && \App\Support\FileExtensionTracking::isExtensionNumber($fullFileNumber);
+                if ($isOwnExtension) {
+                    $trackingId = \App\Support\FileExtensionTracking::resolveFor($fullFileNumber);
+                }
+
                 if (empty($trackingId)) {
                     $trackingId = $this->tryFetchTrackingIdFromGrouping($lookupFileNumber);
                 }
@@ -3517,7 +3529,11 @@ class MlsFileNoController extends Controller
                 $motherOwner = null;
 
 
-                try {
+                // An extension leaves the mother's grouping row alone: linking it would
+                // write "X AND EXTENSION" over the mother's own number there.
+                if (!empty($isOwnExtension)) {
+                    $this->logPlotsWorkflow('info', 'Extension: mother grouping row left untouched', ['file' => $fullFileNumber]);
+                } else try {
                     $groupingService = app(\App\Services\GroupingFileNumberService::class);
                     $registryName = $validated['registry'] ?? 'Lands Registry';
 
@@ -4377,9 +4393,36 @@ class MlsFileNoController extends Controller
                         ->where('mlsFNo', $fullFileNumber)
                         ->update(['comments' => $extensionComment]);
 
+                    // Plot Extension application (Land / Deeds register): the one the form
+                    // linked, else the approved one for this file. Marked commissioned so the
+                    // register shows the new number and stops offering it.
+                    $extensionApp = null;
+                    if (!empty($validated['extension_app_id'])) {
+                        $extensionApp = \App\Models\PlotExtensionApplication::query()
+                            ->where('id', $validated['extension_app_id'])
+                            ->where('status', \App\Models\PlotExtensionApplication::STATUS_APPROVED)
+                            ->first();
+                        if ($extensionApp && strcasecmp(trim((string) $extensionApp->file_no), trim((string) $oldFile)) !== 0) {
+                            Log::warning('Extension application belongs to another file; not linked', [
+                                'app_id' => $extensionApp->id, 'app_file_no' => $extensionApp->file_no, 'extended_file' => $oldFile,
+                            ]);
+                            $extensionApp = null;
+                        }
+                    }
+                    $extensionApp ??= \App\Http\Controllers\LandsOneStopShop\PlotExtensionController::approvedForFile($oldFile);
+                    if ($extensionApp) {
+                        $extensionApp->update([
+                            'status'     => \App\Models\PlotExtensionApplication::STATUS_COMMISSIONED,
+                            'remarks'    => trim(($extensionApp->remarks ? $extensionApp->remarks . ' | ' : '')
+                                . "Commissioned extension file: {$fullFileNumber} on " . now()->toDateTimeString()),
+                            'updated_by' => Auth::id(),
+                        ]);
+                        Log::info('Plot Extension application marked as commissioned', ['app_id' => $extensionApp->id, 'file_no' => $fullFileNumber]);
+                    }
+
                     $parcelNotifier->notifyCommissioned(
                         'extension',
-                        null,
+                        $extensionApp?->id,
                         $oldFile,
                         $fullFileNumber,
                         $commissionedBy

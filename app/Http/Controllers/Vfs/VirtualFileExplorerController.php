@@ -117,6 +117,28 @@ class VirtualFileExplorerController extends Controller
         ]);
     }
 
+    /**
+     * One commissioning-stage document (commissioning sheet / LGA confirmation
+     * sheet), drawn read-only from the commissioning records. Only a key the
+     * folio itself lists, and only when it is available, ever renders.
+     */
+    public function systemDocument(FileIndexing $fileIndexing, string $key)
+    {
+        $listed = collect($this->presenter->systemDocuments($fileIndexing))
+            ->first(fn (array $doc) => $doc['key'] === $key && $doc['available']);
+        abort_unless($listed, 404);
+
+        $html = app(\App\Services\Laas\LaasFolioService::class)
+            ->renderCommissioningDocument((string) $fileIndexing->file_number, $key);
+        abort_if($html === null, 404, 'This document could not be drawn.');
+
+        return response($html, 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Cache-Control' => 'private, no-store',
+            'X-Frame-Options' => 'SAMEORIGIN',
+        ]);
+    }
+
     public function lineage(FileIndexing $fileIndexing): JsonResponse
     {
         return response()->json([

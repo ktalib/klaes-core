@@ -1200,7 +1200,7 @@ class FileLocationResolver
                 ['next_action' => 'Ready for Indexing', 'is_blind' => true],
 
             self::STATUS_NOT_FOUND =>
-                ['next_action' => 'Print Missing File Confirmation Slip', 'slip_variant' => 'missing'],
+                ['next_action' => 'Print Not With KLAES (NWK) Confirmation Slip', 'slip_variant' => 'missing'],
 
             // File is recorded in missing_files — SCB already searched and confirmed
             // missing. The next step is to send a request to the Original Registry.

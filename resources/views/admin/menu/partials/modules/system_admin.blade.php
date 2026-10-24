@@ -60,21 +60,7 @@
         </a>
       @endif
 
-      @if($hasRole('Departments') || $hasRole('System Settings') || $hasRole('Supper Admin'))
-        <a href="{{ route('departments.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('departments.*') ? 'active' : '' }}">
-          <i data-lucide="building" class="h-4 w-4 text-slate-500"></i>
-          <span>Departments</span>
-        </a>
-      @endif
-
-      @if($hasRole('User Roles') || $hasRole('System Settings') || $hasRole('Supper Admin'))
-        <a href="{{ route('user-roles.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('user-roles.*') ? 'active' : '' }}">
-          <i data-lucide="shield" class="h-4 w-4 text-slate-500"></i>
-          <span>User Roles</span>
-        </a>
-      @endif
+      {{-- Departments and User Roles: managed under Configurable Entries (Change Request 22102026, item 18). --}}
 
       @if(auth()->user()->assign_role === 'Supper Admin')
         {{-- <a href="{{ route('admin.manual-linkage.index') }}"
@@ -174,6 +160,12 @@
           class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('system-admin.mobile-apps.*') ? 'active' : '' }}">
           <i data-lucide="smartphone" class="h-4 w-4 text-slate-500"></i>
           <span>KLAES Mobile Apps</span>
+        </a>
+
+        <a href="{{ route('system-admin.klaes-documentation') }}"
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('system-admin.klaes-documentation*') ? 'active' : '' }}">
+          <i data-lucide="library" class="h-4 w-4 text-slate-500"></i>
+          <span>KLAES Documentation</span>
         </a>
       @endif
     </div>

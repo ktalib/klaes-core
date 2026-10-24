@@ -1479,6 +1479,13 @@ Route::middleware(['auth', 'XSS'])->group(function () {
         ->name('system-admin.mobile-apps.show');
     Route::post('/system-admin/mobile-apps/{mobileApp}', [App\Http\Controllers\SystemAdmin\MobileAppController::class, 'update'])
         ->name('system-admin.mobile-apps.update');
+
+    // System Admin > KLAES Documentation: manuals, SoPs, system docs, quarterly reports.
+    Route::get('/system-admin/klaes-documentation', [App\Http\Controllers\SystemAdmin\KlaesDocumentationController::class, 'index'])
+        ->name('system-admin.klaes-documentation');
+    Route::get('/system-admin/klaes-documentation/{section}/{name}', [App\Http\Controllers\SystemAdmin\KlaesDocumentationController::class, 'file'])
+        ->where(['section' => 'manuals|sops|system|reports', 'name' => '[^/]+'])
+        ->name('system-admin.klaes-documentation.file');
 });
 
 // Public download pages for the mobile apps: the link that gets shared, so a

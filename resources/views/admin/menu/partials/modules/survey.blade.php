@@ -5,7 +5,7 @@
     @if(
       $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') ||
       $hasRole('Survey - GIS') || $hasRole('Survey - E-Registry') ||
-      $hasRole('Survey Reports') || $hasRole('Generate New FileNo (GKNFileNo)') || $hasRole('Supper Admin')
+      $hasRole('Survey Reports') || $hasRole('Survey - Beacon Register') || $hasRole('Supper Admin')
     )
     @php
       $svSoon = fn (string $label, string $icon) =>
@@ -14,6 +14,8 @@
           . '<span>' . e($label) . '</span>'
           . '<span class="ml-auto text-[10px] uppercase tracking-wide text-gray-400">Soon</span></a>';
       $svRecords = $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin');
+      // Beacon Register has its own role (user, 2026-10-23); it shows alone for a user who holds only that.
+      $svBeacon  = $hasRole('Survey - Beacon Register');
     @endphp
     <div class="py-1 px-3 mb-0.5 border-t border-slate-100">
       <div class="sidebar-module-header flex items-center justify-between py-2 px-3 mb-0.5 cursor-pointer hover:bg-slate-50 rounded-md" data-module="survey">
@@ -118,7 +120,7 @@
         @endif
 
         {{-- c. GKN --}}
-        @if($svRecords || $hasRole('Generate New FileNo (GKNFileNo)'))
+        @if($svRecords)
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn">
           <div class="flex items-center gap-2">
             <i data-lucide="building-2" class="h-4 w-4 text-pink-500"></i>
@@ -142,13 +144,7 @@
               <span>GKN Files</span>
             </a>
             @endif
-            {{-- Generate New FileNo is kept for users who hold only that role. --}}
-            @if($hasRole('Generate New FileNo (GKNFileNo)') || $hasRole('Supper Admin'))
-            <a href="{{ route('gkn-generation.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('gkn-generation.index') ? 'active' : '' }}">
-              <i data-lucide="plus-square" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Generate New FileNo (GKNFileNo)</span>
-            </a>
-            @endif
+            {{-- Generate New FileNo (GKNFileNo) hidden from the sidebar (user, 2026-10-23); the page and route remain. --}}
             @if($svRecords)
             <a href="{{ route('survey-module.records.lpkn') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn') && request('view') === 'lpkn' ? 'active' : '' }}">
               <i data-lucide="layers" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -214,7 +210,7 @@
         </div>
         @endif
 
-        @if($svRecords)
+        @if($svRecords || $svBeacon)
         {{-- e. Examination/Verification --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-examination">
             <div class="flex items-center gap-2">
@@ -224,16 +220,22 @@
             <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-examination"></i>
           </div>
           <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-examination">
+            @if($svRecords)
             {!! $svSoon('Register File', 'file-input') !!}
             {!! $svSoon('Boundary Dispute', 'split') !!}
             {!! $svSoon('Old Surveys', 'history') !!}
             {!! $svSoon('Control Points', 'crosshair') !!}
+            @endif
+            @if($svBeacon)
             <a href="{{ route('survey-module.workflow.beacon-register.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.beacon-register.*') ? 'active' : '' }}">
               <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Beacon Register</span>
             </a>
+            @endif
+            @if($svRecords)
             {!! $svSoon('Coordinate Register', 'grid-3x3') !!}
             {!! $svSoon('Surveyors\' Report', 'file-check') !!}
+            @endif
           </div>
         @endif
 

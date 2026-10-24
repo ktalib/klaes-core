@@ -348,7 +348,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/movement-history/print', [FilearchiveController::class, 'printMovementHistory'])->name('filearchive.movement-history.print');
         Route::post('/upload', [FilearchiveController::class, 'upload'])->name('filearchive.upload');
         Route::get('/view/{id}', [FilearchiveController::class, 'view'])->name('filearchive.view');
-        Route::delete('/delete/{id}', [FilearchiveController::class, 'delete'])->name('filearchive.delete');
+        // Delete File (Change Request 22102026 item 28) — Super Admin only.
+        Route::middleware('super.admin')->group(function () {
+            Route::get('/delete/{id}/preview', [FilearchiveController::class, 'deletePreview'])->name('filearchive.delete.preview');
+            Route::delete('/delete/{id}', [FilearchiveController::class, 'delete'])->name('filearchive.delete');
+        });
 
         // Quality Control — in-place page image edits (rotate/enhance/replace) + review status
         Route::post('/pages/{pageTyping}/apply-edits', [FilearchiveController::class, 'applyPageEdits'])->name('filearchive.pages.apply-edits');

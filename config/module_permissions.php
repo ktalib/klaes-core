@@ -175,6 +175,8 @@ return [
 
         // ---- Survey, Cadastral, GIS -----------------------------------------------------
         'survey_record.*' => 'Survey - Records',
+        // Its own role (user, 2026-10-23); must stay above survey-module.* (first match wins).
+        'survey-module.workflow.beacon-register.*' => 'Survey - Beacon Register',
         'survey-module.*' => 'Survey - Records',
         'gkn-generation.*' => 'Generate New FileNo (GKNFileNo)',
 
@@ -247,6 +249,10 @@ return [
         // Reads like a lookup, updates rows (InstrumentController::resolveOpDuplicates
         // writes at ~line 2836). Named here rather than trusted to a pattern.
         'instruments.resolveOpDuplicates' => 'edit',
+
+        // Beacon Register footer sign-offs (Reviewed by / Audited by), not new records.
+        'survey-module.workflow.beacon-register.review' => 'approve',
+        'survey-module.workflow.beacon-register.audit' => 'approve',
 
         // Listing screens whose NAME contains "certificate", which the print pattern below
         // would otherwise claim. These open a page; they do not print anything.

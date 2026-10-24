@@ -94,6 +94,7 @@ function renderRows(rows) {
         <td class="px-4 py-3 whitespace-nowrap">
           <span class="font-semibold text-slate-800">${escapeHtml(row.file_number)}</span>
         </td>
+        <td class="px-4 py-3 whitespace-nowrap font-mono text-xs text-slate-700">${dash(row.temp_file_no)}</td>
         <td class="px-4 py-3 text-slate-700 max-w-[18rem] truncate" title="${escapeHtml(row.file_title || '')}">${dash(row.file_title)}</td>
         <td class="${cell}">${dash(row.land_use_type)}</td>
         <td class="px-4 py-3 text-slate-600 max-w-[16rem] truncate" title="${escapeHtml(location)}">${dash(location)}</td>
@@ -271,6 +272,10 @@ async function openDetails(id) {
     const meta = `
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div class="rounded-xl border border-slate-100 p-3">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Temp File No (file &amp; transactions)</p>
+          <p class="text-sm text-slate-800 mt-0.5 font-mono font-semibold">${dash(r.temp_file_no)}</p>
+        </div>
+        <div class="rounded-xl border border-slate-100 p-3">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Duplicate Of</p>
           <p class="text-sm text-slate-800 mt-0.5">${dash(r.duplicate_of)}</p>
         </div>
@@ -294,6 +299,29 @@ async function openDetails(id) {
             <strong>Commissioning record kept.</strong> A row for this file still exists in
             <code>mls_file_no</code>. That table is outside the cascade, so the file remains commissioned.
           </p>
+        </div>`
+      : '';
+
+    // What the move archived and removed, grouped (indexing, registry, property &
+    // title, file tracking, parties, linked rows).
+    const groups = Array.isArray(payload.summary) ? payload.summary : [];
+    const removedTotal = groups.reduce((sum, g) => sum + Number(g.total || 0), 0);
+    // Inline styles: the layout's Tailwind v2.2.19 CDN has no rose palette or
+    // arbitrary sizes, so class-only styling would render this as plain text.
+    const summaryCard = groups.length
+      ? `<div style="background:#fff1f2;border:1px solid #fda4af;border-radius:12px;padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#be123c;">Archived &amp; Removed</span>
+            <span style="font-size:12px;font-weight:600;color:#be123c;">${removedTotal.toLocaleString()} row(s) in ${groups.length} group(s)</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:10px;">
+            ${groups.map((g) => `
+              <div style="background:#fff;border:1px solid #fecdd3;border-radius:8px;padding:8px 10px;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">${escapeHtml(g.group)}</div>
+                <div style="font-size:22px;font-weight:700;color:#be123c;line-height:1.2;">${Number(g.total).toLocaleString()}</div>
+                <div style="font-size:11px;color:#64748b;line-height:1.35;">${(g.tables || []).map((t) => `${escapeHtml(t.label)} (${Number(t.count).toLocaleString()})`).join('<br>')}</div>
+              </div>`).join('')}
+          </div>
         </div>`
       : '';
 
@@ -322,7 +350,7 @@ async function openDetails(id) {
       .map(([label, rows]) => renderSnapshotTable(label, rows))
       .join('');
 
-    dom.modalBody.innerHTML = meta + mlsNote + retainedNote + childNote + tables;
+    dom.modalBody.innerHTML = summaryCard + meta + mlsNote + retainedNote + childNote + tables;
     refreshIcons();
   } catch (error) {
     console.error('Failed to load snapshot:', error);

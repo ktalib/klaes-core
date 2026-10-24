@@ -247,6 +247,38 @@
                                     </select>
                                 </div>
 
+                                {{-- Physical Registry, directly under General Registry as on the
+                                     indexing form (it moved there from Digital Archive Details and
+                                     this copy never followed, so every save was refused: the shared
+                                     update requires it). Backfilled from the record; a stored value
+                                     that is not in the list is kept as its own option rather than
+                                     blanked on save. --}}
+                                @php
+                                    $kangisPhysical = trim((string) ($record->physical_registry ?? ''));
+                                    $kangisPhysicalListed = $kangisPhysical === '' || $kangisPhysical === 'Other'
+                                        || collect($physicalRegistries ?? [])->contains(fn ($p) => trim((string) $p->name) === $kangisPhysical);
+                                @endphp
+                                <div class="form-group mt-4">
+                                    <label for="physical-registry" class="block text-sm font-medium text-gray-700 mb-2">Physical Registry <span
+                                            class="text-red-500">*</span></label>
+                                    <select id="physical-registry"
+                                        class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        name="physical_registry" required>
+                                        <option value="">Select Registry</option>
+                                        @if(isset($physicalRegistries))
+                                            @foreach($physicalRegistries as $pHregistry)
+                                                <option value="{{ $pHregistry->name }}" {{ trim((string) $pHregistry->name) === $kangisPhysical ? 'selected' : '' }}>
+                                                    {{ $pHregistry->name }}
+                                                </option>
+                                            @endforeach
+                                        @endif
+                                        @unless($kangisPhysicalListed)
+                                            <option value="{{ $kangisPhysical }}" selected>{{ $kangisPhysical }}</option>
+                                        @endunless
+                                        <option value="Other" {{ $kangisPhysical === 'Other' ? 'selected' : '' }}>Other</option>
+                                    </select>
+                                </div>
+
                                 <!-- Reason for Investigation (DCIV) - Conditional Display -->
                                 <div class="form-group mt-6 hidden" id="dciv-reason-container">
                                     <label for="dciv-reason" class="block text-sm font-medium text-gray-700 mb-2">
@@ -966,6 +998,29 @@
                                      // Value not found in dropdown options — leave dropdown unchanged
                                 }
                                 genRegistrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+
+                        // Physical Registry, the same way. A stored value missing from the
+                        // list is added as an option so it is kept, not blanked, on save.
+                        const physRegistrySelect = document.getElementById('physical-registry');
+                        if (physRegistrySelect) {
+                            const physVal = String(record.physical_registry || record.physicalRegistry || '').trim();
+                            if (physVal) {
+                                let matched = false;
+                                for (let i = 0; i < physRegistrySelect.options.length; i++) {
+                                    if (physRegistrySelect.options[i].value.trim() === physVal || physRegistrySelect.options[i].text.trim() === physVal) {
+                                        physRegistrySelect.selectedIndex = i;
+                                        matched = true;
+                                        break;
+                                    }
+                                }
+                                if (!matched) {
+                                    const opt = new Option(physVal, physVal, true, true);
+                                    const otherOpt = Array.from(physRegistrySelect.options).find((o) => o.value === 'Other');
+                                    physRegistrySelect.insertBefore(opt, otherOpt || null);
+                                }
+                                physRegistrySelect.dispatchEvent(new Event('change', { bubbles: true }));
                             }
                         }
                     }

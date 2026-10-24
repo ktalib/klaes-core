@@ -5475,8 +5475,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const modalContainer = document.querySelector('#generateModal [x-data="fileNumberGenerator()"]');
         const component = modalContainer && modalContainer._x_dataStack ? modalContainer._x_dataStack[0] : null;
 
-        const fileName = (record.party_2_name || record.party_1_name || '').toString().trim();
+        let fileName = (record.party_2_name || record.party_1_name || '').toString().trim();
+        // plotNo is this OP's own plot (used to strip it out of the location);
+        // commissionPlotNo is what the commissioning card shows — every merged plot.
         const plotNo = (record.plot_number || '').toString().trim();
+        let commissionPlotNo = plotNo;
+        let mergerNames = (record.merger_file_name || '').toString().trim();
+        let mergerPlots = (record.merger_plot_nos || '').toString().trim();
+        // A later OP of a merger picked from the lookup: add its holder and plot.
+        // (A newly typed OP was already added in submitPraRecord, which marks the
+        // record skip_op_saved_dialog.)
+        if (window._isOngoingMerger === true && record.skip_op_saved_dialog !== true) {
+            rememberMergerOp(record.party_2_name, record.plot_number);
+        }
         const tpNo = (record.tp_no || '').toString().trim();
         const lga = (record.lga || record.survey_lga || '').toString().trim();
         const street = (record.street_name || '').toString().trim();
@@ -5676,7 +5687,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // this guard the user sees the same dialog twice and has to click
         // "Continue with File Commissioning" two times before the commission
         // modal opens.
-        if (window.ossOpContext === true && !isFfrExistingManualRegistrationFlow() && window._isOngoingMerger !== true && record && record.skip_op_saved_dialog !== true) {
+        // Shown after EVERY OP of a merger too (it used to be skipped once a merger
+        // was under way, which sent the second OP straight to commissioning with
+        // only its own holder and plot): the officer either adds another OP or
+        // chooses Continue with File Commissioning for the whole group.
+        if (window.ossOpContext === true && !isFfrExistingManualRegistrationFlow() && record && record.skip_op_saved_dialog !== true) {
             const opSavedAction = await showOpSavedActionsDialog({ propId: record.prop_id });
 
             if (opSavedAction === 'end') {
@@ -5714,6 +5729,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     await stampPraMergerGroup(record.prop_id, window._mergerGroupId);
                 }
 
+                // This OP's holder and plot join the merged file's name and plot.
+                rememberMergerOp(record.party_2_name, record.plot_number);
+
                 resetOpFormForNextMergerCapture();
                 if (elements.submitBtn) {
                     elements.submitBtn.dataset.submitting = '';
@@ -5726,6 +5744,38 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             // 'proceed' (or after Subdivision flagged) — fall through to commission.
+        }
+
+        // Merger → Continue with File Commissioning: the one commissioned file
+        // carries every merged OP's holder and plot. The holders also go out as the
+        // source "original owner", so the Land commissioning check (file title must
+        // match the OP allottee) sees the same names on both sides, and the
+        // post-commission step sees no name change and records no Transfer of Title:
+        // a merger with the same holders is not a change of ownership.
+        if (!mergerNames && window._isOngoingMerger === true) {
+            const summary = mergerSummary();
+            mergerNames = summary.names;
+            mergerPlots = summary.plots;
+        }
+        if (mergerNames) {
+            fileName = mergerNames;
+            if (window.pendingExistingOpPraContext) {
+                window.pendingExistingOpPraContext.merger_source_parties = mergerNames;
+            }
+            if (window.lastCommissionSourceOp) {
+                window.lastCommissionSourceOp.original_owner = mergerNames;
+            }
+        }
+        if (mergerPlots) {
+            commissionPlotNo = mergerPlots;
+            if (window.pendingExistingOpPraContext) {
+                window.pendingExistingOpPraContext.merger_plot_nos = mergerPlots;
+            }
+        }
+        const sourceOriginalOwner = mergerNames || record.party_2_name || record.party_2 || record.Grantee || '';
+        if (window._isOngoingMerger === true) {
+            // The merger ends here: the next OP captured starts a new one.
+            resetMergerState();
         }
 
         if (component) {
@@ -5747,7 +5797,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             component.defaultAllocationType = defaultAllocationType;
             component.batchMode = false;
-            component.plotNo = plotNo;
+            component.plotNo = commissionPlotNo;
             component.tpNo = tpNo;
             component.location = location;
             component.lga = lga;
@@ -5762,7 +5812,7 @@ document.addEventListener('DOMContentLoaded', function () {
             component.sourceSerialNo = record.serial_no || '';
             component.sourcePageNo = record.page_no || record.serial_no || '';
             component.sourceVolumeNo = record.volume_no || '';
-            component.sourceOriginalOwner = record.party_2_name || record.party_2 || record.Grantee || '';
+            component.sourceOriginalOwner = sourceOriginalOwner;
             // Existing OP linkage should be enforced; brand-new OP flow keeps this false.
             component.requireOpSource = hasExistingSource;
 
@@ -5771,7 +5821,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 component.currentEntryIndex = 0;
             }
 
-            component.locationEntries[0].plotNo = plotNo;
+            component.locationEntries[0].plotNo = commissionPlotNo;
             component.locationEntries[0].tpNo = tpNo;
             component.locationEntries[0].location = location;
             component.locationEntries[0].lga = lga;
@@ -5833,7 +5883,7 @@ document.addEventListener('DOMContentLoaded', function () {
         setHidden('source_serial_no', record.serial_no || '');
         setHidden('source_page_no', record.page_no || record.serial_no || '');
         setHidden('source_volume_no', record.volume_no || '');
-        setHidden('source_original_owner', record.party_2_name || record.party_2 || record.Grantee || '');
+        setHidden('source_original_owner', sourceOriginalOwner);
         setHidden('require_op_source', hasExistingSource ? '1' : '0');
 
         if (typeof window.openCommissionFileNoModal === 'function') {
@@ -9867,7 +9917,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // Prevent continueWithFileCommissioningFromLookup from showing the
             // same dialog a second time (which made the user click Continue
             // twice before the commission modal opened).
-            skip_op_saved_dialog: true
+            skip_op_saved_dialog: true,
+            // A merger: every OP's holder and plot, for the commissioned file. Empty
+            // for a single OP. (The lists are cleared just below, so they travel
+            // on the record.)
+            merger_file_name: (window._mergerTransferGrantors || []).length > 1 ? mergedTransferFrom : '',
+            merger_plot_nos: (window._mergerPlotNos || []).length > 1 ? mergedPlotNo : ''
         };
 
         // Mark OP capture as submitted so close handler knows the transaction completed.
@@ -9882,6 +9937,50 @@ document.addEventListener('DOMContentLoaded', function () {
         // Open commission modal. After file generation, submitPendingExistingOpPra
         // updates this same prop_id with the commissioned file number.
         continueWithFileCommissioningFromLookup(newOpRecord);
+    }
+
+    // ── Merger: one file commissioned for several OPs ───────────────────────
+    // Every OP captured or picked during a merger adds its holder and plot here,
+    // so the commissioned file can carry all of them ("ADO UMAR and NAZIFI UMAR",
+    // "4256A and 4256B") instead of only the last OP's. Both capture paths feed it:
+    // a newly typed OP (submitPraRecord) and an existing OP picked from the lookup
+    // (continueWithFileCommissioningFromLookup).
+    function rememberMergerOp(name, plot) {
+        const norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+        name = (name || '').toString().trim();
+        plot = (plot || '').toString().trim();
+        window._mergerTransferGrantors = window._mergerTransferGrantors || [];
+        window._mergerPlotNos = window._mergerPlotNos || [];
+        if (name && !window._mergerTransferGrantors.some((n) => norm(n) === norm(name))) {
+            window._mergerTransferGrantors.push(name);
+        }
+        if (plot && !window._mergerPlotNos.some((p) => norm(p) === norm(plot))) {
+            window._mergerPlotNos.push(plot);
+        }
+    }
+
+    function formatMergerList(list) {
+        list = (list || []).filter((v) => (v || '').toString().trim() !== '');
+        if (list.length <= 1) return list[0] || '';
+        if (list.length === 2) return list[0] + ' and ' + list[1];
+        return list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+    }
+
+    // Combined names/plots, or '' when the merger has collected only one of them.
+    function mergerSummary() {
+        const names = window._mergerTransferGrantors || [];
+        const plots = window._mergerPlotNos || [];
+        return {
+            names: names.length > 1 ? formatMergerList(names) : '',
+            plots: plots.length > 1 ? formatMergerList(plots) : '',
+        };
+    }
+
+    function resetMergerState() {
+        window._mergerGroupId = null;
+        window._isOngoingMerger = false;
+        window._mergerTransferGrantors = [];
+        window._mergerPlotNos = [];
     }
 
     function generateMergerUuid() {
@@ -10183,7 +10282,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const createData = await createResp.json().catch(() => null);
             const createdPropId = (createData?.data?.prop_id || createData?.data?.propId || '').toString().trim();
-            const createdPraId = (createData?.data?.id || '').toString().trim();
+            // When the OP already exists in Deeds, the API links to it instead of
+            // creating a PRA row and answers with THAT row: source_table
+            // 'instrument_capture' / 'deed_registrations' and its id. That id is not a
+            // PRA id — sending it on as source_pra_id pointed commissioning at
+            // whatever unrelated PRA row shares the number (e.g. capture 34726 →
+            // pra 34726, a Deed of Assignment) and the OP check refused it. Only a
+            // real PRA id is used; the link to the OP still travels by prop_id.
+            const createdSourceTable = (createData?.data?.source_table || 'pra').toString().toLowerCase();
+            const createdPraId = createdSourceTable === 'pra'
+                ? (createData?.data?.id || '').toString().trim()
+                : '';
 
             const flattenErrors = (errorsObj) => {
                 if (!errorsObj || typeof errorsObj !== 'object') return '';

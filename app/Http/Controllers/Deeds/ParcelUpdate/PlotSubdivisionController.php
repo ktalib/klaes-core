@@ -59,6 +59,9 @@ class PlotSubdivisionController extends Controller
     {
         $limit = max(10, min((int) $request->input('limit', 50), 200));
         $search = trim((string) $request->input('search'));
+        // A search for the grandmother (the file before a Change of Purpose) also finds
+        // the subdivisions raised on the file the CoP made of it.
+        $copSuccessors = $search !== '' ? app(\App\Services\ChangeOfPurposeLineage::class)->successorsMatching($search) : [];
 
         $records = PlotSubdivisionApplication::query()
             ->where(function($q) {
@@ -68,12 +71,15 @@ class PlotSubdivisionController extends Controller
             ->where(function($q) {
                 $q->whereNull('status')->orWhere('status', '!=', TitleStatusParcelRouter::HIDDEN_STATUS);
             })
-            ->when($search, function ($q) use ($search) {
-                $q->where(function ($sub) use ($search) {
+            ->when($search, function ($q) use ($search, $copSuccessors) {
+                $q->where(function ($sub) use ($search, $copSuccessors) {
                     $sub->where('applicant_name', 'LIKE', "%{$search}%")
                         ->orWhere('file_no', 'LIKE', "%{$search}%")
                         ->orWhere('file_title', 'LIKE', "%{$search}%")
                         ->orWhere('plot_no', 'LIKE', "%{$search}%");
+                    if ($copSuccessors) {
+                        $sub->orWhereIn('file_no', $copSuccessors);
+                    }
                 });
             })
             ->orderByDesc('created_at')

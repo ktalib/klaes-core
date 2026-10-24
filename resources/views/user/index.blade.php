@@ -249,7 +249,7 @@
                         ] as $tabKey => $tabLabel)
                             @php $isActiveTab = $activeTab === $tabKey; @endphp
                             {{-- Tabs are links, not Alpine state: each tab is its own paginated query. --}}
-                            <a href="{{ route('users.index', ['tab' => $tabKey, 'search' => $search, 'per_page' => $perPage, 'sort' => $sort, 'dir' => $direction]) }}"
+                            <a href="{{ route('users.index', ['tab' => $tabKey, 'search' => $search, 'department' => $departmentId ?: null, 'per_page' => $perPage, 'sort' => $sort, 'dir' => $direction]) }}"
                                class="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-semibold transition-all duration-200 {{ $isActiveTab ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200/60' : 'bg-white text-gray-600 border-gray-200 hover:text-indigo-600 hover:border-indigo-300' }}">
                                 <span>{{ $tabLabel }}</span>
                                 <span class="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold rounded-full {{ $isActiveTab ? 'bg-white text-indigo-600' : 'bg-indigo-50 text-indigo-600' }}">
@@ -275,6 +275,16 @@
                                    class="search-input w-full rounded-lg border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                         </div>
                         <div class="flex items-center gap-2">
+                            <label for="department" class="text-sm text-gray-600 whitespace-nowrap">{{ __('Department') }}</label>
+                            <select id="department" name="department" onchange="this.form.submit()"
+                                    class="rounded-lg border-gray-300 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">{{ __('All Departments') }}</option>
+                                @foreach ($departments as $department)
+                                    <option value="{{ $department->id }}" @selected($departmentId === (int) $department->id)>{{ $department->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2">
                             <label for="per_page" class="text-sm text-gray-600 whitespace-nowrap">{{ __('Show') }}</label>
                             <select id="per_page" name="per_page" onchange="this.form.submit()"
                                     class="rounded-lg border-gray-300 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -285,7 +295,7 @@
                             <button type="submit" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
                                 {{ __('Search') }}
                             </button>
-                            @if ($search !== '')
+                            @if ($search !== '' || $departmentId)
                                 <a href="{{ route('users.index', ['tab' => $activeTab, 'per_page' => $perPage, 'sort' => $sort, 'dir' => $direction]) }}"
                                    class="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg border border-gray-200 hover:bg-gray-50">
                                     {{ __('Clear') }}
@@ -301,8 +311,8 @@
                         'users' => $users,
                         'tableId' => $activeTab . 'UsersTable',
                         'emptyStateTitle' => $activeTab === 'mdc' ? __('No MDC users found') : __('No MLPP users found'),
-                        'emptyStateSubtitle' => $search !== ''
-                            ? __('No user matches ":term". Try a different search.', ['term' => $search])
+                        'emptyStateSubtitle' => $search !== '' || $departmentId
+                            ? ($search === '' ? __('No user in this department. Try another department.') : __('No user matches ":term". Try a different search.', ['term' => $search]))
                             : ($activeTab === 'mdc' ? __('Invite new MDC users or adjust filters.') : __('Create a new MLPP user or adjust filters.')),
                     ])
 

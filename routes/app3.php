@@ -64,6 +64,7 @@ use App\Http\Controllers\KangisPrintLabelController;
 use App\Http\Controllers\SltrPrintLabelController;
 use App\Http\Controllers\StPrintLabelController;
 use App\Http\Controllers\DcivPrintLabelController;
+use App\Http\Controllers\PrintLabelQrExportController;
 use App\Http\Controllers\LegalSearchTokenController;
 use App\Http\Controllers\MortgageController;
 use App\Http\Controllers\SurrenderReleaseController;
@@ -356,6 +357,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/{id}/generate-recommendation', [PlotExtensionController::class, 'generateRecommendation'])->name('generate-recommendation')->where('id', '[0-9]+');
         Route::get('/{id}/print-recommendation', [PlotExtensionController::class, 'printRecommendation'])->name('print-recommendation')->where('id', '[0-9]+');
         Route::post('/{id}/knupda', [PlotExtensionController::class, 'updateKnupda'])->name('knupda')->where('id', '[0-9]+');
+        // File Commissioning (Extension File) links the approved application for the file.
+        Route::get('/find-by-file/{fileNumber}', [PlotExtensionController::class, 'findByFileNo'])->name('find-by-file');
         Route::get('/{id}', [PlotExtensionController::class, 'show'])->name('show')->where('id', '[0-9]+');
         Route::put('/{id}', [PlotExtensionController::class, 'update'])->name('update')->where('id', '[0-9]+');
         Route::delete('/{id}', [PlotExtensionController::class, 'destroy'])->name('destroy')->where('id', '[0-9]+');
@@ -941,6 +944,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/{id}/mark-duplicate', [IndexedFileTableController::class, 'markAsDuplicate'])->name('mark-duplicate');
         Route::get('/{id}/indexing-duplicate-preview', [IndexedFileTableController::class, 'previewIndexingDuplicateMove'])->name('indexing-duplicate-preview');
         Route::post('/{id}/move-to-indexing-duplicates', [IndexedFileTableController::class, 'moveToIndexingDuplicates'])->name('move-to-indexing-duplicates');
+        // Move Transaction — Super Admin only, re-checked in the controller.
+        Route::get('/{id}/transactions-for-move', [App\Http\Controllers\MovedTransactionController::class, 'forFile'])->name('transactions-for-move');
+        Route::post('/{id}/move-transactions', [App\Http\Controllers\MovedTransactionController::class, 'move'])->name('move-transactions');
         // Master Delete — Supper Admin only, re-checked in the controller.
         Route::delete('/{id}/master-delete', [IndexedFileTableController::class, 'masterDelete'])->name('master-delete');
         Route::post('/{id}/set-temp-file', [IndexedFileTableController::class, 'setTempFile'])->name('set-temp-file');
@@ -965,6 +971,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stats', [App\Http\Controllers\IndexingDuplicateController::class, 'stats'])->name('stats');
         Route::get('/list', [App\Http\Controllers\IndexingDuplicateController::class, 'list'])->name('list');
         Route::get('/{id}', [App\Http\Controllers\IndexingDuplicateController::class, 'show'])->name('show');
+    });
+
+    // Transactions moved off indexed files by "Move Transaction".
+    Route::get('/moved-transactions', [App\Http\Controllers\MovedTransactionController::class, 'index'])
+        ->name('moved-transactions.index');
+    Route::prefix('api/moved-transactions')->name('moved-transactions.api.')->group(function () {
+        Route::get('/list', [App\Http\Controllers\MovedTransactionController::class, 'list'])->name('list');
+        Route::get('/{id}', [App\Http\Controllers\MovedTransactionController::class, 'show'])->name('show');
     });
 
     Route::get('/api/kangis-placeholder/check', [IndexedFileTableController::class, 'checkKangisPlaceholder'])->name('kangis-placeholder.check');
@@ -1037,6 +1051,8 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('related-file-number')->name('related-file-number.')->group(function () {
         Route::get('/', [RelatedFileNumberController::class, 'index'])->name('index');
         Route::get('/records', [RelatedFileNumberController::class, 'apiList'])->name('records');
+        // Related + Temporary files for the expandable table rows (CR 22102026, items 4-6).
+        Route::post('/expand', [RelatedFileNumberController::class, 'expand'])->name('expand');
     });
 
     Route::prefix('file-search-db')->name('file-search-db.')->group(function () {
@@ -1466,7 +1482,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('land-recommendations', \App\Http\Controllers\LandRecommendationController::class)
         ->whereNumber('land_recommendation');
     Route::post('land-recommendations/{id}/log-print', [\App\Http\Controllers\LandRecommendationController::class, 'logPrint'])->name('land-recommendations.log-print')->whereNumber('id');
-    Route::post('land-recommendations/{id}/approve', [\App\Http\Controllers\LandRecommendationController::class, 'approve'])->name('land-recommendations.approve')->whereNumber('id');
+    // Batch tables: edit one field of one record in place (double-click a cell).
+    // The name contains "update", so module permissions gate it as 'edit'.
+    Route::post('land-recommendations/{id}/inline-update', [\App\Http\Controllers\LandRecommendationController::class, 'inlineUpdate'])->name('land-recommendations.inline-update')->whereNumber('id');
+    Route::post('land-recommendations/{id}/approve',[\App\Http\Controllers\LandRecommendationController::class, 'approve'])->name('land-recommendations.approve')->whereNumber('id');
     // The proofing copy: the same recommendation as a black & white draft, with the
     // coat of arms, QR, security serial and signature blocks off it and no
     // acknowledgement sheet behind it. It mints no serial and logs no print — see
@@ -1637,6 +1656,14 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('/api/batch/{id}/print', [DcivPrintLabelController::class, 'markBatchAsPrinted'])->name('api.batch.mark-printed');
         Route::delete('/api/batch/{id}', [DcivPrintLabelController::class, 'deleteBatch'])->name('api.batch.delete');
     });
+
+    // Export Generated QR Codes (Land, KANGIS, SLTR, ST Print File Label pages)
+    Route::prefix('printlabel-qr-export/{module}')->name('printlabel-qr-export.')
+        ->where(['module' => 'land|kangis|sltr|st'])
+        ->group(function () {
+            Route::get('/summary', [PrintLabelQrExportController::class, 'summary'])->name('summary');
+            Route::get('/download', [PrintLabelQrExportController::class, 'export'])->name('download');
+        });
 
     // PRS Annual Progress Report (UI prototype — static sample data, no backend yet)
     Route::prefix('prs-report')->name('prs-report.')->group(function () {

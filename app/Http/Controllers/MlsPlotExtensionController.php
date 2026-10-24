@@ -46,7 +46,9 @@ class MlsPlotExtensionController extends Controller
         try {
             $record = PlotExtension::create([
                 'original_file_no' => $validated['original_file_no'],
-                'tracking_id'      => $validated['tracking_id'] ?? null,
+                // Its own tracking ID, generated on the fly — never the mother's, which is
+                // what the form looks up (Change Request 22102026, item 23).
+                'tracking_id'      => \App\Support\FileExtensionTracking::generate(),
                 'file_name'        => $validated['file_name'] ?? null,
                 'land_use'         => $validated['land_use'] ?? null,
                 'purpose_id'       => $validated['purpose_id'] ?? null,

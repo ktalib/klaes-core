@@ -27,7 +27,7 @@ input[type=number] {
                 <div class="row">
                     <div class="d-flex justify-content-center">
                         <div class="auth-header">
-                            <h2 class="text-secondary"><b>{{ __('Welcome to ') }}{{ env('APP_NAME') }}!</b></h2>
+                            <h2 class="text-secondary"><b>{{ __('Welcome to ') }}{{ config('app.name') }}!</b></h2>
                             <h4 class="mx-2"><b>{{ __('Enter your 2FA Verification Code (OTP)') }}</b></h4>
                         </div>
                     </div>

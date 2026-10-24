@@ -18,6 +18,7 @@ namespace App\Services;
  *   Occupancy Permit          Resettlement, Direct Allocation, LGA   | Old, New
  *   Certificate of Occupancy  Land, Old KANGIS, New KANGIS, LGA      | Old, New
  *   Right of Occupancy        Ministry, LGA                          | Old, New
+ *   Change of Ownership       LGA, Ordinary, Other                   | —
  *
  * This class is the only copy of that table. The transaction card, the PRA card and
  * the File Index occupancy-permit section all render it, so adding a value is one
@@ -93,6 +94,16 @@ class InstrumentTypeCatalog
             // Nothing stored these before, so the values are the labels.
             'types' => ['Ministry', 'LGA'],
             'categories' => ['Old', 'New'],
+            'type_column' => self::GENERIC_TYPE_COLUMN,
+        ],
+        'change of ownership' => [
+            'label' => 'Change of Ownership',
+            // User, 2026-10-23. LGA is recognised by its label like every other
+            // LGA-issued instrument, so Party 1 becomes the 44-LGA picker. "Other"
+            // reveals a required specify box, saved in instrument_subtype_other --
+            // see App\Support\InstrumentSubtypeOther.
+            'types' => ['LGA', 'Ordinary', 'Other'],
+            'categories' => [],
             'type_column' => self::GENERIC_TYPE_COLUMN,
         ],
         'occupancy permit' => [

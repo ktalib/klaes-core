@@ -621,6 +621,8 @@
             canPrint: @json($user && $user->canDo('Indexing', 'print')),
             // "Move to Indexing Duplicates" is hidden unless assign_role is Supper Admin.
             canMoveToIndexingDuplicates: @json($hasSuperRole),
+            // Move Transaction: same gate; MovedTransactionController re-checks.
+            canMoveTransactions: @json($hasSuperRole),
             // Master Delete: same gate, same reason — it erases the record from the
             // live tables with no archive behind it. IndexedFileTableController
             // re-checks the role; hiding the entry here is only a courtesy.
@@ -1106,6 +1108,7 @@
 
 
 
+    <script src="{{ asset('js/related-temp-expand.js') }}?v={{ @filemtime(public_path('js/related-temp-expand.js')) }}"></script>
     <script type="module" src="{{ asset('js/indexed-files/index.js') }}?v={{ filemtime(public_path('js/indexed-files/index.js')) }}"></script>
     <script type="module" src="{{ asset('js/indexed-files/view-indexing.js') }}?v={{ filemtime(public_path('js/indexed-files/view-indexing.js')) }}"></script>
 @endsection

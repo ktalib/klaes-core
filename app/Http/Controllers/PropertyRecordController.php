@@ -1064,8 +1064,9 @@ class PropertyRecordController extends Controller
             'related_fileno' => 'nullable|string|max:255',
             'is_mapped' => 'nullable|boolean',
             'temp_fileno' => 'nullable|string|max:255',
-            'op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+            'op_source' => 'nullable|in:Ministry,KANGIS,LGA,Kano MDAs,Other',
             'op_source_other' => 'nullable|string|max:100',
+            'op_source_mda' => 'nullable|string|max:255',
             'op_type_other' => 'nullable|string|max:100',
             'extra_regs.*.type_other' => 'nullable|string|max:100',
             'op_type' => 'nullable|string|max:255',
@@ -1074,6 +1075,7 @@ class PropertyRecordController extends Controller
             // The one Type answer for an instrument with no column of its own, and the
             // one Category answer for every instrument. See App\Services\InstrumentTypeCatalog.
             'instrument_subtype' => 'nullable|string|max:100',
+            'instrument_subtype_other' => 'nullable|string|max:100',
             'instrument_category' => 'nullable|string|max:100',
             'op_serial_number' => \App\Support\OpSerial::rules('nullable'),
             'consideration_amount' => 'nullable|string|max:100',
@@ -1123,7 +1125,8 @@ class PropertyRecordController extends Controller
                     $request->input('op_source'),
                     $request->input('op_source_other'),
                     $request->input('firstParty') ?: $request->input('Grantor') ?: $request->input('party_1'),
-                    'op_source', 'op_source_other', 'firstParty'
+                    'op_source', 'op_source_other', 'firstParty',
+                    $request->input('op_source_mda'), 'op_source_mda'
                 ) + \App\Support\OpType::errors(
                     $request->input('op_type'), $request->input('op_type_other'), 'op_type_other'
                 ) as $field => $message) {
@@ -1141,6 +1144,12 @@ class PropertyRecordController extends Controller
                         $validator->errors()->add("extra_regs.{$index}.op_serial_number", 'A valid OP Serial Number is required for each OP registration.');
                     }
                 }
+            }
+            // Change of Ownership Type "Other" needs its specify text (2026-10-23).
+            foreach (\App\Support\InstrumentSubtypeOther::errors(
+                $request->transactionType, $request->instrument_subtype, $request->input('instrument_subtype_other'), 'instrument_subtype_other'
+            ) as $field => $message) {
+                $validator->errors()->add($field, $message);
             }
             $tx = strtolower((string) $request->transactionType);
             if (!$tx)
@@ -1619,9 +1628,12 @@ class PropertyRecordController extends Controller
                 'temp_fileno' => $tempFileno,
                 'op_type' => $request->op_type,
                 'op_source' => $this->normalizeValue($request->input('op_source')),
-                'op_source_other' => \App\Support\OpSource::otherFor($request->input('op_source'), $request->input('op_source_other')),
+                'op_source_other' => \App\Support\OpSource::otherFor($request->input('op_source'), $request->input('op_source_other'), $request->input('op_source_mda')),
                 'op_type_other' => \App\Support\OpType::otherFor($request->op_type, $request->input('op_type_other')),
                 'instrument_subtype' => $request->instrument_subtype,
+                'instrument_subtype_other' => \App\Support\InstrumentSubtypeOther::otherFor(
+                    $request->transactionType, $request->instrument_subtype, $request->input('instrument_subtype_other')
+                ),
                 'instrument_category' => $request->instrument_category,
                 'op_serial_number' => $request->op_serial_number,
                 'consideration_amount' => $request->consideration_amount,
@@ -1935,12 +1947,14 @@ class PropertyRecordController extends Controller
             'related_fileno' => 'nullable|string|max:255',
             'Surrenderor_2' => 'nullable|string|max:255',
             'temp_fileno' => 'nullable|string|max:255',
-            'op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+            'op_source' => 'nullable|in:Ministry,KANGIS,LGA,Kano MDAs,Other',
             'op_source_other' => 'nullable|string|max:100',
+            'op_source_mda' => 'nullable|string|max:255',
             'op_type_other' => 'nullable|string|max:100',
             'extra_regs.*.type_other' => 'nullable|string|max:100',
             'op_type' => 'nullable|string|max:255',
             'instrument_subtype' => 'nullable|string|max:100',
+            'instrument_subtype_other' => 'nullable|string|max:100',
             'instrument_category' => 'nullable|string|max:100',
             'op_serial_number' => \App\Support\OpSerial::rules('nullable'),
             'consideration_amount' => 'nullable|string|max:100',
@@ -1963,7 +1977,8 @@ class PropertyRecordController extends Controller
                     $request->input('op_source'),
                     $request->input('op_source_other'),
                     $request->input('firstParty') ?: $request->input('Grantor') ?: $request->input('party_1'),
-                    'op_source', 'op_source_other', 'firstParty'
+                    'op_source', 'op_source_other', 'firstParty',
+                    $request->input('op_source_mda'), 'op_source_mda'
                 ) + \App\Support\OpType::errors(
                     $request->input('op_type'), $request->input('op_type_other'), 'op_type_other'
                 ) as $field => $message) {
@@ -1981,6 +1996,12 @@ class PropertyRecordController extends Controller
                         $validator->errors()->add("extra_regs.{$index}.op_serial_number", 'A valid OP Serial Number is required for each OP registration.');
                     }
                 }
+            }
+            // Change of Ownership Type "Other" needs its specify text (2026-10-23).
+            foreach (\App\Support\InstrumentSubtypeOther::errors(
+                $request->transactionType, $request->instrument_subtype, $request->input('instrument_subtype_other'), 'instrument_subtype_other'
+            ) as $field => $message) {
+                $validator->errors()->add($field, $message);
             }
             $tx = strtolower((string) $request->transactionType);
             if (!$tx)
@@ -2221,11 +2242,16 @@ class PropertyRecordController extends Controller
             if ($request->exists('op_source') && Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_source')) {
                 $data['op_source'] = $this->normalizeValue($request->input('op_source'));
                 if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'op_source_other')) {
-                    $data['op_source_other'] = \App\Support\OpSource::otherFor($request->input('op_source'), $request->input('op_source_other'));
+                    $data['op_source_other'] = \App\Support\OpSource::otherFor($request->input('op_source'), $request->input('op_source_other'), $request->input('op_source_mda'));
                 }
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'instrument_subtype')) {
                 $data['instrument_subtype'] = $request->input('instrument_subtype');
+            }
+            if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'instrument_subtype_other')) {
+                $data['instrument_subtype_other'] = \App\Support\InstrumentSubtypeOther::otherFor(
+                    $request->input('transactionType'), $request->input('instrument_subtype'), $request->input('instrument_subtype_other')
+                );
             }
             if (Schema::connection('sqlsrv')->hasColumn($targetTable, 'instrument_category')) {
                 $data['instrument_category'] = $request->input('instrument_category');
@@ -3493,11 +3519,13 @@ class PropertyRecordController extends Controller
                 'transactions.*.consideration_amount' => 'nullable|string|max:100',
                 'transactions.*.receipt_no' => 'nullable|string|max:100',
                 'transactions.*.op_type' => 'nullable|string|max:255',
-                'transactions.*.op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+                'transactions.*.op_source' => 'nullable|in:Ministry,KANGIS,LGA,Kano MDAs,Other',
                 'transactions.*.op_source_other' => 'nullable|string|max:100',
+                'transactions.*.op_source_mda' => 'nullable|string|max:255',
                 'transactions.*.op_type_other' => 'nullable|string|max:100',
                 'transactions.*.cofo_type' => 'nullable|string|max:255',
                 'transactions.*.instrument_subtype' => 'nullable|string|max:100',
+                'transactions.*.instrument_subtype_other' => 'nullable|string|max:100',
                 'transactions.*.instrument_category' => 'nullable|string|max:100',
                 'transactions.*.record_id' => 'nullable|integer',
             ]);
@@ -3526,7 +3554,8 @@ class PropertyRecordController extends Controller
                             $transaction['op_source'] ?? null,
                             $transaction['op_source_other'] ?? null,
                             $transaction['first_party'] ?? null,
-                            "transactions.{$index}.op_source", "transactions.{$index}.op_source_other", "transactions.{$index}.first_party"
+                            "transactions.{$index}.op_source", "transactions.{$index}.op_source_other", "transactions.{$index}.first_party",
+                            $transaction['op_source_mda'] ?? null, "transactions.{$index}.op_source_mda"
                         ) + \App\Support\OpType::errors(
                             $transaction['op_type'] ?? null,
                             $transaction['op_type_other'] ?? null,
@@ -3535,6 +3564,16 @@ class PropertyRecordController extends Controller
                         foreach ($opErrors as $field => $message) {
                             $validator->errors()->add($field, $message);
                         }
+                    }
+
+                    // Change of Ownership Type "Other" needs its specify text (2026-10-23).
+                    foreach (\App\Support\InstrumentSubtypeOther::errors(
+                        $transactionType,
+                        $transaction['instrument_subtype'] ?? null,
+                        $transaction['instrument_subtype_other'] ?? null,
+                        "transactions.{$index}.instrument_subtype_other"
+                    ) as $field => $message) {
+                        $validator->errors()->add($field, $message);
                     }
                 }
             });
@@ -3812,6 +3851,13 @@ class PropertyRecordController extends Controller
                         // cofo_type do NOT — they exist only on pra and CofO_staging — which is
                         // why those two are restored inside their own branches further down.
                         'instrument_subtype' => $transaction['instrument_subtype'] ?? null,
+                        // Change of Ownership Type "Other": the specified text. On pra, pic
+                        // and file_history_staging; the column filter drops it elsewhere.
+                        'instrument_subtype_other' => \App\Support\InstrumentSubtypeOther::otherFor(
+                            $transaction['transaction_type'] ?? null,
+                            $transaction['instrument_subtype'] ?? null,
+                            $transaction['instrument_subtype_other'] ?? null
+                        ),
                         'instrument_category' => $transaction['instrument_category'] ?? null,
                         'op_serial_number' => $transaction['op_serial_number'] ?? null,
                         // Deed of Purchase. Only pra carries these two columns, so
@@ -4058,7 +4104,7 @@ class PropertyRecordController extends Controller
                         }
                         // Source and the two "specify" boxes live only on pra too.
                         $praData['op_source'] = trim((string) ($transaction['op_source'] ?? '')) ?: null;
-                        $praData['op_source_other'] = \App\Support\OpSource::otherFor($transaction['op_source'] ?? null, $transaction['op_source_other'] ?? null);
+                        $praData['op_source_other'] = \App\Support\OpSource::otherFor($transaction['op_source'] ?? null, $transaction['op_source_other'] ?? null, $transaction['op_source_mda'] ?? null);
                         $praData['op_type_other'] = \App\Support\OpType::otherFor($transaction['op_type'] ?? null, $transaction['op_type_other'] ?? null);
 
                         $praData['created_by'] = Auth::id();
@@ -4172,7 +4218,7 @@ class PropertyRecordController extends Controller
                         }
                         // Source and the two "specify" boxes live only on pra too.
                         $praData['op_source'] = trim((string) ($transaction['op_source'] ?? '')) ?: null;
-                        $praData['op_source_other'] = \App\Support\OpSource::otherFor($transaction['op_source'] ?? null, $transaction['op_source_other'] ?? null);
+                        $praData['op_source_other'] = \App\Support\OpSource::otherFor($transaction['op_source'] ?? null, $transaction['op_source_other'] ?? null, $transaction['op_source_mda'] ?? null);
                         $praData['op_type_other'] = \App\Support\OpType::otherFor($transaction['op_type'] ?? null, $transaction['op_type_other'] ?? null);
 
                         $praData['updated_by'] = Auth::id();

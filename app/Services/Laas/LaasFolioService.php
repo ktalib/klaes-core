@@ -166,22 +166,7 @@ class LaasFolioService
     {
         $db = DB::connection('sqlsrv');
         $mls = $this->mlsRow($fileNumber);
-        $docs = [];
-
-        if ($mls) {
-            $docs[] = $this->entry('commissioning-sheet', 'Commissioning Sheet', 'Commissioning',
-                $mls->commissioning_date ?? $mls->created_at ?? null);
-        }
-
-        $isConversion = $mls && (stripos((string) $mls->source, 'conversion') !== false
-            || str_starts_with(strtoupper($fileNumber), 'CON-'));
-        $lga = $this->issuedConversionApplication($fileNumber);
-        if ($lga) {
-            $docs[] = $this->entry('lga-confirmation', 'LGA Confirmation Sheet', 'Commissioning', $lga->created_at ?? null);
-        } elseif ($isConversion) {
-            $docs[] = $this->entry('lga-confirmation', 'LGA Confirmation Sheet', 'Commissioning', null,
-                false, 'Not yet issued by the Lands office.');
-        }
+        $docs = $this->commissioningDocuments($fileNumber);
 
         $indexing = $this->indexingRow($fileNumber);
         if ($indexing) {
@@ -208,6 +193,59 @@ class LaasFolioService
         }
 
         return $docs;
+    }
+
+    /**
+     * The commissioning-stage system documents of a file: the commissioning sheet
+     * and, for a conversion, the LGA confirmation sheet. Keyed by file number so
+     * the Virtual File/Folder System can list them without a LAAS application.
+     */
+    public function commissioningDocuments(string $fileNumber): array
+    {
+        $fileNumber = trim($fileNumber);
+        if ($fileNumber === '') {
+            return [];
+        }
+
+        $mls = $this->mlsRow($fileNumber);
+        $docs = [];
+
+        if ($mls) {
+            $docs[] = $this->entry('commissioning-sheet', 'Commissioning Sheet', 'Commissioning',
+                $mls->commissioning_date ?? $mls->created_at ?? null);
+        }
+
+        $isConversion = $mls && (stripos((string) $mls->source, 'conversion') !== false
+            || str_starts_with(strtoupper($fileNumber), 'CON-'));
+        $lga = $this->issuedConversionApplication($fileNumber);
+        if ($lga) {
+            $docs[] = $this->entry('lga-confirmation', 'LGA Confirmation Sheet', 'Commissioning', $lga->created_at ?? null);
+        } elseif ($isConversion) {
+            $docs[] = $this->entry('lga-confirmation', 'LGA Confirmation Sheet', 'Commissioning', null,
+                false, 'Not yet issued by the Lands office.');
+        }
+
+        return $docs;
+    }
+
+    /**
+     * Draw one commissioning-stage document, read-only and ready to embed.
+     * Null when the file has no such document.
+     */
+    public function renderCommissioningDocument(string $fileNumber, string $key): ?string
+    {
+        $fileNumber = trim($fileNumber);
+        if ($fileNumber === '') {
+            return null;
+        }
+
+        $html = match ($key) {
+            'commissioning-sheet' => $this->commissioningSheet($fileNumber),
+            'lga-confirmation'    => $this->lgaConfirmation($fileNumber),
+            default               => null,
+        };
+
+        return $html === null ? null : $this->forEmbedding($html);
     }
 
     private function scannedDocuments(string $fileNumber): array
@@ -284,10 +322,20 @@ class LaasFolioService
         $previousSource = $query->get('source');
         $query->set('source', stripos($fileNumber, 'ST-') === 0 ? 'st' : 'oss');
 
+        // A sheet drawn now (never printed) would otherwise take its "Time
+        // Commissioned" from the row it saves, i.e. the moment it was opened.
+        // Use the commissioning record's own time instead.
+        $previousTime = $query->get('commissioning_time');
+        $commissionedAt = ($mls->commissioning_time ?? null) ?: ($mls->created_at ?? null);
+        if (!$sheetId && $commissionedAt && $previousTime === null) {
+            $query->set('commissioning_time', (string) $commissionedAt);
+        }
+
         try {
             return $this->drawCommissioningSheet($controller, $sheetId, $mls, $fileNumber);
         } finally {
             $previousSource === null ? $query->remove('source') : $query->set('source', $previousSource);
+            $previousTime === null ? $query->remove('commissioning_time') : $query->set('commissioning_time', $previousTime);
         }
     }
 

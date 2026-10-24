@@ -1029,6 +1029,16 @@
             return;
         }
 
+        // Never swap an extension for its mother: "RES-2025-23 AND EXTENSION" is a file of
+        // its own, and loading RES-2025-23's record here replaced the number and edited
+        // the mother instead (Change Request 22102026, item 23).
+        const EXT_RE = /\s*AND\s+EXTENSION\s*$/i;
+        const currentNumber = (document.getElementById('fileno')?.value || '').trim();
+        if (EXT_RE.test(currentNumber) && !EXT_RE.test(String(record.file_number || ''))) {
+            console.info('Extension selected; not loading the mother record', record.file_number);
+            return;
+        }
+
         enterEditMode(record);
         resetGroupingState();
 
@@ -1064,8 +1074,9 @@
             setAutoFilledValue('root-of-title', record.root_of_title, { lock: false });
         }
 
-        // Populate Original Holder
+        // Populate Original Holder (blanked again straight away under SLTR)
         setAutoFilledValue('original-holder', record.original_holder ?? '', { lock: false });
+        if (typeof window.syncOriginalHolderLock === 'function') window.syncOriginalHolderLock();
 
         // Populate Current Holder(s)
         // If record has current_holder data, use it; otherwise use file_title
@@ -1451,6 +1462,7 @@
             occupancyPermitDetailsContainerEdit.classList.remove('hidden');
             const occupancyPermitFieldMap = {
                 'occupancy-permit-op-source': record.occupancy_permit_op_source,
+                'occupancy-permit-op-source-mda': record.occupancy_permit_op_source_mda,
                 'occupancy-permit-op-source-other': record.occupancy_permit_op_source_other,
                 'occupancy-permit-op-type': record.occupancy_permit_op_type,
                 'occupancy-permit-op-type-other': record.occupancy_permit_op_type_other,
@@ -5575,10 +5587,22 @@
             [opSourceSelect, document.getElementById('occupancy-permit-op-source-other')],
             [opTypeSelect, document.getElementById('occupancy-permit-op-type-other')],
         ];
+        // Source "Kano MDAs" reveals the MDA list instead; its own "Other" reuses the
+        // Source specify box, so the MDA (or its text) lands in op_source_other either way.
+        const opSourceMdaSelect = document.getElementById('occupancy-permit-op-source-mda');
         function applyOccupancyPermitSourceOtherRules() {
+            const isMda = (opSourceSelect?.value || '') === 'Kano MDAs';
+            if (opSourceMdaSelect) {
+                opSourceMdaSelect.classList.toggle('hidden', !isMda);
+                opSourceMdaSelect.disabled = !isMda;
+                opSourceMdaSelect.required = isMda;
+                if (!isMda) opSourceMdaSelect.value = '';
+            }
             OP_OTHER_PAIRS.forEach(([select, input]) => {
                 if (!input) return;
-                const isOther = (select?.value || '') === 'Other';
+                const isOther = (select?.value || '') === 'Other'
+                    || (select === opSourceSelect && isMda && (opSourceMdaSelect?.value || '') === 'Other');
+                if (select === opSourceSelect) input.placeholder = isMda ? 'Specify MDA *' : 'Specify source *';
                 input.classList.toggle('hidden', !isOther);
                 input.disabled = !isOther;
                 input.required = isOther;
@@ -5593,6 +5617,9 @@
         }
         if (opTypeSelect) {
             opTypeSelect.addEventListener('change', applyOccupancyPermitSourceOtherRules);
+        }
+        if (opSourceMdaSelect) {
+            opSourceMdaSelect.addEventListener('change', applyOccupancyPermitSourceOtherRules);
         }
         applyOccupancyPermitSourceOtherRules();
 
@@ -5926,7 +5953,13 @@
         try {
             console.log('Fetching grouping record for awaiting file number:', lookupValue);
             const registry = document.getElementById('general-registry')?.value || '';
-            const response = await fetch(`/api/grouping/awaiting/${encodeURIComponent(lookupValue)}?registry=${encodeURIComponent(registry)}`);
+            // An extension is looked up by its FULL number: the API matches the mother's
+            // grouping row for batch / shelf details but returns the extension's own
+            // tracking ID (Change Request 22102026, item 23). Stripped, it got the mother's.
+            const apiValue = hasExtensionSuffix
+                ? (fileNumber || '').trim().replace(/\(\s*T\s*\)\s*$/i, '').trim()
+                : lookupValue;
+            const response = await fetch(`/api/grouping/awaiting/${encodeURIComponent(apiValue)}?registry=${encodeURIComponent(registry)}`);
             let payload = {};
 
             try {
@@ -5979,10 +6012,19 @@
             }
 
             if (archiveFileNoInput) {
-                setAutoFilledValue(archiveFileNoInput, awaitingValueResolved);
+                // An extension keeps its full number here too: the base is the mother's,
+                // and this field's own duplicate check would then find the mother.
+                setAutoFilledValue(archiveFileNoInput, hasExtensionSuffix
+                    ? ((fileNumberInput?.value || '').trim() || awaitingValueResolved)
+                    : awaitingValueResolved);
             }
 
-            await checkFileAlreadyIndexed(awaitingValueResolved, { source: 'grouping-autofill' });
+            // Check the number actually being indexed. For an extension the base number is
+            // the MOTHER: checking it loaded the mother's record over the extension.
+            const indexedCheckValue = hasExtensionSuffix
+                ? ((fileNumberInput?.value || '').trim() || awaitingValueResolved)
+                : awaitingValueResolved;
+            await checkFileAlreadyIndexed(indexedCheckValue, { source: 'grouping-autofill' });
             if (editModeState.isEditing) {
                 return groupingRecord;
             }
@@ -6525,8 +6567,8 @@
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: 'warning',
-                        title: 'Root of Title Required',
-                        text: 'Please enter the Root of Title before saving.',
+                        title: rootOfTitleLabel() + ' Required',
+                        text: 'Please enter the ' + rootOfTitleLabel() + ' before saving.',
                         confirmButtonText: 'OK',
                         confirmButtonColor: '#f59e0b'
                     }).then(() => {
@@ -6534,7 +6576,7 @@
                         try { rootInput.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { }
                     });
                 } else {
-                    alert('Please enter the Root of Title before saving.');
+                    alert('Please enter the ' + rootOfTitleLabel() + ' before saving.');
                     rootInput.focus();
                 }
                 updateCreateButtonState();
@@ -6824,7 +6866,7 @@
             // so it stays a plain string in both Single and Block indexing.
             root_of_title: (document.getElementById('root-of-title')?.value || '').trim(),
             current_holder: indexingType === 'Block' ? currentHolders : (currentHolders[0] || fileTitle),
-            original_holder: indexingType === 'Block' ? (originalHolders && originalHolders.length > 0 ? originalHolders : [currentHolders[0] || fileTitle]) : (originalHolders ? originalHolders[0] : (currentHolders[0] || fileTitle)),
+            original_holder: (indexingType === 'Block' ? (originalHolders && originalHolders.length > 0 ? originalHolders : [currentHolders[0] || fileTitle]) : (originalHolders ? originalHolders[0] : (currentHolders[0] || fileTitle))),
             land_use_type: collectArrayValues('land_use_type') || (document.getElementById('land-use-type')?.value || ''),
             plot_number: collectArrayValues('plot_number') || (document.getElementById('plot-number')?.value || ''),
             tp_no: collectArrayValues('tp_number') || collectArrayValues('tp_no') || (document.getElementById('tp-number')?.value || ''),
@@ -6895,6 +6937,7 @@
             occupancy_permit_instrument_type: document.getElementById('occupancy-permit-instrument-type')?.value || '',
             occupancy_permit_op_source: document.getElementById('occupancy-permit-op-source')?.value || '',
             occupancy_permit_op_source_other: document.getElementById('occupancy-permit-op-source-other')?.value || '',
+            occupancy_permit_op_source_mda: document.getElementById('occupancy-permit-op-source-mda')?.value || '',
             occupancy_permit_op_type: document.getElementById('occupancy-permit-op-type')?.value || '',
             occupancy_permit_op_type_other: document.getElementById('occupancy-permit-op-type-other')?.value || '',
             occupancy_permit_op_category: document.getElementById('occupancy-permit-op-category')?.value || '',
@@ -7176,10 +7219,11 @@
             }
         }
 
-        // Original Holder is required. Check the boxes on screen, not formData: the
-        // payload falls back to the Current Holder / File Title when they are empty.
+        // Original Holder is required on every registry. Check the boxes on screen, not
+        // formData: the payload falls back to the Current Holder / File Title when they
+        // are empty.
         const originalHolderInputs = Array.from(document.querySelectorAll('input[name="original_holder[]"]'))
-            .filter(el => el.offsetParent !== null);
+            .filter(el => el.offsetParent !== null && !el.disabled);
         if (originalHolderInputs.length && !originalHolderInputs.some(el => (el.value || '').trim() !== '')) {
             const target = originalHolderInputs[0];
             const focusOriginalHolder = () => {
@@ -7209,6 +7253,38 @@
             return;
         }
 
+        // Current Holder is required on every registry too (at least one name in Block).
+        const currentHolderInputs = Array.from(document.querySelectorAll('input[name="current_holder[]"]'))
+            .filter(el => el.offsetParent !== null && !el.disabled);
+        if (currentHolderInputs.length && !currentHolderInputs.some(el => (el.value || '').trim() !== '')) {
+            const target = currentHolderInputs[0];
+            const focusCurrentHolder = () => {
+                target.focus();
+                target.classList.add('error-border');
+                try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { }
+                const clearError = () => {
+                    target.classList.remove('error-border');
+                    target.removeEventListener('input', clearError);
+                    target.removeEventListener('change', clearError);
+                };
+                target.addEventListener('input', clearError);
+                target.addEventListener('change', clearError);
+            };
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Current Holder Required',
+                    text: 'Please enter the Current Holder before submitting.',
+                    icon: 'warning',
+                    confirmButtonColor: '#f59e0b',
+                }).then(focusCurrentHolder);
+            } else {
+                alert('Please enter the Current Holder before submitting.');
+                focusCurrentHolder();
+            }
+            return;
+        }
+
         // Same rule for the CofO: Serial No / Page No / Vol No are required when the
         // file has one. Page No mirrors Serial No (read-only), so point at Serial No.
         if (document.getElementById('has-cofo-toggle')?.checked || document.getElementById('has-cofo')?.checked) {
@@ -7231,9 +7307,31 @@
             // which Local Government issued it.
             const opSourceInput = document.getElementById('occupancy-permit-op-source');
             const opSource = (opSourceInput?.value || '').trim();
-            if (!['Ministry', 'KANGIS', 'LGA', 'Other'].includes(opSource)) {
-                showSelectionError('Please select the Source of the Occupancy Permit (Ministry, KANGIS, LGA or Other).', opSourceInput);
+            if (!['Ministry', 'KANGIS', 'LGA', 'Kano MDAs', 'Other'].includes(opSource)) {
+                showSelectionError('Please select the Source of the Occupancy Permit (Ministry, KANGIS, LGA, Kano MDAs or Other).', opSourceInput);
                 return;
+            }
+            if (opSource === 'Kano MDAs') {
+                const opMdaInput = document.getElementById('occupancy-permit-op-source-mda');
+                const mda = (opMdaInput?.value || '').trim();
+                if (mda === '') {
+                    showSelectionError('Source is Kano MDAs: please select the MDA that issued the Occupancy Permit.', opMdaInput);
+                    return;
+                }
+                if (mda === 'Other') {
+                    const opSourceOtherInput = document.getElementById('occupancy-permit-op-source-other');
+                    const specified = (opSourceOtherInput?.value || '').replace(/\s+/g, ' ').trim();
+                    if (specified === '') {
+                        showSelectionError('MDA is Other: please specify the MDA that issued the Occupancy Permit.', opSourceOtherInput);
+                        return;
+                    }
+                    const listedMda = Array.from(opMdaInput.options).map((o) => o.value)
+                        .find((v) => v && v !== 'Other' && v.toLowerCase() === specified.toLowerCase());
+                    if (listedMda) {
+                        showSelectionError(`"${listedMda}" is already in the MDA list; select it instead of Other.`, opSourceOtherInput);
+                        return;
+                    }
+                }
             }
             if (opSource === 'Other') {
                 const opSourceOtherInput = document.getElementById('occupancy-permit-op-source-other');
@@ -7243,7 +7341,7 @@
                     return;
                 }
                 // A listed option typed in by hand is that option, not a new one.
-                const listed = ['Ministry', 'KANGIS', 'LGA'].find((o) => o.toLowerCase() === specified.toLowerCase());
+                const listed = ['Ministry', 'KANGIS', 'LGA', 'Kano MDAs'].find((o) => o.toLowerCase() === specified.toLowerCase());
                 if (listed) {
                     showSelectionError(`"${listed}" is already in the Source list; select it instead of Other.`, opSourceOtherInput);
                     return;
@@ -8861,7 +8959,12 @@
         const isLandRegistry3 = general.includes('LAND REGISTRY')
             && squash(physical).includes('REGISTRY3');
 
-        return isSltr || isLandRegistry3;
+        // Required on every registry since 2026-10-23 (Holders card: Root of Title /
+        // Ownership, Original Holder and Current Holder all carry the star). The
+        // registry tests above are kept for reference; the server still enforces only
+        // these two combinations, because other write paths share its endpoint.
+        void (isSltr || isLandRegistry3);
+        return true;
     }
 
     /**
@@ -8879,6 +8982,8 @@
 
         const applies = rootOfTitleApplies();
         group.classList.toggle('hidden', !applies);
+        const labelText = document.getElementById('root-of-title-label-text');
+        if (labelText) labelText.textContent = rootOfTitleLabel();
         // A hidden `required` input makes the browser refuse a native submit with
         // "not focusable", so the attribute has to come off with the field.
         if (applies) {
@@ -8888,6 +8993,46 @@
         }
     }
     window.rootOfTitleApplies = rootOfTitleApplies;
+
+    /** SLTR alone (General OR Physical Registry) — the SLTR half of rootOfTitleApplies(). */
+    function isSltrRegistry() {
+        const norm = (el) => (el?.value || '').toUpperCase();
+        return norm(document.getElementById('general-registry')).includes('SLTR')
+            || norm(document.getElementById('physical-registry')).includes('SLTR');
+    }
+    window.isSltrRegistry = isSltrRegistry;
+
+    /** SLTR calls it Root of Ownership (Change Request 22102026); the field and column stay root_of_title. */
+    function rootOfTitleLabel() {
+        return isSltrRegistry() ? 'Root of Ownership' : 'Root of Title';
+    }
+    window.rootOfTitleLabel = rootOfTitleLabel;
+
+    /**
+     * Original Holder stays open for every registry, SLTR included: the SLTR lock
+     * (Change Request 22102026, item 7) was withdrawn on 2026-10-23, and it is required
+     * on every registry. Kept as a function so its callers still run,
+     * and so it releases any box left disabled.
+     */
+    function syncOriginalHolderLock() {
+        const wrapper = document.getElementById('original-holders-wrapper');
+        if (!wrapper) return;
+        wrapper.dataset.sltrLocked = '0';
+        wrapper.querySelectorAll('input[name="original_holder[]"]').forEach((input) => {
+            input.disabled = false;
+            input.classList.remove('bg-gray-100', 'cursor-not-allowed');
+            if (input.placeholder.startsWith('Not used for SLTR')) input.placeholder = '';
+        });
+        const star = document.querySelector('label[for="original-holder"] span.text-red-500');
+        if (star) star.classList.remove('hidden');
+    }
+    window.syncOriginalHolderLock = syncOriginalHolderLock;
+
+    document.addEventListener('change', (e) => {
+        if (e.target && (e.target.id === 'general-registry' || e.target.id === 'physical-registry')) {
+            syncOriginalHolderLock();
+        }
+    });
 
     function handleRegistryFieldToggling() {
         const registrySelect = document.getElementById('general-registry');
@@ -9147,6 +9292,7 @@
 
             // Root of Title only applies to SLTR and to Land Registry / Registry 3.
             syncRootOfTitleVisibility();
+            syncOriginalHolderLock();
         }
 
         function hidekangisPlaceholderFeedback() {

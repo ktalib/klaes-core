@@ -32,6 +32,11 @@ Route::middleware(['auth', 'XSS', 'super.admin'])->prefix('vfs')->name('vfs.')->
         ->name('documents')
         ->where('fileIndexing', '[0-9]+');
 
+    // Commissioning sheet / LGA confirmation sheet, drawn read-only (CR 22102026 #32).
+    Route::get('/folios/{fileIndexing}/system/{key}', [VirtualFileExplorerController::class, 'systemDocument'])
+        ->name('system-document')
+        ->where(['fileIndexing' => '[0-9]+', 'key' => 'commissioning-sheet|lga-confirmation']);
+
     Route::get('/folios/{fileIndexing}/lineage', [VirtualFileExplorerController::class, 'lineage'])
         ->name('lineage')
         ->where('fileIndexing', '[0-9]+');

@@ -7,7 +7,12 @@
     $formOpen = $e || $errors->any() || request()->boolean('new');
     $val      = fn ($field, $default = null) => old($field, $e ? $e->{$field} : $default);
     $dateVal  = fn ($field, $default = null) => old($field, $e && $e->{$field} ? $e->{$field}->format('Y-m-d') : $default);
-    $keep     = request()->only(['q', 'year', 'quarter', 'month', 'status', 'page']);
+    $keep     = request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status', 'page']);
+    $layoutTypes = \App\Models\Survey\SurveyBeaconRegister::LAYOUT_TYPES;
+
+    // Module role 'Survey - Beacon Register' (user, 2026-10-23): show only what the user may do.
+    $brCan = collect(['create', 'edit', 'approve', 'delete'])
+        ->mapWithKeys(fn ($a) => [$a => (bool) optional(auth()->user())->canDo('Survey - Beacon Register', $a)])->all();
     $brItem   = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $userName = fn ($u) => $u ? trim($u->first_name . ' ' . $u->last_name) : null;
 
@@ -34,13 +39,36 @@
     }
     .survey-proto .br-grid .is-invalid { border-color: var(--danger); }
     .survey-proto .br-sub { font-size: 12px; color: var(--gray-500); }
+    .survey-proto .br-fileno { margin-bottom: 14px; }
+    .survey-proto .br-fileno label { display: block; font-size: 13px; font-weight: 500; color: var(--gray-700); margin-bottom: 4px; }
+    .survey-proto .br-file-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 42px; padding: 6px 8px; border: 1.5px solid var(--gray-300); border-radius: var(--radius-sm); background: var(--gray-50, #f9fafb); align-items: center; }
+    .survey-proto .br-file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--primary-50, #f0fdfa); border: 1px solid var(--primary-100, #ccfbf1); color: var(--primary); font-size: 13px; font-weight: 600; }
+    .survey-proto .br-file-x { background: none; border: 0; padding: 0 4px; font-size: 16px; line-height: 1; color: var(--primary); cursor: pointer; }
+    .survey-proto .br-file-x:hover { color: var(--danger, #b91c1c); }
+    .survey-proto .br-file-empty { font-size: 13px; color: var(--gray-400, #9ca3af); }
+    /* District, LGA and State are optional here (user, 2026-10-23); the shared builder still marks them. */
+    .survey-proto .br-section-address .form-group:not(.ab-other) label .required { display: none; }
+    .survey-proto .br-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-radius: 8px; }
+    .survey-proto .br-layout.is-invalid { outline: 1.5px solid var(--danger); outline-offset: 4px; }
+    .survey-proto .br-layout-opt { position: relative; cursor: pointer; margin: 0; }
+    .survey-proto .br-layout-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .survey-proto .br-layout-opt span { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1.5px solid var(--gray-300); border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--gray-700); background: #fff; }
+    .survey-proto .br-layout-opt span i { color: var(--gray-400); }
+    .survey-proto .br-layout-opt input:checked + span { border-color: var(--primary); background: var(--primary-50, #f0fdfa); color: var(--primary); font-weight: 600; }
+    .survey-proto .br-layout-opt input:checked + span i { color: var(--primary); }
+    .survey-proto .br-layout-opt input:focus-visible + span { box-shadow: 0 0 0 3px var(--primary-100, #ccfbf1); }
+    @media (max-width: 640px) { .survey-proto .br-layout { grid-template-columns: 1fr; } }
     .survey-proto .br-preview { margin-top: 12px; padding: 10px 12px; background: var(--gray-50, #f9fafb); border: 1px dashed var(--gray-300); border-radius: 6px; }
     .survey-proto .br-preview-head { font-size: 12px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
     .survey-proto .br-chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 140px; overflow-y: auto; }
     .survey-proto .br-chip { font: 600 12px/1 var(--font); padding: 4px 7px; border-radius: 4px; background: #fff; border: 1px solid var(--gray-300); color: var(--gray-800); }
     .survey-proto .br-chip-gap { border: 0; background: none; }
     .survey-proto .br-expand { display: block; margin-top: 2px; background: none; border: 0; padding: 0; font-size: 12px; color: var(--primary); cursor: pointer; }
-    .survey-proto .br-nums-row td { background: var(--gray-50, #f9fafb); }
+    .survey-proto tr.br-num-row td { background: var(--gray-50, #f9fafb); font-size: 13px; color: var(--gray-700); padding-top: 6px; padding-bottom: 6px; }
+    .survey-proto tr.br-num-row .br-num-sn { padding-left: 22px; color: var(--gray-500); }
+    .survey-proto tr.br-num-row .br-num-no { padding-left: 14px; border-left: 2px solid var(--primary-100, #ccfbf1); font-weight: 600; color: var(--gray-900); }
+    /* LGA names show in capitals (display only; the stored value matches the LGA list). */
+    .survey-proto .br-section-address .ab-lga + .select2 .select2-selection__choice { text-transform: uppercase; }
     .survey-proto .br-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--gray-200, #e5e7eb); }
     .survey-proto .br-tabs a { padding: 8px 14px; font-size: 14px; color: var(--gray-600, #4b5563); border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; }
     .survey-proto .br-tabs a.on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
@@ -66,9 +94,11 @@
 
 <div class="page-header">
     <div></div>
-    <button type="button" class="btn btn-primary btn-sm" onclick="brOpenNew()">
-        <i class="fas fa-plus"></i> New Entry
-    </button>
+    @if ($brCan['create'])
+        <button type="button" class="btn btn-primary btn-sm" onclick="brOpenNew()">
+            <i class="fas fa-plus"></i> New Entry
+        </button>
+    @endif
 </div>
 
 {{-- Entry modal: create, or edit when ?edit=<id>. Reopens after a validation error. --}}
@@ -100,9 +130,42 @@
         </div>
     @endif
 
+    {{-- 0. Layout type: the first check (user, 2026-10-23) --}}
+    <fieldset class="br-section">
+        <legend>Type <span class="required">*</span></legend>
+        <div class="br-layout @error('layout_type') is-invalid @enderror" role="radiogroup" aria-label="Type">
+            @foreach ($layoutTypes as $key => $label)
+                <label class="br-layout-opt">
+                    <input type="radio" name="layout_type" value="{{ $key }}" required @checked($val('layout_type') === $key) />
+                    <span><i class="fas {{ $key === 'Government' ? 'fa-landmark' : 'fa-user' }}"></i> {{ $label }}</span>
+                </label>
+            @endforeach
+        </div>
+    </fieldset>
+
     {{-- 1. Issue details --}}
     <fieldset class="br-section">
         <legend>Issue Details</legend>
+        {{-- File numbers: several per line, each picked with the global selector, never typed; optional. --}}
+        @php
+            $brFiles = old('file_numbers', $e ? $e->fileNumberList() : []);
+            $brFiles = array_values(array_filter(array_map('trim', (array) $brFiles), 'strlen'));
+        @endphp
+        <div class="br-fileno" id="brFilePicker" data-lookup="{{ route('survey-module.gkn.lookup') }}">
+            <label>File Numbers</label>
+            <div class="br-file-list" id="brFileList" aria-live="polite">
+                @foreach ($brFiles as $fno)
+                    <span class="br-file-chip" data-no="{{ $fno }}">
+                        <input type="hidden" name="file_numbers[]" value="{{ $fno }}" />
+                        <span>{{ $fno }}</span>
+                        <button type="button" class="br-file-x" aria-label="Remove {{ $fno }}" title="Remove">&times;</button>
+                    </span>
+                @endforeach
+                <span class="br-file-empty" id="brFileEmpty" @if (count($brFiles)) hidden @endif>No file number added.</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="brFilePick" style="margin-top:8px;"><i class="fas fa-plus"></i> Add file number</button>
+            <div class="br-sub" id="brFileStatus">Optional. Add as many as apply. The first file picked fills the plot, district and LGA from its records.</div>
+        </div>
         <div class="br-grid">
             <div>
                 <label>Date <span class="required">*</span></label>
@@ -156,8 +219,8 @@
         <legend>Surveyor</legend>
         <div class="br-grid">
             <div>
-                <label>Surveyor's Name <span class="required">*</span></label>
-                <select name="surveyor_choice" id="brSurveyor" required onchange="brSurveyorChanged()"
+                <label>Surveyor's Name</label>
+                <select name="surveyor_choice" id="brSurveyor" onchange="brSurveyorChanged()"
                         class="@error('surveyor_choice') is-invalid @enderror">
                     <option value="">Select surveyor…</option>
                     @if (count($surveyors['staff']))
@@ -178,7 +241,7 @@
                 </select>
             </div>
             <div id="brSurveyorOtherWrap">
-                <label>Specify surveyor's name <span class="required">*</span></label>
+                <label>Specify surveyor's name</label>
                 <input type="text" name="surveyor_name_other" id="brSurveyorOther" maxlength="255"
                        value="{{ old('surveyor_name_other', $surveyorChoice === 'other' && $e ? $e->surveyor_name : null) }}"
                        class="@error('surveyor_name_other') is-invalid @enderror" />
@@ -199,6 +262,23 @@
             'model'  => $e,
             'legend' => 'Beacon Location',
         ])
+    </fieldset>
+
+    {{-- 4b. Coordinates --}}
+    <fieldset class="br-section">
+        <legend>Coordinates</legend>
+        <div class="br-grid">
+            <div>
+                <label>X (Easting)</label>
+                <input type="number" name="coord_x" value="{{ $val('coord_x') !== null ? (float) $val('coord_x') : '' }}" step="any" inputmode="decimal"
+                       placeholder="e.g. 452345.120" class="@error('coord_x') is-invalid @enderror" />
+            </div>
+            <div>
+                <label>Y (Northing)</label>
+                <input type="number" name="coord_y" value="{{ $val('coord_y') !== null ? (float) $val('coord_y') : '' }}" step="any" inputmode="decimal"
+                       placeholder="e.g. 1325678.450" class="@error('coord_y') is-invalid @enderror" />
+            </div>
+        </div>
     </fieldset>
 
     {{-- 5. Payment --}}
@@ -270,6 +350,12 @@
     <div class="left" style="flex-wrap:wrap;gap:8px;">
         @php $fs = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;'; @endphp
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Beacon no., surveyor, plan, teller…" style="{{ $fs }}width:240px;" />
+        <select name="layout" style="{{ $fs }}">
+            <option value="">All Types</option>
+            @foreach ($layoutTypes as $key => $label)
+                <option value="{{ $key }}" @selected(request('layout') === $key)>{{ $label }}</option>
+            @endforeach
+        </select>
         <select name="year" style="{{ $fs }}">
             <option value="">All Years</option>
             @foreach ($years as $y)
@@ -295,7 +381,7 @@
             <option value="audited" @selected(request('status') === 'audited')>Audited</option>
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if (request()->hasAny(['q', 'year', 'quarter', 'month', 'status']))
+        @if (request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']))
             <a class="btn btn-outline btn-sm" href="{{ route('survey-module.workflow.beacon-register.index', $view === 'numbers' ? ['view' => 'numbers'] : []) }}">Clear</a>
         @endif
     </div>
@@ -316,6 +402,8 @@
                 <tr>
                     <th>S/N</th>
                     <th>Date</th>
+                    <th>Type</th>
+                    <th>File No.</th>
                     <th>Register No.</th>
                     <th>Issued Number</th>
                     <th>Total</th>
@@ -326,6 +414,8 @@
                     <th>District</th>
                     <th>LGA</th>
                     <th>Location</th>
+                    <th>X</th>
+                    <th>Y</th>
                     <th>Teller No.</th>
                     <th>Amount (₦)</th>
                     <th>Date Received</th>
@@ -338,6 +428,8 @@
                     <tr @if ($e && $e->id === $row->id) style="background:#fff8e1;" @endif>
                         <td>{{ $entries->firstItem() + $loop->index }}</td>
                         <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
+                        <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
+                        <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
                         <td>{{ $row->register_no ?: '—' }}</td>
                         <td style="white-space:nowrap;">
                             <strong>{{ $row->issued_range }}</strong>
@@ -349,12 +441,14 @@
                         </td>
                         <td>{{ number_format($row->total_issued) }}</td>
                         <td>{{ $row->plan_no ?: '—' }}</td>
-                        <td>{{ $row->surveyor_name }}</td>
+                        <td>{{ $row->surveyor_name ?: '—' }}</td>
                         <td>{{ $row->surveyor_registration ?: '—' }}</td>
                         <td>{{ $row->prop_plot ?: '—' }}</td>
                         <td>{{ $row->resolvedDistrict('prop_') ?: '—' }}</td>
-                        <td>{{ \App\Support\AddressBuilder::resolve($row->prop_lga) ?: '—' }}</td>
+                        <td>{{ mb_strtoupper((string) \App\Support\AddressBuilder::resolve($row->prop_lga)) ?: '—' }}</td>
                         <td>{{ $row->resolvedStreet('prop_') ?: '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $row->coord_x !== null ? rtrim(rtrim(number_format((float) $row->coord_x, 4, '.', ''), '0'), '.') : '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $row->coord_y !== null ? rtrim(rtrim(number_format((float) $row->coord_y, 4, '.', ''), '0'), '.') : '—' }}</td>
                         <td>
                             {{ $row->teller_no ?: '—' }}
                         </td>
@@ -380,57 +474,79 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    @unless ($row->audited_at)
+                                    @if (! $row->audited_at && $brCan['edit'])
                                         <a href="{{ route('survey-module.workflow.beacon-register.index', $keep + ['edit' => $row->id]) }}" class="{{ $brItem }}">
                                             <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                         </a>
-                                    @endunless
-                                    @if (! $row->reviewed_at)
+                                    @endif
+                                    @if (! $row->reviewed_at && $brCan['approve'])
                                         <form method="POST" action="{{ route('survey-module.workflow.beacon-register.review', $row) }}">
                                             @csrf
                                             <button type="submit" class="{{ $brItem }}"><i data-lucide="check" class="w-4 h-4 text-gray-500"></i> Mark reviewed</button>
                                         </form>
-                                    @elseif (! $row->audited_at)
+                                    @elseif ($row->reviewed_at && ! $row->audited_at && $brCan['approve'])
                                         <form method="POST" action="{{ route('survey-module.workflow.beacon-register.audit', $row) }}">
                                             @csrf
                                             <button type="submit" class="{{ $brItem }}"><i data-lucide="check-check" class="w-4 h-4 text-gray-500"></i> Mark audited</button>
                                         </form>
                                     @endif
-                                    @unless ($row->audited_at)
+                                    @if ($row->audited_at)
+                                        <div class="px-3 py-2 text-xs text-gray-500">Audited entries are locked.</div>
+                                    @elseif ($brCan['delete'])
                                         <form method="POST" action="{{ route('survey-module.workflow.beacon-register.destroy', $row) }}"
                                               onsubmit="return confirm('Delete the entry {{ $row->issued_range }} for {{ addslashes($row->surveyor_name) }}?');">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="{{ $brItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4 text-red-500"></i> Delete</button>
                                         </form>
-                                    @else
-                                        <div class="px-3 py-2 text-xs text-gray-500">Audited entries are locked.</div>
-                                    @endunless
+                                    @endif
+                                    @if (! $row->audited_at && ! $brCan['edit'] && ! $brCan['approve'] && ! $brCan['delete'])
+                                        <div class="px-3 py-2 text-xs text-gray-500">No actions available to you.</div>
+                                    @endif
                                 </div>
                             </div>
                         </td>
                     </tr>
                     @if ($row->numbers->count() > 1)
-                        <tr id="brNums{{ $row->id }}" class="br-nums-row" hidden>
-                            <td></td>
-                            <td colspan="16">
-                                <div class="br-sub" style="margin-bottom:6px;">
-                                    {{ $row->numbers->count() }} beacon records, all issued to <strong>{{ $row->surveyor_name }}</strong>
-                                    on {{ $row->issue_date->format('d/m/Y') }}:
-                                </div>
-                                <div class="br-chips">
-                                    @foreach ($row->numbers as $n)
-                                        <span class="br-chip">{{ $n->beacon_no }}</span>
-                                    @endforeach
-                                </div>
-                            </td>
-                        </tr>
+                        {{-- One row per beacon record, in the issue row's columns. The amount
+                             covers the whole line, so it is not repeated on each beacon. --}}
+                        @php
+                            $rowSn       = $entries->firstItem() + $loop->index;
+                            $rowDistrict = $row->resolvedDistrict('prop_') ?: '—';
+                            $rowLga      = mb_strtoupper((string) \App\Support\AddressBuilder::resolve($row->prop_lga)) ?: '—';
+                            $rowStreet   = $row->resolvedStreet('prop_') ?: '—';
+                        @endphp
+                        @foreach ($row->numbers as $n)
+                            <tr class="br-num-row" data-parent="{{ $row->id }}" hidden>
+                                <td class="br-num-sn">{{ $rowSn }}.{{ $loop->iteration }}</td>
+                                <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
+                                <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
+                                <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
+                                <td>{{ $row->register_no ?: '—' }}</td>
+                                <td style="white-space:nowrap;"><span class="br-num-no">{{ $n->beacon_no }}</span></td>
+                                <td>1</td>
+                                <td>{{ $row->plan_no ?: '—' }}</td>
+                                <td>{{ $row->surveyor_name ?: '—' }}</td>
+                                <td>{{ $row->surveyor_registration ?: '—' }}</td>
+                                <td>{{ $row->prop_plot ?: '—' }}</td>
+                                <td>{{ $rowDistrict }}</td>
+                                <td>{{ $rowLga }}</td>
+                                <td>{{ $rowStreet }}</td>
+                                <td style="white-space:nowrap;">{{ $row->coord_x !== null ? rtrim(rtrim(number_format((float) $row->coord_x, 4, '.', ''), '0'), '.') : '—' }}</td>
+                                <td style="white-space:nowrap;">{{ $row->coord_y !== null ? rtrim(rtrim(number_format((float) $row->coord_y, 4, '.', ''), '0'), '.') : '—' }}</td>
+                                <td>{{ $row->teller_no ?: '—' }}</td>
+                                <td style="text-align:right;color:var(--gray-400);">—</td>
+                                <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                        @endforeach
                     @endif
                 @empty
                     <tr>
-                        <td colspan="17" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="21" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-pin" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
-                            No beacon issues recorded{{ request()->hasAny(['q', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' yet' }}.
-                            <a href="#" onclick="brOpenNew();return false;">Record one</a>.
+                            No beacon issues recorded{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' yet' }}.
+                            @if ($brCan['create'])<a href="#" onclick="brOpenNew();return false;">Record one</a>.@endif
                         </td>
                     </tr>
                 @endforelse
@@ -455,6 +571,8 @@
                     <th>S/N</th>
                     <th>Beacon No.</th>
                     <th>Date</th>
+                    <th>Type</th>
+                    <th>File No.</th>
                     <th>Surveyor's Name</th>
                     <th>Registration</th>
                     <th>Plan No.</th>
@@ -462,6 +580,8 @@
                     <th>District</th>
                     <th>LGA</th>
                     <th>Location</th>
+                    <th>X</th>
+                    <th>Y</th>
                     <th>Teller No.</th>
                     <th>Issue Entry</th>
                 </tr>
@@ -473,13 +593,17 @@
                         <td>{{ $numbers->firstItem() + $loop->index }}</td>
                         <td style="white-space:nowrap;"><strong>{{ $n->beacon_no }}</strong></td>
                         <td style="white-space:nowrap;">{{ optional($line?->issue_date)->format('d/m/Y') ?: '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $line?->layout_type_label ?: '—' }}</td>
+                        <td style="white-space:nowrap;">@forelse (($line ? $line->fileNumberList() : []) as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
                         <td>{{ $line?->surveyor_name ?: '—' }}</td>
                         <td>{{ $line?->surveyor_registration ?: '—' }}</td>
                         <td>{{ $line?->plan_no ?: '—' }}</td>
                         <td>{{ $line?->prop_plot ?: '—' }}</td>
                         <td>{{ $line ? ($line->resolvedDistrict('prop_') ?: '—') : '—' }}</td>
-                        <td>{{ $line ? (\App\Support\AddressBuilder::resolve($line->prop_lga) ?: '—') : '—' }}</td>
+                        <td>{{ $line ? (mb_strtoupper((string) \App\Support\AddressBuilder::resolve($line->prop_lga)) ?: '—') : '—' }}</td>
                         <td>{{ $line ? ($line->resolvedStreet('prop_') ?: '—') : '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $line?->coord_x !== null ? rtrim(rtrim(number_format((float) $line?->coord_x, 4, '.', ''), '0'), '.') : '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $line?->coord_y !== null ? rtrim(rtrim(number_format((float) $line?->coord_y, 4, '.', ''), '0'), '.') : '—' }}</td>
                         <td>{{ $line?->teller_no ?: '—' }}</td>
                         <td style="white-space:nowrap;">
                             @if ($line)
@@ -491,8 +615,8 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
-                            No beacon numbers{{ request()->hasAny(['q', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' issued yet' }}.
+                        <td colspan="16" style="text-align:center;padding:28px;color:var(--gray-500);">
+                            No beacon numbers{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' issued yet' }}.
                         </td>
                     </tr>
                 @endforelse
@@ -523,7 +647,10 @@
     function brShow() {
         document.getElementById('brModal').classList.add('open');
         document.body.style.overflow = 'hidden';
-        setTimeout(function () { document.getElementById('brIssueDate').focus(); }, 50);
+        setTimeout(function () {
+            var first = document.querySelector('#brForm input[name="layout_type"]:checked') || document.querySelector('#brForm input[name="layout_type"]');
+            if (first) first.focus();
+        }, 50);
     }
 
     function brClose() {
@@ -534,6 +661,112 @@
             document.body.style.overflow = '';
         @endif
     }
+
+    // File numbers: several per line, each from the global selector. The first
+    // file's records fill plot / district / LGA where they are still blank;
+    // removing a file clears only what that file filled. Typed values stay.
+    (function () {
+        var root = document.getElementById('brFilePicker');
+        if (!root) return;
+        var form = document.getElementById('brForm');
+        var list = document.getElementById('brFileList');
+        var empty = document.getElementById('brFileEmpty');
+        var status = document.getElementById('brFileStatus');
+        var filledBy = {};   // upper-cased file number => fields it filled
+        var $j = function () { return window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null; };
+        var field = function (n) { return form.querySelector('[name="' + n + '"]'); };
+        var say = function (t, err) { status.textContent = t; status.style.color = err ? '#b91c1c' : ''; };
+        var chips = function () { return Array.prototype.slice.call(list.querySelectorAll('.br-file-chip')); };
+        var has = function (no) { return chips().some(function (c) { return c.dataset.no.toUpperCase() === no.toUpperCase(); }); };
+        var refreshEmpty = function () { empty.hidden = chips().length > 0; };
+
+        function setSelect(el, value) {
+            if (!el || !value) return false;
+            if (Array.prototype.some.call(el.options, function (o) { return o.selected; })) return false;
+            var match = Array.prototype.find.call(el.options, function (o) { return o.value.toLowerCase() === String(value).toLowerCase(); });
+            if (!match) { match = new Option(value, value); el.add(match); }
+            match.selected = true;
+            var $ = $j();
+            if ($ && $(el).data('select2')) $(el).trigger('change'); else el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+        function setText(el, value) {
+            if (!el || !value || el.value.trim() !== '') return false;
+            el.value = value;
+            return true;
+        }
+        function unfill(fields) {
+            (fields || []).forEach(function (f) {
+                if (f.tagName === 'SELECT') {
+                    Array.prototype.forEach.call(f.options, function (o) { o.selected = false; });
+                    var $ = $j();
+                    if ($ && $(f).data('select2')) $(f).trigger('change');
+                } else {
+                    f.value = '';
+                }
+            });
+        }
+
+        function addChip(no) {
+            var chip = document.createElement('span');
+            chip.className = 'br-file-chip';
+            chip.dataset.no = no;
+            var input = document.createElement('input');
+            input.type = 'hidden'; input.name = 'file_numbers[]'; input.value = no;
+            var label = document.createElement('span');
+            label.textContent = no;
+            var x = document.createElement('button');
+            x.type = 'button'; x.className = 'br-file-x'; x.title = 'Remove';
+            x.setAttribute('aria-label', 'Remove ' + no);
+            x.innerHTML = '&times;';
+            chip.append(input, label, x);
+            list.insertBefore(chip, empty);
+            refreshEmpty();
+        }
+
+        function add(no) {
+            if (has(no)) { say(no + ' is already on this entry.', true); return; }
+            addChip(no);
+            var key = no.toUpperCase();
+            filledBy[key] = [];
+            say('Looking up ' + no + '…');
+            fetch(root.dataset.lookup + '?file_number=' + encodeURIComponent(no), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!filledBy[key]) return;   // removed while loading
+                    var p = field('prop_plot');
+                    if (setText(p, d.plot)) filledBy[key].push(p);
+                    var di = field('prop_district[]');
+                    if (setSelect(di, d.district)) filledBy[key].push(di);
+                    var lg = field('prop_lga[]');
+                    if (setSelect(lg, d.lga)) filledBy[key].push(lg);
+                    say(no + ' added.' + (filledBy[key].length ? ' Location filled from its records; check it below.' : ''));
+                })
+                .catch(function () { say(no + ' added. Its details could not be loaded.'); });
+        }
+
+        list.addEventListener('click', function (ev) {
+            var x = ev.target.closest('.br-file-x');
+            if (!x) return;
+            var chip = x.closest('.br-file-chip');
+            var key = chip.dataset.no.toUpperCase();
+            unfill(filledBy[key]);
+            delete filledBy[key];
+            chip.remove();
+            refreshEmpty();
+            say(chip.dataset.no + ' removed.');
+        });
+
+        document.getElementById('brFilePick').addEventListener('click', function () {
+            if (!window.GlobalFileNoModal) { say('The file number selector did not load. Refresh the page.', true); return; }
+            window.GlobalFileNoModal.open({
+                callback: function (data) {
+                    var no = data && data.fileNumber ? String(data.fileNumber).trim() : '';
+                    if (no) add(no);
+                }
+            });
+        });
+    })();
 
     document.addEventListener('keydown', function (ev) {
         if (ev.key === 'Escape' && document.getElementById('brModal').classList.contains('open')) brClose();
@@ -596,11 +829,12 @@
     }
 
     function brToggleNumbers(id, btn) {
-        var row = document.getElementById('brNums' + id);
-        if (!row) return;
-        row.hidden = !row.hidden;
-        btn.setAttribute('aria-expanded', row.hidden ? 'false' : 'true');
-        btn.querySelector('i').className = row.hidden ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+        var rows = document.querySelectorAll('tr.br-num-row[data-parent="' + id + '"]');
+        if (!rows.length) return;
+        var show = rows[0].hidden;
+        rows.forEach(function (r) { r.hidden = !show; });
+        btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+        btn.querySelector('i').className = show ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
     }
 
     // "Other" reveals the required name box. A SURCON surveyor fills their registration,
@@ -612,7 +846,6 @@
         var wrap = document.getElementById('brSurveyorOtherWrap'), input = document.getElementById('brSurveyorOther');
         wrap.style.visibility = other ? 'visible' : 'hidden';
         input.disabled = !other;
-        input.required = other;
         if (other && !initial) input.focus();
 
         if (initial) return;
@@ -640,3 +873,11 @@
         @endif
     });
 </script>
+
+@once
+@push('scripts')
+    {{-- The shared file number selector, outside .survey-proto so the prototype CSS cannot reach it. --}}
+    @include('components.global-fileno-modal')
+    <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+@endpush
+@endonce

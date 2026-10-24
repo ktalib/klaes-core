@@ -509,6 +509,7 @@
                             <input type="hidden" name="duplex_id" x-model="duplexRecordId">
                             <input type="hidden" name="merger_app_id" x-model="mergerAppId">
                             <input type="hidden" name="separation_app_id" x-model="separationAppId">
+                            <input type="hidden" name="extension_app_id" x-model="extensionAppId">
 
                             <!-- Application Type Selection -->
                             <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">

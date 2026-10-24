@@ -184,7 +184,9 @@
                                     <td class="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchBlockers['planning'], 'canApprove' => !$batchBlockers['decision'], 'canReject' => !$batchBlockers['decision']]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-3 text-slate-700 font-bold">{{ $record->applicant_name ?: '—' }}</td>
                                     <td class="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no }}</td>
-                                    @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
+                                    @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no,
+                                        // Plots are commissioned in schedule (id) order, so the n-th new file is the n-th plot.
+                                        'newFilesPlots' => count($newFileNos[$record->id] ?? []) > 1 ? $record->plotSizes()->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->orderBy('id')->pluck('plot_number')->all() : []])
                                     <td class="px-4 py-3 text-slate-600">{{ $record->file_title }}</td>
                                     <td class="px-4 py-3 text-slate-600">
                                         {{ $record->num_plots }}

@@ -12,6 +12,8 @@ class PlotExtensionApplication extends Model
     public const STATUS_PENDING    = 'pending';
     public const STATUS_APPROVED   = 'approved';
     public const STATUS_REJECTED   = 'rejected';
+    // Set when File Commissioning mints the "<file> AND EXTENSION" number for it.
+    public const STATUS_COMMISSIONED = 'commissioned';
 
     protected $fillable = [
         'previously_decommissioned',

@@ -1,7 +1,7 @@
 @extends('email.layouts.master')
 
 @section('content')
-    <h2 style="color: #1e3a5f; font-size: 22px; margin-bottom: 20px;">Welcome to {{ env('APP_NAME') }}</h2>
+    <h2 style="color: #1e3a5f; font-size: 22px; margin-bottom: 20px;">Welcome to {{ config('app.name') }}</h2>
     
     <p>Dear <strong>{{ $data['name'] }}</strong>,</p>
     
@@ -46,6 +46,6 @@
     <hr class="divider">
     
     <p style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px;">
-        Thank you for choosing {{ env('APP_NAME') }}!
+        Thank you for choosing {{ config('app.name') }}!
     </p>
 @endsection

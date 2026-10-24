@@ -8336,7 +8336,10 @@
         const receivingOfficerValue = escapeHtml(tracker.receivingOfficerName || tracker.receiving_officer_name || tracker.receivingOfficer?.name || tracker.handler || '-');
         // Passport photo of the holder, printed in the sheet header. Falls back to a
         // blank frame so the header keeps its three-column balance either way.
-        const receivingOfficerPhotoUrl = tracker.receivingOfficerPhoto || tracker.receiving_officer_photo || '';
+        // Never on a DIIT sheet (Change Request 22102026 #22): the DIIT card itself, or
+        // the commissioning sheet's page, which passes options.diit.
+        const isDiitSheet = Boolean(tracker.isDiit || options.diit);
+        const receivingOfficerPhotoUrl = isDiitSheet ? '' : (tracker.receivingOfficerPhoto || tracker.receiving_officer_photo || '');
         const holderPhotoBlock = receivingOfficerPhotoUrl
             ? `<div class="holder-photo-wrap">
                    <img src="${escapeHtml(receivingOfficerPhotoUrl)}" alt="${receivingOfficerValue}"
@@ -8934,7 +8937,8 @@
 
         // Holder photo, resolved in the same order as the name above: the tracker's own
         // officer when it names one, otherwise whoever the latest movement entry records.
-        const kangisHolderPhotoUrl = (
+        // Never on a DIIT sheet (Change Request 22102026 #22).
+        const kangisHolderPhotoUrl = tracker.isDiit ? '' : (
             tracker.receivingOfficerName || tracker.receiving_officer_name || tracker.receivingOfficer?.name
         )
             ? (tracker.receivingOfficerPhoto || '')

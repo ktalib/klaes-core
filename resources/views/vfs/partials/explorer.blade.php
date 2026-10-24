@@ -9,7 +9,7 @@
 
 @php
     $sections = [
-        'documents' => ['label' => 'Current Documents', 'icon' => 'folder', 'count' => $summary['page_count']],
+        'documents' => ['label' => 'Current Documents', 'icon' => 'folder', 'count' => $summary['page_count'] + ($summary['system_count'] ?? 0)],
         'lineage'   => ['label' => 'Linked Files', 'icon' => 'git-branch', 'count' => $lineage['total']],
         'timeline'  => ['label' => 'Status Timeline', 'icon' => 'clock', 'count' => count($timeline)],
         'sources'   => ['label' => 'Source Folders', 'icon' => 'server', 'count' => count($sources)],
@@ -133,6 +133,7 @@
                 'activeFolder' => $activeFolder,
                 'documents' => $documents,
                 'status' => $status,
+                'summary' => $summary,
             ])
         @endif
     </div>

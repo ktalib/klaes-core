@@ -301,6 +301,68 @@ class PraRecordController extends Controller
 
                 $linkedPropId = $this->service->linkSourceOpRecord($existingOp, $updates);
 
+                // A merger is held together by PRA rows sharing merger_group_id: the
+                // commissioned file links to one of them, the MLS list shows every
+                // OP of the group, and mergerSerial() needs them all. An OP that
+                // already lives in Deeds still gets its PRA row in the group —
+                // pinned to that source row, like any OP mirrored from a lookup —
+                // instead of being skipped (which left OP 3630 out of its merger,
+                // 2026-10-23). One row per source OP per group: a re-pick reuses it.
+                $mergerGroup = trim((string) ($validated['merger_group_id'] ?? ''));
+                if ($mergerGroup !== '') {
+                    $sourceTable = $existingOp['_source_table'];
+                    $sourceId    = $existingOp['id'] ?? null;
+                    $propId      = $linkedPropId ?? ($existingOp['prop_id'] ?? null);
+
+                    $mirror = \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('pra')
+                        ->where('source_op_table', $sourceTable)
+                        ->where('source_op_id', $sourceId)
+                        ->where('merger_group_id', $mergerGroup)
+                        ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                        ->first(['id', 'prop_id']);
+
+                    if (!$mirror) {
+                        try {
+                            $record = $this->service->createRecord(array_merge($validated, [
+                                'prop_id'         => $propId,
+                                'source_op_table' => $sourceTable,
+                                'source_op_id'    => $sourceId,
+                                'merger_group_id' => $mergerGroup,
+                                'is_merger_op'    => 1,
+                            ]), $request->user()?->id);
+                        } catch (ValidationException $exception) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Validation failed',
+                                'errors' => $exception->errors(),
+                            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+                        }
+                        $mirrorId = $record['id'] ?? null;
+                        $mirrorPropId = $record['prop_id'] ?? $propId;
+                    } else {
+                        $mirrorId = $mirror->id;
+                        $mirrorPropId = $mirror->prop_id ?? $propId;
+                    }
+
+                    Log::info('PRA store: merger OP already in source – PRA row kept in merger group', [
+                        'source_table'    => $sourceTable,
+                        'source_id'       => $sourceId,
+                        'pra_id'          => $mirrorId,
+                        'merger_group_id' => $mergerGroup,
+                        'reused'          => (bool) $mirror,
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Merger OP recorded against its existing ' . $sourceTable . ' row.',
+                        'data'    => [
+                            'prop_id'      => $mirrorPropId,
+                            'id'           => $mirrorId,
+                            'source_table' => 'pra',
+                        ],
+                    ], $mirror ? Response::HTTP_OK : Response::HTTP_CREATED);
+                }
+
                 Log::info('PRA store: OP already in source – skipped duplicate', [
                     'source_table' => $existingOp['_source_table'],
                     'source_id'    => $existingOp['id'] ?? null,

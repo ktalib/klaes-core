@@ -52,14 +52,32 @@
                     <option value="Ministry" {{ $occupancyPermitOpSourceValue === 'Ministry' ? 'selected' : '' }}>Ministry</option>
                     <option value="KANGIS" {{ $occupancyPermitOpSourceValue === 'KANGIS' ? 'selected' : '' }}>KANGIS</option>
                     <option value="LGA" {{ $occupancyPermitOpSourceValue === 'LGA' ? 'selected' : '' }}>LGA</option>
+                    <option value="Kano MDAs" {{ $occupancyPermitOpSourceValue === 'Kano MDAs' ? 'selected' : '' }}>Kano MDAs</option>
                     <option value="Other" {{ $occupancyPermitOpSourceValue === 'Other' ? 'selected' : '' }}>Other</option>
                 </select>
-                {{-- Shown, enabled and required only while Source is Other; saved in pra.op_source_other. --}}
+                @php
+                    $occupancyPermitIsMda = $occupancyPermitOpSourceValue === \App\Support\OpSource::MDA;
+                    $occupancyPermitMdaValue = isset($record) ? ($record->occupancy_permit_op_source_mda ?? '') : '';
+                    $occupancyPermitSpecifyOn = $occupancyPermitOpSourceValue === 'Other' || ($occupancyPermitIsMda && $occupancyPermitMdaValue === 'Other');
+                @endphp
+                {{-- Shown, enabled and required only while Source is Kano MDAs (kano_mdas, the
+                     list File Movement uses). The MDA is saved in pra.op_source_other. --}}
+                <select id="occupancy-permit-op-source-mda" name="occupancy_permit_op_source_mda"
+                    class="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm {{ $occupancyPermitIsMda ? '' : 'hidden' }}"
+                    aria-label="Kano MDA" {{ $occupancyPermitIsMda ? 'required' : 'disabled' }}>
+                    <option value="">Select MDA</option>
+                    @foreach(\App\Support\OpSource::mdas() as $mdaName)
+                        <option value="{{ $mdaName }}" {{ $occupancyPermitMdaValue === $mdaName ? 'selected' : '' }}>{{ $mdaName }}</option>
+                    @endforeach
+                    <option value="Other" {{ $occupancyPermitMdaValue === 'Other' ? 'selected' : '' }}>Other</option>
+                </select>
+                {{-- Shown, enabled and required only while Source is Other, or MDA is Other;
+                     saved in pra.op_source_other. --}}
                 <input type="text" id="occupancy-permit-op-source-other" name="occupancy_permit_op_source_other" maxlength="100"
-                    class="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm {{ $occupancyPermitOpSourceValue === 'Other' ? '' : 'hidden' }}"
-                    placeholder="Specify source *" aria-label="Specify source"
+                    class="mt-2 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm {{ $occupancyPermitSpecifyOn ? '' : 'hidden' }}"
+                    placeholder="{{ $occupancyPermitIsMda ? 'Specify MDA *' : 'Specify source *' }}" aria-label="Specify source"
                     value="{{ isset($record) ? ($record->occupancy_permit_op_source_other ?? '') : '' }}"
-                    {{ $occupancyPermitOpSourceValue === 'Other' ? 'required' : 'disabled' }}>
+                    {{ $occupancyPermitSpecifyOn ? 'required' : 'disabled' }}>
                 <p id="occupancy-permit-lga-note" class="mt-1 text-[11px] text-amber-700 hidden">
                     Issued by a Local Government: registration number is fixed at 0/0/0 and the
                     deeds date and time are left blank.

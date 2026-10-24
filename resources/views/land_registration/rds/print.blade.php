@@ -273,16 +273,12 @@
                 <span>{{ $dateFormatted['year'] }}</span>
             </div>
 
-            {{-- Consideration, receipt number, registration fee and stamp duty are
-                 all entered by hand at the counter, so they print as empty rules
-                 even when the form captured a value. --}}
+            {{-- Sale amount, registration fee and receipt number, in that order, are
+                 entered by hand at the counter, so they print as empty rules even when
+                 the form captured a value. Land RDS carries no stamp duty line. --}}
             <div class="mt-8 space-y-2 max-w-md ml-auto">
                 <div class="flex items-baseline gap-2">
-                    <span class="font-semibold uppercase tracking-wide">CONSIDERATION:</span>
-                    <span class="form-line flex-1"></span>
-                </div>
-                <div class="flex items-baseline gap-2">
-                    <span class="font-semibold uppercase tracking-wide">RECEIPT NO:</span>
+                    <span class="font-semibold uppercase tracking-wide">SALE AMOUNT:</span>
                     <span class="form-line flex-1"></span>
                 </div>
                 <div class="flex items-baseline gap-2">
@@ -290,7 +286,7 @@
                     <span class="form-line flex-1"></span>
                 </div>
                 <div class="flex items-baseline gap-2">
-                    <span class="font-semibold uppercase tracking-wide">STAMP DUTY:</span>
+                    <span class="font-semibold uppercase tracking-wide">RECEIPT NO:</span>
                     <span class="form-line flex-1"></span>
                 </div>
             </div>

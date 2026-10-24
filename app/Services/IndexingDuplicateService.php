@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Schema;
  * flagging a row would leave it sitting in the table. indexing_duplicates keeps a
  * full JSON snapshot of everything removed so the move stays auditable/restorable.
  *
+ * Everything else attached to the file goes with it (user, 2026-10-23): PRA, CofO,
+ * file history (FH), file tracker records, movements and tracker requests are
+ * snapshotted into the archive and then removed from the live tables.
+ *
  * mls_file_no is deliberately NOT part of the cascade — deleting the commissioning
  * row would de-commission the file and change its Legal Search timeline. When one
  * exists it is recorded as retained instead.
@@ -41,25 +45,16 @@ class IndexingDuplicateService
     ];
 
     /**
-     * Tracker rows are deliberately neither blocked on nor deleted: the movement
-     * history is the record of where the physical file went, and that stays true
-     * whether or not the file turned out to be a duplicate.
+     * Rows keyed by file_indexing_id that would be orphaned by the delete. They are
+     * snapshotted (`child_rows`) and removed with the record.
      *
-     * Keeping them is safe because both tables are self-contained — they carry
-     * tracking_id, current_location, current_handler and movement_history of their
-     * own, so a row stays readable after its file_indexings row is gone. They are
-     * recorded in the snapshot as retained so the archive shows the link.
-     */
-    private const RETAINED_REFERENCES = [
-        'indexed_file_trackers' => 'file tracker record(s)',
-        'file_trackings'        => 'file tracking movement(s)',
-    ];
-
-    /**
-     * Queue / link / derived rows that would be orphaned by the delete. These are
-     * regenerable, so they are snapshotted and removed with the record.
+     * The two tracker tables used to be kept as the physical file's movement
+     * history; since 2026-10-23 they go with the record like everything else, and
+     * the snapshot is their surviving copy.
      */
     private const CLEANABLE_REFERENCES = [
+        'indexed_file_trackers',
+        'file_trackings',
         'print_label_batch_items',
         'kangis_print_label_batch_items',
         'sltr_print_label_batch_items',
@@ -70,6 +65,9 @@ class IndexingDuplicateService
         'page_typing_tool_logs',
         'deprecated_records',
     ];
+
+    /** Prefix of the system temp file no a move assigns (MOV-DUP-00001, ...). */
+    public const MOVE_TEMP_PREFIX = MoveTempFileNumber::PREFIX;
 
     /** fileNumber columns that can hold the indexed file's number. */
     private const FILE_NUMBER_COLUMNS = ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo', 'st_file_no'];
@@ -97,30 +95,20 @@ class IndexingDuplicateService
             'columns'     => ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno'],
             'transaction' => true,
         ],
+        'file_history_staging' => [
+            'label'       => 'File history (FH)',
+            'columns'     => ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno'],
+            'transaction' => true,
+        ],
+        'file_tracker' => [
+            'label'       => 'File tracker requests',
+            'columns'     => ['file_number'],
+            'transaction' => false,
+        ],
         'file_indexing_staging' => [
             'label'       => 'Staged indexing upload(s)',
             'columns'     => ['file_number'],
             'transaction' => false,
-        ],
-    ];
-
-    /**
-     * Record / transaction tables keyed by file number rather than by
-     * file_indexing_id. They are never touched by the move — a dealing that was
-     * registered against the file stays registered — but the operator has to see
-     * them before confirming, because a file carrying transactions is usually the
-     * ORIGINAL rather than the duplicate.
-     *
-     * @var array<string,array{label:string,columns:array<int,string>}>
-     */
-    private const TRANSACTION_TABLES = [
-        'file_history_staging' => [
-            'label'   => 'File history (FH)',
-            'columns' => ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno'],
-        ],
-        'file_tracker' => [
-            'label'   => 'File tracker requests',
-            'columns' => ['file_number'],
         ],
     ];
 
@@ -137,6 +125,20 @@ class IndexingDuplicateService
         'fileNumber'        => 'File number registry',
         'customers_staging' => 'Customer record(s)',
         'entities_staging'  => 'Entity record(s)',
+        'indexed_file_trackers' => 'File tracker record(s)',
+        'file_trackings'        => 'File tracking movement(s)',
+    ];
+
+    /**
+     * Summary-card groups, in display order. A table not listed falls under
+     * "Linked rows" (labels, barcodes, links and other regenerable rows).
+     */
+    private const SUMMARY_GROUPS = [
+        'Indexing record'      => ['file_indexings', 'file_indexing_staging'],
+        'File number registry' => ['fileNumber'],
+        'Property & title'     => ['pra', 'CofO_staging', 'file_history_staging'],
+        'File tracking'        => ['indexed_file_trackers', 'file_trackings', 'file_tracker'],
+        'Parties'              => ['customers_staging', 'entities_staging'],
     ];
 
     /**
@@ -194,31 +196,14 @@ class IndexingDuplicateService
             }
         }
 
-        // Kept on purpose. Trackers key off file_indexing_id; the transaction
-        // tables key off the file number(s).
+        // The only thing left in place: the commissioning row (see MLS_FILE_NO_COLUMNS).
         $retained = [];
-        foreach (self::RETAINED_REFERENCES as $table => $label) {
-            if (!Schema::connection('sqlsrv')->hasTable($table)) {
-                continue;
-            }
-            $this->addPreviewRow(
-                $retained,
-                $table,
-                $conn->table($table)->where('file_indexing_id', (string) $fileIndexingId)->count(),
-                ucfirst($label)
-            );
-        }
-
-        foreach (self::TRANSACTION_TABLES as $table => $meta) {
-            $this->addPreviewRow($retained, $table, $this->countByFileNumber($table, $meta['columns'], $numbers), $meta['label']);
-        }
-
-        $transactionTotal = 0;
-        foreach ($retained as $entry) {
-            if (isset(self::TRANSACTION_TABLES[$entry['table']])) {
-                $transactionTotal += $entry['count'];
-            }
-        }
+        $this->addPreviewRow(
+            $retained,
+            'mls_file_no',
+            count($this->findMlsFileNoRows($numbers)),
+            'Commissioning record (file stays commissioned)'
+        );
 
         return [
             'status'                    => empty($blocking) ? 'ok' : 'blocked',
@@ -227,8 +212,12 @@ class IndexingDuplicateService
             'matched_numbers'           => $numbers,
             'blocking'                  => $blocking,
             'deletions'                 => array_values($deletions),
+            'summary'                   => $this->summarise($deletions),
             'retained'                  => array_values($retained),
-            'transaction_total'         => $transactionTotal,
+            // Registered dealings (PRA / CofO / FH) on this file. They are deleted
+            // with it now, so both keys carry the same number; transaction_total is
+            // what the Master Delete dialog reads.
+            'transaction_total'         => $deletedTransactionTotal,
             'deleted_transaction_total' => $deletedTransactionTotal,
         ];
     }
@@ -318,9 +307,71 @@ class IndexingDuplicateService
 
         $bucket[$table] = [
             'table' => $table,
-            'label' => $label ?? self::DELETION_LABELS[$table] ?? $this->humanizeTable($table),
+            'label' => $label ?? $this->tableLabel($table),
+            'group' => $this->tableGroup($table),
             'count' => $count,
         ];
+    }
+
+    private function tableLabel(string $table): string
+    {
+        return self::DELETION_LABELS[$table]
+            ?? self::FILE_NUMBER_DELETIONS[$table]['label']
+            ?? $this->humanizeTable($table);
+    }
+
+    private function tableGroup(string $table): string
+    {
+        foreach (self::SUMMARY_GROUPS as $group => $tables) {
+            if (in_array($table, $tables, true)) {
+                return $group;
+            }
+        }
+
+        return 'Linked rows';
+    }
+
+    /**
+     * Preview / count rows folded into the summary card: one entry per non-empty
+     * group, in SUMMARY_GROUPS order, each with its total and its per-table rows.
+     *
+     * @param array<string,array{table:string,label:string,group:string,count:int}> $rows
+     * @return array<int,array{group:string,total:int,tables:array<int,array>}>
+     */
+    private function summarise(array $rows): array
+    {
+        $groups = [];
+        foreach (array_merge(array_keys(self::SUMMARY_GROUPS), ['Linked rows']) as $group) {
+            $groups[$group] = ['group' => $group, 'total' => 0, 'tables' => []];
+        }
+
+        foreach ($rows as $row) {
+            $groups[$row['group']]['total'] += $row['count'];
+            $groups[$row['group']]['tables'][] = $row;
+        }
+
+        return array_values(array_filter($groups, fn ($g) => $g['total'] > 0));
+    }
+
+    /**
+     * The summary card for a completed move, built from its deleted_counts. Used by
+     * the move response and by the Indexing Duplicates snapshot view.
+     *
+     * @return array<int,array{group:string,total:int,tables:array<int,array>}>
+     */
+    public function summariseCounts(array $counts): array
+    {
+        $rows = [];
+        foreach (['file_indexings', 'fileNumber', 'customers_staging', 'entities_staging'] as $table) {
+            $this->addPreviewRow($rows, $table, (int) ($counts[$table] ?? 0));
+        }
+        foreach (['child_rows', 'file_number_rows'] as $bucket) {
+            foreach ((array) ($counts[$bucket] ?? []) as $table => $count) {
+                $this->addPreviewRow($rows, (string) $table, (int) $count);
+            }
+        }
+
+        return $this->summarise($rows);
     }
 
     private function humanizeTable(string $table): string
@@ -407,21 +458,10 @@ class IndexingDuplicateService
         $customerRows = $conn->table('customers_staging')->whereIn('file_number', $numbers)->get();
         $entityRows   = $conn->table('entities_staging')->whereIn('file_number', $numbers)->get();
         $cleanable    = $this->collectCleanableRows($fileIndexingId);
-        $retained     = $this->countRetainedReferences($fileIndexingId);
 
         // Record rows keyed by file number that move with the record. Snapshotted
         // here, before the transaction deletes them.
         $fileNumberRowsToDelete = $this->collectFileNumberDeletionRows($numbers);
-
-        // Dealings registered against the file number. Left in place, but recorded
-        // so the archive shows what the moved record was still attached to.
-        $transactions = [];
-        foreach (self::TRANSACTION_TABLES as $table => $meta) {
-            $count = $this->countByFileNumber($table, $meta['columns'], $numbers);
-            if ($count > 0) {
-                $transactions[$table] = $count;
-            }
-        }
 
         // Recorded, never deleted — the file stays commissioned.
         $retainedMls = !empty($this->findMlsFileNoRows($numbers));
@@ -435,25 +475,32 @@ class IndexingDuplicateService
             'fileNumber'        => array_map(fn ($r) => (array) $r, $fileNumberRows),
             'customers_staging' => $customerRows->map(fn ($r) => (array) $r)->all(),
             'entities_staging'  => $entityRows->map(fn ($r) => (array) $r)->all(),
+            // Labels, barcodes, links and the two tracker tables.
             'child_rows'        => $cleanable,
-            // pra / CofO_staging / file_indexing_staging — deleted with the
-            // record, full rows kept here so the move stays restorable.
+            // pra / CofO_staging / file_history_staging / file_tracker /
+            // file_indexing_staging — deleted with the record, full rows kept here
+            // so the move stays restorable.
             'file_number_rows'  => $fileNumberRowsToDelete,
             'matched_numbers'   => $numbers,
             'mls_file_no_retained' => $retainedMls,
-            // Left in place on purpose — see RETAINED_REFERENCES.
-            'retained_references'  => $retained,
-            // Left in place on purpose — see TRANSACTION_TABLES.
-            'transaction_references' => $transactions,
         ];
+
+        $moveTempNo = null;
 
         $archiveId = $conn->transaction(function () use (
             $conn, $row, $fileIndexingId, $numbers, $fileNumberRows,
-            $retainedMls, $actor, $reason, $duplicateOf, $archive, $snapshot, &$counts
+            $retainedMls, $actor, $reason, $duplicateOf, $archive, $snapshot, &$counts, &$moveTempNo
         ) {
             $archiveId = null;
 
             if ($archive) {
+                // System temp file no for the moved file and its transactions
+                // (user, 2026-10-24): stamped on the archive row and on every row
+                // in the snapshot, so the duplicate keeps an identity of its own
+                // once the real number is free for the original.
+                $moveTempNo = $this->nextMoveTempNo($conn);
+                $snapshot = $this->stampSnapshot($snapshot, $moveTempNo);
+
                 // Clone the record column-for-column. indexing_duplicates mirrors
                 // file_indexings, so the archive lines up with the indexed files table
                 // and a restore is a straight column-to-column insert. Anything the
@@ -465,17 +512,23 @@ class IndexingDuplicateService
                 // the move has its own moved_at.
                 unset($archiveRow['id']);
 
-                $archiveRow += [
+                // array_merge, not +=, so these override the cloned has_temp_file /
+                // temp_file_no instead of being ignored.
+                $archiveRow = array_merge($archiveRow, [
                     'file_indexing_id'     => $fileIndexingId,
                     'duplicate_of'         => $this->clip($duplicateOf, 100),
                     'reason'               => $this->clip($reason, 500),
                     'mls_file_no_retained' => $retainedMls ? 1 : 0,
+                    // Replaces any temp no cloned from the indexing row; the
+                    // original value is still in snapshot.file_indexing.
+                    'has_temp_file'        => 1,
+                    'temp_file_no'         => $moveTempNo,
                     'snapshot'             => json_encode($snapshot),
                     'deleted_counts'       => null,
                     'moved_by'             => $this->clip($actor, 150),
                     'moved_by_id'          => Auth::id(),
                     'moved_at'             => now(),
-                ];
+                ]);
 
                 // Archive first: if any delete below fails the whole move rolls back,
                 // archive row included.
@@ -574,7 +627,7 @@ class IndexingDuplicateService
         // the audit, because ExecutesMasterDelete::logMasterDelete() is the entry every
         // other Master Delete in the system writes, and one shape beats two.
         if ($archive) {
-            $this->writeAudit($archiveId, $row, $counts, $reason);
+            $this->writeAudit($archiveId, $row, $counts, $reason, $moveTempNo);
         }
 
         return [
@@ -585,8 +638,8 @@ class IndexingDuplicateService
             'counts' => $counts,
             'matched_numbers' => $numbers,
             'mls_file_no_retained' => $retainedMls,
-            'retained_references' => $retained,
-            'transaction_references' => $transactions,
+            'temp_file_no' => $moveTempNo,
+            'summary' => $this->summariseCounts($counts),
             // Only a purge needs this back — nothing else survives it.
             'snapshot' => $archive ? null : $snapshot,
         ];
@@ -617,31 +670,6 @@ class IndexingDuplicateService
                 ->count();
             if ($count > 0) {
                 $found['scan_reassignment_logs'] = $count . ' scan reassignment log(s)';
-            }
-        }
-
-        return $found;
-    }
-
-    /**
-     * Count the tracker rows left in place, so the archive records that the file's
-     * movement history survives the move.
-     *
-     * @return array<string,int>
-     */
-    private function countRetainedReferences(int $fileIndexingId): array
-    {
-        $conn = DB::connection('sqlsrv');
-        $found = [];
-
-        foreach (array_keys(self::RETAINED_REFERENCES) as $table) {
-            if (!Schema::connection('sqlsrv')->hasTable($table)) {
-                continue;
-            }
-
-            $count = $conn->table($table)->where('file_indexing_id', (string) $fileIndexingId)->count();
-            if ($count > 0) {
-                $found[$table] = $count;
             }
         }
 
@@ -803,7 +831,43 @@ class IndexingDuplicateService
         return mb_substr($value, 0, $length);
     }
 
-    private function writeAudit(int $archiveId, object $row, array $counts, ?string $reason): void
+    /**
+     * Next MOV-DUP-##### number, from the series shared with Move Transaction.
+     * Must be called inside the move's transaction.
+     */
+    private function nextMoveTempNo($conn): string
+    {
+        return MoveTempFileNumber::next($conn);
+    }
+
+    /**
+     * Stamp the move's temp file no on the snapshot and on every row it holds
+     * (indexing, registry, parties, PRA / CofO / FH / tracking, linked rows). The
+     * rows' own columns are left untouched so a restore still has the originals.
+     */
+    private function stampSnapshot(array $snapshot, string $tempNo): array
+    {
+        $snapshot['moved_temp_file_no'] = $tempNo;
+        $snapshot['file_indexing']['moved_temp_file_no'] = $tempNo;
+
+        foreach (['fileNumber', 'customers_staging', 'entities_staging'] as $key) {
+            foreach ($snapshot[$key] as $i => $r) {
+                $snapshot[$key][$i]['moved_temp_file_no'] = $tempNo;
+            }
+        }
+
+        foreach (['child_rows', 'file_number_rows'] as $bucket) {
+            foreach ($snapshot[$bucket] as $table => $rows) {
+                foreach ($rows as $i => $r) {
+                    $snapshot[$bucket][$table][$i]['moved_temp_file_no'] = $tempNo;
+                }
+            }
+        }
+
+        return $snapshot;
+    }
+
+    private function writeAudit(int $archiveId, object $row, array $counts, ?string $reason, ?string $tempFileNo = null): void
     {
         try {
             app(AuditService::class)->logAction(
@@ -811,7 +875,7 @@ class IndexingDuplicateService
                 'indexing_duplicate',
                 $archiveId,
                 ['file_indexing_id' => $row->id, 'file_number' => $row->file_number],
-                ['counts' => $counts, 'reason' => $reason],
+                ['counts' => $counts, 'reason' => $reason, 'temp_file_no' => $tempFileNo],
                 sprintf('Moved indexed file %s to indexing duplicates', $row->file_number)
             );
         } catch (\Throwable $e) {

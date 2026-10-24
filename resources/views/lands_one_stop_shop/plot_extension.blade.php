@@ -98,7 +98,7 @@
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
                                 <th class="px-4 py-3 text-left whitespace-nowrap"><input type="checkbox" class="pu-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-slate-300 text-violet-600" aria-label="Select all on this page">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
-                                <th class="px-4 py-3 text-left">R of Occupancy</th>
+                                <th class="px-4 py-3 text-left whitespace-nowrap">File No</th>
                                 <th class="px-4 py-3 text-left whitespace-nowrap">New FileNo(s)</th>
                                 <th class="px-4 py-3 text-left">Existing Land Use</th>
                                 <th class="px-4 py-3 text-left">Plot No</th>
@@ -126,13 +126,13 @@
                                 <tr data-record='@json($record)'>
                                     <td class="px-4 py-2.5 text-xs text-slate-400 font-mono whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
-                                    <td class="px-4 py-2.5 text-slate-700">{{ $record->file_no ?: '—' }}</td>
+                                    <td class="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no ?: '—' }}</td>
                                     @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->land_use ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->plot_no ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-600 text-xs leading-snug">
+                                        {{-- District, LGA (+ state) only: the plot has its own column. --}}
                                         {{ implode(', ', array_filter([
-                                            $record->plot_no ? 'Plot '.$record->plot_no : null,
                                             $record->location,
                                             $record->district,
                                             $record->lga,
@@ -305,6 +305,9 @@
             {{-- Form Body --}}
             <form id="pe-form" class="flex-1 overflow-y-auto">
                 @csrf
+                {{-- Which sidebar raised it (?mode=land / Deeds). The store reads this; without
+                     it every Plot Extension was saved as Deeds. --}}
+                <input type="hidden" name="mode" value="{{ \App\Support\ParcelUpdateSource::normalise(request('mode')) }}">
                 <input type="hidden" id="pe-id">
 
                 <div class="px-8 py-8 space-y-8">

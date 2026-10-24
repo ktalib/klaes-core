@@ -3342,7 +3342,7 @@ HTML;
                     'requester_user_id' => $user->id ?? null,
                     'status'            => FileSearchRequest::STATUS_NOT_FOUND,
                     'not_found_type'    => FileSearchRequest::NOT_FOUND_MISSING,
-                    'feedback_note'     => 'File is on the missing files list — referred to the Original Registry.',
+                    'feedback_note'     => 'File is on the Not With KLAES (NWK) list — referred to the Original Registry.',
                     'responded_at'      => now(),
                     'front_desk_acted_at' => now(),
                     'front_desk_acted_by' => $user->id ?? null,
@@ -3361,7 +3361,7 @@ HTML;
                 return response()->json([
                     'success' => true,
                     'data'    => ['request_no' => $fr->request_no, 'id' => $fr->id],
-                    'message' => 'Blind request saved — file is in the missing list. Refer to Original Registry.',
+                    'message' => 'Blind request saved — file is on the Not With KLAES (NWK) list. Refer to Original Registry.',
                 ], 201);
             }
 
@@ -5580,7 +5580,7 @@ HTML;
         $headings = [
             'tracking_sheet'        => 'KLAES FILE TRACKING SHEET',
             'tracking_confirmation' => 'KLAES FILE TRACKING REQUEST SHEET',
-            'missing'               => 'KLAES MISSING FILE CONFIRMATION SLIP',
+            'missing'               => 'KLAES NOT WITH KLAES (NWK) CONFIRMATION SLIP',
             'refer_registry'        => 'KLAES — REFER TO ORIGINAL REGISTRY',
         ];
 

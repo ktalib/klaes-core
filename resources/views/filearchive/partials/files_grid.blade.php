@@ -277,10 +277,11 @@
                             <h3 class="font-semibold text-sm line-clamp-1 mb-2 text-gray-900" title="{{ $file->file_title }}">
                                 {{ $file->file_title }}
                             </h3>
-                            <div class="mb-2">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 whitespace-nowrap">
+                            <div class="mb-2 flex items-center justify-between gap-2">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 whitespace-nowrap truncate">
                                     {{ $file->file_number }}
                                 </span>
+                                @include('filearchive.partials.file_actions_menu', ['file' => $file])
                             </div>
                             <div class="flex items-center justify-between">
                                 @php

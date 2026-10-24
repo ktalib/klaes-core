@@ -193,8 +193,13 @@
       modal.classList.remove('hidden');
       modal.classList.add('flex');
 
-      if (fileIndexingId) {
+      if (fileIndexingId && /^\d+$/.test(String(fileIndexingId))) {
         await this.selectFile({ id: fileIndexingId, file_number: fileNumber || '' });
+      } else if (fileNumber) {
+        // Folder-listed archives (KANGIS / SLTR / DCIV / Cadastral) hand over a
+        // storage-demo-* card id, not an indexing id: find the file by its number.
+        this.clearFile();
+        await this.resolveFileNumber(String(fileNumber).trim());
       } else {
         this.clearFile();
       }

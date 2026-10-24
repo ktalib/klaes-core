@@ -335,6 +335,22 @@ document.addEventListener('DOMContentLoaded', function () {
             dupConfirmed = false;
         };
 
+        // The duplicate check is a server round trip (1–2 s on the officers' links).
+        // Without visible feedback the first click looks dead and gets clicked again,
+        // which is the "Create/Update needs two clicks" report (CR 22102026 #29).
+        let dupCheckPending = false;
+        const submitBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+        function setSubmitBusy(label) {
+            if (!submitBtn) return;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="animate-spin mr-2"></i> ' + label;
+        }
+        function resetSubmitBtn() {
+            if (!submitBtn) return;
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = submitBtnHtml;
+        }
+
         form.addEventListener('submit', function (e) {
             // A Plot Subdivision batch has no single file number, land use or
             // applicant — each child row carries its own, and the batch endpoint
@@ -371,10 +387,15 @@ document.addEventListener('DOMContentLoaded', function () {
             // exempt (the server skips its guard for the same reason).
             if (!dupConfirmed && !window._reissuanceMode) {
                 e.preventDefault();
+                if (dupCheckPending) return; // a repeat click while the check is still out
+                dupCheckPending = true;
+                setSubmitBusy('Checking...');
                 checkDuplicateFileNo(fileNoInput.value).then(dup => {
+                    dupCheckPending = false;
+                    // Blocked or not, the button comes back here; a submit that
+                    // goes through sets it busy again below.
+                    resetSubmitBtn();
                     if (dup) {
-                        // Blocked: the save never started, so the button must come back.
-                        if (submitBtn) submitBtn.disabled = false;
                         blockDuplicate(dup);
                         return;
                     }
@@ -384,10 +405,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="animate-spin mr-2"></i> Processing...';
-            }
+            // Later listeners (Old File Number, batch checks) may still stop this
+            // submit, so decide after they have all run; a blocked save must leave
+            // the button usable rather than stuck on "Processing".
+            setTimeout(function () {
+                if (e.defaultPrevented) resetSubmitBtn();
+                else setSubmitBusy('Processing...');
+            }, 0);
         });
     }
 

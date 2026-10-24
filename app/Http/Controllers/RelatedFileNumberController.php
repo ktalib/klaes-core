@@ -48,6 +48,25 @@ class RelatedFileNumberController extends Controller
         ]);
     }
 
+    /**
+     * Related and Temporary file numbers for the files on one table page, for the
+     * expandable rows (Change Request 22102026, items 4-6). Keyed by file number;
+     * files with neither are left out, so their rows get no chevron.
+     */
+    public function expand(Request $request, \App\Services\RelatedTempFileLookup $lookup): JsonResponse
+    {
+        // details[]: the row details for an expanded row's own table.
+        if ($request->has('details')) {
+            $numbers = array_slice(array_filter((array) $request->input('details', []), 'is_string'), 0, \App\Services\RelatedTempFileLookup::MAX_FILES);
+
+            return response()->json(['success' => true, 'data' => (object) $lookup->details($numbers)]);
+        }
+
+        $files = array_slice(array_filter((array) $request->input('files', []), 'is_string'), 0, \App\Services\RelatedTempFileLookup::MAX_FILES);
+
+        return response()->json(['success' => true, 'data' => (object) $lookup->forFiles($files)]);
+    }
+
     public function apiList(Request $request): JsonResponse
     {
         $perPage = max(1, min((int) $request->input('per_page', self::PER_PAGE_DEFAULT), self::PER_PAGE_MAX));
@@ -114,15 +133,30 @@ class RelatedFileNumberController extends Controller
             // 'any' or '' = no filter
         }
 
-        $total = (clone $q)->count();
+        // One row per parent file (Change Request 22102026, items 4-6): the newest link
+        // is shown, and the row expands to list the parent's other related files and
+        // any temporary file. Paginated over parents, so S/N counts files, not links.
+        $total = (clone $q)->distinct()->count('file_number');
 
-        $rows = $q->orderByDesc('id')
+        $groups = (clone $q)
+            ->selectRaw('file_number, MAX(id) as mid, COUNT(*) as n')
+            ->groupBy('file_number')
+            ->orderByDesc('mid')
             ->forPage($page, $perPage)
+            ->get();
+        $groupCounts = $groups->pluck('n', 'mid');
+
+        $rows = DB::connection('sqlsrv')->table('related_file_number')
+            ->whereIn('id', $groups->pluck('mid')->all() ?: [0])
+            ->orderByDesc('id')
             ->get([
                 'id', 'related_fileno', 'prop_id', 'source_table', 'source_id',
                 'file_number', 'file_title', 'party_2', 'location', 'comment',
                 'transaction_type', 'created_at',
             ]);
+        foreach ($rows as $row) {
+            $row->group_count = (int) ($groupCounts[$row->id] ?? 1);
+        }
 
         // Look up the title for each related_fileno (by matching it against
         // file_indexings.file_number, falling back to fileNumber tables).

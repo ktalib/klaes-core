@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    // Inline edit (Edit mode switch) on every table on this page, for users with
+    // edit on Letter of Grant (RofO); the save route enforces the same permission.
+    $recCanInlineEdit = \App\Support\InlineEdit::canEdit();
+@endphp
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
     <div class="py-12 bg-slate-50 min-h-screen">
@@ -556,6 +561,8 @@
                         @endphp
                         <span class="text-slate-400 normal-case tracking-normal font-medium">· {{ $tabLabel }}</span>
                     </h3>
+                    {{-- Filled by InlineBatchEdit.toggleHtml() once the script loads. --}}
+                    <div data-ibe-toggle-slot class="ml-auto"></div>
                     @if(empty($isOssView))
                     @canDo('Letter of Grant (RofO)', 'approve')
                     <div id="batch-toolbar" class="hidden items-center gap-3">
@@ -702,8 +709,9 @@
                                         </span>
                                     @endif
                                 </td>
+                                @php $ie = fn ($f) => \App\Support\InlineEdit::attrs($rec, $f, $recCanInlineEdit); @endphp
                                 <td class="px-4 py-2 text-slate-700 whitespace-nowrap uppercase font-bold text-blue-900">
-                                    <div>{{ $rec->applicant_name }}</div>
+                                    <div{{ $ie('applicant_name') }}>{{ $rec->applicant_name }}</div>
                                     @if(trim((string) $rec->applicant_phone) !== '')
                                         <button type="button" data-applicant-phone-action
                                                 data-phone="{{ $rec->applicant_phone }}"
@@ -714,16 +722,16 @@
                                         </button>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->landuse_purpose }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->display_location }}</td>
-                                <td class="px-4 py-2 text-blue-600 whitespace-nowrap font-medium italic uppercase">{{ $rec->resolved_applicant_address ?? $rec->applicant_address ?? 'N/A' }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->plot_number }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->layout_plan_no }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->term }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->ground_rent, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->development_period_label }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->preparation_fees, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->development_value, 2) }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('land_use_purpose') }}>{{ $rec->landuse_purpose }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('location') }}>{{ $rec->display_location }}</td>
+                                <td class="px-4 py-2 text-blue-600 whitespace-nowrap font-medium italic uppercase"{{ $ie('applicant_address') }}>{{ $rec->resolved_applicant_address ?? $rec->applicant_address ?? 'N/A' }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('plot_number') }}>{{ $rec->plot_number }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('layout_plan_no') }}>{{ $rec->layout_plan_no }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap"{{ $ie('term') }}>{{ $rec->term }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('ground_rent') }}>₦{{ number_format($rec->ground_rent, 2) }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase" data-display="label"{{ $ie('development_period') }}>{{ $rec->development_period_label }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('preparation_fees') }}>₦{{ number_format($rec->preparation_fees, 2) }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('development_value') }}>₦{{ number_format($rec->development_value, 2) }}</td>
                                 {{-- <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">{{$rec->development_charge}}</td> --}}
                                 <td class="px-4 py-2 text-center whitespace-nowrap">
                                     @if(!empty($isOssView))
@@ -1361,6 +1369,7 @@
 
 @push('scripts')
 <script src="{{ asset('js/master-delete.js') }}"></script>
+<script src="{{ asset('js/inline-batch-edit.js') }}?v={{ filemtime(public_path('js/inline-batch-edit.js')) }}"></script>
 <script>
     /**
      * Master Delete for a land recommendation — the record AND the RofO it became.
@@ -1408,6 +1417,30 @@
     }
 
     var CHILDREN_URL = @json(url('land-recommendations/batch'));
+
+    // Inline edit on every table on this page ($recCanInlineEdit is set at the top).
+    var REC_INLINE_EDIT = @json($recCanInlineEdit);
+    InlineBatchEdit.init({
+        url: @json(url('land-recommendations/__ID__/inline-update')),
+        csrf: @json(csrf_token()),
+        canEdit: REC_INLINE_EDIT,
+        lookups: @json($recCanInlineEdit ? \App\Support\InlineEdit::lookups() : [])
+    });
+    document.querySelectorAll('[data-ibe-toggle-slot]').forEach(function (el) { el.innerHTML = InlineBatchEdit.toggleHtml(); });
+
+    // Attributes that make a batch child's cell editable (empty when editing is off).
+    // c.edit carries the raw values from InlineEdit::rowValues().
+    function recInlineAttrs(c, field) {
+        if (!REC_INLINE_EDIT) return '';
+        var kinds = { land_use_purpose: 'land_use_purpose', location: 'location', ground_rent: 'money', survey_fees: 'money',
+                      development_value: 'money', preparation_fees: 'money', development_charge: 'charge' };
+        var raw = (c.edit || {})[field];
+        if (field === 'land_use_purpose' || field === 'location') {
+            try { raw = JSON.parse(raw || '{}'); } catch (e) { raw = {}; }
+        }
+        return InlineBatchEdit.attrs(c.id, field, kinds[field] || 'text', raw,
+            { printed: c.print_count, locationText: field === 'location' ? c.location : null });
+    }
 
     function statusPill(value, okValue, okLabel, pendingLabel) {
         var ok = String(value || '').toLowerCase() === okValue;
@@ -1734,11 +1767,21 @@
                     : '')
                 + '<td class="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400">' + c.seq + '</td>'
                 + '<td class="px-4 py-2.5 font-mono text-xs font-bold text-slate-900">' + escHtml(c.file_number) + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-700"><div class="uppercase">' + escHtml(c.applicant_name) + '</div>'
+                // Name and plot no. edit in place (double-click); the name is the
+                // inner div so the phone button beside it is untouched.
+                + '<td class="px-4 py-2.5 text-xs text-slate-700"><div class="uppercase"' + recInlineAttrs(c, 'applicant_name') + '>' + escHtml(c.applicant_name) + '</div>'
                 + (window.applicantPhoneActionButtonHtml ? window.applicantPhoneActionButtonHtml(c.applicant_phone, c.applicant_name, c.file_number) : '') + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + escHtml(c.plot_number) + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + escHtml(c.location) + '</td>'
-                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + escHtml(c.purpose) + '</td>'
+                // Same columns, same order, as the main Application Records table.
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + recInlineAttrs(c, 'land_use_purpose') + '>' + escHtml(c.purpose || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + recInlineAttrs(c, 'location') + '>' + escHtml(c.display_location || c.location || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-blue-600 italic uppercase whitespace-nowrap"' + recInlineAttrs(c, 'applicant_address') + '>' + escHtml(c.applicant_address || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + recInlineAttrs(c, 'plot_number') + '>' + escHtml(c.plot_number || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + recInlineAttrs(c, 'layout_plan_no') + '>' + escHtml(c.layout_plan_no || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap"' + recInlineAttrs(c, 'term') + '>' + escHtml(c.term || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + recInlineAttrs(c, 'ground_rent') + '>' + escHtml(c.ground_rent) + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap" data-display="label"' + recInlineAttrs(c, 'development_period') + '>' + escHtml(c.development_period || '—') + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + recInlineAttrs(c, 'preparation_fees') + '>' + escHtml(c.preparation_fees) + '</td>'
+                + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + recInlineAttrs(c, 'development_value') + '>' + escHtml(c.development_value) + '</td>'
                 + '<td class="px-4 py-2.5 text-center">' + statusPill(c.status, 'approved', 'Approved', 'Pending') + '</td>'
                 + '<td class="px-4 py-2.5 text-center">' + statusPill(c.rofo_status, 'generated', 'Generated', 'Pending') + '</td>'
                 + '<td class="px-4 py-2.5 text-right whitespace-nowrap">'
@@ -1764,6 +1807,7 @@
                     ? '<span class="ml-2 normal-case tracking-normal font-medium text-slate-500">· approve one at a time, or tick the files that are ready</span>'
                     : '')
             +   '</p>'
+            + InlineBatchEdit.toggleHtml()
             {{-- Only where there is something to tick. Emitting it regardless left a
                  hidden bar that nothing could ever open, since syncToolbar() shows
                  it on a ticked box and there are no boxes. --}}
@@ -1777,7 +1821,7 @@
                     : '')
             + '</div>'
             + '<div class="overflow-x-auto rounded-lg border border-violet-200 bg-white">'
-            + '<table class="w-full text-left border-collapse min-w-[880px]">'
+            + '<table class="w-full text-left border-collapse" style="min-width:2000px">'
             + '<thead><tr class="bg-violet-50 text-[10px] font-black text-violet-800 uppercase tracking-widest">'
             +   (selectable
                     ? '<th class="px-3 py-2.5 text-center w-10">'
@@ -1787,15 +1831,23 @@
             +   '<th class="px-4 py-2.5 text-center w-10">#</th>'
             +   '<th class="px-4 py-2.5">File Number</th>'
             +   '<th class="px-4 py-2.5">Applicant</th>'
-            +   '<th class="px-4 py-2.5">Plot No</th>'
+            +   '<th class="px-4 py-2.5 whitespace-nowrap">Landuse/Purpose Clause</th>'
             +   '<th class="px-4 py-2.5">Location</th>'
-            +   '<th class="px-4 py-2.5">Purpose</th>'
+            +   '<th class="px-4 py-2.5 whitespace-nowrap">Applicant Address</th>'
+            +   '<th class="px-4 py-2.5 whitespace-nowrap">Plot No</th>'
+            +   '<th class="px-4 py-2.5 whitespace-nowrap">Layout Plan</th>'
+            +   '<th class="px-4 py-2.5">Term</th>'
+            +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Ground Rent</th>'
+            +   '<th class="px-4 py-2.5 whitespace-nowrap">Dev. Period</th>'
+            +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Prep. Fees</th>'
+            +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Dev. Value</th>'
             +   '<th class="px-4 py-2.5 text-center">Status</th>'
             +   '<th class="px-4 py-2.5 text-center">RofO</th>'
             +   '<th class="px-4 py-2.5 text-right">Actions</th>'
             + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 
         wireBatchChildren(cell, data);
+        InlineBatchEdit.decorate(cell);
     }
 
     // Listeners are attached after every render rather than delegated, because the

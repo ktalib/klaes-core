@@ -49,6 +49,7 @@
             @include('filearchive.partials.document_viewer_modal')
 
             @include('components.edms.registry-transfer-modal')
+            @include('filearchive.partials.card_actions_menu')
             @include('components.edms.file-type-transfer-modal')
             @include('scan_uploads.partials.reassign_modal')
             {{-- Master LFS Folder browser — the viewer opens it to rebuild a page

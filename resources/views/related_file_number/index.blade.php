@@ -83,6 +83,7 @@
     </div>
 </div>
 
+<script src="{{ asset('js/related-temp-expand.js') }}?v={{ @filemtime(public_path('js/related-temp-expand.js')) }}"></script>
 <script>
 (function () {
     const tbody   = document.getElementById('rfn-tbody');
@@ -158,12 +159,12 @@
         }
         const startSn = ((meta.page || 1) - 1) * (meta.per_page || 1);
         tbody.innerHTML = rows.map((r, idx) => `
-            <tr class="align-top odd:bg-white even:bg-slate-50/40 hover:bg-orange-50/30 transition-colors">
+            <tr class="align-top odd:bg-white even:bg-slate-50/40 hover:bg-orange-50/30 transition-colors" data-rt-fileno="${e(textOrDash(r.file_number, ''))}">
                 <td class="px-3 py-3 text-xs font-semibold text-slate-400">${startSn + idx + 1}</td>
                 <td class="px-3 py-3 whitespace-nowrap">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono text-[11px] font-semibold text-slate-600">${e(textOrDash(r.prop_id))}</span>
                 </td>
-                <td class="px-3 py-2 align-top whitespace-nowrap">${fileNumberCell(r.related_fileno)}</td>
+                <td class="px-3 py-2 align-top whitespace-nowrap">${fileNumberCell(r.related_fileno)}${(r.group_count || 1) > 1 ? `<div class="mt-1 text-[11px] text-indigo-600 font-medium">+${r.group_count - 1} more related</div>` : ''}</td>
                 <td class="px-3 py-3 text-slate-700 leading-snug">${e(titleCase(r.related_file_title || r.file_title || r.party_2))}</td>
                 <td class="px-3 py-3 whitespace-nowrap">${fileNumberCell(r.file_number)}</td>
                 <td class="px-3 py-3 text-slate-700 leading-snug">${e(titleCase(r.file_title || r.party_2))}</td>
@@ -190,6 +191,7 @@
             const json = await res.json();
             const meta = json.meta || {};
             render(json.data || [], meta);
+            if (window.RelatedTempExpand) window.RelatedTempExpand.scan(tbody);
             lastPage = meta.last_page || 1;
             pageLbl.textContent = `${meta.page || 1} / ${lastPage}`;
             const from = ((meta.page - 1) * meta.per_page) + 1;

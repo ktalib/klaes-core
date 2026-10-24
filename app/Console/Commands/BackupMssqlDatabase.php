@@ -21,7 +21,7 @@ class BackupMssqlDatabase extends Command
     {
         try {
             // Get MSSQL database name
-            $database = env('DB_SQLSRV_DATABASE', 'klas');
+            $database = config('database.connections.sqlsrv.database', 'klas');
 
             // Ensure backup directory exists
             if (!is_dir($this->backupPath)) {

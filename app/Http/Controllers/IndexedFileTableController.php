@@ -2006,10 +2006,10 @@ class IndexedFileTableController extends Controller
     }
 
     /**
-     * What "Move to Indexing Duplicates" would do to this record: the tables it
-     * deletes from with row counts, the record/transaction tables it leaves alone
-     * (PRA, CofO, file history, file tracker, commissioning register) with their
-     * counts, and anything that blocks the move outright.
+     * What "Move to Indexing Duplicates" would do to this record: every table it
+     * snapshots and deletes from (indexing, file number, PRA, CofO, file history,
+     * file tracking, parties, linked rows) with row counts and a grouped summary,
+     * the commissioning row it leaves alone, and anything that blocks the move.
      *
      * Read-only — the confirmation dialog calls this before the operator commits.
      */
@@ -2053,18 +2053,21 @@ class IndexedFileTableController extends Controller
                 'matched_numbers'   => $preview['matched_numbers'],
                 'blocking'          => $preview['blocking'],
                 'deletions'         => $preview['deletions'],
+                'summary'           => $preview['summary'],
                 'retained'          => $preview['retained'],
                 'transaction_total' => $preview['transaction_total'],
+                'deleted_transaction_total' => $preview['deleted_transaction_total'],
             ],
         ]);
     }
 
     /**
-     * Move an indexed file into indexing_duplicates and remove it from the live
-     * tables (file_indexings, fileNumber, customers_staging, entities_staging).
+     * Move an indexed file into indexing_duplicates: snapshot everything attached
+     * to it (indexing, file number, PRA, CofO, FH, file tracking, parties, linked
+     * rows) and remove it from the live tables.
      *
-     * Refused when the file carries scans, page typings, bills or tracking
-     * movements — see IndexingDuplicateService::BLOCKING_REFERENCES.
+     * Refused when the file carries scans, page typings, bills or SPAS
+     * applications — see IndexingDuplicateService::BLOCKING_REFERENCES.
      */
     public function moveToIndexingDuplicates(Request $request, $id, IndexingDuplicateService $service): JsonResponse
     {
@@ -2141,8 +2144,12 @@ class IndexedFileTableController extends Controller
                 'customers_staging_deleted' => $counts['customers_staging'],
                 'entities_staging_deleted' => $counts['entities_staging'],
                 'child_rows_deleted' => $counts['child_rows'],
+                'file_number_rows_deleted' => $counts['file_number_rows'],
                 'mls_file_no_retained' => $result['mls_file_no_retained'],
-                'retained_references' => $result['retained_references'],
+                // Grouped counts for the "Moved" summary card.
+                'summary' => $result['summary'],
+                // System temp file no stamped on the archive and its transactions.
+                'temp_file_no' => $result['temp_file_no'],
             ],
         ]);
     }
@@ -2273,7 +2280,6 @@ class IndexedFileTableController extends Controller
                 'file_number_rows_deleted'  => $counts['file_number_rows'],
                 'child_rows_deleted'        => $counts['child_rows'],
                 'mls_file_no_retained'      => $result['mls_file_no_retained'],
-                'retained_references'       => $result['retained_references'],
             ],
         ]);
     }

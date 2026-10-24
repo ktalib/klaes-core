@@ -67,6 +67,7 @@
     }
 @endphp
 
+<script src="{{ asset('js/related-temp-expand.js') }}?v={{ @filemtime(public_path('js/related-temp-expand.js')) }}"></script>
 <script>
     console.log('DEBUG: mls_js.blade.php script tag reached');
 
@@ -1642,6 +1643,45 @@
             .map(v => ({ file_no: v, type: type }));
     }
 
+    /**
+     * Expandable rows (Change Request 22102026, items 4-6): a chevron at the start of the
+     * row when the file has any related file or a temporary file; the expansion lists
+     * all of them, including the one printed in the cell. Not on OP files. The lists come from the row itself (the same ones the "View all"
+     * card uses); a Temporary File is listed apart from the related ones.
+     */
+    function mlsfAttachRelatedTempExpand(api) {
+        if (!window.RelatedTempExpand || !api) return;
+        api.rows({ page: 'current' }).every(function () {
+            const row = this.data();
+            const tr = this.node();
+            if (!row || !tr || !row.mlsfNo) return;
+            // OP files are not collapsed: their TEMP number is the OP's own, already
+            // printed under the file number (same test as the Source column).
+            const src = String(row.source || row.file_source || row.file_option || '').toLowerCase();
+            if (src.includes('op resettlement') || src.includes('op direct allocation')) {
+                delete tr.dataset.rtFileno;
+                return;
+            }
+            const fileNo = String(row.mlsfNo).trim();
+            // Every number the cell shows (the REL successor of a retired file, then the
+            // related list) plus whatever the server knows; the helper merges and dedupes.
+            const sup = row.superseded || null;
+            const relatedList = (sup && sup.successor ? [{ file_no: sup.successor, title: null }] : [])
+                .concat(mlsfRelatedFilesFor(row));
+            const temps = [row.source_temp_fileno, row.temp_fileno, row.temp_file_no]
+                .map(v => String(v || '').trim())
+                .filter(v => v !== '' && v !== '-' && v.toUpperCase() !== 'N/A');
+            window.RelatedTempExpand.prime(
+                fileNo,
+                relatedList.map(e => ({ file_number: String(e.file_no).trim(), file_title: e.title || null })),
+                temps.map(v => ({ file_number: v, file_title: null }))
+            );
+            tr.dataset.rtFileno = fileNo;
+        });
+        // The chevron goes at the start of the row (first cell).
+        window.RelatedTempExpand.scan(api.table().body());
+    }
+
     function openMlsfRelatedFilesModal(fileNumber, relatedFiles) {
         const modal = document.getElementById('mlsfRelatedFilesModal');
         const body = document.getElementById('mlsfRelatedFilesBody');
@@ -2432,6 +2472,7 @@
                 if (window.MLSF_IS_ADMIN && typeof refreshSelectAllState === 'function') {
                     refreshSelectAllState();
                 }
+                mlsfAttachRelatedTempExpand(this.api());
             },
             initComplete: function (settings, json) {
                 console.log('DataTable initialized:', {
@@ -5226,6 +5267,7 @@
             subdivision_app_id: normalizeApplicationId(alpineData.subdivisionAppId),
             merger_app_id: normalizeApplicationId(alpineData.mergerAppId),
             separation_app_id: normalizeApplicationId(alpineData.separationAppId),
+            extension_app_id: normalizeApplicationId(alpineData.extensionAppId),
             // Contact fields
             phone_no: document.getElementById('generatePhoneNo')?.value || '',
             // Optional; the applicant's LAAS Portal email (see the single-file form).
@@ -7598,6 +7640,8 @@
             subdivisionRemaining: 0,
             mergerAppId: '',
             separationAppId: '',
+            // Extension File: the approved Plot Extension application for the file picked.
+            extensionAppId: '',
             subdivisionFileNo: '',
             mergerFileNo: '',
             separationFileNo: '',
@@ -10914,6 +10958,7 @@
                                     const data = window.Alpine.$data(modalEl);
                                     data.existingFileNo = cleanedFileNumber;
                                     data.updatePreview();
+                                    linkPlotExtensionApplication(data, cleanedFileNumber);
                                     console.log('[FileNumberGenerator] Alpine data updated, existing file no:', data.existingFileNo);
                                 } else {
                                     // Fallback if Alpine not global
@@ -10962,6 +11007,29 @@
             });
         }
     };
+
+    // Plot Extension register -> File Commissioning: the approved application for the
+    // file being extended is linked, and commissioning marks it commissioned. None found
+    // is not an error: extensions are still commissioned without an application.
+    function linkPlotExtensionApplication(data, fileNumber) {
+        if (!data) return;
+        data.extensionAppId = '';
+        fetch(`{{ route('plot-extension.find-by-file', '') }}/${encodeURIComponent(fileNumber)}`, { headers: { 'Accept': 'application/json' } })
+            .then((r) => r.ok ? r.json() : null)
+            .then((res) => {
+                if (!res || !res.success || !res.data) return;
+                if (String(data.existingFileNo || '').trim().toUpperCase() !== String(fileNumber).trim().toUpperCase()) return; // picked another file meanwhile
+                data.extensionAppId = res.data.id;
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 5000, timerProgressBar: true,
+                        title: 'Plot Extension application linked',
+                        text: (res.data.applicant_name || fileNumber) + ' — it will be marked commissioned with this file.',
+                    });
+                }
+            })
+            .catch(() => {});
+    }
 
     // ----- Extension Type (File vs Plot) helpers -----
 
@@ -11735,6 +11803,7 @@
                 returnHtml: true,
                 copyKinds: ['transit'],
                 transitWatermark: 'IN-TRANSIT DIIT',
+                diit: true,
             });
             if (!html) {
                 console.warn('Tracking sheet page skipped: the sheet builder returned nothing.');

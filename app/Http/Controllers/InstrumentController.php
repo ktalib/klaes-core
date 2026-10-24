@@ -2933,6 +2933,15 @@ class InstrumentController extends Controller
                 ]);
             }
 
+            // A capture and its own Deeds registration are ONE OP: the registration
+            // points back at the capture (deed_registrations.instrument_capture_id) and
+            // they share the temp file + prop id by design. Treating the pair as
+            // duplicates split an OP across two files (OP 3630 / 3693 / 3694,
+            // 2026-10-23), so that pair is never reassigned.
+            $pairedCaptureId = $selectedTable === 'instrument_capture'
+                ? $selectedId
+                : (int) (DB::connection('sqlsrv')->table('deed_registrations')->where('id', $selectedId)->value('instrument_capture_id') ?? 0);
+
             $propIdAllocator = new \App\Services\PropertyIdAllocationService();
             $reassigned = [];
 
@@ -2941,7 +2950,7 @@ class InstrumentController extends Controller
                 'deed_registrations' => 'fileno',
             ];
 
-            DB::connection('sqlsrv')->transaction(function () use ($tablesAndCols, $selectedTable, $selectedId, $tempValueNorm, $propId, $propIdAllocator, &$reassigned) {
+            DB::connection('sqlsrv')->transaction(function () use ($tablesAndCols, $selectedTable, $selectedId, $tempValueNorm, $propId, $propIdAllocator, $pairedCaptureId, &$reassigned) {
                 foreach ($tablesAndCols as $table => $col) {
                     if (
                         !Schema::connection('sqlsrv')->hasTable($table)
@@ -2958,6 +2967,17 @@ class InstrumentController extends Controller
 
                     if ($table === $selectedTable) {
                         $query->where('id', '!=', $selectedId);
+                    }
+
+                    if ($pairedCaptureId > 0) {
+                        if ($table === 'instrument_capture') {
+                            $query->where('id', '!=', $pairedCaptureId);
+                        } elseif ($table === 'deed_registrations'
+                            && Schema::connection('sqlsrv')->hasColumn('deed_registrations', 'instrument_capture_id')) {
+                            $query->where(function ($q) use ($pairedCaptureId) {
+                                $q->whereNull('instrument_capture_id')->orWhere('instrument_capture_id', '!=', $pairedCaptureId);
+                            });
+                        }
                     }
 
                     if (Schema::connection('sqlsrv')->hasColumn($table, 'is_deleted')) {

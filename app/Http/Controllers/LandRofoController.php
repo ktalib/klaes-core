@@ -101,6 +101,11 @@ class LandRofoController extends Controller
                 // The child rows open the Print Manager themselves, and its Date
                 // Issued panel has nothing to show without this.
                 'date_issued', 'is_reissuance', 'reissuance_source',
+                // The same columns as the main table, so the batch rows can show and
+                // edit them in place (InlineEdit::rowValues()).
+                'land_use_id', 'purpose_id', 'district', 'lga', 'layout_plan_no', 'term',
+                'ground_rent', 'development_period', 'survey_fees', 'development_value',
+                'development_charge', 'preparation_fees', 'applicant_address',
             ]);
 
         if ($children->isEmpty()) {
@@ -137,6 +142,17 @@ class LandRofoController extends Controller
                 'plot_number'    => $c->plot_number,
                 'location'       => $c->location,
                 'purpose'        => $c->purpose_of_clause ?: $c->land_use,
+                'layout_plan_no' => $c->layout_plan_no,
+                'term'           => $c->term,
+                'ground_rent'    => '₦' . number_format((float) $c->ground_rent, 2),
+                'development_period' => $c->development_period,
+                'survey_fees'    => '₦' . number_format((float) $c->survey_fees, 2),
+                'development_value' => '₦' . number_format((float) $c->development_value, 2),
+                'development_charge' => is_numeric($c->development_charge)
+                    ? '₦' . number_format((float) $c->development_charge, 2)
+                    : ($c->development_charge ?: '₦0.00'),
+                // Raw values the inline editors open with.
+                'edit'           => \App\Support\InlineEdit::rowValues($c),
                 'status'         => $c->status,
                 'rofo_status'    => $c->rofo_status,
                 'serial_no'      => $c->land_rofo_serial_no,

@@ -1,18 +1,18 @@
 @extends('email.layouts.master')
 
 @section('content')
-    <h2 style="color: #1e3a5f; font-size: 22px; margin-bottom: 20px;">Test Email from {{ env('APP_NAME') }}</h2>
+    <h2 style="color: #1e3a5f; font-size: 22px; margin-bottom: 20px;">Test Email from {{ config('app.name') }}</h2>
     
     <div class="success-box">
         <strong>✅ Email System Test Successful!</strong><br>
-        This is a test message from your {{ env('APP_NAME') }} application.
+        This is a test message from your {{ config('app.name') }} application.
     </div>
     
     <h3>Test Information</h3>
     <table class="details">
         <tr>
             <td>Application:</td>
-            <td>{{ env('APP_NAME') }}</td>
+            <td>{{ config('app.name') }}</td>
         </tr>
         <tr>
             <td>Test Sent:</td>

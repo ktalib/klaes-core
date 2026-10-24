@@ -373,6 +373,15 @@ class GroupingApiController extends Controller
                 ]
             ];
 
+            // A File Extension borrows the mother's grouping row for its batch / shelf
+            // details only. Its tracking ID is its own (or a fresh one) — the form shows
+            // and posts this, and indexing saves it (Change Request 22102026, item 23).
+            if (\App\Support\FileExtensionTracking::isExtensionNumber($fileno)) {
+                $extensionNumber = trim((string) preg_replace('/\(T\)$/i', '', trim($fileno)));
+                $response['data']['tracking_id'] = \App\Support\FileExtensionTracking::resolveFor($extensionNumber);
+                $response['meta']['extension_tracking'] = true;
+            }
+
             return response()->json($response);
 
         } catch (\Exception $e) {

@@ -168,6 +168,13 @@
         .hdr .logo img { width: 68px; }
         .hdr .qr { width: 52px; text-align: right; }
         .hdr .qr img { width: 44px; height: 44px; }
+        /* Security serial under the QR (matches PAY-PER-SEARCH.html .security-serial). */
+        .hdr .ss { border-collapse: collapse; margin: 2px 0 0 auto; color: #dc2626; font-weight: bold; }
+        .hdr .ss td { padding: 0; vertical-align: middle; line-height: 1; }
+        .hdr .ss-frac { text-align: center; font-size: 6px; padding-right: 2px !important; }
+        .hdr .ss-top { border-bottom: 0.75px solid #dc2626; padding-bottom: 1px; }
+        .hdr .ss-bot { padding-top: 1px; }
+        .hdr .ss-end { font-family: Courier, monospace; font-size: 9.5px; letter-spacing: 0.5px; }
         .hdr .title { text-align: center; }
         .hdr .title h1 { font-size: 15px; color: #007a33; margin: 0; font-weight: bold; }
         .hdr .title h2 { font-size: 12.5px; margin: 2px 0; font-weight: bold; }
@@ -184,7 +191,11 @@
         .prop .lbl { font-weight: normal; padding-right: 8px; }
         .prop strong, .prop b, .prop .root-of-title { font-weight: normal; }
         .prop .val { overflow-wrap: break-word; word-wrap: break-word; padding-right: 8px; }
-        .prop .sp { border-left: 0.5px solid #000; width: 12px; }
+        /* Short, faded divider between label and value: a left border on the inline
+           value, which DomPDF draws on the first line only (no ::after support). */
+        .prop .val > strong, .prop .val > .rot { border-left: 0.3px solid #999; padding-left: 4px; }
+        /* Section dividers: a double rule, matching PAY-PER-SEARCH.html. */
+        .prop .sp { border-left: 3px double #000; width: 12px; }
 
         /* ── Transactions ── */
         .tx { width: 100%; border-collapse: collapse; font-size: 10.5px; table-layout: fixed; margin-bottom: 2px; }
@@ -277,7 +288,18 @@
             <h2>LEGAL SEARCH REPORT</h2>
             <h3>Online Pay-per-Search</h3>
         </td>
-        <td class="qr">@if($qr)<img src="{{ $qr }}" alt="">@endif</td>
+        <td class="qr">
+            @if($qr)<img src="{{ $qr }}" alt="">@endif
+            {{-- Security serial beneath the QR, in red: letter over the first two
+                 digits, then the remaining six (the RofO / on-premise format). A
+                 table, because DomPDF has no inline-flex. --}}
+            @if(!empty($securitySerial['digits_end']))
+                <table class="ss"><tr>
+                    <td class="ss-frac"><div class="ss-top">{{ $securitySerial['alphabet'] }}</div><div class="ss-bot">{{ $securitySerial['digits_start'] }}</div></td>
+                    <td class="ss-end">{{ $securitySerial['digits_end'] }}</td>
+                </tr></table>
+            @endif
+        </td>
         <td class="logo" style="text-align:right;">@if($logoRight)<img src="{{ $logoRight }}" alt="">@endif</td>
     </tr>
 </table>
@@ -327,7 +349,8 @@
         <td class="lbl">Residual Term:</td>
         <td class="val"><strong>{{ $val($report['residual_term'] ?? null) }}</strong></td>
         <td class="sp"></td>
-        <td class="val" colspan="2"><strong>{{ $report['date_line'] ?? 'Date: ' . now()->format('F j, Y') }}</strong></td>
+        <td class="lbl">Date:</td>
+        <td class="val" style="font-size:10px;"><strong>{{ preg_replace('/^\s*Date:\s*/i', '', $report['date_line'] ?? now()->format('F j, Y')) }}</strong></td>
     </tr>
     <tr>
         <td class="lbl">Plot Description:</td>
@@ -344,8 +367,8 @@
             {{-- Styled inline: this template has no .root-of-title rule, and the PDF
                  renderer does not inherit the on-screen stylesheet. Bold italic indigo,
                  matching how the HTML reports print it. --}}
-            <td class="val" colspan="2"
-                style="font-weight:700;font-style:italic;color:#6d28d9;">Root of Title: {{ $report['root_of_title'] }}</td>
+            <td class="lbl">Root of Title:</td>
+            <td class="val"><span class="rot" style="font-style:italic;color:#6d28d9;">{{ $report['root_of_title'] }}</span></td>
         @else
             <td class="lbl"></td><td class="val"></td>
         @endif

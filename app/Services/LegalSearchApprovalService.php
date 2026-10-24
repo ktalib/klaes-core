@@ -407,10 +407,22 @@ class LegalSearchApprovalService
      */
     public function renderPdf(LegalSearchOnlineRequest $request, array $report, bool $preview = false): \Barryvdh\DomPDF\PDF
     {
+        // Security serial under the QR, same fraction format as the on-premise
+        // report. Keyed on the online request (not a counter TTC token), so the
+        // approver's preview and the delivered copy carry the same serial. A
+        // failure only leaves the serial off; it never blocks the report.
+        $securitySerial = rescue(function () use ($request) {
+            $svc = app(\App\Services\SecurityCodeService::class);
+            $sc = $svc->getOrGenerateForDocument(trim((string) $request->file_number), $request->id, 'Online Legal Search Report');
+
+            return $sc ? $svc->formatForDisplay($sc->code) : null;
+        }, null, false);
+
         return \Barryvdh\DomPDF\Facade\Pdf::loadView('online_legal_search.print.report_pdf', [
-            'report'        => $report,
-            'searchRequest' => $request,
-            'isPreview'     => $preview,
+            'report'         => $report,
+            'searchRequest'  => $request,
+            'isPreview'      => $preview,
+            'securitySerial' => $securitySerial,
             // Must be an inline data URI — DomPDF will not fetch over HTTP, so an
             // unreadable signature has to render as a blank line, never a broken one.
             'signature'     => \App\Support\SignatureImage::embeddable($request->reviewer_signature_path),

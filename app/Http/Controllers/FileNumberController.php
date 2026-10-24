@@ -1385,7 +1385,11 @@ class FileNumberController extends Controller
                 $mlsfNo = $request->land_use . '-' . $request->year . '-' . $request->serial_no;
             }
 
-            $trackingId = $this->getUniqueTrackingId($request->input('tracking_id'));
+            // A File Extension is its own file: own tracking ID, not the mother's grouping
+            // one the form looked up (Change Request 22102026, item 23).
+            $trackingId = \App\Support\FileExtensionTracking::isExtensionNumber($mlsfNo)
+                ? \App\Support\FileExtensionTracking::resolveFor($mlsfNo)
+                : $this->getUniqueTrackingId($request->input('tracking_id'));
 
             // Only validate for duplicates (skip validation for extension and temporary files).
             // An extension whose suffix was suppressed reuses the original number verbatim, so it
@@ -1531,7 +1535,11 @@ class FileNumberController extends Controller
                 $mlsfNo = $request->prefix . '-' . $request->year . '-' . $request->serial_no;
             }
 
-            $trackingId = $this->getUniqueTrackingId($request->input('tracking_id'));
+            // A File Extension is its own file: own tracking ID, not the mother's grouping
+            // one the form looked up (Change Request 22102026, item 23).
+            $trackingId = \App\Support\FileExtensionTracking::isExtensionNumber($mlsfNo)
+                ? \App\Support\FileExtensionTracking::resolveFor($mlsfNo)
+                : $this->getUniqueTrackingId($request->input('tracking_id'));
 
             // Only validate for duplicates (skip validation for extension and temporary files).
             // An extension whose suffix was suppressed reuses the original number verbatim, so it

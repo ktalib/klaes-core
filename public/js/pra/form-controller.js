@@ -376,8 +376,13 @@
                 opSource: '',
                 // The "specify" text when opSource is Other (pra.op_source_other).
                 opSourceOther: '',
+                // Source = Kano MDAs: the issuing MDA, or Other + the specify box.
+                opSourceMda: '',
                 // The "specify" text when an OP's Type is Other (pra.op_type_other).
                 opTypeOther: '',
+                // The "specify" text when a Change of Ownership Type is Other
+                // (instrument_subtype_other).
+                subtypeOther: '',
                 // The one visible Type answer; copied into opType / cofoType /
                 // instrumentSubtype by applyInstrumentCatalogRules().
                 typeValue: '',
@@ -442,8 +447,10 @@
                 'deedsTime',
                 'opType',
                 'opSource',
+                'opSourceMda',
                 'opSourceOther',
                 'opTypeOther',
+                'subtypeOther',
                 'typeValue',
                 'instrumentSubtype',
                 'instrumentCategory',
@@ -609,12 +616,38 @@
          */
         applySourceOtherRules() {
             const isOpType = this.typeColumn() === 'opType';
+            // Change of Ownership (2026-10-23): a Type stored in instrument_subtype whose
+            // catalogue list offers Other. Its listed options are the catalogue's.
+            const subtypeOptions = this.typeColumn() === 'instrumentSubtype'
+                ? ((this.catalogEntry() || {}).types || []) : [];
+            const subtypeOffersOther = subtypeOptions.some((o) => o.value === 'Other');
+
+            // Source = Kano MDAs reveals the MDA list; its own Other reuses the Source box.
+            const isMda = normalizeText(this.state.opSource) === 'Kano MDAs';
+            const mdaSelect = this.form?.querySelector('[name="op_source_mda"]');
+            const mdaNames = mdaSelect ? Array.from(mdaSelect.options).map((o) => o.value).filter((v) => v && v !== 'Other') : [];
+            if (mdaSelect) {
+                mdaSelect.classList.toggle('hidden', !isMda);
+                mdaSelect.disabled = !isMda;
+                mdaSelect.required = isMda;
+                if (!isMda && normalizeText(this.state.opSourceMda) !== '') {
+                    this.setState('opSourceMda', '', { silent: true });
+                    this.syncModelElement('opSourceMda', '');
+                }
+            }
+            const isMdaOther = isMda && normalizeText(this.state.opSourceMda) === 'Other';
+            const sourceOtherInput = this.form?.querySelector('[name="op_source_other"]');
+            if (sourceOtherInput) sourceOtherInput.placeholder = isMda ? 'Specify MDA *' : 'Specify source *';
             [
                 {
                     name: 'op_source_other', key: 'opSourceOther',
-                    isOther: normalizeText(this.state.opSource) === 'Other',
+                    isOther: normalizeText(this.state.opSource) === 'Other' || isMdaOther,
                     check: (typed) => {
-                        const listed = ['Ministry', 'KANGIS', 'LGA'].find((o) => o.toLowerCase() === typed);
+                        if (normalizeText(this.state.opSource) === 'Kano MDAs') {
+                            const listedMda = mdaNames.find((o) => o.toLowerCase() === typed);
+                            return listedMda ? `"${listedMda}" is already in the MDA list; select it instead of Other.` : '';
+                        }
+                        const listed = ['Ministry', 'KANGIS', 'LGA', 'Kano MDAs'].find((o) => o.toLowerCase() === typed);
                         return listed ? `"${listed}" is already in the Source list; select it instead of Other.` : '';
                     },
                 },
@@ -626,6 +659,14 @@
                         const listed = ['Resettlement', 'Direct Allocation'].find((o) => o.toLowerCase() === bare);
                         if (listed) return `"${listed}" is already in the OP Type list; select it instead of Other.`;
                         return bare === 'lga' ? 'LGA is a Source, not an OP Type: set Source to LGA instead.' : '';
+                    },
+                },
+                {
+                    name: 'instrument_subtype_other', key: 'subtypeOther',
+                    isOther: subtypeOffersOther && normalizeText(this.state.typeValue) === 'Other',
+                    check: (typed) => {
+                        const listed = subtypeOptions.find((o) => o.value !== 'Other' && String(o.label).toLowerCase() === typed);
+                        return listed ? `"${listed.label}" is already in the Type list; select it instead of Other.` : '';
                     },
                 },
             ].forEach(({ name, key, isOther, check }) => {
@@ -1082,6 +1123,7 @@
                     break;
                 case 'opType':
                 case 'opSource':
+                case 'opSourceMda':
                     this.syncModelElement(key, value);
                     this.applySourceOtherRules();
                     this.applyLgaOpTypeRules();
@@ -1124,6 +1166,7 @@
                 case 'opSerialNumber':
                 case 'opSourceOther':
                 case 'opTypeOther':
+                case 'subtypeOther':
                 case 'period':
                 case 'periodUnit':
                     this.syncModelElement(key, value);
@@ -1553,6 +1596,8 @@
                 this.syncModelElement('opType', '');
                 this.setState('opSource', '', { silent: true });
                 this.syncModelElement('opSource', '');
+                this.setState('opSourceMda', '', { silent: true });
+                this.syncModelElement('opSourceMda', '');
                 this.applySourceOtherRules();
                 this.setState('typeValue', '', { silent: true });
                 this.syncModelElement('typeValue', '');
@@ -2647,12 +2692,15 @@
                 loadedTypeValue = '';
             }
             this.setState('opSource', loadedOpSource);
+            // Kano MDAs keeps its MDA in op_source_other: a listed name reopens on the MDA
+            // select, an unlisted one as MDA Other with its text in the specify box.
             // After opSource: the box is only enabled (and kept) once Source is Other.
-            this.setState('opSourceOther', first(record.op_source_other));
-            this.syncModelElement('opSourceOther', first(record.op_source_other));
+            this.applyLoadedOpSource(loadedOpSource, first(record.op_source_other));
             this.setState('typeValue', loadedTypeValue);
             // After typeValue: the box is only enabled (and kept) once Type is Other.
             this.setState('opTypeOther', first(record.op_type_other));
+            this.setState('subtypeOther', first(record.instrument_subtype_other));
+            this.syncModelElement('subtypeOther', first(record.instrument_subtype_other));
             // A system-generated serial reopens with the box ticked and the serial greyed out.
             this.setOpSerialNone(String(record.op_serial_generated ?? '') === '1' || record.op_serial_generated === true);
             this.syncModelElement('opTypeOther', first(record.op_type_other));
@@ -2717,6 +2765,7 @@
                 'op_source': 'opSource',
                 'op_source_other': 'opSourceOther',
                 'op_type_other': 'opTypeOther',
+                'instrument_subtype_other': 'subtypeOther',
                 'instrument_subtype': 'instrumentSubtype',
                 'instrument_category': 'instrumentCategory',
                 'op_serial_number': 'opSerialNumber',
@@ -2761,6 +2810,30 @@
                 if (primary) this.setState('firstParty', primary);
                 if (secondary) this.setState('secondParty', secondary);
             }
+
+            if (record.op_source !== undefined && record.op_source !== null) {
+                this.applyLoadedOpSource(record.op_source, record.op_source_other);
+            }
+        }
+
+        /**
+         * A saved Source and its op_source_other. Kano MDAs keeps the MDA there: a listed
+         * name reopens on the MDA select, an unlisted one as MDA Other with its text in
+         * the specify box. Runs after opSource is set, so the boxes are already enabled.
+         */
+        applyLoadedOpSource(source, stored) {
+            let other = stored == null ? '' : String(stored);
+            if (normalizeText(source) === 'Kano MDAs') {
+                const mdaSelect = this.form?.querySelector('[name="op_source_mda"]');
+                const listed = !!(mdaSelect && Array.from(mdaSelect.options)
+                    .some((o) => o.value && o.value !== 'Other' && o.value === other));
+                const mdaValue = other ? (listed ? other : 'Other') : '';
+                this.setState('opSourceMda', mdaValue);
+                this.syncModelElement('opSourceMda', mdaValue);
+                if (listed) other = '';
+            }
+            this.setState('opSourceOther', other);
+            this.syncModelElement('opSourceOther', other);
         }
 
         prefillPropertyDetailsFromRecord(record) {

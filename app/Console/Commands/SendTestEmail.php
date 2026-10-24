@@ -39,8 +39,8 @@ class SendTestEmail extends Command
                 ]
             ], function ($message) use ($email) {
                 $message->to($email)
-                    ->subject('Test Email - ' . env('APP_NAME'))
-                    ->from(env('MAIL_FROM_ADDRESS'), env('MAIL_FROM_NAME'));
+                    ->subject('Test Email - ' . config('app.name'))
+                    ->from(config('mail.from.address'), config('mail.from.name'));
             });
 
             $this->info("✅ Test email sent successfully to: {$email}");

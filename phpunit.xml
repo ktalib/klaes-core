@@ -19,6 +19,9 @@
     </coverage>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Production runs with a cached config (bootstrap/cache/config.php). Point tests at a
+             cache file that never exists so they always load .env.testing, never the live config. -->
+        <env name="APP_CONFIG_CACHE" value="bootstrap/cache/config.phpunit-never.php" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_DRIVER" value="array"/>
         <!-- <env name="DB_CONNECTION" value="sqlite"/> -->

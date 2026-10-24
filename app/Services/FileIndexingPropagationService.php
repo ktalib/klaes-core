@@ -885,6 +885,14 @@ class FileIndexingPropagationService
      */
     private function matchedRecommendations(array $fileNumbers, array $columns)
     {
+        // A KANGIS file's recommendation is filed under the MLS number the register
+        // pairs it with, not under "KNML 245". fileNumber holds that pairing — one row
+        // carries mlsfNo / kangisFileNo / NewKANGISFileNo for the same file, and a file
+        // can have several rows (the same number in different columns) — so every number
+        // on any row that names one of ours is matched too. Without this an edit on the
+        // KANGIS index never reached the letter.
+        $fileNumbers = $this->withRegisterLinkedNumbers($fileNumbers);
+
         $hasOldFileNumber = Schema::connection('sqlsrv')->hasColumn('land_recommendations', 'old_file_number');
 
         return DB::connection('sqlsrv')->table('land_recommendations')
@@ -895,6 +903,49 @@ class FileIndexingPropagationService
                 }
             })
             ->get($columns);
+    }
+
+    /**
+     * $fileNumbers plus every number on a fileNumber row that names any of them, in any
+     * of its number columns. Live rows only. Used for recommendation matching.
+     *
+     * @param  array<int,string>  $fileNumbers
+     * @return array<int,string>
+     */
+    private function withRegisterLinkedNumbers(array $fileNumbers): array
+    {
+        $fileNumbers = array_values(array_filter(array_map(fn ($n) => trim((string) $n), $fileNumbers)));
+        if (!$fileNumbers) {
+            return $fileNumbers;
+        }
+
+        try {
+            $cols = ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo'];
+            $rows = DB::connection('sqlsrv')->table('fileNumber')
+                ->where(function ($q) use ($cols, $fileNumbers) {
+                    foreach ($cols as $col) {
+                        $q->orWhereIn($col, $fileNumbers);
+                    }
+                })
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->limit(50)
+                ->get($cols);
+
+            $linked = [];
+            foreach ($rows as $row) {
+                foreach ($cols as $col) {
+                    $value = trim((string) ($row->$col ?? ''));
+                    if ($value !== '') {
+                        $linked[] = $value;
+                    }
+                }
+            }
+
+            return array_values(array_unique(array_merge($fileNumbers, $this->fileNumberVariantsFrom($linked))));
+        } catch (\Throwable $e) {
+            Log::warning('FileIndexingPropagation: register link lookup failed', ['error' => $e->getMessage()]);
+            return $fileNumbers;
+        }
     }
 
     /**

@@ -37,6 +37,7 @@
     $tableIsSuperAdmin = $tableUser && $tableUser->isSuperAdmin();
 
     $mergedConfig['canMoveToIndexingDuplicates'] = $tableIsSuperAdmin;
+    $mergedConfig['canMoveTransactions'] = $tableIsSuperAdmin;
     $mergedConfig['canMasterDelete'] = $tableIsSuperAdmin;
 
     $mergedConfig['canEdit'] = $tableUser && $tableUser->canDo('Indexing', 'edit');
@@ -526,6 +527,7 @@
     <script>
         window.indexedFilesConfig = Object.assign({}, @json($mergedConfig));
     </script>
+    <script src="{{ asset('js/related-temp-expand.js') }}?v={{ @filemtime(public_path('js/related-temp-expand.js')) }}"></script>
     <script type="module" src="{{ asset('js/indexed-files/index.js') }}?v={{ filemtime(public_path('js/indexed-files/index.js')) }}"></script>
 @endpush
  

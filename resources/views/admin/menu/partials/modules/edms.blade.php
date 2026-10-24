@@ -108,6 +108,11 @@
               <i data-lucide="folder-minus" class="h-3.5 w-3.5 text-emerald-400"></i>
               <span>Indexing Duplicates</span>
             </a>
+            <a href="{{route('moved-transactions.index')}}"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('moved-transactions.*') ? 'active' : '' }}">
+              <i data-lucide="file-output" class="h-3.5 w-3.5 text-emerald-400"></i>
+              <span>Moved Transactions</span>
+            </a>
             {{-- <a href="#"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 opacity-60 cursor-not-allowed pointer-events-none">
               <i data-lucide="file-search" class="h-3.5 w-3.5 text-emerald-400"></i>

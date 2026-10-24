@@ -15,7 +15,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
-    <meta name="author" content="{{ !empty($settings['app_name']) ? $settings['app_name'] : env('APP_NAME') }}">
+    <meta name="author" content="{{ !empty($settings['app_name']) ? $settings['app_name'] : config('app.name') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>KLAES-CORE - @yield('page-title') </title>
 
@@ -25,13 +25,13 @@
 
 
     <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ env('APP_URL') }}">
+    <meta property="og:url" content="{{ config('app.url') }}">
     <meta property="og:title" content="{{ $settings['meta_seo_title'] }}">
     <meta property="og:description" content="{{ $settings['meta_seo_description'] }}">
     <meta property="og:image" content="{{ asset(Storage::url('upload/seo')) . '/' . $settings['meta_seo_image'] }}">
 
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="{{ env('APP_URL') }}">
+    <meta property="twitter:url" content="{{ config('app.url') }}">
     <meta property="twitter:title" content="{{ $settings['meta_seo_title'] }}">
     <meta property="twitter:description" content="{{ $settings['meta_seo_description'] }}">
     <meta property="twitter:image"

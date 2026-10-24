@@ -10,6 +10,13 @@
 
 @section('content')
 @php
+    // Inline edit (Edit mode switch) on every table on this page. Off on the
+    // view-only Cadastral page and for anyone without edit on Letter of Grant (RofO);
+    // the save route enforces the same permission.
+    $rofoCanInlineEdit = request('url') !== 'cadastral' && empty($ossViewOnly)
+        && \App\Support\InlineEdit::canEdit();
+@endphp
+@php
     // Resetting a print is a Super Admin action: it takes a letter that the system
     // says is on paper and declares it unprinted, which is a correction to the
     // record and not part of anyone's daily run. Read once here rather than per
@@ -380,6 +387,10 @@
                         {{ $tab === 'reissuance' ? 'Re-issued RofOs' : 'RoFO Management Records' }}
                         <span class="text-slate-400 normal-case tracking-normal font-medium">· {{ $tab === 'reissuance' ? 'Re-issuance' : ($tab === 'printed' ? 'Printed' : 'Not Printed') }}</span>
                     </h3>
+                    {{-- Filled by InlineBatchEdit.toggleHtml() once the script loads. --}}
+                    @if(request('url') !== 'cadastral' && empty($ossViewOnly))
+                        <div data-ibe-toggle-slot></div>
+                    @endif
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left min-w-[2000px] border-collapse">
@@ -465,7 +476,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-2 text-slate-700 whitespace-nowrap">
-                                    <div class="uppercase">{{ $rec->applicant_name }}</div>
+                                    <div class="uppercase"{{ \App\Support\InlineEdit::attrs($rec, 'applicant_name', $rofoCanInlineEdit) }}>{{ $rec->applicant_name }}</div>
                                     @if(trim((string) $rec->applicant_phone) !== '')
                                         <button type="button" data-applicant-phone-action
                                                 data-phone="{{ $rec->applicant_phone }}"
@@ -476,16 +487,17 @@
                                         </button>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->purpose_of_clause }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->location }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->plot_number }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->layout_plan_no }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap">{{ $rec->term }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->ground_rent, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase">{{ $rec->development_period }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->survey_fees, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">₦{{ number_format($rec->development_value, 2) }}</td>
-                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap">{{ is_numeric($rec->development_charge) ? '₦'.number_format($rec->development_charge, 2) : ($rec->development_charge ?: '₦0.00') }}</td>
+                                @php $ie = fn ($f) => \App\Support\InlineEdit::attrs($rec, $f, $rofoCanInlineEdit); @endphp
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('land_use_purpose') }}>{{ $rec->purpose_of_clause }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('location') }}>{{ $rec->location }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('plot_number') }}>{{ $rec->plot_number }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('layout_plan_no') }}>{{ $rec->layout_plan_no }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap"{{ $ie('term') }}>{{ $rec->term }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('ground_rent') }}>₦{{ number_format($rec->ground_rent, 2) }}</td>
+                                <td class="px-4 py-2 text-slate-600 whitespace-nowrap uppercase"{{ $ie('development_period') }}>{{ $rec->development_period }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('survey_fees') }}>₦{{ number_format($rec->survey_fees, 2) }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('development_value') }}>₦{{ number_format($rec->development_value, 2) }}</td>
+                                <td class="px-4 py-2 text-slate-600 text-right whitespace-nowrap"{{ $ie('development_charge') }}>{{ is_numeric($rec->development_charge) ? '₦'.number_format($rec->development_charge, 2) : ($rec->development_charge ?: '₦0.00') }}</td>
                                 <td class="px-4 py-2 text-center whitespace-nowrap">
                                     {{-- On the Printed tab every row is printed by definition. The
                                          Re-issuance tab is not split by print state, so there the
@@ -1132,6 +1144,8 @@
     }
 </script>
 
+<script src="{{ asset('js/inline-batch-edit.js') }}?v={{ filemtime(public_path('js/inline-batch-edit.js')) }}"></script>
+
 <script>
 // ── RofO Re-issuance ────────────────────────────────────────────
 // Step 1 records where the original letter came from, step 2 picks the file
@@ -1660,6 +1674,30 @@ var _rofoChildById = {};
 // View only from the Cadastral sidebar: batch child rows get no print actions.
 var ROFO_READ_ONLY = @json($rofoReadOnly);
 
+// Inline edit on every table on this page ($rofoCanInlineEdit is set at the top).
+var ROFO_INLINE_EDIT = @json($rofoCanInlineEdit);
+InlineBatchEdit.init({
+    url: @json(url('land-recommendations/__ID__/inline-update')),
+    csrf: @json(csrf_token()),
+    canEdit: ROFO_INLINE_EDIT,
+    lookups: @json($rofoCanInlineEdit ? \App\Support\InlineEdit::lookups() : [])
+});
+document.querySelectorAll('[data-ibe-toggle-slot]').forEach(function (el) { el.innerHTML = InlineBatchEdit.toggleHtml(); });
+
+// Attributes that make a batch child's cell editable (empty when editing is off).
+// c.edit carries the raw values from InlineEdit::rowValues().
+function rofoInlineAttrs(c, field) {
+    if (!ROFO_INLINE_EDIT) return '';
+    var kinds = { land_use_purpose: 'land_use_purpose', location: 'location', ground_rent: 'money', survey_fees: 'money',
+                  development_value: 'money', preparation_fees: 'money', development_charge: 'charge' };
+    var raw = (c.edit || {})[field];
+    if (field === 'land_use_purpose' || field === 'location') {
+        try { raw = JSON.parse(raw || '{}'); } catch (e) { raw = {}; }
+    }
+    return InlineBatchEdit.attrs(c.id, field, kinds[field] || 'text', raw,
+        { printed: c.print_count, locationText: field === 'location' ? c.location : null });
+}
+
 function rofoOpenChildPrintManager(id) {
     var c = _rofoChildById[String(id)];
     if (!c) return;
@@ -1861,10 +1899,21 @@ document.addEventListener('click', function (e) {
                     + '<td class="px-4 py-2.5 text-center text-[11px] font-bold text-slate-400">' + c.seq + '</td>'
                     + '<td class="px-4 py-2.5 font-mono text-xs font-bold text-slate-900"><div>' + rofoEscHtml(c.file_number) + '</div>'
                     +   '<div class="rofo-child-serial">' + rofoChildSerialHtml(c) + '</div></td>'
-                    + '<td class="px-4 py-2.5 text-xs text-slate-700"><div class="uppercase">' + rofoEscHtml(c.applicant_name) + '</div>'
+                    // Name and plot no. edit in place (double-click). The name is
+                    // the inner div, so the phone button beside it is left alone.
+                    + '<td class="px-4 py-2.5 text-xs text-slate-700"><div class="uppercase"' + rofoInlineAttrs(c, 'applicant_name') + '>' + rofoEscHtml(c.applicant_name) + '</div>'
                     + (window.applicantPhoneActionButtonHtml ? window.applicantPhoneActionButtonHtml(c.applicant_phone, c.applicant_name, c.file_number) : '') + '</td>'
-                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + rofoEscHtml(c.plot_number) + '</td>'
-                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase">' + rofoEscHtml(c.location) + '</td>'
+                    // Same columns, same order, as the main RofO table.
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + rofoInlineAttrs(c, 'land_use_purpose') + '>' + rofoEscHtml(c.purpose || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + rofoInlineAttrs(c, 'location') + '>' + rofoEscHtml(c.location || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + rofoInlineAttrs(c, 'plot_number') + '>' + rofoEscHtml(c.plot_number || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + rofoInlineAttrs(c, 'layout_plan_no') + '>' + rofoEscHtml(c.layout_plan_no || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap"' + rofoInlineAttrs(c, 'term') + '>' + rofoEscHtml(c.term || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + rofoInlineAttrs(c, 'ground_rent') + '>' + rofoEscHtml(c.ground_rent) + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 uppercase whitespace-nowrap"' + rofoInlineAttrs(c, 'development_period') + '>' + rofoEscHtml(c.development_period || '—') + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + rofoInlineAttrs(c, 'survey_fees') + '>' + rofoEscHtml(c.survey_fees) + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + rofoInlineAttrs(c, 'development_value') + '>' + rofoEscHtml(c.development_value) + '</td>'
+                    + '<td class="px-4 py-2.5 text-xs text-slate-600 text-right whitespace-nowrap"' + rofoInlineAttrs(c, 'development_charge') + '>' + rofoEscHtml(c.development_charge) + '</td>'
                     + '<td class="px-4 py-2.5 text-center">' + rofoPill(generated, 'Generated', 'Pending') + '</td>'
                     + '<td class="px-4 py-2.5 text-center">' + rofoPrintStagePill(c) + '</td>'
                     + '<td class="px-4 py-2.5 text-right whitespace-nowrap">'
@@ -1912,20 +1961,32 @@ document.addEventListener('click', function (e) {
 
             cell.innerHTML =
                 '<div class="px-6 py-4">'
-                + '<p class="text-[10px] font-black uppercase tracking-widest text-violet-700 mb-2">All '
+                + '<div class="flex items-center justify-between gap-3 flex-wrap mb-2">'
+                + '<p class="text-[10px] font-black uppercase tracking-widest text-violet-700">All '
                 +   data.count + ' RofOs in this batch</p>'
+                + (ROFO_READ_ONLY ? '' : InlineBatchEdit.toggleHtml())
+                + '</div>'
                 + '<div class="overflow-x-auto rounded-lg border border-violet-200 bg-white">'
-                + '<table class="w-full text-left border-collapse min-w-[900px]">'
+                + '<table class="w-full text-left border-collapse" style="min-width:1900px">'
                 + '<thead><tr class="bg-violet-50 text-[10px] font-black text-violet-800 uppercase tracking-widest">'
                 +   '<th class="px-4 py-2.5 text-center w-10">#</th>'
                 +   '<th class="px-4 py-2.5">File Number</th>'
                 +   '<th class="px-4 py-2.5">Applicant</th>'
-                +   '<th class="px-4 py-2.5">Plot No</th>'
+                +   '<th class="px-4 py-2.5 whitespace-nowrap">Land Use / Purpose</th>'
                 +   '<th class="px-4 py-2.5">Location</th>'
+                +   '<th class="px-4 py-2.5 whitespace-nowrap">Plot No</th>'
+                +   '<th class="px-4 py-2.5 whitespace-nowrap">Layout Plan</th>'
+                +   '<th class="px-4 py-2.5">Term</th>'
+                +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Ground Rent</th>'
+                +   '<th class="px-4 py-2.5 whitespace-nowrap">Dev. Period</th>'
+                +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Survey Fees</th>'
+                +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Dev. Value</th>'
+                +   '<th class="px-4 py-2.5 text-right whitespace-nowrap">Dev. Charge</th>'
                 +   '<th class="px-4 py-2.5 text-center">RofO</th>'
                 +   '<th class="px-4 py-2.5 text-center">Printed</th>'
                 +   '<th class="px-4 py-2.5 text-right">Actions</th>'
                 + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+            InlineBatchEdit.decorate(cell);
         })
         .catch(function (err) {
             cell.innerHTML = '<div class="px-8 py-6 text-xs text-rose-700">'

@@ -5,7 +5,7 @@
     
     <p>Dear <strong>{{ $data['name'] }}</strong>,</p>
     
-    <p>Thank you for signing up with <strong>{{ env('APP_NAME') }}</strong>. To complete your registration, please confirm your email address by clicking the button below:</p>
+    <p>Thank you for signing up with <strong>{{ config('app.name') }}</strong>. To complete your registration, please confirm your email address by clicking the button below:</p>
     
     <div style="text-align: center; margin: 30px 0;">
         <a href="{{ $data['url'] }}" class="btn btn-primary" style="display: inline-block; background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: 600;">Verify Email Address</a>
@@ -24,6 +24,6 @@
     
     <p style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px;">
         Thank you,<br>
-        <strong>{{ env('APP_NAME') }} Team</strong>
+        <strong>{{ config('app.name') }} Team</strong>
     </p>
 @endsection

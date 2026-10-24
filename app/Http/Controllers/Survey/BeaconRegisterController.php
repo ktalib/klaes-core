@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyBeaconNumber;
 use App\Models\Survey\SurveyBeaconRegister;
+use App\Models\Survey\SurveyBeaconRegisterFile;
 use App\Models\Survey\SurveyorListEntry;
 use App\Support\AddressBuilder;
 use Illuminate\Database\QueryException;
@@ -29,14 +30,29 @@ use Illuminate\Validation\ValidationException;
  */
 class BeaconRegisterController extends Controller
 {
+    /** The module role for this page (user, 2026-10-23). */
+    public const MODULE = 'Survey - Beacon Register';
+
+    /**
+     * EnforceModulePermission only refuses delete for now and records the rest,
+     * so the page checks its own actions, as StCofoTdpController does.
+     */
+    private function authorizeAction(string $action): void
+    {
+        abort_unless((bool) optional(Auth::user())->canDo(self::MODULE, $action), 403,
+            "You do not have the {$action} permission on " . self::MODULE . '.');
+    }
+
     public function index(Request $r)
     {
+        $this->authorizeAction('view');
         $q = $this->filtered($r);
         $view = $r->query('view') === 'numbers' ? 'numbers' : 'issues';
 
         $entries = (clone $q)->with([
                 'creator:id,first_name,last_name', 'reviewer:id,first_name,last_name', 'auditor:id,first_name,last_name',
                 'numbers:id,survey_beacon_register_id,beacon_no,beacon_seq',
+                'files:id,survey_beacon_register_id,file_number,sort_order',
             ])
             ->orderByDesc('issue_date')->orderByDesc('id')
             ->paginate(20)->withQueryString();
@@ -46,7 +62,7 @@ class BeaconRegisterController extends Controller
         if ($view === 'numbers') {
             $nq = SurveyBeaconNumber::query()
                 ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
-                ->with('register');
+                ->with('register.files');
             $term = SurveyBeaconRegister::normalise($r->query('q'));
             if ($term && SurveyBeaconRegister::parseBeacon($term)) {
                 $nq->where('beacon_no', 'like', "%$term%");
@@ -84,37 +100,43 @@ class BeaconRegisterController extends Controller
 
     public function store(Request $r)
     {
-        [$data, $range] = $this->validated($r);
+        $this->authorizeAction('create');
+        [$data, $range, $files] = $this->validated($r);
 
-        $entry = $this->saving(function () use ($data, $range) {
+        $entry = $this->saving(function () use ($data, $range, $files) {
             $entry = SurveyBeaconRegister::create($data);
             $this->syncNumbers($entry, $range);
+            $this->syncFiles($entry, $files);
 
             return $entry;
         });
 
         return redirect()->route('survey-module.workflow.beacon-register.index')
-            ->with('success', "{$entry->total_issued} beacon(s) {$entry->issued_range} recorded for {$entry->surveyor_name}.");
+            ->with('success', "{$entry->total_issued} beacon(s) {$entry->issued_range} recorded"
+                . ($entry->surveyor_name ? " for {$entry->surveyor_name}." : '.'));
     }
 
     public function update(Request $r, SurveyBeaconRegister $entry)
     {
+        $this->authorizeAction('edit');
         if ($entry->audited_at) {
             return back()->with('error', 'Audited entries are locked.');
         }
-        [$data, $range] = $this->validated($r, $entry);
+        [$data, $range, $files] = $this->validated($r, $entry);
 
-        $this->saving(function () use ($entry, $data, $range) {
+        $this->saving(function () use ($entry, $data, $range, $files) {
             $entry->update($data);
             $this->syncNumbers($entry, $range);
+            $this->syncFiles($entry, $files);
         });
 
-        return redirect()->route('survey-module.workflow.beacon-register.index', $r->only(['q', 'year', 'quarter', 'month', 'page']))
+        return redirect()->route('survey-module.workflow.beacon-register.index', $r->only(['q', 'layout', 'year', 'quarter', 'month', 'status', 'view', 'page']))
             ->with('success', "Entry {$entry->issued_range} updated.");
     }
 
     public function destroy(SurveyBeaconRegister $entry)
     {
+        $this->authorizeAction('delete');
         if ($entry->audited_at) {
             return back()->with('error', 'Audited entries are locked.');
         }
@@ -131,6 +153,7 @@ class BeaconRegisterController extends Controller
     /** Footer "Reviewed by": stamps the current user. */
     public function review(SurveyBeaconRegister $entry)
     {
+        $this->authorizeAction('approve');
         if ($entry->reviewed_at) {
             return back()->with('error', 'This entry has already been reviewed.');
         }
@@ -142,6 +165,7 @@ class BeaconRegisterController extends Controller
     /** Footer "Audited by": only after review. */
     public function audit(SurveyBeaconRegister $entry)
     {
+        $this->authorizeAction('approve');
         if (! $entry->reviewed_at) {
             return back()->with('error', 'Review the entry before auditing it.');
         }
@@ -158,6 +182,26 @@ class BeaconRegisterController extends Controller
      * Regenerated only when the range changed, so an edit to the payment or
      * location leaves the numbers alone.
      */
+    /**
+     * Replace the line's file numbers with the list from the form, in order.
+     *
+     * @param array<int, string> $files
+     */
+    private function syncFiles(SurveyBeaconRegister $entry, array $files): void
+    {
+        SurveyBeaconRegisterFile::where('survey_beacon_register_id', $entry->id)->delete();
+
+        foreach (array_values($files) as $i => $no) {
+            SurveyBeaconRegisterFile::create([
+                'survey_beacon_register_id' => $entry->id,
+                'file_number' => $no,
+                'sort_order'  => $i,
+                'created_by'  => Auth::id(),
+                'updated_by'  => Auth::id(),
+            ]);
+        }
+    }
+
     private function syncNumbers(SurveyBeaconRegister $entry, array $range): void
     {
         $live = SurveyBeaconNumber::query()->where('survey_beacon_register_id', $entry->id);
@@ -226,7 +270,10 @@ class BeaconRegisterController extends Controller
                     ->orWhere('location', 'like', "%$term%")
                     ->orWhere('prop_plot', 'like', "%$term%")
                     ->orWhere('prop_district_other', 'like', "%$term%")
-                    ->orWhere('register_no', 'like', "%$term%");
+                    ->orWhere('register_no', 'like', "%$term%")
+                    ->orWhere('file_number', 'like', "%$term%")
+                    ->orWhereIn('id', SurveyBeaconRegisterFile::query()->select('survey_beacon_register_id')
+                        ->where('file_number', 'like', "%$term%"));
 
                 // A beacon number finds the line it was issued on: by the number as
                 // written, or by series + number so C0098 also finds C98.
@@ -237,6 +284,9 @@ class BeaconRegisterController extends Controller
                         ->where('beacon_series', $one['series'])->where('beacon_seq', $one['n']));
                 }
             });
+        }
+        if (array_key_exists($lt = (string) $r->query('layout'), SurveyBeaconRegister::LAYOUT_TYPES)) {
+            $q->where('layout_type', $lt);
         }
         foreach (['year', 'quarter', 'month'] as $f) {
             if ($r->filled($f)) {
@@ -294,6 +344,16 @@ class BeaconRegisterController extends Controller
     {
         $choice = (string) $r->input('surveyor_choice');
 
+        // Optional (user, 2026-10-23): no pick means no surveyor on the line.
+        if ($choice === '') {
+            return [
+                'surveyor_source'       => null,
+                'surveyors_list_id'     => null,
+                'cadastral_surveyor_id' => null,
+                'surveyor_name'         => null,
+            ];
+        }
+
         if ($choice === 'other') {
             return [
                 'surveyor_source'       => 'other',
@@ -329,7 +389,8 @@ class BeaconRegisterController extends Controller
     private function validated(Request $r, ?SurveyBeaconRegister $entry = null): array
     {
         $clean = fn ($v) => ($v = preg_replace('/\s+/', ' ', trim((string) $v))) === '' ? null : $v;
-        foreach (['register_no', 'plan_no', 'surveyor_name', 'surveyor_registration', 'surveyor_name_other', 'teller_no'] as $f) {
+        foreach (['register_no', 'plan_no', 'surveyor_name', 'surveyor_registration', 'surveyor_name_other', 'teller_no',
+                  'coord_x', 'coord_y'] as $f) {
             $r->merge([$f => $clean($r->input($f))]);
         }
         // Beacon numbers: upper case, no spaces, so "c 9302b" and "C9302B" are one number.
@@ -338,22 +399,30 @@ class BeaconRegisterController extends Controller
         }
 
         $data = $r->validate([
+            'layout_type'           => ['required', Rule::in(array_keys(SurveyBeaconRegister::LAYOUT_TYPES))],
             'register_no'           => 'nullable|string|max:30',
             'issue_date'            => 'required|date|before_or_equal:today',
             'beacon_from'           => 'required|string|max:30',
             'beacon_to'             => 'nullable|string|max:30',
             'plan_no'               => 'nullable|string|max:100',
-            'surveyor_choice'       => 'required|string|max:30',
-            'surveyor_name_other'   => 'nullable|required_if:surveyor_choice,other|string|max:255',
+            // Several file numbers, from the global selector. No format validation (user, 2026-10-23).
+            'file_numbers'          => 'nullable|array|max:100',
+            'file_numbers.*'        => 'nullable|string|max:100',
+            'coord_x'               => 'nullable|numeric|between:-99999999999999,99999999999999',
+            'coord_y'               => 'nullable|numeric|between:-99999999999999,99999999999999',
+            'surveyor_choice'       => 'nullable|string|max:30',
+            'surveyor_name_other'   => 'nullable|string|max:255',
             'surveyor_registration' => 'nullable|string|max:50',
             'teller_no'             => 'nullable|string|max:100',
             'amount'                => 'nullable|numeric|min:0|max:9999999999999',
             'date_received'         => 'nullable|date|after_or_equal:issue_date',
-        ] + AddressBuilder::rules('prop_'), [
+        ] + AddressBuilder::rules('prop_', false), [
+            'layout_type.required'           => 'Choose the type: Government or Private.',
+            'layout_type.in'                 => 'Choose the type: Government or Private.',
             'issue_date.required'            => 'The issue date is required.',
             'beacon_from.required'           => 'Enter the first beacon number of the range.',
-            'surveyor_choice.required'       => 'Choose the surveyor, or Other.',
-            'surveyor_name_other.required_if' => "Type the surveyor's name.",
+            'coord_x.numeric'                => 'X must be a number.',
+            'coord_y.numeric'                => 'Y must be a number.',
             'date_received.after_or_equal'   => 'Date received cannot be before the issue date.',
             'prop_district.required'          => 'The district is required.',
             'prop_district_other.required'    => 'Please specify the district.',
@@ -361,6 +430,18 @@ class BeaconRegisterController extends Controller
             'prop_lga.required'               => 'The LGA is required.',
             'prop_state.required'             => 'The state is required.',
         ]);
+
+        // File numbers: trimmed, blanks dropped, duplicates (any case) dropped, order kept.
+        $files = [];
+        foreach ((array) ($data['file_numbers'] ?? []) as $no) {
+            $no = trim(preg_replace('/\s+/', ' ', (string) $no));
+            if ($no !== '' && ! in_array(mb_strtoupper($no), array_map('mb_strtoupper', $files), true)) {
+                $files[] = $no;
+            }
+        }
+        unset($data['file_numbers']);
+        // The single column keeps the first one, for anything that still reads it.
+        $data['file_number'] = $files[0] ?? null;
 
         // Composed "District, LGA, State" snapshot for search and the listing; never the plot.
         $data['location'] = AddressBuilder::propertyLocation([
@@ -389,7 +470,7 @@ class BeaconRegisterController extends Controller
             'year'            => $date->year,
             'month'           => $date->month,
             'quarter'         => $date->quarter,
-        ], $range];
+        ], $range, $files];
     }
 
     /**
@@ -431,7 +512,7 @@ class BeaconRegisterController extends Controller
         if ($taken->isNotEmpty()) {
             $first = $taken->first()->register;
             $list = $taken->take(5)->pluck('beacon_no')->implode(', ') . ($taken->count() > 5 ? ', …' : '');
-            throw ValidationException::withMessages(['beacon_from' => "Already issued: $list (to {$first->surveyor_name} on "
+            throw ValidationException::withMessages(['beacon_from' => "Already issued: $list (to " . ($first->surveyor_name ?: 'no surveyor named') . " on "
                 . $first->issue_date->format('d/m/Y') . ", entry {$first->issued_range})."]);
         }
 

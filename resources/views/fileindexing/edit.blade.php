@@ -670,7 +670,7 @@
                                          it here an SLTR file could not be saved from this page at all. --}}
                                     <div class="sm:col-span-2 hidden" id="root-of-title-group">
                                         <label for="root-of-title" class="form-label-clean">
-                                            Root of Title <span class="text-red-500">*</span>
+                                            <span id="root-of-title-label-text">Root of Title</span> <span class="text-red-500">*</span>
                                         </label>
                                         <input type="text" id="root-of-title" name="root_of_title"
                                             value="{{ old('root_of_title', $fileIndexing->root_of_title) }}"
@@ -2567,14 +2567,25 @@
                     const g = norm(general);
                     const p = norm(physical);
 
-                    return g.includes('SLTR')
+                    // Required on every registry since 2026-10-23; the registry test
+                    // is kept for reference (the server still checks only these two).
+                    void (g.includes('SLTR')
                         || p.includes('SLTR')
-                        || (g.includes('LAND REGISTRY') && squash(p).includes('REGISTRY3'));
+                        || (g.includes('LAND REGISTRY') && squash(p).includes('REGISTRY3')));
+                    return true;
                 }
 
                 function syncRootOfTitleVisibility() {
                     const applies = rootOfTitleApplies();
                     group.classList.toggle('hidden', !applies);
+
+                    // SLTR calls it Root of Ownership (Change Request 22102026); the
+                    // field and the saved column stay root_of_title.
+                    const labelText = document.getElementById('root-of-title-label-text');
+                    if (labelText) {
+                        const sltr = [general, physical].some((el) => (el?.value || '').toUpperCase().includes('SLTR'));
+                        labelText.textContent = sltr ? 'Root of Ownership' : 'Root of Title';
+                    }
 
                     // validateForm() walks [required], so the attribute has to come off
                     // with the field — otherwise a hidden empty input fails the check

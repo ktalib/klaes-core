@@ -95,7 +95,7 @@ class RegisteredUserController extends Controller
                 $data['password'] = $request->password;
                 $data['name'] = $request->name;
                 $data['email'] = $request->email;
-                $data['url'] = env('APP_URL');
+                $data['url'] = config('app.url');
                 $data['logo'] = $setting['company_logo'];
                 $to = $owner->email;
                 commonEmailSend($to, $data);

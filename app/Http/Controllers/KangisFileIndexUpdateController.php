@@ -75,7 +75,107 @@ class KangisFileIndexUpdateController extends FileIndexUpdatePageController
         $prepared['PageDescription'] = 'Update an existing KANGIS indexed file';
         $prepared['returnTo'] = (string) $request->query('return_to', route('kangis.indexed-files'));
 
+        $prepared['holderBackfill'] = $this->backfillHolders($prepared['record'] ?? null);
+
         return $prepared;
+    }
+
+    /**
+     * Root of Title and Original Holder are required on every registry (2026-10-23), but
+     * most KANGIS records were indexed before that and carry neither (original_holder is
+     * often the literal "" — a JSON-encoded empty string). Fill whichever is empty from
+     * the file's own title chain, through the same resolver the File History page uses,
+     * so the officer confirms rather than re-types. Only the form is filled: nothing is
+     * written until the officer saves. Returns where each value came from, for the hint.
+     *
+     * @return array<string, string>  field => source description
+     */
+    private function backfillHolders($record): array
+    {
+        if (!$record) {
+            return [];
+        }
+
+        // Older saves stored holder names JSON-encoded as a single string — "\"SANYO …\""
+        // and "\"\"" — which the form then shows with the quotes on. Unwrap them so the
+        // box shows the name (or nothing) and a save writes the clean value back.
+        foreach (['original_holder', 'current_holder', 'root_of_title'] as $field) {
+            $value = $record->$field ?? null;
+            if (is_string($value) && str_starts_with(trim($value), '"')) {
+                $decoded = json_decode(trim($value), true);
+                if (is_string($decoded)) {
+                    $record->$field = trim($decoded);
+                }
+            }
+        }
+
+        $isEmpty = function ($value): bool {
+            if (is_array($value)) {
+                return count(array_filter($value, fn ($v) => trim((string) $v) !== '')) === 0;
+            }
+            $value = trim((string) $value);
+            if ($value === '' || $value === '""' || $value === '[]' || $value === '[""]') {
+                return true;
+            }
+            $decoded = json_decode($value, true);
+            return $decoded === '' || (is_array($decoded) && count(array_filter($decoded, fn ($v) => trim((string) $v) !== '')) === 0);
+        };
+
+        $needRoot = $isEmpty($record->root_of_title ?? null);
+        $needOriginal = $isEmpty($record->original_holder ?? null);
+        if (!$needRoot && !$needOriginal) {
+            return [];
+        }
+
+        try {
+            $indexing = \App\Models\FileIndexing::on('sqlsrv')->find($record->id ?? null);
+            $resolved = app(\App\Services\TitleHolderResolver::class)
+                ->resolve($record->file_number ?? null, $record->prop_id ?? null, $indexing);
+        } catch (Throwable $e) {
+            Log::warning('KANGIS update: holder backfill failed', ['id' => $record->id ?? null, 'error' => $e->getMessage()]);
+            return [];
+        }
+
+        $describe = function (?array $holder): string {
+            $parts = array_filter([
+                $this->instrumentFullName($holder['instrument'] ?? null),
+                $holder['date'] ?? null,
+            ]);
+            return $parts ? implode(', ', $parts) : 'the file title';
+        };
+
+        $sources = [];
+
+        $original = $resolved['original_holder'] ?? null;
+        if ($needOriginal && trim((string) ($original['name'] ?? '')) !== '') {
+            $record->original_holder = $original['name'];
+            $sources['original_holder'] = $describe($original);
+        }
+
+        // The holder named by the grant at the root of the chain — the name alone, no
+        // instrument prefix. Only when the chain names the instrument that granted it.
+        $root = $resolved['root_of_title'] ?? null;
+        $rootInstrument = $this->instrumentFullName($root['instrument'] ?? null);
+        if ($needRoot && $rootInstrument && trim((string) ($root['name'] ?? '')) !== '') {
+            $record->root_of_title = trim((string) $root['name']);
+            $sources['root_of_title'] = $describe($root);
+        }
+
+        return $sources;
+    }
+
+    private function instrumentFullName(?string $instrument): ?string
+    {
+        $instrument = trim((string) $instrument);
+        if ($instrument === '') {
+            return null;
+        }
+
+        return [
+            'RofO' => 'Right of Occupancy',
+            'CofO' => 'Certificate of Occupancy',
+            'OP'   => 'Occupancy Permit',
+        ][$instrument] ?? $instrument;
     }
 
     protected function backButton(Request $request): ?array

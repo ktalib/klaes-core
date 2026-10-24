@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\IndexingDuplicateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,7 @@ class IndexingDuplicateController extends Controller
         // cloned created_by / created_at; moved_at is the move's own timestamp.
         $sortMap = [
             'file_indexing_id' => 'file_indexing_id',
+            'temp_file_no'     => 'temp_file_no',
             'file_number'      => 'file_number',
             'registry'         => 'registry',
             'file_title'       => 'file_title',
@@ -83,6 +85,7 @@ class IndexingDuplicateController extends Controller
                 $q->where('file_number', 'like', $like)
                     ->orWhere('file_title', 'like', $like)
                     ->orWhere('duplicate_of', 'like', $like)
+                    ->orWhere('temp_file_no', 'like', $like)
                     ->orWhere('plot_number', 'like', $like)
                     ->orWhere('kangis_file_no', 'like', $like)
                     ->orWhere('new_kangis_file_no', 'like', $like)
@@ -207,10 +210,34 @@ class IndexingDuplicateController extends Controller
             $tables[$label] = array_map(fn ($r) => $this->presentRow($r), $rows);
         }
 
+        // PRA / CofO / FH / file tracker / staged uploads, and the tracker tables —
+        // full rows, so the snapshot shows everything the move removed.
+        $fullRowTables = [
+            'pra'                   => 'PRA',
+            'CofO_staging'          => 'CofO',
+            'file_history_staging'  => 'File history (FH)',
+            'file_tracker'          => 'File tracker requests',
+            'file_indexing_staging' => 'Staged indexing uploads',
+            'indexed_file_trackers' => 'File tracker records',
+            'file_trackings'        => 'File tracking movements',
+        ];
+        foreach (['file_number_rows', 'child_rows'] as $bucket) {
+            foreach (($snapshot[$bucket] ?? []) as $table => $rows) {
+                if (isset($fullRowTables[$table])) {
+                    $tables[$fullRowTables[$table]] = array_map(fn ($r) => $this->presentRow((array) $r), (array) $rows);
+                }
+            }
+        }
+
+        // Labels, barcodes, links: counts only.
         $childRows = [];
         foreach (($snapshot['child_rows'] ?? []) as $table => $rows) {
-            $childRows[$table] = count($rows);
+            if (!isset($fullRowTables[$table])) {
+                $childRows[$table] = count($rows);
+            }
         }
+
+        $deletedCounts = json_decode((string) $row->deleted_counts, true) ?: [];
 
         return response()->json([
             'success' => true,
@@ -221,6 +248,7 @@ class IndexingDuplicateController extends Controller
                 'file_title' => $row->file_title,
                 'registry' => $row->registry,
                 'duplicate_of' => $row->duplicate_of,
+                'temp_file_no' => $row->temp_file_no,
                 'reason' => $row->reason,
                 'indexed_by' => $row->created_by,
                 'indexed_at' => $this->formatDate($row->created_at),
@@ -228,13 +256,15 @@ class IndexingDuplicateController extends Controller
                 'moved_at' => $this->formatDate($row->moved_at),
                 'mls_file_no_retained' => (bool) $row->mls_file_no_retained,
                 'matched_numbers' => $snapshot['matched_numbers'] ?? [],
-                'deleted_counts' => json_decode((string) $row->deleted_counts, true) ?: [],
+                'deleted_counts' => $deletedCounts,
             ],
+            // Grouped counts for the summary card at the top of the snapshot.
+            'summary' => app(IndexingDuplicateService::class)->summariseCounts($deletedCounts),
             'tables' => $tables,
             'child_rows' => $childRows,
+            // Moves before 2026-10-23 left the trackers / FH / file tracker rows in
+            // place and recorded them here; later moves delete them, so these are empty.
             'retained_references' => $snapshot['retained_references'] ?? [],
-            // Dealings that were registered against this file number and stayed
-            // in place — only present on records moved after this was recorded.
             'transaction_references' => $snapshot['transaction_references'] ?? [],
         ]);
     }

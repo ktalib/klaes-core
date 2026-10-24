@@ -53,6 +53,8 @@ use Illuminate\Validation\Rule;
  *                          registries (cadastral_settings & co., read through
  *                          App\Services\Cadastral\CadastralSettings) and who holds each job post
  *                          (cadastral_officers)
+ *   Kano MDAs              kano_mdas: the State MDAs offered as an OP Source (App\Support\OpSource)
+ *                          and as the External sender on File Movement
  *   SPAS Bill Items        spa_bill_items, the Special Assignment contravention tariff
  *                          (App\Services\SpaBillItemTariff); moved here from the SPAS Bills page
  *
@@ -93,6 +95,8 @@ class ConfigurableEntriesController extends Controller
         'land-rates' => ['label' => 'Land Rates (G.Rent & LUC)', 'icon' => 'map', 'accent' => '#0f766e', 'tint' => '#f0fdfa'],
         'logos' => ['label' => 'Logos', 'icon' => 'image', 'accent' => '#4338ca', 'tint' => '#eef2ff'],
         'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8'],
+        // The Kano State MDAs list (OP Source = Kano MDAs, File Movement External sender).
+        'kano-mdas' => ['label' => 'Kano MDAs', 'icon' => 'landmark', 'accent' => '#0369a1', 'tint' => '#f0f9ff'],
         // Green like the fee sheet it configures (green-700 on green-50).
         'cadastral' => ['label' => 'Cadastral', 'icon' => 'compass', 'accent' => '#15803d', 'tint' => '#f0fdf4'],
         // The Special Assignment (SPAS) contravention tariff. Lime, the SPAS colour.
@@ -273,6 +277,7 @@ class ConfigurableEntriesController extends Controller
             'module-permissions' => fn () => $schema->hasTable('module_permissions'),
             // Reuses signing_officers -- no table of its own.
             'signatories' => fn () => $schema->hasTable('signing_officers'),
+            'kano-mdas' => fn () => $schema->hasTable('kano_mdas'),
             // Waits for 2026_10_01_100000_create_cadastral_settings_tables. Until it
             // runs, CadastralSettings serves config/cadastral_module.php and there is
             // nowhere to save an edit, so a tab would only offer forms that fail.
@@ -316,6 +321,7 @@ class ConfigurableEntriesController extends Controller
             'land-rates' => $this->landRatesData($request),
             'logos' => $this->logosData($request),
             'signatories' => $this->signatoriesData(),
+            'kano-mdas' => $this->kanoMdasData($request),
             'cadastral' => $this->cadastralData(),
             'spa-bill-items' => $this->spaBillItemsData(),
             'bill-settings' => $this->billSettingsData($request),
@@ -532,6 +538,205 @@ class ConfigurableEntriesController extends Controller
         $record->delete();
 
         return back()->with('success', 'Signatory removed.');
+    }
+
+    // ---- Kano MDAs ------------------------------------------------------------
+
+    /** The categories every MDA list offers, before any added through "Other". */
+    private const MDA_CATEGORIES = ['Office', 'Ministry', 'Agency'];
+
+    /**
+     * kano_mdas: the Kano State MDAs offered as an OP Source (App\Support\OpSource) and
+     * as the External sender on File Movement. Both screens keep the chosen NAME as
+     * text, so a rename is carried onto the Occupancy Permits that hold the old name,
+     * and an MDA that a permit names is switched off rather than deleted.
+     */
+    private function kanoMdasData(Request $request): array
+    {
+        $q = trim((string) $request->query('q', ''));
+        $category = trim((string) $request->query('category', ''));
+        $status = (string) $request->query('status', '');
+
+        $all = DB::connection('sqlsrv')->table('kano_mdas')->orderBy('sort_order')->orderBy('name')->get();
+        $used = $this->mdaUsageCounts();
+
+        $rows = $all->filter(function ($m) use ($q, $category, $status) {
+            if ($q !== '' && mb_stripos($m->name, $q) === false) return false;
+            if ($category !== '' && strcasecmp((string) $m->category, $category) !== 0) return false;
+            if ($status === 'active' && !$m->is_active) return false;
+            if ($status === 'off' && $m->is_active) return false;
+            return true;
+        })->values();
+
+        return [
+            'mdas' => $rows,
+            'mdaTotal' => $all->count(),
+            'mdaActive' => $all->where('is_active', true)->count(),
+            'mdaUsage' => $used,
+            'mdaCategories' => $this->mdaCategories($all),
+            'mdaFilters' => ['q' => $q, 'category' => $category, 'status' => $status],
+        ];
+    }
+
+    /** Listed categories first, then any other a row already carries. */
+    private function mdaCategories($all = null): array
+    {
+        $all ??= DB::connection('sqlsrv')->table('kano_mdas')->get(['category']);
+        $categories = self::MDA_CATEGORIES;
+        foreach ($all as $m) {
+            $c = trim((string) $m->category);
+            if ($c !== '' && !in_array(mb_strtolower($c), array_map('mb_strtolower', $categories), true)) {
+                $categories[] = $c;
+            }
+        }
+
+        return $categories;
+    }
+
+    /** Occupancy Permits per MDA name (lower-cased), from pra.op_source_other. */
+    private function mdaUsageCounts(): array
+    {
+        return DB::connection('sqlsrv')->table('pra')
+            ->where('op_source', \App\Support\OpSource::MDA)
+            ->whereNotNull('op_source_other')
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->selectRaw('LOWER(LTRIM(RTRIM(op_source_other))) AS k, COUNT(*) AS c')
+            ->groupByRaw('LOWER(LTRIM(RTRIM(op_source_other)))')
+            ->pluck('c', 'k')->map(fn ($c) => (int) $c)->all();
+    }
+
+    /** Create or update one MDA. */
+    public function saveKanoMda(Request $request, ?int $mda = null)
+    {
+        $this->authorizeAdmin();
+
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'category' => 'required|string|max:50',
+            'category_other' => 'nullable|string|max:50',
+            'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'nullable|boolean',
+        ], [
+            'name.required' => 'Enter the name of the MDA.',
+            'name.max' => 'The MDA name may not be longer than 100 characters (the length an OP Source can hold).',
+        ]);
+
+        return $this->attempt(function () use ($data, $mda) {
+            $db = DB::connection('sqlsrv');
+            $squash = fn ($v) => trim(preg_replace('/\s+/u', ' ', (string) $v));
+
+            // Proper names: spacing tidied, capitals kept as typed (KAROTA, SUBEB ...).
+            $name = $squash($data['name']);
+            if ($name === '') {
+                throw WorkflowGuardException::because('Enter the name of the MDA.');
+            }
+
+            $category = $squash($data['category']);
+            if ($category === 'Other') {
+                $category = $squash($data['category_other'] ?? '');
+                if ($category === '') {
+                    throw WorkflowGuardException::because('Category is Other: specify the category.');
+                }
+                // A category is a label: each word capitalised ("parastatal" -> "Parastatal").
+                $category = mb_convert_case($category, MB_CASE_TITLE);
+            }
+            // A listed category typed in by hand (any case) is that category.
+            foreach ($this->mdaCategories() as $listed) {
+                if (strcasecmp($listed, $category) === 0) {
+                    $category = $listed;
+                }
+            }
+
+            $row = $mda ? $db->table('kano_mdas')->where('id', $mda)->first() : null;
+            if ($mda && !$row) {
+                throw WorkflowGuardException::because('That MDA no longer exists. Reload the page.');
+            }
+
+            // One MDA, one spelling: a name already listed in any case or spacing is refused.
+            $clash = $db->table('kano_mdas')
+                ->whereRaw("LOWER(LTRIM(RTRIM(name))) = ?", [mb_strtolower($name)])
+                ->when($mda, fn ($w) => $w->where('id', '<>', $mda))
+                ->first();
+            if ($clash) {
+                throw WorkflowGuardException::because("\"{$clash->name}\" is already in the list" . ($clash->is_active ? '.' : ' (switched off). Switch it back on instead.'));
+            }
+
+            $values = [
+                'name' => $name,
+                'category' => $category,
+                'sort_order' => isset($data['sort_order'])
+                    ? (int) $data['sort_order']
+                    : ($row->sort_order ?? ((int) $db->table('kano_mdas')->max('sort_order') + 10)),
+                'is_active' => $mda ? (int) (bool) ($data['is_active'] ?? false) : 1,
+                'updated_at' => now(),
+            ];
+
+            $carried = 0;
+            $db->transaction(function () use ($db, $mda, $row, $values, &$carried) {
+                if ($mda) {
+                    $db->table('kano_mdas')->where('id', $mda)->update($values);
+                    // Permits keep the MDA as text: carry a rename onto them so they still
+                    // reopen on this MDA rather than as "Other".
+                    if ($row->name !== $values['name']) {
+                        $carried = $db->table('pra')
+                            ->where('op_source', \App\Support\OpSource::MDA)
+                            ->whereRaw('LTRIM(RTRIM(op_source_other)) = ?', [$row->name])
+                            ->update(['op_source_other' => $values['name'], 'updated_at' => now()]);
+                    }
+                } else {
+                    $db->table('kano_mdas')->insert($values + ['created_at' => now()]);
+                }
+            });
+
+            \Illuminate\Support\Facades\Log::info('Configurable Entries: Kano MDA saved', [
+                'id' => $mda, 'before' => $row ? (array) $row : null, 'after' => $values,
+                'permits_renamed' => $carried, 'by' => Auth::id(),
+            ]);
+
+            return "{$name} saved." . ($carried ? " {$carried} Occupancy " . \Illuminate\Support\Str::plural('Permit', $carried) . ($carried === 1 ? ' now shows' : ' now show') . ' the new name.' : '');
+        }, 'MDA saved.');
+    }
+
+    /** Switch an MDA on or off: off removes it from every MDA dropdown, records keep it. */
+    public function toggleKanoMda(int $mda)
+    {
+        $this->authorizeAdmin();
+
+        return $this->attempt(function () use ($mda) {
+            $db = DB::connection('sqlsrv');
+            $row = $db->table('kano_mdas')->where('id', $mda)->first();
+            if (!$row) {
+                throw WorkflowGuardException::because('That MDA no longer exists. Reload the page.');
+            }
+            $db->table('kano_mdas')->where('id', $mda)->update(['is_active' => $row->is_active ? 0 : 1, 'updated_at' => now()]);
+            \Illuminate\Support\Facades\Log::info('Configurable Entries: Kano MDA switched', ['id' => $mda, 'name' => $row->name, 'is_active' => !$row->is_active, 'by' => Auth::id()]);
+
+            return $row->is_active
+                ? "{$row->name} switched off. It is no longer offered; records that name it keep it."
+                : "{$row->name} switched back on.";
+        }, 'MDA updated.');
+    }
+
+    /** Delete an MDA that no Occupancy Permit names; one in use can only be switched off. */
+    public function deleteKanoMda(int $mda)
+    {
+        $this->authorizeAdmin();
+
+        return $this->attempt(function () use ($mda) {
+            $db = DB::connection('sqlsrv');
+            $row = $db->table('kano_mdas')->where('id', $mda)->first();
+            if (!$row) {
+                throw WorkflowGuardException::because('That MDA no longer exists. Reload the page.');
+            }
+            $uses = $this->mdaUsageCounts()[mb_strtolower(trim($row->name))] ?? 0;
+            if ($uses > 0) {
+                throw WorkflowGuardException::because("{$row->name} is the Source of {$uses} Occupancy " . \Illuminate\Support\Str::plural('Permit', $uses) . '. Switch it off instead of deleting it.');
+            }
+            $db->table('kano_mdas')->where('id', $mda)->delete();
+            \Illuminate\Support\Facades\Log::info('Configurable Entries: Kano MDA deleted', ['row' => (array) $row, 'by' => Auth::id()]);
+
+            return "{$row->name} deleted.";
+        }, 'MDA deleted.');
     }
 
     // ---- Departments --------------------------------------------------------

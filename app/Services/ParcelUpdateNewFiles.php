@@ -21,6 +21,59 @@ class ParcelUpdateNewFiles
     /** FILE NO (upper) => file title, for every new file this request has resolved. */
     private static array $titles = [];
 
+    /** FILE NO (upper) => register details, see details(). */
+    private static array $details = [];
+
+    /**
+     * What the opened rows under a listing row show for each new file: its title, plot,
+     * location, commissioning date and who commissioned it, from mls_file_no (falling
+     * back to the indexed record). One query per call; cached for the request.
+     *
+     * @param  string[]  $files
+     * @return array<string, array{title:string, plot:string, district:string, lga:string, location:string, date:?string, by:string}>  keyed by upper-cased file no
+     */
+    public static function details(array $files): array
+    {
+        $missing = [];
+        foreach ($files as $file) {
+            $key = mb_strtoupper(trim((string) $file));
+            if ($key !== '' && !array_key_exists($key, self::$details)) {
+                $missing[$key] = trim((string) $file);
+            }
+        }
+
+        foreach (array_chunk(array_values($missing), 500) as $chunk) {
+            $rows = DB::connection('sqlsrv')->table('mls_file_no as m')
+                ->leftJoin('file_indexings as fi', 'fi.file_number', '=', 'm.full_file_number')
+                ->whereIn('m.full_file_number', $chunk)
+                ->whereRaw('ISNULL(m.is_deleted, 0) = 0')
+                ->get([
+                    'm.full_file_number', 'm.file_name', 'm.plot_no', 'm.district', 'm.lga', 'm.location',
+                    'm.commissioning_date', 'm.created_at', 'm.created_by',
+                    'fi.file_title', 'fi.plot_number', 'fi.district as fi_district', 'fi.lga as fi_lga',
+                ]);
+            foreach ($rows as $r) {
+                $pick = fn (...$v) => trim((string) (collect($v)->first(fn ($x) => trim((string) $x) !== '') ?? ''));
+                self::$details[mb_strtoupper(trim((string) $r->full_file_number))] = [
+                    'title' => $pick($r->file_title, $r->file_name),
+                    'plot' => $pick($r->plot_no, $r->plot_number),
+                    'district' => $pick($r->district, $r->fi_district),
+                    'lga' => $pick($r->lga, $r->fi_lga),
+                    'location' => $pick($r->location),
+                    'date' => $r->commissioning_date ?: $r->created_at,
+                    'by' => $pick($r->created_by),
+                ];
+            }
+        }
+
+        $out = [];
+        foreach ($files as $file) {
+            $key = mb_strtoupper(trim((string) $file));
+            $out[$key] = self::$details[$key] ?? ['title' => self::$titles[$key] ?? '', 'plot' => '', 'district' => '', 'lga' => '', 'location' => '', 'date' => null, 'by' => ''];
+        }
+
+        return $out;
+    }
     /** The title of a new file resolved by forApplications() / forDuplexes() earlier in this request. */
     public static function titleOf(string $fileNo): string
     {

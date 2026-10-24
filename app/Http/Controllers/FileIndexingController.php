@@ -1034,10 +1034,15 @@ class FileIndexingController extends Controller
             $opType = null;
         }
 
+        // A Kano MDAs permit keeps its MDA in op_source_other: it reopens on the MDA
+        // select, or as MDA Other + the text when the name is not listed.
+        [$opSourceMda, $opSourceMdaOther] = \App\Support\OpSource::mdaFormValues($opSource, $record->op_source_other ?? null);
+
         return [
             'occupancy_permit_instrument_type' => $record->instrument_type ?? 'Occupancy Permit',
             'occupancy_permit_op_source' => $opSource,
-            'occupancy_permit_op_source_other' => $record->op_source_other ?? null,
+            'occupancy_permit_op_source_mda' => $opSourceMda,
+            'occupancy_permit_op_source_other' => $opSource === \App\Support\OpSource::MDA ? $opSourceMdaOther : ($record->op_source_other ?? null),
             'occupancy_permit_op_type' => $opType,
             'occupancy_permit_op_type_other' => $record->op_type_other ?? null,
             'occupancy_permit_op_category' => $record->instrument_category ?? null,
@@ -1230,8 +1235,9 @@ class FileIndexingController extends Controller
                 // Occupancy Permit fields
                 'has_occupancy_permit' => 'nullable|boolean',
                 'occupancy_permit_instrument_type' => 'nullable|string|max:255',
-                'occupancy_permit_op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+                'occupancy_permit_op_source' => 'nullable|in:Ministry,KANGIS,LGA,Kano MDAs,Other',
                 'occupancy_permit_op_source_other' => 'nullable|string|max:100',
+                'occupancy_permit_op_source_mda' => 'nullable|string|max:255',
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
                 'occupancy_permit_op_type_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
@@ -1303,7 +1309,7 @@ class FileIndexingController extends Controller
                 'ground_rent_receipt_date' => 'nullable|array',
             ], [
                 'land_use_type.required' => 'Please select a Land Use Type.',
-                'root_of_title.required' => 'Please enter the Root of Title.',
+                'root_of_title.required' => $this->isSltrSubmission($request) ? 'Please enter the Root of Ownership.' : 'Please enter the Root of Title.',
                 'kangis_fileno_placeholder.required' => 'KANGIS FileNo Placeholder is required when KANGIS Registry is selected.',
                 'new_kangis_file_no.required' => 'New KANGIS File No is required when "Has New KANGIS FileNo" is checked.',
             ]);
@@ -3506,6 +3512,18 @@ class FileIndexingController extends Controller
      * The automated scanning importer is exempt outright: it has no registry
      * question and no root to give, the same exemption gender carries.
      */
+    /**
+     * Is this an SLTR indexing save? Same registry test rootOfTitleIsRequired()
+     * uses for its SLTR half, and isSltrRegistry() in create-indexing-dialog.js.
+     */
+    private function isSltrSubmission(Request $request): bool
+    {
+        $norm = fn ($v) => strtoupper(trim((string) $v));
+
+        return str_contains($norm($request->input('general_registry')), 'SLTR')
+            || str_contains($norm($request->input('physical_registry')), 'SLTR');
+    }
+
     private function rootOfTitleIsRequired(Request $request): bool
     {
         if ($request->input('source') === 'scanning_upload') {
@@ -3795,8 +3813,9 @@ class FileIndexingController extends Controller
                 // Occupancy Permit fields
                 'has_occupancy_permit' => 'nullable|boolean',
                 'occupancy_permit_instrument_type' => 'nullable|string|max:255',
-                'occupancy_permit_op_source' => 'nullable|in:Ministry,KANGIS,LGA,Other',
+                'occupancy_permit_op_source' => 'nullable|in:Ministry,KANGIS,LGA,Kano MDAs,Other',
                 'occupancy_permit_op_source_other' => 'nullable|string|max:100',
+                'occupancy_permit_op_source_mda' => 'nullable|string|max:255',
                 'occupancy_permit_op_type' => 'nullable|string|max:100',
                 'occupancy_permit_op_type_other' => 'nullable|string|max:100',
                 'occupancy_permit_op_category' => 'nullable|string|max:100',
@@ -3867,7 +3886,7 @@ class FileIndexingController extends Controller
                 'ground_rent_receipt_date' => 'nullable|array',
             ], [
                 'land_use_type.required' => 'Please select a Land Use Type.',
-                'root_of_title.required' => 'Please enter the Root of Title.',
+                'root_of_title.required' => $this->isSltrSubmission($request) ? 'Please enter the Root of Ownership.' : 'Please enter the Root of Title.',
                 'kangis_fileno_placeholder.required' => 'KANGIS FileNo Placeholder is required when KANGIS Registry is selected.',
                 'new_kangis_file_no.required' => 'New KANGIS File No is required when "Has New KANGIS FileNo" is checked.',
             ]);
@@ -4110,6 +4129,15 @@ class FileIndexingController extends Controller
             // validated client-side against the file number) is kept as-is.
 
             $trackingId = $grouping->tracking_id ?? ($validated['tracking_id'] ?? null);
+
+            // A File Extension ("X AND EXTENSION") matched the MOTHER's grouping row above
+            // (for batch / shelf details), but it is its own file: it keeps its own tracking
+            // ID — the one it was commissioned with, or a fresh one — and leaves the mother's
+            // grouping row untouched below (Change Request 22102026, item 23).
+            $isExtensionIndexing = \App\Support\FileExtensionTracking::isExtensionNumber($validated['file_number'] ?? null);
+            if ($isExtensionIndexing) {
+                $trackingId = \App\Support\FileExtensionTracking::resolveFor($validated['file_number'], $request->input('tracking_id'));
+            }
 
             // KANGIS variant: only clone the grouping row when the base file number
             // already exists in file_indexings (collision). When it is the first time
@@ -4462,7 +4490,7 @@ class FileIndexingController extends Controller
                 }
             }
 
-            DB::connection('sqlsrv')->transaction(function () use (&$fileIndexing, &$grouping, &$kangisPlaceholderResult, $isKangisVariant, $kangisGroupingCloned, $groupingTable, $kangisResolvedFileNo, $kangisBaseFileNo, $persistableData, $groupingIdValue, $groupingSyncPayload, $sourceFileId, $fileNumberForUpdate, $trackingId, $resolvedTestControl, $validated, $indexingType, $rawFileTitles, $relatedFileNos, $relatedDetails, $request, $resolvedDistrictInput, $existingTempRecord) {
+            DB::connection('sqlsrv')->transaction(function () use (&$fileIndexing, &$grouping, &$kangisPlaceholderResult, $isKangisVariant, $isExtensionIndexing, $kangisGroupingCloned, $groupingTable, $kangisResolvedFileNo, $kangisBaseFileNo, $persistableData, $groupingIdValue, $groupingSyncPayload, $sourceFileId, $fileNumberForUpdate, $trackingId, $resolvedTestControl, $validated, $indexingType, $rawFileTitles, $relatedFileNos, $relatedDetails, $request, $resolvedDistrictInput, $existingTempRecord) {
                 // Create Main Record or Update Existing Temporary Record
                 if ($existingTempRecord) {
                     $fileIndexing = $existingTempRecord;
@@ -4559,7 +4587,7 @@ class FileIndexingController extends Controller
                                 'tracking_id' => $trackingId,
                             ]);
                     }
-                } elseif (!$isKangisVariant) {
+                } elseif (!$isKangisVariant && !$isExtensionIndexing) {
                     $lockedGrouping = Grouping::on('sqlsrv')
                         ->where('id', $groupingIdValue)
                         ->lockForUpdate()
@@ -5416,7 +5444,8 @@ class FileIndexingController extends Controller
             $request->input('occupancy_permit_op_source'),
             $request->input('occupancy_permit_op_source_other'),
             $request->input('occupancy_permit_grantor'),
-            'occupancy_permit_op_source', 'occupancy_permit_op_source_other', 'occupancy_permit_grantor'
+            'occupancy_permit_op_source', 'occupancy_permit_op_source_other', 'occupancy_permit_grantor',
+            $request->input('occupancy_permit_op_source_mda'), 'occupancy_permit_op_source_mda'
         );
         $opSourceErrors += \App\Support\OpType::errors(
             $request->input('occupancy_permit_op_type'),
@@ -5432,7 +5461,8 @@ class FileIndexingController extends Controller
             'op_source' => $this->normalizeValue($request->input('occupancy_permit_op_source')),
             'op_source_other' => \App\Support\OpSource::otherFor(
                 $request->input('occupancy_permit_op_source'),
-                $request->input('occupancy_permit_op_source_other')
+                $request->input('occupancy_permit_op_source_other'),
+                $request->input('occupancy_permit_op_source_mda')
             ),
             'op_type' => $this->normalizeValue($request->input('occupancy_permit_op_type')),
             'op_type_other' => \App\Support\OpType::otherFor(

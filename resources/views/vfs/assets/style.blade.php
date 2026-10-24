@@ -36,6 +36,62 @@
     overflow: hidden;
 }
 
+/* Commissioning sheet / LGA sheet preview: the A4 page drawn at full size in an
+   iframe, scaled down to fit the tile. Not interactive — Open shows it full size. */
+.vfs-sheet-thumb {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #fff;
+}
+
+.vfs-sheet-thumb iframe {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    width: 794px;
+    height: 1123px;
+    margin-left: -59px;
+    border: 0;
+    transform: scale(0.148);
+    transform-origin: top left;
+    pointer-events: none;
+}
+
+/* Full-size viewer for the issued sheets. */
+.vfs-sheet-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(17, 24, 39, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.vfs-sheet-viewer.is-open {
+    display: flex;
+}
+
+.vfs-sheet-viewer-panel {
+    width: 100%;
+    max-width: 900px;
+    height: 92vh;
+    background: #fff;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.vfs-sheet-viewer-panel iframe {
+    flex: 1;
+    width: 100%;
+    border: 0;
+}
+
 .vfs-thumb img {
     max-width: 100%;
     max-height: 100%;

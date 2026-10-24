@@ -15,9 +15,9 @@
                         <p class="text-xs font-semibold text-rose-600 uppercase tracking-widest">File Indexing</p>
                         <h1 class="text-2xl md:text-3xl font-bold text-slate-900 mt-1">Indexing Duplicates</h1>
                         <p class="text-sm text-slate-500 mt-2 max-w-3xl">
-                            Indexed files found to be duplicates and removed from the live tables. These records no
-                            longer exist in the indexing, file number, customer or entity tables &mdash; this page and
-                            its stored snapshot are the only remaining record of them.
+                            Indexed files found to be duplicates and removed from the live tables. These records, and
+                            their PRA, CofO, file history and file tracking rows, no longer exist in the live tables
+                            &mdash; this page and its stored snapshot are the only remaining record of them.
                         </p>
                     </div>
                     <a href="{{ route('indexed-files.index') }}"
@@ -80,6 +80,7 @@
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide whitespace-nowrap">S/N</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="file_indexing_id">Indexing ID</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="file_number">File No</th>
+                                <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="temp_file_no">Temp File No</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="file_title">File Name</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="land_use_type">Land Use</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="plot_number">Plot No</th>

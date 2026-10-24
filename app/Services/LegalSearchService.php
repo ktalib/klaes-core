@@ -4843,6 +4843,35 @@ class LegalSearchService
     }
 
     /**
+     * The file's timeline rows exactly as the Property Timeline / Legal Search show
+     * them (same engine, same prop_id scoping as findTimelineRecordsForFileNumber),
+     * raw: synthetic lifecycle rows included and each real row carrying its
+     * source_table + source_id. Backs Move Transaction on Indexed Files.
+     *
+     * @return array<int,array> empty when the engine yields nothing
+     */
+    public function timelineRowsForFileNumber(string $fileNo): array
+    {
+        $fileNo = trim($fileNo);
+        if ($fileNo === '') {
+            return [];
+        }
+
+        $query = ['file_number' => $fileNo];
+
+        $propId = $this->resolvePropIdForFileNumber($fileNo);
+        if ($propId !== null) {
+            $query['prop_id'] = $propId;
+        }
+
+        $report = $this->buildPrintReport($query);
+
+        return ($report['status'] ?? null) === 200
+            ? array_values($report['payload']['data']['rows'] ?? [])
+            : [];
+    }
+
+    /**
      * One print-report row in the shape the "Existing Records" table renders.
      *
      * The report formats for paper: "-" stands in for an absent value and the
@@ -6818,6 +6847,10 @@ class LegalSearchService
                 // the same LS-weighed timeline on-screen â e.g. the PHS portal â
                 // can show source badges and location identically to the slip.
                 'source_table' => $labelToDb[$t['source_table'] ?? ''] ?? ($t['source_table'] ?? ''),
+                // The source row's own id, so a consumer can act on the exact record
+                // (Move Transaction). Synthetic lifecycle rows carry a negative or
+                // borrowed id here and are told apart by source_table.
+                'source_id' => $t['id'] ?? null,
                 'location' => $t['location'] ?? '',
                 // Linked counterpart of a Related Fileno row (e.g. a KANGIS recert's land file).
                 // Needed by resolveAliasHintOwners()/extractMainEndpoint() so a KANGIS alias that

@@ -990,6 +990,11 @@ class LandRecommendationController extends Controller
                 'purpose_of_clause', 'purpose_id', 'land_use', 'land_use_id',
                 'status', 'rofo_status', 'land_rofo_serial_no', 'batch_mother_file_no',
                 'is_existing_recommendation',
+                // The same columns as the main table, so the batch rows can show and
+                // edit them in place (InlineEdit::rowValues()).
+                'district', 'lga', 'applicant_address', 'layout_plan_no', 'term', 'ground_rent',
+                'development_period', 'preparation_fees', 'development_value', 'survey_fees',
+                'development_charge', 'rofo_print_count',
             ]);
 
         if ($children->isEmpty()) {
@@ -1052,7 +1057,18 @@ class LandRecommendationController extends Controller
                 'applicant_phone'=> $c->applicant_phone,
                 'plot_number'    => $c->plot_number,
                 'location'       => $c->location,
+                'display_location' => $c->display_location,
                 'purpose'        => $c->landuse_purpose,
+                'applicant_address' => $c->applicant_address,
+                'layout_plan_no' => $c->layout_plan_no,
+                'term'           => $c->term,
+                'ground_rent'    => '₦' . number_format((float) $c->ground_rent, 2),
+                'development_period' => $c->development_period_label,
+                'preparation_fees' => '₦' . number_format((float) $c->preparation_fees, 2),
+                'development_value' => '₦' . number_format((float) $c->development_value, 2),
+                'print_count'    => (int) ($c->rofo_print_count ?? 0),
+                // Raw values the inline editors open with.
+                'edit'           => \App\Support\InlineEdit::rowValues($c),
                 'status'         => $c->status,
                 'rofo_status'    => $c->rofo_status,
                 'serial_no'      => $c->land_rofo_serial_no,
@@ -1927,76 +1943,8 @@ class LandRecommendationController extends Controller
      */
     private function changeOfPurposeOrigins(array $fileNumbers): array
     {
-        $current = [];
-        foreach ($fileNumbers as $fileNumber) {
-            $fileNumber = trim((string) $fileNumber);
-            if ($fileNumber !== '') {
-                $current[mb_strtoupper($fileNumber)] = $fileNumber;
-            }
-        }
-
-        $visited = [];
-        foreach ($current as $origin => $fileNumber) {
-            $visited[$origin] = [$origin => true];
-        }
-
-        for ($hop = 0; $hop < 5 && $current; $hop++) {
-            $values = array_values(array_unique($current));
-
-            // Of the files still being walked, the ones a Change of Purpose produced.
-            $copBorn = [];
-            foreach (array_chunk($values, 1000) as $slice) {
-                foreach (DB::connection('sqlsrv')->table('mls_file_no')
-                    ->whereIn('full_file_number', $slice)
-                    ->where('source', 'Change of Purpose')
-                    ->where(function ($q) {
-                        $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
-                    })
-                    ->pluck('full_file_number') as $f) {
-                    $copBorn[mb_strtoupper(trim((string) $f))] = true;
-                }
-            }
-
-            if (!$copBorn) {
-                break;
-            }
-
-            // The retired file each one replaced.
-            $predecessors = [];
-            foreach (array_chunk(array_keys($copBorn), 1000) as $slice) {
-                foreach (DB::connection('sqlsrv')->table('file_indexings')
-                    ->whereIn('successor_file_no', $slice)
-                    ->where('is_decommissioned', 1)
-                    ->get(['file_number', 'successor_file_no']) as $row) {
-                    $predecessors[mb_strtoupper(trim((string) $row->successor_file_no))][] = trim((string) $row->file_number);
-                }
-            }
-
-            $moved = false;
-            foreach ($current as $origin => $fileNumber) {
-                $key  = mb_strtoupper($fileNumber);
-                $prev = array_values(array_unique($predecessors[$key] ?? []));
-
-                if (!isset($copBorn[$key]) || count($prev) !== 1
-                    || isset($visited[$origin][mb_strtoupper($prev[0])])) {
-                    continue;
-                }
-
-                $current[$origin] = $prev[0];
-                $visited[$origin][mb_strtoupper($prev[0])] = true;
-                $moved = true;
-            }
-
-            if (!$moved) {
-                break;
-            }
-        }
-
-        return array_filter(
-            $current,
-            fn ($fileNumber, $origin) => mb_strtoupper($fileNumber) !== $origin,
-            ARRAY_FILTER_USE_BOTH
-        );
+        // Shared with the Plot Subdivision listing, which groups by the same grandmother.
+        return app(\App\Services\ChangeOfPurposeLineage::class)->origins($fileNumbers);
     }
 
     /**
@@ -4168,6 +4116,263 @@ class LandRecommendationController extends Controller
                 unset($wanted[$field]);
             }
         }
+    }
+
+    /**
+     * Fields the RofO / Recommendation tables may edit in place, and how each is
+     * cleaned before saving. Two of them are composite: Land Use / Purpose is a land
+     * use plus a purpose (or an "Other" purpose), and Location is District + LGA, from
+     * which the location text is rebuilt exactly as the Edit form builds it. The file
+     * number, which ties the record to the register, still goes through the full Edit.
+     *
+     * kind: text | money | charge | land_use_purpose | location
+     */
+    private const INLINE_FIELDS = [
+        'plot_number'        => ['label' => 'Plot No.',          'kind' => 'text',  'required' => false, 'max' => 191],
+        'layout_plan_no'     => ['label' => 'Layout Plan No.',   'kind' => 'text',  'required' => false, 'max' => 191],
+        'applicant_name'     => ['label' => 'Applicant Name',    'kind' => 'text',  'required' => true,  'max' => 255],
+        'applicant_address'  => ['label' => 'Applicant Address', 'kind' => 'text',  'required' => true,  'max' => 500],
+        'applicant_phone'    => ['label' => 'Phone',             'kind' => 'phone', 'required' => true,  'max' => 30],
+        'term'               => ['label' => 'Term',              'kind' => 'text',  'required' => false, 'max' => 191],
+        'development_period' => ['label' => 'Dev. Period',       'kind' => 'text',  'required' => false, 'max' => 191],
+        'ground_rent'        => ['label' => 'Ground Rent',       'kind' => 'money'],
+        'survey_fees'        => ['label' => 'Survey Fees',       'kind' => 'money'],
+        'development_value'  => ['label' => 'Dev. Value',        'kind' => 'money'],
+        'preparation_fees'   => ['label' => 'Prep. Fees',        'kind' => 'money'],
+        'development_charge' => ['label' => 'Dev. Charge',       'kind' => 'charge', 'max' => 255],
+        'land_use_purpose'   => ['label' => 'Land Use / Purpose', 'kind' => 'land_use_purpose'],
+        'location'           => ['label' => 'Location',          'kind' => 'location'],
+    ];
+
+    /**
+     * Inline edit from a RofO / Recommendation table: one field (or one composite
+     * field) of one record per call.
+     *
+     * Saves through the model, then runs the same register propagation as update(),
+     * so a plot number, land use or location corrected here reaches File Indexing,
+     * fileNumber and the MLS register exactly as it would from the Edit form. Gated
+     * as 'edit' on the Letter of Grant (RofO) module by the route name (*update*).
+     */
+    public function inlineUpdate(Request $request, $id)
+    {
+        // Same gate the tables use to show the Edit mode switch (System Admins only
+        // for now), so the route cannot be used by anyone the switch is hidden from.
+        if (!\App\Support\InlineEdit::canEdit()) {
+            return response()->json(['success' => false, 'message' => 'Inline editing is limited to System Admins.'], 403);
+        }
+
+        $field = (string) $request->input('field');
+        $rule  = self::INLINE_FIELDS[$field] ?? null;
+
+        if (!$rule) {
+            return response()->json(['success' => false, 'message' => 'This field cannot be edited here.'], 422);
+        }
+
+        $recommendation = LandRecommendation::findOrFail($id);
+
+        // Whitespace is collapsed; case is left as typed or picked. Plot and plan
+        // numbers are identifiers and keep their exact format.
+        $clean = fn ($v) => preg_replace('/\s+/u', ' ', trim((string) $v));
+        $fail  = fn (string $m) => response()->json(['success' => false, 'message' => $m], 422);
+
+        $changes = [];
+
+        switch ($rule['kind']) {
+            case 'text':
+            case 'phone':
+                $value = $clean($request->input('value', ''));
+                if ($rule['kind'] === 'phone') {
+                    $value = (string) NigerianPhone::normalize($value);
+                }
+                $validator = \Illuminate\Support\Facades\Validator::make(
+                    ['value' => $value],
+                    ['value' => array_merge(
+                        [$rule['required'] ? 'required' : 'nullable', 'string', 'max:' . $rule['max']],
+                        $rule['kind'] === 'phone' ? [new NigerianPhone] : []
+                    )],
+                    [],
+                    ['value' => $rule['label']]
+                );
+                if ($validator->fails()) {
+                    return $fail($validator->errors()->first('value'));
+                }
+                $changes[$field] = $value === '' ? null : $value;
+                break;
+
+            case 'money':
+                // "₦1,250.00" and "1250" both read as 1250; blank clears the field.
+                $raw = str_replace([',', '₦', 'N', ' '], '', $clean($request->input('value', '')));
+                if ($raw === '') {
+                    $changes[$field] = null;
+                    break;
+                }
+                if (!is_numeric($raw) || (float) $raw < 0) {
+                    return $fail($rule['label'] . ' must be an amount, e.g. 1250 or 1,250.00.');
+                }
+                $changes[$field] = round((float) $raw, 2);
+                break;
+
+            case 'charge':
+                // Development charge is a figure on most letters and a word ("NIL",
+                // "As assessed") on some, so both are kept: a figure is stored plain.
+                $value = $clean($request->input('value', ''));
+                $asNumber = str_replace([',', '₦', ' '], '', $value);
+                if ($value !== '' && is_numeric($asNumber)) {
+                    if ((float) $asNumber < 0) {
+                        return $fail('Dev. Charge cannot be negative.');
+                    }
+                    $value = number_format((float) $asNumber, 2, '.', '');
+                }
+                if (mb_strlen($value) > $rule['max']) {
+                    return $fail('Dev. Charge is too long.');
+                }
+                $changes[$field] = $value === '' ? null : $value;
+                break;
+
+            case 'land_use_purpose':
+                $landUse = LandUse::find((int) $request->input('land_use_id'));
+                if (!$landUse) {
+                    return $fail('Pick a land use.');
+                }
+                $purposeId = (string) $request->input('purpose_id', '');
+                if ($purposeId === 'other') {
+                    $other = $clean($request->input('purpose_other', ''));
+                    if ($other === '') {
+                        return $fail('Specify the purpose, or pick one from the list.');
+                    }
+                    if (mb_strlen($other) > 191) {
+                        return $fail('The purpose is too long.');
+                    }
+                    $changes += ['purpose_id' => null, 'purpose_of_clause' => $other];
+                } elseif ($purposeId !== '') {
+                    $purpose = Purpose::find((int) $purposeId);
+                    if (!$purpose) {
+                        return $fail('That purpose no longer exists.');
+                    }
+                    if ((int) $purpose->landuseid !== (int) $landUse->id) {
+                        return $fail($purpose->name . ' is not a ' . $landUse->landuse . ' purpose.');
+                    }
+                    $changes += ['purpose_id' => $purpose->id, 'purpose_of_clause' => $purpose->name];
+                } else {
+                    return $fail('Pick a purpose.');
+                }
+                $changes += ['land_use_id' => $landUse->id, 'land_use' => $landUse->landuse];
+                break;
+
+            case 'location':
+                $district = $clean($request->input('district', ''));
+                $lga      = $clean($request->input('lga', ''));
+                if ($district === '' || $lga === '') {
+                    return $fail('Location needs both a District and an LGA.');
+                }
+                if (mb_strlen($district) > 191 || mb_strlen($lga) > 191) {
+                    return $fail('District or LGA is too long.');
+                }
+                $changes += [
+                    'district' => $district,
+                    'lga'      => $lga,
+                    'location' => self::composeLocation(
+                        $recommendation->street_name, $district, $lga, $recommendation->state ?: 'Kano State'
+                    ),
+                ];
+                break;
+        }
+
+        $old = $recommendation->only(array_keys($changes));
+
+        foreach ($changes as $column => $value) {
+            $recommendation->{$column} = $value;
+        }
+
+        if (!$recommendation->isDirty()) {
+            return response()->json(['success' => true, 'unchanged' => true] + $this->inlineDisplay($recommendation, $field));
+        }
+
+        $recommendation->updated_by = Auth::id();
+        $recommendation->save();
+
+        // Committed above, so a register that cannot be reached is logged rather than
+        // turned into a failed save — the same stance update() takes.
+        try {
+            $this->propagateToFileSources($recommendation);
+        } catch (\Throwable $e) {
+            RecLog::error('Inline edit saved but propagation failed', [
+                'id'          => $recommendation->id,
+                'file_number' => $recommendation->file_number,
+                'field'       => $field,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+
+        RecLog::info('Recommendation inline edit', [
+            'id'          => $recommendation->id,
+            'file_number' => $recommendation->file_number,
+            'field'       => $field,
+            'old'         => $old,
+            'new'         => $changes,
+            'user_id'     => Auth::id(),
+        ]);
+
+        return response()->json(['success' => true, 'print_count' => (int) ($recommendation->rofo_print_count ?? 0)]
+            + $this->inlineDisplay($recommendation->fresh(), $field));
+    }
+
+    /**
+     * What a table cell shows after an inline save, and the raw value the editor
+     * reopens with. Composite fields send their parts back as JSON.
+     */
+    private function inlineDisplay(LandRecommendation $rec, string $field): array
+    {
+        $money = fn ($v) => $v === null || $v === '' ? '' : number_format((float) $v, 2, '.', '');
+
+        switch (self::INLINE_FIELDS[$field]['kind']) {
+            case 'money':
+                return ['value' => $money($rec->{$field}), 'display' => '₦' . number_format((float) $rec->{$field}, 2)];
+            case 'charge':
+                $v = (string) ($rec->development_charge ?? '');
+                return ['value' => $v, 'display' => is_numeric($v) ? '₦' . number_format((float) $v, 2) : ($v !== '' ? $v : '₦0.00')];
+            case 'land_use_purpose':
+                return [
+                    'value' => json_encode([
+                        'land_use_id'   => $rec->land_use_id,
+                        'purpose_id'    => $rec->purpose_id,
+                        'purpose_text'  => (string) $rec->purpose_of_clause,
+                    ]),
+                    'display' => $rec->landuse_purpose,
+                ];
+            case 'location':
+                return [
+                    'value'   => json_encode(['district' => (string) $rec->district, 'lga' => (string) $rec->lga]),
+                    'display' => $rec->display_location,
+                ];
+            default:
+                $out = ['value' => (string) $rec->{$field}, 'display' => (string) $rec->{$field}];
+                // Tables that show "2 years" rather than "2" (data-display="label").
+                if ($field === 'development_period') {
+                    $out['display_label'] = $rec->development_period_label;
+                }
+                return $out;
+        }
+    }
+
+    /**
+     * The location text, built the way the Edit form builds it (land_recommendations.js
+     * buildLocation): street, district, LGA, state, space-separated, skipping a part
+     * that repeats the one before it ("Dawakin Kudu Dawakin Kudu"). Never the plot.
+     */
+    private static function composeLocation(?string $street, ?string $district, ?string $lga, ?string $state): string
+    {
+        $parts = [];
+        $last  = null;
+        foreach ([$street, $district, $lga, $state] as $part) {
+            $part = trim((string) $part);
+            if ($part === '' || mb_strtolower($part) === $last) {
+                continue;
+            }
+            $parts[] = $part;
+            $last    = mb_strtolower($part);
+        }
+        return implode(' ', $parts);
     }
 
     public function update(Request $request, $id)

@@ -59,6 +59,13 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     Route::post('/signatories/{signatory}', [Entries::class, 'saveSignatory'])->whereNumber('signatory')->name('signatories.update');
     Route::post('/signatories/{signatory}/delete', [Entries::class, 'deleteSignatory'])->whereNumber('signatory')->name('signatories.delete');
 
+    // Kano MDAs (kano_mdas): the OP Source = Kano MDAs list and the File Movement
+    // External sender list. An MDA an Occupancy Permit names is switched off, not deleted.
+    Route::post('/kano-mdas', [Entries::class, 'saveKanoMda'])->name('kano-mdas.store');
+    Route::post('/kano-mdas/{mda}', [Entries::class, 'saveKanoMda'])->whereNumber('mda')->name('kano-mdas.update');
+    Route::post('/kano-mdas/{mda}/toggle', [Entries::class, 'toggleKanoMda'])->whereNumber('mda')->name('kano-mdas.toggle');
+    Route::post('/kano-mdas/{mda}/delete', [Entries::class, 'deleteKanoMda'])->whereNumber('mda')->name('kano-mdas.delete');
+
     // Cadastral: the official fee sheet's rates and rules, the S.L.N. No. 3 of 1983
     // area schedule, transport bands, numbering, file prefixes / source registries,
     // and who holds each job post. Read back by App\Services\Cadastral\CadastralSettings.

@@ -105,6 +105,13 @@ class UserController extends Controller
 
         $search = trim((string) $request->query('search', ''));
 
+        // Department filter (Change Request 22102026, item 19): e.g. all Cadastral staff.
+        $departments = Department::where('is_active', 1)->orderBy('name')->get(['id', 'name']);
+        $departmentId = (int) $request->query('department', 0);
+        if (!$departments->contains('id', $departmentId)) {
+            $departmentId = 0;
+        }
+
         $sort = $request->query('sort', 'name');
         if (!array_key_exists($sort, self::SORTABLE_COLUMNS)) {
             $sort = 'name';
@@ -142,6 +149,7 @@ class UserController extends Controller
             ])
             ->with(['department:id,name'])
             ->whereRaw(self::TAB_PREDICATES[$activeTab])
+            ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
             ->when($search !== '', function ($query) use ($search) {
                 $like = '%' . $search . '%';
                 $query->where(function ($match) use ($like) {
@@ -181,6 +189,7 @@ class UserController extends Controller
         $tabCounts = (array) $scope()
             ->selectRaw('SUM(CASE WHEN ' . self::TAB_PREDICATES['mdc'] . ' THEN 1 ELSE 0 END) as mdc')
             ->selectRaw('SUM(CASE WHEN ' . self::TAB_PREDICATES['mlpp'] . ' THEN 1 ELSE 0 END) as mlpp')
+            ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
             ->first()
             ->getAttributes();
 
@@ -190,6 +199,8 @@ class UserController extends Controller
             'tabCounts',
             'activeTab',
             'search',
+            'departments',
+            'departmentId',
             'sort',
             'direction',
             'perPage',

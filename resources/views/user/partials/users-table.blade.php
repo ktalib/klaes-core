@@ -28,6 +28,7 @@
                             <a href="{{ route('users.index', [
                                 'tab' => $activeTab,
                                 'search' => $search,
+                                'department' => ($departmentId ?? 0) ?: null,
                                 'per_page' => $perPage,
                                 'sort' => $column['key'],
                                 'dir' => $nextDirection,
