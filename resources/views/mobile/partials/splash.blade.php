@@ -4,7 +4,7 @@
 <div id="klaes-splash" role="status" aria-label="KLAES" style="display:none;">
   <div class="klaes-splash-inner">
     <div class="klaes-splash-logo">
-      <img src="//app.klaes.ng/storage/upload/logo/klas_logo.gif" alt="KLAES">
+      <img src="https://app.klaes.ng/assets/logo/klaes-core.gif" alt="KLAES Core">
     </div>
     <div class="klaes-splash-title">KLAES</div>
     <div class="klaes-splash-sub">File Tracker</div>
@@ -23,7 +23,7 @@
   }
   #klaes-splash.hide { opacity: 0; pointer-events: none; }
   .klaes-splash-inner { text-align: center; animation: klaes-splash-rise .6s ease both; }
-  .klaes-splash-logo img { width: 110px; height: auto; }
+  .klaes-splash-logo img { width: 240px; max-width: 80vw; height: auto; }
   .klaes-splash-title {
     margin-top: 16px; font-family: 'Inter', sans-serif; font-weight: 800;
     font-size: 30px; letter-spacing: 4px; color: #6366f1;

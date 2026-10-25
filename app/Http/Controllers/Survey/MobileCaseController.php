@@ -154,6 +154,8 @@ class MobileCaseController extends CaseController
 
         $case = new SurveyCompCase([
             'survey_project_id'   => $project?->id,
+            'survey_project_surveyor_id' => $r->old('survey_project_surveyor_id', $r->query('allocation')),
+            'portion_no'          => $r->old('portion_no', $r->query('portion')),
             'scheme_type'         => $project?->scheme_type,
             'purpose'             => $project?->purpose,
             'status'              => self::STATUS_DRAFT,

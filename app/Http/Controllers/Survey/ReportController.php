@@ -18,44 +18,21 @@ use Illuminate\Support\Facades\DB;
 /**
  * Filterable reports. Every figure is queried; nothing is hard-coded.
  *
- * Monetary and Land-for-Land totals come from disjoint sets of cases, because a
+ * Cash for Trees and Plot for Plot totals come from disjoint sets of cases, because a
  * project's scheme is exclusive — so they are never double counted.
  */
 class ReportController extends Controller
 {
-    /** Cross-module summary. */
+    /**
+     * Cross-module summary: KPIs, charts and their tables (SurveyReportData). Every
+     * figure is queried; nothing is hard-coded.
+     */
     public function index(Request $r)
     {
         [$from, $to] = $this->range($r);
+        $data = app(\App\Services\SurveyReportData::class)->build($from, $to);
 
-        $within = fn ($q) => $q->whereBetween('created_at', [$from, $to]);
-
-        $summary = [
-            'compensation' => [
-                'cases'         => SurveyCompCase::where($within)->count(),
-                'beneficiaries' => SurveyBeneficiary::where($within)->count(),
-                'cash'          => (float) SurveyCaseTree::where($within)->sum('line_total'),
-            ],
-            'gkn' => [
-                'records'    => SurveyGknRecord::where($within)->count(),
-                'in_transit' => SurveyGknRecord::where('status', 'Pending')->count(),
-            ],
-            'examination' => [
-                'queued'   => SurveyExamination::whereIn('status', ['Queued', 'In Review'])->count(),
-                'passed'   => SurveyExamination::where('status', 'Passed')->where($within)->count(),
-                'returned' => SurveyExamination::where('status', 'Returned')->where($within)->count(),
-            ],
-            'plots' => [
-                'rows'  => SurveyPlotAllocation::where($within)->count(),
-                'lpkn'  => SurveyLpkn::where($within)->count(),
-            ],
-            'op' => [
-                'issued' => SurveyOpRecord::where('status', 'Issued')->where($within)->count(),
-                'queue'  => SurveyOpRecord::where('status', '!=', 'Issued')->count(),
-            ],
-        ];
-
-        return view('survey_module.reports', compact('summary', 'from', 'to'));
+        return view('survey_module.reports', $data + compact('from', 'to'));
     }
 
     /** Compensation report, filterable by scheme, status and date. */

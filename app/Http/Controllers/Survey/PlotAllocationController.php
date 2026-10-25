@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Land-for-Land plot register: the 50:50 Farmer/Government split.
+ * Plot for Plot plot register: the 50:50 Farmer/Government split.
  *
  * One row is one plot. The split is taken from the ROW COUNT — the same source
  * SurveyCompCase::plotSplit() uses — not from the per-row govt_50 / farmer_50
@@ -49,7 +49,7 @@ class PlotAllocationController extends Controller
             'farmer' => (float) (clone $q)->sum('farmer_50'),
         ];
 
-        // Plot allocation is a Land-for-Land instrument; monetary cases are not offered.
+        // Plot allocation is a Plot for Plot instrument; monetary cases are not offered.
         $landCases = SurveyCompCase::where('scheme_type', SurveyProject::SCHEME_LAND)
             ->withCount('plots')
             ->orderByDesc('id')->get(['id', 'case_ref', 'scheme_type', 'num_plots']);
@@ -225,7 +225,7 @@ class PlotAllocationController extends Controller
 
         if ($case->isMonetary()) {
             return back()->with('error',
-                "Case {$case->case_ref} is a Monetary (cash for trees) case. Plot allocation applies to Land-for-Land cases only.")
+                "Case {$case->case_ref} is a Cash for Trees case. Plot allocation applies to Plot for Plot cases only.")
                 ->withInput();
         }
 

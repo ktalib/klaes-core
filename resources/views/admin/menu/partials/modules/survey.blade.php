@@ -57,8 +57,14 @@
             <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-records"></i>
           </div>
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-records">
-            {!! $svSoon('CO Files', 'folder') !!}
-            {!! $svSoon('Allocation Records', 'clipboard-list') !!}
+            <a href="{{ route('survey-module.compensation.co-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.co-files', 'survey-module.compensation.co-files.edit') ? 'active' : '' }}">
+              <i data-lucide="folder" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>CO Files</span>
+            </a>
+            <a href="{{ route('survey-module.compensation.allocation-records') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.allocation-records') ? 'active' : '' }}">
+              <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Allocation Records</span>
+            </a>
             <a href="{{ route('survey-module.workflow.examination') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.examination') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP Verification</span>
@@ -74,7 +80,10 @@
             <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-projects"></i>
           </div>
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-projects">
-            {!! $svSoon('Commission CO File', 'file-plus') !!}
+            <a href="{{ route('survey-module.compensation.co-files.create') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.co-files.create') ? 'active' : '' }}">
+              <i data-lucide="file-plus" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Commission CO File</span>
+            </a>
             {{-- Create Project is a button on the Projects page. --}}
             <a href="{{ route('survey-module.compensation.projects') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects', 'survey-module.compensation.projects.create', 'survey-module.compensation.projects.edit') ? 'active' : '' }}">
               <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -115,7 +124,10 @@
           </div>
 
           {{-- b.iv Complaints --}}
-          {!! $svSoon('Complaints', 'message-square-warning') !!}
+          <a href="{{ route('survey-module.compensation.complaints') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.complaints*') ? 'active' : '' }}">
+            <i data-lucide="message-square-warning" class="h-4 w-4 text-pink-400"></i>
+            <span>Complaints</span>
+          </a>
         </div>
         @endif
 
@@ -131,32 +143,14 @@
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn">
 
-          {{-- c.i Applications --}}
-          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-applications">
-            <div class="flex items-center gap-2"><i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i><span>Applications</span></div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-applications"></i>
-          </div>
-          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-applications">
-            @if($svRecords)
-            {{-- GKN Files = the Government Lands register; Register GKN is its button. --}}
-            <a href="{{ route('survey-module.gkn.lands') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.lands', 'survey-module.gkn.register', 'survey-module.gkn.edit') ? 'active' : '' }}">
-              <i data-lucide="landmark" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>GKN Files</span>
-            </a>
-            @endif
-            {{-- Generate New FileNo (GKNFileNo) hidden from the sidebar (user, 2026-10-23); the page and route remain. --}}
-            @if($svRecords)
-            <a href="{{ route('survey-module.records.lpkn') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn') && request('view') === 'lpkn' ? 'active' : '' }}">
-              <i data-lucide="layers" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>LPKN</span>
-            </a>
-            {!! $svSoon('LPPL', 'layers-3') !!}
-            <a href="{{ route('survey-module.records.misc') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.misc') ? 'active' : '' }}">
-              <i data-lucide="tags" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Misc KN</span>
-            </a>
-            @endif
-          </div>
+          {{-- c.i Applications: GKN / LPKN / LPPL / Misc KN as tabs on one page (transcript, 2026-10-25).
+               The old GKN Files, LPKN and Misc KN pages keep their routes but leave the sidebar. --}}
+          @if($svRecords)
+          <a href="{{ route('survey-module.gkn.applications') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.applications') ? 'active' : '' }}">
+            <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>Applications</span>
+          </a>
+          @endif
 
           @if($svRecords)
           {{-- c.ii - c.vii --}}
@@ -166,16 +160,16 @@
           <a href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
             <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors</span>
           </a>
-          <a href="{{ route('survey-module.records.lpkn.instruction') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn.instruction') ? 'active' : '' }}">
+          <a href="{{ route('survey-module.gkn.its.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.its.*') ? 'active' : '' }}">
             <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i><span>Instruction to Survey</span>
           </a>
-          <a href="{{ route('survey-module.records.lpkn.report') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn.report') ? 'active' : '' }}">
+          <a href="{{ route('survey-module.gkn.reports.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.reports.*') ? 'active' : '' }}">
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors Report</span>
           </a>
-          <a href="{{ route('survey-module.records.lpkn.coordinates') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn.coordinates') ? 'active' : '' }}">
+          <a href="{{ route('survey-module.gkn.coordinates.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.coordinates.*') ? 'active' : '' }}">
             <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>List of Coordinates</span>
           </a>
-          <a href="{{ route('survey-module.records.lpkn.observations') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.lpkn.observations') ? 'active' : '' }}">
+          <a href="{{ route('survey-module.gkn.observations.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.observations.*') ? 'active' : '' }}">
             <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Field Observations</span>
           </a>
           @endif
@@ -221,10 +215,22 @@
           </div>
           <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-examination">
             @if($svRecords)
-            {!! $svSoon('Register File', 'file-input') !!}
-            {!! $svSoon('Boundary Dispute', 'split') !!}
-            {!! $svSoon('Old Surveys', 'history') !!}
-            {!! $svSoon('Control Points', 'crosshair') !!}
+            <a href="{{ route('survey-module.workflow.register-file.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.register-file.*') ? 'active' : '' }}">
+              <i data-lucide="file-input" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Register File</span>
+            </a>
+            <a href="{{ route('survey-module.workflow.boundary-disputes.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.boundary-disputes.*') ? 'active' : '' }}">
+              <i data-lucide="split" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Boundary Dispute</span>
+            </a>
+            <a href="{{ route('survey-module.workflow.old-surveys.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.old-surveys.*') ? 'active' : '' }}">
+              <i data-lucide="history" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Old Surveys</span>
+            </a>
+            <a href="{{ route('survey-module.workflow.control-points.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.control-points.*') ? 'active' : '' }}">
+              <i data-lucide="crosshair" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Control Points</span>
+            </a>
             @endif
             @if($svBeacon)
             <a href="{{ route('survey-module.workflow.beacon-register.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.beacon-register.*') ? 'active' : '' }}">
@@ -233,8 +239,14 @@
             </a>
             @endif
             @if($svRecords)
-            {!! $svSoon('Coordinate Register', 'grid-3x3') !!}
-            {!! $svSoon('Surveyors\' Report', 'file-check') !!}
+            <a href="{{ route('survey-module.workflow.coordinate-register.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.coordinate-register.*') ? 'active' : '' }}">
+              <i data-lucide="grid-3x3" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Coordinate Register</span>
+            </a>
+            <a href="{{ route('survey-module.workflow.change-reports.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.change-reports.*') ? 'active' : '' }}">
+              <i data-lucide="file-check" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Surveyors' Report (Changes)</span>
+            </a>
             @endif
           </div>
         @endif

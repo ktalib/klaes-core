@@ -12,11 +12,20 @@ class SurveyCompCase extends SurveyModel
     protected $casts = [
         'case_date' => 'date',
         'area_ha'   => 'decimal:2',
+        'portion_size_ha' => 'decimal:4',
+        'survey_project_surveyor_id' => 'integer',
+        'portion_no'      => 'integer',
     ];
 
     public function project(): BelongsTo
     {
         return $this->belongsTo(SurveyProject::class, 'survey_project_id');
+    }
+
+    /** The surveyor allocation this case surveys one portion of. */
+    public function allocation(): BelongsTo
+    {
+        return $this->belongsTo(SurveyProjectSurveyor::class, 'survey_project_surveyor_id');
     }
 
     public function beneficiaries(): HasMany

@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Economic Trees';
-  $PageDescription = 'Valuation catalogue for Monetary (cash) compensation schemes only · Tree × Qty × Unit Price';
+  $PageDescription = 'Valuation catalogue for Cash for Trees compensation schemes only · Tree × Qty × Unit Price';
 @endphp
 
 @section('survey-content')

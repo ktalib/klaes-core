@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Register Compensation Case';
-  $PageDescription = 'Select a Project first. The compensation scheme (Monetary or Land-for-Land) is inherited from the Project and drives the rest of the form.';
+  $PageDescription = 'Select a Project first. The compensation scheme (Cash for Trees or Plot for Plot) is inherited from the Project and drives the rest of the form.';
 @endphp
 
 @section('survey-content')

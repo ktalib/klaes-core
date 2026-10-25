@@ -13,7 +13,11 @@ use Illuminate\Validation\Rule;
 /**
  * Economic tree valuation catalogue and per-case tree lines.
  *
- * Monetary schemes only: line_total is always quantity x unit_price.
+ * Cash for Trees schemes only: line_total is always quantity x unit_price.
+ *
+ * A tree may have no rate yet (NULL, not ₦0): no official Kano schedule was
+ * available when the catalogue was loaded (2026-10-25). Such a tree cannot be
+ * valued until a rate is entered here or typed on the line.
  */
 class TreeController extends Controller
 {
@@ -33,16 +37,20 @@ class TreeController extends Controller
             ]);
 
         if ($term = trim((string) $r->query('q', ''))) {
-            $q->where('name', 'like', "%$term%");
+            $q->where(fn ($w) => $w->where('name', 'like', "%$term%")
+                ->orWhere('local_name', 'like', "%$term%")
+                ->orWhere('botanical_name', 'like', "%$term%"));
         }
         if ($cat = $r->query('category')) $q->where('category', $cat);
         if ($st = $r->query('status'))    $q->where('status', $st);
+        if ($r->query('rate') === 'unset') $q->whereNull('default_unit_price');
 
         $treeTypes = $q->orderBy('name')->paginate(15)->withQueryString();
 
         $stats = [
             'types'    => SurveyTreeType::count(),
             'active'   => SurveyTreeType::where('status', 'Active')->count(),
+            'unrated'  => SurveyTreeType::where('status', 'Active')->whereNull('default_unit_price')->count(),
             'lines'    => SurveyCaseTree::count(),
             'valued'   => (float) SurveyCaseTree::sum('line_total'),
         ];
@@ -58,7 +66,7 @@ class TreeController extends Controller
 
         // Catalogue rows for the "add line" select — inactive types are not offered.
         $activeTypes = SurveyTreeType::where('status', 'Active')->orderBy('name')
-            ->get(['id', 'name', 'category', 'default_unit_price']);
+            ->get(['id', 'name', 'local_name', 'category', 'default_unit_price']);
 
         return view('survey_module.compensation.trees', compact(
             'treeTypes', 'stats', 'monetaryCases', 'selectedCase', 'activeTypes'
@@ -118,7 +126,7 @@ class TreeController extends Controller
         // Trees are the monetary scheme's only payable item; a land case gets plots, not cash.
         if (! $case->isMonetary()) {
             return back()->with('error',
-                "Case {$case->case_ref} is a Land-for-Land case. Economic trees are monetary-only — allocate plots in Plot Allocation instead.");
+                "Case {$case->case_ref} is a Plot for Plot case. Economic trees are monetary-only — allocate plots in Plot Allocation instead.");
         }
 
         $data = $r->validate([
@@ -133,6 +141,12 @@ class TreeController extends Controller
 
         $type = SurveyTreeType::findOrFail($data['survey_tree_type_id']);
 
+        $unit = $data['unit_price'] ?? $type->default_unit_price;
+        if ($unit === null) {
+            return back()->with('error',
+                "{$type->name} has no rate yet. Enter its rate in the Economic Trees catalogue, or type a unit price on the line.");
+        }
+
         // The name is snapshotted so the line still reads correctly if the
         // catalogue entry is later renamed or retired. line_total is deliberately
         // NOT taken from the request — SurveyCaseTree recomputes it on save.
@@ -140,7 +154,7 @@ class TreeController extends Controller
             'survey_tree_type_id' => $type->id,
             'tree_type'           => $type->name,
             'quantity'            => (int) $data['quantity'],
-            'unit_price'          => $data['unit_price'] ?? $type->default_unit_price,
+            'unit_price'          => $unit,
         ]);
 
         return back()->with('success', sprintf(
@@ -165,14 +179,26 @@ class TreeController extends Controller
         $unique = Rule::unique('sqlsrv.survey_tree_types', 'name');
         if ($existing) $unique->ignore($existing->id);
 
-        return $r->validate([
+        $data = $r->validate([
             'name'               => ['required', 'string', 'max:255', $unique],
+            'local_name'         => 'nullable|string|max:150',
+            'botanical_name'     => 'nullable|string|max:255',
             'category'           => ['required', Rule::in(self::CATEGORIES)],
-            'default_unit_price' => 'required|numeric|min:0|max:999999999999',
+            // Blank = no rate set yet; the calculator refuses the tree until there is one.
+            'default_unit_price' => 'nullable|numeric|min:0|max:999999999999',
             'status'             => ['required', Rule::in(self::STATUSES)],
         ], [
             'name.unique'   => 'That tree type is already in the catalogue (it may be a retired entry).',
             'category.in'   => 'Category must be Cash Crop, Timber or Fruit.',
         ]);
+
+        // A blank rate means "not set", never ₦0. Always sent explicitly: left out
+        // of an insert, the column's database default (0) would apply.
+        foreach (['default_unit_price', 'local_name', 'botanical_name'] as $k) {
+            $v = $data[$k] ?? null;
+            $data[$k] = trim((string) $v) === '' ? null : $v;
+        }
+
+        return $data;
     }
 }

@@ -100,7 +100,7 @@
             <div class="form-step active" data-step="0">
                 <div class="step-title">General Information</div>
                 <div class="step-subtitle">
-                    Select a Project. The compensation scheme (Monetary or Land-for-Land 50:50) is defined at
+                    Select a Project. The compensation scheme (Cash for Trees or Plot for Plot 50:50) is defined at
                     Project level and cannot be changed on the case.
                 </div>
 
@@ -115,7 +115,7 @@
                                         @selected((string) old('survey_project_id', $case->survey_project_id) === (string) $p->id)
                                         @disabled($mismatch)>
                                     {{ $p->project_code }} · {{ $p->name }}
-                                    ({{ $p->isMonetary() ? 'Monetary' : 'Land-for-Land' }}){{ $mismatch ? ' — different scheme' : '' }}
+                                    ({{ $p->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}){{ $mismatch ? ' — different scheme' : '' }}
                                 </option>
                             @endforeach
                         </select>
@@ -128,6 +128,28 @@
                         </p>
                     </div>
 
+                    {{-- Surveyor + portion: shown when the project has surveyors assigned (see _portion_picker_js). --}}
+                    <div class="form-group full" id="casePortionBox" style="display:none;">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+                            <div>
+                                <label>Surveyor <span class="required">*</span></label>
+                                <select name="survey_project_surveyor_id" id="caseAllocation"
+                                        data-value="{{ old('survey_project_surveyor_id', $case->survey_project_surveyor_id) }}"></select>
+                            </div>
+                            <div>
+                                <label>Portion <span class="required">*</span></label>
+                                <select name="portion_no" id="casePortionNo"
+                                        data-value="{{ old('portion_no', $case->portion_no) }}"></select>
+                            </div>
+                            <div>
+                                <label>Size of Portion (Ha)</label>
+                                <input type="text" id="casePortionSize" readonly style="background:var(--gray-100);color:var(--gray-700);"
+                                       value="{{ $case->portion_size_ha !== null ? (float) $case->portion_size_ha : '' }}" />
+                            </div>
+                        </div>
+                        <p class="helper-text">Each portion allocated to a surveyor on the project is surveyed on its own case. The size comes from the allocation.</p>
+                    </div>
+
                     {{-- Scheme inherited from the project — read-only, and never posted. --}}
                     <div class="form-group full" id="caseSchemeBox" @style(['display:none' => ! $scheme])>
                         <label>Compensation Scheme (from Project)</label>
@@ -135,7 +157,7 @@
                             @if ($scheme)
                                 <span class="status-badge {{ $isMonetary ? 'active' : 'completed' }}" style="font-size:14px;padding:6px 16px;">
                                     <span class="dot"></span>
-                                    {{ $isMonetary ? 'Monetary (Cash for Trees)' : 'Land-for-Land (50:50)' }}
+                                    {{ $isMonetary ? 'Cash for Trees' : 'Plot for Plot (50:50)' }}
                                 </span>
                                 <span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>
                             @endif
@@ -144,9 +166,9 @@
                             @if ($scheme)
                                 <i class="fas fa-info-circle"></i>
                                 @if ($isMonetary)
-                                    <strong>Monetary scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.
+                                    <strong>Cash for Trees scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.
                                 @else
-                                    <strong>Land-for-Land scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.
+                                    <strong>Plot for Plot scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.
                                 @endif
                             @endif
                         </div>
@@ -392,16 +414,16 @@
                     @if ($isLand)
                         Not applicable — this case is compensated with plots, not cash.
                     @else
-                        List the economic trees on the affected land. Required for a Monetary case: Tree Type × Quantity × Unit Price.
+                        List the economic trees on the affected land. Required for a Cash for Trees case: Tree Type × Quantity × Unit Price.
                     @endif
                 </div>
 
-                {{-- Land-for-Land: the whole step is not applicable and records nothing. --}}
+                {{-- Plot for Plot: the whole step is not applicable and records nothing. --}}
                 <div class="comp-type-note" id="caseTreesNA"
                      style="border-left:4px solid var(--gray-400);@if(! $isLand) display:none; @endif">
                     <i class="fas fa-ban"></i>
                     <strong>Not applicable to this case.</strong>
-                    Land-for-Land compensation pays no cash for economic trees, so nothing is recorded on this step.
+                    Plot for Plot compensation pays no cash for economic trees, so nothing is recorded on this step.
                     Compensation is the 50:50 plot allocation on Step 5. Any tree line entered here is discarded on save.
                 </div>
 
@@ -507,7 +529,7 @@
             <div class="form-step" data-step="4">
                 <div class="step-title">Compensation Summary</div>
                 <div class="step-subtitle" id="caseCompSubtitle">
-                    The scheme is exclusive — monetary or land-for-land, never both.
+                    The scheme is exclusive — monetary or plot-for-plot, never both.
                 </div>
 
                 {{-- Shown only until a project (and therefore a scheme) is chosen. --}}
@@ -531,12 +553,12 @@
                             </div>
                         </div>
                         <div class="comp-total">
-                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Monetary)</span>
+                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Cash for Trees)</span>
                             <span class="total-amount" id="caseCashTotalLabel">₦0.00 cash to beneficiaries</span>
                         </div>
                         <div class="comp-type-note" style="margin-top:16px;">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Monetary compensation only.</strong> No plots are allocated on this case.
+                            <strong>Cash for Trees compensation only.</strong> No plots are allocated on this case.
                             Line totals shown here are a preview; the stored values are recalculated on save.
                         </div>
                     </div>
@@ -547,7 +569,7 @@
                         <div class="comp-cards single">
                             <div class="comp-card" style="border-color:var(--primary);background:var(--primary-50);">
                                 <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
-                                <div class="card-label">Land-for-Land Compensation (50:50)</div>
+                                <div class="card-label">Plot for Plot Compensation (50:50)</div>
                                 <div style="font-size:20px;font-weight:600;color:var(--primary);margin:8px 0;" id="caseLandPlots">
                                     {{ number_format($split['total'] ?? (int) old('num_plots', $case->num_plots)) }} Plots Total
                                 </div>
@@ -576,7 +598,7 @@
                             </div>
                         </div>
                         <div class="comp-total">
-                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Land-for-Land)</span>
+                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Plot for Plot)</span>
                             <span class="total-amount" id="caseLandTotalLabel">
                                 @if ($split)
                                     {{ $split['total'] }} plots · {{ $split['farmer'] }} Farmer : {{ $split['govt'] }} Government
@@ -596,7 +618,7 @@
                         </div>
                         <div class="comp-type-note" style="margin-top:16px;">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Land-for-Land only.</strong> No cash is paid for trees on this case. Individual plot and
+                            <strong>Plot for Plot only.</strong> No cash is paid for trees on this case. Individual plot and
                             OP numbers are assigned under
                             <a href="{{ route('survey-module.tools.plot-allocation') }}">Plot Allocation</a>.
                         </div>
@@ -789,14 +811,14 @@
         if (badge && scheme) {
             badge.innerHTML = '<span class="status-badge ' + (isMonetary ? 'active' : 'completed') +
                 '" style="font-size:14px;padding:6px 16px;"><span class="dot"></span>' +
-                (isMonetary ? 'Monetary (Cash for Trees)' : 'Land-for-Land (50:50)') + '</span>' +
+                (isMonetary ? 'Cash for Trees' : 'Plot for Plot (50:50)') + '</span>' +
                 '<span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>';
         }
         var note = qs('caseSchemeNote');
         if (note && scheme) {
             note.innerHTML = '<i class="fas fa-info-circle"></i> ' + (isMonetary
-                ? '<strong>Monetary scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.'
-                : '<strong>Land-for-Land scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.');
+                ? '<strong>Cash for Trees scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.'
+                : '<strong>Plot for Plot scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.');
         }
 
         // Step 4 — required for monetary, explicitly not applicable for land.
@@ -806,10 +828,10 @@
         if (sub) {
             sub.textContent = isLand
                 ? 'Not applicable — this case is compensated with plots, not cash.'
-                : 'List the economic trees on the affected land. Required for a Monetary case: Tree Type × Quantity × Unit Price.';
+                : 'List the economic trees on the affected land. Required for a Cash for Trees case: Tree Type × Quantity × Unit Price.';
         }
 
-        // Step 3 — plot count only means something under land-for-land.
+        // Step 3 — plot count only means something under plot-for-plot.
         var plots = qs('caseNumPlots'), req = qs('caseNumPlotsReq'), help = qs('caseNumPlotsHelp');
         if (plots) plots.disabled = isMonetary;
         if (req)   req.style.display = isLand ? '' : 'none';
@@ -828,10 +850,10 @@
         var compSub = qs('caseCompSubtitle');
         if (compSub) {
             compSub.textContent = isLand
-                ? 'Land-for-Land: plots split 50:50 (Farmer : Government). No cash for trees on this case.'
+                ? 'Plot for Plot: plots split 50:50 (Farmer : Government). No cash for trees on this case.'
                 : (isMonetary
-                    ? 'Monetary: cash for economic trees only (Tree × Quantity × Unit Price). No plots on this case.'
-                    : 'The scheme is exclusive — monetary or land-for-land, never both.');
+                    ? 'Cash for Trees: economic trees only (Tree × Quantity × Unit Price). No plots on this case.'
+                    : 'The scheme is exclusive — monetary or plot-for-plot, never both.');
         }
     }
 
@@ -1083,3 +1105,5 @@
     });
 })();
 </script>
+
+@include('survey_module.partials._portion_picker_js')

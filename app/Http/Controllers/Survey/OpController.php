@@ -16,8 +16,8 @@ use Illuminate\Support\Collection;
  * Survey -> GIS/KANGIS -> Commissioner -> Deeds -> Land/OSS.
  *
  * An OP belongs to one case and (usually) one beneficiary. What it references
- * is decided by the case's scheme and is always recomputed here: a Land-for-Land
- * OP carries the plot schedule, a Monetary OP carries the cash figure. The two
+ * is decided by the case's scheme and is always recomputed here: a Plot for Plot
+ * OP carries the plot schedule, a Cash for Trees OP carries the cash figure. The two
  * are never mixed and never read from the request.
  */
 class OpController extends Controller
@@ -251,8 +251,8 @@ class OpController extends Controller
     }
 
     /**
-     * What the permit points at. Monetary carries cash and no plot schedule;
-     * Land-for-Land carries the plot schedule and no cash. Returning a null ref
+     * What the permit points at. Cash for Trees carries cash and no plot schedule;
+     * Plot for Plot carries the plot schedule and no cash. Returning a null ref
      * means there is nothing to print yet, which keeps the OP in Draft.
      *
      * @return array{ref: ?string, cash: ?float}

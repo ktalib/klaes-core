@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Plot Allocation';
-  $PageDescription = 'Land-for-Land compensation only · Manage plot allocations with 50:50 split (Farmer : Government). Not used for Monetary (cash for trees) schemes.';
+  $PageDescription = 'Plot for Plot compensation only · Manage plot allocations with 50:50 split (Farmer : Government). Not used for Cash for Trees schemes.';
 @endphp
 
 @section('survey-content')

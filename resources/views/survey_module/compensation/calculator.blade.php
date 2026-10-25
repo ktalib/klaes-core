@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Compensation Calculator';
-  $PageDescription = 'Estimate scheme totals. Choose Monetary or Land-for-Land — never both for one case.';
+  $PageDescription = 'Pick a project to see what each beneficiary is owed: Cash for Trees (count × rate) or Plot for Plot (50:50). A project is one or the other, never both.';
 @endphp
 
 @section('survey-content')

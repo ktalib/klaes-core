@@ -290,8 +290,21 @@
           </a>
         </div>
 
+        <!-- Parcel registers: Parcel Update + Duplex + Legacy, one table per type -->
+        @foreach ([
+            'subdivision'       => ['Subdivision', 'split-square-horizontal'],
+            'merger'            => ['Merger', 'combine'],
+            'extension'         => ['Extension', 'expand'],
+            'change-of-purpose' => ['Change of Purpose', 'repeat'],
+        ] as $registerType => [$registerLabel, $registerIcon])
+          <a href="{{ route('parcel-register.index', ['type' => $registerType, 'mode' => 'deeds']) }}"
+            class="sidebar-submodule-header flex items-center gap-2 py-1.5 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('parcel-register.index') && request()->route('type') === $registerType && request()->query('mode') !== 'land' ? 'active' : '' }}">
+            <i data-lucide="{{ $registerIcon }}" class="h-4 w-4 text-teal-500"></i>
+            <span>{{ $registerLabel }}</span>
+          </a>
+        @endforeach
       @endif
-   
+
       @if($hasRole('Activity Monitoring') || $hasRole('Supper Admin'))
         <a href="{{ route('activity-monitoring.index') }}?url=deeds"
           class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('activity-monitoring.*') && request()->query('url') === 'deeds') ? 'active' : '' }}">

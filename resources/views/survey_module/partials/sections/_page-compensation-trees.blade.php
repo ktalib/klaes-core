@@ -3,6 +3,8 @@
 
     $categories = TreeController::CATEGORIES;
     $statuses   = TreeController::STATUSES;
+    $svItem     = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
+    $rate       = fn ($v) => $v === null ? null : number_format((float) $v, 2);
 @endphp
 
 @include('survey_module.partials._flash')
@@ -19,15 +21,23 @@
       class="farmer-entry-form {{ $errors->any() && old('_form') === 'catalogue' ? 'open' : '' }}" id="ttForm">
     @csrf
     <input type="hidden" name="_form" value="catalogue" />
-    <div class="form-row" style="grid-template-columns:1.5fr 1fr 1fr 1fr auto;">
+    <div class="form-row" style="grid-template-columns:1.3fr 1fr 1.3fr 1fr 1fr 1fr auto;">
         <div>
             <label>Tree Type <span class="required">*</span></label>
-            <input type="text" name="name" value="{{ old('name') }}" placeholder="e.g. Palm Oil" required />
+            <input type="text" name="name" value="{{ old('name') }}" placeholder="e.g. Locust bean" required />
         </div>
         <div>
-            <label>Default Unit Price (₦) <span class="required">*</span></label>
+            <label>Hausa Name</label>
+            <input type="text" name="local_name" value="{{ old('local_name') }}" placeholder="e.g. Dorawa" />
+        </div>
+        <div>
+            <label>Botanical Name</label>
+            <input type="text" name="botanical_name" value="{{ old('botanical_name') }}" placeholder="e.g. Parkia biglobosa" />
+        </div>
+        <div>
+            <label>Rate per Tree (₦)</label>
             <input type="number" step="0.01" min="0" name="default_unit_price"
-                   value="{{ old('default_unit_price', '0') }}" required />
+                   value="{{ old('default_unit_price') }}" placeholder="Not set" />
         </div>
         <div>
             <label>Category <span class="required">*</span></label>
@@ -62,6 +72,12 @@
         <div class="kpi-value">{{ number_format($stats['active']) }}</div>
     </div>
     <div class="kpi-card">
+        <div class="kpi-label">No Rate Yet</div>
+        <div class="kpi-value">
+            <a href="{{ route('survey-module.compensation.trees', ['rate' => 'unset']) }}" style="color:inherit;">{{ number_format($stats['unrated']) }}</a>
+        </div>
+    </div>
+    <div class="kpi-card">
         <div class="kpi-label">Case Tree Lines</div>
         <div class="kpi-value">{{ number_format($stats['lines']) }}</div>
     </div>
@@ -76,7 +92,7 @@
         <input type="hidden" name="case" value="{{ request('case') }}" />
     @endif
     <div class="left">
-        <input type="text" name="q" value="{{ request('q') }}" placeholder="Search tree type…"
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Search name, Hausa or botanical…"
                style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:220px;" />
         <select name="category" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
             <option value="">All Categories</option>
@@ -90,8 +106,12 @@
                 <option value="{{ $s }}" @selected(request('status') === $s)>{{ $s }}</option>
             @endforeach
         </select>
+        <select name="rate" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
+            <option value="">Any Rate</option>
+            <option value="unset" @selected(request('rate') === 'unset')>No rate yet</option>
+        </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if (request()->hasAny(['q','category','status']))
+        @if (request()->hasAny(['q','category','status','rate']))
             <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.trees', request('case') ? ['case' => request('case')] : []) }}">Clear</a>
         @endif
     </div>
@@ -104,13 +124,15 @@
                 <tr>
                     <th>S/N</th>
                     <th>Tree Type</th>
+                    <th>Hausa Name</th>
+                    <th>Botanical Name</th>
                     <th>Category</th>
-                    <th>Unit Price (₦)</th>
+                    <th>Rate per Tree (₦)</th>
                     <th>Cases Using</th>
                     <th>Lines</th>
                     <th>Total Valued (₦)</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -118,8 +140,16 @@
                     <tr>
                         <td>{{ $treeTypes->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $t->name }}</strong></td>
+                        <td>{{ $t->local_name ?: '—' }}</td>
+                        <td>@if ($t->botanical_name)<em>{{ $t->botanical_name }}</em>@else — @endif</td>
                         <td>{{ $t->category ?: '—' }}</td>
-                        <td>{{ number_format((float) $t->default_unit_price, 2) }}</td>
+                        <td>
+                            @if ($t->default_unit_price === null)
+                                <span class="status-badge pending"><span class="dot"></span>Not set</span>
+                            @else
+                                {{ $rate($t->default_unit_price) }}
+                            @endif
+                        </td>
                         <td>{{ number_format((int) $t->cases_using) }}</td>
                         <td>{{ number_format((int) $t->lines_count) }}</td>
                         <td>{{ number_format((float) $t->total_valued, 2) }}</td>
@@ -129,32 +159,53 @@
                             </span>
                         </td>
                         <td>
-                            <div class="action-icons">
-                                <button type="button" title="Edit" onclick="toggleTreeTypeEdit({{ $t->id }})">
-                                    <i class="fas fa-edit"></i>
+                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                 </button>
-                                <form method="POST" action="{{ route('survey-module.compensation.trees.destroy', $t) }}"
-                                      style="display:inline"
-                                      onsubmit="return confirm('Delete {{ $t->name }}? This cannot be undone.');">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" title="Delete"><i class="fas fa-trash"></i></button>
-                                </form>
+                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                     :style="'top:' + top + 'px; left:' + left + 'px'"
+                                     class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    <button type="button" class="{{ $svItem }}" @click="open = false; toggleTreeTypeEdit({{ $t->id }})">
+                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> {{ $t->default_unit_price === null ? 'Set Rate / Edit' : 'Edit' }}
+                                    </button>
+                                    @if ((int) $t->lines_count === 0)
+                                        <form method="POST" action="{{ route('survey-module.compensation.trees.destroy', $t) }}"
+                                              onsubmit="return confirm('Delete {{ addslashes($t->name) }}? This cannot be undone.');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="{{ $svItem }} text-red-600">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </div>
                         </td>
                     </tr>
                     <tr id="ttEdit{{ $t->id }}" style="display:none;">
-                        <td colspan="9" style="background:var(--gray-50);">
+                        <td colspan="11" style="background:var(--gray-50);">
                             <form method="POST" action="{{ route('survey-module.compensation.trees.update', $t) }}">
                                 @csrf @method('PUT')
-                                <div class="form-row" style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
+                                <div class="form-row" style="display:grid;grid-template-columns:1.3fr 1fr 1.3fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
                                     <div>
                                         <label>Tree Type</label>
                                         <input type="text" name="name" value="{{ $t->name }}" class="form-control" required />
                                     </div>
                                     <div>
-                                        <label>Default Unit Price (₦)</label>
+                                        <label>Hausa Name</label>
+                                        <input type="text" name="local_name" value="{{ $t->local_name }}" class="form-control" />
+                                    </div>
+                                    <div>
+                                        <label>Botanical Name</label>
+                                        <input type="text" name="botanical_name" value="{{ $t->botanical_name }}" class="form-control" />
+                                    </div>
+                                    <div>
+                                        <label>Rate per Tree (₦)</label>
                                         <input type="number" step="0.01" min="0" name="default_unit_price"
-                                               value="{{ (float) $t->default_unit_price }}" class="form-control" required />
+                                               value="{{ $t->default_unit_price === null ? '' : (float) $t->default_unit_price }}"
+                                               class="form-control" placeholder="Not set" />
                                     </div>
                                     <div>
                                         <label>Category</label>
@@ -187,7 +238,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="11" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-tree" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No tree types in the catalogue yet.
                             <a href="#" onclick="toggleTreeCatalogueForm();return false;">Add the first one</a>.
@@ -201,7 +252,7 @@
         <span>
             Showing {{ $treeTypes->firstItem() ?? 0 }}–{{ $treeTypes->lastItem() ?? 0 }}
             of {{ number_format($treeTypes->total()) }} tree types · Cases Using, Lines and Total Valued
-            are read live from case tree lines · Monetary schemes only
+            are read live from case tree lines · Cash for Trees schemes only
         </span>
         <div class="pagination">{{ $treeTypes->links() }}</div>
     </div>
@@ -238,13 +289,13 @@
     @if (! $selectedCase)
         <div class="comp-type-note">
             <i class="fas fa-info-circle"></i>
-            Choose a case to record its economic trees. Only <strong>Monetary</strong> cases are listed —
-            Land-for-Land cases are compensated with plots, not cash, and the server refuses tree lines on them.
+            Choose a case to record its economic trees. Only <strong>Cash for Trees</strong> cases are listed —
+            Plot for Plot cases are compensated with plots, not cash, and the server refuses tree lines on them.
         </div>
     @elseif (! $selectedCase->isMonetary())
         <div class="comp-type-note" style="border-left:4px solid var(--danger);background:#fdecea;">
             <i class="fas fa-exclamation-triangle"></i>
-            {{ $selectedCase->case_ref }} is a <strong>Land-for-Land</strong> case. Economic trees are monetary-only;
+            {{ $selectedCase->case_ref }} is a <strong>Plot for Plot</strong> case. Economic trees are monetary-only;
             allocate plots in <a href="{{ route('survey-module.tools.plot-allocation', ['case' => $selectedCase->id]) }}">Plot Allocation</a> instead.
         </div>
     @else
@@ -257,8 +308,8 @@
                     <select name="survey_tree_type_id" id="ctlType" onchange="prefillCaseTreePrice()">
                         <option value="">Select from catalogue…</option>
                         @foreach ($activeTypes as $a)
-                            <option value="{{ $a->id }}" data-price="{{ (float) $a->default_unit_price }}">
-                                {{ $a->name }} ({{ $a->category }})
+                            <option value="{{ $a->id }}" data-price="{{ $a->default_unit_price === null ? '' : (float) $a->default_unit_price }}">
+                                {{ $a->name }}{{ $a->local_name ? ' / ' . $a->local_name : '' }} ({{ $a->category }}){{ $a->default_unit_price === null ? ' — rate not set' : '' }}
                             </option>
                         @endforeach
                     </select>

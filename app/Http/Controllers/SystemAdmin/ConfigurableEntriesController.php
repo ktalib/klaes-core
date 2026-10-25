@@ -102,6 +102,8 @@ class ConfigurableEntriesController extends Controller
         // The Special Assignment (SPAS) contravention tariff. Lime, the SPAS colour.
         'spa-bill-items' => ['label' => 'SPAS Bill Items', 'icon' => 'receipt', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
         'map-types' => ['label' => 'Map Types', 'icon' => 'map-pin', 'accent' => '#0e7490', 'tint' => '#ecfeff', 'route' => 'sdi.admin.map-types.index'],
+        // Survey compensation: economic tree rates live on the tree catalogue (user, 2026-10-25).
+        'survey-tree-rates' => ['label' => 'Economic Tree Rates', 'icon' => 'tree-pine', 'accent' => '#be185d', 'tint' => '#fdf2f8', 'route' => 'survey-module.compensation.trees'],
     ];
 
     /**

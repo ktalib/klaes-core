@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyCompCase;
 use App\Models\Survey\SurveyProject;
+use App\Models\Survey\SurveyProjectSurveyor;
 use App\Models\Survey\SurveyTreeType;
 use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
@@ -19,6 +20,10 @@ use Illuminate\Validation\ValidationException;
  * A case inherits scheme_type from its project and may never mix schemes.
  * The register posts every step in one request (steps are shown and hidden on
  * the client), so the whole form is re-validated here.
+ *
+ * Where the project has surveyors assigned, a case is the form for one portion
+ * of one surveyor's allocation: the portion number must be free and within the
+ * allocation, and the portion size is copied from the allocation (2026-10-25).
  */
 class CaseController extends Controller
 {
@@ -91,6 +96,8 @@ class CaseController extends Controller
 
         $case = new SurveyCompCase([
             'survey_project_id'   => $project?->id,
+            'survey_project_surveyor_id' => $r->old('survey_project_surveyor_id', $r->query('allocation')),
+            'portion_no'          => $r->old('portion_no', $r->query('portion')),
             'scheme_type'         => $project?->scheme_type,
             'purpose'             => $project?->purpose,
             'status'              => self::STATUS_DRAFT,
@@ -139,6 +146,8 @@ class CaseController extends Controller
         // Exclusive schemes: monetary allocates no plots, land pays no tree cash.
         if ($isMonetary) $data['num_plots'] = null;
         else             $treeRows = [];
+
+        $data = $this->applyPortion($data, $project);
 
         $case = DB::connection('sqlsrv')->transaction(function () use ($data, $benRows, $treeRows) {
             $data['case_ref'] = SurveyCompCase::nextRef('case_ref', 'C');
@@ -197,6 +206,8 @@ class CaseController extends Controller
         if ($isMonetary) $data['num_plots'] = null;
         else             $treeRows = [];
 
+        $data = $this->applyPortion($data, $project, $case);
+
         DB::connection('sqlsrv')->transaction(function () use ($case, $data, $benRows, $treeRows) {
             $case->update($data);
             $this->syncBeneficiaries($case, $benRows);
@@ -247,7 +258,7 @@ class CaseController extends Controller
     }
 
     /**
-     * Land-for-Land cases only, with the 50:50 split. Monetary cases allocate no
+     * Plot for Plot cases only, with the 50:50 split. Cash for Trees cases allocate no
      * plots, so they are excluded outright rather than listed with zeros.
      */
     public function landAllocation(Request $r)
@@ -309,10 +320,84 @@ class CaseController extends Controller
         return [
             'case'      => $case,
             'projects'  => $projects,
+            'portions'  => $this->portionOptions($projects, $case),
             'treeTypes' => SurveyTreeType::where('status', 'Active')->orderBy('name')->get(),
-            // Only meaningful once the case exists and is land-for-land.
+            // Only meaningful once the case exists and is plot-for-plot.
             'split'     => ($case->exists && ! $case->isMonetary()) ? $case->plotSplit() : null,
         ];
+    }
+
+    /**
+     * Per project, its surveyor allocations and which portion numbers are still
+     * free, for the portion picker. The case being edited keeps its own portion.
+     */
+    protected function portionOptions($projects, SurveyCompCase $case): array
+    {
+        $allocs = SurveyProjectSurveyor::whereIn('survey_project_id', $projects->pluck('id'))
+            ->orderBy('surveyor_name')
+            ->get();
+
+        $out = [];
+        foreach ($allocs as $a) {
+            $used = $a->usedPortions($case->exists ? $case->id : null);
+            $out[$a->survey_project_id][] = [
+                'id'       => $a->id,
+                'name'     => $a->surveyor_name,
+                'portions' => $a->portions,
+                'size'     => (float) $a->portion_size_ha,
+                'free'     => array_values(array_diff(range(1, max(1, $a->portions)), $used)),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Check the chosen portion against the project's allocations and copy the
+     * portion size from the allocation. Projects with no surveyors assigned
+     * (older ones) take cases without a portion.
+     */
+    protected function applyPortion(array $data, SurveyProject $project, ?SurveyCompCase $case = null): array
+    {
+        $allocId = $data['survey_project_surveyor_id'] ?? null;
+
+        if (! $allocId) {
+            if ($project->surveyors()->exists()) {
+                throw ValidationException::withMessages([
+                    'survey_project_surveyor_id' => "{$project->project_code} has surveyors assigned. Select the surveyor and the portion this case surveys (Step 1).",
+                ]);
+            }
+            $data['survey_project_surveyor_id'] = null;
+            $data['portion_no'] = null;
+            $data['portion_size_ha'] = null;
+
+            return $data;
+        }
+
+        $alloc = SurveyProjectSurveyor::where('survey_project_id', $project->id)->find($allocId);
+        if (! $alloc) {
+            throw ValidationException::withMessages([
+                'survey_project_surveyor_id' => "That surveyor is not assigned to {$project->project_code}.",
+            ]);
+        }
+
+        $no = (int) ($data['portion_no'] ?? 0);
+        if ($no < 1 || $no > $alloc->portions) {
+            throw ValidationException::withMessages([
+                'portion_no' => "{$alloc->surveyor_name} has portions 1–{$alloc->portions} on this project. Pick one of those.",
+            ]);
+        }
+        if (in_array($no, $alloc->usedPortions($case?->id), true)) {
+            throw ValidationException::withMessages([
+                'portion_no' => "Portion {$no} of {$alloc->surveyor_name}'s allocation already has a case.",
+            ]);
+        }
+
+        $data['portion_no'] = $no;
+        // Never the client's: the portion's size is the allocation's.
+        $data['portion_size_ha'] = $alloc->portion_size_ha;
+
+        return $data;
     }
 
     /** Projects for the list filters. */
@@ -325,7 +410,7 @@ class CaseController extends Controller
 
     protected function schemeLabel(?string $type): string
     {
-        return $type === SurveyProject::SCHEME_LAND ? 'Land-for-Land (50:50)' : 'Monetary (Cash for Trees)';
+        return $type === SurveyProject::SCHEME_LAND ? 'Plot for Plot (50:50)' : 'Cash for Trees';
     }
 
     /** Why this case may not be submitted yet, or null when it may. */
@@ -338,7 +423,7 @@ class CaseController extends Controller
             return 'a monetary case needs at least one economic tree line (Step 4).';
         }
         if (! $case->isMonetary() && (int) $case->num_plots < 1 && ! $case->plots()->exists()) {
-            return 'a land-for-land case needs a plot count for the 50:50 split (Step 3).';
+            return 'a plot-for-plot case needs a plot count for the 50:50 split (Step 3).';
         }
 
         return null;
@@ -366,6 +451,8 @@ class CaseController extends Controller
         $rules = [
             'survey_project_id' => ['required', Rule::exists('sqlsrv.survey_projects', 'id')->whereNull('deleted_at')],
             'purpose'           => 'nullable|string|max:100',
+            'survey_project_surveyor_id' => 'nullable|integer',
+            'portion_no'        => 'nullable|integer|min:1',
             'survey_officer'    => 'required|string|max:255',
             'case_date'         => 'required|date',
             'area_ha'           => 'required|numeric|min:0.01|max:9999999999',
@@ -384,7 +471,7 @@ class CaseController extends Controller
             'beneficiaries.*.status'    => ['required', Rule::in(self::BEN_STATUSES)],
 
             // Step 4 is the valuation basis for a monetary case, so it is required
-            // there. For land-for-land it is not applicable and is dropped instead.
+            // there. For plot-for-plot it is not applicable and is dropped instead.
             'trees'              => $isMonetary ? 'required|array|min:1' : 'nullable|array',
             'trees.*.id'         => 'nullable|integer',
             'trees.*.tree_type'  => 'required|string|max:255',
@@ -397,7 +484,7 @@ class CaseController extends Controller
             'survey_project_id.exists'           => 'That project does not exist.',
             'trees.required'                     => 'A monetary case needs at least one economic tree line (Step 4).',
             'trees.min'                          => 'A monetary case needs at least one economic tree line (Step 4).',
-            'num_plots.required'                 => 'A land-for-land case needs the total number of plots for the 50:50 split (Step 3).',
+            'num_plots.required'                 => 'A plot-for-plot case needs the total number of plots for the 50:50 split (Step 3).',
             'beneficiaries.*.full_name.required' => 'Every beneficiary row needs a full name (Step 2).',
             'beneficiaries.*.status.required'    => 'Every beneficiary row needs a status (Step 2).',
             'trees.*.tree_type.required'         => 'Every tree line needs a tree type (Step 4).',

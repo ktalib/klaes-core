@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'OP Allocation';
-  $PageDescription = 'Land-for-Land compensation cases · 50:50 plot split. For detailed plot rows use Plot Allocation under Tools.';
+  $PageDescription = 'Plot for Plot compensation cases · 50:50 plot split. For detailed plot rows use Plot Allocation under Tools.';
 @endphp
 
 @section('survey-content')

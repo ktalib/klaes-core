@@ -617,6 +617,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/range-import', [ManualFileLinkageController::class, 'rangeImport'])->name('range-import');
     });
 
+    // Read-only registers: Parcel Update + Advance (Duplex) + Legacy, one per type.
+    Route::get('parcel-register/{type}', [\App\Http\Controllers\Deeds\ParcelUpdate\ParcelRegisterController::class, 'index'])
+        ->where('type', 'subdivision|merger|extension|change-of-purpose')
+        ->name('parcel-register.index');
+
     // "File Already Decommissioned Before" check shared by the SPU / APU / Legacy Parcel Update forms
     Route::get('parcel-update/decommissioned-before', \App\Http\Controllers\DecommissionedBeforeController::class)
         ->name('parcel-update.decommissioned-before');

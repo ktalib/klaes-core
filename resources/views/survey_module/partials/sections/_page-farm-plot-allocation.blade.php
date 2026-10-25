@@ -25,8 +25,8 @@
 
 <div class="comp-type-note" style="margin-bottom:16px;">
     <i class="fas fa-map-marked-alt"></i>
-    Plot allocation applies to <strong>Land-for-Land</strong> cases only — only those cases are listed below,
-    and the server refuses rows filed against a Monetary (cash for trees) case. One row is one plot; the
+    Plot allocation applies to <strong>Plot for Plot</strong> cases only — only those cases are listed below,
+    and the server refuses rows filed against a Cash for Trees case. One row is one plot; the
     <strong>50:50 split is taken from the row count</strong>, the same source
     <code>SurveyCompCase::plotSplit()</code> uses.
 </div>
@@ -34,7 +34,7 @@
 <form method="GET" class="table-toolbar">
     <div class="left">
         <select name="case" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;min-width:260px;">
-            <option value="">All Land-for-Land cases</option>
+            <option value="">All Plot for Plot cases</option>
             @foreach ($landCases as $c)
                 <option value="{{ $c->id }}" @selected($caseId === $c->id)>
                     {{ $c->case_ref }} — {{ $c->plots_count }} plot row(s)

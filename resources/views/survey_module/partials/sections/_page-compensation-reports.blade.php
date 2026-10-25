@@ -5,8 +5,8 @@
         <label>Scheme Type</label>
         <select name="scheme">
             <option value="">All</option>
-            <option value="monetary" @selected(request('scheme')==='monetary')>Monetary</option>
-            <option value="land" @selected(request('scheme')==='land')>Land-for-Land</option>
+            <option value="monetary" @selected(request('scheme')==='monetary')>Cash for Trees</option>
+            <option value="land" @selected(request('scheme')==='land')>Plot for Plot</option>
         </select>
     </div>
     <div class="form-group">
@@ -35,7 +35,7 @@
 <div class="section-cards">
     <div class="section-card">
         <div class="section-icon"><i class="fas fa-money-bill-wave"></i></div>
-        <h4>Monetary Disbursed</h4>
+        <h4>Cash for Trees Disbursed</h4>
         <div class="stat">&#8358;{{ number_format($totals['monetary_cash'], 2) }}</div>
         <p>Cash for trees &middot; {{ number_format($byScheme['monetary'] ?? 0) }} case(s)</p>
     </div>
@@ -70,7 +70,7 @@
                         <td>{{ $c->project->name ?? '—' }}</td>
                         <td>
                             <span class="status-badge {{ $c->isMonetary() ? 'active' : 'completed' }}">
-                                <span class="dot"></span>{{ $c->isMonetary() ? 'Monetary' : 'Land-for-Land' }}
+                                <span class="dot"></span>{{ $c->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}
                             </span>
                         </td>
                         <td>{{ $c->property_location ?: '—' }}</td>

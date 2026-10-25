@@ -96,7 +96,7 @@
                 <div class="preview-item">
                     <span class="label">Compensation Scheme (from Project)</span>
                     <span class="value" style="color:var(--primary);font-weight:700;">
-                        {{ $detail->isMonetary() ? 'Monetary (Cash for Trees)' : 'Land-for-Land (50:50)' }}
+                        {{ $detail->isMonetary() ? 'Cash for Trees' : 'Plot for Plot (50:50)' }}
                     </span>
                 </div>
                 <div class="preview-item">
@@ -117,12 +117,12 @@
             @if ($detail->isMonetary())
                 <div class="comp-panel active" style="margin-top:20px;">
                     <div class="comp-total">
-                        <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Monetary)</span>
+                        <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Cash for Trees)</span>
                         <span class="total-amount">₦{{ number_format($treeTotal, 2) }} cash to beneficiaries</span>
                     </div>
                     <div class="comp-type-note" style="margin-top:16px;">
                         <i class="fas fa-info-circle"></i>
-                        Monetary compensation only — no plots are allocated on this case.
+                        Cash for Trees compensation only — no plots are allocated on this case.
                     </div>
                 </div>
             @else
@@ -130,7 +130,7 @@
                     <div class="comp-cards single">
                         <div class="comp-card" style="border-color:var(--primary);background:var(--primary-50);">
                             <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
-                            <div class="card-label">Land-for-Land Compensation (50:50)</div>
+                            <div class="card-label">Plot for Plot Compensation (50:50)</div>
                             <div style="font-size:20px;font-weight:600;color:var(--primary);margin:8px 0;">
                                 {{ number_format($split['total'] ?? 0) }} Plots Total
                             </div>
@@ -150,7 +150,7 @@
                     </div>
                     <div class="comp-type-note" style="margin-top:16px;">
                         <i class="fas fa-info-circle"></i>
-                        Land-for-Land only — no cash is paid for trees on this case. Assign plot and OP numbers under
+                        Plot for Plot only — no cash is paid for trees on this case. Assign plot and OP numbers under
                         <a href="{{ route('survey-module.tools.plot-allocation', ['case' => $detail->id]) }}">Plot Allocation</a>.
                     </div>
                 </div>
@@ -279,8 +279,8 @@
             </select>
             <select name="scheme" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
                 <option value="">All Schemes</option>
-                <option value="monetary" @selected(request('scheme') === 'monetary')>Monetary</option>
-                <option value="land" @selected(request('scheme') === 'land')>Land-for-Land</option>
+                <option value="monetary" @selected(request('scheme') === 'monetary')>Cash for Trees</option>
+                <option value="land" @selected(request('scheme') === 'land')>Plot for Plot</option>
             </select>
             <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
             @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
@@ -312,7 +312,7 @@
                             <td>
                                 <strong>{{ $c->case_ref }}</strong>
                                 <div style="font-size:11px;color:var(--gray-500);">
-                                    {{ $c->isMonetary() ? 'Monetary' : 'Land-for-Land' }}
+                                    {{ $c->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}
                                 </div>
                             </td>
                             <td>{{ $c->project?->name ?? '—' }}</td>

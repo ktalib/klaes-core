@@ -66,9 +66,9 @@
                             <td>{{ $c['beneficiary'] ?: '— no beneficiary on file —' }}</td>
                             <td>
                                 @if ($c['case']->scheme_type === \App\Models\Survey\SurveyProject::SCHEME_MONETARY)
-                                    <span class="status-badge active"><span class="dot"></span>Monetary</span>
+                                    <span class="status-badge active"><span class="dot"></span>Cash for Trees</span>
                                 @else
-                                    <span class="status-badge completed"><span class="dot"></span>Land-for-Land</span>
+                                    <span class="status-badge completed"><span class="dot"></span>Plot for Plot</span>
                                 @endif
                             </td>
                             <td>
@@ -109,8 +109,8 @@
                style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
         <select name="scheme" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
             <option value="">All Schemes</option>
-            <option value="monetary" @selected(request('scheme')==='monetary')>Monetary</option>
-            <option value="land" @selected(request('scheme')==='land')>Land-for-Land</option>
+            <option value="monetary" @selected(request('scheme')==='monetary')>Cash for Trees</option>
+            <option value="land" @selected(request('scheme')==='land')>Plot for Plot</option>
         </select>
         <select name="status" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
             <option value="">All Status</option>
@@ -154,9 +154,9 @@
                         <td>{{ optional($op->beneficiary)->full_name ?: '—' }}</td>
                         <td>
                             @if ($op->scheme_type === \App\Models\Survey\SurveyProject::SCHEME_MONETARY)
-                                <span class="status-badge active"><span class="dot"></span>Monetary</span>
+                                <span class="status-badge active"><span class="dot"></span>Cash for Trees</span>
                             @else
-                                <span class="status-badge completed"><span class="dot"></span>Land-for-Land</span>
+                                <span class="status-badge completed"><span class="dot"></span>Plot for Plot</span>
                             @endif
                         </td>
                         <td>{{ $op->plot_or_cash_ref ?: '—' }}</td>

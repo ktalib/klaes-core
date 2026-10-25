@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyBeneficiary;
 use App\Models\Survey\SurveyCompCase;
 use App\Models\Survey\SurveyOpRecord;
+use App\Models\VfcBank;
 use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,6 +20,9 @@ use Illuminate\Validation\Rule;
 class BeneficiaryController extends Controller
 {
     public const STATUSES = ['Verified', 'Pending', 'Review'];
+
+    /** The bank dropdown's single "Other (specify)" value; never stored. */
+    public const BANK_OTHER = '__other__';
 
     public function index(Request $r)
     {
@@ -79,6 +83,8 @@ class BeneficiaryController extends Controller
                 $w->where('full_name', 'like', "%$term%")
                   ->orWhere('phone', 'like', "%$term%")
                   ->orWhere('nin', 'like', "%$term%")
+                  ->orWhere('account_number', 'like', "%$term%")
+                  ->orWhere('account_name', 'like', "%$term%")
                   ->orWhere('addr_district', 'like', "%$term%")
                   ->orWhere('addr_district_other', 'like', "%$term%")
                   ->orWhereHas('case', fn ($c) => $c->where('case_ref', 'like', "%$term%"));
@@ -100,6 +106,8 @@ class BeneficiaryController extends Controller
             'beneficiaries' => $beneficiaries,
             'stats'         => $stats,
             'cases'         => SurveyCompCase::with('project')->orderByDesc('id')->get(),
+            // The VFC module's bank list (100 Nigerian banks), shared rather than copied.
+            'banks'         => VfcBank::orderBy('name')->pluck('name'),
             // The inline panel edits this record, or creates a new one.
             'beneficiary'   => $editing ?? new SurveyBeneficiary([
                 'status'     => 'Pending',
@@ -117,11 +125,14 @@ class BeneficiaryController extends Controller
             'nin'                 => 'nullable|string|max:20',
             'status'              => ['required', Rule::in(self::STATUSES)],
             'bank_name'           => 'nullable|string|max:255',
+            'bank_name_other'     => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('bank_name') === self::BANK_OTHER)],
             'account_name'        => 'nullable|string|max:255',
-            'account_number'      => 'nullable|string|max:50',
+            'account_number'      => 'nullable|digits:10',
         ] + AddressBuilder::rules('addr_');
 
-        return $r->validate($rules, [
+        $data = $r->validate($rules, [
+            'bank_name_other.required'        => 'Please specify the bank.',
+            'account_number.digits'           => 'The account number must be exactly 10 digits.',
             'full_name.required'              => "The beneficiary's full name is required.",
             'survey_comp_case_id.exists'      => 'That compensation case does not exist.',
             'addr_district.required'          => 'The district is required.',
@@ -130,5 +141,22 @@ class BeneficiaryController extends Controller
             'addr_lga.required'               => 'The LGA is required.',
             'addr_state.required'             => 'The state is required.',
         ]);
+
+        // "Other": the typed bank is stored, but a listed bank typed in another case wins.
+        if (($data['bank_name'] ?? null) === self::BANK_OTHER) {
+            $typed = trim(preg_replace('/\s+/', ' ', (string) $data['bank_name_other']));
+            $data['bank_name'] = VfcBank::whereRaw('LOWER(name) = ?', [mb_strtolower($typed)])->value('name') ?? $typed;
+        }
+        unset($data['bank_name_other']);
+
+        foreach (['full_name', 'account_name'] as $k) {
+            if (isset($data[$k])) $data[$k] = trim(preg_replace('/\s+/', ' ', $data[$k]));
+        }
+        // The account name starts as the beneficiary's own name.
+        if (empty($data['account_name']) && ! empty($data['account_number'])) {
+            $data['account_name'] = $data['full_name'];
+        }
+
+        return $data;
     }
 }

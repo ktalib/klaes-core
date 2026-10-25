@@ -1,6 +1,6 @@
 @php
     /**
-     * Land-for-Land cases only. Monetary cases allocate no plots, so the
+     * Plot for Plot cases only. Cash for Trees cases allocate no plots, so the
      * controller filters them out entirely rather than listing them with zeros.
      * Every farmer/government figure comes from SurveyCompCase::plotSplit().
      */
@@ -25,7 +25,7 @@
 
 <div class="kpi-grid">
     <div class="kpi-card">
-        <div class="kpi-label">Land-for-Land Cases</div>
+        <div class="kpi-label">Plot for Plot Cases</div>
         <div class="kpi-value">{{ number_format($totals['cases']) }}</div>
     </div>
     <div class="kpi-card">
@@ -123,11 +123,11 @@
                         <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-marked-alt" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'status', 'project']))
-                                No land-for-land cases match these filters.
+                                No plot-for-plot cases match these filters.
                                 <a href="{{ route('survey-module.compensation.land') }}">Clear them</a>.
                             @else
-                                No land-for-land cases yet. They appear here once a case is registered under a
-                                <a href="{{ route('survey-module.compensation.projects') }}">Land-for-Land project</a>.
+                                No plot-for-plot cases yet. They appear here once a case is registered under a
+                                <a href="{{ route('survey-module.compensation.projects') }}">Plot for Plot project</a>.
                             @endif
                         </td>
                     </tr>
@@ -138,7 +138,7 @@
     <div class="table-footer">
         <span>
             Showing {{ $cases->firstItem() ?? 0 }}–{{ $cases->lastItem() ?? 0 }}
-            of {{ number_format($cases->total()) }} land-for-land cases · monetary cases are not listed here
+            of {{ number_format($cases->total()) }} plot-for-plot cases · monetary cases are not listed here
         </span>
         <div class="pagination">{{ $cases->links() }}</div>
     </div>

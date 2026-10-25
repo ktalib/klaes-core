@@ -1,4 +1,6 @@
 @php
+    use App\Http\Controllers\Survey\BeneficiaryController;
+
     /**
      * Beneficiaries register. The inline panel is both the create and the edit
      * form — BeneficiaryController::edit() renders this same page with the record
@@ -7,6 +9,8 @@
     $editing = $beneficiary->exists;
     // Keep the panel open while editing or after a rejected submission.
     $panelOpen = $editing || $errors->any();
+
+    $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
 
     $badgeClass = fn ($s) => match ($s) {
         'Verified' => 'active',
@@ -54,7 +58,7 @@
         <div class="form-grid">
             <div class="form-group">
                 <label>Full Name <span class="required">*</span></label>
-                <input type="text" name="full_name" value="{{ old('full_name', $beneficiary->full_name) }}"
+                <input type="text" name="full_name" id="benFullName" value="{{ old('full_name', $beneficiary->full_name) }}"
                        placeholder="e.g. Chidi Okafor" />
             </div>
             <div class="form-group">
@@ -83,29 +87,54 @@
                         <option value="{{ $c->id }}"
                             @selected((string) old('survey_comp_case_id', $beneficiary->survey_comp_case_id) === (string) $c->id)>
                             {{ $c->case_ref }} · {{ $c->project?->name ?? 'No project' }}
-                            ({{ $c->isMonetary() ? 'Monetary' : 'Land-for-Land' }})
+                            ({{ $c->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }})
                         </option>
                     @endforeach
                 </select>
                 <p class="helper-text">A beneficiary may exist on its own; linking is optional.</p>
             </div>
 
-            <div class="form-group">
-                <label>Bank Name</label>
-                <input type="text" name="bank_name" value="{{ old('bank_name', $beneficiary->bank_name) }}"
-                       placeholder="e.g. Jaiz Bank" />
-            </div>
-            <div class="form-group">
-                <label>Account Name</label>
-                <input type="text" name="account_name" value="{{ old('account_name', $beneficiary->account_name) }}"
-                       placeholder="As it appears on the account" />
-            </div>
-            <div class="form-group">
-                <label>Account Number</label>
-                <input type="text" name="account_number" value="{{ old('account_number', $beneficiary->account_number) }}"
-                       placeholder="10 digits" />
-            </div>
         </div>
+
+        {{-- Bank details (user transcript, 2026-10-25): account name starts as the beneficiary's name but stays editable, e.g. a spouse's account. --}}
+        @php
+            $bankVal   = old('bank_name', $beneficiary->bank_name);
+            $bankKnown = $bankVal === null || $bankVal === '' || $bankVal === BeneficiaryController::BANK_OTHER || $banks->contains($bankVal);
+            $bankPick  = $bankKnown ? $bankVal : BeneficiaryController::BANK_OTHER;
+            $bankOther = old('bank_name_other', $bankKnown ? '' : $bankVal);
+        @endphp
+        <fieldset style="border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:14px 16px;margin:6px 0 14px;">
+            <legend style="padding:0 6px;font-weight:600;font-size:14px;"><i class="fas fa-university"></i> Bank Details</legend>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Account Name</label>
+                    <input type="text" name="account_name" id="benAccountName" maxlength="255"
+                           value="{{ old('account_name', $beneficiary->account_name) }}"
+                           placeholder="Filled from the full name; edit if different" />
+                    <p class="helper-text">Copied from the full name; change it if the account belongs to someone else.</p>
+                </div>
+                <div class="form-group">
+                    <label>Account Number</label>
+                    <input type="text" name="account_number" inputmode="numeric" maxlength="10" pattern="\d{10}"
+                           value="{{ old('account_number', $beneficiary->account_number) }}" placeholder="10 digits" />
+                </div>
+                <div class="form-group">
+                    <label>Bank</label>
+                    <select name="bank_name" id="benBank">
+                        <option value="">— Select bank —</option>
+                        @foreach ($banks as $b)
+                            <option value="{{ $b }}" @selected($bankPick === $b)>{{ $b }}</option>
+                        @endforeach
+                        <option value="{{ BeneficiaryController::BANK_OTHER }}" @selected($bankPick === BeneficiaryController::BANK_OTHER)>Other (specify)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="benBankOtherBox" @style(['display:none' => $bankPick !== BeneficiaryController::BANK_OTHER])>
+                    <label>Specify Bank <span class="required">*</span></label>
+                    <input type="text" name="bank_name_other" id="benBankOther" maxlength="255" value="{{ $bankOther }}"
+                           @disabled($bankPick !== BeneficiaryController::BANK_OTHER) placeholder="Bank not in the list" />
+                </div>
+            </div>
+        </fieldset>
 
         {{-- Person address: Street, Plot|House, District, LGA, State --}}
         @include('survey_module.partials._address_builder', [
@@ -164,10 +193,13 @@
                     <th>Phone</th>
                     <th>NIN</th>
                     <th>Address</th>
+                    <th>Bank</th>
+                    <th>Account Name</th>
+                    <th>Account No.</th>
                     <th>Status</th>
                     <th>Case</th>
                     <th>Scheme Type</th>
-                    <th>Actions</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -178,6 +210,9 @@
                         <td>{{ $b->phone ?: '—' }}</td>
                         <td>{{ $b->nin ?: '—' }}</td>
                         <td>{{ $b->person_address ?: '—' }}</td>
+                        <td>{{ $b->bank_name ?: '—' }}</td>
+                        <td>{{ $b->account_name ?: '—' }}</td>
+                        <td>{{ $b->account_number ?: '—' }}</td>
                         <td>
                             <span class="status-badge {{ $badgeClass($b->status) }}">
                                 <span class="dot"></span>{{ $b->status }}
@@ -192,25 +227,43 @@
                         </td>
                         <td>
                             @if ($b->case)
-                                {{ $b->case->isMonetary() ? 'Monetary' : 'Land-for-Land' }}
+                                {{ $b->case->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}
                             @else
                                 —
                             @endif
                         </td>
                         <td>
-                            <div class="action-icons">
-                                <a href="{{ route('survey-module.compensation.beneficiaries.edit', $b) }}" title="Edit"><i class="fas fa-edit"></i></a>
-                                <form method="POST" action="{{ route('survey-module.compensation.beneficiaries.destroy', $b) }}"
-                                      style="display:inline" onsubmit="return confirm('Delete {{ $b->full_name }}? This cannot be undone.');">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" title="Delete"><i class="fas fa-trash"></i></button>
-                                </form>
+                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                     :style="'top:' + top + 'px; left:' + left + 'px'"
+                                     class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    <a href="{{ route('survey-module.compensation.beneficiaries.edit', $b) }}" class="{{ $svItem }}">
+                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
+                                    </a>
+                                    @if ($b->case)
+                                        <a href="{{ route('survey-module.compensation.cases.show', $b->case) }}" class="{{ $svItem }}">
+                                            <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> View Case
+                                        </a>
+                                    @endif
+                                    <form method="POST" action="{{ route('survey-module.compensation.beneficiaries.destroy', $b) }}"
+                                          onsubmit="return confirm('Delete {{ addslashes($b->full_name) }}? This cannot be undone.');">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="{{ $svItem }} text-red-600">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-users" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny(['q', 'status', 'case']))
                                 No beneficiaries match these filters.
@@ -233,6 +286,32 @@
         <div class="pagination">{{ $beneficiaries->links() }}</div>
     </div>
 </div>
+
+<script>
+    // Bank details: the account name follows the full name until someone edits it;
+    // "Other" reveals the specify box (disabled, so not posted, otherwise).
+    (function () {
+        var full = document.getElementById('benFullName');
+        var acc = document.getElementById('benAccountName');
+        if (full && acc) {
+            var mirrored = acc.value === '' || acc.value === full.value;
+            acc.addEventListener('input', function () { mirrored = acc.value === '' || acc.value === full.value; });
+            full.addEventListener('input', function () { if (mirrored) acc.value = full.value; });
+        }
+        var bank = document.getElementById('benBank');
+        var box = document.getElementById('benBankOtherBox');
+        var other = document.getElementById('benBankOther');
+        if (bank && box && other) {
+            bank.addEventListener('change', function () {
+                var on = bank.value === @json(BeneficiaryController::BANK_OTHER);
+                box.style.display = on ? '' : 'none';
+                other.disabled = !on;
+                other.required = on;
+                if (on) other.focus();
+            });
+        }
+    })();
+</script>
 
 @if ($panelOpen)
     <script>

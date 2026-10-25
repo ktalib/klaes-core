@@ -132,7 +132,7 @@
                         <option value="">— Choose a registered project —</option>
                         @foreach ($projects as $p)
                             <option value="{{ $p->id }}" @selected((string) old('survey_project_id', $case->survey_project_id) === (string) $p->id)>
-                                {{ $p->project_code }} · {{ $p->name }} ({{ $p->isMonetary() ? 'Monetary' : 'Land-for-Land' }})
+                                {{ $p->project_code }} · {{ $p->name }} ({{ $p->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }})
                             </option>
                         @endforeach
                     </select>
@@ -140,6 +140,30 @@
                     @if ($projects->isEmpty())
                         <div class="hint">No active projects yet. A project must be created in the desktop module first.</div>
                     @endif
+                </div>
+
+                {{-- Surveyor + portion: shown when the project has surveyors assigned (see _portion_picker_js). --}}
+                <div class="span-2" id="casePortionBox" style="display:none;">
+                    <div class="grid two">
+                        <div class="field" data-key="survey_project_surveyor_id">
+                            <label for="caseAllocation">Surveyor <span class="req">*</span></label>
+                            <select class="input" name="survey_project_surveyor_id" id="caseAllocation"
+                                    data-value="{{ old('survey_project_surveyor_id', $case->survey_project_surveyor_id) }}"></select>
+                            <div class="err">Select the surveyor.</div>
+                        </div>
+                        <div class="field" data-key="portion_no">
+                            <label for="casePortionNo">Portion <span class="req">*</span></label>
+                            <select class="input" name="portion_no" id="casePortionNo"
+                                    data-value="{{ old('portion_no', $case->portion_no) }}"></select>
+                            <div class="err">Select the portion this case surveys.</div>
+                        </div>
+                        <div class="field span-2">
+                            <label for="casePortionSize">Size of Portion (Ha)</label>
+                            <input class="input" type="text" id="casePortionSize" readonly
+                                   value="{{ $case->portion_size_ha !== null ? (float) $case->portion_size_ha : '' }}">
+                            <div class="hint">From the project's allocation. Each portion is surveyed on its own case.</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="span-2" id="schemeBox" style="display:none;">
@@ -335,7 +359,7 @@
                     <label for="caseNumPlots">Number of Plots <span class="req" id="plotsReq" style="display:none;">*</span></label>
                     <input class="input" type="number" inputmode="numeric" min="0" step="1" name="num_plots" id="caseNumPlots"
                            value="{{ old('num_plots', $case->num_plots) }}" placeholder="e.g. 10">
-                    <div class="err">A land-for-land case needs the number of plots.</div>
+                    <div class="err">A plot-for-plot case needs the number of plots.</div>
                     <div class="hint" id="plotsHint">Drives the 50:50 split.</div>
                 </div>
                 <div class="field span-2" data-key="boundary_file">
@@ -359,7 +383,7 @@
 
             <div class="note" id="treesNA" style="display:none;">
                 <i class="fas fa-ban"></i>
-                <span><strong>Not applicable.</strong> Land-for-Land compensation pays no cash for trees, so nothing is recorded on this step.</span>
+                <span><strong>Not applicable.</strong> Plot for Plot compensation pays no cash for trees, so nothing is recorded on this step.</span>
             </div>
 
             <div id="treesActive">
@@ -390,7 +414,7 @@
                 <div class="step-icon"><i class="fas fa-scale-balanced"></i></div>
                 <div>
                     <h2>Compensation Summary</h2>
-                    <p>The scheme is exclusive: monetary or land-for-land, never both.</p>
+                    <p>The scheme is exclusive: monetary or plot-for-plot, never both.</p>
                 </div>
             </div>
 
@@ -408,7 +432,7 @@
 
             <div id="compLand" style="display:none;">
                 <div class="stat">
-                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Land-for-Land (50:50)</div>
+                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Plot for Plot (50:50)</div>
                     <div class="big"><span id="landPlots">0</span> plots</div>
                     <div class="hint">Physical land allocation · no cash component</div>
                     <div class="split">
@@ -613,7 +637,7 @@
         $('schemeBox').style.display = scheme ? '' : 'none';
         var badge = $('schemeBadge');
         badge.className = 'badge ' + (mon ? 'monetary' : 'land');
-        badge.textContent = mon ? 'Monetary (Cash for Trees)' : 'Land-for-Land (50:50)';
+        badge.textContent = mon ? 'Cash for Trees' : 'Plot for Plot (50:50)';
         $('schemeText').textContent = mon
             ? 'Record economic trees and the cash they are worth. No plots are allocated.'
             : 'Plots are split 50:50 between Farmer and Government. No cash is paid for trees.';
@@ -762,6 +786,10 @@
         var ok = true, check = function (cond) { ok = cond && ok; };
         if (n === 0) {
             check(mark($('caseProject'), !$('caseProject').value));
+            if ($('casePortionBox').dataset.active) {
+                check(mark($('caseAllocation'), !$('caseAllocation').value));
+                check(mark($('casePortionNo'), !$('casePortionNo').value));
+            }
             check(mark($('caseOfficer'), !$('caseOfficer').value.trim()));
             check(mark($('caseDate'), !$('caseDate').value));
             check(mark($('caseArea'), !(Number($('caseArea').value) >= 0.01)));
@@ -1015,6 +1043,7 @@
     if (ERROR_KEYS.length) setTimeout(focusFirstInvalid, 100);
 })();
 </script>
+@include('survey_module.partials._portion_picker_js')
 @include('survey_module.mobile._footer', ['activeTab' => 'register'])
 </body>
 </html>

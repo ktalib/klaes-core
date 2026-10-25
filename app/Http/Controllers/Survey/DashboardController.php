@@ -67,7 +67,7 @@ class DashboardController extends Controller
             'ops'       => SurveyOpRecord::count(),
         ];
 
-        // Monetary cases pay cash for trees; land cases carve plots. Never both,
+        // Cash for Trees cases pay cash for trees; land cases carve plots. Never both,
         // so the two totals are counted from disjoint sets of cases.
         $monetaryCash = (float) SurveyCaseTree::whereHas('case', fn ($q) =>
                             $q->where('scheme_type', SurveyProject::SCHEME_MONETARY))

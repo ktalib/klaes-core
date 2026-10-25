@@ -1,0 +1,18 @@
+﻿action,vfc_valuation_id,vfc_ref,vfc_project_id,full_name,phone,nin,bank_name,account_name,account_number,addr_district,addr_lga,addr_state,status,notes
+insert,8,LS/VAL/Proj/2026/0001,22,"HR Sunusi Lamido Sunusi",,,,,,"NASSARAWA GRA",Nasarawa,Kano,Pending,"placeholder phone '000' blanked; account number '000' is not 10 digits, blanked; placeholder account name 'nil' blanked"
+skip,9,LS/VAL/Proj/2026/0001,22,"HR SUNUSI LAMIDO SUNUSI",,,,,,"NASSARAWA GRA",Nasarawa,Kano,Pending,"placeholder phone '080' blanked; account number '000' is not 10 digits, blanked; placeholder account name 'NIL' blanked; deleted in VFC"
+insert,10,LS/VAL/Proj/2026/0002,24,"SALISU ABDULLAHI YUSHAU",08121213939,,,"SALISU ABDULLAHI YUSHAU",6506528259,,"Tudun Wada",Kano,Pending,
+insert,11,LS/VAL/Proj/2026/0002,24,"AISHATU YAKUBU MAIJAMA`A",08032765752,,,"AISHATU YAKUBU MAI JAMA`A",3663001839,,"Tudun Wada",Kano,Pending,
+insert,12,KS/VAL/EDU/VOL.I/,25,"SANI SHEHU",07038011024,,"Access Bank","SANI SHEHU",0029221931,,Bunkure,Kano,Pending,
+insert,13,KS/VAL/EDU/VOL.I/,25,"MUNTARI AHMAD",09028286091,,"Zenith Bank","MUNTARI AHMAD",2372367646,,Bunkure,Kano,Pending,
+insert,14,KS/VAL/EDU/VOL.I/,25,"GARBA MUSA USMAN",08065695021,,"First Bank of Nigeria","GARBA MUSA USMAN",3116970205,,Bunkure,Kano,Pending,
+insert,15,KS/VAL/EDU/VOL.I/,25,"MUSA BABAN SULE",07032436337,,"Sterling Bank","MUSA BABAN SULE",0065357928,,Bunkure,Kano,Pending,
+insert,16,KS/VAL/EDU/VOL.I/,25,"YUSUF MUHAMMAD",07065627460,,"United Bank For Africa","YUSUF MUHAMMAD",1014002525,,Bunkure,Kano,Pending,
+insert,17,KS/VAL/EDU/VOL.I/,25,"NAJIB MUTARI MUSA",07039679366,,"First Bank of Nigeria","NAJIB MUTARI MUSA",3087040482,,Bunkure,Kano,Pending,
+skip,18,KS/VAL/EDU/VOL.I/,25,"MUNTARI MUSA",,,"First Bank of Nigeria",,,,Bunkure,Kano,Pending,"placeholder phone '0' blanked; account number '0' is not 10 digits, blanked; placeholder account name '0' blanked; deleted in VFC"
+insert,19,KS/VAL/EDU/VOL.I/,25,"ALHAJI NUHU YUSUF KUMURYA",08039643872,,"United Bank For Africa","ALHAJI NUHU YUSUF KUMURYA",2137113510,,Bunkure,Kano,Pending,
+insert,20,KS/VAL/EDU/VOL.I/,25,"YAKUBU ISA BALA",08069524740,,"First Bank of Nigeria","YAKUBU ISA BALA",3164714794,,Bunkure,Kano,Pending,
+insert,21,KS/VAL/EDU/VOL.I/,25,"BADAMASI MUHAMMAD BALA",08065623198,,"United Bank For Africa","BADAMASI MUHAMMAD BALA",2146517936,,Bunkure,Kano,Pending,
+insert,22,KS/VAL/EDU/VOL.I/,25,"MU`AZU SALISU",07036088763,,"Access Bank","MUAZU SALISU",0037529128,,Bunkure,Kano,Pending,
+insert,23,KS/VAL/EDU/VOL.I/,25,"ABDULKADIR UMAR",09166323429,,"First Bank of Nigeria","ABDULKADIR UMAR",3194397972,,Bunkure,Kano,Pending,
+insert,24,DCIV/2026/122,26,"MUSTAPHA YUSUF",07075235524,,"Zenith Bank","MUSTAPHA YUSUF",2403266283,"RIMIN ZAKARA UNGOGO",Ungogo,Kano,Pending,

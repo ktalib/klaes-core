@@ -1,22 +1,40 @@
 @php
     $activeMode  = $result['mode'] ?? $mode;
     $oldLines    = old('lines', [['survey_tree_type_id' => '', 'quantity' => 1, 'unit_price' => '']]);
-    $priceMap    = $treeTypes->pluck('default_unit_price', 'id')->map(fn ($p) => (float) $p);
+    $priceMap    = $treeTypes->pluck('default_unit_price', 'id')->map(fn ($p) => $p === null ? null : (float) $p);
 @endphp
 
 @include('survey_module.partials._flash')
+
+{{-- The calculator is driven by a project (user transcript, 2026-10-25): pick one to see its schedule. --}}
+<form method="GET" action="{{ route('survey-module.compensation.calculator') }}" class="table-toolbar" style="margin-bottom:16px;">
+    <div class="left" style="flex-wrap:wrap;">
+        <select name="project" onchange="this.form.submit()" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;min-width:320px;">
+            <option value="">— Choose a project —</option>
+            @foreach ($projects as $p)
+                <option value="{{ $p->id }}" @selected($project?->id === $p->id)>
+                    {{ $p->project_code }} · {{ $p->name }} ({{ $p->scheme_label }})
+                </option>
+            @endforeach
+        </select>
+        <noscript><button class="btn btn-secondary" type="submit">Show</button></noscript>
+        @if ($project)
+            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.calculator') }}">Clear</a>
+        @endif
+    </div>
+</form>
 
 <div class="comp-type-grid" style="margin-bottom:24px;">
     <label class="comp-type-option {{ $activeMode === 'monetary' ? 'selected' : '' }}"
            id="ccOptMon" onclick="ccSelectMode('monetary')">
         <div class="type-icon"><i class="fas fa-money-bill-wave"></i></div>
-        <div class="type-title">Monetary Calculator</div>
+        <div class="type-title">Cash for Trees Calculator</div>
         <div class="type-desc">Cash for economic trees · Tree × Qty × Unit Price</div>
     </label>
     <label class="comp-type-option {{ $activeMode === 'land' ? 'selected' : '' }}"
            id="ccOptLand" onclick="ccSelectMode('land')">
         <div class="type-icon"><i class="fas fa-map-marked-alt"></i></div>
-        <div class="type-title">Land-for-Land Calculator</div>
+        <div class="type-title">Plot for Plot Calculator</div>
         <div class="type-desc">50:50 plot split · Farmer : Government</div>
     </label>
 </div>
@@ -28,8 +46,9 @@
     catalogue, so they can be checked; the in-page preview is only a convenience.
 </div>
 
-{{-- ------------------------------- Monetary ------------------------------- --}}
+{{-- ------------------------------- Cash for Trees ------------------------------- --}}
 <div id="ccMon" style="{{ $activeMode === 'monetary' ? '' : 'display:none;' }}">
+    @include('survey_module.partials.sections._calculator-schedule', ['for' => 'trees'])
     @if ($treeTypes->isEmpty())
         <div class="comp-type-note" style="border-left:4px solid var(--danger);background:#fdecea;">
             <i class="fas fa-exclamation-triangle"></i>
@@ -58,9 +77,9 @@
                                     <select name="lines[{{ $i }}][survey_tree_type_id]" data-cc-type onchange="ccPrefill(this)">
                                         <option value="">Select from catalogue…</option>
                                         @foreach ($treeTypes as $t)
-                                            <option value="{{ $t->id }}" data-price="{{ (float) $t->default_unit_price }}"
+                                            <option value="{{ $t->id }}" data-price="{{ $t->default_unit_price === null ? '' : (float) $t->default_unit_price }}"
                                                 @selected((string) ($line['survey_tree_type_id'] ?? '') === (string) $t->id)>
-                                                {{ $t->name }} ({{ $t->category }}) — ₦{{ number_format((float) $t->default_unit_price, 2) }}
+                                                {{ $t->name }} ({{ $t->category }}) — {{ $t->default_unit_price === null ? 'rate not set' : '₦' . number_format((float) $t->default_unit_price, 2) }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -210,8 +229,9 @@
     @endif
 </div>
 
-{{-- ----------------------------- Land-for-Land ----------------------------- --}}
+{{-- ----------------------------- Plot for Plot ----------------------------- --}}
 <div id="ccLand" style="{{ $activeMode === 'land' ? '' : 'display:none;' }}">
+    @include('survey_module.partials.sections._calculator-schedule', ['for' => 'plots'])
     <form method="POST" action="{{ route('survey-module.compensation.calculator.run') }}">
         @csrf
         <input type="hidden" name="mode" value="land" />
@@ -219,7 +239,7 @@
         <div class="dash-card" style="margin-bottom:20px;">
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Land-for-Land case (optional)</label>
+                    <label>Plot for Plot case (optional)</label>
                     <select name="survey_comp_case_id" onchange="ccLandCasePicked(this)">
                         <option value="">None — ad-hoc estimate</option>
                         @foreach ($cases->where('scheme_type', '!=', $schemeMonetary) as $c)
@@ -267,7 +287,7 @@
 
         <div class="comp-type-note" style="margin-top:16px;">
             <i class="fas fa-info-circle"></i>
-            Land-for-Land schemes have <strong>no cash component</strong>. Assign plot numbers and OP numbers in
+            Plot for Plot schemes have <strong>no cash component</strong>. Assign plot numbers and OP numbers in
             <a href="{{ route('survey-module.tools.plot-allocation') }}">Plot Allocation</a> after case approval.
         </div>
 
