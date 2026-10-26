@@ -32,11 +32,14 @@
     @endforeach
 </div>
 
-<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="osPanel">
+<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="osPanel"
+     data-sv-modal="{{ $editing ? 'Edit Old Survey ' . $old->old_survey_ref : 'Record Old Survey' }}"
+     @if ($editing) data-sv-modal-close="{{ route('survey-module.workflow.old-surveys.index') }}" @endif>
     <form method="POST" action="{{ $editing ? route('survey-module.workflow.old-surveys.update', $old) : route('survey-module.workflow.old-surveys.store') }}">
         @csrf
         @if ($editing) @method('PUT') @endif
-        <div class="form-grid">
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-scroll"></i><span>Survey record</span></div>
             @if ($editing)
                 <div class="form-group"><label>Reference</label><input type="text" value="{{ $old->old_survey_ref }}" readonly style="background:var(--gray-100);" /></div>
             @endif
@@ -44,7 +47,10 @@
                 <input type="text" name="old_plan_no" maxlength="100" value="{{ old('old_plan_no', $old->old_plan_no) }}" placeholder="As on the plan" /></div>
             <div class="form-group"><label>KN</label>
                 <input type="text" name="kn_number" maxlength="100" value="{{ old('kn_number', $old->kn_number) }}" placeholder="e.g. KN 1234" /></div>
+        </div>
 
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
             @include('survey_module.partials._file_picker', [
                 'id' => 'os', 'name' => 'file_number', 'value' => $old->file_number, 'label' => 'File Number',
                 'fill' => ['plot' => 'osPlot', 'district' => 'osDistrict', 'lga' => 'osLga'],
@@ -61,6 +67,10 @@
                 <p class="helper-text">Give at least one of: old plan no., KN, file number.</p>
             </div>
 
+        </div>
+
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-drafting-compass"></i><span>Survey details</span></div>
             <div class="form-group"><label>Surveyor</label>
                 <input type="text" name="surveyor_name" maxlength="255" value="{{ old('surveyor_name', $old->surveyor_name) }}" /></div>
             <div class="form-group"><label>Survey Date</label>
@@ -73,7 +83,10 @@
                 </select></div>
             <div class="form-group" id="osSourceOtherBox" @style(['display:none' => $srcPick !== C::SOURCE_OTHER])><label>Specify <span class="required">*</span></label>
                 <input type="text" name="record_source_other" id="osSourceOther" maxlength="100" value="{{ $srcOther }}" @disabled($srcPick !== C::SOURCE_OTHER) /></div>
+        </div>
 
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Property</span></div>
             <div class="form-group"><label>Plot No.</label><input type="text" name="plot_no" id="osPlot" maxlength="100" value="{{ old('plot_no', $old->plot_no) }}" /></div>
             <div class="form-group"><label>District</label><input type="text" name="district" id="osDistrict" maxlength="255" value="{{ old('district', $old->district) }}" /></div>
             <div class="form-group"><label>LGA</label><input type="text" name="lga" id="osLga" maxlength="255" value="{{ old('lga', $old->lga) }}" /></div>

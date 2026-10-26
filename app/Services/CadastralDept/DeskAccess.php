@@ -11,7 +11,8 @@ use App\Models\User;
  * The department role (Cad - Records) covers every desk; otherwise a user needs the desk's
  * own role (config cadastral_dept.desk_roles). Super Admin passes through canDo().
  * Viewing a case stays open to everyone in the department; only desk pages and writes
- * are checked, by the cadastral.desk middleware.
+ * are checked, by the cadastral.desk middleware. Central Admin (config central_admin_role)
+ * covers every desk too.
  */
 class DeskAccess
 {
@@ -30,7 +31,48 @@ class DeskAccess
         return (array) config('cadastral_dept.desk_roles', []);
     }
 
+    public static function centralAdminRole(): string
+    {
+        return (string) config('cadastral_dept.central_admin_role', 'Cad - Central Admin');
+    }
+
+    /**
+     * Central Admin (2026-10-26): works every desk and stands in for every unit head, so a file
+     * waiting on an absent officer can still move. Super Admin passes through canDo().
+     */
+    public static function isCentralAdmin(?User $user): bool
+    {
+        return $user !== null && $user->canDo(self::centralAdminRole(), 'view');
+    }
+
+    /**
+     * The Central Admin role given to the user by name. Standing in for a unit head needs this:
+     * Super Admin alone keeps the 2026-10-16 rule (head only while the post is vacant).
+     */
+    public static function holdsCentralAdminRole(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+        $role = mb_strtolower(self::centralAdminRole());
+
+        return in_array($role, array_map('mb_strtolower', $user->assignedRoleNames()), true);
+    }
+
     public function canWorkDesk(?User $user, ?string $desk): bool
+    {
+        if (!$user) {
+            return false;
+        }
+        if (self::isCentralAdmin($user)) {
+            return true;
+        }
+
+        return $this->officerCanWorkDesk($user, $desk);
+    }
+
+    /** The desk check without Central Admin: the user's own desk or department role. */
+    public function officerCanWorkDesk(?User $user, ?string $desk): bool
     {
         if (!$user) {
             return false;
@@ -61,8 +103,8 @@ class DeskAccess
             return false;
         }
         $roles = $desk !== null
-            ? array_filter([self::departmentRole(), self::deskRoles()[$desk] ?? null])
-            : array_merge([self::departmentRole()], array_values(self::deskRoles()),
+            ? array_filter([self::departmentRole(), self::centralAdminRole(), self::deskRoles()[$desk] ?? null])
+            : array_merge([self::departmentRole(), self::centralAdminRole()], array_values(self::deskRoles()),
                 array_filter([(string) config('cadastral_dept.verification_role', '')]));
         foreach ($roles as $role) {
             if ($user->canDo($role, $action)) {

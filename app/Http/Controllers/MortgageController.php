@@ -43,7 +43,7 @@ class MortgageController extends Controller
         $totalRecords = $icTotal + $praTotal + $fhsTotal;
 
         // Opened from Cadastral > Other Departments: the table only, no Edit.
-        $readOnly = request('url') === 'cadastral';
+        $readOnly = in_array(request('url'), ['cadastral', 'survey'], true);
 
         return view('mortgages.index', compact('dailyRecords', 'totalRecords', 'icTotal', 'praTotal', 'fhsTotal', 'readOnly'));
     }

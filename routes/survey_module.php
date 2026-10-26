@@ -20,8 +20,11 @@ use App\Http\Controllers\Survey\LookupController;
 use App\Http\Controllers\Survey\LpknController;
 use App\Http\Controllers\Survey\MiscKnController;
 use App\Http\Controllers\Survey\MobileCaseController;
+use App\Http\Controllers\Survey\MobileObservationController;
+use App\Http\Controllers\Survey\MobileOfflineController;
 use App\Http\Controllers\Survey\OldSurveyController;
 use App\Http\Controllers\Survey\OpController;
+use App\Http\Controllers\Survey\OpVerificationController;
 use App\Http\Controllers\Survey\PlotAllocationController;
 use App\Http\Controllers\Survey\ProjectController;
 use App\Http\Controllers\Survey\RegisterFileController;
@@ -50,7 +53,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         Route::get('/dashboard', [DashboardController::class, 'compensation'])->name('dashboard');
 
-        // CO files (Prj-YYYY-0001), one to many projects (user, 2026-10-25)
+        // CO files (PRJ-YYYY-0001), one to many projects (user, 2026-10-25)
         Route::get('/co-files', [CoFileController::class, 'index'])->name('co-files');
         Route::get('/co-files/commission', [CoFileController::class, 'create'])->name('co-files.create');
         Route::post('/co-files', [CoFileController::class, 'store'])->name('co-files.store');
@@ -106,6 +109,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/calculator', [CalculatorController::class, 'calculate'])->name('calculator.run');
 
         Route::get('/land', [CaseController::class, 'landAllocation'])->name('land');
+
+        // OP Verification (Records): Survey checks each generated OP, then marks it sent to Deeds (Survey-side only).
+        Route::get('/op-verification', [OpVerificationController::class, 'index'])->name('op-verification');
+        Route::post('/op-verification/{op}', [OpVerificationController::class, 'act'])->name('op-verification.act');
 
         // Occupancy Permits
         Route::get('/op', [OpController::class, 'index'])->name('op');
@@ -272,6 +279,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // SURCON Beacon Register (user, 2026-10-22)
         Route::prefix('beacon-register')->name('beacon-register.')->group(function () {
             Route::get('/', [BeaconRegisterController::class, 'index'])->name('index');
+            // Rev-M payment lookup for the Payment section, and the printed book (2026-10-25).
+            Route::get('/revm-lookup', [BeaconRegisterController::class, 'revmLookup'])->name('revm-lookup');
+            Route::get('/print', [BeaconRegisterController::class, 'printBook'])->name('print');
             Route::post('/', [BeaconRegisterController::class, 'store'])->name('store');
             Route::put('/{entry}', [BeaconRegisterController::class, 'update'])->name('update');
             Route::delete('/{entry}', [BeaconRegisterController::class, 'destroy'])->name('destroy');
@@ -314,6 +324,11 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 | desktop login; RequireLoginOtp still asks for the sign-in code.
 */
 Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(function () {
+    // Offline support (2026-10-25): open to the service worker without a session.
+    Route::get('/sw.js', [MobileOfflineController::class, 'serviceWorker'])->name('sw');
+    Route::get('/manifest.webmanifest', [MobileOfflineController::class, 'manifest'])->name('manifest');
+    Route::get('/offline', [MobileOfflineController::class, 'offline'])->name('offline');
+
     Route::get('/login', [MobileCaseController::class, 'loginForm'])->name('login');
     Route::post('/login', [MobileCaseController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
     Route::post('/logout', [MobileCaseController::class, 'logout'])->name('logout');
@@ -324,5 +339,13 @@ Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(func
         Route::post('/cases', [MobileCaseController::class, 'store'])->name('cases.store');
         Route::get('/cases/{case}', [MobileCaseController::class, 'show'])->name('cases.show');
         Route::post('/cases/{case}/submit', [MobileCaseController::class, 'submit'])->name('cases.submit');
+
+        // Offline sync: session check, geo-tagged photos, and field readings (Mobile App 2).
+        Route::get('/session', [MobileOfflineController::class, 'session'])->name('session');
+        Route::post('/cases/{case}/photos', [MobileOfflineController::class, 'storePhoto'])->name('cases.photos.store');
+        Route::get('/cases/{case}/photos/{photo}', [MobileOfflineController::class, 'showPhoto'])->name('cases.photos.show');
+        Route::get('/observations', [MobileObservationController::class, 'index'])->name('observations');
+        Route::get('/observations/{its}', [MobileObservationController::class, 'show'])->where('its', '(survey|cadastral)-[0-9]+')->name('observations.show');
+        Route::post('/observations/{its}', [MobileObservationController::class, 'store'])->where('its', '(survey|cadastral)-[0-9]+')->name('observations.store');
     });
 });

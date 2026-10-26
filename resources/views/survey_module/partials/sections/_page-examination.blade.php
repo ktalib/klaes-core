@@ -54,69 +54,68 @@
      their own routes; Return refuses to go through without a reason. --}}
 @if ($reviewing)
     <form method="POST" id="examReview" class="farmer-entry-form open"
+          data-sv-modal="Review {{ $reviewing->exam_ref }}" data-sv-modal-close="{{ route('survey-module.workflow.examination') }}"
           action="{{ route('survey-module.workflow.examination.pass', $reviewing) }}">
         @csrf
 
-        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;">
-            <div>
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-file-alt"></i><span>Submission</span></div>
+            <div class="form-group">
                 <label>Exam Ref</label>
                 <input type="text" value="{{ $reviewing->exam_ref }}" readonly
                        style="background:var(--gray-100);color:var(--gray-600);" />
             </div>
-            <div>
+            <div class="form-group">
                 <label>Linked Ref</label>
                 <input type="text" value="{{ $reviewing->linked_ref }}" readonly
                        style="background:var(--gray-100);color:var(--gray-600);" />
             </div>
-            <div>
+            <div class="form-group">
                 <label>Type</label>
                 <input type="text" value="{{ $reviewing->exam_type }}" readonly
                        style="background:var(--gray-100);color:var(--gray-600);" />
             </div>
-            <div>
+            <div class="form-group">
                 <label>Submitted By</label>
                 <input type="text" value="{{ $reviewing->submitted_by }}" readonly
                        style="background:var(--gray-100);color:var(--gray-600);" />
             </div>
         </div>
 
-        <div class="form-row" style="grid-template-columns:1fr;">
-            <div>
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-search"></i><span>Findings</span></div>
+            <div class="form-group full">
                 <label>Findings <span class="required">*</span> <span style="font-weight:400;color:var(--gray-600);">(required to return)</span></label>
                 <textarea name="findings" placeholder="What was checked, and what must be corrected…"
                           style="min-height:90px;width:100%;padding:8px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;">{{ old('findings', $reviewing->findings) }}</textarea>
             </div>
         </div>
 
-        <div class="form-row" style="grid-template-columns:1fr auto;">
-            <div></div>
-            <div style="display:flex;align-items:end;gap:6px;">
-                <button type="submit" class="btn btn-success btn-sm">
-                    <i class="fas fa-check"></i> Pass
-                </button>
-                <button type="submit" class="btn btn-danger btn-sm"
-                        formaction="{{ route('survey-module.workflow.examination.return', $reviewing) }}">
-                    <i class="fas fa-undo"></i> Return
-                </button>
-                <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.workflow.examination') }}">
-                    <i class="fas fa-times"></i> Close
-                </a>
+        <div class="form-actions">
+            <div class="left">
+                <a class="btn btn-secondary" href="{{ route('survey-module.workflow.examination') }}"><i class="fas fa-times"></i> Close</a>
+            </div>
+            <div class="right">
+                <button type="submit" class="btn btn-danger"
+                        formaction="{{ route('survey-module.workflow.examination.return', $reviewing) }}"><i class="fas fa-undo"></i> Return</button>
+                <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Pass</button>
             </div>
         </div>
     </form>
 @endif
 
-<form method="POST" id="examForm" class="farmer-entry-form {{ $formOpen ? 'open' : '' }}"
+<form method="POST" id="examForm" class="farmer-entry-form {{ $formOpen ? 'open' : '' }}" data-sv-modal="Submit for Examination"
       action="{{ route('survey-module.workflow.examination.store') }}">
     @csrf
 
-    <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
-        <div>
+    <div class="form-grid">
+        <div class="sv-group"><i class="fas fa-link"></i><span>What is examined</span></div>
+        <div class="form-group full">
             <label>Linked Case / GKN / LPKN <span class="required">*</span></label>
             <input type="text" name="linked_ref" value="{{ old('linked_ref', $exam->linked_ref) }}"
                    placeholder="e.g. C-2026-004" required />
         </div>
-        <div>
+        <div class="form-group">
             <label>Examination Type <span class="required">*</span></label>
             <select name="exam_type">
                 @foreach (ExaminationController::TYPES as $t)
@@ -124,15 +123,16 @@
                 @endforeach
             </select>
         </div>
-        <div>
+        <div class="form-group">
             <label>Submitted By <span class="required">*</span></label>
             <input type="text" name="submitted_by" value="{{ old('submitted_by', $exam->submitted_by) }}"
                    placeholder="Officer or desk" required />
         </div>
     </div>
 
-    <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
-        <div>
+    <div class="form-grid">
+        <div class="sv-group"><i class="fas fa-flag"></i><span>Queue</span></div>
+        <div class="form-group">
             <label>Priority <span class="required">*</span></label>
             <select name="priority">
                 @foreach (ExaminationController::PRIORITIES as $p)
@@ -140,7 +140,7 @@
                 @endforeach
             </select>
         </div>
-        <div>
+        <div class="form-group">
             <label>Status</label>
             <select name="status">
                 @foreach (ExaminationController::OPEN_STATUSES as $s)
@@ -149,24 +149,16 @@
             </select>
             <p class="helper-text" style="font-size:12px;">Passed and Returned are set by the reviewer, not here.</p>
         </div>
-        <div>
+        <div class="form-group full">
             <label>Notes</label>
             <input type="text" name="findings" value="{{ old('findings') }}"
                    placeholder="Optional context for the reviewer" />
         </div>
     </div>
 
-    <div class="form-row" style="grid-template-columns:1fr auto;">
-        <div></div>
-        <div style="display:flex;align-items:end;gap:6px;">
-            <button type="submit" class="btn btn-success btn-sm">
-                <i class="fas fa-check"></i> Add to Queue
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm"
-                    onclick="document.getElementById('examForm').classList.remove('open')">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
+    <div class="form-actions">
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('examForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
+        <div class="right"><button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Add to Queue</button></div>
     </div>
 </form>
 

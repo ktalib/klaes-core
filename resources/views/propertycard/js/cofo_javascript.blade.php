@@ -88,7 +88,7 @@
         function renderCofoActionMenu(id) {
             // View only from the Cadastral sidebar (?url=cadastral): View and Timeline stay,
             // the correction menu does not.
-            if (@json(request('url') === 'cadastral')) {
+            if ({{ in_array(request('url'), ['cadastral', 'survey'], true) ? 'true' : 'false' }}) {
                 return '';
             }
             var correctItem = window.txnFileNoCorrectionMenuItem

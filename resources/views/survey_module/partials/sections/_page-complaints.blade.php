@@ -46,14 +46,17 @@
     @endforeach
 </div>
 
-<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="complaintPanel">
+<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="complaintPanel"
+     data-sv-modal="{{ $editing ? 'Edit Complaint ' . $complaint->complaint_ref : 'Log Complaint' }}"
+     @if ($editing) data-sv-modal-close="{{ route('survey-module.compensation.complaints') }}" @endif>
     <form method="POST" action="{{ $editing ? route('survey-module.compensation.complaints.update', $complaint) : route('survey-module.compensation.complaints.store') }}">
         @csrf
         @if ($editing) @method('PUT') @endif
 
         <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-user"></i><span>Complainant</span></div>
             @if ($editing)
-                <div class="form-group">
+                <div class="form-group full">
                     <label>Complaint No</label>
                     <input type="text" value="{{ $complaint->complaint_ref }}" readonly style="background:var(--gray-100);color:var(--gray-700);" />
                 </div>
@@ -83,6 +86,7 @@
                        value="{{ old('complainant_phone', $complaint->complainant_phone) }}" />
             </div>
 
+            <div class="sv-group"><i class="fas fa-link"></i><span>Linked record</span></div>
             <div class="form-group">
                 <label>Project</label>
                 <select name="survey_project_id" id="cmpProject">
@@ -102,6 +106,7 @@
                 </select>
             </div>
 
+            <div class="sv-group"><i class="fas fa-comment-dots"></i><span>Complaint</span></div>
             <div class="form-group">
                 <label>Category <span class="required">*</span></label>
                 <select name="category" id="cmpCategory" required>

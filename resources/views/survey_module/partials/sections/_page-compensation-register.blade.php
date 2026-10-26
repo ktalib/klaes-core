@@ -257,23 +257,22 @@
                     <i class="fas fa-user-plus"></i> Add Farmer
                 </button>
 
-                <div class="beneficiary-form" id="caseBenForm">
-                    <div class="form-row">
-                        <div class="full">
+                <div class="beneficiary-form" id="caseBenForm" data-sv-modal="Add Farmer" data-sv-modal-size="sm">
+                    <div class="form-grid cols-3">
+                        <div class="sv-group"><i class="fas fa-user"></i><span>Farmer</span></div>
+                        <div class="form-group full">
                             <label>Farmer Name <span class="required">*</span></label>
                             <input type="text" id="newBenName" placeholder="e.g. Chidi Okafor" />
                         </div>
-                    </div>
-                    <div class="form-row">
-                        <div>
+                        <div class="form-group">
                             <label>Phone</label>
                             <input type="text" id="newBenPhone" placeholder="e.g. 080-1234-5678" />
                         </div>
-                        <div>
+                        <div class="form-group">
                             <label>NIN</label>
                             <input type="text" id="newBenNin" placeholder="e.g. 12345678901" />
                         </div>
-                        <div>
+                        <div class="form-group">
                             <label>Status</label>
                             <select id="newBenStatus">
                                 <option value="Pending">Pending</option>
@@ -281,17 +280,15 @@
                                 <option value="Review">Review</option>
                             </select>
                         </div>
+                        <p class="helper-text full" style="margin:0;">
+                            Bank details and the full address are captured in the
+                            <a href="{{ route('survey-module.compensation.beneficiaries') }}">Beneficiaries register</a>.
+                        </p>
                     </div>
-                    <div style="display:flex;gap:10px;margin-top:12px;">
-                        <button type="button" class="btn btn-success btn-sm" onclick="caseReg.addBen()">
-                            <i class="fas fa-check"></i> Add Farmer
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="caseReg.toggle('caseBenForm')">Cancel</button>
+                    <div class="form-actions">
+                        <div class="left"><button type="button" class="btn btn-secondary" onclick="caseReg.toggle('caseBenForm')"><i class="fas fa-times"></i> Cancel</button></div>
+                        <div class="right"><button type="button" class="btn btn-success" onclick="caseReg.addBen()"><i class="fas fa-check"></i> Add Farmer</button></div>
                     </div>
-                    <p class="helper-text">
-                        Bank details and the full address are captured in the
-                        <a href="{{ route('survey-module.compensation.beneficiaries') }}">Beneficiaries register</a>.
-                    </p>
                 </div>
 
                 <div class="beneficiary-list">
@@ -432,9 +429,10 @@
                         <i class="fas fa-tree"></i> Add Tree
                     </button>
 
-                    <div class="tree-form" id="caseTreeForm">
-                        <div class="form-row">
-                            <div>
+                    <div class="tree-form" id="caseTreeForm" data-sv-modal="Add Tree" data-sv-modal-size="sm">
+                        <div class="form-grid">
+                            <div class="sv-group"><i class="fas fa-tree"></i><span>Tree line</span></div>
+                            <div class="form-group full">
                                 <label>Tree Type <span class="required">*</span></label>
                                 <input type="text" id="newTreeName" list="caseTreeCatalogue" placeholder="e.g. Palm Oil"
                                        oninput="caseReg.priceFor()" />
@@ -444,29 +442,26 @@
                                     @endforeach
                                 </datalist>
                             </div>
-                            <div>
+                            <div class="form-group">
                                 <label>Quantity <span class="required">*</span></label>
                                 <input type="number" min="1" step="1" id="newTreeQty" placeholder="e.g. 45" />
                             </div>
-                            <div>
+                            <div class="form-group">
                                 <label>Unit Price (₦) <span class="required">*</span></label>
                                 <input type="number" min="0" step="0.01" id="newTreePrice" placeholder="e.g. 15000" />
                             </div>
-                            <div>
-                                <label>&nbsp;</label>
-                                <p class="helper-text" style="margin:0;">Line total is recalculated on save.</p>
-                            </div>
-                            <div style="display:flex;align-items:end;gap:6px;">
-                                <button type="button" class="btn btn-success btn-sm" onclick="caseReg.addTree()"><i class="fas fa-check"></i></button>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="caseReg.toggle('caseTreeForm')"><i class="fas fa-times"></i></button>
-                            </div>
-                        </div>
-                        @if ($treeTypes->isEmpty())
-                            <p class="helper-text">
-                                The tree catalogue is empty, so type the name and price by hand. Maintain it under
-                                <a href="{{ route('survey-module.compensation.trees') }}">Economic Trees</a>.
+                            <p class="helper-text full" style="margin:0;">
+                                Line total is recalculated on save.
+                                @if ($treeTypes->isEmpty())
+                                    The tree catalogue is empty, so type the name and price by hand. Maintain it under
+                                    <a href="{{ route('survey-module.compensation.trees') }}">Economic Trees</a>.
+                                @endif
                             </p>
-                        @endif
+                        </div>
+                        <div class="form-actions">
+                            <div class="left"><button type="button" class="btn btn-secondary" onclick="caseReg.toggle('caseTreeForm')"><i class="fas fa-times"></i> Cancel</button></div>
+                            <div class="right"><button type="button" class="btn btn-success" onclick="caseReg.addTree()"><i class="fas fa-check"></i> Add Tree</button></div>
+                        </div>
                     </div>
 
                     <div class="tree-list">
@@ -647,6 +642,10 @@
                     <div class="preview-item">
                         <span class="label">Survey Officer</span>
                         <span class="value" id="pvOfficer">—</span>
+                    </div>
+                    <div class="preview-item">
+                        <span class="label">Surveyor / Portion</span>
+                        <span class="value" id="pvPortion">—</span>
                     </div>
                     <div class="preview-item">
                         <span class="label">Date</span>
@@ -1044,6 +1043,11 @@
         text('pvLocation', (preview && preview.value) || '—');
         text('pvPurpose', qs('casePurpose').value || '—');
         text('pvOfficer', qs('caseOfficer').value || '—');
+        // Surveyor and portion, from the picker's selected options.
+        var pa = qs('caseAllocation'), pp = qs('casePortionNo'), ps = qs('casePortionSize');
+        var paText = pa && pa.value ? pa.options[pa.selectedIndex].text.split(' · ')[0] : '';
+        var ppText = pp && pp.value ? pp.options[pp.selectedIndex].text : '';
+        text('pvPortion', paText ? paText + (ppText ? ' · ' + ppText : '') + (ps && ps.value ? ' · ' + ps.value + ' Ha' : '') : '—');
         text('pvDate', qs('caseDate').value || '—');
         text('pvArea', (qs('caseArea').value || '0') + ' Ha');
         text('pvDescription', qs('caseDescription').value || '—');

@@ -142,7 +142,7 @@
         </div>
 
         <!-- Stats Cards -->
-        @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
+        @if (! in_array(request('url'), ['cadastral', 'survey'], true)) {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white rounded-lg shadow p-4">
                 <div class="flex items-center justify-between">

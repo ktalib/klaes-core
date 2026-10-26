@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CadastralDept\CaseController;
+use App\Http\Controllers\CadastralDept\CentralAdminController;
 use App\Http\Controllers\CadastralDept\ChartingController;
 use App\Http\Controllers\CadastralDept\DeskController;
 use App\Http\Controllers\CadastralDept\FieldJacketController;
@@ -37,6 +38,10 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
 
     Route::get('/', [WorkflowController::class, 'index'])->name('index');
     Route::get('/workflow-map', [WorkflowController::class, 'map'])->name('map');
+
+    // Central Admin (CADASTRAL UPDATE, 2026-10-26): every open file in one table; the Central Admin
+    // role acts for any desk or unit head through the case routes below. Sidebar: Admin, after Dashboard.
+    Route::get('/central-admin', [CentralAdminController::class, 'index'])->name('central-admin.index');
 
     // Generate Property Index Card (2026-10-16): one card per file from the Legal Search records,
     // filed as a PDF to EDMS/SCAN_UPLOAD/Cadastral_Registry/PIC/{file}/. Registering a file generates it too.

@@ -26,7 +26,7 @@ class DcivGenerationController extends Controller
     public function index(Request $request)
     {
         // Opened from Cadastral > File Status, the page is view only (see the view).
-        $PageTitle = $request->query('url') === 'cadastral' ? 'DCIV Management' : 'DCIV File Number Commissioning';
+        $PageTitle = in_array($request->query('url'), ['cadastral', 'survey'], true) ? 'DCIV Management' : 'DCIV File Number Commissioning';
         $PageDescription = '';
 
         $districts = District::where('is_active', 1)->orderBy('name')->get();

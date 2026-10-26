@@ -47,7 +47,9 @@
     </div>
 </div>
 
-<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="beneficiaryPanel">
+<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="beneficiaryPanel"
+     data-sv-modal="{{ $editing ? 'Edit Beneficiary · ' . $beneficiary->full_name : 'Add Beneficiary' }}"
+     @if ($editing) data-sv-modal-close="{{ route('survey-module.compensation.beneficiaries', request()->only(['q', 'status', 'case'])) }}" @endif>
     <form method="POST"
           action="{{ $editing
                       ? route('survey-module.compensation.beneficiaries.update', $beneficiary)
@@ -56,6 +58,7 @@
         @if ($editing) @method('PUT') @endif
 
         <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-user"></i><span>Beneficiary</span></div>
             <div class="form-group">
                 <label>Full Name <span class="required">*</span></label>
                 <input type="text" name="full_name" id="benFullName" value="{{ old('full_name', $beneficiary->full_name) }}"
@@ -79,6 +82,7 @@
                 </select>
             </div>
 
+            <div class="sv-group"><i class="fas fa-link"></i><span>Compensation case</span></div>
             <div class="form-group full">
                 <label>Linked Compensation Case</label>
                 <select name="survey_comp_case_id">
@@ -103,9 +107,9 @@
             $bankPick  = $bankKnown ? $bankVal : BeneficiaryController::BANK_OTHER;
             $bankOther = old('bank_name_other', $bankKnown ? '' : $bankVal);
         @endphp
-        <fieldset style="border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:14px 16px;margin:6px 0 14px;">
-            <legend style="padding:0 6px;font-weight:600;font-size:14px;"><i class="fas fa-university"></i> Bank Details</legend>
+        <div style="margin-top:18px;">
             <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-university"></i><span>Bank details</span></div>
                 <div class="form-group">
                     <label>Account Name</label>
                     <input type="text" name="account_name" id="benAccountName" maxlength="255"
@@ -134,7 +138,7 @@
                            @disabled($bankPick !== BeneficiaryController::BANK_OTHER) placeholder="Bank not in the list" />
                 </div>
             </div>
-        </fieldset>
+        </div>
 
         {{-- Person address: Street, Plot|House, District, LGA, State --}}
         @include('survey_module.partials._address_builder', [

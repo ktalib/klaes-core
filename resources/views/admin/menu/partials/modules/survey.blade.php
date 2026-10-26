@@ -65,7 +65,7 @@
               <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Allocation Records</span>
             </a>
-            <a href="{{ route('survey-module.workflow.examination') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.examination') ? 'active' : '' }}">
+            <a href="{{ route('survey-module.compensation.op-verification') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op-verification') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP Verification</span>
             </a>
@@ -245,9 +245,49 @@
             </a>
             <a href="{{ route('survey-module.workflow.change-reports.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.change-reports.*') ? 'active' : '' }}">
               <i data-lucide="file-check" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Surveyors' Report (Changes)</span>
+              <span>Surveyors' Report</span>
             </a>
             @endif
+          </div>
+        @endif
+
+        {{-- File Status (user, 2026-10-26): the same pages as Cadastral > Verification > File Status,
+             right after Examination/Verification. ?url=survey opens each one view only and keeps
+             the other modules' entries for these pages unlit. --}}
+        @if($svRecords)
+          @php
+            $svFs = request('url') === 'survey';
+            $svLink = fn (string $label, string $href, string $icon, bool $on) =>
+                '<a href="' . e($href) . '" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 ' . ($on ? 'active' : '') . '">'
+                . '<i data-lucide="' . e($icon) . '" class="h-3.5 w-3.5 text-pink-400"></i><span>' . e($label) . '</span></a>';
+            $svGroup = fn (string $key, string $label, string $icon, bool $sub = false) =>
+                '<div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="' . e($key) . '">'
+                . '<div class="flex items-center gap-2"><i data-lucide="' . e($icon) . '" class="' . ($sub ? 'h-3.5 w-3.5 text-pink-400' : 'h-4 w-4 text-pink-500') . '"></i><span>' . e($label) . '</span></div>'
+                . '<i data-lucide="chevron-right" class="' . ($sub ? 'h-3.5 w-3.5' : 'h-4 w-4') . ' transition-transform duration-200" data-chevron="' . e($key) . '"></i></div>';
+          @endphp
+          {!! $svGroup('survey-file-status', 'File Status', 'file-search') !!}
+          <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-file-status">
+            {!! $svLink('RofO', route('land-rofos.index', ['url' => 'survey']), 'file-check', $svFs && request()->routeIs('land-rofos.index')) !!}
+            {!! $svLink('CofO', route('propertycard.cofo', ['url' => 'survey']), 'award', $svFs && request()->routeIs('propertycard.cofo')) !!}
+            {!! $svLink('Decommissioned Files', route('file-decommissioning.decommissioned', ['url' => 'survey']), 'archive', $svFs && request()->routeIs('file-decommissioning.decommissioned')) !!}
+            {!! $svLink('Duplicate Files', route('file-search-db.index', ['url' => 'survey']), 'copy', $svFs && request()->routeIs('file-search-db.index')) !!}
+
+            {!! $svGroup('survey-regrant-files', 'Regrant Files', 'refresh-cw', true) !!}
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-regrant-files">
+              {!! $svLink('Regrant Register', route('regrant.index', ['tab' => 'register', 'url' => 'survey']), 'list', $svFs && request()->routeIs('regrant.index') && request('tab') !== 'due') !!}
+              {!! $svLink('To be Regranted', route('regrant.index', ['tab' => 'due', 'url' => 'survey']), 'alarm-clock', $svFs && request()->routeIs('regrant.index') && request('tab') === 'due') !!}
+            </div>
+
+            {!! $svLink('Title Status Update', route('title-status.index') . '?url=survey', 'badge-check', $svFs && request()->routeIs('title-status.index')) !!}
+            {!! $svLink('DCIV Management', route('dciv-generation.index', ['url' => 'survey']), 'folder-kanban', $svFs && request()->routeIs('dciv-generation.index')) !!}
+
+            {!! $svGroup('survey-encumbrance', 'Encumbrance', 'shield', true) !!}
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-encumbrance">
+              {!! $svLink('Caveat', route('caveat.index') . '?url=survey', 'shield-alert', $svFs && request()->routeIs('caveat.index')) !!}
+              {!! $svLink('Mortgage', route('mortgages.index') . '?url=survey', 'landmark', $svFs && request()->routeIs('mortgages.index')) !!}
+              {!! $svLink('Surrender & Release', route('surrender-release.index', ['url' => 'survey']), 'key-round', $svFs && request()->routeIs('surrender-release.*')) !!}
+              {!! $svLink('Lien', '#', 'lock', false) !!}
+            </div>
           </div>
         @endif
 
@@ -288,9 +328,16 @@
             <span>Log a File</span>
           </a>
 
-          <a href="#" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
-            <i data-lucide="refresh-cw" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>DMS Update</span>
+          {{-- DMS Update: the shared DMS Scan More and More Pages screens, as Cadastral's Registry uses (2026-10-25). --}}
+          <a href="{{ url('/scanning?url=scmore&survey=1') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request('url') === 'scmore' && request()->boolean('survey') ? 'active' : '' }}">
+            <i data-lucide="scan" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>DMS Update · Scan More</span>
+          </a>
+          <a href="{{ url('/pagetyping?url=ptmore&survey=1') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request('url') === 'ptmore' && request()->boolean('survey') ? 'active' : '' }}">
+            <i data-lucide="files" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>DMS Update · More Pages</span>
           </a>
         </div>
         @endif

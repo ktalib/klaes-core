@@ -155,20 +155,20 @@
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="encumbrance">
           @if($hasRole('Deeds - Encumbrance') || $hasRole('Supper Admin'))
             <a href="{{route('caveat.index')}}"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('caveat.*') && request('url') !== 'cadastral' ? 'active' : '' }}">
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('caveat.*') && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
               <i data-lucide="shield-alert" class="h-3.5 w-3.5 text-teal-400"></i>
               <span>Caveat</span>
             </a>
             
             <a href="{{route('mortgages.index')}}"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('mortgages.*') && request('url') !== 'cadastral' ? 'active' : '' }}">
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('mortgages.*') && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
               <i data-lucide="landmark" class="h-3.5 w-3.5 text-teal-400"></i>
               <span>Mortgage</span>
             </a>
    <!-- Surrender & Release (moved under Encumbrance Management) -->
           @if($hasRole('Deeds - Surrender') || $hasRole('Surrender & Release') || $hasRole('Supper Admin'))
             <a href="{{ route('surrender-release.index') }}"
-              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('surrender-release.*') && request('url') !== 'cadastral' ? 'active' : '' }}">
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('surrender-release.*') && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
               <i data-lucide="key-round" class="h-3.5 w-3.5 text-teal-400"></i>
               <span>Surrender & Release</span>
             </a>

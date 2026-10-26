@@ -1515,7 +1515,8 @@ async function searchFile() {
         ];
       } else if (d.status === 'IN_TRANSIT') {
         let dept = String(d.receiving_department || '').trim();
-        if (dept && !/department$/i.test(dept)) dept = dept + ' Department';
+        // The row label already says "Department" — drop a trailing one from the value.
+        dept = dept.replace(/\s+department$/i, '').trim();
         detailRows = [
           ['Registry', d.registry],
           // Always show the home shelf label; files without one read "—".

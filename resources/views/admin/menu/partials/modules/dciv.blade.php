@@ -14,7 +14,7 @@
 
       <div class="pl-4 mt-1 space-y-0.5 hidden" data-content="dciv">
         @if($hasRole('Generate New FileNo (DCIVFileNo)'))
-        <a href="{{ route('dciv-generation.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('dciv-generation.index') && request('url') !== 'cadastral' ? 'active' : '' }}">
+        <a href="{{ route('dciv-generation.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('dciv-generation.index') && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
           <i data-lucide="plus-square" class="h-4 w-4 text-blue-500"></i>
           <span>Generate New FileNo (DCIVFileNo)</span>
         </a>

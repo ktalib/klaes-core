@@ -94,6 +94,9 @@
 
 <div class="page-header">
     <div></div>
+    {{-- The register as the printed book, for the current filters (2026-10-25). --}}
+    <a href="{{ route('survey-module.workflow.beacon-register.print', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}"
+       target="_blank" class="btn btn-secondary btn-sm" style="margin-right:6px;"><i class="fas fa-print"></i> Print Register</a>
     @if ($brCan['create'])
         <button type="button" class="btn btn-primary btn-sm" onclick="brOpenNew()">
             <i class="fas fa-plus"></i> New Entry
@@ -287,7 +290,13 @@
         <div class="br-grid">
             <div>
                 <label>Teller No.</label>
-                <input type="text" name="teller_no" value="{{ $val('teller_no') }}" maxlength="100" />
+                <div style="display:flex;gap:6px;">
+                    <input type="text" name="teller_no" id="brTeller" value="{{ $val('teller_no') }}" maxlength="100" style="flex:1;" />
+                    {{-- Rev-M lookup (2026-10-25): fills Amount, Date Received and the file from the payment. --}}
+                    <button type="button" class="btn btn-outline btn-sm" id="brRevm" data-url="{{ route('survey-module.workflow.beacon-register.revm-lookup') }}"
+                            title="Fill from the Rev-M payment" style="white-space:nowrap;"><i class="fas fa-receipt"></i> Fill from Rev-M</button>
+                </div>
+                <div class="br-sub" id="brRevmStatus">Teller, transaction, receipt or bill number.</div>
             </div>
             <div>
                 <label>Amount (₦)</label>
@@ -313,23 +322,43 @@
   </div>
 </div>
 
+{{-- Each figure split Government / Private (user, 2026-10-26); a type line filters the register to it. --}}
+@php
+    $brCards = [
+        'entries'    => ['Entries', fn ($n) => number_format($n)],
+        'beacons'    => ['Beacons Issued', fn ($n) => number_format($n)],
+        'this_month' => ['Issued This Month', fn ($n) => number_format($n)],
+        'amount'     => ['Amount Received', fn ($n) => '₦' . number_format($n, 2)],
+    ];
+    $brTypeLink = fn ($type) => route('survey-module.workflow.beacon-register.index',
+        \Illuminate\Support\Arr::except(request()->query(), ['layout', 'page', 'edit', 'new']) + ['layout' => $type]);
+@endphp
+<style>
+    .survey-proto .br-kpi-split { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-200, #e5e7eb); display: grid; gap: 4px; }
+    .survey-proto .br-kpi-split a { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 6px; margin: 0 -6px;
+        border-radius: 6px; font-size: 13px; color: var(--gray-700, #374151); text-decoration: none; }
+    .survey-proto .br-kpi-split a:hover { background: var(--gray-50, #f9fafb); }
+    .survey-proto .br-kpi-split a.on { background: var(--primary-50, #f0fdfa); color: var(--primary); font-weight: 600; }
+    .survey-proto .br-kpi-split a span { display: inline-flex; align-items: center; gap: 6px; }
+    .survey-proto .br-kpi-split a i { width: 14px; text-align: center; color: var(--gray-400, #9ca3af); }
+    .survey-proto .br-kpi-split a.on i { color: var(--primary); }
+    .survey-proto .br-kpi-split strong { color: var(--gray-900, #111827); font-weight: 600; }
+</style>
 <div class="kpi-grid">
-    <div class="kpi-card">
-        <div class="kpi-label">Entries</div>
-        <div class="kpi-value">{{ number_format($stats['entries']) }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Beacons Issued</div>
-        <div class="kpi-value">{{ number_format($stats['beacons']) }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Issued This Month</div>
-        <div class="kpi-value">{{ number_format($stats['this_month']) }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Amount Received</div>
-        <div class="kpi-value">₦{{ number_format($stats['amount'], 2) }}</div>
-    </div>
+    @foreach ($brCards as $key => [$label, $fmt])
+        <div class="kpi-card">
+            <div class="kpi-label">{{ $label }}</div>
+            <div class="kpi-value">{{ $fmt($stats[$key]) }}</div>
+            <div class="br-kpi-split">
+                @foreach ($layoutTypes as $type => $typeLabel)
+                    <a href="{{ $brTypeLink($type) }}" class="{{ request('layout') === $type ? 'on' : '' }}" title="Show {{ $typeLabel }} entries">
+                        <span><i class="fas {{ $type === 'Government' ? 'fa-landmark' : 'fa-user' }}"></i> {{ $typeLabel }}</span>
+                        <strong>{{ $fmt($stats['by_type'][$type][$key] ?? 0) }}</strong>
+                    </a>
+                @endforeach
+            </div>
+        </div>
+    @endforeach
 </div>
 
 <div class="br-tabs" role="tablist">
@@ -757,6 +786,8 @@
             say(chip.dataset.no + ' removed.');
         });
 
+        window.brAddFile = function (no) { if (no && !has(no)) add(no); };
+
         document.getElementById('brFilePick').addEventListener('click', function () {
             if (!window.GlobalFileNoModal) { say('The file number selector did not load. Refresh the page.', true); return; }
             window.GlobalFileNoModal.open({
@@ -771,6 +802,34 @@
     document.addEventListener('keydown', function (ev) {
         if (ev.key === 'Escape' && document.getElementById('brModal').classList.contains('open')) brClose();
     });
+
+    // Rev-M lookup: a successful payment fills Amount (the bill's Beacons line), Date Received and
+    // the payer's file where those are still blank. Nothing is saved until the form is.
+    (function () {
+        var btn = document.getElementById('brRevm');
+        if (!btn) return;
+        var form = document.getElementById('brForm');
+        var status = document.getElementById('brRevmStatus');
+        var say = function (t, bad) { status.textContent = t; status.style.color = bad ? '#b91c1c' : ''; };
+        btn.addEventListener('click', function () {
+            var ref = (document.getElementById('brTeller').value || '').trim();
+            if (!ref) { say('Enter the teller, transaction, receipt or bill number first.', true); return; }
+            say('Looking up ' + ref + ' in Rev-M…');
+            fetch(btn.dataset.url + '?ref=' + encodeURIComponent(ref), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!d.found) { say(d.message || 'No Rev-M payment found.', true); return; }
+                    var amount = form.querySelector('[name="amount"]'), received = form.querySelector('[name="date_received"]');
+                    if (amount && d.amount) amount.value = Number(d.amount).toFixed(2);
+                    if (received && !received.value && d.paid_on) received.value = d.paid_on;
+                    if (d.file_number && window.brAddFile) window.brAddFile(d.file_number);
+                    say('Bill ' + d.bill_ref + (d.paid ? ' (paid' + (d.paid_on ? ' ' + d.paid_on : '') + ')' : ' (not paid yet)') +
+                        ' · ₦' + Number(d.amount).toLocaleString() + (d.is_beacon ? ' for beacons' : '') +
+                        (d.payer ? ' · ' + d.payer : '') + (d.file_number ? ' · ' + d.file_number : ''), !d.paid);
+                })
+                .catch(function () { say('Rev-M could not be reached. Enter the amount by hand.', true); });
+        });
+    })();
 
     // Mirrors SurveyBeaconRegister::parseBeacon / parseRange / expand. The server re-checks on save.
     var BR_MAX = {{ \App\Models\Survey\SurveyBeaconRegister::MAX_RANGE }};

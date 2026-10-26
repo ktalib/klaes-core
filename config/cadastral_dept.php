@@ -306,6 +306,10 @@ return [
         'ad_drawing' => 'Cad - Drawing & Charting',   // role row: manual/2026_10_15_cadastral_drawing_charting_role.sql (run 2026-10-21)
     ],
     'verification_role' => 'Cad - Verification',
+    // Central Admin (CADASTRAL UPDATE, 2026-10-26): works every desk and stands in for every unit
+    // head, from one table (cadastral-dept.central-admin), so a file never sticks with an absent
+    // officer. Super Admin passes too. Role row: manual/2026_10_26_cadastral_central_admin_role.sql.
+    'central_admin_role' => 'Cad - Central Admin',
 
     /*
     | Sidebar lists per desk (user's proposed sidebar, 2026-10-11). Each entry

@@ -7,7 +7,6 @@ use App\Models\Survey\SurveyBeneficiary;
 use App\Models\Survey\SurveyCaseTree;
 use App\Models\Survey\SurveyCompCase;
 use App\Models\Survey\SurveyExamination;
-use App\Models\Survey\SurveyGknRecord;
 use App\Models\Survey\SurveyLpkn;
 use App\Models\Survey\SurveyOpRecord;
 use App\Models\Survey\SurveyPlotAllocation;
@@ -89,42 +88,56 @@ class ReportController extends Controller
     public function gkn(Request $r)
     {
         [$from, $to] = $this->range($r);
+        $db = DB::connection('sqlsrv');
+        $type = array_key_exists($r->query('type'), \App\Http\Controllers\Survey\GknApplicationController::TYPES) ? $r->query('type') : null;
 
-        $q = SurveyGknRecord::query()
-            ->whereBetween('created_at', [$from, $to])
-            ->when($r->query('status'), fn ($w, $v) => $w->where('status', $v))
-            ->when($r->query('land_use'), fn ($w, $v) => $w->where('land_use', $v));
+        // Application files (GKN Applications): every indexed or commissioned file, all time.
+        $files = function (?string $t) use ($db) {
+            $likes = $t ? \App\Http\Controllers\Survey\GknApplicationController::TYPES[$t]['like']
+                        : collect(\App\Http\Controllers\Survey\GknApplicationController::TYPES)->pluck('like')->flatten()->all();
 
-        $ids = (clone $q)->pluck('id');
+            return $db->table('file_indexings')->whereNotNull('file_number')
+                ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->where(function ($w) use ($likes) { foreach ($likes as $l) $w->orWhere('file_number', 'like', $l); });
+        };
+        $byType = [];
+        foreach (\App\Http\Controllers\Survey\GknApplicationController::TYPES as $k => $t) {
+            $byType[$k] = ['label' => $t['label'], 'files' => $files($k)->count(),
+                           'commissioned' => $files($k)->where('source', \App\Http\Controllers\Survey\GknApplicationController::COMMISSIONED_SOURCE)->count()];
+        }
+        $byLandUse = $files($type)->selectRaw("COALESCE(NULLIF(LTRIM(RTRIM(land_use_type)), ''), 'Not recorded') AS land_use, COUNT(*) AS total")
+            ->groupByRaw("COALESCE(NULLIF(LTRIM(RTRIM(land_use_type)), ''), 'Not recorded')")->orderByDesc('total')->get();
+
+        // Survey work on those files in the period: Survey's own instructions and what came of them.
+        $its = \App\Models\Survey\SurveyIts::query()->whereNotNull('its_number')->whereBetween('issued_at', [$from, $to])
+            ->when($type, fn ($q) => $q->where('file_type', $type));
+        $itsIds = (clone $its)->pluck('id');
+        $reports = \App\Models\Survey\SurveySurveyorReport::whereIn('survey_its_id', $itsIds)->get(['survey_its_id', 'report_ref', 'status'])->keyBy('survey_its_id');
+        $beacons = $db->table('survey_its_coordinates')->whereNull('deleted_at')->whereIn('survey_its_id', $itsIds->all() ?: [0])
+            ->selectRaw('survey_its_id, COUNT(*) n')->groupBy('survey_its_id')->pluck('n', 'survey_its_id');
 
         $totals = [
-            'records' => $ids->count(),
-            'area'    => (float) SurveyGknRecord::whereIn('id', $ids)->sum('area_ha'),
-            'mapped'  => SurveyGknRecord::whereIn('id', $ids)
-                            ->whereNotNull('coordinates')->where('coordinates', '!=', '')->count(),
+            'files'     => $files($type)->count(),
+            'its'       => $itsIds->count(),
+            'reports'   => $reports->where('status', \App\Models\Survey\SurveySurveyorReport::SUBMITTED)->count(),
+            'completed' => (clone $its)->where('status', \App\Models\Survey\SurveyIts::COMPLETED)->count(),
+            'beacons'   => (int) $beacons->sum(),
+            'readings'  => $db->table('survey_its_observations')->whereNull('deleted_at')->whereIn('survey_its_id', $itsIds->all() ?: [0])->count(),
         ];
 
-        $byLandUse = SurveyGknRecord::query()
-            ->select('land_use', DB::raw('COUNT(*) as total'), DB::raw('SUM(area_ha) as area'))
-            ->whereIn('id', $ids)
-            ->whereNotNull('land_use')
-            ->groupBy('land_use')
-            ->orderByDesc('total')
-            ->get();
-
         return view('survey_module.gkn.reports', [
-            'rows'      => $q->orderByDesc('id')->paginate(20)->withQueryString(),
+            'rows'      => $its->orderByDesc('issued_at')->paginate(20)->withQueryString(),
+            'reports'   => $reports,
+            'beacons'   => $beacons,
             'totals'    => $totals,
+            'byType'    => $byType,
             'byLandUse' => $byLandUse,
+            'type'      => $type,
             'from'      => $from,
             'to'        => $to,
         ]);
     }
 
-    /**
-     * Report window. Defaults to the current calendar year, which is what the
-     * prototype's filters showed.
-     */
     private function range(Request $r): array
     {
         $from = $r->query('from') ? \Carbon\Carbon::parse($r->query('from'))->startOfDay()

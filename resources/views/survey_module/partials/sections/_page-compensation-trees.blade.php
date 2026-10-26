@@ -16,30 +16,37 @@
     </button>
 </div>
 
-{{-- New catalogue entry. Kept open when validation sent us back with errors. --}}
+{{-- New catalogue entry, as a modal. Reopens when validation sent us back with errors. --}}
 <form method="POST" action="{{ route('survey-module.compensation.trees.store') }}"
-      class="farmer-entry-form {{ $errors->any() && old('_form') === 'catalogue' ? 'open' : '' }}" id="ttForm">
+      class="farmer-entry-form {{ $errors->any() && old('_form') === 'catalogue' ? 'open' : '' }}" id="ttForm"
+      data-sv-modal="Add Tree Type" data-sv-modal-size="sm">
     @csrf
     <input type="hidden" name="_form" value="catalogue" />
-    <div class="form-row" style="grid-template-columns:1.3fr 1fr 1.3fr 1fr 1fr 1fr auto;">
-        <div>
+    <div class="form-grid">
+        <div class="sv-group"><i class="fas fa-tree"></i><span>Names</span></div>
+        <div class="form-group full">
             <label>Tree Type <span class="required">*</span></label>
             <input type="text" name="name" value="{{ old('name') }}" placeholder="e.g. Locust bean" required />
         </div>
-        <div>
+        <div class="form-group">
             <label>Hausa Name</label>
             <input type="text" name="local_name" value="{{ old('local_name') }}" placeholder="e.g. Dorawa" />
         </div>
-        <div>
+        <div class="form-group">
             <label>Botanical Name</label>
             <input type="text" name="botanical_name" value="{{ old('botanical_name') }}" placeholder="e.g. Parkia biglobosa" />
         </div>
-        <div>
+    </div>
+
+    <div class="form-grid cols-3">
+        <div class="sv-group"><i class="fas fa-tags"></i><span>Rate and classification</span></div>
+        <div class="form-group">
             <label>Rate per Tree (₦)</label>
             <input type="number" step="0.01" min="0" name="default_unit_price"
                    value="{{ old('default_unit_price') }}" placeholder="Not set" />
+            <p class="helper-text">Leave blank until the rate is approved.</p>
         </div>
-        <div>
+        <div class="form-group">
             <label>Category <span class="required">*</span></label>
             <select name="category">
                 @foreach ($categories as $c)
@@ -47,7 +54,7 @@
                 @endforeach
             </select>
         </div>
-        <div>
+        <div class="form-group">
             <label>Status <span class="required">*</span></label>
             <select name="status">
                 @foreach ($statuses as $s)
@@ -55,10 +62,11 @@
                 @endforeach
             </select>
         </div>
-        <div style="display:flex;align-items:end;gap:6px;">
-            <button class="btn btn-success btn-sm" type="submit"><i class="fas fa-check"></i></button>
-            <button class="btn btn-secondary btn-sm" type="button" onclick="toggleTreeCatalogueForm()"><i class="fas fa-times"></i></button>
-        </div>
+    </div>
+
+    <div class="form-actions">
+        <div class="left"><button class="btn btn-secondary" type="button" onclick="toggleTreeCatalogueForm()"><i class="fas fa-times"></i> Close</button></div>
+        <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Add Tree Type</button></div>
     </div>
 </form>
 

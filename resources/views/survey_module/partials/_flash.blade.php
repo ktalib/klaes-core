@@ -6,14 +6,14 @@
 @endif
 
 @if (session('error'))
-    <div class="comp-type-note" style="border-left:4px solid var(--danger);background:#fdecea;margin-bottom:16px;">
+    <div class="comp-type-note" data-sv-flash="error" style="border-left:4px solid var(--danger);background:#fdecea;margin-bottom:16px;">
         <i class="fas fa-exclamation-triangle" style="color:var(--danger-dark);"></i>
         {{ session('error') }}
     </div>
 @endif
 
 @if ($errors->any())
-    <div class="comp-type-note" style="border-left:4px solid var(--danger);background:#fdecea;margin-bottom:16px;display:block;">
+    <div class="comp-type-note" data-sv-flash="error" style="border-left:4px solid var(--danger);background:#fdecea;margin-bottom:16px;display:block;">
         <div style="font-weight:600;margin-bottom:6px;">
             <i class="fas fa-exclamation-triangle" style="color:var(--danger-dark);"></i>
             Please correct the following:

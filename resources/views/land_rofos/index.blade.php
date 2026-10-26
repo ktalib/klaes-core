@@ -13,7 +13,7 @@
     // Inline edit (Edit mode switch) on every table on this page. Off on the
     // view-only Cadastral page and for anyone without edit on Letter of Grant (RofO);
     // the save route enforces the same permission.
-    $rofoCanInlineEdit = request('url') !== 'cadastral' && empty($ossViewOnly)
+    $rofoCanInlineEdit = ! in_array(request('url'), ['cadastral', 'survey'], true) && empty($ossViewOnly)
         && \App\Support\InlineEdit::canEdit();
 @endphp
 @php
@@ -25,7 +25,7 @@
     // Opened from the Cadastral sidebar (?url=cadastral): every RofO, view only. No
     // Batch Print / Re-issuance, no row actions, no Batches tab. Unlike view=only (OSS)
     // it does not narrow the list.
-    $rofoReadOnly = request('url') === 'cadastral';
+    $rofoReadOnly = in_array(request('url'), ['cadastral', 'survey'], true);
 @endphp
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
@@ -73,7 +73,7 @@
             </div>
 
             <!-- Statistics Cards -->
-            @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
+            @if (! in_array(request('url'), ['cadastral', 'survey'], true)) {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
             <div class="grid grid-cols-1 md:grid-cols-2 {{ $ossViewOnly ? 'lg:grid-cols-3' : 'lg:grid-cols-4' }} gap-6 mb-10">
                 <!-- Daily OSS (first card, OSS view only) -->
                 @if($ossViewOnly)
@@ -191,7 +191,7 @@
             </div>
             @endif
 
-            @php $tabBaseParams = array_filter(['search' => request('search'), 'view' => $ossViewOnly ? 'only' : null, 'url' => $rofoReadOnly ? 'cadastral' : null]); @endphp
+            @php $tabBaseParams = array_filter(['search' => request('search'), 'view' => $ossViewOnly ? 'only' : null, 'url' => $rofoReadOnly ? request('url') : null]); @endphp
             <div class="flex items-center gap-2 mb-4 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full sm:w-max">
                 <a href="{{ route('land-rofos.index', $tabBaseParams + ['tab' => 'not_printed']) }}"
                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition {{ $tab === 'not_printed' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100' }}">
@@ -388,7 +388,7 @@
                         <span class="text-slate-400 normal-case tracking-normal font-medium">· {{ $tab === 'reissuance' ? 'Re-issuance' : ($tab === 'printed' ? 'Printed' : 'Not Printed') }}</span>
                     </h3>
                     {{-- Filled by InlineBatchEdit.toggleHtml() once the script loads. --}}
-                    @if(request('url') !== 'cadastral' && empty($ossViewOnly))
+                    @if(! in_array(request('url'), ['cadastral', 'survey'], true) && empty($ossViewOnly))
                         <div data-ibe-toggle-slot></div>
                     @endif
                 </div>

@@ -80,6 +80,18 @@ class BeaconRegisterController extends Controller
             'amount'         => (float) SurveyBeaconRegister::sum('amount'),
         ];
 
+        // The same four figures split Government / Private (user, 2026-10-26).
+        $stats['by_type'] = [];
+        foreach (array_keys(SurveyBeaconRegister::LAYOUT_TYPES) as $type) {
+            $ofType = fn () => SurveyBeaconRegister::where('layout_type', $type);
+            $stats['by_type'][$type] = [
+                'entries'    => $ofType()->count(),
+                'beacons'    => SurveyBeaconNumber::whereIn('survey_beacon_register_id', $ofType()->select('id'))->count(),
+                'this_month' => (int) $ofType()->where('year', now()->year)->where('month', now()->month)->sum('total_issued'),
+                'amount'     => (float) $ofType()->sum('amount'),
+            ];
+        }
+
         $years = SurveyBeaconRegister::query()->distinct()->orderByDesc('year')->pluck('year');
 
         $editing = $r->filled('edit') ? SurveyBeaconRegister::find($r->query('edit')) : null;
@@ -187,6 +199,70 @@ class BeaconRegisterController extends Controller
      *
      * @param array<int, string> $files
      */
+    /**
+     * Rev-M payment for the Payment section (spec: amount and file pulled from the linked
+     * payment). Matches a successful payment by teller / transaction id, receipt no or bill
+     * ref; the amount is the bill's Beacons line when it has one, else what was paid.
+     * Reads only (2026-10-25).
+     */
+    public function revmLookup(Request $r)
+    {
+        $this->authorizeAction('view');
+        $ref = trim(mb_substr((string) $r->query('ref', ''), 0, 100));
+        if ($ref === '') {
+            return response()->json(['found' => false, 'message' => 'Enter the teller, transaction, receipt or bill number first.'], 422);
+        }
+
+        $db = DB::connection('sqlsrv');
+        $pay = $db->table('bill_payments')->where('status', 'successful')
+            ->where(fn ($w) => $w->where('transaction_id', $ref)->orWhere('receipt_no', $ref)->orWhere('bill_ref_id', $ref))
+            ->orderByDesc('id')->first(['bill_ref_id', 'transaction_id', 'receipt_no', 'amount', 'paid_at']);
+        $billRef = $pay?->bill_ref_id
+            ?? $db->table('bill_master')->where(fn ($w) => $w->where('bill_ref_id', $ref)->orWhere('receipt_no', $ref)->orWhere('transaction_id', $ref))->value('bill_ref_id');
+        if (! $billRef) {
+            return response()->json(['found' => false, 'message' => "No Rev-M payment found for {$ref}."]);
+        }
+
+        $bill = $db->table('bill_master')->where('bill_ref_id', $billRef)
+            ->first(['bill_ref_id', 'file_number', 'payer_name', 'plot_no', 'district', 'lga', 'location', 'amount_paid', 'status']);
+        $beaconLine = $db->table('bill_items')->where('bill_ref_id', $billRef)->where('item_code', 'BEACON')->sum('amount');
+
+        return response()->json([
+            'found'       => true,
+            'bill_ref'    => $billRef,
+            'paid'        => (bool) $pay,
+            'amount'      => (float) ($beaconLine > 0 ? $beaconLine : ($pay->amount ?? $bill->amount_paid ?? 0)),
+            'is_beacon'   => $beaconLine > 0,
+            'paid_on'     => $pay?->paid_at ? substr((string) $pay->paid_at, 0, 10) : null,
+            'teller_no'   => $pay->transaction_id ?? $pay->receipt_no ?? $ref,
+            'file_number' => $bill->file_number ?? null,
+            'payer'       => $bill->payer_name ?? null,
+            'plot'        => $bill->plot_no ?? null,
+            'location'    => $bill->location ?? implode(', ', array_filter([$bill->district ?? null, $bill->lga ?? null])),
+        ]);
+    }
+
+    /**
+     * The register as the printed book (spec: "a PDF that perfectly mimics the physical
+     * layout"): the current filters, 20 lines a page, each page headed with its register
+     * no., quarter, month and the total issued on it. Print to PDF from the browser.
+     * Digital signatures are not part of this yet (user, 2026-10-25).
+     */
+    public function printBook(Request $r)
+    {
+        $this->authorizeAction('view');
+        $rows = $this->filtered($r)
+            ->with(['creator:id,first_name,last_name', 'reviewer:id,first_name,last_name', 'auditor:id,first_name,last_name'])
+            ->orderBy('issue_date')->orderBy('id')
+            ->limit(2000)->get();
+
+        return view('survey_module.workflow.beacon_register_print', [
+            'pages'   => $rows->chunk(20),
+            'filters' => $r->only(['year', 'quarter', 'month', 'layout', 'status', 'q']),
+            'capped'  => $rows->count() >= 2000,
+        ]);
+    }
+
     private function syncFiles(SurveyBeaconRegister $entry, array $files): void
     {
         SurveyBeaconRegisterFile::where('survey_beacon_register_id', $entry->id)->delete();

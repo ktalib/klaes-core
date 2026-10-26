@@ -13,7 +13,12 @@
 
 <div class="page-header">
     <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.observations.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
-    <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.coordinates.show', $key) }}"><i class="fas fa-map-pin"></i> List of Coordinates</a>
+    <div style="display:flex;gap:8px;">
+        <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.coordinates.show', $key) }}"><i class="fas fa-map-pin"></i> List of Coordinates</a>
+        @unless ($locked)
+            <button type="button" class="btn btn-primary btn-sm" onclick="svModal.open('obsForm')"><i class="fas fa-plus"></i> Add Reading</button>
+        @endunless
+    </div>
 </div>
 
 <div class="kpi-grid">
@@ -36,35 +41,47 @@
 @if ($locked)
     <div class="comp-type-note" style="margin-bottom:16px;"><i class="fas fa-lock"></i> {{ $anchor['prefill']['its_number'] }} is closed; its readings can no longer be changed.</div>
 @else
-    <form method="POST" action="{{ route('survey-module.gkn.observations.store', $key) }}" class="form-container" style="margin-bottom:16px;">
+    <form method="POST" action="{{ route('survey-module.gkn.observations.store', $key) }}" id="obsForm"
+          class="farmer-entry-form {{ $errors->any() ? 'open' : '' }}" data-sv-modal="Add Reading · {{ $anchor['prefill']['its_number'] }}">
         @csrf
-        <div class="form-body">
-            <datalist id="obsStations">@foreach ($stations as $s)<option value="{{ $s }}">@endforeach</datalist>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;align-items:end;">
-                <div class="form-group" style="margin:0;"><label>From station <span class="required">*</span></label>
-                    <input type="text" name="from_station" list="obsStations" maxlength="50" value="{{ old('from_station', $obs->last()?->to_station) }}" required /></div>
-                <div class="form-group" style="margin:0;"><label>To station <span class="required">*</span></label>
-                    <input type="text" name="to_station" list="obsStations" maxlength="50" value="{{ old('to_station') }}" required /></div>
-                <div class="form-group" style="margin:0;"><label>Bearing <span class="required">*</span></label>
-                    <div style="display:flex;gap:4px;align-items:center;">
-                        <input type="number" name="bearing_d" min="0" max="359" step="1" value="{{ old('bearing_d') }}" placeholder="°" required style="width:64px;" />
-                        <input type="number" name="bearing_m" min="0" max="59" step="1" value="{{ old('bearing_m') }}" placeholder="'" style="width:56px;" />
-                        <input type="number" name="bearing_s" min="0" max="59.9" step="0.1" value="{{ old('bearing_s') }}" placeholder='"' style="width:64px;" />
-                    </div></div>
-                <div class="form-group" style="margin:0;"><label>Distance (m) <span class="required">*</span></label>
-                    <input type="number" step="0.001" min="0.001" name="observed_distance" value="{{ old('observed_distance') }}" required /></div>
-                <div class="form-group" style="margin:0;"><label>Date observed</label>
-                    <input type="date" name="observed_on" max="{{ now()->toDateString() }}" value="{{ old('observed_on', $obs->last()?->observed_on?->format('Y-m-d')) }}" /></div>
-                <div class="form-group" style="margin:0;"><label>Observer</label>
-                    <input type="text" name="observer" maxlength="255" value="{{ old('observer', $obs->last()?->observer ?? $anchor['prefill']['surveyor_name']) }}" /></div>
-                <div class="form-group" style="margin:0;"><label>Remarks</label>
-                    <input type="text" name="remarks" maxlength="500" value="{{ old('remarks') }}" /></div>
-                <div><button class="btn btn-primary" type="submit"><i class="fas fa-plus"></i> Add Reading</button></div>
-            </div>
-            <p class="helper-text" style="margin-top:8px;">
+        <datalist id="obsStations">@foreach ($stations as $s)<option value="{{ $s }}">@endforeach</datalist>
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-route"></i><span>Line</span></div>
+            <div class="form-group"><label>From station <span class="required">*</span></label>
+                <input type="text" name="from_station" list="obsStations" maxlength="50" value="{{ old('from_station', $obs->last()?->to_station) }}" required /></div>
+            <div class="form-group"><label>To station <span class="required">*</span></label>
+                <input type="text" name="to_station" list="obsStations" maxlength="50" value="{{ old('to_station') }}" required /></div>
+        </div>
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-ruler-combined"></i><span>Measurement</span></div>
+            <div class="form-group"><label>Bearing (deg, min, sec) <span class="required">*</span></label>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;">
+                    <input type="number" name="bearing_d" min="0" max="359" step="1" value="{{ old('bearing_d') }}" placeholder="deg" required />
+                    <input type="number" name="bearing_m" min="0" max="59" step="1" value="{{ old('bearing_m') }}" placeholder="min" />
+                    <input type="number" name="bearing_s" min="0" max="59.9" step="0.1" value="{{ old('bearing_s') }}" placeholder="sec" />
+                </div></div>
+            <div class="form-group"><label>Distance (m) <span class="required">*</span></label>
+                <input type="number" step="0.001" min="0.001" name="observed_distance" value="{{ old('observed_distance') }}" required /></div>
+        </div>
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-book"></i><span>Field book</span></div>
+            <div class="form-group"><label>Date observed</label>
+                <input type="date" name="observed_on" max="{{ now()->toDateString() }}" value="{{ old('observed_on', $obs->last()?->observed_on?->format('Y-m-d')) }}" /></div>
+            <div class="form-group"><label>Observer</label>
+                <input type="text" name="observer" maxlength="255" value="{{ old('observer', $obs->last()?->observer ?? $anchor['prefill']['surveyor_name']) }}" /></div>
+            <div class="form-group"><label>Remarks</label>
+                <input type="text" name="remarks" maxlength="500" value="{{ old('remarks') }}" /></div>
+            <p class="helper-text" style="grid-column:1/-1;margin:0;">
                 Enter readings in the order walked, from the field book. A run that returns to its first station is closed as a traverse.
-                Readings will also arrive here from the field observations mobile app once it is in use.
+                Readings saved in the SCF field app arrive here too.
             </p>
+        </div>
+        <div class="form-actions">
+            <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('obsForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
+            <div class="right">
+                <button class="btn btn-outline" type="submit" data-sv-again><i class="fas fa-redo"></i> Save &amp; add next</button>
+                <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Add Reading</button>
+            </div>
         </div>
     </form>
 @endif

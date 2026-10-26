@@ -48,7 +48,7 @@ class CaveatController extends Controller
 
         // Opened from Cadastral > Other Departments: the caveats log only, no
         // Place / Lift forms and no row actions.
-        $readOnly = request('url') === 'cadastral';
+        $readOnly = in_array(request('url'), ['cadastral', 'survey'], true);
 
         return view('caveat.index', compact('PageTitle', 'PageDescriptionS', 'instrumentTypes', 'readOnly'));
     }

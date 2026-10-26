@@ -6,7 +6,7 @@
 
 @section('content')
     @php
-        $fsReadOnly = request('url') === 'cadastral';
+        $fsReadOnly = in_array(request('url'), ['cadastral', 'survey'], true);
     @endphp
     <div class="flex-1 overflow-auto bg-slate-50 text-slate-900">
         @include('admin.header')
@@ -22,7 +22,7 @@
                             <h1 class="text-4xl lg:text-5xl font-semibold text-emerald-900 leading-tight">Problem Files Search Database</h1>
                             <p class="text-base text-emerald-900/70">Audit historical registry ledgers, surface conflicting allocations and triage duplicate records without touching production tables.</p>
                         </div>
-                        @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
+                        @if (! in_array(request('url'), ['cadastral', 'survey'], true)) {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
                         <div class="grid grid-cols-2 gap-4 text-center sm:text-left">
                             <div class="bg-white/80 border border-emerald-100 rounded-2xl px-4 py-3">
                                 <p class="text-[0.65rem] uppercase tracking-widest text-emerald-500">Modules linked</p>

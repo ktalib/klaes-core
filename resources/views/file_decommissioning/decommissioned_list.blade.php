@@ -31,7 +31,7 @@
                 <!-- Quick Decommission Toggle -->
                 {{-- Opened from the Cadastral sidebar (?url=cadastral) the list is view only: the
                      toggle is hidden (kept in the page for the script), so the form never opens. --}}
-                <div class="px-6 pt-6" @if(request('url') === 'cadastral') style="display:none" @endif>
+                <div class="px-6 pt-6" @if(in_array(request('url'), ['cadastral', 'survey'], true)) style="display:none" @endif>
                     <button id="toggleQuickDecommission" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <i data-lucide="plus-circle" class="w-4 h-4 mr-2"></i>
                         Show Quick Decommission
@@ -114,7 +114,7 @@
                 </div>
 
                 <!-- Statistics Section -->
-                @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
+                @if (! in_array(request('url'), ['cadastral', 'survey'], true)) {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
                 <div class="px-6 py-6 bg-gray-50 border-b border-gray-200">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <!-- Total Decommissioned Files Card -->

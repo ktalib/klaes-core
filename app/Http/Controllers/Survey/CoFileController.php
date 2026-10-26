@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * CO (Compensation) files. "Commission CO File" numbers a new one Prj-YYYY-0001;
+ * CO (Compensation) files. "Commission CO File" numbers a new one PRJ-YYYY-0001;
  * "data capture" keys in an existing paper CO file under its own number. Projects
  * are opened under a CO file, one CO file to many projects.
  */

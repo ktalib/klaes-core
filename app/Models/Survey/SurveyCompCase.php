@@ -43,6 +43,12 @@ class SurveyCompCase extends SurveyModel
         return $this->hasMany(SurveyPlotAllocation::class, 'survey_comp_case_id');
     }
 
+    /** Geo-tagged field photos (SCF app). */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(SurveyCasePhoto::class, 'survey_comp_case_id')->orderBy('id');
+    }
+
     public function opRecords(): HasMany
     {
         return $this->hasMany(SurveyOpRecord::class, 'survey_comp_case_id');

@@ -100,6 +100,11 @@
     </div>
 
     <div class="card card-pad">
+        <div class="section-title" style="margin-top:0;"><i class="fas fa-camera"></i> Field photos ({{ $case->photos->count() }})</div>
+        @include('survey_module.partials._case_photos', ['case' => $case])
+    </div>
+
+    <div class="card card-pad">
         <div class="section-title" style="margin-top:0;"><i class="fas fa-users"></i> Beneficiaries ({{ $case->beneficiaries->count() }})</div>
         @if ($case->beneficiaries->isEmpty())
             <div class="empty-state" style="margin-top:0;"><i class="fas fa-user-group"></i>No farmers on this case yet.</div>

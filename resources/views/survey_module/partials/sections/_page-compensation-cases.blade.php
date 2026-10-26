@@ -78,6 +78,15 @@
                     <span class="value">{{ $detail->survey_officer ?: '—' }}</span>
                 </div>
                 <div class="preview-item">
+                    <span class="label">Surveyor / Portion</span>
+                    <span class="value">@if ($detail->allocation)
+    {{ $detail->allocation->surveyor_name }}
+    <div style="font-size:11px;color:var(--gray-500);">Portion {{ $detail->portion_no }} of {{ $detail->allocation->portions }} · {{ rtrim(rtrim(number_format((float) $detail->portion_size_ha, 4), '0'), '.') }} Ha</div>
+@else
+    <span style="color:var(--gray-500);">—</span>
+@endif</span>
+                </div>
+                <div class="preview-item">
                     <span class="label">Date</span>
                     <span class="value">{{ optional($detail->case_date)->format('Y-m-d') ?: '—' }}</span>
                 </div>
@@ -219,6 +228,11 @@
                 @endif
 
                 <div class="form-group full">
+                    <label>Field Photos ({{ $detail->photos->count() }})</label>
+                    @include('survey_module.partials._case_photos', ['case' => $detail])
+                </div>
+
+                <div class="form-group full">
                     <label>Occupancy Permits ({{ $detail->opRecords->count() }})</label>
                     <p class="helper-text">
                         @if ($detail->opRecords->isEmpty())
@@ -297,12 +311,13 @@
                         <th>S/N</th>
                         <th>Case No</th>
                         <th>Project</th>
+                        <th>Surveyor / Portion</th>
                         <th>Location</th>
                         <th>Area (Ha)</th>
                         <th>Beneficiaries</th>
                         <th>Status</th>
                         <th>Created Date</th>
-                        <th>Actions</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -316,6 +331,12 @@
                                 </div>
                             </td>
                             <td>{{ $c->project?->name ?? '—' }}</td>
+                            <td>@if ($c->allocation)
+    {{ $c->allocation->surveyor_name }}
+    <div style="font-size:11px;color:var(--gray-500);">Portion {{ $c->portion_no }} of {{ $c->allocation->portions }} · {{ rtrim(rtrim(number_format((float) $c->portion_size_ha, 4), '0'), '.') }} Ha</div>
+@else
+    <span style="color:var(--gray-500);">—</span>
+@endif</td>
                             <td>{{ $c->property_location ?: '—' }}</td>
                             <td>{{ $c->area_ha !== null ? number_format((float) $c->area_ha, 2) : '—' }}</td>
                             <td>{{ number_format($c->beneficiaries_count) }}</td>
@@ -326,21 +347,31 @@
                             </td>
                             <td>{{ optional($c->created_at)->format('Y-m-d') ?? '—' }}</td>
                             <td>
-                                <div class="action-icons">
-                                    <a href="{{ route('survey-module.compensation.cases.show', $c) }}" title="View"><i class="fas fa-eye"></i></a>
-                                    <a href="{{ route('survey-module.compensation.cases.edit', $c) }}" title="Edit"><i class="fas fa-edit"></i></a>
-                                    <a href="{{ route('survey-module.compensation.op', ['case' => $c->id]) }}" title="Generate OP"><i class="fas fa-file-signature"></i></a>
-                                    <form method="POST" action="{{ route('survey-module.compensation.cases.destroy', $c) }}"
-                                          style="display:inline" onsubmit="return confirm('Delete {{ $c->case_ref }}? This cannot be undone.');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" title="Delete"><i class="fas fa-trash"></i></button>
-                                    </form>
+                                @php $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50'; @endphp
+                                <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                    <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                            @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                            class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                        <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                    </button>
+                                    <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                         :style="'top:' + top + 'px; left:' + left + 'px'"
+                                         class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                        <a href="{{ route('survey-module.compensation.cases.show', $c) }}" class="{{ $svItem }}"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
+                                        <a href="{{ route('survey-module.compensation.cases.edit', $c) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
+                                        <a href="{{ route('survey-module.compensation.op', ['case' => $c->id]) }}" class="{{ $svItem }}"><i data-lucide="file-signature" class="w-4 h-4 text-gray-500"></i> Generate OP</a>
+                                        <form method="POST" action="{{ route('survey-module.compensation.cases.destroy', $c) }}"
+                                              onsubmit="return confirm('Delete {{ $c->case_ref }}? This cannot be undone.');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
+                                        </form>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" style="text-align:center;padding:28px;color:var(--gray-500);">
+                            <td colspan="10" style="text-align:center;padding:28px;color:var(--gray-500);">
                                 <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                                 @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
                                     No cases match these filters.

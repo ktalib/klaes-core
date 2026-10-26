@@ -102,6 +102,22 @@
         </a>
       @endif
 
+      {{-- Admin > Central Admin (CADASTRAL UPDATE, 2026-10-26), straight after Dashboard: every open file
+           in one table. Live for the Central Admin role (Super Admin passes); the rest of the department
+           sees it greyed out and opens the table view only. --}}
+      @php
+        $cadCentral = \App\Services\CadastralDept\DeskAccess::isCentralAdmin(auth()->user());
+      @endphp
+      @if($cadCentral || $cadAnyDesk || $cadModule)
+        <div class="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin</div>
+        <a href="{{ route('cadastral-dept.central-admin.index') }}"
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-dept.central-admin.*') ? 'active' : '' }} {{ $cadCentral ? '' : 'opacity-50' }}"
+          @unless($cadCentral) title="View only: acting needs the {{ \App\Services\CadastralDept\DeskAccess::centralAdminRole() }} role" @endunless>
+          <i data-lucide="{{ $cadCentral ? 'shield-check' : 'lock' }}" class="h-4 w-4 {{ $cadCentral ? 'text-rose-500' : 'text-gray-400' }}"></i>
+          <span>Central Admin</span>
+        </a>
+      @endif
+
       {{-- b–k: the user's corrected sidebar (WhatsApp image, 2026-10-12). Desk entries open the desk's
            inbox, or one of its lists (config cadastral_dept.queues); the actions stay in each row's menu. --}}
       @php

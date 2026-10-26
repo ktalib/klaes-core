@@ -126,6 +126,7 @@ class LpknController extends Controller
             $q->where(function ($w) use ($term) {
                 $w->where('lpkn_number', 'like', "%$term%")
                   ->orWhere('layout_name', 'like', "%$term%")
+                  ->orWhere('application_file_number', 'like', "%$term%")
                   ->orWhere('remarks', 'like', "%$term%")
                   ->orWhere('prop_district', 'like', "%$term%")
                   ->orWhere('prop_district_other', 'like', "%$term%");
@@ -201,6 +202,7 @@ class LpknController extends Controller
     private function validated(Request $r): array
     {
         $rules = [
+            'application_file_number' => 'nullable|string|max:100',
             'layout_name' => 'required|string|max:255',
             'plot_count'  => 'nullable|integer|min:0|max:100000',
             'area_ha'     => 'nullable|numeric|min:0|max:999999.99',

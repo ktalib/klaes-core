@@ -31,6 +31,8 @@
     <div class="p-6 flex-1">
         <div class="survey-proto">
             @yield('survey-content')
+            {{-- Entry panels marked data-sv-modal open as modals. --}}
+            @include('survey_module.partials._entry_modal')
         </div>
     </div>
 

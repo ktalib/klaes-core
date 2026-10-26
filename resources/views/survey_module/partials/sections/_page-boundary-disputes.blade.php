@@ -32,13 +32,16 @@
     @endforeach
 </div>
 
-<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="bdPanel">
+<div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="bdPanel"
+     data-sv-modal="{{ $editing ? 'Edit Dispute ' . $dispute->dispute_ref : 'Log Boundary Dispute' }}"
+     @if ($editing) data-sv-modal-close="{{ route('survey-module.workflow.boundary-disputes.index') }}" @endif>
     <form method="POST" action="{{ $editing ? route('survey-module.workflow.boundary-disputes.update', $dispute) : route('survey-module.workflow.boundary-disputes.store') }}">
         @csrf
         @if ($editing) @method('PUT') @endif
         <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-folder-open"></i><span>Files</span></div>
             @if ($editing)
-                <div class="form-group"><label>Dispute No</label><input type="text" value="{{ $dispute->dispute_ref }}" readonly style="background:var(--gray-100);" /></div>
+                <div class="form-group full"><label>Dispute No</label><input type="text" value="{{ $dispute->dispute_ref }}" readonly style="background:var(--gray-100);" /></div>
             @endif
 
             @include('survey_module.partials._file_picker', [
@@ -60,7 +63,18 @@
                     @endforeach
                 </select>
             </div>
+        </div>
 
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Property</span></div>
+            {{-- Plot No., District, LGA; the location is composed from district + LGA on save. --}}
+            <div class="form-group"><label>Plot No.</label><input type="text" name="plot_no" id="bdPlot" maxlength="100" value="{{ old('plot_no', $dispute->plot_no) }}" /></div>
+            <div class="form-group"><label>District</label><input type="text" name="district" id="bdDistrict" maxlength="255" value="{{ old('district', $dispute->district) }}" /></div>
+            <div class="form-group"><label>LGA</label><input type="text" name="lga" id="bdLga" maxlength="255" value="{{ old('lga', $dispute->lga) }}" /></div>
+        </div>
+
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-users"></i><span>Parties</span></div>
             <div class="form-group"><label>Complainant <span class="required">*</span></label>
                 <input type="text" name="complainant_name" maxlength="255" value="{{ old('complainant_name', $dispute->complainant_name) }}" required /></div>
             <div class="form-group"><label>Complainant Phone</label>
@@ -68,6 +82,10 @@
             <div class="form-group"><label>Other Party</label>
                 <input type="text" name="respondent_name" maxlength="255" value="{{ old('respondent_name', $dispute->respondent_name) }}" /></div>
 
+        </div>
+
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-balance-scale"></i><span>Dispute</span></div>
             <div class="form-group"><label>Nature <span class="required">*</span></label>
                 <select name="nature" id="bdNature" required>
                     <option value="">— Select —</option>
@@ -78,12 +96,6 @@
                 <input type="text" name="nature_other" id="bdNatureOther" maxlength="100" value="{{ $natOther }}" @disabled($natPick !== C::NATURE_OTHER) /></div>
             <div class="form-group"><label>Date Received <span class="required">*</span></label>
                 <input type="date" name="received_date" max="{{ now()->toDateString() }}" value="{{ old('received_date', optional($dispute->received_date)->format('Y-m-d')) }}" required /></div>
-
-            {{-- Plot No., District, LGA; the location is composed from district + LGA on save. --}}
-            <div class="form-group"><label>Plot No.</label><input type="text" name="plot_no" id="bdPlot" maxlength="100" value="{{ old('plot_no', $dispute->plot_no) }}" /></div>
-            <div class="form-group"><label>District</label><input type="text" name="district" id="bdDistrict" maxlength="255" value="{{ old('district', $dispute->district) }}" /></div>
-            <div class="form-group"><label>LGA</label><input type="text" name="lga" id="bdLga" maxlength="255" value="{{ old('lga', $dispute->lga) }}" /></div>
-
             <div class="form-group full"><label>Details</label>
                 <textarea name="description" maxlength="4000">{{ old('description', $dispute->description) }}</textarea></div>
         </div>

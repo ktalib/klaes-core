@@ -62,66 +62,74 @@
     <input type="hidden" name="survey_comp_case_id" value="{{ $caseId }}" />
 </form>
 
-{{-- Farmer entry: identity plus the surveyor's own 50% field figures. --}}
+{{-- Farmer entry: identity plus the surveyor's own 50% field figures, as a modal. --}}
 <form method="POST" action="{{ route('survey-module.tools.plot-allocation.store', $qs) }}"
-      class="farmer-entry-form {{ $errors->any() ? 'open' : '' }}" id="paFarmerForm">
+      class="farmer-entry-form {{ $errors->any() ? 'open' : '' }}" id="paFarmerForm" data-sv-modal="Add Farmer">
     @csrf
     <input type="hidden" name="survey_comp_case_id" value="{{ $caseId }}" />
-    <div class="form-row">
-        <div>
+    <div class="form-grid">
+        <div class="sv-group"><i class="fas fa-user"></i><span>Farmer</span></div>
+        <div class="form-group">
             <label>F. No. <span class="required">*</span></label>
             <input type="text" name="f_no" value="{{ old('f_no') }}" placeholder="e.g. F-001" />
         </div>
-        <div>
+        <div class="form-group">
             <label>Farmers Name <span class="required">*</span></label>
             <input type="text" name="farmer_name" value="{{ old('farmer_name') }}" placeholder="e.g. Mr. X" />
         </div>
-        <div>
+        <div class="form-group">
             <label>Acreage</label>
             <input type="number" step="0.01" min="0" name="acreage" value="{{ old('acreage') }}" placeholder="e.g. 2.50" />
         </div>
-        <div>
+        <div class="form-group">
             <label>Creetable</label>
             <select name="creetable">
                 <option value="Yes" @selected(old('creetable', 'Yes') === 'Yes')>Yes</option>
                 <option value="No" @selected(old('creetable') === 'No')>No</option>
             </select>
         </div>
-        <div>
-            <label>Govt. 50%</label>
-            <input type="number" step="0.01" min="0" name="govt_50" value="{{ old('govt_50') }}" placeholder="e.g. 3" />
-        </div>
-        <div>
-            <label>Farmer 50%</label>
-            <input type="number" step="0.01" min="0" name="farmer_50" value="{{ old('farmer_50') }}" placeholder="e.g. 3" />
-        </div>
     </div>
-    <div class="form-row">
-        <div>
+
+    <div class="form-grid">
+        <div class="sv-group"><i class="fas fa-th"></i><span>Plot and 50:50 split</span></div>
+        <div class="form-group">
             <label>Plot No. <span class="required">*</span></label>
             <input type="text" name="plot_no" value="{{ old('plot_no') }}" placeholder="e.g. 1" />
         </div>
-        <div>
+        <div class="form-group">
             <label>OP No.</label>
             <input type="text" name="op_no" value="{{ old('op_no') }}" placeholder="e.g. OP-001" />
         </div>
-        <div>
+        <div class="form-group">
+            <label>Govt. 50%</label>
+            <input type="number" step="0.01" min="0" name="govt_50" value="{{ old('govt_50') }}" placeholder="e.g. 3" />
+        </div>
+        <div class="form-group">
+            <label>Farmer 50%</label>
+            <input type="number" step="0.01" min="0" name="farmer_50" value="{{ old('farmer_50') }}" placeholder="e.g. 3" />
+        </div>
+        <p class="helper-text full" style="grid-column:1/-1;margin:0;">
+            Govt. 50% and Farmer 50% are recorded as entered. The register's totals below are still
+            derived from the number of plot rows, which is the authoritative split.
+        </p>
+    </div>
+
+    <div class="form-grid">
+        <div class="sv-group"><i class="fas fa-pen"></i><span>Sign-off</span></div>
+        <div class="form-group">
             <label>Sign</label>
             <input type="text" name="sign" value="{{ old('sign') }}" placeholder="e.g. Signature" />
         </div>
-        <div>
+        <div class="form-group">
             <label>Remarks</label>
             <input type="text" name="remarks" value="{{ old('remarks') }}" placeholder="Additional remarks" />
         </div>
-        <div style="display:flex;align-items:end;gap:6px;">
-            <button class="btn btn-success btn-sm" type="submit"><i class="fas fa-check"></i> Save</button>
-            <button class="btn btn-secondary btn-sm" type="button" onclick="togglePlotFarmerForm()"><i class="fas fa-times"></i></button>
-        </div>
     </div>
-    <p class="helper-text" style="margin-top:10px;">
-        Govt. 50% and Farmer 50% are recorded as entered. The register's totals below are still
-        derived from the number of plot rows, which is the authoritative split.
-    </p>
+
+    <div class="form-actions">
+        <div class="left"><button class="btn btn-secondary" type="button" onclick="togglePlotFarmerForm()"><i class="fas fa-times"></i> Close</button></div>
+        <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Save</button></div>
+    </div>
 </form>
 
 {{-- Wide register: horizontal scroll with a sticky Action column. --}}

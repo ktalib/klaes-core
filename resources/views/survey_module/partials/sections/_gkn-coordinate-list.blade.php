@@ -11,7 +11,12 @@
 
 <div class="page-header">
     <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.coordinates.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
-    <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.observations.show', $key) }}"><i class="fas fa-calculator"></i> Field Observations</a>
+    <div style="display:flex;gap:8px;">
+        <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.observations.show', $key) }}"><i class="fas fa-calculator"></i> Field Observations</a>
+        @unless ($locked)
+            <button type="button" class="btn btn-primary btn-sm" onclick="svModal.open('coordForm')"><i class="fas fa-plus"></i> Add Beacon</button>
+        @endunless
+    </div>
 </div>
 
 <div class="kpi-grid">
@@ -30,23 +35,32 @@
 @if ($locked)
     <div class="comp-type-note" style="margin-bottom:16px;"><i class="fas fa-lock"></i> {{ $anchor['prefill']['its_number'] }} is closed; this list can no longer be changed.</div>
 @else
-    <form method="POST" action="{{ route('survey-module.gkn.coordinates.store', $key) }}" class="form-container" style="margin-bottom:16px;">
+    <form method="POST" action="{{ route('survey-module.gkn.coordinates.store', $key) }}" id="coordForm"
+          class="farmer-entry-form {{ $errors->any() ? 'open' : '' }}" data-sv-modal="Add Beacon · {{ $anchor['prefill']['its_number'] }}" data-sv-modal-size="sm">
         @csrf
-        <div class="form-body">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end;">
-                <div class="form-group" style="margin:0;"><label>Beacon ID <span class="required">*</span></label>
-                    <input type="text" name="beacon_id" maxlength="50" value="{{ old('beacon_id') }}" placeholder="e.g. KN 1234" required /></div>
-                <div class="form-group" style="margin:0;"><label>Northing (m) <span class="required">*</span></label>
-                    <input type="number" step="0.001" name="northing" value="{{ old('northing') }}" required /></div>
-                <div class="form-group" style="margin:0;"><label>Easting (m) <span class="required">*</span></label>
-                    <input type="number" step="0.001" name="easting" value="{{ old('easting') }}" required /></div>
-                <div class="form-group" style="margin:0;"><label>Elevation (m)</label>
-                    <input type="number" step="0.001" name="elevation" value="{{ old('elevation') }}" /></div>
-                <div class="form-group" style="margin:0;"><label>Remarks</label>
-                    <input type="text" name="remarks" maxlength="500" value="{{ old('remarks') }}" /></div>
-                <div><button class="btn btn-primary" type="submit"><i class="fas fa-plus"></i> Add Beacon</button></div>
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-map-pin"></i><span>Beacon</span></div>
+            <div class="form-group"><label>Beacon ID <span class="required">*</span></label>
+                <input type="text" name="beacon_id" maxlength="50" value="{{ old('beacon_id') }}" placeholder="e.g. KN 1234" required /></div>
+            <div class="form-group"><label>Remarks</label>
+                <input type="text" name="remarks" maxlength="500" value="{{ old('remarks') }}" /></div>
+        </div>
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-crosshairs"></i><span>Coordinates</span></div>
+            <div class="form-group"><label>Northing (m) <span class="required">*</span></label>
+                <input type="number" step="0.001" name="northing" value="{{ old('northing') }}" required /></div>
+            <div class="form-group"><label>Easting (m) <span class="required">*</span></label>
+                <input type="number" step="0.001" name="easting" value="{{ old('easting') }}" required /></div>
+            <div class="form-group"><label>Elevation (m)</label>
+                <input type="number" step="0.001" name="elevation" value="{{ old('elevation') }}" /></div>
+            <p class="helper-text" style="grid-column:1/-1;margin:0;">Add the beacons in boundary order; the last one closes back to the first.</p>
+        </div>
+        <div class="form-actions">
+            <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('coordForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
+            <div class="right">
+                <button class="btn btn-outline" type="submit" data-sv-again><i class="fas fa-redo"></i> Save &amp; add next</button>
+                <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Add Beacon</button>
             </div>
-            <p class="helper-text" style="margin-top:8px;">Add the beacons in boundary order; the last one closes back to the first.</p>
         </div>
     </form>
 @endif

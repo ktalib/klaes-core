@@ -17,6 +17,8 @@ use Illuminate\Http\Request;
  * GET pages other than desks (case file, prints, lists, lookups) are not checked here.
  * Not checked: the FMC QR log (whoever physically moves the file scans it) and Master
  * Delete (gated by its own Super Admin check).
+ * Central Admin (2026-10-26) passes every desk check; a write that passes only through it is
+ * written to the audit log as a Central Admin intervention.
  */
 class CadastralDeskAccess
 {
@@ -50,7 +52,7 @@ class CadastralDeskAccess
                 return $this->deny($request, 'Only Registry registers files (role ' . (DeskAccess::deskRoles()['registry'] ?? 'Cad - Registry') . ').');
             }
 
-            return $next($request);
+            return $this->passOn($request, $next, $user, 'registry', null);
         }
 
         $case = null;
@@ -68,7 +70,27 @@ class CadastralDeskAccess
             return $this->deny($request, "{$case->case_ref} is with " . $case->deskShort() . "; acting on it needs the {$role} role.");
         }
 
-        return $next($request);
+        return $case ? $this->passOn($request, $next, $user, $this->access->actingDesk($case), $case) : $next($request);
+    }
+
+    /** Runs the request; when only Central Admin let it through, logs the intervention after it succeeds. */
+    private function passOn(Request $request, Closure $next, $user, ?string $desk, ?CadastralCase $case)
+    {
+        $viaCentral = !$this->access->officerCanWorkDesk($user, $desk) && DeskAccess::isCentralAdmin($user);
+        $response = $next($request);
+
+        $failed = $response->getStatusCode() >= 400 || ($request->hasSession() && $request->session()->has('error'));
+        if ($viaCentral && !$failed) {
+            try {
+                app(\App\Services\AuditService::class)->logAction('Cadastral Central Admin Action', 'CadastralCase', $case?->id, null,
+                    ['route' => $request->route()?->getName(), 'desk' => $desk, 'outcome' => $request->input('outcome'), 'task' => $request->input('task')],
+                    ($case ? "{$case->case_ref} " : '') . 'acted on by Central Admin for ' . ($desk ?? 'the department'));
+            } catch (\Throwable $e) {
+                report($e);   // the action itself has gone through; a missing audit row must not undo it
+            }
+        }
+
+        return $response;
     }
 
     private function deny(Request $request, string $message)

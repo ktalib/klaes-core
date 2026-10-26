@@ -6,8 +6,14 @@
         <a href="{{ route('survey-module.mobile.index') }}" class="mobile-tab {{ $activeTab === 'cases' ? 'active' : '' }}" @if($activeTab === 'cases') aria-current="page" @endif>
             <i class="fas fa-folder-open" aria-hidden="true"></i><span>Cases</span>
         </a>
+        {{-- Field Observations, "Mobile App 2" (2026-10-25). --}}
+        <a href="{{ route('survey-module.mobile.observations') }}" class="mobile-tab {{ $activeTab === 'readings' ? 'active' : '' }}" @if($activeTab === 'readings') aria-current="page" @endif>
+            <i class="fas fa-compass-drafting" aria-hidden="true"></i><span>Readings</span>
+        </a>
         <button type="button" class="mobile-tab" onclick="ui.menu()" aria-label="Account menu">
             <i class="fas fa-circle-user" aria-hidden="true"></i><span>Profile</span>
         </button>
     </nav>
 </footer>
+
+@include('survey_module.mobile._offline')

@@ -14,7 +14,7 @@
 @endphp
 
 <style>
-    .survey-proto .sv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 20px; }
+    .survey-proto .sv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
     .survey-proto .sv-grid label { display: block; font-size: 13px; font-weight: 500; color: var(--gray-700); margin-bottom: 4px; }
     .survey-proto .sv-grid input, .survey-proto .sv-grid select {
         width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-300); border-radius: var(--radius-sm);
@@ -37,7 +37,9 @@
 
 <form method="POST" id="svForm" autocomplete="off"
       action="{{ $e ? route('survey-module.records.surveyors.update', $e) : route('survey-module.records.surveyors.store') }}"
-      class="farmer-entry-form {{ $formOpen ? 'open' : '' }}">
+      class="farmer-entry-form {{ $formOpen ? 'open' : '' }}"
+      data-sv-modal="{{ $e ? 'Edit ' . $e->full_name : 'Add Staff' }}"
+      @if ($e) data-sv-modal-close="{{ route('survey-module.records.surveyors.index', \Illuminate\Support\Arr::except($keep, 'page')) }}" @endif>
     @csrf
     @if ($e)
         @method('PUT')
@@ -46,9 +48,8 @@
         @endforeach
     @endif
 
-    <h4 style="margin:0 0 12px;font-size:15px;">{{ $e ? 'Edit ' . $e->full_name : 'New staff member' }}</h4>
-
     <div class="sv-grid">
+        <div class="sv-group"><i class="fas fa-user"></i><span>Personal details</span></div>
         <div>
             <label>First Name <span class="required">*</span></label>
             <input type="text" name="first_name" value="{{ $val('first_name') }}" maxlength="150" required class="@error('first_name') is-invalid @enderror" />
@@ -62,10 +63,24 @@
             <input type="text" name="other_name" value="{{ $val('other_name') }}" maxlength="150" />
         </div>
         <div>
+            <label>Gender</label>
+            <select name="gender">
+                <option value="">—</option>
+                @foreach (\App\Models\Survey\SurveyorListEntry::GENDERS as $g)
+                    <option value="{{ $g }}" @selected($val('gender') === $g)>{{ ucfirst(strtolower($g)) }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label>Date of Birth</label>
+            <input type="date" name="date_of_birth" max="{{ now()->subDay()->format('Y-m-d') }}"
+                   value="{{ old('date_of_birth', $e && $e->date_of_birth ? $e->date_of_birth->format('Y-m-d') : '') }}" />
+        </div>
+        <div class="sv-group"><i class="fas fa-id-badge"></i><span>Service</span></div>
+        <div>
             <label>Staff I.D.</label>
             <input type="text" name="staff_id" value="{{ $val('staff_id') }}" maxlength="50" placeholder="e.g. KANO SG 011956" class="@error('staff_id') is-invalid @enderror" />
         </div>
-
         <div>
             <label>Rank</label>
             <select name="rank" id="svRank" onchange="svRankChanged()">
@@ -88,7 +103,7 @@
             <label>G/L</label>
             <input type="number" name="grade_level" value="{{ $val('grade_level') }}" min="1" max="17" />
         </div>
-
+        <div class="sv-group"><i class="fas fa-phone"></i><span>Contact</span></div>
         <div>
             <label>Mobile No.</label>
             <input type="text" name="phone" value="{{ $val('phone') }}" maxlength="50" class="@error('phone') is-invalid @enderror" />
@@ -97,25 +112,12 @@
             <label>Official E-mail</label>
             <input type="email" name="email" value="{{ $val('email') }}" maxlength="255" class="@error('email') is-invalid @enderror" />
         </div>
-        <div>
-            <label>Gender</label>
-            <select name="gender">
-                <option value="">—</option>
-                @foreach (\App\Models\Survey\SurveyorListEntry::GENDERS as $g)
-                    <option value="{{ $g }}" @selected($val('gender') === $g)>{{ ucfirst(strtolower($g)) }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label>Date of Birth</label>
-            <input type="date" name="date_of_birth" max="{{ now()->subDay()->format('Y-m-d') }}"
-                   value="{{ old('date_of_birth', $e && $e->date_of_birth ? $e->date_of_birth->format('Y-m-d') : '') }}" />
-        </div>
+
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:14px;">
-        <button class="btn btn-success btn-sm" type="submit"><i class="fas fa-check"></i> {{ $e ? 'Save changes' : 'Add staff' }}</button>
-        <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.records.surveyors.index', $keep) }}"><i class="fas fa-times"></i> Cancel</a>
+    <div class="form-actions">
+        <div class="left"><a class="btn btn-secondary" href="{{ route('survey-module.records.surveyors.index', $keep) }}"><i class="fas fa-times"></i> Cancel</a></div>
+        <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> {{ $e ? 'Save changes' : 'Add staff' }}</button></div>
     </div>
 </form>
 
@@ -232,14 +234,13 @@
         @else
             var f = document.getElementById('svForm');
             f.classList.add('open');
-            f.scrollIntoView({ behavior: 'smooth', block: 'start' });
         @endif
     }
 
     function svRankChanged() {
         var other = document.getElementById('svRank').value === 'other';
         var wrap = document.getElementById('svRankOtherWrap'), input = document.getElementById('svRankOther');
-        wrap.style.visibility = other ? 'visible' : 'hidden';
+        wrap.style.display = other ? '' : 'none';
         input.disabled = !other;
         input.required = other;
     }

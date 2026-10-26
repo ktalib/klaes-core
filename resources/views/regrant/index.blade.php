@@ -8,8 +8,8 @@
     // Opened from the Cadastral sidebar (?url=cadastral) the page is view only: no
     // Correct menu. The flag is kept on the tabs and filters so it stays view only
     // and that sidebar keeps its entry lit.
-    $regrantReadOnly = request('url') === 'cadastral';
-    $regrantKeep = $regrantReadOnly ? '&url=cadastral' : '';
+    $regrantReadOnly = in_array(request('url'), ['cadastral', 'survey'], true);
+    $regrantKeep = $regrantReadOnly ? '&url=' . urlencode(request('url')) : '';
     $canCorrect = !$regrantReadOnly && auth()->check() && auth()->user()->isSuperAdmin();
 @endphp
 
@@ -88,7 +88,7 @@
         </div>
 
         {{-- Two cards, mirroring the two tabs below. Each links to its own tab. --}}
-        @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
+        @if (! in_array(request('url'), ['cadastral', 'survey'], true)) {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('regrant.index') }}?tab=register{{ $regrantKeep }}"
                class="px-4 py-2 rounded-lg bg-white border text-center min-w-[132px] transition hover:border-indigo-300 hover:shadow-sm {{ $tab === 'register' ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-200' }}">

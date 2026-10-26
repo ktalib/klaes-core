@@ -114,6 +114,8 @@
     <form method="POST" action="{{ route('survey-module.mobile.cases.store') }}" id="caseForm" novalidate>
         @csrf
         <input type="hidden" name="submit_now" id="submitNow" value="0">
+        {{-- The phone's own id for this case: a retried offline sync finds the case it already saved. --}}
+        <input type="hidden" name="client_uuid" id="clientUuid" value="{{ old('client_uuid', (string) \Illuminate\Support\Str::uuid()) }}">
 
         {{-- ============================== STEP 1 — GENERAL ============================== --}}
         <section class="step card card-pad active" data-step="0">
@@ -369,6 +371,8 @@
                     <div class="hint">Reference only. The GIS unit handles the file itself.</div>
                 </div>
             </div>
+
+            @include('survey_module.mobile._photos')
         </section>
 
         {{-- ============================== STEP 4 — TREES ============================== --}}
@@ -932,9 +936,25 @@
         $('submitNow').value = submitNow ? '1' : '0';
         ['btnDraft', 'btnSubmit', 'btnBack'].forEach(function (id) { $(id).disabled = true; });
         var b = submitNow ? $('btnSubmit') : $('btnDraft');
+        var bLabel = b.innerHTML;
         b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
         dirty = false;
-        $('caseForm').submit();
+
+        // Through the offline layer: saved now when there is a signal, kept on the phone when not.
+        if (!window.SCF) { $('caseForm').submit(); return; }
+        var label = ($('caseProject').selectedOptions[0] || {}).text || 'Compensation case';
+        window.SCF.submitCase($('caseForm'), window.scfPhotos ? window.scfPhotos.all() : [], label.trim())
+            .then(function (res) {
+                if (res.redirect) { location.href = res.redirect; return; }
+                var errs = res.errors || {}, keys = Object.keys(errs);
+                ['btnDraft', 'btnSubmit', 'btnBack'].forEach(function (id) { $(id).disabled = false; });
+                b.innerHTML = bLabel;
+                dirty = true;
+                if (keys.length) {
+                    if (typeof showError === 'function') showError(keys[0]);
+                    toast(errs[keys[0]][0] + (keys.length > 1 ? ' (+' + (keys.length - 1) + ' more)' : ''));
+                }
+            });
     }
 
     $('caseForm').addEventListener('submit', function (event) {

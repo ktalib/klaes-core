@@ -200,6 +200,55 @@
         </div>
     @endif
 
+    {{-- ======================= WAITING TO SYNC (offline queue, 2026-10-25) ======================= --}}
+    <div class="card card-pad" id="scfQueueBox" hidden style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div><strong><i class="fas fa-cloud-arrow-up"></i> Saved on this phone</strong>
+                <div style="font-size:13px;opacity:.75;">They sync by themselves when there is a signal.</div></div>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="window.SCF && SCF.sync()"><i class="fas fa-rotate"></i> Sync now</button>
+        </div>
+        <div id="scfQueueList" style="margin-top:10px;display:grid;gap:8px;"></div>
+    </div>
+    <script>
+        document.addEventListener('scf:queue', function (ev) {
+            var items = ev.detail || [], box = document.getElementById('scfQueueBox'), list = document.getElementById('scfQueueList');
+            box.hidden = !items.length;
+            list.innerHTML = '';
+            items.forEach(function (it) {
+                var row = document.createElement('div');
+                row.style.cssText = 'border:1px solid #efedf3;border-radius:12px;padding:10px 12px;font-size:14px;';
+                var photos = (it.photos || []).length, sent = (it.photos || []).filter(function (p) { return p.done; }).length;
+                var title = document.createElement('div');
+                title.innerHTML = '<strong></strong><div style="font-size:12.5px;opacity:.75;"></div>';
+                title.querySelector('strong').textContent = (it.kind === 'reading' ? 'Reading · ' : '') + (it.label || 'Item') + (it.serverRef ? ' · ' + it.serverRef : '');
+                title.querySelector('div').textContent = 'Saved ' + new Date(it.created).toLocaleString() +
+                    (photos ? ' · photos ' + sent + '/' + photos : '') + (it.serverId && photos > sent ? ' · case synced, photos waiting' : '');
+                row.appendChild(title);
+                if (it.blocked) {
+                    var err = document.createElement('div');
+                    err.style.cssText = 'color:#b91c1c;font-size:13px;margin-top:6px;';
+                    var msgs = []; Object.keys(it.errors || {}).forEach(function (k) { msgs.push((it.errors[k] || [])[0]); });
+                    err.textContent = 'Not accepted: ' + (msgs.join(' ') || 'please check it.');
+                    row.appendChild(err);
+                }
+                var acts = document.createElement('div');
+                acts.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+                if (it.blocked) {
+                    var retry = document.createElement('button');
+                    retry.type = 'button'; retry.className = 'btn btn-sm btn-ghost'; retry.textContent = 'Try again';
+                    retry.onclick = function () { SCF.retry(it.id); };
+                    acts.appendChild(retry);
+                }
+                var drop = document.createElement('button');
+                drop.type = 'button'; drop.className = 'btn btn-sm btn-ghost'; drop.textContent = 'Discard';
+                drop.onclick = function () { if (confirm('Discard this saved item? It has not reached the office yet.')) SCF.discard(it.id); };
+                acts.appendChild(drop);
+                row.appendChild(acts);
+                list.appendChild(row);
+            });
+        });
+    </script>
+
     {{-- ============================== HEADLINE TILES ============================== --}}
     <div class="tiles">
         <a class="tile {{ $status === null ? 'on' : '' }}" href="{{ $tabUrl(null) }}">

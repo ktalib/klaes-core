@@ -23,6 +23,7 @@ use App\Models\User;
  * The head is whoever holds the desk's `post` in Configurable Entries > Cadastral > Officers.
  * While nobody holds it, the admin (Super Admin) holds it, until it is assigned to a user
  * (user, 2026-10-16); from then on only the holder acts as head.
+ * A Central Admin (DeskAccess::holdsCentralAdminRole, 2026-10-26) stands in for every head.
  */
 class HeadApproval
 {
@@ -64,6 +65,9 @@ class HeadApproval
     {
         if (!$user || !$desk) {
             return false;
+        }
+        if (DeskAccess::holdsCentralAdminRole($user)) {
+            return true;
         }
         $holders = array_map('intval', CadastralOfficer::userIdsForPost($this->def->desks()[$desk]['post'] ?? null));
         if ($holders) {

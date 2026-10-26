@@ -38,7 +38,7 @@ class CaseController extends Controller
 
     public function index(Request $r)
     {
-        $q = SurveyCompCase::query()->with('project')->withCount('beneficiaries');
+        $q = SurveyCompCase::query()->with(['project', 'allocation'])->withCount('beneficiaries');
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
@@ -78,7 +78,7 @@ class CaseController extends Controller
      */
     public function show(SurveyCompCase $case)
     {
-        $case->load(['project', 'beneficiaries', 'trees', 'opRecords']);
+        $case->load(['project', 'allocation', 'beneficiaries', 'trees', 'opRecords', 'photos']);
 
         return view('survey_module.compensation.cases', [
             'detail' => $case,
@@ -149,7 +149,7 @@ class CaseController extends Controller
 
         $data = $this->applyPortion($data, $project);
 
-        $case = DB::connection('sqlsrv')->transaction(function () use ($data, $benRows, $treeRows) {
+        $case = $this->portionSafe(fn () => DB::connection('sqlsrv')->transaction(function () use ($data, $benRows, $treeRows) {
             $data['case_ref'] = SurveyCompCase::nextRef('case_ref', 'C');
             $case = SurveyCompCase::create($data);
 
@@ -157,7 +157,7 @@ class CaseController extends Controller
             $this->syncTrees($case, $treeRows);
 
             return $case;
-        });
+        }));
 
         $msg = "Case {$case->case_ref} registered under {$project->project_code} · scheme inherited: "
              . $this->schemeLabel($project->scheme_type) . '.';
@@ -208,11 +208,11 @@ class CaseController extends Controller
 
         $data = $this->applyPortion($data, $project, $case);
 
-        DB::connection('sqlsrv')->transaction(function () use ($case, $data, $benRows, $treeRows) {
+        $this->portionSafe(fn () => DB::connection('sqlsrv')->transaction(function () use ($case, $data, $benRows, $treeRows) {
             $case->update($data);
             $this->syncBeneficiaries($case, $benRows);
             $this->syncTrees($case, $treeRows);
-        });
+        }));
 
         return redirect()
             ->route('survey-module.compensation.cases')
@@ -398,6 +398,24 @@ class CaseController extends Controller
         $data['portion_size_ha'] = $alloc->portion_size_ha;
 
         return $data;
+    }
+
+    /**
+     * Run a case save; if another officer took the same portion a moment earlier, the
+     * unique index refuses it, and that becomes a form error rather than a crash.
+     */
+    protected function portionSafe(callable $save)
+    {
+        try {
+            return $save();
+        } catch (\Illuminate\Database\QueryException $e) {
+            if (str_contains($e->getMessage(), 'ux_survey_cases_portion_live')) {
+                throw ValidationException::withMessages([
+                    'portion_no' => 'Someone registered this portion a moment ago. Pick another portion.',
+                ]);
+            }
+            throw $e;
+        }
     }
 
     /** Projects for the list filters. */

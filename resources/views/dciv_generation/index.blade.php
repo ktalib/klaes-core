@@ -4,7 +4,7 @@
 @php
     // Cadastral > Verification > File Status > DCIV Management (user, 2026-10-14): this page,
     // view only. ?url=cadastral hides Generate DCIV FileNo and the row action menu.
-    $dcivReadOnly = request('url') === 'cadastral';
+    $dcivReadOnly = in_array(request('url'), ['cadastral', 'survey'], true);
 @endphp
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -65,7 +65,7 @@
             </div>
 
             <!-- Statistics Cards -->
-            @if (request('url') !== 'cadastral') {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
+            @if (! in_array(request('url'), ['cadastral', 'survey'], true)) {{-- no dashboard cards from the Cadastral sidebar (user, 2026-10-18) --}}
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                 <!-- Daily Stats -->
                 <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">

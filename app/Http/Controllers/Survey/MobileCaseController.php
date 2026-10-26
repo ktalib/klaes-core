@@ -178,7 +178,40 @@ class MobileCaseController extends CaseController
         // The field register always starts a case as a draft; Save & Submit moves it on.
         $r->merge(['status' => self::STATUS_DRAFT]);
 
-        [$case, $msg, $error] = $this->registerCase($r);
+        // Offline sync (2026-10-25): the phone sends its own id for the case, so a sync that is
+        // retried after a dropped connection finds the case it already saved.
+        $uuid = mb_substr(trim((string) $r->input('client_uuid', '')), 0, 40) ?: null;
+        if ($uuid && ($done = SurveyCompCase::where('client_uuid', $uuid)->first())) {
+            return $this->stored($r, $done, "Case {$done->case_ref} was already saved.", false);
+        }
+
+        try {
+            [$case, $msg, $error] = $this->registerCase($r);
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($uuid && ($done = SurveyCompCase::where('client_uuid', $uuid)->first())) {
+                return $this->stored($r, $done, "Case {$done->case_ref} was already saved.", false);
+            }
+            throw $e;
+        }
+        if ($uuid) $case->forceFill(['client_uuid' => $uuid])->save();
+
+        return $this->stored($r, $case, $msg, $error);
+    }
+
+    /** The answer to a save: JSON for the offline sync, a redirect for the form. */
+    private function stored(Request $r, SurveyCompCase $case, string $msg, bool $error)
+    {
+        if ($r->expectsJson()) {
+            return response()->json([
+                'ok'       => true,
+                'id'       => $case->id,
+                'case_ref' => $case->case_ref,
+                'message'  => $msg,
+                'warning'  => $error,
+                'photos'   => route('survey-module.mobile.cases.photos.store', $case),
+                'redirect' => route('survey-module.mobile.index'),
+            ]);
+        }
 
         return redirect()
             ->route('survey-module.mobile.index')
@@ -190,7 +223,7 @@ class MobileCaseController extends CaseController
     /** Read-only case card. Editing stays on the desktop register. */
     public function show(SurveyCompCase $case)
     {
-        $case->load(['project', 'beneficiaries', 'trees']);
+        $case->load(['project', 'beneficiaries', 'trees', 'photos']);
 
         return view('survey_module.mobile.case_show', [
             'case'      => $case,

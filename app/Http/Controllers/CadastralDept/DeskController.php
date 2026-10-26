@@ -201,7 +201,7 @@ class DeskController extends Controller
      *
      * @return array{tasks_open:int, actions:array, question:?string}
      */
-    private function menu(WorkflowEngine $engine, CadastralCase $case): array
+    protected function menu(WorkflowEngine $engine, CadastralCase $case): array
     {
         $def = $engine->definition();
         $step = $def->step($case->workflow, $case->current_step);

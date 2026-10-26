@@ -98,6 +98,11 @@
                                     <a href="{{ route('filearchive.index', ['url' => 'survey', 'file_number' => $f->file_number]) }}" class="{{ $svItem }}">
                                         <i data-lucide="library" class="w-4 h-4 text-gray-500"></i> Open in Doc-WARE
                                     </a>
+                                    @if ($type === 'lpkn')
+                                        <a href="{{ route('survey-module.records.lpkn', ['file' => $f->file_number]) }}" class="{{ $svItem }}">
+                                            <i data-lucide="map" class="w-4 h-4 text-gray-500"></i> Create Layout Plan
+                                        </a>
+                                    @endif
                                 </div>
                             </div>
                         </td>

@@ -121,6 +121,48 @@ class DeskAccessTest extends TestCase
         $this->assertSame(403, $response->getStatusCode());
     }
 
+    public function test_central_admin_works_every_desk_and_acts_on_any_file(): void
+    {
+        $central = $this->user('Cad - Central Admin');
+
+        $this->assertTrue(DeskAccess::isCentralAdmin($central));
+        $this->assertTrue($this->access()->inDepartment($central));
+        foreach (array_keys(DeskAccess::deskRoles()) as $desk) {
+            $this->assertTrue($this->access()->canWorkDesk($central, $desk), $desk);
+            $this->assertFalse($this->access()->officerCanWorkDesk($central, $desk), $desk);
+        }
+        $away = new CadastralCase(['workflow' => 'conversion', 'current_step' => 'land_processing', 'current_desk' => 'director_land']);
+        $this->assertTrue($this->access()->canActOn($central, $away));
+        $this->assertTrue(DeskAccess::can($central, 'create', 'ad_pnd'));
+    }
+
+    public function test_central_admin_stands_in_for_every_unit_head(): void
+    {
+        $heads = app(\App\Services\CadastralDept\HeadApproval::class);
+        $central = $this->user('Cad - Registry, Cad - Central Admin');
+
+        $this->assertTrue(DeskAccess::holdsCentralAdminRole($central));
+        foreach (['registry', 'ad_information', 'ad_report', 'ad_pnd', 'ad_drawing', 'cadastral_gis'] as $desk) {
+            $this->assertTrue($heads->isHead($central, $desk), $desk);
+        }
+    }
+
+    public function test_desk_officer_is_not_central_admin(): void
+    {
+        $records = $this->user('Cad - Records');
+
+        $this->assertFalse(DeskAccess::isCentralAdmin($records));
+        $this->assertFalse(DeskAccess::holdsCentralAdminRole($records));
+    }
+
+    public function test_middleware_lets_central_admin_onto_any_desk_page(): void
+    {
+        $request = $this->deskRequest('director_cadastral', $this->user('Cad - Central Admin'));
+        $response = app(CadastralDeskAccess::class)->handle($request, fn () => response('ok'));
+
+        $this->assertSame('ok', $response->getContent());
+    }
+
     private function deskRequest(string $desk, User $user): Request
     {
         $request = Request::create("/cadastral-dept/desks/{$desk}", 'GET');

@@ -41,8 +41,11 @@
                            value="{{ old('commission_date', optional($coFile->commission_date)->format('Y-m-d')) }}"
                            @unless ($capture) required @endunless />
                 </div>
+            </div>
 
-                <div class="form-group full">
+            {{-- Title and Status share a row (user, 2026-10-26) --}}
+            <div class="form-grid cols-3">
+                <div class="form-group span-2">
                     <label>Title <span class="required">*</span></label>
                     <input type="text" name="title" value="{{ old('title', $coFile->title) }}" maxlength="255"
                            placeholder="e.g. Tundun Wada Government Acquisition" required />
@@ -56,7 +59,9 @@
                         @endforeach
                     </select>
                 </div>
+            </div>
 
+            <div class="form-grid">
                 <div class="form-group full">
                     <label>Remarks</label>
                     <textarea name="remarks" maxlength="4000" placeholder="Optional notes…">{{ old('remarks', $coFile->remarks) }}</textarea>

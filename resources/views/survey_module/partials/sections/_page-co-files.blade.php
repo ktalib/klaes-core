@@ -136,6 +136,9 @@
                                             <i data-lucide="folder-plus" class="w-4 h-4 text-gray-500"></i> Create Project
                                         </a>
                                     @endif
+                                    <a href="{{ route('survey-module.compensation.op-verification', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
+                                        <i data-lucide="check-check" class="w-4 h-4 text-gray-500"></i> Send to OP Verification
+                                    </a>
                                     <a href="{{ route('survey-module.compensation.co-files.edit', $f) }}" class="{{ $svItem }}">
                                         <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                     </a>

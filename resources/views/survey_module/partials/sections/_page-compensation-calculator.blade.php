@@ -42,8 +42,8 @@
 <div class="comp-type-note" style="margin-bottom:20px;">
     <i class="fas fa-info-circle"></i>
     The two modes are <strong>mutually exclusive</strong> — a case is compensated in cash
-    <em>or</em> in plots, never both. Figures below are computed on the server from the
-    catalogue, so they can be checked; the in-page preview is only a convenience.
+    <em>or</em> in plots, never both. Press <strong>Calculate</strong> to work out the figures from the
+    tree rates; the running preview while you type is only a guide.
 </div>
 
 {{-- ------------------------------- Cash for Trees ------------------------------- --}}
@@ -154,7 +154,7 @@
             <div class="form-actions" style="margin-top:16px;">
                 <div class="left"></div>
                 <div class="right">
-                    <button class="btn btn-success" type="submit"><i class="fas fa-calculator"></i> Calculate on Server</button>
+                    <button class="btn btn-success" type="submit"><i class="fas fa-calculator"></i> Calculate</button>
                 </div>
             </div>
         </form>
@@ -294,7 +294,7 @@
         <div class="form-actions" style="margin-top:16px;">
             <div class="left"></div>
             <div class="right">
-                <button class="btn btn-success" type="submit"><i class="fas fa-calculator"></i> Calculate on Server</button>
+                <button class="btn btn-success" type="submit"><i class="fas fa-calculator"></i> Calculate</button>
             </div>
         </div>
     </form>
