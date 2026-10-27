@@ -37,11 +37,12 @@
   // Cadastral Information > Surveyors on its own role too (user, 2026-10-21).
   $cadSurveyors = $hasRole('Cad - Surveyors');
 
-  // Desk roles (2026-10-15, config cadastral_dept.desk_roles): each desk's entry shows for its own
-  // role, and for Cad - Records / Supper Admin, which cover every desk.
+  // Desk roles (config cadastral_dept.desk_roles): each desk's entry shows for its own role only
+  // (user, 2026-10-26: Cad - Records no longer shows every desk). Super Admin passes every role check.
   $cadDeskRoles = (array) config('cadastral_dept.desk_roles', []);
-  $cadDesk = fn (string $desk) => $cadModule || (isset($cadDeskRoles[$desk]) && $hasRole($cadDeskRoles[$desk]));
-  $cadVerify = $cadModule || $hasRole((string) config('cadastral_dept.verification_role', 'Cad - Verification'));
+  // Its own role or an extra one (desk_extra_roles: Cad - Records opens Cadastral Report, 2026-10-26).
+  $cadDesk = fn (string $desk) => collect(\App\Services\CadastralDept\DeskAccess::rolesFor($desk))->contains(fn ($r) => $hasRole($r));
+  $cadVerify = $hasRole((string) config('cadastral_dept.verification_role', 'Cad - Verification'));
   $cadAnyDesk = $cadVerify || collect(array_keys($cadDeskRoles))->contains(fn ($d) => $cadDesk($d));
 @endphp
 @if(
@@ -103,17 +104,15 @@
       @endif
 
       {{-- Admin > Central Admin (CADASTRAL UPDATE, 2026-10-26), straight after Dashboard: every open file
-           in one table. Live for the Central Admin role (Super Admin passes); the rest of the department
-           sees it greyed out and opens the table view only. --}}
+           in one table. Shown only to users given the Central Admin role, or Super Admin (user, 2026-10-26). --}}
       @php
         $cadCentral = \App\Services\CadastralDept\DeskAccess::isCentralAdmin(auth()->user());
       @endphp
-      @if($cadCentral || $cadAnyDesk || $cadModule)
+      @if($cadCentral)
         <div class="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin</div>
         <a href="{{ route('cadastral-dept.central-admin.index') }}"
-          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-dept.central-admin.*') ? 'active' : '' }} {{ $cadCentral ? '' : 'opacity-50' }}"
-          @unless($cadCentral) title="View only: acting needs the {{ \App\Services\CadastralDept\DeskAccess::centralAdminRole() }} role" @endunless>
-          <i data-lucide="{{ $cadCentral ? 'shield-check' : 'lock' }}" class="h-4 w-4 {{ $cadCentral ? 'text-rose-500' : 'text-gray-400' }}"></i>
+          class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-dept.central-admin.*') ? 'active' : '' }}">
+          <i data-lucide="shield-check" class="h-4 w-4 text-rose-500"></i>
           <span>Central Admin</span>
         </a>
       @endif
@@ -142,6 +141,10 @@
         // "AD CAD <unit> > Approval" (sidebar doc, 2026-10-15): the desk's files with nothing left
         // to do at their step, waiting for the AD to send them on (queue `approval`).
         $cadApproval = function (string $desk, string $label) use ($cadGroup, $cadLink, $cadDeskUrl, $cadDeskOn, $cadBadge, $cadCount) {
+            // Hidden while head approval is switched off (config cadastral_dept.head_approval, 2026-10-26).
+            if (! \App\Services\CadastralDept\HeadApproval::enabled()) {
+                return '';
+            }
             $key = 'cadastralDept-' . $desk . '-approval';
             return $cadGroup($key, $label, 'user-check', true)
                 . '<div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="' . e($key) . '">'
@@ -151,13 +154,12 @@
       @endphp
 
       {{-- b. Registry: Intake Queue, Cadastral Print File Label, AD CAD Registry > Approval, DMS Update > Scan More / More Pages --}}
+      {{-- The whole group, Print File Label included, is the Registry role's (user, 2026-10-26: every entry gated). --}}
+      @if($cadDesk('registry'))
       {!! $cadGroup('cadastralDept-registry', 'Registry', 'inbox') !!}
       <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-registry">
-        @if($cadDesk('registry'))
           {!! $cadLink('Intake Queue', $cadDeskUrl('registry'), 'list', $cadDeskOn('registry'), $cadBadge($cadCount('registry'), 'Files at Registry')) !!}
-        @endif
-        {!! $cadLink('Cadastral Print File Label', route('cadastral_printlabel.index'), 'printer', request()->routeIs('cadastral_printlabel.index')) !!}
-        @if($cadDesk('registry'))
+          {!! $cadLink('Cadastral Print File Label', route('cadastral_printlabel.index'), 'printer', request()->routeIs('cadastral_printlabel.index')) !!}
           {!! $cadApproval('registry', 'AD CAD Registry') !!}
           {{-- iv. DMS Update (sidebar, cadastral.jpeg 2026-10-20): the DMS Scan More and Type More pages,
                listing only the files in the Cadastral Department (cadastral=1). The counts are the
@@ -167,8 +169,8 @@
             {!! $cadLink('Scan More', url('/scanning?url=scmore&cadastral=1'), 'scan', request()->is('scanning') && request('url') === 'scmore' && request()->boolean('cadastral'), $cadBadge($cadCount('registry', 'dms_scan'), 'Pages to scan')) !!}
             {!! $cadLink('More Pages', url('/pagetyping?url=ptmore&cadastral=1'), 'files', request()->is('pagetyping') && request('url') === 'ptmore' && request()->boolean('cadastral'), $cadBadge($cadCount('registry', 'dms_pages'), 'Pages to page-type')) !!}
           </div>
-        @endif
       </div>
+      @endif
 
       {{-- c. D CAD  d. DD CAD. The AD CAD desk link is gone: the updated workflow no longer routes
            files there and the sidebar doc (2026-10-15) has no entry for it. --}}
@@ -313,7 +315,9 @@
         </div>
       @endif
 
-      {{-- i. Other Departments ▸ Land ▸ Cadastral to Land (Land 12) (WhatsApp image 2026-10-14) --}}
+      {{-- i. Other Departments ▸ Land ▸ Cadastral to Land (Land 12) (WhatsApp image 2026-10-14). Land 12 is
+           AD Cad Report's, done with the Yes/No form, so the group is that desk role's (2026-10-26). --}}
+      @if($cadDesk('ad_report'))
       {!! $cadGroup('cadastral-other-departments', 'Other Departments', 'building-2') !!}
       <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-departments">
         {!! $cadGroup('cadastral-other-land', 'Land', 'map', true) !!}
@@ -321,6 +325,7 @@
           {!! $cadLink('Cadastral to Land (Land 12)', route('survey-report.index') . '?url=cadastral', 'file-text', request()->routeIs('survey-report.index') && request()->query('url') === 'cadastral') !!}
         </div>
       </div>
+      @endif
 
       @if($cadArchive)
         {{-- k. File Digital Library – Doc-WARE (the client's "Digital Registry"), on its own again --}}
@@ -340,7 +345,8 @@
       @endif
 
       {{-- m. Reports, after Digital Archive (user, 2026-10-13): the module's report page, as in the previous layout --}}
-      @if($cadModule)
+      {{-- The Cadastral Reports role's, not Cad - Records' (user, 2026-10-26). --}}
+      @if($cadExtract)
         {!! $cadLink('Reports', route('cadastral-module.analytics'), 'file-bar-chart', request()->routeIs('cadastral-module.analytics'), '', false) !!}
       @endif
     </div>

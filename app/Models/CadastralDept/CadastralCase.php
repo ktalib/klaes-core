@@ -138,16 +138,15 @@ class CadastralCase extends Model
         $items = [['View', 'eye', route('cadastral-dept.cases.show', $this->id)]];
         $user = auth()->user();
 
-        if (\App\Services\CadastralDept\FileMovementCards::installed() && ($fmc = $this->fmc)) {
+        // The FMC roles only (config fmc_roles, 2026-10-26).
+        if (\App\Services\CadastralDept\FileMovementCards::installed() && \App\Services\CadastralDept\FileMovementCards::canView($user) && ($fmc = $this->fmc)) {
             $items[] = ['File Movement Card ' . $fmc->fmc_no, 'id-card', route('cadastral-dept.cases.fmc.show', $this->id)];
-            if (\App\Services\CadastralDept\DeskAccess::can($user, 'print')) {
-                $items[] = ['Print FMC', 'printer', route('cadastral-dept.cases.fmc.print', $this->id), true];
-            }
+            $items[] = ['Print FMC', 'printer', route('cadastral-dept.cases.fmc.print', $this->id), true];
         }
         $items = array_merge($items, $this->verificationReportActions());
         if (\App\Services\CadastralDept\FieldJackets::installed()
             && ($jacket = \App\Models\CadastralDept\CadastralFieldJacket::query()->where('cadastral_case_id', $this->id)->first(['id', 'field_jacket_no']))) {
-            $items[] = ['Field Jacket ' . $jacket->field_jacket_no, 'briefcase', route('cadastral-dept.field-jackets.show', $jacket->id)];
+            $items[] = ['Computation File (Field Jacket) ' . $jacket->field_jacket_no, 'briefcase', route('cadastral-dept.field-jackets.show', $jacket->id)];
         }
         // No P&D bill on a Verification file for now (user, 2026-10-12); a bill found under the same
         // file number belongs to the file's Conversion / Direct case.

@@ -169,7 +169,11 @@
                 @forelse ($surveyors as $surveyor)
                     <tr>
                         <td>{{ $surveyors->firstItem() + $loop->index }}</td>
-                        <td><strong>{{ $surveyor->full_name }}</strong></td>
+                        <td><strong>{{ $surveyor->full_name }}</strong>
+                            @if (! empty($surveyor->surveyors_list_id))
+                                <div class="text-xs text-blue-700">Survey Dept staff (from Survey &gt; Surveyors)</div>
+                            @endif
+                        </td>
                         <td>{{ $surveyor->surcon_number ?: '—' }}</td>
                         <td>{{ $surveyor->firm_name ?: '—' }}</td>
                         {{-- Street, plot, district, LGA, state. --}}
@@ -201,11 +205,18 @@
                                             <i data-lucide="list" class="w-4 h-4 text-gray-500"></i> View jobs ({{ $surveyor->jobs_count }})
                                         </a>
                                     @endif
+                                    @if (! empty($surveyor->surveyors_list_id))
+                                        {{-- Copied from the Survey staff list (SurveyStaffSync): edited there, so the next sync keeps it. --}}
+                                        <a href="{{ route('survey-module.records.surveyors.index', ['edit' => $surveyor->surveyors_list_id]) }}" class="{{ $svItem }}">
+                                            <i data-lucide="external-link" class="w-4 h-4 text-gray-500"></i> Edit in Survey
+                                        </a>
+                                    @else
                                     @cadCan('edit', 'ad_information')
                                         <a href="{{ route('cadastral-module.surveyors.index', ['edit' => $surveyor->id]) }}" class="{{ $svItem }}">
                                             <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                         </a>
                                     @endcadCan
+                                    @endif
                                     <form method="POST" action="{{ route('cadastral-module.surveyors.update', $surveyor) }}">
                                         @csrf @method('PUT')
                                         <input type="hidden" name="full_name" value="{{ $surveyor->full_name }}" />
@@ -219,7 +230,7 @@
                                             {{ $surveyor->licence_status === 'Active' ? 'Suspend' : 'Reinstate' }}
                                         </button>
                                     </form>
-                                    @if ($surveyor->jobs_count === 0)
+                                    @if ($surveyor->jobs_count === 0 && empty($surveyor->surveyors_list_id))
                                         @canDo('Cad - Records', 'delete')
                                             <form method="POST" action="{{ route('cadastral-module.surveyors.destroy', $surveyor) }}"
                                                   onsubmit="return confirm('Remove {{ $surveyor->full_name }} from the directory?');">

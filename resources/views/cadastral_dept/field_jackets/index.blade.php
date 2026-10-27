@@ -2,7 +2,7 @@
 
 @section('content')
 <div class="flex-1 overflow-auto bg-gray-50">
-  @include('admin.header', ['PageTitle' => 'Field Jackets', 'PageDescription' => 'Field jackets, their survey jobs, surveyors and I to S'])
+  @include('admin.header', ['PageTitle' => 'Computation Files (Field Jackets)', 'PageDescription' => 'Computation Files, their survey jobs, surveyors and I to S'])
 
   <div class="p-6">
     @include('cadastral_dept.partials._nav')
@@ -27,13 +27,13 @@
     </form>
 
     @if (! $installed)
-      <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">The field jacket tables have not been created yet.</div>
+      <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">The Computation File tables have not been created yet.</div>
     @else
       <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
         <table class="min-w-full text-sm">
           <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
-              <th class="px-3 py-2">S/N</th><th class="px-3 py-2">Field Jacket</th><th class="px-3 py-2">Job No.</th><th class="px-3 py-2">File No.</th>
+              <th class="px-3 py-2">S/N</th><th class="px-3 py-2">Computation File (Field Jacket)</th><th class="px-3 py-2">Job No.</th><th class="px-3 py-2">File No.</th>
               <th class="px-3 py-2">Plot No.</th><th class="px-3 py-2">District</th><th class="px-3 py-2">LGA</th><th class="px-3 py-2">Location</th>
               <th class="px-3 py-2">Surveyor</th><th class="px-3 py-2">I to S</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Commissioned</th>
               <th class="px-3 py-2 text-right">Action</th>
@@ -42,7 +42,7 @@
           <tbody class="divide-y divide-gray-100">
             @forelse ($rows as $jacket)
               @php
-                $items = [['Open field jacket', 'briefcase', route('cadastral-dept.field-jackets.show', $jacket->id)]];
+                $items = [['Open Computation File', 'briefcase', route('cadastral-dept.field-jackets.show', $jacket->id)]];
                 if (\App\Services\CadastralDept\DeskAccess::can(auth()->user(), 'print')) {
                     $items[] = ['Print jacket cover', 'printer', route('cadastral-dept.field-jackets.print', $jacket->id), true];
                     if ($jacket->job?->its_number) {
@@ -67,7 +67,7 @@
                 <td class="px-3 py-2 text-right">@include('cadastral_dept.partials._row_actions', ['items' => $items])</td>
               </tr>
             @empty
-              <tr><td colspan="13" class="px-3 py-6 text-center text-gray-400">No field jackets yet. AD P&amp;D commissions one from the file's page.</td></tr>
+              <tr><td colspan="13" class="px-3 py-6 text-center text-gray-400">No Computation Files yet. AD P&amp;D commissions one from the file's page.</td></tr>
             @endforelse
           </tbody>
         </table>

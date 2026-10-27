@@ -7,7 +7,7 @@
   $case = $jacket->case;
 @endphp
 <div class="flex-1 overflow-auto bg-gray-50">
-  @include('admin.header', ['PageTitle' => 'Field Jacket ' . $jacket->field_jacket_no, 'PageDescription' => $case->case_ref . ' · survey job ' . ($job->job_number ?: 'not attached yet')])
+  @include('admin.header', ['PageTitle' => 'Computation File (Field Jacket) ' . $jacket->field_jacket_no, 'PageDescription' => $case->case_ref . ' · survey job ' . ($job->job_number ?: 'not attached yet')])
 
   <div class="p-6 space-y-6">
     @include('cadastral_dept.partials._nav')
@@ -33,7 +33,21 @@
       <div class="rounded-xl border border-gray-200 bg-white p-5">
         <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">File</h3>
         <dl class="grid grid-cols-3 gap-y-2 text-sm">
-          <dt class="text-gray-500">File No.</dt><dd class="col-span-2 font-mono">{{ $jacket->file_number }}</dd>
+          <dt class="text-gray-500">Land File No.</dt><dd class="col-span-2 font-mono">{{ $jacket->file_number }}</dd>
+          {{-- Attached to the correspondence file when commissioned; Registry detaches it at the last step (change request 26-10-2026). --}}
+          <dt class="text-gray-500">Correspondence File</dt>
+          <dd class="col-span-2">
+            @if (\App\Services\CadastralDept\FieldJackets::attachInstalled() && $jacket->attached_at)
+              <span class="font-mono">{{ $jacket->correspondence_fileno }}@if ($jacket->shadow_fileno) · {{ $jacket->shadow_fileno }}@endif</span>
+              @if ($jacket->detached_at)
+                <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">Detached {{ \Illuminate\Support\Carbon::parse($jacket->detached_at)->format('d M Y') }}</span>
+              @else
+                <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Attached since {{ \Illuminate\Support\Carbon::parse($jacket->attached_at)->format('d M Y') }}</span>
+              @endif
+            @else
+              <span class="text-gray-500">Not attached{{ $case->correspondence_fileno ? '' : ' (the file has no correspondence file yet)' }}</span>
+            @endif
+          </dd>
           <dt class="text-gray-500">File Title</dt><dd class="col-span-2">{{ $jacket->file_title ?: '—' }}</dd>
           <dt class="text-gray-500">Plot No.</dt><dd class="col-span-2">{{ $jacket->plot_no ?: '—' }}</dd>
           <dt class="text-gray-500">District</dt><dd class="col-span-2">{{ $jacket->district ?: '—' }}</dd>
@@ -44,7 +58,7 @@
       <div class="rounded-xl border border-gray-200 bg-white p-5">
         <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Jacket, job and I to S</h3>
         <dl class="grid grid-cols-3 gap-y-2 text-sm">
-          <dt class="text-gray-500">Field Jacket</dt><dd class="col-span-2 font-mono">{{ $jacket->field_jacket_no }}</dd>
+          <dt class="text-gray-500">Computation File (Field Jacket)</dt><dd class="col-span-2 font-mono">{{ $jacket->field_jacket_no }}</dd>
           <dt class="text-gray-500">Survey Job</dt><dd class="col-span-2 font-mono">{{ $job->job_number }}</dd>
           <dt class="text-gray-500">Surveyor</dt><dd class="col-span-2">{{ $job->surveyor_name ?: '—' }}@if ($job->firm_name) <span class="text-gray-500">({{ $job->firm_name }})</span>@endif</dd>
           <dt class="text-gray-500">I to S</dt><dd class="col-span-2 font-mono">{{ $job->its_number ?: 'Not issued' }}@if ($job->its_issued_at) <span class="font-sans text-gray-500">· {{ $job->its_issued_at->format('d M Y') }}</span>@endif</dd>

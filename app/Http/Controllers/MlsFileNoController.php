@@ -2448,6 +2448,19 @@ class MlsFileNoController extends Controller
                 }
             }
 
+            // An Extension needs the file's approved Plot Extension application, as a
+            // Subdivision needs its approved application (user, 2026-10-26: RES-2011-1433
+            // was extended with none). Checked before anything is minted.
+            if ($fileOption === 'extension') {
+                $extensionRefusal = $this->extensionApplicationRefusal(
+                    $validated['existing_file_no'] ?? $validated['existing_file_no_manual'] ?? null,
+                    $validated['extension_app_id'] ?? null
+                );
+                if ($extensionRefusal !== null) {
+                    return response()->json(['success' => false, 'message' => $extensionRefusal], 422);
+                }
+            }
+
             // Require related file info for Recertification (-RC) prefixes
             if ($landUse && str_contains(strtoupper($landUse), '-RC')) {
                 if (empty($validated['related_fileno'])) {
@@ -4973,6 +4986,34 @@ class MlsFileNoController extends Controller
     /**
      * Progress of a batch or duplex commissioning, polled by the modal while it waits.
      */
+    /**
+     * Why an Extension may not be commissioned, or null when it may: the file being extended
+     * must have an approved Plot Extension application (the one the form linked, else the
+     * newest approved one for that file). User, 2026-10-26.
+     */
+    private function extensionApplicationRefusal(?string $fileNo, $appId = null): ?string
+    {
+        $fileNo = trim((string) $fileNo);
+        if ($fileNo === '') {
+            return 'Select the existing file number to extend.';
+        }
+
+        $app = null;
+        if (!empty($appId)) {
+            $app = PlotExtensionApplication::query()
+                ->where('id', (int) $appId)
+                ->where('status', PlotExtensionApplication::STATUS_APPROVED)
+                ->first();
+            if ($app && strcasecmp(trim((string) $app->file_no), $fileNo) !== 0) {
+                $app = null;   // linked to another file
+            }
+        }
+        $app ??= \App\Http\Controllers\LandsOneStopShop\PlotExtensionController::approvedForFile($fileNo);
+
+        return $app ? null
+            : "{$fileNo} has no approved Plot Extension application. Capture and approve the extension under Parcel Update > Plot Extension first.";
+    }
+
     public function commissioningProgress(string $token)
     {
         return response()->json(\App\Services\CommissioningProgress::get($token) ?? ['pending' => true])
@@ -5113,6 +5154,17 @@ class MlsFileNoController extends Controller
                 'op_batch_allottees' => ['nullable', 'string', 'max:20000'],
                 'op_batch' => 'nullable|string|max:50',
             ]);
+
+            // Extension in a batch: the same approved Plot Extension rule (2026-10-26).
+            if (($validated['file_option'] ?? '') === 'extension') {
+                $extensionRefusal = $this->extensionApplicationRefusal(
+                    $request->input('existing_file_no', $request->input('existing_file_no_manual')),
+                    $request->input('extension_app_id')
+                );
+                if ($extensionRefusal !== null) {
+                    return response()->json(['success' => false, 'message' => $extensionRefusal], 422);
+                }
+            }
 
             // Same guard as the single path: the TP picker's "Other" placeholder is a UI
             // sentinel and must never be stored as a TP number, on any entry in the batch.

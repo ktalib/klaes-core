@@ -22,6 +22,14 @@
     }
     $currentOfficerId = $currentOfficerRecord->id ?? ($record->land_officer_id ?? ($authUser->id ?? ''));
     $totalSteps = $isCadastral ? 5 : 4;
+    // Opened from a Cadastral Dept file at AD Cad Report (Land12Link::prefill): blanks start with the
+    // file's details; the file number and title are locked. Null everywhere else.
+    $cdPrefill = $isCadastral && ! $isView ? ($cdPrefill ?? null) : null;
+    $cdPlotDescription = $cdPrefill
+        ? implode(' | ', array_map('strtoupper', array_filter([
+            $cdPrefill['plot'] ? 'PLOT ' . $cdPrefill['plot'] : null, $cdPrefill['district'], $cdPrefill['lga'],
+        ])))
+        : '';
 @endphp
 
 <div class="bg-white rounded-2xl" data-survey-report-modal
@@ -116,6 +124,10 @@
         @csrf
         @if($isEdit) @method('PUT') @endif
         <input type="hidden" name="url_context" value="{{ $urlContext }}">
+        @if($cdPrefill)
+            <input type="hidden" name="cd_case" value="{{ $cdPrefill['case_id'] }}">
+            <input type="hidden" name="cd_next" value="{{ $cdPrefill['next'] }}">
+        @endif
 
         <div class="modal-body p-0">
             {{-- ==================== STEP 1: Lands Section ==================== --}}
@@ -298,8 +310,8 @@
                             <div class="flex gap-2">
                                 <input type="text" name="file_number" id="sr-file-number" placeholder="Select file number" readonly
                                     class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-200"
-                                    value="{{ $record->file_number ?? '' }}" @if($isView || $isLands) disabled @endif>
-                                @if(!$isView && !$isLands)
+                                    value="{{ ($record->file_number ?? null) ?: ($cdPrefill['file_number'] ?? '') }}" @if($isView || $isLands) disabled @endif>
+                                @if(!$isView && !$isLands && !$cdPrefill)
                                 <button type="button" id="sr-select-fileno"
                                     class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 shadow-sm">
                                     Select
@@ -311,7 +323,7 @@
                             <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">File Title</label>
                             <input type="text" name="file_title" id="sr-file-title" placeholder="Auto-filled title" readonly
                                 class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-200"
-                                value="{{ $record->file_title ?? '' }}" @if($isView || $isLands) disabled @endif>
+                                value="{{ ($record->file_title ?? null) ?: ($cdPrefill['file_title'] ?? '') }}" @if($isView || $isLands) disabled @endif>
                         </div>
                     </div>
 
@@ -320,7 +332,7 @@
                         <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Director-Cadastral Date</label>
                         <input type="date" name="director_cadastral_date"
                             class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500"
-                            value="{{ $record && $record->director_cadastral_date ? $record->director_cadastral_date->format('Y-m-d') : '' }}" @if($isView || $isLands) disabled @endif>
+                            value="{{ $record && $record->director_cadastral_date ? $record->director_cadastral_date->format('Y-m-d') : ($cdPrefill['date'] ?? '') }}" @if($isView || $isLands) disabled @endif>
                     </div>
 
                     {{-- Director Name --}}
@@ -378,7 +390,7 @@
                             <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Item G No</label>
                             <input type="text" name="item_g_no" placeholder="e.g., G/2026/045"
                                 class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500"
-                                value="{{ $record->item_g_no ?? '' }}" @if($isView || $isLands) disabled @endif>
+                                value="{{ ($record->item_g_no ?? null) ?: ($cdPrefill['item_g'] ?? '') }}" @if($isView || $isLands) disabled @endif>
                         </div>
 
                         {{-- Plot Number --}}
@@ -462,7 +474,7 @@
                             </label>
                             <textarea name="plot_description" rows="3" data-location-preview
                                 class="w-full rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-emerald-800 placeholder-emerald-400 transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50"
-                                readonly >{{ $record->plot_description ?? '' }}</textarea>
+                                readonly >{{ ($record->plot_description ?? null) ?: $cdPlotDescription }}</textarea>
                             <p class="text-[11px] text-emerald-600 flex items-center gap-1">
                                 <i data-lucide="info" class="h-3 w-3 shrink-0"></i>
                                 This preview is saved as the official plot description on the LAND 12 template.
@@ -499,7 +511,7 @@
                         <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Beacon Numbers</label>
                         <textarea name="beacon_numbers" rows="3" placeholder="Enter beacon numbers, one per line"
                             class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500"
-                            @if($isView || $isLands) disabled @endif>{{ $record->beacon_numbers ?? '' }}</textarea>
+                            @if($isView || $isLands) disabled @endif>{{ ($record->beacon_numbers ?? null) ?: ($cdPrefill['beacons'] ?? '') }}</textarea>
                     </div>
 
                     {{-- Director Cadastral Approval Date --}}

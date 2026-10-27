@@ -53,7 +53,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         Route::get('/dashboard', [DashboardController::class, 'compensation'])->name('dashboard');
 
-        // CO files (PRJ-YYYY-0001), one to many projects (user, 2026-10-25)
+        // CO files (CO-YYYY-0001), one to many projects (user, 2026-10-25)
         Route::get('/co-files', [CoFileController::class, 'index'])->name('co-files');
         Route::get('/co-files/commission', [CoFileController::class, 'create'])->name('co-files.create');
         Route::post('/co-files', [CoFileController::class, 'store'])->name('co-files.store');

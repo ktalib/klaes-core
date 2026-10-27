@@ -74,11 +74,37 @@ class PndBillController extends Controller
             'pillars' => $pd ? $pd->pillars()->get() : collect(),
             'backfill' => $pd ? null : $this->bills->backfill($case),
             'due' => $this->bills->dueNow($case),
+            'correction' => $this->bills->isCorrection($case),
             'bands' => $calculator->bandOptions(),
             'rates' => $settings->feeRates(),
             'units' => AreaCalculator::UNITS,
             'liveBill' => PndBills::liveBill($case->file_number),
             'history' => $pd ? $pd->bills()->get() : collect(),
+            // Plan Description (change request 26-10-2026)
+            'linesInstalled' => PndBills::linesInstalled(),
+            'header' => $this->bills->headerDefaults($case, $pd),
+            'beaconTypes' => PndBills::beaconTypes(),
+            'registerBeacons' => PndBills::linesInstalled() ? PndBills::registerBeacons() : [],
+            'forms' => PndBills::FORMS,
+            'defaultOwnership' => PndBills::defaultOwnership($case),
+        ]);
+    }
+
+    /** The Plan Description on its form: CAD 20 (bearings and distances) or CAD 13 (SLTR). Standalone page. */
+    public function printDescription(Request $request, int $case)
+    {
+        $case = CadastralCase::findOrFail($case);
+        $pd = $this->bills->record($case);
+        abort_unless($pd, 404, 'Save the Plan Description first.');
+        $header = $this->bills->headerDefaults($case, $pd);
+        $form = array_key_exists((string) $request->query('form'), PndBills::FORMS) ? $request->query('form') : $header['description_form'];
+
+        return view('cadastral_dept.bills.description_print', [
+            'case' => $case,
+            'pd' => $pd,
+            'pillars' => $pd->pillars()->get(),
+            'header' => $header,
+            'form' => $form,
         ]);
     }
 
@@ -92,13 +118,24 @@ class PndBillController extends Controller
             'pillars.*.ownership' => 'nullable|in:government,private',
             'pillars.*.easting' => 'nullable|string|max:30',
             'pillars.*.northing' => 'nullable|string|max:30',
+            'pillars.*.pillar_type' => 'nullable|string|max:60',
+            'pillars.*.pillar_type_other' => 'nullable|string|max:50',
+            'pillars.*.distance_m' => 'nullable|string|max:30',
+            'pillars.*.bearing_deg' => 'nullable|string|max:10',
+            'pillars.*.bearing_min' => 'nullable|string|max:10',
+            'pillars.*.bearing_sec' => 'nullable|string|max:10',
+            'situated_at' => 'nullable|string|max:255',
+            'plan_drawing_no' => 'nullable|string|max:100',
+            'copied_from_plan_no' => 'nullable|string|max:100',
+            'dimensions' => 'nullable|string|max:4000',
+            'description_form' => 'nullable|in:' . implode(',', array_keys(PndBills::FORMS)),
         ]);
         $case = CadastralCase::findOrFail($case);
 
         return $this->attempt(function () use ($case, $data) {
             $pd = $this->bills->saveArea($case, $data, auth()->id());
 
-            return "{$pd->pd_ref}: area " . number_format((float) $pd->area_sqm, 2) . ' m² and ' . $pd->pillars()->count() . ' beacon(s) saved.';
+            return "{$pd->pd_ref}: area " . number_format((float) $pd->area_sqm, 2) . ' m² (' . number_format((float) $pd->area_sqm / 10000, 4) . ' ha) and ' . $pd->pillars()->count() . ' line(s) saved.';
         }, 'Area saved.');
     }
 

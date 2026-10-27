@@ -190,6 +190,8 @@
                                                         Print
                                                     </a>
                                                     @endif
+                                                    {{-- Delete is Super Admin only (user, 2026-10-26); SurveyReportController::destroy checks it too. --}}
+                                                    @if(auth()->user()?->isSuperAdmin())
                                                     <div class="border-t border-slate-100 my-1"></div>
                                                     <button type="button"
                                                         class="{{ $isCompleted
@@ -204,6 +206,7 @@
                                                         <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
                                                         Delete
                                                     </button>
+                                                    @endif
                                                 </div>
                                             </div>
                                         </td>

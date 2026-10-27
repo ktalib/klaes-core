@@ -72,6 +72,25 @@ class CaseWorkflow
         if (!in_array($workflow, (array) $fileType['workflows'], true)) {
             throw WorkflowGuardException::because("A {$fileType['label']} cannot go through " . $def->workflow($workflow)['label'] . '.');
         }
+        // A file type with fixed prefixes (Conversion File: CON-) takes only those numbers.
+        $prefixes = (array) ($fileType['prefixes'] ?? []);
+        $number = strtoupper(trim((string) ($data['file_number'] ?? '')));
+        if ($prefixes && $number !== '' && !collect($prefixes)->contains(fn ($p) => str_starts_with($number, strtoupper($p)))) {
+            throw WorkflowGuardException::because("{$number} is not a {$fileType['label']}: its number must start with " . implode(' or ', $prefixes) . '.');
+        }
+        // Verification is Conversion or Direct Allocation (user, 2026-10-26): the file must be from that group.
+        if ($workflow === 'verification' && !empty($data['verification_group'])) {
+            $group = (string) $data['verification_group'];
+            $groupPrefixes = IntakeLookup::prefixesFor($group);
+            if (!in_array($group, (array) $fileType['workflows'], true)) {
+                throw WorkflowGuardException::because("A {$fileType['label']} is not a " . $def->workflow($group)['label'] . ' file.');
+            }
+            // A file type with its own prefixes (ST-, SLTR-) belongs to both groups; the type checks above cover it.
+            if ($groupPrefixes && !$prefixes && $number !== '' && !collect($groupPrefixes)->contains(fn ($p) => str_starts_with($number, $p))) {
+                throw WorkflowGuardException::because("{$number} is not a " . $def->workflow($group)['label'] . ' file: its number must start with '
+                    . implode(' / ', $groupPrefixes) . '.');
+            }
+        }
 
         // Statutory / Customary and Resettlement / Direct come from the file type (file_types
         // `tenure` and `route`, user's voice note 2026-10-20): a fixed value is set here whatever
@@ -195,19 +214,31 @@ class CaseWorkflow
             throw WorkflowGuardException::because('Issue the Fees P&D bill; that ticks this task.');
         }
         if ($taskKey === FieldJackets::TASK_JACKET) {
-            throw WorkflowGuardException::because('Commission the field jacket; that ticks this task.');
+            throw WorkflowGuardException::because('Commission the Computation File; that ticks this task.');
         }
         if ($taskKey === FieldJackets::TASK_ITS) {
-            throw WorkflowGuardException::because('Issue the I to S on the field jacket; that ticks this task.');
+            throw WorkflowGuardException::because('Issue the I to S on the Computation File; that ticks this task.');
         }
         if ($taskKey === FieldJackets::TASK_JOB) {
             throw WorkflowGuardException::because('Attach the job and the surveyor; that ticks this task.');
+        }
+        // Land 12 is ticked by saving the form from the file page (Land12Link); by hand only once one exists.
+        if ($taskKey === Land12Link::TASK && !app(Land12Link::class)->latest($case)) {
+            throw WorkflowGuardException::because('Fill Land 12 first; saving it ticks this task.');
+        }
+        if ($taskKey === FieldJackets::TASK_DETACH) {
+            throw WorkflowGuardException::because('Use Detach Computation File; that ticks this task.');
         }
         if ($taskKey === FieldJackets::TASK_JOB_ITS) {
             throw WorkflowGuardException::because('Issue the Instruction to Surveyor on the job; that ticks this task.');
         }
         if (isset(ChartingCards::TASK_STAGE[$taskKey])) {
             throw WorkflowGuardException::because('Fill in the charting card; saving it ticks this task.');
+        }
+        if (isset(StepDocuments::TASKS[$taskKey])) {
+            throw WorkflowGuardException::because(StepDocuments::TASKS[$taskKey]['sign']
+                ? 'Sign the bill in the system, or upload the signed copy; that ticks this task.'
+                : 'Upload the ' . StepDocuments::TASKS[$taskKey]['label'] . '; that ticks this task.');
         }
         if ($taskKey === PlanningAdvice::TASK) {
             throw WorkflowGuardException::because('Upload the Planning Advice; that ticks this task.');
@@ -227,11 +258,11 @@ class CaseWorkflow
                 throw WorkflowGuardException::because('This file is not in the file index, so DMS cannot be updated from here.');
             }
             if (!$edms['complete']) {
-                throw WorkflowGuardException::because($edms['new_pages'] === 0
-                    ? 'Scan and upload the new pages first (Scan / upload pages).'
-                    : "Page-type the new pages first: {$edms['typed']} of {$edms['new_pages']} done.");
+                throw WorkflowGuardException::because('Scan and upload the new pages first (DMS update).');
             }
-            $note = "{$edms['new_pages']} new page(s) uploaded and page-typed";
+            // Page typing is not required to move on (user, 2026-10-27); the note says where it stands.
+            $note = "{$edms['new_pages']} new page(s) uploaded"
+                . ($edms['typed_all'] ? ' and page-typed' : " ({$edms['typed']} page-typed; the rest on Page Typing)");
         }
         // Land 12 has no screen here, so its tick stays manual, but only once the Yes/No form is answered.
         if ($taskKey === YesNoForms::TASK && YesNoForms::installed() && !app(YesNoForms::class)->isComplete($case)) {
@@ -333,7 +364,9 @@ class CaseWorkflow
             $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
             $this->assertOpen($case);
             if (!$heads->required($case)) {
-                throw WorkflowGuardException::because('This step has no head-of-unit approval.');
+                throw WorkflowGuardException::because(HeadApproval::enabled()
+                    ? 'This step has no head-of-unit approval.'
+                    : 'Head approval is switched off: send the file on directly. Reload the page to see its actions.');
             }
             if ($heads->awaiting($case)) {
                 throw WorkflowGuardException::because("{$case->case_ref} is already with the " . $heads->headOf($case->current_desk) . '.');
@@ -399,6 +432,47 @@ class CaseWorkflow
             $labels = array_intersect_key((array) $def->step($case->workflow, $case->current_step)['tasks'], array_flip($missing));
             throw WorkflowGuardException::because('Finish this step first: ' . implode('; ', $labels) . '.');
         }
+    }
+
+    /** Movement outcome of an admin jump (jumpTo). */
+    public const JUMP = 'admin_jump';
+
+    /**
+     * Super Admin / Central Admin: move the file straight to any step of its workflow, forward or
+     * back, past the tasks and checks in between (user, 2026-10-26: "the steps should be clickable
+     * ... can bypass any step"). Nothing in between is ticked or created; the move is one movement
+     * with the reason, plus an audit row.
+     */
+    public function jumpTo(CadastralCase $case, string $step, ?string $reason, ?int $userId): string
+    {
+        $this->assertOpen($case);
+        $def = $this->def();
+        if (!DeskAccess::isCentralAdmin(User::find($userId))) {
+            throw WorkflowGuardException::because('Only Super Admin or Central Admin can move a file to any step.');
+        }
+        if (!$def->hasStep($case->workflow, $step)) {
+            throw WorkflowGuardException::because('That step is not part of this file\'s workflow.');
+        }
+        $reason = trim((string) $reason);
+        if ($reason === '') {
+            throw WorkflowGuardException::because('Give the reason for moving the file.');
+        }
+
+        return DB::connection(self::CONN)->transaction(function () use ($case, $step, $reason, $userId, $def) {
+            $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
+            $this->assertOpen($case);
+            $from = $case->current_step;
+            if ($from === $step) {
+                throw WorkflowGuardException::because("{$case->case_ref} is already at that step.");
+            }
+            $desk = $def->step($case->workflow, $step)['desk'];
+            $case->update(['current_step' => $step, 'current_desk' => $desk]);
+            $this->move($case, $from, $step, self::JUMP, $reason, $userId);
+            $this->audit->logAction('Cadastral Case Moved By Admin', 'CadastralCase', $case->id,
+                ['current_step' => $from], ['current_step' => $step], "{$case->case_ref} moved by admin from {$from} to {$step}: {$reason}");
+
+            return "{$case->case_ref} moved to " . $def->deskShort($desk) . ' (' . $def->step($case->workflow, $step)['label'] . ').';
+        });
     }
 
     /** A Direct Allocation file's sub-type. Changeable only until the file has been routed on it. */

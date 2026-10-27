@@ -36,6 +36,14 @@
                 </label>
             </div>
 
+            <label class="block">
+                <span class="text-gray-700">File Prefix</span>
+                <select name="prefix" id="{{ $qrxId }}_prefix" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2">
+                    <option value="">All prefixes</option>
+                </select>
+                <span class="mt-1 block text-xs text-gray-500">Sorted by prefix, then 1 to N within each prefix.</span>
+            </label>
+
             <div class="flex items-center gap-6">
                 <label class="flex items-center gap-2">
                     <input type="radio" name="format" value="pdf" checked>
@@ -95,10 +103,24 @@
             submitBtn.classList.toggle('opacity-50', submitBtn.disabled);
         }
 
+        // The prefixes found in the chosen date range, each with its count. The
+        // current choice is kept when it is still in the range.
+        var prefixSelect = form.elements['prefix'];
+        function fillPrefixes(list) {
+            var keep = prefixSelect.value;
+            var total = list.reduce(function (n, p) { return n + p.count; }, 0);
+            prefixSelect.innerHTML = '';
+            prefixSelect.appendChild(new Option('All prefixes (' + total.toLocaleString() + ')', ''));
+            list.forEach(function (p) {
+                prefixSelect.appendChild(new Option((p.prefix || '(none)') + ' (' + p.count.toLocaleString() + ')', p.prefix));
+            });
+            prefixSelect.value = list.some(function (p) { return p.prefix === keep; }) ? keep : '';
+        }
+
         function refresh() {
             var mine = ++seq;
             var data = new URLSearchParams();
-            ['date_from', 'date_to'].forEach(function (k) { data.set(k, form.elements[k].value); });
+            ['date_from', 'date_to', 'prefix'].forEach(function (k) { data.set(k, form.elements[k].value); });
             countBox.textContent = 'Counting…';
             submitBtn.disabled = true;
             fetch(summaryUrl + '?' + data.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
@@ -113,6 +135,7 @@
                     }
                     matched = res.body.count;
                     pdfLimit = res.body.pdf_limit;
+                    fillPrefixes(res.body.prefixes || []);
                     render();
                 })
                 .catch(function () {

@@ -9,6 +9,9 @@
         \App\Services\ParcelRegisterService::SOURCE_DUPLEX => 'bg-sky-50 text-sky-700 border-sky-200',
         \App\Services\ParcelRegisterService::SOURCE_LEGACY => 'bg-amber-50 text-amber-700 border-amber-200',
     ];
+    $sourceCodes = \App\Services\ParcelRegisterService::SOURCE_CODES;
+    $folioIds    = $folioIds ?? [];
+    $folioUrl    = fn ($f) => isset($folioIds[strtoupper(trim((string) $f))]) ? route('vfs.show', $folioIds[strtoupper(trim((string) $f))]) : null;
     $statusStyle = function (string $s) {
         $s = strtolower($s);
         if (in_array($s, ['commissioned', 'committed', 'linked'])) return 'bg-green-50 text-green-700';
@@ -21,8 +24,8 @@
 @section('content')
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', [
-      'PageTitle'       => $label . ' Register',
-      'PageDescription' => 'Every ' . $label . ' on record: Parcel Update, Advance Parcel Update (Duplex) and Parcel Update - Legacy, in one table.',
+      'PageTitle'       => 'Parcel Update',
+      'PageDescription' => $label . ' register: every ' . $label . ' on record from Parcel Update, Advance Parcel Update (Duplex) and Parcel Update - Legacy, in one table.',
   ])
 
   <div class="p-6 space-y-5">
@@ -40,7 +43,7 @@
       @foreach ($sourceStyles as $src => $style)
         <a href="{{ route('parcel-register.index', ['type' => $type, 'mode' => $mode, 'source' => $source === $src ? '' : $src]) }}"
            class="rounded-xl border bg-white px-4 py-3 hover:shadow-sm {{ $source === $src ? 'ring-2 ring-gray-800' : '' }}">
-          <div class="text-xs font-semibold uppercase text-gray-500">{{ $src }}</div>
+          <div class="text-xs font-semibold uppercase text-gray-500">{{ $sourceCodes[$src][0] ?? $src }} · {{ $sourceCodes[$src][1] ?? '' }}</div>
           <div class="text-2xl font-bold text-gray-800">{{ number_format($counts[$src] ?? 0) }}</div>
         </a>
       @endforeach
@@ -55,7 +58,7 @@
         <select name="source" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">All sources</option>
           @foreach (array_keys($sourceStyles) as $src)
-            <option value="{{ $src }}" @selected($source === $src)>{{ $src }}</option>
+            <option value="{{ $src }}" @selected($source === $src)>{{ $sourceCodes[$src][0] ?? $src }} — {{ $sourceCodes[$src][1] ?? $src }}</option>
           @endforeach
         </select>
         <select name="status" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
@@ -97,9 +100,16 @@
           <tbody class="divide-y divide-gray-100">
             @forelse ($rows as $row)
               @php
+                [$srcCode, $srcName] = $sourceCodes[$row->source] ?? [$row->source, $row->source];
+                $rowFiles = array_values(array_unique(array_merge($row->from_files, $row->to_files)));
+                $folios   = [];
+                foreach ($rowFiles as $f) {
+                    if ($u = $folioUrl($f)) $folios[$f] = $u;
+                }
                 $payload = [
                     'title'     => $label . ' · ' . $row->reference,
-                    'source'    => $row->source . ($row->origin ? ' (' . $row->origin . ')' : ''),
+                    'source'    => $srcCode . ' · ' . $srcName . ($row->origin ? ' (' . $row->origin . ')' : ''),
+                    'folios'    => (object) $folios,
                     'reference' => $row->reference,
                     'from'      => $row->from_files,
                     'to'        => $row->to_files,
@@ -118,7 +128,7 @@
               <tr class="align-top">
                 <td class="px-3 py-2 text-gray-500">{{ $rows->firstItem() + $loop->index }}</td>
                 <td class="px-3 py-2">
-                  <span class="inline-block px-2 py-0.5 rounded border text-xs font-semibold whitespace-nowrap {{ $sourceStyles[$row->source] ?? '' }}">{{ $row->source }}</span>
+                  <span class="inline-block px-2 py-0.5 rounded border text-xs font-semibold whitespace-nowrap {{ $sourceStyles[$row->source] ?? '' }}" title="{{ $srcName }}">{{ $srcCode }}</span>
                   @if ($row->origin)<div class="text-xs text-gray-400 mt-0.5">{{ $row->origin }}</div>@endif
                 </td>
                 <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">{{ $row->reference ?: '—' }}</td>
@@ -149,13 +159,16 @@
                 <td class="px-3 py-2 text-right">
                   {{-- Fixed to the viewport, so the table's scroll box does not clip it. --}}
                   <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0,
-                         toggle(e) { const r = e.currentTarget.getBoundingClientRect(); this.top = r.bottom + 4; this.left = Math.max(8, r.right - 224); this.open = !this.open; } }"
+                         toggle(e) { const r = e.currentTarget.getBoundingClientRect(); this.top = r.bottom + 4; this.left = Math.max(8, r.right - 256); this.open = !this.open; } }"
                        @click.outside="open = false" @keydown.escape.window="open = false" @scroll.window="open = false" @resize.window="open = false">
                     <button type="button" @click.stop="toggle($event)" title="Actions" aria-label="Actions"
                             class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
                       <i data-lucide="more-vertical" class="w-5 h-5"></i>
                     </button>
-                    <div x-show="open" x-cloak :style="`top:${top}px;left:${left}px`" class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
+                    <div x-show="open" x-cloak :style="`top:${top}px;left:${left}px`" class="fixed z-50 w-64 max-h-96 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
+                      <div class="px-3 py-1.5 text-xs text-gray-500 border-b border-gray-100">
+                        From <span class="font-semibold {{ $sourceStyles[$row->source] ?? '' }} px-1.5 py-0.5 rounded border">{{ $srcCode }}</span> {{ $srcName }}
+                      </div>
                       <button type="button" @click="open = false; $dispatch('register-view', {{ \Illuminate\Support\Js::from($payload) }})"
                               class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                         <i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View details
@@ -164,6 +177,22 @@
                         <i data-lucide="external-link" class="w-4 h-4 text-gray-500"></i>
                         {{ $row->source === \App\Services\ParcelRegisterService::SOURCE_LEGACY ? 'Open Parcel Update - Legacy' : 'Open in workflow' }}
                       </a>
+                      {{-- View Folio: one entry per file that has an indexed folio (VFS, Super Admin only). --}}
+                      @if ($folios)
+                        <div class="border-t border-gray-100 my-1"></div>
+                        @foreach (array_slice($folios, 0, 6, true) as $f => $u)
+                          <a href="{{ $u }}" target="_blank" rel="noopener" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <i data-lucide="folder-open" class="w-4 h-4 text-amber-500"></i>
+                            <span>View Folio <span class="font-mono text-xs text-gray-500">{{ $f }}</span></span>
+                          </a>
+                        @endforeach
+                        @if (count($folios) > 6)
+                          <button type="button" @click="open = false; $dispatch('register-view', {{ \Illuminate\Support\Js::from($payload) }})"
+                                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <i data-lucide="folders" class="w-4 h-4 text-amber-500"></i> All folios ({{ count($folios) }})
+                          </button>
+                        @endif
+                      @endif
                     </div>
                   </div>
                 </td>
@@ -203,14 +232,24 @@
             <div>
               <div class="text-xs uppercase text-gray-500 mb-1">{{ $type === 'merger' ? 'Source Files' : 'File No.' }} (<span x-text="(r.from || []).length"></span>)</div>
               <div class="border border-gray-200 rounded-lg max-h-48 overflow-y-auto font-mono text-xs p-2">
-                <template x-for="f in (r.from || [])" :key="f"><div x-text="f"></div></template>
+                <template x-for="f in (r.from || [])" :key="f">
+                  <div class="flex items-center justify-between gap-2">
+                    <span x-text="f"></span>
+                    <a x-show="r.folios && r.folios[f]" :href="r.folios && r.folios[f]" target="_blank" rel="noopener" class="font-sans text-amber-600 hover:underline whitespace-nowrap">View Folio</a>
+                  </div>
+                </template>
                 <div x-show="!(r.from || []).length" class="text-gray-400 font-sans">—</div>
               </div>
             </div>
             <div>
               <div class="text-xs uppercase text-gray-500 mb-1">{{ $type === 'merger' ? 'Merged File' : 'New File No(s)' }} (<span x-text="(r.to || []).length"></span>)</div>
               <div class="border border-gray-200 rounded-lg max-h-48 overflow-y-auto font-mono text-xs p-2">
-                <template x-for="f in (r.to || [])" :key="f"><div x-text="f"></div></template>
+                <template x-for="f in (r.to || [])" :key="f">
+                  <div class="flex items-center justify-between gap-2">
+                    <span x-text="f"></span>
+                    <a x-show="r.folios && r.folios[f]" :href="r.folios && r.folios[f]" target="_blank" rel="noopener" class="font-sans text-amber-600 hover:underline whitespace-nowrap">View Folio</a>
+                  </div>
+                </template>
                 <div x-show="!(r.to || []).length" class="text-gray-400 font-sans">—</div>
               </div>
             </div>

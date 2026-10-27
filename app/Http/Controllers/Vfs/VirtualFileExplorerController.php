@@ -46,7 +46,7 @@ class VirtualFileExplorerController extends Controller
         // nothing for it.
         $missedByScope = 0;
 
-        if ($files->total() === 0 && ($filters['scope'] ?: VfsFolioPresenter::DEFAULT_SCOPE) !== 'all') {
+        if ($files->total() === 0 && VfsFolioPresenter::effectiveScope($filters) !== 'all') {
             $missedByScope = $this->presenter->countUnderScope($filters, 'all');
         }
 

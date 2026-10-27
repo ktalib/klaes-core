@@ -138,12 +138,23 @@ class IntakeLookup
     ];
 
     /**
+     * The file-number prefixes of Conversion or Direct Allocation. Verification picks one of the two
+     * first and lists that group's files only (user, 2026-10-26).
+     *
+     * @return string[]
+     */
+    public static function prefixesFor(?string $group): array
+    {
+        return self::LIST_PREFIXES[(string) $group] ?? [];
+    }
+
+    /**
      * The intake dropdown: up to $limit live indexed files for the application
      * type, matching what was typed. READ ONLY.
      *
      * @return array<int, array{id:int, file_number:string, title:?string, plot:?string, district:?string, lga:?string, tracking_id:?string}>
      */
-    public function options(string $workflow, string $term, int $limit = 30): array
+    public function options(string $workflow, string $term, int $limit = 30, ?string $group = null, array $typePrefixes = []): array
     {
         if (!isset(self::LIST_PREFIXES[$workflow]) && $workflow !== 'verification') {
             return [];
@@ -154,10 +165,26 @@ class IntakeLookup
             ->whereNotNull('file_number')
             ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
 
+        // A file type with its own numbers (ST File: ST-, SLTR File: SLTR-, Conversion File: CON-) lists
+        // just those, under any application type (user, 2026-10-27).
         if ($workflow !== 'verification') {
+            $listPrefixes = $typePrefixes ?: self::LIST_PREFIXES[$workflow];
             $q->where(fn ($w) => $w->whereNull('is_decommissioned')->orWhere('is_decommissioned', 0));
-            $q->where(function ($w) use ($workflow) {
-                foreach (self::LIST_PREFIXES[$workflow] as $prefix) {
+            $q->where(function ($w) use ($listPrefixes) {
+                foreach ($listPrefixes as $prefix) {
+                    $w->orWhere('file_number', 'like', $prefix . '%');
+                }
+            });
+        } elseif ($typePrefixes) {
+            $q->where(function ($w) use ($typePrefixes) {
+                foreach ($typePrefixes as $prefix) {
+                    $w->orWhere('file_number', 'like', $prefix . '%');
+                }
+            });
+        } elseif (self::prefixesFor($group)) {
+            // Verification > Conversion or Direct Allocation: that group's files, decommissioned ones included.
+            $q->where(function ($w) use ($group) {
+                foreach (self::prefixesFor($group) as $prefix) {
                     $w->orWhere('file_number', 'like', $prefix . '%');
                 }
             });

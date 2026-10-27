@@ -84,6 +84,9 @@ class CadastralDocuments
     public const KIND_PLANNING_ADVICE = 'planning_advice';
     /** Cadastral Department: the new pages the main file came back from Land with (DMS update, 2026-10-18). */
     public const KIND_DMS_UPDATE = 'dms_update';
+    /** Cadastral Department: the SG-signed Final Survey Plan, and the signed Fees P&D (change request 26-10-2026). */
+    public const KIND_FINAL_SURVEY_PLAN = 'final_survey_plan';
+    public const KIND_SIGNED_PND_BILL = 'signed_pnd_bill';
 
     public const OWNER_STATUS_EVENT = 'cadastral_file_status_event';
     public const OWNER_REPORT       = 'cadastral_report';
@@ -95,6 +98,8 @@ class CadastralDocuments
         self::KIND_MANUAL_CHART => 'Cadastral – Manual Chart',
         self::KIND_PLANNING_ADVICE => 'Cadastral – Planning Advice',
         self::KIND_DMS_UPDATE => 'Cadastral – DMS Update (pages back from Land)',
+        self::KIND_FINAL_SURVEY_PLAN => 'Cadastral – Final Survey Plan (SG)',
+        self::KIND_SIGNED_PND_BILL => 'Cadastral – Signed Fees, Plan and Description',
     ];
 
     /** hasTable costs a round trip; one answer per request (per process). */

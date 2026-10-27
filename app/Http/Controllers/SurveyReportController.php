@@ -22,6 +22,20 @@ class SurveyReportController extends Controller
     public function __construct(LandOfficerSignatureService $landOfficerSignatureService)
     {
         $this->landOfficerSignatureService = $landOfficerSignatureService;
+
+        // The Cadastral side (url / url_context = cadastral: Other Departments > Land > Cadastral to Land)
+        // is the Cadastral Report desk's (user, 2026-10-26: every Cadastral entry has a role). The Lands
+        // side of this shared page keeps its own rules.
+        $this->middleware(function ($request, $next) {
+            $context = (string) ($request->query('url') ?? $request->input('url_context') ?? '');
+            if ($context === 'cadastral'
+                && !app(\App\Services\CadastralDept\DeskAccess::class)->canWorkDesk($request->user(), 'ad_report')) {
+                abort(403, 'Cadastral to Land (Land 12) is for the Cadastral Report desk ('
+                    . implode(' / ', \App\Services\CadastralDept\DeskAccess::rolesFor('ad_report')) . ').');
+            }
+
+            return $next($request);
+        });
     }
 
     public function index(Request $request)
@@ -37,9 +51,10 @@ class SurveyReportController extends Controller
         $urlContext = $request->query('url', '');
         $prefillFileNo = $request->query('file_no', '');
         $prefillFileTitle = $request->query('file_title', '');
+        $cdPrefill = $this->cadastralPrefill($request, $urlContext);
 
         return view('survey_report.partials.modal', array_merge(
-            compact('urlContext', 'prefillFileNo', 'prefillFileTitle'),
+            compact('urlContext', 'prefillFileNo', 'prefillFileTitle', 'cdPrefill'),
             $this->getLocationOptions()
         ));
     }
@@ -61,6 +76,7 @@ class SurveyReportController extends Controller
         $data['status'] = in_array($request->input('url_context'), ['lands', 'lands12']) ? 'Sent to Cadastral' : 'Generated';
 
         $requestRecord = SurveyReportRequest::create($data);
+        $cdNext = $this->cadastralRecorded($request, $requestRecord);
 
         // LAAS Portal (spec e/f): if this Land 12 is for a file that came from
         // the public portal, move that application on and show it to the
@@ -97,6 +113,7 @@ class SurveyReportController extends Controller
             'success' => true,
             'message' => 'Survey report request generated successfully.',
             'data' => $requestRecord,
+            'cd_next' => $cdNext,
         ]);
     }
 
@@ -116,9 +133,10 @@ class SurveyReportController extends Controller
     {
         $requestRecord = SurveyReportRequest::findOrFail($id);
         $urlContext = $request->query('url', '');
+        $cdPrefill = $this->cadastralPrefill($request, $urlContext);
 
         return view('survey_report.partials.modal', array_merge(
-            compact('requestRecord', 'urlContext'),
+            compact('requestRecord', 'urlContext', 'cdPrefill'),
             $this->getLocationOptions()
         ));
     }
@@ -141,6 +159,7 @@ class SurveyReportController extends Controller
 
         unset($data['id'], $data['serial_no'], $data['created_at']);
         $requestRecord->update($data);
+        $cdNext = $this->cadastralRecorded($request, $requestRecord);
 
         // LAAS Portal (spec g): Cadastral has returned the completed survey
         // report. This also opens the recommendation stage and puts the alert on
@@ -163,7 +182,40 @@ class SurveyReportController extends Controller
             'success' => true,
             'message' => 'Survey report request updated successfully.',
             'data' => $requestRecord,
+            'cd_next' => $cdNext,
         ]);
+    }
+
+    /**
+     * Opened from a Cadastral Dept file at AD Cad Report (?cd_case=ID, url=cadastral): the form starts
+     * with the file's details (Land12Link::prefill). Null for every other use of this page.
+     */
+    private function cadastralPrefill(Request $request, string $urlContext): ?array
+    {
+        $caseId = (int) $request->query('cd_case', 0);
+        if ($urlContext !== 'cadastral' || $caseId <= 0) {
+            return null;
+        }
+        $case = \App\Models\CadastralDept\CadastralCase::find($caseId);
+
+        return $case ? app(\App\Services\CadastralDept\Land12Link::class)->prefill($case) : null;
+    }
+
+    /** Saved from a Cadastral Dept file: tick its Land 12 task; returns where to go next, or null. Never fails the save. */
+    private function cadastralRecorded(Request $request, SurveyReportRequest $record): ?string
+    {
+        $caseId = (int) $request->input('cd_case', 0);
+        if ($request->input('url_context') !== 'cadastral' || $caseId <= 0) {
+            return null;
+        }
+        try {
+            app(\App\Services\CadastralDept\Land12Link::class)->recorded($caseId, $record, Auth::id());
+        } catch (\Throwable $e) {
+            report($e);
+        }
+        $next = (string) $request->input('cd_next', '');
+
+        return str_starts_with($next, '/') && !str_starts_with($next, '//') ? $next : null;
     }
 
     private function validateSurveyReportPayload(Request $request): array
@@ -531,6 +583,10 @@ class SurveyReportController extends Controller
 
     public function destroy($id)
     {
+        // Land 12 delete is Super Admin only (user, 2026-10-26).
+        if (!Auth::user()?->isSuperAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Only the admin can delete a Land 12 request.'], 403);
+        }
         $requestRecord = SurveyReportRequest::findOrFail($id);
         $requestRecord->delete();
 

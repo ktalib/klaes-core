@@ -128,7 +128,7 @@
                                 No allocations match these filters.
                             @else
                                 No surveyor allocations yet. Assign surveyors and portions on a project in
-                                <a href="{{ route('survey-module.compensation.projects') }}">All Projects</a>.
+                                <a href="{{ route('survey-module.compensation.projects') }}">Projects</a>.
                             @endif
                         </td>
                     </tr>

@@ -102,104 +102,136 @@
                       ])->all()
                     : []);
             @endphp
-            <div class="form-grid">
-                <div class="form-group full">
-                    <label>Surveyors &amp; Portion Allocation</label>
-                    <p class="helper-text" style="margin-bottom:8px;">
-                        Pick each surveyor from the <a href="{{ route('survey-module.records.surveyors.index') }}">List of Surveyors</a>,
-                        then enter how many portions they will survey and the size of each portion.
-                        A surveyor's case form offers exactly that many portions.
-                    </p>
-                    <div class="table-wrapper" style="margin:0;">
-                        <div class="table-scroll">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th style="width:50px;">S/N</th>
-                                        <th>Surveyor</th>
-                                        <th style="width:140px;">No. of Portions</th>
-                                        <th style="width:170px;">Size per Portion (Ha)</th>
-                                        <th style="width:140px;">Subtotal (Ha)</th>
-                                        <th style="width:60px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="projSurveyorRows">
-                                    @foreach ($svRows as $i => $row)
-                                        @php $minPortions = max(1, $usedMax[$row['id'] ?? 0] ?? 0); @endphp
-                                        <tr data-row>
-                                            <td data-sn>{{ $loop->iteration }}</td>
-                                            <td>
-                                                <input type="hidden" name="surveyors[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
-                                                <select name="surveyors[{{ $i }}][surveyor_id]" required>
-                                                    <option value="">— Select surveyor —</option>
-                                                    @foreach ($surveyors as $sv)
-                                                        <option value="{{ $sv->id }}" @selected((string) ($row['surveyor_id'] ?? '') === (string) $sv->id)>
-                                                            {{ $sv->full_name }}{{ $sv->rank ? ' · ' . $sv->rank : '' }}{{ $sv->is_active ? '' : ' (inactive)' }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <input type="number" name="surveyors[{{ $i }}][portions]" min="{{ $minPortions }}" step="1"
-                                                       value="{{ $row['portions'] ?? '' }}" required oninput="projSurveyors.total()"
-                                                       @if ($minPortions > 1) title="Portions 1–{{ $minPortions }} already have cases" @endif />
-                                            </td>
-                                            <td>
-                                                <input type="number" name="surveyors[{{ $i }}][portion_size_ha]" min="0.0001" step="0.0001"
-                                                       value="{{ $row['portion_size_ha'] ?? '' }}" required oninput="projSurveyors.total()" />
-                                            </td>
-                                            <td data-subtotal>—</td>
-                                            <td>
-                                                @if (! empty($row['id']) && ($usedMax[$row['id']] ?? 0) > 0)
-                                                    <span title="Has cases; cannot be removed" style="color:var(--gray-400);"><i class="fas fa-lock"></i></span>
-                                                @else
-                                                    <button type="button" class="btn btn-outline btn-xs" title="Remove" aria-label="Remove surveyor"
-                                                            onclick="projSurveyors.remove(this)"><i class="fas fa-times"></i></button>
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                    <tr id="projSurveyorEmpty" @style(['display:none' => count($svRows) > 0])>
-                                        <td colspan="6" style="text-align:center;color:var(--gray-500);padding:16px;">
-                                            No surveyors assigned yet.
+            {{-- Restyled 2026-10-26 (user: "the css is really bad"). --}}
+            <style>
+                .survey-proto .pa-section { margin-top: 22px; }
+                .survey-proto .pa-head { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+                    text-transform: uppercase; color: var(--primary, #2563eb); margin-bottom: 6px; }
+                .survey-proto .pa-head::after { content: ''; flex: 1; height: 1px; background: var(--gray-200, #e5e7eb); }
+                .survey-proto .pa-help { font-size: 12.5px; line-height: 1.5; color: var(--gray-500, #6b7280); margin: 0 0 12px; }
+                .survey-proto .pa-help a { color: var(--primary, #2563eb); text-decoration: underline; }
+                .survey-proto .pa-box { border: 1px solid var(--gray-200, #e5e7eb); border-radius: 10px; overflow: hidden; background: #fff; }
+                .survey-proto .pa-scroll { overflow-x: auto; }
+                .survey-proto table.pa-table { width: 100%; min-width: 720px; border-collapse: collapse; margin: 0; }
+                .survey-proto table.pa-table th { background: var(--gray-50, #f9fafb); font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
+                    text-transform: uppercase; color: var(--gray-600, #4b5563); padding: 10px 12px; text-align: left;
+                    border-bottom: 1px solid var(--gray-200, #e5e7eb); white-space: nowrap; }
+                .survey-proto table.pa-table td { padding: 8px 12px; border-bottom: 1px solid var(--gray-100, #f3f4f6); vertical-align: middle; font-size: 14px; }
+                .survey-proto table.pa-table tr:last-child td { border-bottom: 0; }
+                .survey-proto table.pa-table .num { text-align: right; }
+                .survey-proto table.pa-table .sn { width: 56px; color: var(--gray-500, #6b7280); font-weight: 600; }
+                .survey-proto table.pa-table select,
+                .survey-proto table.pa-table input[type=number] { width: 100%; height: 38px; padding: 6px 10px; border: 1.5px solid var(--gray-300, #d1d5db);
+                    border-radius: var(--radius-sm, 6px); font-family: var(--font); font-size: 14px; background: #fff; }
+                .survey-proto table.pa-table input[type=number] { text-align: right; }
+                .survey-proto table.pa-table select:focus,
+                .survey-proto table.pa-table input:focus { outline: 0; border-color: var(--primary, #2563eb); box-shadow: 0 0 0 3px var(--primary-100, #dbeafe); }
+                .survey-proto table.pa-table [data-subtotal] { font-weight: 600; color: var(--gray-900, #111827); white-space: nowrap; }
+                .survey-proto .pa-x { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;
+                    border: 1px solid var(--gray-200, #e5e7eb); background: #fff; color: var(--gray-500, #6b7280); cursor: pointer; }
+                .survey-proto .pa-x:hover { border-color: #fecaca; background: #fef2f2; color: var(--danger, #dc2626); }
+                .survey-proto .pa-lock { color: var(--gray-400, #9ca3af); display: inline-flex; width: 32px; justify-content: center; }
+                .survey-proto .pa-empty td { text-align: center; color: var(--gray-500, #6b7280); padding: 22px 12px; font-size: 13.5px; }
+                .survey-proto .pa-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+                    padding: 10px 12px; background: var(--gray-50, #f9fafb); border-top: 1px solid var(--gray-200, #e5e7eb); }
+                .survey-proto .pa-total { font-size: 13.5px; color: var(--gray-700, #374151); }
+                .survey-proto .pa-total strong { color: var(--gray-900, #111827); }
+                .survey-proto .pa-total .over { color: var(--danger, #dc2626); margin-left: 6px; }
+            </style>
+            <div class="pa-section">
+                <div class="pa-head"><i class="fas fa-user-friends"></i><span>Surveyors &amp; Portion Allocation</span></div>
+                <p class="pa-help">
+                    Pick each surveyor from the <a href="{{ route('survey-module.records.surveyors.index') }}">List of Surveyors</a>,
+                    then enter how many portions they will survey and the size of each portion.
+                    A surveyor's case form offers exactly that many portions.
+                </p>
+                <div class="pa-box">
+                    <div class="pa-scroll">
+                        <table class="pa-table" data-column-picker="off">
+                            <thead>
+                                <tr>
+                                    <th class="sn">S/N</th>
+                                    <th>Surveyor</th>
+                                    <th class="num" style="width:150px;">No. of Portions</th>
+                                    <th class="num" style="width:180px;">Size per Portion (Ha)</th>
+                                    <th class="num" style="width:140px;">Subtotal (Ha)</th>
+                                    <th style="width:56px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="projSurveyorRows">
+                                @foreach ($svRows as $i => $row)
+                                    @php $minPortions = max(1, $usedMax[$row['id'] ?? 0] ?? 0); @endphp
+                                    <tr data-row>
+                                        <td class="sn" data-sn>{{ $loop->iteration }}</td>
+                                        <td>
+                                            <input type="hidden" name="surveyors[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
+                                            <select name="surveyors[{{ $i }}][surveyor_id]" required aria-label="Surveyor">
+                                                <option value="">— Select surveyor —</option>
+                                                @foreach ($surveyors as $sv)
+                                                    <option value="{{ $sv->id }}" @selected((string) ($row['surveyor_id'] ?? '') === (string) $sv->id)>
+                                                        {{ $sv->full_name }}{{ $sv->rank ? ' · ' . $sv->rank : '' }}{{ $sv->is_active ? '' : ' (inactive)' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" name="surveyors[{{ $i }}][portions]" min="{{ $minPortions }}" step="1" aria-label="No. of portions"
+                                                   value="{{ $row['portions'] ?? '' }}" required oninput="projSurveyors.total()"
+                                                   @if ($minPortions > 1) title="Portions 1–{{ $minPortions }} already have cases" @endif />
+                                        </td>
+                                        <td>
+                                            <input type="number" name="surveyors[{{ $i }}][portion_size_ha]" min="0.0001" step="0.0001" aria-label="Size per portion (Ha)"
+                                                   value="{{ $row['portion_size_ha'] ?? '' }}" required oninput="projSurveyors.total()" />
+                                        </td>
+                                        <td class="num" data-subtotal>—</td>
+                                        <td>
+                                            @if (! empty($row['id']) && ($usedMax[$row['id']] ?? 0) > 0)
+                                                <span class="pa-lock" title="Has cases; cannot be removed"><i class="fas fa-lock"></i></span>
+                                            @else
+                                                <button type="button" class="pa-x" title="Remove" aria-label="Remove surveyor"
+                                                        onclick="projSurveyors.remove(this)"><i class="fas fa-times"></i></button>
+                                            @endif
                                         </td>
                                     </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="table-footer" style="flex-wrap:wrap;gap:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="projSurveyors.add()">
-                                <i class="fas fa-plus"></i> Add Surveyor
-                            </button>
-                            <span id="projSurveyorTotal"></span>
-                        </div>
+                                @endforeach
+                                <tr id="projSurveyorEmpty" class="pa-empty" @style(['display:none' => count($svRows) > 0])>
+                                    <td colspan="6"><i class="fas fa-user-plus"></i> No surveyors assigned yet. Use <strong>Add Surveyor</strong> below.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pa-foot">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="projSurveyors.add()">
+                            <i class="fas fa-plus"></i> Add Surveyor
+                        </button>
+                        <span class="pa-total" id="projSurveyorTotal"></span>
                     </div>
                 </div>
             </div>
 
             <template id="projSurveyorTpl">
                 <tr data-row>
-                    <td data-sn></td>
+                    <td class="sn" data-sn></td>
                     <td>
                         <input type="hidden" name="surveyors[__i__][id]" value="" />
-                        <select name="surveyors[__i__][surveyor_id]" required>
+                        <select name="surveyors[__i__][surveyor_id]" required aria-label="Surveyor">
                             <option value="">— Select surveyor —</option>
                             @foreach ($surveyors->where('is_active', true) as $sv)
                                 <option value="{{ $sv->id }}">{{ $sv->full_name }}{{ $sv->rank ? ' · ' . $sv->rank : '' }}</option>
                             @endforeach
                         </select>
                     </td>
-                    <td><input type="number" name="surveyors[__i__][portions]" min="1" step="1" required oninput="projSurveyors.total()" /></td>
-                    <td><input type="number" name="surveyors[__i__][portion_size_ha]" min="0.0001" step="0.0001" required oninput="projSurveyors.total()" /></td>
-                    <td data-subtotal>—</td>
+                    <td><input type="number" name="surveyors[__i__][portions]" min="1" step="1" required aria-label="No. of portions" oninput="projSurveyors.total()" /></td>
+                    <td><input type="number" name="surveyors[__i__][portion_size_ha]" min="0.0001" step="0.0001" required aria-label="Size per portion (Ha)" oninput="projSurveyors.total()" /></td>
+                    <td class="num" data-subtotal>—</td>
                     <td>
-                        <button type="button" class="btn btn-outline btn-xs" title="Remove" aria-label="Remove surveyor"
+                        <button type="button" class="pa-x" title="Remove" aria-label="Remove surveyor"
                                 onclick="projSurveyors.remove(this)"><i class="fas fa-times"></i></button>
                     </td>
                 </tr>
             </template>
 
-            <div class="form-grid">
+            <div class="form-grid" style="margin-top:22px;">
                 <div class="form-group full">
                     <label>Compensation Scheme Type <span class="required">*</span></label>
 
@@ -288,13 +320,19 @@
             var out = document.getElementById('projSurveyorTotal');
             if (!rows.length) { out.textContent = ''; return; }
             var over = acq > 0 && sum - acq > 0.00005;
-            out.innerHTML = 'Allocated: <strong>' + fmt(sum) + ' Ha</strong>' + (acq ? ' of ' + fmt(acq) + ' Ha acquired' : '') +
-                (over ? ' <span style="color:var(--danger);"><i class="fas fa-exclamation-triangle"></i> exceeds the size of acquisition</span>' : '');
+            out.innerHTML = 'Allocated: <strong>' + fmt(sum) + ' Ha</strong>' + (acq ? ' of <strong>' + fmt(acq) + ' Ha</strong> acquired' : '') +
+                (over ? '<span class="over"><i class="fas fa-exclamation-triangle"></i> exceeds the size of acquisition</span>' : '');
         }
 
         function add() {
             var html = document.getElementById('projSurveyorTpl').innerHTML.replace(/__i__/g, 'n' + (next++));
-            body.insertBefore(document.createRange().createContextualFragment(html), document.getElementById('projSurveyorEmpty'));
+            // Parsed inside a tbody: outside a table the browser drops the tr/td tags and the inputs pile up.
+            var tmp = document.createElement('tbody');
+            tmp.innerHTML = html.trim();
+            var tr = tmp.querySelector('tr');
+            body.insertBefore(tr, document.getElementById('projSurveyorEmpty'));
+            var first = tr.querySelector('select');
+            if (first) first.focus();
             total();
         }
 

@@ -11009,16 +11009,31 @@
     };
 
     // Plot Extension register -> File Commissioning: the approved application for the
-    // file being extended is linked, and commissioning marks it commissioned. None found
-    // is not an error: extensions are still commissioned without an application.
+    // file being extended is linked, and commissioning marks it commissioned. Like a
+    // Subdivision, an Extension needs one (user, 2026-10-26): with none the file is not
+    // kept, and the server refuses it too (extensionApplicationRefusal).
     function linkPlotExtensionApplication(data, fileNumber) {
         if (!data) return;
         data.extensionAppId = '';
+        const samePick = () => String(data.existingFileNo || '').trim().toUpperCase() === String(fileNumber).trim().toUpperCase();
+        const refuse = (text) => {
+            if (!samePick()) return;
+            data.existingFileNo = '';
+            const displayInput = document.getElementById('displayExtensionFileNo');
+            if (displayInput) displayInput.value = '';
+            if (typeof data.updatePreview === 'function') data.updatePreview();
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'warning', title: 'No approved Plot Extension', text, confirmButtonColor: '#f59e0b' });
+            }
+        };
         fetch(`{{ route('plot-extension.find-by-file', '') }}/${encodeURIComponent(fileNumber)}`, { headers: { 'Accept': 'application/json' } })
             .then((r) => r.ok ? r.json() : null)
             .then((res) => {
-                if (!res || !res.success || !res.data) return;
-                if (String(data.existingFileNo || '').trim().toUpperCase() !== String(fileNumber).trim().toUpperCase()) return; // picked another file meanwhile
+                if (!res || !res.success || !res.data) {
+                    refuse(fileNumber + ' has no approved Plot Extension application. Capture and approve the extension under Parcel Update > Plot Extension first.');
+                    return;
+                }
+                if (!samePick()) return; // picked another file meanwhile
                 data.extensionAppId = res.data.id;
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
@@ -11028,7 +11043,7 @@
                     });
                 }
             })
-            .catch(() => {});
+            .catch(() => refuse('Could not check the Plot Extension application for ' + fileNumber + '. Try selecting the file again.'));
     }
 
     // ----- Extension Type (File vs Plot) helpers -----

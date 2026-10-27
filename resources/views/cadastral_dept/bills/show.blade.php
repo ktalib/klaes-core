@@ -2,9 +2,27 @@
 
 @section('content')
 @php
+  $cdNum = fn ($v) => $v === null ? '' : rtrim(rtrim(number_format((float) $v, 3, '.', ''), '0'), '.');
   $cdPillars = old('pillars', $pd
-      ? $pillars->map(fn ($p) => ['pillar_number' => $p->pillar_number, 'ownership' => $p->ownership ?: 'government', 'easting' => $p->easting === null ? '' : (string) $p->easting, 'northing' => $p->northing === null ? '' : (string) $p->northing])->values()->all()
+      ? $pillars->map(fn ($p) => [
+          'pillar_number' => $p->pillar_number, 'ownership' => $p->ownership ?: $defaultOwnership,
+          'easting' => $p->easting === null ? '' : (string) $p->easting, 'northing' => $p->northing === null ? '' : (string) $p->northing,
+          // Plan Description line (change request 26-10-2026); a type not in the list shows as Other.
+          'pillar_type' => $p->pillar_type === null ? '' : (in_array($p->pillar_type, $beaconTypes, true) ? $p->pillar_type : 'other'),
+          'pillar_type_other' => $p->pillar_type !== null && ! in_array($p->pillar_type, $beaconTypes, true) ? $p->pillar_type : '',
+          'distance_m' => $linesInstalled ? $cdNum($p->distance_m) : '',
+          'bearing_deg' => $linesInstalled && $p->bearing_deg !== null ? (string) $p->bearing_deg : '',
+          'bearing_min' => $linesInstalled && $p->bearing_min !== null ? (string) $p->bearing_min : '',
+          'bearing_sec' => $linesInstalled && $p->bearing_sec !== null && (float) $p->bearing_sec > 0 ? $cdNum($p->bearing_sec) : '',
+        ])->values()->all()
       : ($backfill['pillars'] ?? []));
+  $cdHeader = [
+      'situated_at' => old('situated_at', $header['situated_at']),
+      'plan_drawing_no' => old('plan_drawing_no', $header['plan_drawing_no']),
+      'copied_from_plan_no' => old('copied_from_plan_no', $header['copied_from_plan_no']),
+      'dimensions' => old('dimensions', $header['dimensions']),
+      'description_form' => old('description_form', $header['description_form']),
+  ];
   $cdFeeInit = [
       'url' => route('cadastral-dept.cases.bill.preview', $case->id),
       'delay_days' => old('delay_days', ''), 'field_work_days' => old('field_work_days', ''), 'office_work_days' => old('office_work_days', ''),
@@ -43,12 +61,180 @@
       <p class="text-xs text-gray-500 mt-3">No payment is taken here. Once issued, the bill total is filled in as the Survey Fee on Deeds Bill Balance when this file number is picked.</p>
     </div>
 
+    @if ($due && $correction)
+      <div class="rounded-lg border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        Correcting the bill before AD Cad Info signs it. Issuing a corrected bill cancels and replaces {{ $liveBill ? $liveBill->bill_ref : 'the unsigned bill' }}. Once the bill is signed it can no longer be changed here.
+      </div>
+    @endif
     @unless ($due)
       <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-        {{ $case->case_ref }} is not at the billing step, so this page is read only.
+        {{ $case->case_ref }} is not at the billing step (or the bill is already signed), so this page is read only.
       </div>
     @endunless
 
+    @if ($linesInstalled)
+    {{-- 1. Plan Description: CAD 20 / CAD 13 header and boundary lines (change request 26-10-2026) --}}
+    <form method="POST" action="{{ route('cadastral-dept.cases.bill.area.save', $case->id) }}" class="rounded-xl border border-gray-200 bg-white p-5 space-y-5"
+          x-data="cdPndLines(@js($cdPillars), @js($cdHeader), @js(['types' => $beaconTypes, 'ownership' => $defaultOwnership, 'register' => $registerBeacons]))"
+          data-confirm-title="Save the Plan Description?" data-confirm="The header, boundary lines and area for {{ $case->file_number }} are saved.">
+      @csrf
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 class="text-base font-bold text-gray-800">1. Plan Description</h3>
+        <div class="flex flex-wrap items-center gap-2">
+          @if ($pd)
+            <span class="text-sm text-gray-600">{{ $pd->pd_ref }} · saved area <strong>{{ number_format((float) $pd->area_sqm, 2) }} m²</strong> ({{ number_format((float) $pd->area_ha, 4) }} ha, {{ ['manual' => 'typed', 'bearings' => 'from bearings and distances'][$pd->area_source] ?? 'from coordinates' }})</span>
+            @cadCan('print')
+              @foreach ($forms as $fk => $fl)
+                <a href="{{ route('cadastral-dept.cases.bill.description.print', ['case' => $case->id, 'form' => $fk]) }}" target="_blank"
+                   class="inline-flex items-center gap-1 px-3 py-1 rounded-md {{ $fk === $header['description_form'] ? 'bg-gray-800 text-white' : 'border border-gray-300 text-gray-700' }} text-xs font-semibold">
+                  <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print {{ strtoupper(str_replace('cad', 'CAD ', $fk)) }}
+                </a>
+              @endforeach
+            @endcadCan
+          @elseif ($backfill)
+            <span class="text-xs text-blue-700">Beacons prefilled from charting card {{ $backfill['source'] }}. Add the bearings and distances, then save.</span>
+          @endif
+        </div>
+      </div>
+
+      {{-- Header: the blanks of the form --}}
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">R. of O. / File No.</label>
+          <div class="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 font-mono">{{ $case->file_number }}</div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Situated at (village / location)</label>
+          <input type="text" name="situated_at" x-model="h.situated_at" maxlength="255" class="w-full border border-gray-300 rounded-lg px-3 py-2" @disabled(! $due)>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">District</label>
+          <div class="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200">{{ $header['district'] ?: '—' }}</div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">LGA (administrative area)</label>
+          <div class="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200">{{ $header['lga'] ?: '—' }}</div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Plan drawing No. (R. of O. KN)</label>
+          <input type="text" name="plan_drawing_no" x-model="h.plan_drawing_no" maxlength="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono" @disabled(! $due)>
+        </div>
+        <div x-show="h.description_form === 'cad13'" x-cloak>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Copied from plan No.</label>
+          <input type="text" name="copied_from_plan_no" x-model="h.copied_from_plan_no" maxlength="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono" @disabled(! $due)>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Form</label>
+          <select name="description_form" x-model="h.description_form" class="w-full border border-gray-300 rounded-lg px-3 py-2" @disabled(! $due)>
+            @foreach ($forms as $fk => $fl)<option value="{{ $fk }}">{{ $fl }}</option>@endforeach
+          </select>
+        </div>
+      </div>
+
+      {{-- Boundary lines: one card each, + to add (CAD 20 "For a distance of ... on a bearing of ... To a ...") --}}
+      <datalist id="cd-beacon-register">
+        <template x-for="b in o.register" :key="b"><option :value="b"></option></template>
+      </datalist>
+      <div class="space-y-3">
+        <template x-for="(p, i) in pillars" :key="i">
+          <div class="rounded-lg border border-gray-200 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div class="text-sm font-semibold text-gray-800">
+                <span x-text="'Line ' + (i + 1) + ':'"></span>
+                <span x-text="i === 0 ? 'Starting from' : 'From'"></span>
+                <span class="font-mono" x-text="p.pillar_number || '…'"></span>
+                <span class="text-gray-400">&rarr;</span>
+                <span class="font-mono" x-text="(pillars[i + 1] ? pillars[i + 1].pillar_number : (pillars.length > 1 ? pillars[0].pillar_number + ' (back to the start)' : '')) || '…'"></span>
+              </div>
+              @if ($due)
+                <button type="button" @click="pillars.splice(i, 1)" class="text-xs text-gray-400 hover:text-red-600" aria-label="Remove line">Remove</button>
+              @endif
+            </div>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-6 text-sm">
+              <div>
+                <label class="block text-xs text-gray-500 mb-0.5">Beacon No.</label>
+                <input type="text" list="cd-beacon-register" :name="'pillars[' + i + '][pillar_number]'" x-model="p.pillar_number" maxlength="50" placeholder="From the register, or type it"
+                       class="w-full border border-gray-300 rounded px-2 py-1 uppercase font-mono" @disabled(! $due)>
+                <div class="text-[11px] mt-0.5" x-show="p.pillar_number" x-cloak>
+                  <span x-show="inRegister(p.pillar_number)" class="text-green-700">In the beacon register</span>
+                  <span x-show="!inRegister(p.pillar_number)" class="text-amber-700">Not in the beacon register (typed)</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-0.5">Beacon type</label>
+                <select :name="'pillars[' + i + '][pillar_type]'" x-model="p.pillar_type" class="w-full border border-gray-300 rounded px-2 py-1" @disabled(! $due)>
+                  <option value="">Choose…</option>
+                  <template x-for="t in o.types" :key="t"><option :value="t" x-text="t" :selected="p.pillar_type === t"></option></template>
+                  <option value="other">Other (specify)</option>
+                </select>
+                <input type="text" x-show="p.pillar_type === 'other'" x-cloak :disabled="p.pillar_type !== 'other' || {{ $due ? 'false' : 'true' }}" :required="p.pillar_type === 'other'"
+                       :name="'pillars[' + i + '][pillar_type_other]'" x-model="p.pillar_type_other" maxlength="50" placeholder="Specify the type" class="mt-1 w-full border border-gray-300 rounded px-2 py-1">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-0.5">Distance (m)</label>
+                <input type="text" inputmode="decimal" :name="'pillars[' + i + '][distance_m]'" x-model="p.distance_m" class="w-full border border-gray-300 rounded px-2 py-1" @disabled(! $due)>
+              </div>
+              <div class="lg:col-span-2">
+                <label class="block text-xs text-gray-500 mb-0.5">Bearing (degrees, minutes, seconds)</label>
+                <div class="flex items-center gap-1">
+                  <input type="text" inputmode="numeric" :name="'pillars[' + i + '][bearing_deg]'" x-model="p.bearing_deg" maxlength="3" class="w-16 border border-gray-300 rounded px-2 py-1" @disabled(! $due)><span>°</span>
+                  <input type="text" inputmode="numeric" :name="'pillars[' + i + '][bearing_min]'" x-model="p.bearing_min" maxlength="2" class="w-14 border border-gray-300 rounded px-2 py-1" @disabled(! $due)><span>′</span>
+                  <input type="text" inputmode="decimal" :name="'pillars[' + i + '][bearing_sec]'" x-model="p.bearing_sec" maxlength="5" placeholder="0" class="w-14 border border-gray-300 rounded px-2 py-1" @disabled(! $due)><span>″</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-0.5">Ownership</label>
+                <select :name="'pillars[' + i + '][ownership]'" x-model="p.ownership" class="w-full border border-gray-300 rounded px-2 py-1" @disabled(! $due)>
+                  <option value="private">Private</option><option value="government">Government</option>
+                </select>
+              </div>
+            </div>
+            <details class="mt-2 text-xs" :open="!!(p.easting || p.northing)">
+              <summary class="cursor-pointer text-gray-500">Coordinates (optional)</summary>
+              <div class="mt-1 flex flex-wrap gap-2">
+                <input type="text" inputmode="decimal" :name="'pillars[' + i + '][easting]'" x-model="p.easting" placeholder="Easting" class="w-40 border border-gray-300 rounded px-2 py-1" @disabled(! $due)>
+                <input type="text" inputmode="decimal" :name="'pillars[' + i + '][northing]'" x-model="p.northing" placeholder="Northing" class="w-40 border border-gray-300 rounded px-2 py-1" @disabled(! $due)>
+              </div>
+            </details>
+          </div>
+        </template>
+      </div>
+      @if ($due)
+        <button type="button" @click="addLine()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-green-600 text-green-700 text-sm font-semibold">
+          <i data-lucide="plus" class="w-4 h-4"></i> Add line
+        </button>
+      @endif
+
+      <div class="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-gray-700 flex flex-wrap gap-x-6 gap-y-1">
+        <span>Lines: <strong x-text="pillars.filter(p => p.pillar_number).length"></strong></span>
+        <span>Area from bearings and distances: <strong x-text="fmtArea(traverse().area)"></strong></span>
+        <span x-show="traverse().misclosure !== null" x-cloak>Gap back to the start: <strong x-text="traverse().misclosure !== null ? traverse().misclosure.toFixed(2) + ' m' : ''"></strong> <span class="text-xs text-gray-500">(irregular plots need not close)</span></span>
+        <span x-show="area()" x-cloak>Area from coordinates: <strong x-text="fmtArea(area())"></strong></span>
+      </div>
+
+      <div class="grid gap-3 lg:grid-cols-3">
+        <div class="lg:col-span-2">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Dimensions (for irregular shapes; optional)</label>
+          <textarea name="dimensions" x-model="h.dimensions" rows="2" maxlength="4000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 46.13 m x 49.52 m x 20.68 m ..." @disabled(! $due)></textarea>
+        </div>
+        <div class="flex flex-wrap items-end gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Area (blank = worked out)</label>
+            <input type="text" inputmode="decimal" name="area_value" value="{{ old('area_value', $pd && $pd->area_source === 'manual' ? $pd->area_sqm : '') }}" class="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Unit</label>
+            <select name="area_unit" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)>
+              @foreach ($units as $k => $u)<option value="{{ $k }}" @selected(old('area_unit', 'sqm') === $k)>{{ is_array($u) ? ($u['label'] ?? $k) : $u }}</option>@endforeach
+            </select>
+          </div>
+        </div>
+      </div>
+      @if ($due)
+        <div class="flex justify-end"><button class="px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold">Save Plan Description</button></div>
+      @endif
+    </form>
+    @else
     {{-- 1. Area and beacons --}}
     <form method="POST" action="{{ route('cadastral-dept.cases.bill.area.save', $case->id) }}" class="rounded-xl border border-gray-200 bg-white p-5 space-y-4"
           x-data="cdPndArea(@js($cdPillars))" data-confirm-title="Save area and beacons?" data-confirm="The area and beacon list for {{ $case->file_number }} are saved.">
@@ -107,6 +293,7 @@
         @endif
       </div>
     </form>
+    @endif
 
     {{-- 2. Description --}}
     <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
@@ -245,6 +432,42 @@
         for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; s += a[0] * b[1] - b[0] * a[1]; }
         return Math.abs(s) / 2;
       },
+    };
+  }
+  // Plan Description lines (change request 26-10-2026). The area from the lines is worked out the
+  // same way as App\Services\CadastralDept\BoundaryTraverse: walk the bearings from the first beacon,
+  // shoelace over the corners; the gap back to the start is shown, never refused.
+  function cdPndLines(pillars, header, o) {
+    const blank = () => ({pillar_number: '', pillar_type: '', pillar_type_other: '', distance_m: '', bearing_deg: '', bearing_min: '', bearing_sec: '', ownership: o.ownership, easting: '', northing: ''});
+    const keys = new Set((o.register || []).map(b => String(b).replace(/\s+/g, '').toUpperCase()));
+    const num = v => { const n = parseFloat(String(v ?? '').replace(/[ ,]/g, '')); return isNaN(n) ? null : n; };
+    return {
+      o: o, h: header,
+      pillars: (pillars && pillars.length) ? pillars.map(p => Object.assign(blank(), p)) : [blank(), blank(), blank(), blank()],
+      addLine() { this.pillars.push(blank()); },
+      inRegister(b) { return keys.has(String(b || '').replace(/\s+/g, '').toUpperCase()); },
+      traverse() {
+        const lines = this.pillars.filter(p => p.pillar_number || p.distance_m);
+        if (lines.length < 3) return {area: null, misclosure: null};
+        let e = 0, n = 0; const pts = [[0, 0]];
+        for (const l of lines) {
+          const d = num(l.distance_m), deg = num(l.bearing_deg);
+          if (d === null || deg === null) return {area: null, misclosure: null};
+          const t = (deg + (num(l.bearing_min) || 0) / 60 + (num(l.bearing_sec) || 0) / 3600) * Math.PI / 180;
+          e += d * Math.sin(t); n += d * Math.cos(t); pts.push([e, n]);
+        }
+        const ring = pts; let s = 0;
+        for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; s += a[0] * b[1] - b[0] * a[1]; }
+        return {area: Math.abs(s) / 2, misclosure: Math.sqrt(e * e + n * n)};
+      },
+      area() {
+        const p = this.pillars.map(b => [num(b.easting), num(b.northing)]).filter(x => x[0] !== null && x[1] !== null);
+        if (p.length < 3) return null;
+        let s = 0;
+        for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; s += a[0] * b[1] - b[0] * a[1]; }
+        return Math.abs(s) / 2;
+      },
+      fmtArea(a) { return a ? a.toLocaleString(undefined, {maximumFractionDigits: 2}) + ' m² (' + (a / 10000).toFixed(4) + ' ha)' : '—'; },
     };
   }
   function cdPndFees(init) {

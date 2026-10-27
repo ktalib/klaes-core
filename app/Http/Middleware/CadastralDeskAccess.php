@@ -65,7 +65,7 @@ class CadastralDeskAccess
         // A missing case is the controller's 404 to give.
         if ($case && !$this->access->canActOn($user, $case)) {
             $desk = $this->access->actingDesk($case);
-            $role = DeskAccess::deskRoles()[$desk] ?? DeskAccess::departmentRole();
+            $role = DeskAccess::deskRoles()[$desk] ?? DeskAccess::centralAdminRole();
 
             return $this->deny($request, "{$case->case_ref} is with " . $case->deskShort() . "; acting on it needs the {$role} role.");
         }

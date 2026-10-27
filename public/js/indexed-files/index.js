@@ -707,6 +707,7 @@ function buildActionsMenu(row, viewUrl) {
           </div>
           ${viewButton}
           ${viewTransactionsButton}
+          ${moveTransactionButton}
           ${viewRelatedFilesButton}
           ${trackingButton}
           ${editButton}
@@ -716,7 +717,6 @@ function buildActionsMenu(row, viewUrl) {
           ${mccFileNoButton}
           ${mppFileNoButton}
           ${updatePlaceholderButton}
-          ${moveTransactionButton}
           ${moveToDuplicatesButton}
           ${deleteButton ? '<div class="border-t border-slate-50 my-1.5"></div>' + deleteButton : ''}
         </div>

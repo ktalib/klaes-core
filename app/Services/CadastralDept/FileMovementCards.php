@@ -28,6 +28,25 @@ use Illuminate\Support\Facades\Schema;
  */
 class FileMovementCards
 {
+    /**
+     * Seeing or printing a File Movement Card, its QR page included: only the roles in config
+     * cadastral_dept.fmc_roles (Cad - D Cad, Cad - AD Cad, Cad - DD Cad; user, 2026-10-26).
+     * Super Admin passes through canDo().
+     */
+    public static function canView(?\App\Models\User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+        foreach ((array) config('cadastral_dept.fmc_roles', []) as $role) {
+            if ($user->canDo($role, 'view')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private const CONN = 'sqlsrv';
 
     /** Header fields the records can supply, in display order (Plot No., District, LGA, Location). */
@@ -278,6 +297,7 @@ class FileMovementCards
                     $m->outcome === 'close' => 'Closed at ' . $this->def->deskShort($m->from_desk),
                     // Head-of-unit approval (HeadApproval): within the unit.
                     $m->outcome === HeadApproval::TO_HEAD => 'Sent to the ' . ($this->def->desks()[$m->from_desk]['head'] ?? $this->def->deskShort($m->from_desk)) . ' for approval',
+                    $m->outcome === CaseWorkflow::JUMP => 'Moved by admin from ' . $this->def->deskShort($m->from_desk),
                     $m->outcome === HeadApproval::RETURNED => 'Returned to staff by the ' . ($this->def->desks()[$m->from_desk]['head'] ?? $this->def->deskShort($m->from_desk)),
                     default => 'From ' . $this->def->deskShort($m->from_desk) . ($m->outcome !== 'forward' ? ' (' . str_replace('_', ' ', $m->outcome) . ')' : ''),
                 },

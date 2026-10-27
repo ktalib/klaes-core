@@ -12,8 +12,9 @@ use Illuminate\Support\Facades\DB;
  * the new pages are scanned and uploaded (EDMS Scan More), then page-typed (Type More), before
  * the file goes on. The pages go through EDMS as scannings rows, so Page Typing sees them.
  *
- * The task is ticked by hand, but only once every page uploaded since the file came back to
- * Registry has been page-typed.
+ * The task is ticked by hand once the new pages are uploaded. Page typing is not a condition
+ * (user, 2026-10-27: "why must I do page typing?"): it stays on the Page Typing page and can be
+ * done after the file moves on; the count of typed pages is shown for information.
  */
 class EdmsUpdate
 {
@@ -31,12 +32,12 @@ class EdmsUpdate
     }
 
     /**
-     * @return array{indexed:bool, new_pages:int, typed:int, complete:bool, scan_url:?string, type_url:?string}
+     * @return array{indexed:bool, new_pages:int, typed:int, complete:bool, typed_all:bool, scan_url:?string, type_url:?string}
      */
     public function status(CadastralCase $case): array
     {
         $id = (int) $case->file_indexing_id;
-        $out = ['indexed' => $id > 0, 'new_pages' => 0, 'typed' => 0, 'complete' => false, 'scan_url' => null, 'type_url' => null];
+        $out = ['indexed' => $id > 0, 'new_pages' => 0, 'typed' => 0, 'complete' => false, 'typed_all' => false, 'scan_url' => null, 'type_url' => null];
         if (!$id) {
             return $out;
         }
@@ -53,7 +54,9 @@ class EdmsUpdate
             $out['typed'] = $db->table('pagetypings')->whereIn('scanning_id', $scans)->whereNull('deleted_at')
                 ->distinct()->count('scanning_id');
         }
-        $out['complete'] = $out['new_pages'] > 0 && $out['typed'] >= $out['new_pages'];
+        // Uploaded is enough to move on; typed_all only says whether page typing has caught up.
+        $out['complete'] = $out['new_pages'] > 0;
+        $out['typed_all'] = $out['new_pages'] > 0 && $out['typed'] >= $out['new_pages'];
 
         return $out;
     }

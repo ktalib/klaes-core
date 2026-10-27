@@ -14,7 +14,7 @@
       $cdFileTypes = collect($def->fileTypes())->map(fn ($t, $k) => [
           // tenure / route: fixed answer, null, or 'ask' (route only), per file type (2026-10-20).
           'key' => $k, 'label' => $t['label'], 'workflows' => $t['workflows'],
-          'tenure' => $t['tenure'] ?? null, 'route' => $t['route'] ?? null,
+          'tenure' => $t['tenure'] ?? null, 'route' => $t['route'] ?? null, 'prefixes' => $t['prefixes'] ?? [],
       ])->values();
       $cdSubTypes = $def->subTypes('direct');
       $cdTenures = $def->subTypes('verification');
@@ -345,8 +345,13 @@
       // Verification: asked only where the file type leaves it open (2026-10-20).
       tenureAsks() { return this.workflow === 'verification' && !!this.ft() && this.ft().tenure === null; },
       routeAsks() { return this.workflow === 'verification' && !!this.ft() && this.ft().route === 'ask'; },
+      // The list depends on the type and, for Verification, its group.
+      // The file type is part of the key: ST / SLTR / Conversion File list their own numbers (2026-10-27).
+      listKey() { return this.workflow + '|' + (this.workflow === 'verification' ? this.vGroup : '') + '|' + (this.fileType || ''); },
       onGroup() {
         if (!this.typesFor().some(t => t.key === this.fileType)) this.fileType = '';
+        // Verification: a file picked under the other group goes (user, 2026-10-26).
+        if (this.workflow === 'verification' && this.fileNumber && !this.groupOk()) this.clearFile();
         this.pickOnlyType();
         this.onFileType();
       },
@@ -363,24 +368,31 @@
         this.pickOnlyType();
         this.onFileType();
         // Each type lists different files, so the previous pick goes.
+        this.clearFile();
+      },
+      clearFile() {
         this.fileNumber = ''; this.fileIndexingId = ''; this.trackingId = ''; this.fileSystem = '';
         this.result = null; this.listRows = []; this.listTerm = ''; this.listFor = null; this.listOpen = false;
         this.statusHtml = ''; this.statusFor = '';
       },
       listLabel() {
-        return { conversion: 'Indexed Conversion file (CON-)', direct: 'Indexed Direct Allocation file (RES- / COM- / IND- / AG-)',
-                 verification: 'Any indexed file' }[this.workflow] || 'File';
+        const own = (this.ft() && this.ft().prefixes) || [];
+        if (own.length && this.workflow !== 'verification') return 'Indexed ' + this.ft().label + ' (' + own.join(' / ') + ')';
+        const labels = { conversion: 'Indexed Conversion file (CON-)', direct: 'Indexed Direct Allocation file (RES- / COM- / IND- / AG-)' };
+        // Verification lists the chosen group's files (user, 2026-10-26).
+        if (this.workflow === 'verification') return this.vGroup ? labels[this.vGroup] : 'Choose Conversion or Direct Allocation first';
+        return labels[this.workflow] || 'File';
       },
       toggleList() {
         this.listOpen = !this.listOpen;
         if (!this.listOpen) return;
-        if (this.listFor !== this.workflow) this.loadList();
+        if (this.listFor !== this.listKey()) this.loadList();
         this.$nextTick(() => this.$refs.listSearch && this.$refs.listSearch.focus());
       },
       async loadList() {
-        this.listLoading = true; this.listFor = this.workflow;
+        this.listLoading = true; this.listFor = this.listKey();
         try {
-          const res = await fetch(this.listUrl + '?' + new URLSearchParams({ workflow: this.workflow, q: this.listTerm }), { headers: { 'Accept': 'application/json' } });
+          const res = await fetch(this.listUrl + '?' + new URLSearchParams({ workflow: this.workflow, group: this.workflow === 'verification' ? this.vGroup : '', file_type: this.fileType || '', q: this.listTerm }), { headers: { 'Accept': 'application/json' } });
           this.listRows = await res.json();
         } catch (e) {
           this.listRows = [];
@@ -451,9 +463,25 @@
         if (this.tenureAsks() && !this.subType) return 'Choose Statutory or Customary.';
         if (this.routeAsks() && !this.allocationRoute) return 'Choose Resettlement or Direct.';
         if (!this.result || this.result.status !== 'ok') return 'Select a file that can be registered.';
+        if (!this.groupOk()) return this.fileNumber + ' is not a ' + (this.vGroup === 'conversion' ? 'Conversion' : 'Direct Allocation') + ' file.';
+        if (!this.prefixOk()) return this.fileNumber + ' is not a ' + this.ft().label + ': its number must start with ' + this.ft().prefixes.join(' or ') + '.';
         if (!this.fileSource) return 'Choose where the file came from.';
         if (this.fileSource === 'other' && !this.fileSourceOther.trim()) return 'Specify where the file came from.';
         return '';
+      },
+      // A file type with fixed prefixes (Conversion File: CON-) takes only those numbers.
+      prefixOk() {
+        const p = (this.ft() && this.ft().prefixes) || [];
+        const n = (this.fileNumber || '').trim().toUpperCase();
+        return !p.length || !n || p.some(x => n.startsWith(x.toUpperCase()));
+      },
+      // Verification > Conversion takes CON- files; > Direct Allocation RES- / COM- / IND- / AG-.
+      groupOk() {
+        if (this.workflow !== 'verification' || !this.vGroup) return true;
+        if (this.ft() && (this.ft().prefixes || []).length) return true;   // ST / SLTR: in both groups, checked by prefixOk()
+        const p = { conversion: ['CON-'], direct: ['RES-', 'COM-', 'IND-', 'AG-'] }[this.vGroup] || [];
+        const n = (this.fileNumber || '').trim().toUpperCase();
+        return !n || p.some(x => n.startsWith(x));
       },
       canSubmit() { return this.missing() === ''; },
     };

@@ -41,12 +41,16 @@ class FmcController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('cadastral-dept.cases.fmc.show', $case->id)
+        // Only the FMC roles open the card (fmc_roles); anyone else goes back to the file page.
+        return (FileMovementCards::canView($request->user())
+                ? redirect()->route('cadastral-dept.cases.fmc.show', $case->id)
+                : redirect()->route('cadastral-dept.cases.show', $case->id))
             ->with('success', "{$fmc->fmc_no} commissioned. Print it and keep it with the file.");
     }
 
     public function show(int $case, WorkflowDefinition $def, QrRenderer $qr)
     {
+        $this->mayView();
         $case = CadastralCase::findOrFail($case);
         $fmc = $case->fmc;
         abort_unless($fmc, 404);
@@ -56,6 +60,7 @@ class FmcController extends Controller
 
     public function print(int $case, WorkflowDefinition $def, QrRenderer $qr)
     {
+        $this->mayView();
         $case = CadastralCase::findOrFail($case);
         $fmc = $case->fmc;
         abort_unless($fmc, 404);
@@ -67,13 +72,22 @@ class FmcController extends Controller
     /** The page the QR code opens. */
     public function scan(string $token, WorkflowDefinition $def, QrRenderer $qr)
     {
+        $this->mayView();
         $fmc = $this->byToken($token);
 
         return view('cadastral_dept.fmc.scan', $this->cardData($fmc, $def, $qr) + ['case' => $fmc->case]);
     }
 
+    /** The card, its print and its QR page are for the FMC roles only (config fmc_roles, 2026-10-26). */
+    private function mayView(): void
+    {
+        abort_unless(FileMovementCards::canView(auth()->user()), 403,
+            'The File Movement Card is for ' . implode(', ', (array) config('cadastral_dept.fmc_roles', [])) . ' only.');
+    }
+
     public function log(Request $request, string $token)
     {
+        $this->mayView();
         $data = $request->validate([
             'direction' => 'required|in:in,out',
             'unit_key' => 'nullable|string|max:40',

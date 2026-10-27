@@ -426,6 +426,24 @@ class VfsFolioPresenter
     }
 
     /**
+     * The scope a register query actually runs under.
+     *
+     * No scope chosen means the default ("mapped") while browsing, but a SEARCH
+     * covers every indexed file: a file someone looks up must still appear even
+     * when it has no pages, flagged red, rather than the table claiming it does
+     * not exist. An explicitly chosen scope is always honoured.
+     */
+    public static function effectiveScope(array $filters): string
+    {
+        $scope = trim((string) ($filters['scope'] ?? ''));
+        if ($scope !== '') {
+            return $scope;
+        }
+
+        return trim((string) ($filters['q'] ?? '')) !== '' ? 'all' : self::DEFAULT_SCOPE;
+    }
+
+    /**
      * Every register filter except the select list, ordering and pagination.
      *
      * Shared verbatim by register() and countUnderScope() so the two can never
@@ -457,7 +475,7 @@ class VfsFolioPresenter
             $query->where('registry', $registry);
         }
 
-        $scope = $filters['scope'] ?? self::DEFAULT_SCOPE;
+        $scope = self::effectiveScope($filters);
 
         if ($scope === 'temporary') {
             $query->where(function ($q) {
@@ -603,8 +621,17 @@ class VfsFolioPresenter
                 ->get()
                 ->groupBy('file_no');
 
+        // Scans with no typed pages are told apart from files EDMS has never seen.
+        $scanCounts = DB::connection('sqlsrv')
+            ->table('scannings')
+            ->select('file_indexing_id', DB::raw('count(*) as total'))
+            ->whereIn('file_indexing_id', $rows->pluck('id')->all())
+            ->groupBy('file_indexing_id')
+            ->pluck('total', 'file_indexing_id');
+
         foreach ($rows as $row) {
             $row->vfs_pages = (int) ($pageCounts[$row->id] ?? 0);
+            $row->vfs_scans = (int) ($scanCounts[$row->id] ?? 0);
 
             $events = collect([$row->file_number, $row->temp_file_no])
                 ->filter()

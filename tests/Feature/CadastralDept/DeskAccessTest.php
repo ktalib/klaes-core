@@ -53,12 +53,16 @@ class DeskAccessTest extends TestCase
         $this->assertTrue($this->access()->inDepartment($registry));
     }
 
-    public function test_department_role_covers_every_desk(): void
+    /** Desk roles only (user, 2026-10-26): Cad - Records opens Cadastral Report and no other desk. */
+    public function test_department_role_opens_only_cadastral_report(): void
     {
         $records = $this->user('Cad - Records');
         foreach (array_keys(DeskAccess::deskRoles()) as $desk) {
-            $this->assertTrue($this->access()->canWorkDesk($records, $desk), $desk);
+            $this->assertSame($desk === 'ad_report', $this->access()->canWorkDesk($records, $desk), $desk);
+            $this->assertSame($desk === 'ad_report', DeskAccess::can($records, 'create', $desk), $desk);
         }
+        $this->assertTrue($this->access()->inDepartment($records));
+        $this->assertTrue(DeskAccess::can($records, 'print'));
     }
 
     public function test_no_cadastral_role_opens_nothing(): void
@@ -161,6 +165,18 @@ class DeskAccessTest extends TestCase
         $response = app(CadastralDeskAccess::class)->handle($request, fn () => response('ok'));
 
         $this->assertSame('ok', $response->getContent());
+    }
+
+    /** The File Movement Card is for Cad - D Cad, Cad - AD Cad and Cad - DD Cad only (2026-10-26). */
+    public function test_fmc_is_for_its_roles_only(): void
+    {
+        foreach (['Cad - D Cad', 'Cad - AD Cad', 'Cad - DD Cad'] as $role) {
+            $this->assertTrue(\App\Services\CadastralDept\FileMovementCards::canView($this->user($role)), $role);
+        }
+        foreach (['Cad - Records', 'Cad - Registry', 'Cad - Information', 'Cad - Central Admin', 'Survey - Records'] as $role) {
+            $this->assertFalse(\App\Services\CadastralDept\FileMovementCards::canView($this->user($role)), $role);
+        }
+        $this->assertFalse(\App\Services\CadastralDept\FileMovementCards::canView(null));
     }
 
     private function deskRequest(string $desk, User $user): Request

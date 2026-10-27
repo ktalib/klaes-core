@@ -6617,6 +6617,14 @@
           // Load page typing data on startup
           loadPageTypingData();
           @endif
+
+          @if(!empty($selectedFileIndexing))
+          // A link that names the file (?file_indexing_id=..., e.g. the Cadastral file page's
+          // "Page-type the new pages") opens it straight on the Typing tab, as its row's
+          // More Pages / Start button would (2026-10-26).
+          startPageTyping(@json((string) $selectedFileIndexing->id), { pageTypeMore: @json($showPageTypeMore) })
+            .catch((error) => console.error('Failed to open the linked file for typing:', error));
+          @endif
           
           // Add tab event listeners
           elements.tabs.forEach(tab => {

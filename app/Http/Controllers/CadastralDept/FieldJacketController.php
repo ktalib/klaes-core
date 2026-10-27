@@ -66,8 +66,8 @@ class FieldJacketController extends Controller
         return $this->attempt(function () use ($case, $data) {
             $jacket = $this->jackets->commission($case, $data, auth()->id());
 
-            return "Field jacket {$jacket->field_jacket_no} commissioned for {$case->file_number}. Next: issue the I to S.";
-        }, 'Field jacket commissioned.');
+            return "Computation File (Field Jacket) {$jacket->field_jacket_no} commissioned for {$case->file_number}. Next: issue the I to S.";
+        }, 'Computation File (Field Jacket) commissioned.');
     }
 
     /** AD P&D: the plain I to S (attach a job and a surveyor), for AD Cad Info. */
@@ -94,7 +94,7 @@ class FieldJacketController extends Controller
         return $this->attempt(function () use ($case, $data) {
             $jacket = $this->jackets->attachJob($case, $data, auth()->id());
 
-            return "Job {$jacket->job->job_number} ({$jacket->job->surveyor_name}) attached to field jacket {$jacket->field_jacket_no}."
+            return "Job {$jacket->job->job_number} ({$jacket->job->surveyor_name}) attached to Computation File {$jacket->field_jacket_no}."
                 . ' Next: issue the Instruction to Surveyor.';
         }, 'Job attached.');
     }

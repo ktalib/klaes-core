@@ -49,19 +49,19 @@ class WorkflowDefinitionTest extends TestCase
     {
         [$desks, $end] = $this->walk('conversion', ['gis_buffer' => 'inside_10km']);
 
-        // Updated workflow doc (2026-10-15): 28 steps, after Registry's intake, which waits for
-        // the Head of Registry's approval (client, 2026-10-16).
+        // Change request 26-10-2026: 31 steps after Registry's intake. After GIS the file goes back
+        // through D Cad and AD Cad Info, then the PS sends it to KAMMA and gets it back.
         $this->assertSame('completed', $end);
         $this->assertSame([
             'registry',                                                                         // intake
-            'director_cadastral', 'deputy_director_cadastral', 'ad_information', 'ad_report',   // phase 1 (1-4)
-            'compensation_unit', 'dsg', 'director_cadastral', 'cadastral_gis',                 // phase 2 (5-8)
-            'kamma', 'permanent_secretary', 'director_cadastral',                              // phase 3 (9-11)
-            'ad_information', 'registry', 'director_land', 'registry',                         // phase 4 (12-15)
-            'director_cadastral', 'deputy_director_cadastral', 'ad_pnd', 'ad_information',     // phase 5 (16-20)
-            'field_survey',
-            'ad_information', 'examination_unit', 'ad_drawing', 'surveyor_general',            // phase 6 (21-24)
-            'ad_information', 'ad_pnd', 'ad_information', 'registry',                          // phase 7 (25-28)
+            'director_cadastral', 'deputy_director_cadastral', 'ad_information', 'ad_report',   // 1-4
+            'compensation_unit', 'dsg', 'director_cadastral', 'cadastral_gis',                 // 5-8
+            'director_cadastral', 'ad_information',                                            // 9-10
+            'permanent_secretary', 'kamma', 'permanent_secretary',                             // 11-13
+            'director_cadastral', 'ad_information', 'registry', 'director_land', 'registry',   // 14-18
+            'director_cadastral', 'deputy_director_cadastral', 'ad_pnd', 'ad_information',     // 19-22
+            'field_survey', 'ad_information', 'examination_unit', 'ad_drawing',                // 23-26
+            'surveyor_general', 'ad_information', 'ad_pnd', 'ad_information', 'registry',      // 27-31
         ], $desks);
     }
 
@@ -71,6 +71,9 @@ class WorkflowDefinitionTest extends TestCase
 
         $this->assertContains('physical_planning', $desks);
         $this->assertNotContains('kamma', $desks);
+        // Change request 26-10-2026: D Cad > AD Cad Info > Registry > Physical Planning > PS (user, 2026-10-27) > D Cad.
+        $this->assertSame(['cadastral_gis', 'director_cadastral', 'ad_information', 'registry', 'physical_planning', 'permanent_secretary', 'director_cadastral'],
+            array_slice($desks, 8, 7));
     }
 
     public function test_d_cad_refusal_returns_through_registry(): void
@@ -154,11 +157,15 @@ class WorkflowDefinitionTest extends TestCase
         $this->assertNotContains('compensation_unit', $allocation);
         // Direct Allocation: Land checks genuineness, then later processes the R of O.
         $this->assertSame(2, count(array_keys($allocation, 'director_land')));
-        // From D Cad on (step 7, after the intake), both follow the Conversion sequence to the end.
+        // From D Cad (before GIS) on, both sub-types follow the same route. The change request of
+        // 26-10-2026 rerouted Planning Advice for Conversion only (user, 2026-10-27), so Direct
+        // matches Conversion again from the Land Department on.
         [$conversion] = $this->walk('conversion');
-        foreach ([$resettlement, $allocation] as $desks) {
-            $this->assertSame(array_slice($conversion, 7), array_slice($desks, array_search('cadastral_gis', $desks) - 1));
-        }
+        $from = fn (array $desks, string $desk) => array_slice($desks, array_search($desk, $desks));
+        $this->assertSame($from($resettlement, 'cadastral_gis'), $from($allocation, 'cadastral_gis'));
+        $this->assertSame(['cadastral_gis', 'kamma', 'permanent_secretary', 'director_cadastral'], array_slice($from($allocation, 'cadastral_gis'), 0, 4));
+        $landAt = fn (array $desks) => array_slice($desks, array_keys($desks, 'director_land')[count(array_keys($desks, 'director_land')) - 1]);
+        $this->assertSame($landAt($conversion), $landAt($allocation));
         $this->assertSame(array_slice($conversion, 0, 8), array_slice($resettlement, 0, 8));
     }
 

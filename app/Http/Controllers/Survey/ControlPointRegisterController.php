@@ -319,6 +319,8 @@ class ControlPointRegisterController extends Controller
             ->orderBy('first_name')->orderBy('surname')->get();
 
         $surcon = DB::connection('sqlsrv')->table('cadastral_surveyors')->whereNull('deleted_at')
+            // Staff copied into Cadastral Surveyors (SurveyStaffSync) are already listed above.
+            ->when(\App\Services\Cadastral\SurveyStaffSync::installed(), fn ($q) => $q->whereNull('surveyors_list_id'))
             ->orderBy('full_name')->get(['id', 'full_name', 'surcon_number']);
 
         $out = ['staff' => [], 'surcon' => []];

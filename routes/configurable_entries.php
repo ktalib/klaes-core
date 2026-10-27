@@ -80,6 +80,7 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     Route::post('/cadastral/area-schedule/{row}', [Entries::class, 'saveCadastralScheduleRow'])->whereNumber('row')->name('cadastral.schedule.update');
     Route::post('/cadastral/transport-bands', [Entries::class, 'saveCadastralBand'])->name('cadastral.bands.store');
     Route::post('/cadastral/transport-bands/{band}', [Entries::class, 'saveCadastralBand'])->whereNumber('band')->name('cadastral.bands.update');
+    Route::post('/cadastral/head-of-unit', [Entries::class, 'saveCadastralHeadOfUnit'])->name('cadastral.head-of-unit');
     Route::post('/cadastral/officers', [Entries::class, 'saveCadastralOfficer'])->name('cadastral.officers.store');
     Route::post('/cadastral/officers/{officer}', [Entries::class, 'saveCadastralOfficer'])->whereNumber('officer')->name('cadastral.officers.update');
 

@@ -1363,6 +1363,13 @@ class FileNumberController extends Controller
                 // officer opted out — see suppress_extension_suffix in the commission modal.
                 // Handle both dropdown (existing_file_no) and manual input (existing_file_no_manual)
                 $existingFileNo = $request->existing_file_no ?: $request->existing_file_no_manual;
+                // Only with an approved Plot Extension application, as in MLPP commissioning (2026-10-26).
+                if (!\App\Http\Controllers\LandsOneStopShop\PlotExtensionController::approvedForFile($existingFileNo)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => trim((string) $existingFileNo) . ' has no approved Plot Extension application. Capture and approve the extension under Parcel Update > Plot Extension first.',
+                    ], 422);
+                }
                 $mlsfNo = filter_var($request->input('suppress_extension_suffix', false), FILTER_VALIDATE_BOOLEAN)
                     ? $existingFileNo
                     : $existingFileNo . ' AND EXTENSION';

@@ -8,8 +8,9 @@ use App\Models\User;
 /**
  * Who may work a Cadastral desk (user, 2026-10-15).
  *
- * The department role (Cad - Records) covers every desk; otherwise a user needs the desk's
- * own role (config cadastral_dept.desk_roles). Super Admin passes through canDo().
+ * A desk needs its own role (config cadastral_dept.desk_roles). Since 2026-10-26 the department
+ * role (Cad - Records) no longer opens desks (user: "desk roles only"); it keeps the department's
+ * shared pages (dashboard, file pages, prints). Super Admin and Central Admin cover every desk.
  * Viewing a case stays open to everyone in the department; only desk pages and writes
  * are checked, by the cadastral.desk middleware. Central Admin (config central_admin_role)
  * covers every desk too.
@@ -29,6 +30,24 @@ class DeskAccess
     public static function deskRoles(): array
     {
         return (array) config('cadastral_dept.desk_roles', []);
+    }
+
+    /**
+     * Every role that opens a desk: its own (desk_roles) and any extra (desk_extra_roles, e.g.
+     * Cad - Records opens Cadastral Report since 2026-10-26).
+     *
+     * @return string[]
+     */
+    public static function rolesFor(?string $desk): array
+    {
+        if ($desk === null) {
+            return [];
+        }
+
+        return array_values(array_filter(array_merge(
+            [self::deskRoles()[$desk] ?? null],
+            (array) (config('cadastral_dept.desk_extra_roles', [])[$desk] ?? [])
+        )));
     }
 
     public static function centralAdminRole(): string
@@ -71,18 +90,22 @@ class DeskAccess
         return $this->officerCanWorkDesk($user, $desk);
     }
 
-    /** The desk check without Central Admin: the user's own desk or department role. */
+    /** The desk check without Central Admin: the user's own desk role (Super Admin passes). */
     public function officerCanWorkDesk(?User $user, ?string $desk): bool
     {
         if (!$user) {
             return false;
         }
-        if ($user->isSuperAdmin() || $user->canDo(self::departmentRole(), 'view')) {
+        if ($user->isSuperAdmin()) {
             return true;
         }
-        $role = $desk ? (self::deskRoles()[$desk] ?? null) : null;
+        foreach (self::rolesFor($desk) as $role) {
+            if ($user->canDo($role, 'view')) {
+                return true;
+            }
+        }
 
-        return $role !== null && $user->canDo($role, 'view');
+        return false;
     }
 
     /** True when the user holds the department role or any desk role. */
@@ -103,7 +126,7 @@ class DeskAccess
             return false;
         }
         $roles = $desk !== null
-            ? array_filter([self::departmentRole(), self::centralAdminRole(), self::deskRoles()[$desk] ?? null])
+            ? array_merge([self::centralAdminRole()], self::rolesFor($desk))   // desk roles only (2026-10-26)
             : array_merge([self::departmentRole(), self::centralAdminRole()], array_values(self::deskRoles()),
                 array_filter([(string) config('cadastral_dept.verification_role', '')]));
         foreach ($roles as $role) {

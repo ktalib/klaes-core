@@ -84,6 +84,9 @@ class CorrespondenceStep
                 'done_at' => now(),
             ]);
 
+            // A Computation File commissioned before the correspondence file existed attaches now.
+            app(FieldJackets::class)->attachWaiting($case->fresh(), $userId);
+
             $this->audit->logAction(
                 $result['action'] === 'created' ? 'Cadastral Correspondence Created' : 'Cadastral Correspondence Matched',
                 'CadastralCase', $case->id, null,

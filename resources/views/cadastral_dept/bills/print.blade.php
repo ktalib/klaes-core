@@ -281,6 +281,11 @@
             <div class="schedule-title">Schedule of area Fee: &nbsp;&nbsp;&nbsp;&nbsp;(Kano S.L.N. No 3 of 1983)</div>
         </div>
         <div class="signature-space">
+            @php $cdSig = \App\Services\CadastralDept\StepDocuments::signature($bill->file_number, $bill->bill_ref); @endphp
+            @if ($cdSig)
+                {{-- Signed by AD Cad Info (change request 26-10-2026): in the system, or on paper with the scan uploaded. --}}
+                <div style="font-weight:normal;font-size:11px">{{ str_starts_with((string) $cdSig->note, 'Signed in the system') ? 'Signed electronically' : 'Signed (scanned copy on file)' }}: {{ optional($cdSig->doer)->name }} · {{ $cdSig->done_at->format('d M Y') }}</div>
+            @endif
             For Director Cadastral
         </div>
     </div>

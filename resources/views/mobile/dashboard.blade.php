@@ -285,8 +285,9 @@
   {{-- @if(optional(auth()->user())->username !== 'admin1') style="display:none" @endif --}}
 
 
-@include('mobile.partials.splash')
+{{-- Preloader first: the splash, when it shows, removes it so only one loader appears. --}}
 @include('mobile.partials.preloader')
+@include('mobile.partials.splash')
 
 {{-- Toast messages --}}
 <div id="successToast" class="success-toast"></div>
@@ -2050,6 +2051,25 @@ async function searchFile() {
                 ${d.rack_shelf ? `<span><strong>Shelf/Rack:</strong> ${esc(d.rack_shelf)}</span>` : ''}
               </div>` : ''}
             </div>` : ''}
+            ${(() => {
+              // Already requested: a File Search Request is still live for this file
+              // (the send step would refuse a second one), so say so up front.
+              const er = d.existing_request;
+              if (!er) return '';
+              const st = { PENDING:'Pending at SCB', SEARCHING:'SCB searching', FOUND:'Found — awaiting Front Desk', NOT_FOUND:'Not Found — awaiting Front Desk' }[er.status] || er.status;
+              return `
+            <div style="margin-bottom:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:10px 12px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <i class="fas fa-circle-exclamation" style="color:#dc2626;"></i>
+                <span style="font-size:13px;font-weight:700;color:#991b1b;">This file has already been requested${er.request_no ? ` (${esc(er.request_no)})` : ''}.</span>
+              </div>
+              <div style="margin-top:6px;padding-left:22px;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:#991b1b;">
+                ${er.requester_name ? `<span><strong>Requested by:</strong> ${esc(er.requester_name)}</span>` : ''}
+                ${er.requested_at ? `<span><strong>On:</strong> ${esc(er.requested_at)}</span>` : ''}
+                <span><strong>Status:</strong> ${esc(st)}</span>
+              </div>
+            </div>`;
+            })()}
             ${holderBill}
             ${movementDetails}
             ${rowsHtml}
@@ -3074,6 +3094,14 @@ async function loadMyRequests() {
   }
 }
 
+// File status set by hand on Quick Search (Update Location Status) after the
+// SCB response — shown on every request card so the log reflects it.
+function frLocationUpdate(fr) {
+  const u = fr && fr.location_update;
+  if (!u) return '';
+  return `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:5px;background:rgba(99,102,241,0.10);border:1px solid #6366f155;border-radius:10px;padding:7px 10px;font-size:11px;color:var(--text);"><i class="fas fa-pen" style="color:#6366f1;"></i> <span style="font-weight:600;">File status updated:</span> <strong style="color:#4f46e5;">${esc(u.label)}</strong>${u.at ? `<span style="color:var(--muted);">· ${esc(u.at)}</span>` : ''}${u.by ? `<span style="color:var(--muted);">· by ${esc(u.by)}</span>` : ''}</div>`;
+}
+
 function renderMyRequestCard(fr) {
   const m = FSR_STATUS_META[fr.status] || FSR_STATUS_META.PENDING;
   // Logged-out outcome: green "to your office" callout if it's out to this user,
@@ -3100,6 +3128,7 @@ function renderMyRequestCard(fr) {
         </div>
         ${fr.feedback_note ? `<div style="margin-top:8px;font-size:11.5px;color:var(--muted);background:var(--surface-2);border-radius:8px;padding:7px 9px;"><i class="fas fa-comment-dots" style="margin-right:5px;color:var(--primary);"></i>${esc(fr.feedback_note)}</div>` : ''}
         ${loggedOut}
+        ${frLocationUpdate(fr)}
         ${fr.current_location && !fr.logged_out ? `<div style="font-size:11px;color:var(--faint);margin-top:6px;"><i class="fas fa-map-marker-alt" style="margin-right:4px;color:var(--primary);"></i>${esc(fr.current_location)}</div>` : ''}
         ${fr.created_at ? `<div style="font-size:11px;color:var(--faint);margin-top:6px;"><i class="fas fa-clock" style="margin-right:4px;color:var(--primary);"></i>Sent ${esc(fr.created_at)}${fr.responded_at ? ' · Responded '+esc(fr.responded_at) : ''}</div>` : ''}
       </div>
@@ -3231,6 +3260,7 @@ function renderFsrLog() {
             ${fr.responded_at ? `<span><i class="fas fa-reply" style="width:14px;color:var(--primary);"></i> ${meta.label} ${esc(fr.responded_at)}${fr.responder ? ' · '+esc(fr.responder) : ''}</span>` : ''}
             ${fr.feedback_note ? `<span style="font-style:italic;">"${esc(fr.feedback_note)}"</span>` : ''}
           </div>
+          ${frLocationUpdate(fr)}
           ${(IS_SUPER_ADMIN && fr.can_revert) ? `
           <div data-fr="${fr.id}" style="margin-top:12px;">
             <button class="btn" style="width:100%;padding:11px;font-size:13px;box-shadow:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;" onclick="revertFr(${fr.id}, this)"><i class="fas fa-rotate-left"></i> Revert response</button>
@@ -3402,6 +3432,7 @@ function frListRow(fr, histIds) {
           ${loc ? `<div><span style="color:var(--muted);">Location:</span> ${esc(loc)}</div>` : ''}
           ${fr.requester_office ? `<div><span style="color:var(--muted);">Office:</span> ${esc(fr.requester_office)}</div>` : ''}
         </div>
+        ${frLocationUpdate(fr)}
         ${frDetailsBody(fr)}
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" style="flex:1;width:auto;min-width:0;padding:9px;font-size:12px;box-shadow:none;background:linear-gradient(135deg,#10b981,#059669);" onclick="respondFr(${fr.id}, 'found', this, ${fr.is_blind ? 'true' : 'false'})"><i class="fas fa-check"></i> Found</button>
@@ -3441,6 +3472,7 @@ function renderFileRequests() {
               ? `<div style="margin-top:8px;"><span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:3px 9px;border-radius:30px;background:#fee2e2;color:#b91c1c;"><i class="fas fa-circle-exclamation"></i> Not indexed</span></div>`
               : `<div style="font-size:12px;color:var(--text);margin-top:6px;"><i class="fas fa-map-marker-alt" style="margin-right:4px;color:var(--primary);"></i>${esc(fr.current_location)}</div>`
           ) : ''}
+          ${frLocationUpdate(fr)}
           ${frRequesterDetails(fr)}
           ${fr.created_at ? `<div style="font-size:12px;color:var(--text);margin-top:6px;"><i class="fas fa-clock" style="margin-right:4px;color:var(--primary);"></i>Sent ${esc(fr.created_at)}</div>` : ''}
           ${frDetailsSection(fr)}

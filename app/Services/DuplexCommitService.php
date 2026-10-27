@@ -346,6 +346,9 @@ class DuplexCommitService
             'land_value'     => $duplex->land_value,
             'captured_by'    => $duplex->captured_by,
             'updated_by'     => Auth::id(),
+            // Which register (Deeds / Land) the duplex was raised from. Without it
+            // every stage application shows "—" in its listing's Source column.
+            'source_module'  => \App\Support\ParcelUpdateSource::normalise($duplex->source_module),
         ];
 
         $plots = (array) ($payload['plots'] ?? []);
@@ -410,6 +413,7 @@ class DuplexCommitService
                     'captured_by'    => $duplex->captured_by,
                     'updated_by'     => Auth::id(),
                     'remarks'        => $tag,
+                    'source_module'  => \App\Support\ParcelUpdateSource::normalise($duplex->source_module),
                 ]);
                 return $app->id;
 
@@ -430,6 +434,7 @@ class DuplexCommitService
                     'remarks'        => $tag,
                     'captured_by'    => $duplex->captured_by,
                     'updated_by'     => Auth::id(),
+                    'source_module'  => \App\Support\ParcelUpdateSource::normalise($duplex->source_module),
                 ]);
                 return $app->id;
         }

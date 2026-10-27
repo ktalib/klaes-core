@@ -194,10 +194,33 @@ class MobileFileSearchController extends Controller
             $workflowHolders['lines'] = $holderLines;
         }
 
+        // A File Search Request still live for this file (open, or answered by the SCB
+        // but not yet acted on by the Front Desk) — the same rule the send step uses to
+        // refuse a duplicate, so the card can say so before the user tries again.
+        $existingFr = FileSearchRequest::activeForFile($result['file_number'])
+            ->with('requester:id,first_name,last_name')
+            ->orderByDesc('id')
+            ->first();
+        $existingRequest = null;
+        if ($existingFr) {
+            $createdBy = $existingFr->requester
+                ? trim($existingFr->requester->first_name . ' ' . $existingFr->requester->last_name)
+                : '';
+            $existingRequest = [
+                'request_no'     => $existingFr->request_no,
+                // "Requested by" is the Requester Officer, as on the web duplicate prompt.
+                'requester_name' => $existingFr->receiving_officer
+                    ?: ($existingFr->requester_office ?: ($existingFr->requester_department ?: ($createdBy ?: null))),
+                'status'         => $existingFr->status,
+                'requested_at'   => optional($existingFr->created_at)->format('Y-m-d g:i A'),
+            ];
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'file_number'      => $result['file_number'],
+                'existing_request' => $existingRequest,
                 // Related counterpart file number (KANGIS ↔ Land). When a KANGIS
                 // file is searched and it carries a related land file — or vice
                 // versa — the UI renders "KANGIS FileNo (Land FileNo)".
@@ -402,6 +425,7 @@ class MobileFileSearchController extends Controller
             return array_merge([
                 'id'                  => $fr->id,
                 'request_no'          => $fr->request_no,
+                'location_update'   => $fr->locationUpdatePayload(),
                 'file_number'         => $fr->file_number,
                 'kangis_file_numbers' => $kangis[strtoupper(trim((string) $fr->file_number))] ?? [],
                 'file_title'          => $fr->file_title,
@@ -553,6 +577,7 @@ class MobileFileSearchController extends Controller
             return array_merge($this->requestTypeMeta($fr), [
                 'id'               => $fr->id,
                 'request_no'       => $fr->request_no,
+                'location_update'   => $fr->locationUpdatePayload(),
                 'file_number'      => $fr->file_number,
                 'file_title'       => $fr->file_title,
                 'requester'        => $requester,
@@ -617,6 +642,7 @@ class MobileFileSearchController extends Controller
             return array_merge($this->requestTypeMeta($fr), [
                 'id'                => $fr->id,
                 'request_no'        => $fr->request_no,
+                'location_update'   => $fr->locationUpdatePayload(),
                 'file_number'       => $fr->file_number,
                 'file_title'        => $fr->file_title,
                 'current_location'  => $fr->current_location,

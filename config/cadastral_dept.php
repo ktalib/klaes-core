@@ -39,7 +39,7 @@
 $p1Review = fn (string $notRecommended, bool $ddcBackToDcad = true) => [
     // The registered file waits for the Head of Registry, who sends it to D Cad (client, 2026-10-16).
     'registry_intake' => [
-        'phase' => 1, 'desk' => 'registry', 'label' => 'Registered; Head of Registry approves and sends it to D Cad',
+        'phase' => 1, 'desk' => 'registry', 'label' => 'Registered; Registry sends it to D Cad',   // was "Head of Registry approves ..." while head approval was on (off 2026-10-26)
         'menu_label' => 'Send to D Cad',
         // Step 0 on the step bar, before the user's 28 steps from (1) D Cad (user, 2026-10-18).
         'step_zero' => true,
@@ -165,7 +165,7 @@ $sharedTail = [
         // In this order (client, 2026-10-18): count the pages, update DMS, then attach.
         'tasks' => [
             // The file came back with signed pages: scan them into EDMS and page-type them (transcript, 2026-10-16).
-            'edms_updated' => 'DMS updated: new pages scanned and page-typed',
+            'edms_updated' => 'DMS updated: new pages scanned and uploaded (page typing can follow on Page Typing)',
             'correspondence_attached' => 'Correspondence file attached',
         ],
         'next' => 'dc_survey',
@@ -180,11 +180,11 @@ $sharedTail = [
         'next' => 'pnd_instruction',
     ],
     'pnd_instruction' => [
-        'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Commission the Field Jacket and I to S; send to Cadastral Information',
+        'phase' => 5, 'desk' => 'ad_pnd', 'label' => 'Commission the Computation File (Field Jacket) and I to S; send to Cadastral Information',
         // P&D only commissions a plain field jacket and a plain I to S (no job, no surveyor);
         // AD Cad Info attaches the job and surveyor (transcript, 2026-10-16).
         'tasks' => [
-            'field_jacket' => 'Field Jacket commissioned',
+            'field_jacket' => 'Computation File (Field Jacket) commissioned',
             'its' => 'I to S issued (attach a job and a surveyor)',
         ],
         'next' => 'info_job_assign',
@@ -193,7 +193,7 @@ $sharedTail = [
         'phase' => 5, 'desk' => 'ad_information',
         'label' => 'Issue Job No. (Job Book) and assign: Conversion to a Private Surveyor, Government to the Survey Dept; send to Survey',
         'tasks' => [
-            'job_attached' => 'Job and surveyor attached to the field jacket',
+            'job_attached' => 'Job and surveyor attached to the Computation File',
             'job_its' => 'Instruction to Surveyor issued',
         ],
         'next' => 'field_survey',
@@ -221,6 +221,8 @@ $sharedTail = [
     'sg_signing' => [
         'phase' => 6, 'desk' => 'surveyor_general', 'label' => 'SG signs the Final Survey Plan',
         'external' => true, 'recorded_by' => 'ad_information',
+        // Change request 26-10-2026: "SG upload Final Survey Plan" (StepDocuments).
+        'tasks' => ['final_plan_uploaded' => 'Final Survey Plan uploaded (signed by the SG)'],
         'next' => 'info_after_sg',
     ],
     // Phase 7: Billing and final hand-off.
@@ -236,16 +238,85 @@ $sharedTail = [
     // Doc step 27: AD Cad Info signs, D Cad forwards to Registry (one step, as the doc numbers it).
     'info_sign_bill' => [
         'phase' => 7, 'desk' => 'ad_information', 'label' => 'Sign the Fees P&D bill; send through D Cad to Registry',
+        // Change request 26-10-2026: sign in the system, or upload the signed copy (StepDocuments).
+        'tasks' => ['bill_signed' => 'Fees P&D bill signed (in the system, or the signed copy uploaded)'],
         'next' => 'registry_dispatch',
     ],
     'registry_dispatch' => [
         'phase' => 7, 'desk' => 'registry', 'label' => 'Archive correspondence file, send main file to Deeds (Bill Balance)',
         'label_no_correspondence' => 'Send main file to Deeds (Bill Balance)',
-        'tasks' => ['correspondence_detached' => 'Correspondence file detached and archived'],
+        'tasks' => [
+            // Change request 26-10-2026: the Computation File comes off the correspondence file here.
+            'computation_detached' => 'Computation File (Field Jacket) detached from the correspondence file',
+            'correspondence_detached' => 'Correspondence file detached and archived',
+        ],
         // Send to Deeds is the last action, after the detach, and checks the file is complete.
         'checks' => ['fmc', 'charting', 'correspondence', 'bill', 'detached'],
         'action_label' => 'Send to Deeds',
         'end' => 'completed',
+    ],
+];
+
+// Conversion only (change request 26-10-2026, 31 steps; user 2026-10-27: Conversion only, Physical
+// Planning goes to the PS like KAMMA). After the GIS buffer the file goes back through D Cad and
+// AD Cad Info before Planning Advice, and the PS uploads the Planning Advice (handwritten list):
+//   inside 10 km:  D Cad > AD Cad Info > PS > KAMMA > PS > D Cad > AD Cad Info > Registry > Land
+//   outside 10 km: D Cad > AD Cad Info > Registry > Physical Planning > PS > D Cad > AD Cad Info > Registry > Land
+// The last leg is AD Cad Info > Registry (no D Cad). Old step keys stay so files already on them still move.
+$conversionAdvice = [
+    'gis_buffer' => [
+        'phase' => 2, 'desk' => 'cadastral_gis', 'label' => 'Buffer analysis: within 10 km of the city centre?',
+        'question' => 'Within the 10 km buffer from the city centre?', 'menu_label' => 'Buffer analysis',
+        'outcomes' => [
+            'inside_10km' => ['label' => 'Inside 10 km (KAMMA): send to D Cad', 'next' => 'dc_after_gis_kamma'],
+            'outside_10km' => ['label' => 'Outside 10 km (Physical Planning): send to D Cad', 'next' => 'dc_after_gis_pp'],
+        ],
+    ],
+    'dc_after_gis_kamma' => [
+        'phase' => 2, 'desk' => 'director_cadastral', 'label' => 'Buffer: inside 10 km (KAMMA); send to Cadastral Information',
+        'next' => 'info_after_gis_kamma',
+    ],
+    'info_after_gis_kamma' => [
+        'phase' => 3, 'desk' => 'ad_information', 'label' => 'Send the file to the PS for KAMMA Planning Advice',
+        'next' => 'ps_to_kamma',
+    ],
+    'ps_to_kamma' => [
+        'phase' => 3, 'desk' => 'permanent_secretary', 'label' => 'PS sends the file to KAMMA',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'kamma_advice',
+    ],
+    'kamma_advice' => [
+        'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA); back to the PS',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'perm_sec_review',
+    ],
+    'dc_after_gis_pp' => [
+        'phase' => 2, 'desk' => 'director_cadastral', 'label' => 'Buffer: outside 10 km (Physical Planning); send to Cadastral Information',
+        'next' => 'info_after_gis_pp',
+    ],
+    'info_after_gis_pp' => [
+        'phase' => 3, 'desk' => 'ad_information', 'label' => 'Send the file to Registry for Physical Planning',
+        'next' => 'registry_to_pp',
+    ],
+    'registry_to_pp' => [
+        'phase' => 3, 'desk' => 'registry', 'label' => 'Send the file to Physical Planning',
+        'next' => 'ppd_advice',
+    ],
+    'ppd_advice' => [
+        'phase' => 3, 'desk' => 'physical_planning', 'label' => 'Planning Advice (Physical Planning); to the PS',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'next' => 'perm_sec_review',
+    ],
+    'perm_sec_review' => [
+        'phase' => 3, 'desk' => 'permanent_secretary', 'label' => 'PS uploads the Planning Advice and sends the file to D Cad',
+        'external' => true, 'recorded_by' => 'director_cadastral',
+        'tasks' => ['planning_advice_uploaded' => 'Planning Advice uploaded (PS)'],
+        'next' => 'dc_after_advice',
+    ],
+    'info_sign_bill' => [
+        'phase' => 7, 'desk' => 'ad_information', 'label' => 'Sign the Fees P&D bill; send to Registry',
+        'tasks' => ['bill_signed' => 'Fees P&D bill signed (in the system, or the signed copy uploaded)'],
+        'next' => 'registry_dispatch',
     ],
 ];
 
@@ -305,11 +376,33 @@ return [
         'cadastral_gis' => 'Cad - GIS',
         'ad_drawing' => 'Cad - Drawing & Charting',   // role row: manual/2026_10_15_cadastral_drawing_charting_role.sql (run 2026-10-21)
     ],
+    // More roles that open a desk besides its own (user, 2026-10-26: "Cad - Records is supposed to see
+    // Cadastral Report"). desk key => [role, ...].
+    'desk_extra_roles' => [
+        'ad_report' => ['Cad - Records'],
+    ],
     'verification_role' => 'Cad - Verification',
+    // Who may see and print the File Movement Card, its QR page included (user, 2026-10-26).
+    // Super Admin passes. Commissioning it stays a task of the desk that does it.
+    'fmc_roles' => ['Cad - D Cad', 'Cad - AD Cad', 'Cad - DD Cad'],
     // Central Admin (CADASTRAL UPDATE, 2026-10-26): works every desk and stands in for every unit
     // head, from one table (cadastral-dept.central-admin), so a file never sticks with an absent
     // officer. Super Admin passes too. Role row: manual/2026_10_26_cadastral_central_admin_role.sql.
     'central_admin_role' => 'Cad - Central Admin',
+    // Beacon types on the Plan Description lines (change request 26-10-2026: "the Fees, P&D interface
+    // does not have where to select beacon type"). Neither the Survey nor the old Cadastral module has
+    // a list (pillar_type is free text), so these come from the CAD 20 wording; "Other" asks for the
+    // type and saves the typed text. Stored as the label in cadastral_pillars.pillar_type.
+    'beacon_types' => [
+        'Concrete beacon',
+        'Co-ordinated only (inaccessible, not marked)',
+    ],
+    // DEFAULT ONLY since 2026-10-27: the switch in Configurable Entries > Cadastral > Head of Unit wins once
+    // saved (cadastral_settings dept.head_approval), and the heads are picked there too (dept.unit_head.<desk>).
+    // Was switched off 2026-10-26 (user: "just hide for now, any user
+    // with role should access"): anyone with the desk's role sends the file on; no "Send to <head>",
+    // no Approval lists. true brings it back as it was; the to_head history rows are kept either way.
+    'head_approval' => false,
 
     /*
     | Sidebar lists per desk (user's proposed sidebar, 2026-10-11). Each entry
@@ -362,7 +455,7 @@ return [
         ]],
         'ad_pnd' => ['group' => 'Plans & Descriptions', 'entries' => [
             'all' => ['label' => 'All Files at P&D'],
-            'field_jacket' => ['label' => 'Commission Field Jacket', 'tasks' => ['field_jacket']],
+            'field_jacket' => ['label' => 'Commission Computation File (Field Jacket)', 'tasks' => ['field_jacket']],
             'its' => ['label' => 'I to S', 'tasks' => ['its']],
             'bill' => ['label' => 'Fees, Plan and Description', 'tasks' => ['bill_generated']],
             'send' => ['label' => 'Send', 'ready' => true],
@@ -392,7 +485,8 @@ return [
     'file_types' => [
         // Conversion (Customary): Conversion File, Quarry, SIT and DCIV/LPCC. Direct Allocation
         // (Statutory): GKN, Misc KN, DCIV/LPCC and OP (user's sidebar doc, 2026-10-20).
-        'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => null],
+        // `prefixes`: file numbers this type accepts (2026-10-26: a RES- file was saved as a Conversion File).
+        'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => null, 'prefixes' => ['CON-']],
         'quarry' => ['label' => 'Quarry File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => 'direct_allocation'],
         'sit' => ['label' => 'SIT File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
         'dciv' => ['label' => 'DCIV/LPCC File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => false, 'route' => 'direct_allocation'],
@@ -400,6 +494,11 @@ return [
         'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
         'op' => ['label' => 'OP File', 'workflows' => ['direct', 'verification'], 'asks_sub_type' => true, 'tenure' => 'statutory', 'route' => 'ask'],
         // LPCC is the same file type as DCIV (user, 2026-10-15): one DCIV/LPCC File option.
+        // ST and SLTR files (change request 26-10-2026, handwritten list; user 2026-10-27: file types under
+        // Conversion AND Direct, same steps as the application type). Their prefixes pick the files listed.
+        // SLTR prints its Plan Description on CAD 13, ST on CAD 20 (PndBills::defaultForm).
+        'st_file' => ['label' => 'ST File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation', 'prefixes' => ['ST-']],
+        'sltr_file' => ['label' => 'SLTR File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => 'customary', 'route' => 'direct_allocation', 'prefixes' => ['SLTR-']],
     ],
 
     /*
@@ -454,7 +553,7 @@ return [
                     ],
                     'next' => 'compensation_check',
                 ],
-            ] + $compensation + $sharedTail,
+            ] + $compensation + array_replace($sharedTail, $conversionAdvice),
         ],
 
         /* ------------------------- 2. Direct Allocation ------------------------- */

@@ -5,7 +5,7 @@
       'cadastral-dept.cases.index' => ['All Files', 'files'],
       'cadastral-dept.cases.create' => ['Register File', 'file-plus'],
       'cadastral-dept.charting.index' => ['Charting', 'map'],
-      'cadastral-dept.field-jackets.index' => ['Field Jackets', 'briefcase'],
+      'cadastral-dept.field-jackets.index' => ['Computation Files (Field Jackets)', 'briefcase'],
       'cadastral-dept.bills.index' => ['P&D Bills', 'receipt'],
       // Workflow Map hidden for now (user, 2026-10-11); the page still opens by URL.
   ];

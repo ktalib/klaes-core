@@ -1,4 +1,4 @@
-{{-- Surveyors' Report (Changes), printed. Standalone, no app chrome. --}}
+{{-- Surveyors' Report, printed. Standalone, no app chrome. --}}
 @php
     $r = $report;
     $changes = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', (string) $r->required_changes))));
@@ -7,7 +7,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>Surveyors' Report (Changes) {{ $r->report_ref }}</title>
+    <title>Surveyors' Report {{ $r->report_ref }}</title>
     <style>
         @page { size: A4; margin: 20mm; }
         body { font-family: "Times New Roman", Georgia, serif; font-size: 13.5px; color: #000; margin: 0; line-height: 1.6; }
@@ -40,7 +40,7 @@
     <div class="head">
         <h1>Kano State Ministry of Land and Physical Planning</h1>
         <h2>Survey Department · Examination / Verification Unit</h2>
-        <h3>Surveyors' Report (Changes)</h3>
+        <h3>Surveyors' Report</h3>
     </div>
 
     <div class="refs">

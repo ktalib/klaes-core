@@ -54,7 +54,10 @@
       return;
     }
     try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
-    el.style.display = 'flex';                   // show once, immediately (covers preloader)
+    // Only one loader at a time: the splash replaces the page preloader.
+    var pre = document.getElementById('klaes-preloader');
+    if (pre && pre.parentNode) pre.parentNode.removeChild(pre);
+    el.style.display = 'flex';                   // show once, immediately
     setTimeout(function () {
       el.classList.add('hide');
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 550);

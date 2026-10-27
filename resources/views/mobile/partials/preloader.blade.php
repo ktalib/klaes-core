@@ -1,6 +1,6 @@
 {{-- KLAES mobile preloader — shows the logo until the page finishes loading --}}
 <div id="klaes-preloader" role="status" aria-label="Loading">
-  <img src="//app.klaes.ng/assets/logo/klas_logo.gif" alt="KLAES">
+  <img src="https://app.klaes.ng/assets/logo/klaes-core.gif" alt="KLAES Core">
 </div>
 <style>
   #klaes-preloader {
@@ -8,7 +8,7 @@
     display: flex; align-items: center; justify-content: center;
     background: #fff7f7; transition: opacity .4s ease;
   }
-  #klaes-preloader img { width: 130px; height: auto; }
+  #klaes-preloader img { width: 240px; max-width: 80vw; height: auto; }
   #klaes-preloader.hide { opacity: 0; pointer-events: none; }
   html[data-theme="dark"] #klaes-preloader { background: #0c0e15; }
 </style>

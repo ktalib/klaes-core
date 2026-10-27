@@ -23,8 +23,9 @@
     <div class="form-container">
         <div class="form-body">
             <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
                 {{-- The file comes from the global file number selector only (GKN, LPKN, Misc KN); a job keeps its file. --}}
-                <div class="form-group" id="itsPicker" data-lookup="{{ route('survey-module.gkn.its.lookup') }}">
+                <div class="form-group full" id="itsPicker" data-lookup="{{ route('survey-module.gkn.its.lookup') }}">
                     <label>File Number <span class="required">*</span></label>
                     <div style="display:flex;gap:8px;align-items:stretch;">
                         <input type="text" name="file_number" id="itsFileNumber" readonly
@@ -54,6 +55,10 @@
                     <input type="text" name="file_title" id="itsTitle" maxlength="500" value="{{ old('file_title', $its->file_title) }}" @disabled($locked) />
                 </div>
 
+            </div>
+
+            <div class="form-grid cols-3">
+                <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Property</span></div>
                 {{-- Property order: Plot No., District, LGA, then Location (composed on save). --}}
                 <div class="form-group">
                     <label>Plot No.</label>
@@ -68,6 +73,10 @@
                     <input type="text" name="lga" id="itsLga" maxlength="255" value="{{ old('lga', $its->lga) }}" @disabled($locked) />
                 </div>
 
+            </div>
+
+            <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-user-tie"></i><span>Assignment</span></div>
                 <div class="form-group">
                     <label>Surveyor <span class="required">*</span></label>
                     <select name="surveyor_id" @disabled($locked)>

@@ -64,6 +64,41 @@ class ParcelRegisterService
     public const SOURCE_DUPLEX = 'Advance (Duplex)';
     public const SOURCE_LEGACY = 'Legacy';
 
+    /** Short code and full name shown for each source: SPU, APU, LBF. */
+    public const SOURCE_CODES = [
+        self::SOURCE_SPU    => ['SPU', 'Simple Parcel Update'],
+        self::SOURCE_DUPLEX => ['APU', 'Advance Parcel Update (Duplex)'],
+        self::SOURCE_LEGACY => ['LBF', 'Legacy Backfill'],
+    ];
+
+    /**
+     * file_indexings id per file number (upper-cased, trimmed), for the VFS folio link.
+     * Live rows only; when a number is indexed twice the first id wins.
+     */
+    public function folioIds(array $fileNumbers): array
+    {
+        $numbers = array_values(array_unique(array_filter(array_map(
+            fn ($f) => strtoupper(trim((string) $f)), $fileNumbers
+        ))));
+        if (! $numbers) {
+            return [];
+        }
+
+        $ids = [];
+        foreach (array_chunk($numbers, 500) as $chunk) {
+            DB::connection('sqlsrv')->table('file_indexings')
+                ->whereIn(DB::raw('UPPER(LTRIM(RTRIM(file_number)))'), $chunk)
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->orderBy('id')
+                ->get(['id', 'file_number'])
+                ->each(function ($r) use (&$ids) {
+                    $ids[strtoupper(trim($r->file_number))] ??= (int) $r->id;
+                });
+        }
+
+        return $ids;
+    }
+
     /** Every row of the register for $type, newest first. */
     public function rows(string $type): Collection
     {

@@ -58,6 +58,33 @@
       </dl>
     </div>
 
+    @php
+      // Next card (change request 26-10-2026): Land 12 and the Yes/No form are ticked from here,
+      // so the officer is not sent back to the file page to find "Mark done".
+      $cdStepTasks = $case->isOpen() && $def->hasStep($case->workflow, $case->current_step) ? ($def->step($case->workflow, $case->current_step)['tasks'] ?? []) : [];
+      $cdDoneKeys = $case->isOpen() ? $case->doneTaskKeys($case->current_step) : [];
+      $cdLand12Due = isset($cdStepTasks['land12']) && ! in_array('land12', $cdDoneKeys, true);
+      $cdYnDue = isset($cdStepTasks[\App\Services\CadastralDept\YesNoForms::TASK]) && ! in_array(\App\Services\CadastralDept\YesNoForms::TASK, $cdDoneKeys, true);
+    @endphp
+    @if ($cdLand12Due || ($cdYnDue && $form?->isComplete()))
+      <div class="rounded-xl border-2 border-green-300 bg-green-50 p-4 flex flex-wrap items-center gap-3">
+        <div class="text-sm font-semibold text-green-900 mr-auto">Next</div>
+        @if ($cdLand12Due)
+          <span class="text-sm text-gray-700">Land 12:</span>
+          @include('cadastral_dept.partials._land12_button')
+        @endif
+        @if ($cdYnDue && $form?->isComplete())
+          <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
+                data-confirm-title="Mark the Yes/No form done?" data-confirm="The Yes/No form is then locked and cannot be changed. You go back to {{ $case->case_ref }} for the next task.">
+            @csrf
+            <input type="hidden" name="task" value="{{ \App\Services\CadastralDept\YesNoForms::TASK }}">
+            <input type="hidden" name="return" value="case">
+            <button class="px-3 py-1.5 rounded-lg bg-green-700 text-white text-sm font-semibold">Mark the Yes/No form done</button>
+          </form>
+        @endif
+      </div>
+    @endif
+
     @if (! $installed)
       <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
         <strong>Not installed yet.</strong> The Yes/No form table (migration <code>2026_10_11_090000_create_cadastral_dept_yes_no_forms</code>) has not been created.

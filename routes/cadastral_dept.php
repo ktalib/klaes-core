@@ -67,6 +67,8 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
 
     Route::post('/cases/{case}/tasks', [CaseController::class, 'completeTask'])->whereNumber('case')->name('cases.tasks.mark-done');
     Route::post('/cases/{case}/move', [CaseController::class, 'advance'])->whereNumber('case')->name('cases.move.save');
+    // Super Admin / Central Admin: move to any step from the step bar, past the checks, with a reason (2026-10-26).
+    Route::post('/cases/{case}/jump', [CaseController::class, 'jump'])->whereNumber('case')->name('cases.jump.save');
     Route::post('/cases/{case}/sub-type', [CaseController::class, 'setSubType'])->whereNumber('case')->name('cases.sub-type.update');
     // Master Delete (Supper Admin, typed confirmation): clears a file and its workflow rows.
     Route::delete('/cases/{case}/master-destroy', [CaseController::class, 'masterDestroy'])->whereNumber('case')->name('cases.master-destroy');
@@ -75,6 +77,12 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
     Route::post('/cases/{case}/correspondence', [CaseController::class, 'createCorrespondence'])->whereNumber('case')->name('cases.correspondence.store');
     // KAMMA / Physical Planning's Planning Advice, filed into EDMS when the file comes back.
     Route::post('/cases/{case}/planning-advice', [CaseController::class, 'uploadPlanningAdvice'])->whereNumber('case')->name('cases.planning-advice.store');
+    // Change request 26-10-2026: SG's Final Survey Plan, AD Cad Info's signed Fees P&D (StepDocuments).
+    Route::post('/cases/{case}/step-documents/{task}', [CaseController::class, 'uploadStepDocument'])->whereNumber('case')
+        ->whereIn('task', array_keys(\App\Services\CadastralDept\StepDocuments::TASKS))->name('cases.step-documents.store');
+    Route::post('/cases/{case}/bill/sign', [CaseController::class, 'signBill'])->whereNumber('case')->name('cases.bill.sign');
+    // Registry, step 31: the Computation File comes off the correspondence file (FieldJackets::detach).
+    Route::post('/cases/{case}/computation-file/detach', [CaseController::class, 'detachComputationFile'])->whereNumber('case')->name('cases.computation-file.detach');
     // Registry: detach / attach the correspondence file (history kept).
     Route::post('/cases/{case}/correspondence/custody', [CaseController::class, 'correspondenceCustody'])->whereNumber('case')->name('cases.correspondence.custody.save');
     Route::post('/cases/{case}/page-count', [CaseController::class, 'pageCount'])->whereNumber('case')->name('cases.page-count.save');
@@ -113,6 +121,7 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
     Route::post('/cases/{case}/bill/area', [PndBillController::class, 'saveArea'])->whereNumber('case')->name('cases.bill.area.save');
     Route::post('/cases/{case}/bill/description', [PndBillController::class, 'generateDescription'])->whereNumber('case')->name('cases.bill.description.store');
     Route::put('/cases/{case}/bill/description', [PndBillController::class, 'saveDescription'])->whereNumber('case')->name('cases.bill.description.save');
+    Route::get('/cases/{case}/bill/description/print', [PndBillController::class, 'printDescription'])->whereNumber('case')->name('cases.bill.description.print');
     Route::get('/cases/{case}/bill/preview', [PndBillController::class, 'preview'])->whereNumber('case')->name('cases.bill.preview');
     Route::post('/cases/{case}/bill', [PndBillController::class, 'store'])->whereNumber('case')->name('cases.bill.store');
     Route::get('/bills', [PndBillController::class, 'index'])->name('bills.index');

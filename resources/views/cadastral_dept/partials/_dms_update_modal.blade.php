@@ -128,7 +128,7 @@
           this.message = res.message || (this.ok ? 'Uploaded.' : 'The upload failed.');
           if (res.errors && !Array.isArray(res.errors)) this.message += ' ' + Object.values(res.errors).flat().join(' ');
           if (res.dms) { this.uploaded = res.dms.new_pages; this.typed = res.dms.typed; }
-          if (this.ok) { this.files = []; this.changed = true; }
+          if (this.ok) { this.files = []; this.changed = true; this.message += ' Close this window and press "Mark done" to move on; page typing can be done later.'; }
         };
         xhr.onerror = () => { this.busy = false; this.ok = false; this.message = 'The upload failed: no connection.'; };
         this.busy = true; this.progress = 0; this.message = '';

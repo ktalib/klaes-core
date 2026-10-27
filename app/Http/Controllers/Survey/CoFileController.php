@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * CO (Compensation) files. "Commission CO File" numbers a new one PRJ-YYYY-0001;
+ * CO (Compensation) files. "Commission CO File" numbers a new one CO-YYYY-0001;
  * "data capture" keys in an existing paper CO file under its own number. Projects
  * are opened under a CO file, one CO file to many projects.
  */
@@ -82,7 +82,7 @@ class CoFileController extends Controller
             ->route('survey-module.compensation.co-files')
             ->with('success', $capture
                 ? "Existing CO file {$coFile->co_file_no} captured."
-                : "CO file {$coFile->co_file_no} commissioned. Open its projects from All Projects.");
+                : "CO file {$coFile->co_file_no} commissioned. Open its projects from Projects.");
     }
 
     public function edit(SurveyCoFile $coFile)

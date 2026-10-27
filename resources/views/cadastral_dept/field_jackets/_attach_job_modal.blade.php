@@ -1,7 +1,7 @@
 {{--
     Attach Job and Surveyor at AD Cad Info (transcript, 2026-10-16): jobs are registered first in
     the Job Book, with no file, surveyor or location; here a job and a surveyor are attached to
-    the field jacket P&D commissioned. The job takes the file's location. Ticks the task.
+    the Computation File P&D commissioned. The job takes the file's location. Ticks the task.
 
     $waitingJobs  FieldJackets::waitingJobs()
     $surveyors    FieldJackets::surveyors()
@@ -10,7 +10,7 @@
 --}}
 <div id="cd-aj-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4" role="dialog" aria-modal="true">
   <form id="cd-aj-form" method="POST" action="" class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto"
-        data-confirm-title="Attach the job and surveyor?" data-confirm="The job and the surveyor are attached to the field jacket; the job takes the file's location.">
+        data-confirm-title="Attach the job and surveyor?" data-confirm="The job and the surveyor are attached to the Computation File; the job takes the file's location.">
     @csrf
     <div class="flex items-start justify-between gap-3">
       <div>

@@ -75,8 +75,10 @@
 
                 <label for="vfs-scope" class="sr-only">Which files</label>
                 <select id="vfs-scope" name="scope" class="border border-gray-300 rounded-md text-sm py-2 px-3">
-                    @foreach(['mapped' => 'With scanned pages', 'all' => 'All indexed files', 'temporary' => 'Temporary files', 'unmapped' => 'Not yet scanned'] as $key => $label)
-                        <option value="{{ $key }}" @selected(($filters['scope'] ?: \App\Services\Vfs\VfsFolioPresenter::DEFAULT_SCOPE) === $key)>{{ $label }}</option>
+                    {{-- The default sends no scope: browsing shows files with scanned pages,
+                         while a search covers every indexed file (no-page rows in red). --}}
+                    @foreach(['' => 'With scanned pages', 'all' => 'All indexed files', 'temporary' => 'Temporary files', 'unmapped' => 'Not yet scanned'] as $key => $label)
+                        <option value="{{ $key }}" @selected((string) ($filters['scope'] === 'mapped' ? '' : $filters['scope']) === $key)>{{ $label }}</option>
                     @endforeach
                 </select>
 
@@ -87,8 +89,13 @@
                 @endif
             </form>
 
-            @php $activeScope = $filters['scope'] ?: \App\Services\Vfs\VfsFolioPresenter::DEFAULT_SCOPE; @endphp
-            @if($activeScope === 'mapped')
+            @php $activeScope = \App\Services\Vfs\VfsFolioPresenter::effectiveScope($filters); @endphp
+            @if($filters['q'] && !$filters['scope'])
+                <div class="mt-3 text-xs text-gray-600">
+                    Searching all {{ number_format($stats['indexed']) }} indexed files.
+                    <span class="font-semibold text-red-700">Rows in red have no pages in EDMS.</span>
+                </div>
+            @elseif($activeScope === 'mapped')
                 {{-- Most indexed files have never been scanned, so an unfiltered register
                      would be mostly rows the explorer cannot open. Say which slice is on
                      screen rather than letting the count look like the whole register. --}}
@@ -117,7 +124,8 @@
                     </thead>
                     <tbody>
                     @forelse($files as $row)
-                        <tr class="border-b border-gray-100 {{ $row->vfs_pages === 0 ? 'bg-gray-50' : '' }}">
+                        <tr class="border-b {{ $row->vfs_pages === 0 ? 'bg-red-50 border-red-100 text-red-900' : 'border-gray-100' }}"
+                            @if($row->vfs_pages === 0) title="{{ $row->vfs_scans ? 'Scanned but no page has been typed' : 'No EDMS record: never scanned or uploaded' }}" @endif>
                             <td class="px-4 py-3 text-xs text-gray-600">{{ $row->prop_id ?: '—' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
@@ -146,7 +154,7 @@
                                     {{ $row->vfs_registry_badge['label'] }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-xs {{ $row->vfs_pages === 0 ? 'text-gray-400' : 'text-gray-600' }}">{{ $row->vfs_pages }}</td>
+                            <td class="px-4 py-3 text-xs {{ $row->vfs_pages === 0 ? 'text-red-700 font-bold' : 'text-gray-600' }}">{{ $row->vfs_pages }}</td>
                             <td class="px-4 py-3">
                                 @if($row->vfs_state)
                                     <span class="inline-block text-xs font-bold px-2 py-1 rounded {{ $row->vfs_state['chip'] }}">
@@ -161,7 +169,9 @@
                                 @elseif($row->vfs_is_temporary)
                                     <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">TEMPORARY FILE</span>
                                 @elseif($row->vfs_pages === 0)
-                                    <span class="inline-block text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-600">NO PAGES MAPPED</span>
+                                    <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-red-100 text-red-700 border border-red-300">
+                                        {{ $row->vfs_scans ? 'NOT PAGE-TYPED (' . $row->vfs_scans . ' ' . \Illuminate\Support\Str::plural('scan', $row->vfs_scans) . ')' : 'NO EDMS RECORD' }}
+                                    </span>
                                 @else
                                     <span class="text-xs text-gray-400">—</span>
                                 @endif

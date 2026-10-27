@@ -33,7 +33,7 @@ class PropertyIndexCardController extends Controller
                 ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                     ->whereRaw('UPPER(c.file_number) LIKE ?', ['%' . strtoupper($search) . '%'])
                     ->orWhereRaw('UPPER(c.file_title) LIKE ?', ['%' . strtoupper($search) . '%'])))
-                ->orderByDesc('c.updated_at')
+                ->orderByDesc('c.created_at')->orderByDesc('c.id')
                 ->select('c.*', 'u.first_name as generated_by_first', 'u.last_name as generated_by_last')
                 ->paginate(25)->withQueryString();
         }

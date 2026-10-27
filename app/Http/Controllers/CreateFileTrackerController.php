@@ -2263,18 +2263,44 @@ HTML;
         $result   = $resolver->resolve($request->file_number);
         $indexing = $result['indexing'];
 
-        if (!$indexing) {
+        // The file's latest File Search Request carries the update too, so the
+        // request logs (web File Search History, mobile logs) show the new status.
+        $latestFr = FileSearchRequest::where('file_number', $result['file_number'])
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$indexing && !$latestFr) {
             return response()->json([
                 'success' => false,
-                'message' => 'No indexed file record found for this file number, so the status cannot be stored.',
+                'message' => 'No indexed file record or file request found for this file number, so the status cannot be stored.',
             ], 404);
         }
 
-        $indexing->forceFill([
-            'tracking_status'        => $request->status,
-            'current_location'       => $request->input('current_location') ?: $indexing->current_location,
-            'location_status_manual' => now(),
-        ])->save();
+        if ($indexing) {
+            $indexing->forceFill([
+                'tracking_status'        => $request->status,
+                'current_location'       => $request->input('current_location') ?: $indexing->current_location,
+                'location_status_manual' => now(),
+            ])->save();
+        }
+
+        if ($latestFr) {
+            $latestFr->forceFill([
+                'location_status'    => $request->status,
+                'location_status_at' => now(),
+                'location_status_by' => Auth::id(),
+            ])->save();
+        }
+
+        if (!$indexing) {
+            // Not indexed: there is no archive record to hold the status, so only
+            // the request log reflects it. The search card is re-rendered unchanged.
+            return response()->json([
+                'success' => true,
+                'data'    => $this->presentLocationResult($result, false),
+                'message' => 'File not indexed — the status was recorded on its file request ' . $latestFr->request_no . '.',
+            ]);
+        }
 
         // Return the freshly resolved (now manual) outcome for the UI.
         $fresh = $resolver->resolve($request->file_number);
@@ -2736,7 +2762,7 @@ HTML;
 
         // Full File Search History — everyone's requests (no per-user scoping).
         $query = FileSearchRequest::query()
-            ->with(['responder:id,first_name,last_name', 'requester:id,first_name,last_name'])
+            ->with(['responder:id,first_name,last_name', 'requester:id,first_name,last_name', 'locationStatusUser:id,first_name,last_name'])
             ->where($dateScope)
             ->where($registryScope);
 
@@ -2891,6 +2917,8 @@ HTML;
                             : 'Not Found'),
                     'not_found_type'   => $r->status === FileSearchRequest::STATUS_NOT_FOUND ? $r->not_found_type : null,
                     'front_desk_acted' => ! is_null($r->front_desk_acted_at),
+                    // Status set by hand on Quick Search after the SCB response.
+                    'location_update'  => $r->locationUpdatePayload(),
                     'note'             => $r->feedback_note,
                     'responder'        => $resp ? trim($resp->first_name . ' ' . $resp->last_name) : null,
                     'requested_by'     => $reqUser ? trim($reqUser->first_name . ' ' . $reqUser->last_name) : null,
@@ -3525,7 +3553,13 @@ HTML;
                     'file_search_request',
                     "File Request: {$fr->request_no}",
                     "{$requesterName} requested a physical search for file {$fr->file_number}" .
-                        ($fr->current_location ? " (expected at {$fr->current_location})." : '.'),
+                        ($fr->current_location === null || trim($fr->current_location) === ''
+                            ? '.'
+                            // A file with no indexing row has no shelf to be "expected at"; the
+                            // resolver labels it "Not indexed", so say that plainly instead.
+                            : (strcasecmp(trim($fr->current_location), 'Not indexed') === 0
+                                ? ' (file not yet indexed).'
+                                : " (expected at {$fr->current_location}).")),
                     [
                         'request_id'   => $fr->id,
                         'request_no'   => $fr->request_no,

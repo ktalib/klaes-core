@@ -92,9 +92,15 @@ class YesNoFormController extends Controller
         $case = CadastralCase::findOrFail($case);
 
         // Back to the File Movement Card after saving (user, 2026-10-12); the file page when it has none yet.
-        $back = $case->fmc
+        $back = $case->fmc && \App\Services\CadastralDept\FileMovementCards::canView(auth()->user())
             ? route('cadastral-dept.cases.fmc.show', $case->id)
             : route('cadastral-dept.cases.show', $case->id);
+        // All seven answered: stay on the form, where "Mark done" now shows (change request 26-10-2026:
+        // "once they fill it, it should bring Mark done" instead of sending them back to find it).
+        $answered = collect(array_keys(CadastralYesNoForm::QUESTIONS))->every(fn ($q) => in_array($data[$q] ?? null, ['Yes', 'No'], true));
+        if ($answered && $this->forms->dueNow($case) && !in_array(YesNoForms::TASK, $case->doneTaskKeys($case->current_step), true)) {
+            $back = route('cadastral-dept.cases.yes-no.show', $case->id);
+        }
 
         return $this->attempt(fn () => $this->forms->save($case, $data, auth()->id()), "{$case->case_ref}: Yes/No form saved.", $back);
     }

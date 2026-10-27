@@ -173,7 +173,7 @@ class YesNoForms
                 ['complete' => $complete], "Yes/No form for {$case->case_ref}" . ($complete ? ' (complete)' : ' (incomplete)'));
 
             return $complete
-                ? 'Yes/No form saved. All seven questions are answered; tick "Yes/No form" on the file page to lock it.'
+                ? 'Yes/No form saved. All seven questions are answered; press "Mark the Yes/No form done" to lock it and go on.'
                 : 'Yes/No form saved. Still to answer: ' . implode(', ', array_map(fn ($c) => 'Q' . substr($c, 1, 1), $form->unanswered())) . '.';
         });
     }

@@ -2610,7 +2610,13 @@ HTML;
                     'file_search_request',
                     "File Request: {$fr->request_no}",
                     "{$requesterName} requested a physical search for file {$fr->file_number}" .
-                        ($fr->current_location ? " (expected at {$fr->current_location})." : '.'),
+                        ($fr->current_location === null || trim($fr->current_location) === ''
+                            ? '.'
+                            // A file with no indexing row has no shelf to be "expected at"; the
+                            // resolver labels it "Not indexed", so say that plainly instead.
+                            : (strcasecmp(trim($fr->current_location), 'Not indexed') === 0
+                                ? ' (file not yet indexed).'
+                                : " (expected at {$fr->current_location}).")),
                     [
                         'request_id'   => $fr->id,
                         'request_no'   => $fr->request_no,

@@ -1,6 +1,6 @@
 {{--
     Instruction to Surveyor (I to S), Cadastral Department workflow. Copied from
-    cadastral_module/information/its_print (clone per module); adds the field jacket.
+    cadastral_module/information/its_print (clone per module); adds the Computation File.
 
     Standalone, no app chrome: this is signed and sent out.
 --}}
@@ -60,7 +60,7 @@
     <div class="refs">
         <span><strong>Instruction No.:</strong> {{ $job->its_number }}</span>
         <span><strong>Survey Job No.:</strong> {{ $job->job_number }}</span>
-        <span><strong>Field Jacket:</strong> {{ $jacket->field_jacket_no }}</span>
+        <span><strong>Computation File (Field Jacket):</strong> {{ $jacket->field_jacket_no }}</span>
         <span><strong>Date:</strong> {{ optional($job->its_issued_at)->format('d F Y') ?: now()->format('d F Y') }}</span>
     </div>
 
@@ -144,7 +144,7 @@
     </div>
 
     <div class="foot">
-        Field Jacket {{ $jacket->field_jacket_no }} · Survey Job {{ $job->job_number }} · Instruction {{ $job->its_number }} ·
+        Computation File (Field Jacket) {{ $jacket->field_jacket_no }} · Survey Job {{ $job->job_number }} · Instruction {{ $job->its_number }} ·
         Printed {{ now()->format('d M Y H:i') }}
 
     </div>

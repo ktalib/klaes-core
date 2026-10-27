@@ -33,6 +33,87 @@
     </div>
 </div>
 
+{{-- ============ Head of Unit (HOU) ============ --}}
+@php
+    $hou = $cadHou;
+    $houBy = $hou['updated_by'] ? $userName($hou['updated_by']) : null;
+    $houAt = $hou['updated_at'] ? \Illuminate\Support\Carbon::parse($hou['updated_at'])->format('d M Y, H:i') : null;
+    $usersById = $cadUsers->keyBy('id');
+@endphp
+<form method="POST" action="{{ route('configurable-entries.cadastral.head-of-unit') }}" class="iw-card">
+    @csrf
+    <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">
+        <div>
+            <div class="iw-card-title"><span class="iw-icon-tile orange"><i data-lucide="user-check" class="h-5 w-5"></i></span> Head of Unit (HOU) Approval</div>
+            <div class="iw-card-sub">Cadastral Department workflow. Decides who may send a file out of a unit.</div>
+        </div>
+        <span class="ce-pill {{ $hou['enabled'] ? 'green' : 'yellow' }}">{{ $hou['enabled'] ? 'ON' : 'OFF' }}</span>
+    </div>
+    <div class="iw-card-body">
+        <div class="grid gap-3 md:grid-cols-2 text-sm mb-4">
+            <div class="rounded-lg border p-3 {{ $hou['enabled'] ? 'border-green-300 bg-green-50' : 'border-gray-200' }}">
+                <div class="font-semibold text-gray-900 mb-1">When ON</div>
+                Staff of a unit do the work, then press <strong>Send to &lt;Head&gt;</strong>. Only the Head of Unit presses
+                <strong>Approve</strong> to send the file to the next unit, or returns it to the staff with a reason.
+            </div>
+            <div class="rounded-lg border p-3 {{ $hou['enabled'] ? 'border-gray-200' : 'border-green-300 bg-green-50' }}">
+                <div class="font-semibold text-gray-900 mb-1">When OFF</div>
+                Anyone with the unit's desk role sends the file on directly. Nothing waits for a head.
+            </div>
+        </div>
+
+        <label class="flex items-center gap-3 text-sm mb-4">
+            <input type="hidden" name="head_approval" value="0">
+            <span class="ce-switch"><input type="checkbox" name="head_approval" value="1" @checked($hou['enabled'])><span></span></span>
+            <span class="font-semibold text-gray-900">Head of Unit approval is ON</span>
+            <span class="ce-muted">{{ $houBy || $houAt ? 'Last saved' . ($houBy ? ' by ' . $houBy : '') . ($houAt ? ' · ' . $houAt : '') : 'Not saved yet (shipped default)' }}</span>
+        </label>
+
+        <div class="overflow-x-auto">
+            <table class="ce-table">
+                <thead><tr><th style="width:50px">S/N</th><th>Unit</th><th>Head title</th><th style="min-width:280px">Head of Unit</th></tr></thead>
+                <tbody>
+                    @foreach($hou['units'] as $desk => $unit)
+                        @php
+                            $staffUsers = collect($unit['staff'])->map(fn ($id) => $usersById->get($id))->filter();
+                            $otherUsers = $cadUsers->reject(fn ($u) => in_array((int) $u->id, $unit['staff'], true));
+                        @endphp
+                        <tr>
+                            <td>{{ $loop->iteration }}</td>
+                            <td><div class="font-medium text-gray-900">{{ $unit['unit'] }}</div></td>
+                            <td>{{ $unit['head'] }}</td>
+                            <td>
+                                <select name="heads[{{ $desk }}]" class="ce-select">
+                                    <option value="">No head yet (Super Admin acts as head)</option>
+                                    @if($staffUsers->isNotEmpty())
+                                        <optgroup label="Has this unit's desk role">
+                                            @foreach($staffUsers as $user)
+                                                <option value="{{ $user->id }}" @selected($unit['head_user_id'] === (int) $user->id)>{{ $user->display }}{{ $user->email ? ' · ' . $user->email : '' }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endif
+                                    <optgroup label="Other users">
+                                        @foreach($otherUsers as $user)
+                                            <option value="{{ $user->id }}" @selected($unit['head_user_id'] === (int) $user->id)>{{ $user->display }}{{ $user->email ? ' · ' . $user->email : '' }}{{ $user->is_active ? '' : ' (inactive)' }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                </select>
+                                @if($unit['head_user_id'] && ! in_array($unit['head_user_id'], $unit['staff'], true))
+                                    <div class="ce-muted mt-1" style="color:#b45309">This user does not have the unit's desk role, so cannot open its desk page.</div>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="iw-card-foot" style="border-radius:0 0 16px 16px">
+        <span class="ce-muted">D Cad and DD Cad are directors and always send directly. Users with the <strong>{{ $hou['central_admin_role'] }}</strong> role can stand in for any head.</span>
+        <button class="iw-btn iw-btn-success iw-btn-sm"><i data-lucide="save" class="h-4 w-4"></i> Save Head of Unit</button>
+    </div>
+</form>
+
 {{-- ============ Fee sheet rates ============ --}}
 <form method="POST" action="{{ route('configurable-entries.cadastral.settings', 'fees') }}" class="iw-card">
     @csrf
@@ -55,6 +136,8 @@
     </div>
 </form>
 
+{{-- Hidden for now (user, 2026-10-27): change false to true to show this card again. --}}
+@if (false)
 {{-- ============ Area fee schedule ============ --}}
 <div class="iw-card">
     <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">
@@ -182,6 +265,7 @@
         </table>
     </div>
 </div>
+@endif
 
 {{-- ============ Transport bands ============ --}}
 <div class="iw-card">
@@ -321,6 +405,8 @@
     </div>
 </form>
 
+{{-- Hidden for now (user, 2026-10-27): change false to true to show this card again. --}}
+@if (false)
 {{-- ============ Officers & posts ============ --}}
 <div class="iw-card">
     <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">
@@ -431,3 +517,4 @@
         </table>
     </div>
 </div>
+@endif

@@ -55,7 +55,7 @@ class DeskController extends Controller
 
         if ($installed) {
             $here = $filter(CadastralCase::query()->open()->with(['tasks', 'latestMovement', 'receiver'])->where('current_desk', $desk))
-                ->orderBy('updated_at')->get();
+                ->orderByDesc('created_at')->orderByDesc('id')->get();
 
             $recorded = [];
             foreach ($def->stepsForDesk($desk) as $wf => $steps) {
@@ -72,7 +72,7 @@ class DeskController extends Controller
                             $q->orWhere(fn ($w) => $w->where('workflow', $wf)->whereIn('current_step', $steps));
                         }
                     })
-                    ->orderBy('updated_at')->get();
+                    ->orderByDesc('created_at')->orderByDesc('id')->get();
             }
 
             // Summary cards: the whole desk, before any sidebar list narrows it.
@@ -84,7 +84,7 @@ class DeskController extends Controller
                 ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
                 ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
             ];
-            if ($def->desk($desk)['head'] ?? null) {   // a unit: files its staff sent to the head
+            if (($def->desk($desk)['head'] ?? null) && \App\Services\CadastralDept\HeadApproval::enabled()) {   // a unit: files its staff sent to the head
                 $heads = app(\App\Services\CadastralDept\HeadApproval::class);
                 $cards[] = ['label' => 'With the ' . $def->desk($desk)['head'], 'value' => $here->filter(fn ($c) => $heads->awaiting($c))->count(),
                     'hint' => 'sent for approval', 'colour' => 'purple',
@@ -101,7 +101,7 @@ class DeskController extends Controller
                 ->whereNotIn('id', $away->pluck('id'))
                 ->whereHas('movements', fn ($m) => $m->where('from_desk', $desk));
             $sentTotal = (clone $sentQuery)->count();
-            $sent = $sentQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+            $sent = $sentQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
             $cards[] = ['label' => 'Sent on', 'value' => $sentTotal, 'hint' => 'still open at another desk', 'colour' => 'gray'];
 
             // Finished files this desk handled (Registry: every file), read only and view only
@@ -110,7 +110,7 @@ class DeskController extends Controller
                 ->where(fn ($q) => $q->where('current_desk', $desk)
                     ->orWhereHas('movements', fn ($m) => $m->where('from_desk', $desk)));
             $closedTotal = (clone $closedQuery)->count();
-            $closed = $closedQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+            $closed = $closedQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
             $cards[] = ['label' => 'Finished', 'value' => $closedTotal, 'hint' => 'completed or returned, view only', 'colour' => 'gray'];
 
             // A sidebar list narrows the inbox to the files where its action is due.
@@ -126,7 +126,7 @@ class DeskController extends Controller
                         ->whereNotIn('id', $here->concat($away)->pluck('id'))
                         ->whereHas('tasks', fn ($t) => $t->whereIn('task_key', (array) $queue['tasks']));
                     $sentTotal = (clone $doneQuery)->count();
-                    $done = $doneQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+                    $done = $doneQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
                     $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
                     $sent = $done->filter(fn ($c) => $c->isOpen())->values();
                 } elseif (!empty($queue['awaiting_head'])) {
@@ -137,7 +137,7 @@ class DeskController extends Controller
                         ->where(fn ($q) => $q->where('current_desk', '!=', $desk)->orWhere('status', '!=', CadastralCase::STATUS_IN_PROGRESS))
                         ->whereHas('movements', fn ($m) => $m->where('outcome', \App\Services\CadastralDept\HeadApproval::TO_HEAD)->where('to_desk', $desk));
                     $sentTotal = (clone $doneQuery)->count();
-                    $done = $doneQuery->orderByDesc('updated_at')->limit(self::SENT_LIMIT)->get();
+                    $done = $doneQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
                     $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
                     $sent = $done->filter(fn ($c) => $c->isOpen())->values();
                 } elseif (array_intersect_key($queue, array_flip(['steps', 'to', 'at']))) {
@@ -167,6 +167,7 @@ class DeskController extends Controller
             'sentLimit' => self::SENT_LIMIT,
             'menus' => $menus,
             'fmcInstalled' => FileMovementCards::installed(),
+            'fmcVisible' => FileMovementCards::canView(auth()->user()),   // config fmc_roles (2026-10-26)
             'waitingJobs' => $attachDue ? app(FieldJackets::class)->waitingJobs() : null,
             'surveyors' => $attachDue ? app(FieldJackets::class)->surveyors() : collect(),
             'filterWorkflow' => $wfFilter,

@@ -800,24 +800,20 @@ class FileDecommissioningController extends Controller
     }
 
     /**
-     * Reason cell: show a short preview, keep the full text on the element so the
-     * table's hover tooltip can reveal the rest without widening the column.
+     * Reason cell: just the cause (Subdivision, Merger, Re-grant, ...) as a badge in its own
+     * colour; the full reason shows in the table's hover tooltip (user, 2026-10-26).
      */
     private function renderReason($reason): string
     {
         $reason = trim((string) ($reason ?? ''));
-        if ($reason === '') {
+        $cause = \App\Support\DecommissionCause::of($reason);
+        if ($cause === null) {
             return 'N/A';
         }
+        [$fg, $bg] = \App\Support\DecommissionCause::colours($cause);
 
-        // mb_* so multibyte reasons ("… → CON-COM-2026-426") never get cut mid-character.
-        if (mb_strlen($reason) <= 50) {
-            return '<span class="reason-cell">' . e($reason) . '</span>';
-        }
-
-        return '<span class="reason-cell reason-truncated" data-reason="' . e($reason) . '">'
-            . e(mb_substr($reason, 0, 50)) . '…'
-            . '</span>';
+        return '<span class="reason-cell reason-truncated reason-badge" data-reason="' . e($reason) . '"'
+            . ' style="color:' . $fg . ';background-color:' . $bg . ';">' . e($cause) . '</span>';
     }
 
     /**

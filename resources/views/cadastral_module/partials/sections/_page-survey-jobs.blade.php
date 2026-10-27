@@ -36,7 +36,7 @@
 
 {{-- The Job Book (AD Cad Info, transcript 2026-10-16): a job is its number and scope. It has no
      location of its own: at Assign to Surveyor (I to S) it is attached, with a surveyor, to a
-     file's field jacket and takes the file's location. --}}
+     file's Computation File and takes the file's location. --}}
 @cadCan('create', 'ad_information')
     <form method="POST" action="{{ route('cadastral-module.survey-jobs.store') }}" class="form-container" style="margin-bottom:22px;">
         @csrf
@@ -89,7 +89,7 @@
                 <tr>
                     <th>S/N</th>
                     <th>Job Number</th>
-                    <th>Field Jacket</th>
+                    <th>Computation File (Field Jacket)</th>
                     <th>File Number</th>
                     <th>Plot No.</th>
                     <th>Location</th>

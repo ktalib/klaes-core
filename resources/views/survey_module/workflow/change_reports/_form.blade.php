@@ -23,6 +23,7 @@
     <div class="form-container">
         <div class="form-body">
             <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
                 @if ($fromLine || $editing)
                     <div class="form-group"><label>File Number</label><input type="text" name="file_number" value="{{ $report->file_number }}" readonly style="{{ $ro }}" /></div>
                 @else
@@ -33,18 +34,28 @@
                 @endif
                 <div class="form-group full"><label>File Title</label>
                     <input type="text" name="file_title" id="crTitle" maxlength="500" value="{{ old('file_title', $report->file_title) }}" /></div>
+            </div>
+            <div class="form-grid cols-3">
+                <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Property</span></div>
                 <div class="form-group"><label>Plot No.</label><input type="text" name="plot_no" id="crPlot" maxlength="100" value="{{ old('plot_no', $report->plot_no) }}" /></div>
                 <div class="form-group"><label>District</label><input type="text" name="district" id="crDistrict" maxlength="255" value="{{ old('district', $report->district) }}" /></div>
                 <div class="form-group"><label>LGA</label><input type="text" name="lga" id="crLga" maxlength="255" value="{{ old('lga', $report->lga) }}" /></div>
+            </div>
+            <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-drafting-compass"></i><span>Plan</span></div>
                 <div class="form-group"><label>Plan No.</label><input type="text" name="plan_no" maxlength="100" value="{{ old('plan_no', $report->plan_no) }}" /></div>
                 <div class="form-group"><label>Plan prepared by (surveyor)</label><input type="text" name="surveyor_name" maxlength="255" value="{{ old('surveyor_name', $report->surveyor_name) }}" /></div>
-
+            </div>
+            <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-search"></i><span>Findings</span></div>
                 <div class="form-group full"><label>Discrepancies found <span class="required">*</span></label>
                     <textarea name="discrepancies" rows="5" maxlength="4000" required placeholder="What in the submitted plan does not match the existing records…">{{ old('discrepancies', $report->discrepancies) }}</textarea></div>
                 <div class="form-group full"><label>Changes required <span class="required">*</span></label>
                     <textarea name="required_changes" rows="5" maxlength="4000" required placeholder="One change per line…">{{ old('required_changes', $report->required_changes) }}</textarea>
                     <p class="helper-text">Each line prints as a numbered item.</p></div>
-
+            </div>
+            <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-user-check"></i><span>Examination</span></div>
                 <div class="form-group"><label>Examined by</label><input type="text" name="examined_by" maxlength="255" value="{{ old('examined_by', $report->examined_by) }}" /></div>
                 <div class="form-group"><label>Date</label><input type="date" name="report_date" value="{{ old('report_date', optional($report->report_date)->format('Y-m-d')) }}" /></div>
             </div>

@@ -36,7 +36,7 @@
     <div class="comp-type-note" style="margin-bottom:16px;"><i class="fas fa-lock"></i> {{ $anchor['prefill']['its_number'] }} is closed; this list can no longer be changed.</div>
 @else
     <form method="POST" action="{{ route('survey-module.gkn.coordinates.store', $key) }}" id="coordForm"
-          class="farmer-entry-form {{ $errors->any() ? 'open' : '' }}" data-sv-modal="Add Beacon · {{ $anchor['prefill']['its_number'] }}" data-sv-modal-size="sm">
+          class="farmer-entry-form {{ $errors->any() && ! str_starts_with((string) old('_form'), 'edit-') ? 'open' : '' }}" data-sv-modal="Add Beacon · {{ $anchor['prefill']['its_number'] }}" data-sv-modal-size="sm">
         @csrf
         <div class="form-grid">
             <div class="sv-group"><i class="fas fa-map-pin"></i><span>Beacon</span></div>
@@ -106,7 +106,7 @@
                                     <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                          :style="'top:' + top + 'px; left:' + left + 'px'"
                                          class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                        <button type="button" class="{{ $svItem }}" @click="open = false; $dispatch('edit-beacon', {{ $c->id }})">
+                                        <button type="button" class="{{ $svItem }}" @click="open = false; svModal.open('coordEdit{{ $c->id }}')">
                                             <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                         </button>
                                         @foreach (['up' => 'Move up', 'down' => 'Move down'] as $dir => $label)
@@ -125,25 +125,6 @@
                             @endunless
                         </td>
                     </tr>
-                    @unless ($locked)
-                        <tr x-data="{ show: false }" x-show="show" x-cloak @edit-beacon.window="show = ($event.detail === {{ $c->id }}) ? !show : false">
-                            <td colspan="10" style="background:var(--gray-50);">
-                                <form method="POST" action="{{ route('survey-module.gkn.coordinates.update', [$key, $c->id]) }}"
-                                      style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
-                                    @csrf @method('PUT')
-                                    <div><label>Beacon</label><input type="text" name="beacon_id" value="{{ $c->beacon_id }}" maxlength="50" required class="form-control" /></div>
-                                    <div><label>Northing</label><input type="number" step="0.001" name="northing" value="{{ $c->northing }}" required class="form-control" /></div>
-                                    <div><label>Easting</label><input type="number" step="0.001" name="easting" value="{{ $c->easting }}" required class="form-control" /></div>
-                                    <div><label>Elevation</label><input type="number" step="0.001" name="elevation" value="{{ $c->elevation }}" class="form-control" /></div>
-                                    <div><label>Remarks</label><input type="text" name="remarks" value="{{ $c->remarks }}" maxlength="500" class="form-control" /></div>
-                                    <div style="display:flex;gap:6px;">
-                                        <button class="btn btn-success btn-sm" type="submit"><i class="fas fa-check"></i> Save</button>
-                                        <button class="btn btn-secondary btn-sm" type="button" @click="show = false"><i class="fas fa-times"></i></button>
-                                    </div>
-                                </form>
-                            </td>
-                        </tr>
-                    @endunless
                 @empty
                     <tr><td colspan="10" style="text-align:center;padding:24px;color:var(--gray-500);">
                         No beacons yet{{ $locked ? '.' : '. Add the first one above.' }}
@@ -156,3 +137,35 @@
         <span>Bearings are grid bearings, clockwise from north, from each beacon to the next; the last leg closes to the first beacon.</span>
     </div>
 </div>
+
+{{-- Edit a beacon, one modal each (2026-10-27: the inline row had no styling). --}}
+@unless ($locked)
+    @foreach ($coords as $c)
+        @php $mine = $errors->any() && old('_form') === 'edit-' . $c->id; $v = fn ($f) => $mine ? old($f) : $c->{$f}; @endphp
+        <form method="POST" action="{{ route('survey-module.gkn.coordinates.update', [$key, $c->id]) }}" id="coordEdit{{ $c->id }}"
+              class="farmer-entry-form {{ $mine ? 'open' : '' }}" data-sv-modal="Edit Beacon {{ $c->beacon_id }}" data-sv-modal-size="sm">
+            @csrf @method('PUT')
+            <input type="hidden" name="_form" value="edit-{{ $c->id }}" />
+            <div class="form-grid">
+                <div class="sv-group"><i class="fas fa-map-pin"></i><span>Beacon</span></div>
+                <div class="form-group"><label>Beacon ID <span class="required">*</span></label>
+                    <input type="text" name="beacon_id" maxlength="50" value="{{ $v('beacon_id') }}" required /></div>
+                <div class="form-group"><label>Remarks</label>
+                    <input type="text" name="remarks" maxlength="500" value="{{ $v('remarks') }}" /></div>
+            </div>
+            <div class="form-grid cols-3">
+                <div class="sv-group"><i class="fas fa-crosshairs"></i><span>Coordinates</span></div>
+                <div class="form-group"><label>Northing (m) <span class="required">*</span></label>
+                    <input type="number" step="0.001" name="northing" value="{{ $v('northing') }}" required /></div>
+                <div class="form-group"><label>Easting (m) <span class="required">*</span></label>
+                    <input type="number" step="0.001" name="easting" value="{{ $v('easting') }}" required /></div>
+                <div class="form-group"><label>Elevation (m)</label>
+                    <input type="number" step="0.001" name="elevation" value="{{ $v('elevation') }}" /></div>
+            </div>
+            <div class="form-actions">
+                <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('coordEdit{{ $c->id }}').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
+                <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Save</button></div>
+            </div>
+        </form>
+    @endforeach
+@endunless

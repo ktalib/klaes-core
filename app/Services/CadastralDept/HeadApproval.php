@@ -4,8 +4,8 @@ namespace App\Services\CadastralDept;
 
 use App\Models\CadastralDept\CadastralCase;
 use App\Models\CadastralDept\CadastralCaseMovement;
-use App\Models\CadastralOfficer;
 use App\Models\User;
+use App\Services\Cadastral\CadastralSettings;
 
 /**
  * Head-of-unit approval (transcript of the workflow update, 2026-10-16).
@@ -20,15 +20,21 @@ use App\Models\User;
  * "Sent to the head" is a movement on the same step (outcome to_head), so it is in the
  * file's history and FMC; a file waits for the head while its latest movement is that one.
  *
- * The head is whoever holds the desk's `post` in Configurable Entries > Cadastral > Officers.
- * While nobody holds it, the admin (Super Admin) holds it, until it is assigned to a user
- * (user, 2026-10-16); from then on only the holder acts as head.
+ * The head is the user picked for the unit in Configurable Entries > Cadastral > Head of Unit
+ * (setting dept.unit_head.<desk>, 2026-10-27; before, it was the holders of the desk's `post`,
+ * which mixed heads up with the officers notified). The switch there (dept.head_approval)
+ * turns the whole thing on or off; config cadastral_dept.head_approval is only the default.
+ * While a unit has no head picked, the admin (Super Admin) acts as head (user, 2026-10-16).
  * A Central Admin (DeskAccess::holdsCentralAdminRole, 2026-10-26) stands in for every head.
  */
 class HeadApproval
 {
     public const TO_HEAD = 'to_head';
     public const RETURNED = 'head_return';
+
+    /** cadastral_settings keys (Configurable Entries > Cadastral > Head of Unit). */
+    public const SETTING_ON = 'dept.head_approval';
+    public const SETTING_HEAD = 'dept.unit_head.';
 
     public function __construct(private WorkflowDefinition $def)
     {
@@ -40,9 +46,26 @@ class HeadApproval
         return $desk ? ($this->def->desks()[$desk]['head'] ?? null) : null;
     }
 
+    /** Head approval switched on: the Head of Unit switch in Configurable Entries, else config. */
+    public static function enabled(): bool
+    {
+        return (bool) (new CadastralSettings())->get(self::SETTING_ON, config('cadastral_dept.head_approval', true));
+    }
+
+    /** The user picked as the unit's head in Configurable Entries, or null while none is. */
+    public static function headUserId(?string $desk): ?int
+    {
+        $id = $desk ? (int) (new CadastralSettings())->get(self::SETTING_HEAD . $desk, 0) : 0;
+
+        return $id > 0 ? $id : null;
+    }
+
     /** Whether the case's current step goes through the unit head before the file is sent on. */
     public function required(CadastralCase $case): bool
     {
+        if (!self::enabled()) {
+            return false;
+        }
         if (!$case->isOpen() || !$case->current_step || !$this->def->hasStep($case->workflow, $case->current_step)) {
             return false;
         }
@@ -54,6 +77,9 @@ class HeadApproval
     /** Staff have sent it to the head, and it is waiting there. */
     public function awaiting(CadastralCase $case): bool
     {
+        if (!self::enabled()) {
+            return false;   // switched off: nothing waits for a head
+        }
         $last = $case->relationLoaded('latestMovement')
             ? $case->latestMovement
             : CadastralCaseMovement::query()->where('cadastral_case_id', $case->id)->orderByDesc('id')->first(['id', 'outcome', 'to_step']);
@@ -69,21 +95,23 @@ class HeadApproval
         if (DeskAccess::holdsCentralAdminRole($user)) {
             return true;
         }
-        $holders = array_map('intval', CadastralOfficer::userIdsForPost($this->def->desks()[$desk]['post'] ?? null));
-        if ($holders) {
-            return in_array((int) $user->id, $holders, true);
+        $head = self::headUserId($desk);
+        if ($head) {
+            return (int) $user->id === $head;
         }
 
-        // Post vacant: the admin holds it until it is assigned to a user (user, 2026-10-16).
+        // No head picked: the admin holds it until it is assigned to a user (user, 2026-10-16).
         return $user->isSuperAdmin();
     }
 
-    /** Users to tell when a file is sent to the head: the post holders, or the admins while it is vacant. */
+    /** Users to tell when a file is sent to the head: the unit's head, or the admins while none is picked. */
     public function headUserIds(?string $desk): array
     {
-        $holders = CadastralOfficer::userIdsForPost($desk ? ($this->def->desks()[$desk]['post'] ?? null) : null);
-        if ($holders || !$desk || !$this->headOf($desk)) {
-            return $holders;
+        if (!$desk || !$this->headOf($desk)) {
+            return [];
+        }
+        if ($head = self::headUserId($desk)) {
+            return [$head];
         }
 
         return User::query()->where('is_active', 1)->get()
@@ -108,7 +136,7 @@ class HeadApproval
         $head = $this->headOf($desk);
         $awaiting = $this->awaiting($case);
         $isHead = $this->isHead($user, $desk);
-        $vacant = !CadastralOfficer::userIdsForPost($this->def->desks()[$desk]['post'] ?? null);
+        $vacant = self::headUserId($desk) === null;
         $info = ['head' => $head, 'awaiting' => $awaiting, 'is_head' => $isHead, 'required' => true, 'vacant' => $vacant] + $info;
 
         if ($isHead) {

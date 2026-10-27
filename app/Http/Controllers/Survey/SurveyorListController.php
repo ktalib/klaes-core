@@ -63,6 +63,7 @@ class SurveyorListController extends Controller
         $data['source_sheet'] = 'KLAES';
         $data['is_active'] = true;
         $s = SurveyorListEntry::create($data);
+        $this->syncCadastral($s);
 
         return redirect()->route('survey-module.records.surveyors.index')
             ->with('success', "{$s->full_name} added to the staff list.");
@@ -71,6 +72,7 @@ class SurveyorListController extends Controller
     public function update(Request $r, SurveyorListEntry $surveyor)
     {
         $surveyor->update($this->validated($r, $surveyor));
+        $this->syncCadastral($surveyor);
 
         return redirect()->route('survey-module.records.surveyors.index', $r->only(['q', 'rank', 'status', 'page']))
             ->with('success', "{$surveyor->full_name} updated.");
@@ -79,8 +81,19 @@ class SurveyorListController extends Controller
     public function toggle(SurveyorListEntry $surveyor)
     {
         $surveyor->update(['is_active' => ! $surveyor->is_active]);
+        $this->syncCadastral($surveyor);
 
         return back()->with('success', $surveyor->full_name . ($surveyor->is_active ? ' reactivated.' : ' deactivated.'));
+    }
+
+    /** Keep the staff member's Cadastral Surveyors row in step (user, 2026-10-27). Never blocks the save here. */
+    private function syncCadastral(SurveyorListEntry $staff): void
+    {
+        try {
+            app(\App\Services\Cadastral\SurveyStaffSync::class)->syncOne($staff->fresh());
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /** @return array<string, mixed> */

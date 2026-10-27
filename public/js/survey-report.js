@@ -66,6 +66,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     Swal.fire('Success', data.message, 'success');
                 }
                 closeModal();
+                // Opened from a Cadastral file (cd_next, a same-site path): go on to its next card,
+                // the Yes/No form, instead of reloading the list (change request 26-10-2026).
+                // The server returns cd_next when the form was opened from a Cadastral file (cd_case).
+                const cdNext = data.cd_next || new URLSearchParams(window.location.search).get('cd_next');
+                if (cdNext && cdNext.charAt(0) === '/' && cdNext.charAt(1) !== '/') {
+                    window.location.href = cdNext;
+                    return;
+                }
                 window.location.reload();
             })
             .catch((error) => {

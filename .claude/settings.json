@@ -39,12 +39,21 @@
       "Bash(grep -n \"^use .*\\\\\\\\\\\\\\\\Log;\\\\|^use .*\\\\\\\\\\\\\\\\DB;\" app/Http/Controllers/FileNumberController.php)",
       "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/8da09509-d439-46d4-b84f-9f2ffb7add5a/scratchpad/fix3.php\")",
       "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/8da09509-d439-46d4-b84f-9f2ffb7add5a/scratchpad/fix3.php\" --commit)",
-      "Bash(/c/xampp/php/php.exe -r 'require \"vendor/autoload.php\"; $app=require \"bootstrap/app.php\"; $app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); $r=app\\(\"router\"\\)->getRoutes\\(\\)->getByName\\(\"file-numbers.data\"\\); echo $r->getActionName\\(\\),\"\\\\n\"; Illuminate\\\\Support\\\\Facades\\\\Auth::onceUsingId\\(50532\\); [$cls,$m]=explode\\(\"@\",$r->getActionName\\(\\)\\); $req=Illuminate\\\\Http\\\\Request::create\\(\"/\",\"GET\",[\"draw\"=>1,\"start\"=>0,\"length\"=>10,\"search\"=>[\"value\"=>\"RES-2026-4141\"]]\\); app\\(\\)->instance\\(\"request\",$req\\); $res=app\\($cls\\)->$m\\($req\\); $d=json_decode\\($res->getContent\\(\\),true\\); foreach\\(\\($d[\"data\"]??[]\\) as $row\\){ if\\(\\($row[\"mlsfNo\"]??\"\"\\)===\"RES-2026-4141\"\\) echo json_encode\\(array_intersect_key\\($row,array_flip\\([\"mlsfNo\",\"FileName\",\"plot_no\",\"source_pra_id\",\"source_temp_fileno\",\"merger_ops\"]\\)\\),JSON_UNESCAPED_SLASHES\\),\"\\\\n\"; } echo \"rows: \".count\\($d[\"data\"]??[]\\).\"\\\\n\";')"
+      "Bash(/c/xampp/php/php.exe -r 'require \"vendor/autoload.php\"; $app=require \"bootstrap/app.php\"; $app->make\\(Illuminate\\\\Contracts\\\\Console\\\\Kernel::class\\)->bootstrap\\(\\); $r=app\\(\"router\"\\)->getRoutes\\(\\)->getByName\\(\"file-numbers.data\"\\); echo $r->getActionName\\(\\),\"\\\\n\"; Illuminate\\\\Support\\\\Facades\\\\Auth::onceUsingId\\(50532\\); [$cls,$m]=explode\\(\"@\",$r->getActionName\\(\\)\\); $req=Illuminate\\\\Http\\\\Request::create\\(\"/\",\"GET\",[\"draw\"=>1,\"start\"=>0,\"length\"=>10,\"search\"=>[\"value\"=>\"RES-2026-4141\"]]\\); app\\(\\)->instance\\(\"request\",$req\\); $res=app\\($cls\\)->$m\\($req\\); $d=json_decode\\($res->getContent\\(\\),true\\); foreach\\(\\($d[\"data\"]??[]\\) as $row\\){ if\\(\\($row[\"mlsfNo\"]??\"\"\\)===\"RES-2026-4141\"\\) echo json_encode\\(array_intersect_key\\($row,array_flip\\([\"mlsfNo\",\"FileName\",\"plot_no\",\"source_pra_id\",\"source_temp_fileno\",\"merger_ops\"]\\)\\),JSON_UNESCAPED_SLASHES\\),\"\\\\n\"; } echo \"rows: \".count\\($d[\"data\"]??[]\\).\"\\\\n\";')",
+      "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_inventory.php\")",
+      "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_links.php\")",
+      "Bash(sed -E \"s/.*table\\\\\\('\\([^']+\\)'\\\\\\).*/\\\\1/\")",
+      "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_extra.php\")",
+      "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_extra2.php\")",
+      "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_bills.php\")",
+      "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_clear.php\")",
+      "Bash(cat >> *)"
     ],
     "additionalDirectories": [
       "C:\\win-acme\\Scripts",
       "C:\\xampp\\apache\\conf",
-      "C:\\Users\\Administrator.klaes\\Downloads"
+      "C:\\Users\\Administrator.klaes\\Downloads",
+      "C:\\Users\\Administrator.klaes\\.claude\\projects\\c--xampp-htdocs-klas\\memory"
     ]
   }
 }

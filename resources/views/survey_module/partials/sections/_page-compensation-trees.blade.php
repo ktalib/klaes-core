@@ -192,58 +192,6 @@
                             </div>
                         </td>
                     </tr>
-                    <tr id="ttEdit{{ $t->id }}" style="display:none;">
-                        <td colspan="11" style="background:var(--gray-50);">
-                            <form method="POST" action="{{ route('survey-module.compensation.trees.update', $t) }}">
-                                @csrf @method('PUT')
-                                <div class="form-row" style="display:grid;grid-template-columns:1.3fr 1fr 1.3fr 1fr 1fr 1fr auto;gap:12px;align-items:end;">
-                                    <div>
-                                        <label>Tree Type</label>
-                                        <input type="text" name="name" value="{{ $t->name }}" class="form-control" required />
-                                    </div>
-                                    <div>
-                                        <label>Hausa Name</label>
-                                        <input type="text" name="local_name" value="{{ $t->local_name }}" class="form-control" />
-                                    </div>
-                                    <div>
-                                        <label>Botanical Name</label>
-                                        <input type="text" name="botanical_name" value="{{ $t->botanical_name }}" class="form-control" />
-                                    </div>
-                                    <div>
-                                        <label>Rate per Tree (₦)</label>
-                                        <input type="number" step="0.01" min="0" name="default_unit_price"
-                                               value="{{ $t->default_unit_price === null ? '' : (float) $t->default_unit_price }}"
-                                               class="form-control" placeholder="Not set" />
-                                    </div>
-                                    <div>
-                                        <label>Category</label>
-                                        <select name="category" class="form-control">
-                                            @foreach ($categories as $c)
-                                                <option value="{{ $c }}" @selected($t->category === $c)>{{ $c }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label>Status</label>
-                                        <select name="status" class="form-control">
-                                            @foreach ($statuses as $s)
-                                                <option value="{{ $s }}" @selected($t->status === $s)>{{ $s }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div style="display:flex;gap:6px;">
-                                        <button class="btn btn-success btn-sm" type="submit"><i class="fas fa-check"></i> Save</button>
-                                        <button class="btn btn-secondary btn-sm" type="button"
-                                                onclick="toggleTreeTypeEdit({{ $t->id }})"><i class="fas fa-times"></i></button>
-                                    </div>
-                                </div>
-                                <p class="helper-text" style="margin-top:8px;">
-                                    Changing the price affects new case lines only — the
-                                    {{ number_format((int) $t->lines_count) }} existing line(s) keep the price they were valued at.
-                                </p>
-                            </form>
-                        </td>
-                    </tr>
                 @empty
                     <tr>
                         <td colspan="11" style="text-align:center;padding:28px;color:var(--gray-500);">
@@ -265,6 +213,65 @@
         <div class="pagination">{{ $treeTypes->links() }}</div>
     </div>
 </div>
+
+{{-- Edit / Set Rate, one modal per tree type (2026-10-27: the inline row had no styling). Reopens with the
+     typed values when a save comes back with errors. --}}
+@foreach ($treeTypes as $t)
+    @php $mine = $errors->any() && old('_form') === 'edit-' . $t->id; $v = fn ($f) => $mine ? old($f) : $t->{$f}; @endphp
+    <form method="POST" action="{{ route('survey-module.compensation.trees.update', $t) }}"
+          class="farmer-entry-form {{ $mine ? 'open' : '' }}" id="ttEdit{{ $t->id }}"
+          data-sv-modal="{{ $t->default_unit_price === null ? 'Set Rate' : 'Edit Tree Type' }} — {{ $t->name }}" data-sv-modal-size="sm">
+        @csrf @method('PUT')
+        <input type="hidden" name="_form" value="edit-{{ $t->id }}" />
+        <div class="form-grid">
+            <div class="sv-group"><i class="fas fa-tree"></i><span>Names</span></div>
+            <div class="form-group full">
+                <label>Tree Type <span class="required">*</span></label>
+                <input type="text" name="name" value="{{ $v('name') }}" required />
+            </div>
+            <div class="form-group">
+                <label>Hausa Name</label>
+                <input type="text" name="local_name" value="{{ $v('local_name') }}" />
+            </div>
+            <div class="form-group">
+                <label>Botanical Name</label>
+                <input type="text" name="botanical_name" value="{{ $v('botanical_name') }}" />
+            </div>
+        </div>
+        <div class="form-grid cols-3">
+            <div class="sv-group"><i class="fas fa-tags"></i><span>Rate and classification</span></div>
+            <div class="form-group">
+                <label>Rate per Tree (₦)</label>
+                <input type="number" step="0.01" min="0" name="default_unit_price" placeholder="Not set"
+                       value="{{ $mine ? old('default_unit_price') : ($t->default_unit_price === null ? '' : (float) $t->default_unit_price) }}" />
+            </div>
+            <div class="form-group">
+                <label>Category <span class="required">*</span></label>
+                <select name="category">
+                    @foreach ($categories as $c)
+                        <option value="{{ $c }}" @selected($v('category') === $c)>{{ $c }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status <span class="required">*</span></label>
+                <select name="status">
+                    @foreach ($statuses as $st)
+                        <option value="{{ $st }}" @selected($v('status') === $st)>{{ $st }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <p class="helper-text full" style="margin:0;">
+                Changing the rate affects new case lines only. The {{ number_format((int) $t->lines_count) }} existing
+                line(s) keep the price they were valued at.
+            </p>
+        </div>
+        <div class="form-actions">
+            <div class="left"><button class="btn btn-secondary" type="button" onclick="toggleTreeTypeEdit({{ $t->id }})"><i class="fas fa-times"></i> Close</button></div>
+            <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Save</button></div>
+        </div>
+    </form>
+@endforeach
 
 {{-- ------------------------------ Per-case lines ------------------------------ --}}
 <div class="dash-card" style="margin-top:24px;">
@@ -403,8 +410,8 @@
     }
 
     function toggleTreeTypeEdit(id) {
-        var row = document.getElementById('ttEdit' + id);
-        if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        var f = document.getElementById('ttEdit' + id);
+        if (f) f.classList.toggle('open');
     }
 
     function prefillCaseTreePrice() {

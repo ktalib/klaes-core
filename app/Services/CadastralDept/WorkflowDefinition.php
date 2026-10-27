@@ -358,7 +358,19 @@ class WorkflowDefinition
     /** Sidebar lists per desk: [desk => [group, entries => [key => rules]]]. */
     public function queues(): array
     {
-        return (array) ($this->config['queues'] ?? []);
+        $queues = (array) ($this->config['queues'] ?? []);
+        // Head approval switched off (HeadApproval::enabled, i.e. the Configurable Entries switch): no
+        // Approval lists. Without a booted app (pure unit tests) the config value given is used.
+        $on = \Illuminate\Container\Container::getInstance()->bound('db')
+            ? HeadApproval::enabled()
+            : (bool) ($this->config['head_approval'] ?? true);
+        if (!$on) {
+            foreach ($queues as $desk => $q) {
+                $queues[$desk]['entries'] = array_filter((array) ($q['entries'] ?? []), fn ($e) => empty($e['awaiting_head']));
+            }
+        }
+
+        return $queues;
     }
 
     /** One sidebar list's rules, or null. */

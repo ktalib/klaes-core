@@ -100,7 +100,11 @@ class CaseController extends Controller
     {
         return response()->json($lookup->options(
             mb_substr((string) $request->query('workflow', ''), 0, 20),
-            mb_substr((string) $request->query('q', ''), 0, 100)
+            mb_substr((string) $request->query('q', ''), 0, 100),
+            30,
+            mb_substr((string) $request->query('group', ''), 0, 20) ?: null,
+            // The chosen file type's own prefixes (ST-, SLTR-, CON-), when it has them.
+            (array) (app(\App\Services\CadastralDept\WorkflowDefinition::class)->fileTypes()[(string) $request->query('file_type', '')]['prefixes'] ?? [])
         ));
     }
 
@@ -115,6 +119,7 @@ class CaseController extends Controller
             'file_type' => 'required|string|max:20',
             'sub_type' => 'nullable|string|max:30',
             'allocation_route' => 'nullable|string|max:30',
+            'verification_group' => 'nullable|required_if:workflow,verification|in:conversion,direct',
             'file_source' => 'required|string|max:20',
             'file_source_other' => 'nullable|required_if:file_source,other|string|max:100',
             'file_number' => 'required|string|max:100',
@@ -126,6 +131,7 @@ class CaseController extends Controller
         ], [
             'file_number.required' => 'Pick the file from the list.',
             'file_type.required' => 'Choose the file type.',
+            'verification_group.required_if' => 'Choose Conversion or Direct Allocation.',
             'file_source.required' => 'Choose where the file came from.',
             'file_source_other.required_if' => 'Specify where the file came from.',
         ]);
@@ -150,6 +156,7 @@ class CaseController extends Controller
                 'file_type' => $data['file_type'],
                 'sub_type' => $data['sub_type'] ?? null,
                 'allocation_route' => $data['allocation_route'] ?? null,
+                'verification_group' => $data['verification_group'] ?? null,
                 'file_source' => $data['file_source'],
                 'file_source_other' => $data['file_source_other'] ?? null,
                 'file_number' => $file['file_number'],
@@ -259,6 +266,8 @@ class CaseController extends Controller
             'pndItsDefault' => $pndItsDefault,
             'planningAdvice' => app(\App\Services\CadastralDept\PlanningAdvice::class)->documents($case),
             'planningAdviceDue' => \App\Services\CadastralDept\PlanningAdvice::installed() && app(\App\Services\CadastralDept\PlanningAdvice::class)->due($case),
+            'stepDocuments' => app(\App\Services\CadastralDept\StepDocuments::class)->documents($case),
+            'liveBill' => \App\Services\CadastralDept\PndBills::liveBill($case->file_number),
             // Registry, file back from Land: the EDMS update's progress (EdmsUpdate).
             'edms' => $case->isOpen() && isset(($def->step($case->workflow, $case->current_step)['tasks'] ?? [])[\App\Services\CadastralDept\EdmsUpdate::TASK])
                 ? app(\App\Services\CadastralDept\EdmsUpdate::class)->status($case) : null,
@@ -296,10 +305,12 @@ class CaseController extends Controller
 
     public function completeTask(Request $request, int $case, CaseWorkflow $workflow)
     {
-        $data = $request->validate(['task' => 'required|string|max:50', 'note' => 'nullable|string|max:1000']);
+        $data = $request->validate(['task' => 'required|string|max:50', 'note' => 'nullable|string|max:1000', 'return' => 'nullable|in:case']);
         $case = CadastralCase::findOrFail($case);
+        // return=case: from another page (the Yes/No form), go on to the file page and its next card.
+        $to = ($data['return'] ?? null) === 'case' ? route('cadastral-dept.cases.show', $case->id) : null;
 
-        return $this->attempt(fn () => $workflow->completeTask($case, $data['task'], $data['note'] ?? null, auth()->id()), 'Task done.');
+        return $this->attempt(fn () => $workflow->completeTask($case, $data['task'], $data['note'] ?? null, auth()->id()), 'Task done.', $to);
     }
 
     public function advance(Request $request, int $case, CaseWorkflow $workflow)
@@ -313,6 +324,16 @@ class CaseController extends Controller
             \App\Services\CadastralDept\HeadApproval::RETURNED => $workflow->returnToStaff($case, $data['remarks'] ?? null, auth()->id()),
             default => $workflow->advance($case, $data['outcome'], $data['remarks'] ?? null, auth()->id()),
         }, 'Case moved.');
+    }
+
+    /** Super Admin / Central Admin: move the file to any step (the step bar on the file page). */
+    public function jump(Request $request, int $case, CaseWorkflow $workflow)
+    {
+        $data = $request->validate(['step' => 'required|string|max:60', 'reason' => 'required|string|max:2000'],
+            ['reason.required' => 'Give the reason for moving the file.']);
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $workflow->jumpTo($case, $data['step'], $data['reason'], auth()->id()), 'Case moved.');
     }
 
     /** KAMMA / Physical Planning's Planning Advice, filed into EDMS when the file comes back (PlanningAdvice). */
@@ -329,6 +350,39 @@ class CaseController extends Controller
 
         return $this->attempt(fn () => $advice->upload($case, $request->file('documents', []), $data['jsi'], $data['comments'] ?? null, auth()->id()),
             'Planning Advice uploaded.');
+    }
+
+    /** The SG's Final Survey Plan or AD Cad Info's signed Fees P&D, filed into EDMS (StepDocuments). */
+    public function uploadStepDocument(Request $request, int $case, string $task, \App\Services\CadastralDept\StepDocuments $docs)
+    {
+        $label = \App\Services\CadastralDept\StepDocuments::TASKS[$task]['label'];
+        $data = $request->validate([
+            'documents' => 'required|array|min:1|max:10',
+            'documents.*' => \App\Services\Cadastral\CadastralDocuments::fileRule(),
+            'comments' => 'nullable|string|max:2000',
+        ], ['documents.required' => "Choose the {$label} to upload."]
+            + \App\Services\Cadastral\CadastralDocuments::messages('documents.*'));
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $docs->upload($case, $task, $request->file('documents', []), $data['comments'] ?? null, auth()->id()),
+            "{$label} uploaded.");
+    }
+
+    /** Registry detaches the Computation File from the correspondence file (step 31). */
+    public function detachComputationFile(Request $request, int $case, FieldJackets $jackets)
+    {
+        $data = $request->validate(['note' => 'nullable|string|max:1000']);
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $jackets->detach($case, $data['note'] ?? null, auth()->id()), 'Computation File detached.');
+    }
+
+    /** AD Cad Info signs the Fees P&D bill in the system (no scanned copy needed). */
+    public function signBill(int $case, \App\Services\CadastralDept\StepDocuments $docs)
+    {
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $docs->signInSystem($case, auth()->id()), 'Bill signed.');
     }
 
     /** Create (or match) the file's correspondence file at AD Cad Report. */

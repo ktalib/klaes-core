@@ -1695,7 +1695,13 @@
                     body: JSON.stringify({ file_number: d.file_number, status, current_location: location }),
                 });
                 const json = await res.json();
-                if (json.success) { render(json.data); }
+                if (json.success) {
+                    render(json.data);
+                    // The status is also stamped on the file's latest request — refresh the logs.
+                    reloadPanels();
+                    const m = result.querySelector('[data-us-msg]');
+                    if (m && json.message) { m.className = 'text-xs text-emerald-700'; m.textContent = json.message; }
+                }
                 else if (msg) { msg.className = 'text-xs text-red-600'; msg.textContent = json.message || 'Could not update.'; saveBtn.disabled = false; saveBtn.innerHTML = '<i data-lucide="save" class="h-4 w-4"></i> Save Status'; if (window.lucide) window.lucide.createIcons(); }
             } catch (e) {
                 if (msg) { msg.className = 'text-xs text-red-600'; msg.textContent = 'Network error — please try again.'; }
@@ -3008,6 +3014,7 @@
                                         <i data-lucide="${r.is_dfr ? 'file-text' : (r.is_blind ? 'eye-off' : 'folder-search')}" class="h-2.5 w-2.5"></i> ${esc(r.request_type)}</span>
                                     ${done}
                                 </div>
+                                ${r.location_update ? `<div class="mt-2 inline-flex flex-wrap items-center gap-1 rounded-lg bg-indigo-50 border border-indigo-200 px-2 py-1 text-[11px] text-indigo-800"><i data-lucide="pencil" class="h-3 w-3"></i> <span class="font-semibold">File status updated:</span> <span class="font-bold">${esc(r.location_update.label)}</span>${r.location_update.at ? ` · ${esc(r.location_update.at)}` : ''}${r.location_update.by ? ` · by ${esc(r.location_update.by)}` : ''}</div>` : ''}
                             </li>`;
                         }).join('')}
                     </ul>`;

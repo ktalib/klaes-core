@@ -61,7 +61,7 @@
           'The file record and its movement history',
           'Its tasks, FMC and FMC log',
           'Its charting cards and beacons',
-          'Its field jacket and reassignments',
+          'Its Computation File and reassignments',
           'Its correspondence custody log and Yes/No form'
         ],
         keeps: 'Kept: the file number and its indexing, the correspondence file, the plan description and any P&D bill. Its survey job is kept, unattached, for I to S to attach again.',

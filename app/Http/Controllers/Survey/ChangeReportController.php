@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 /**
- * Examination/Verification > Surveyors' Report (Changes) (docs/KLAES-CORE Survey
+ * Examination/Verification > Surveyors' Report (docs/KLAES-CORE Survey
  * Module.md 5.7): "if discrepancies are found between the submitted plan and the
  * existing records, this unit generates and prints a Surveyors Report detailing the
  * required changes." Raised from a Register File line (its file details are taken

@@ -63,7 +63,7 @@ class CentralAdminController extends DeskController
                 ->when($term !== '', fn ($q) => $q->where(fn ($x) => $x->where('file_number', 'like', "%{$term}%")
                     ->orWhere('case_ref', 'like', "%{$term}%")
                     ->orWhere('file_title', 'like', "%{$term}%")))
-                ->orderBy('updated_at')   // longest waiting first
+                ->orderByDesc('created_at')->orderByDesc('id')   // newest registered first (user, 2026-10-26)
                 ->paginate(self::PER_PAGE)->withQueryString();
 
             foreach ($rows as $case) {
@@ -82,6 +82,7 @@ class CentralAdminController extends DeskController
             'centralRole' => DeskAccess::centralAdminRole(),
             'deskCounts' => $deskCounts,
             'fmcInstalled' => FileMovementCards::installed(),
+            'fmcVisible' => FileMovementCards::canView(auth()->user()),   // config fmc_roles (2026-10-26)
             'waitingJobs' => $attachDue ? app(FieldJackets::class)->waitingJobs() : null,
             'surveyors' => $attachDue ? app(FieldJackets::class)->surveyors() : collect(),
             'filterWorkflow' => $wfFilter,

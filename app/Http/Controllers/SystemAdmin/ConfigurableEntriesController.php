@@ -119,13 +119,13 @@ class ConfigurableEntriesController extends Controller
      *   fileno    withdrawn on request.
      *   pipeline  withdrawn in favour of 'deeds-workflow' below, which configures
      *             Valuation -> Consent -> Registration, the pipeline Deeds runs.
-     *   cadastral hidden for now (user, 2026-10-16: not in the sidebar doc).
+     *   cadastral hidden 2026-10-16 (not in the sidebar doc); shown again 2026-10-26 at the user's request.
      *   billing, spa-bill-items
      *             moved under 'bill-settings' (2026-10-19): SPAS Bill Items is the
      *             Contravention sub-tab, Bill Formulas is the engine behind the
      *             other sub-tabs plus "Other formulas". Their routes still save.
      */
-    public const HIDDEN_TABS = ['pipeline', 'fileno', 'cadastral', 'billing', 'spa-bill-items'];
+    public const HIDDEN_TABS = ['pipeline', 'fileno', 'billing', 'spa-bill-items'];
 
     /**
      * Bill Settings sub-tabs whose items live in a module's own table rather than
@@ -2399,6 +2399,7 @@ class ConfigurableEntriesController extends Controller
             'cadPosts' => (array) config('cadastral_module.posts', []),
             'cadNeededBy' => $neededBy,
             'cadOfficers' => $officers,
+            'cadHou' => $this->cadastralHeadOfUnitData(),
             'cadUsers' => $users,
             'cadUserNames' => $userNames,
         ];
@@ -2813,6 +2814,123 @@ class ConfigurableEntriesController extends Controller
                 ? ($userName ?: 'Nobody') . ' ' . ($isActive ? 'now holds ' : 'no longer holds ') . ($postLabels[$post] ?? $post) . '.'
                 : 'Officer saved.';
         }, 'Officer saved.');
+    }
+
+    /**
+     * The Head of Unit card: the on/off switch and each unit's head, plus the users who hold
+     * the unit's desk role (listed first in its head picker). See HeadApproval.
+     */
+    private function cadastralHeadOfUnitData(): array
+    {
+        $db = DB::connection('sqlsrv');
+        $def = app(\App\Services\CadastralDept\WorkflowDefinition::class);
+        $settings = new \App\Services\Cadastral\CadastralSettings();
+        $ha = \App\Services\CadastralDept\HeadApproval::class;
+
+        // Desk-role holders, read the way the app reads roles (User::assignedRoleNames: assign_role
+        // holds role names, ids or both), lower-cased.
+        $assigned = \App\Models\User::query()->whereNotNull('assign_role')->where('assign_role', '!=', '')->get()
+            ->mapWithKeys(fn ($u) => [(int) $u->id => array_map('mb_strtolower', $u->assignedRoleNames())]);
+
+        $units = [];
+        foreach ($def->desks() as $desk => $meta) {
+            if (empty($meta['head'])) {
+                continue;
+            }
+            $want = array_map('mb_strtolower', \App\Services\CadastralDept\DeskAccess::rolesFor($desk));
+            $staff = $assigned->filter(fn ($roles) => (bool) array_intersect($roles, $want))->keys()->map(fn ($id) => (int) $id)->values()->all();
+            $row = $settings->row($ha::SETTING_HEAD . $desk);
+            $units[$desk] = [
+                'unit' => $meta['label'],
+                'head' => $meta['head'],
+                'head_user_id' => $ha::headUserId($desk),
+                'staff' => $staff,
+                'updated_by' => $row->updated_by ?? null,
+                'updated_at' => $row->updated_at ?? null,
+            ];
+        }
+
+        $on = $settings->row($ha::SETTING_ON);
+
+        return [
+            'enabled' => $ha::enabled(),
+            'updated_by' => $on->updated_by ?? null,
+            'updated_at' => $on->updated_at ?? null,
+            'units' => $units,
+            'central_admin_role' => \App\Services\CadastralDept\DeskAccess::centralAdminRole(),
+        ];
+    }
+
+    /**
+     * Save the Head of Unit card (2026-10-27): head approval on/off and one head per unit.
+     * Stored in cadastral_settings (dept.head_approval, dept.unit_head.<desk>), audited.
+     * A unit left on "No head yet" is covered by Super Admin; Central Admin covers every unit.
+     */
+    public function saveCadastralHeadOfUnit(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $ha = \App\Services\CadastralDept\HeadApproval::class;
+        $def = app(\App\Services\CadastralDept\WorkflowDefinition::class);
+        $units = array_filter($def->desks(), fn ($m) => !empty($m['head']));
+
+        $rules = ['head_approval' => 'required|boolean'];
+        $names = ['head_approval' => 'Head of Unit approval'];
+        foreach ($units as $desk => $meta) {
+            $rules['heads.' . $desk] = ['nullable', 'integer', Rule::exists('sqlsrv.users', 'id')];
+            $names['heads.' . $desk] = $meta['head'];
+        }
+        $data = $request->validate($rules, [], $names);
+
+        return $this->attempt(function () use ($data, $units, $ha) {
+            $this->requireCadastralTables();
+            $settings = new \App\Services\Cadastral\CadastralSettings();
+            $db = DB::connection('sqlsrv');
+
+            $wanted = [$ha::SETTING_ON => ['bool', (bool) $data['head_approval'], 'Head of Unit approval']];
+            foreach ($units as $desk => $meta) {
+                $wanted[$ha::SETTING_HEAD . $desk] = ['int', (int) ($data['heads'][$desk] ?? 0), $meta['head'] . ' (Head of Unit)'];
+            }
+
+            $before = [];
+            $after = [];
+            foreach ($wanted as $key => [$type, $value, $label]) {
+                $old = $key === $ha::SETTING_ON ? $ha::enabled() : ($ha::headUserId(substr($key, strlen($ha::SETTING_HEAD))) ?? 0);
+                if ($old === $value) {
+                    continue;
+                }
+                $before[$key] = $old;
+                $after[$key] = $value;
+            }
+            if ($after === []) {
+                return 'No change - those values are already saved.';
+            }
+
+            $db->transaction(function () use ($db, $after, $wanted) {
+                foreach ($after as $key => $value) {
+                    [$type, , $label] = $wanted[$key];
+                    $values = [
+                        'value' => \App\Services\Cadastral\CadastralSettings::encode($value, $type),
+                        'value_type' => $type,
+                        'label' => $label,
+                        'group' => 'head_of_unit',
+                        'updated_by' => Auth::id(),
+                        'updated_at' => now(),
+                    ];
+                    // Update-then-insert: sqlsrv has no insertOrIgnore.
+                    $updated = $db->table('cadastral_settings')->where('key', $key)->update($values);
+                    if (!$updated) {
+                        $db->table('cadastral_settings')->insert($values + ['key' => $key, 'created_at' => now()]);
+                    }
+                }
+            });
+            \App\Services\Cadastral\CadastralSettings::forget();
+
+            app(\App\Services\AuditService::class)->logAction('Cadastral Head of Unit Updated', 'CadastralSetting', null,
+                $before, $after, 'Head of Unit changed: ' . implode(', ', array_map(fn ($k) => $wanted[$k][2], array_keys($after))));
+
+            return 'Head of Unit saved. Head of Unit approval is ' . ($data['head_approval'] ? 'ON' : 'OFF') . '.';
+        }, 'Head of Unit saved.');
     }
 
     private function authorizeAdmin(): void

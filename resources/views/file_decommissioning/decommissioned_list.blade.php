@@ -221,8 +221,8 @@
                                 <thead class="bg-gray-50 sticky top-0">
                                     <tr>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S/N</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PropID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temporary File No</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Related File</th>
@@ -424,7 +424,16 @@
         /* Reason column: truncated cells reveal the full text on hover */
         .reason-truncated {
             cursor: help;
-            border-bottom: 1px dotted #9ca3af;
+        }
+
+        /* The cause as a coloured badge (colours from App\Support\DecommissionCause) */
+        .reason-badge {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
         }
 
         #reasonTooltip {
@@ -518,8 +527,9 @@
                     { data: null, name: 'sn', orderable: false, searchable: false, render: function (data, type, row, meta) {
                         return meta.row + meta.settings._iDisplayStart + 1;
                     } },
-                    { data: 'decommissioning_reason', name: 'decommissioning_reason' },
+                    // Reason after PropID (user, 2026-10-26).
                     { data: 'prop_id', name: 'prop_id', orderable: false, searchable: false },
+                    { data: 'decommissioning_reason', name: 'decommissioning_reason' },
                     { data: 'file_no', name: 'file_no' },
                     { data: 'temp_file_no', name: 'temp_file_no', orderable: false, searchable: false },
                     { data: 'related_file', name: 'related_file', orderable: false, searchable: false },
@@ -529,7 +539,7 @@
                     { data: 'decommissioned_by', name: 'decommissioned_by' },
                     { data: 'action', name: 'action', orderable: false, searchable: false }
                 ],
-                order: [[8, 'desc']], // decommissioning_date (after S/N, Reason, PropID, File No, Temporary File No, Related File, File Name, Commissioning Date)
+                order: [[8, 'desc']], // decommissioning_date (after S/N, PropID, Reason, File No, Temporary File No, Related File, File Name, Commissioning Date)
                 pageLength: 25,
                 responsive: true,
                 drawCallback: function() {

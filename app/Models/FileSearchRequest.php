@@ -56,6 +56,9 @@ class FileSearchRequest extends Model
         'request_purpose_id',
         'request_purpose_name',
         'expected_return_date',
+        'location_status',
+        'location_status_at',
+        'location_status_by',
     ];
 
     protected $casts = [
@@ -65,6 +68,7 @@ class FileSearchRequest extends Model
         'updated_at'          => 'datetime',
         'is_ofs'              => 'boolean',
         'expected_return_date' => 'date',
+        'location_status_at'  => 'datetime',
     ];
 
     public function requester(): BelongsTo
@@ -80,6 +84,46 @@ class FileSearchRequest extends Model
     public function responder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'responded_by');
+    }
+
+    public function locationStatusUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'location_status_by');
+    }
+
+    /**
+     * The file's location status as last set by hand on Quick Search (Update
+     * Location Status), for the request logs. Null when it was never updated.
+     *
+     * @return array{status:string,label:string,at:?string,by:?string}|null
+     */
+    public function locationUpdatePayload(): ?array
+    {
+        if (! $this->location_status) {
+            return null;
+        }
+        $by = $this->locationStatusUser;
+
+        return [
+            'status' => $this->location_status,
+            'label'  => self::locationStatusLabel($this->location_status),
+            'at'     => optional($this->location_status_at)->format('Y-m-d g:i A'),
+            'by'     => $by ? trim($by->first_name . ' ' . $by->last_name) : null,
+        ];
+    }
+
+    /** Labels match the Update Location Status dropdown on Quick Search. */
+    public static function locationStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'IN_TRANSIT'                 => 'In Transit',
+            'IN_ARCHIVE'                 => 'In Archive',
+            'IN_POOL_OFFICE'             => 'In Pool Office',
+            'FILE_NOT_FOUND'             => 'File Not Found',
+            'REFER_TO_ORIGINAL_REGISTRY' => 'Refer to Original Registry',
+            'MISSING_FILE'               => 'Not With KLAES (NWK)',
+            default                      => ucwords(strtolower(str_replace('_', ' ', $status))),
+        };
     }
 
     /**

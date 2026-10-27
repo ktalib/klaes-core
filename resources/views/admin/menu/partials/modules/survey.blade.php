@@ -48,7 +48,27 @@
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-compensation">
 
-          {{-- b.i Records --}}
+          {{-- b.i Project Management (before Records: spec p.3 arrow, user 2026-10-26) --}}
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-projects">
+            <div class="flex items-center gap-2">
+              <i data-lucide="folder" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Project Management</span>
+            </div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-projects"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-projects">
+            <a href="{{ route('survey-module.compensation.co-files.create') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.co-files.create') ? 'active' : '' }}">
+              <i data-lucide="file-plus" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Commission CO File</span>
+            </a>
+            {{-- Create Project is a button on the Projects page. --}}
+            <a href="{{ route('survey-module.compensation.projects') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects', 'survey-module.compensation.projects.create', 'survey-module.compensation.projects.edit') ? 'active' : '' }}">
+              <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Projects</span>
+            </a>
+          </div>
+
+          {{-- b.ii Records --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-records">
             <div class="flex items-center gap-2">
               <i data-lucide="folder-open" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -65,29 +85,10 @@
               <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Allocation Records</span>
             </a>
-            <a href="{{ route('survey-module.compensation.op-verification') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op-verification') ? 'active' : '' }}">
+            {{-- The Deeds OP Verification page, opened with ?url=survey (user, 2026-10-27); Deeds' own entry stays unlit. --}}
+            <a href="{{ route('op-verifications.index', ['url' => 'survey']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('op-verifications.*') && request('url') === 'survey') || request()->routeIs('survey-module.compensation.op-verification') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP Verification</span>
-            </a>
-          </div>
-
-          {{-- b.ii Project Management --}}
-          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-projects">
-            <div class="flex items-center gap-2">
-              <i data-lucide="folder" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Project Management</span>
-            </div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-projects"></i>
-          </div>
-          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-projects">
-            <a href="{{ route('survey-module.compensation.co-files.create') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.co-files.create') ? 'active' : '' }}">
-              <i data-lucide="file-plus" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Commission CO File</span>
-            </a>
-            {{-- Create Project is a button on the Projects page. --}}
-            <a href="{{ route('survey-module.compensation.projects') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.projects', 'survey-module.compensation.projects.create', 'survey-module.compensation.projects.edit') ? 'active' : '' }}">
-              <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>All Projects</span>
             </a>
           </div>
 

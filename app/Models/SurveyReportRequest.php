@@ -16,9 +16,13 @@ class SurveyReportRequest extends Model
                 return;
             }
 
-            $request->forceFill([
-                'serial_no' => str_pad((string) $request->getKey(), 6, '0', STR_PAD_LEFT),
-            ])->saveQuietly();
+            // A targeted update, not saveQuietly(): inside "created" the model is not synced yet, so
+            // saving it re-sends every column including id, which SQL Server refuses ("Cannot update
+            // identity column 'id'"), and every new Land 12 failed (found 2026-10-27).
+            $serial = str_pad((string) $request->getKey(), 6, '0', STR_PAD_LEFT);
+            static::query()->whereKey($request->getKey())->update(['serial_no' => $serial]);
+            $request->setAttribute('serial_no', $serial);
+            $request->syncOriginalAttribute('serial_no');
         });
     }
 

@@ -148,6 +148,13 @@ class WorkflowEngine
                     'outcome' => null, 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
                 continue;
             }
+            // Moved by Super Admin / Central Admin from the step bar (CaseWorkflow::jumpTo).
+            if ($m->outcome === CaseWorkflow::JUMP) {
+                $out[] = ['key' => $m->from_step, 'label' => 'Moved by admin to ' . ($m->to_step && $def->hasStep($workflow, $m->to_step) ? $def->step($workflow, $m->to_step)['label'] : '?')
+                    . ($m->remarks ? ' — ' . $m->remarks : ''), 'desk' => $def->deskShort($s['desk']), 'state' => 'done',
+                    'outcome' => 'Moved by admin', 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
+                continue;
+            }
             $out[] = ['key' => $m->from_step, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk']), 'state' => 'done',
                 'outcome' => $s['outcomes'][$m->outcome]['label'] ?? null, 'by' => optional($m->actor)->name, 'at' => $m->acted_at, 'options' => []];
         }

@@ -37,7 +37,17 @@ class ParcelRegisterController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
+        // View Folio opens the VFS, which is Super Admin only (routes/vfs.php), so
+        // nobody else gets the link or pays for the lookup.
+        $folioIds = [];
+        if ($request->user()?->isSuperAdmin()) {
+            $folioIds = $service->folioIds(
+                $rows->getCollection()->flatMap(fn ($r) => array_merge($r->from_files, $r->to_files))->all()
+            );
+        }
+
         return view('deeds.parcel_register.index', [
+            'folioIds' => $folioIds,
             'type'     => $type,
             'config'   => ParcelRegisterService::TYPES[$type],
             'rows'     => $rows,

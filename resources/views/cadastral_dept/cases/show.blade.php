@@ -60,7 +60,12 @@
         <dt class="text-gray-500">Location</dt><dd>{{ $case->location ?: '—' }}</dd>
         @if ($fmc)
           <dt class="text-gray-500">FMC</dt>
-          <dd><a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="font-mono text-blue-700 hover:underline">{{ $fmc->fmc_no }}</a></dd>
+          {{-- The card opens for the FMC roles only (config fmc_roles, 2026-10-26); others see its number. --}}
+          @if (\App\Services\CadastralDept\FileMovementCards::canView(auth()->user()))
+            <dd><a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="font-mono text-blue-700 hover:underline">{{ $fmc->fmc_no }}</a></dd>
+          @else
+            <dd class="font-mono">{{ $fmc->fmc_no }}</dd>
+          @endif
         @endif
         @if ($case->correspondence_fileno)
           <dt class="text-gray-500">Correspondence</dt>
@@ -144,7 +149,10 @@
           <span class="text-xs font-semibold text-{{ $c }}-800">Now: {{ $cdStepLabel }}</span>
         @endif
       </div>
-      @include('cadastral_dept.partials._pipeline', ['pipeline' => $pipeline, 'c' => $c])
+      {{-- Super Admin / Central Admin: every step is clickable and moves the file there (2026-10-26). --}}
+      @include('cadastral_dept.partials._pipeline', ['pipeline' => $pipeline, 'c' => $c,
+          'jumpUrl' => ($case->isOpen() && \App\Services\CadastralDept\DeskAccess::isCentralAdmin(auth()->user()))
+              ? route('cadastral-dept.cases.jump.save', $case->id) : null])
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">
@@ -225,6 +233,56 @@
                           {{ isset($done[$key]) ? 'Open bill' : 'Generate Fees P&D bill' }}
                         </a>
                       </span>
+                    @elseif ($key === \App\Services\CadastralDept\FieldJackets::TASK_DETACH)
+                      {{-- Registry, step 31: the Computation File comes off the correspondence file (change request 26-10-2026). --}}
+                      @php $cdCfAttached = $fieldJacket && \App\Services\CadastralDept\FieldJackets::attachInstalled() && $fieldJacket->attached_at && ! $fieldJacket->detached_at; @endphp
+                      <span class="flex flex-wrap items-center justify-end gap-2">
+                        @if (isset($done[$key]))
+                          <span class="text-xs text-gray-500">{{ $done[$key]->note }} · {{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @else
+                          <form method="POST" action="{{ route('cadastral-dept.cases.computation-file.detach', $case->id) }}"
+                                @if ($cdCfAttached)
+                                  data-confirm-title="Detach Computation File {{ $fieldJacket->field_jacket_no }}?" data-confirm="It comes off correspondence file {{ $fieldJacket->shadow_fileno ?: $fieldJacket->correspondence_fileno }} and stays recorded in its history."
+                                @else
+                                  data-confirm-title="No Computation File attached?" data-confirm="No Computation File is attached to the correspondence file. The task is ticked with that note."
+                                @endif>
+                            @csrf
+                            <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">
+                              {{ $cdCfAttached ? 'Detach Computation File ' . $fieldJacket->field_jacket_no : 'Confirm: no Computation File attached' }}
+                            </button>
+                          </form>
+                        @endif
+                      </span>
+                    @elseif (isset(\App\Services\CadastralDept\StepDocuments::TASKS[$key]))
+                      {{-- Change request 26-10-2026: the SG's Final Survey Plan; AD Cad Info signs the Fees P&D
+                           in the system or uploads the signed copy (StepDocuments). --}}
+                      @php $cdSd = \App\Services\CadastralDept\StepDocuments::TASKS[$key]; @endphp
+                      <span class="flex flex-wrap items-center justify-end gap-2">
+                        @if (isset($done[$key]))
+                          <span class="text-xs text-gray-500">{{ $done[$key]->note }} · {{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @elseif (! \App\Services\CadastralDept\StepDocuments::installed())
+                          <span class="text-xs text-gray-500">Documents table not installed</span>
+                        @else
+                          @if ($cdSd['sign'])
+                            @if ($liveBill)
+                              <a href="{{ route('cadastral-dept.cases.bill.show', $case->id) }}" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 text-xs font-semibold">Check / correct bill {{ $liveBill->bill_ref }}</a>
+                              <form method="POST" action="{{ route('cadastral-dept.cases.bill.sign', $case->id) }}"
+                                    data-confirm-title="Sign bill {{ $liveBill->bill_ref }}?" data-confirm="It is signed in the system in your name; no scanned copy is needed. It cannot be corrected after this.">
+                                @csrf
+                                <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Sign in the system</button>
+                              </form>
+                            @else
+                              <span class="text-xs text-red-700">No issued bill to sign</span>
+                            @endif
+                          @endif
+                          @if (! $cdSd['sign'] || $liveBill)
+                            <button type="button" onclick="document.getElementById('cd-sd-modal-{{ $key }}').classList.remove('hidden')"
+                                    class="px-3 py-1 rounded-md {{ $cdSd['sign'] ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">
+                              {{ $cdSd['sign'] ? 'Or upload the signed copy' : 'Upload ' . $cdSd['label'] }}
+                            </button>
+                          @endif
+                        @endif
+                      </span>
                     @elseif (in_array($key, ['field_jacket', 'its', 'job_attached', 'job_its'], true) && $jacketsInstalled)
                       {{-- P&D: plain field jacket, plain I to S. AD Cad Info: job and surveyor, then the
                            job's Instruction to Surveyor (transcript, 2026-10-16). --}}
@@ -236,9 +294,9 @@
                           @endif
                         @elseif ($key === 'field_jacket')
                           <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
-                                data-confirm-title="Commission the field jacket?" data-confirm="A field jacket is numbered for {{ $case->file_number }}. AD Cad Info attaches the job and the surveyor later.">
+                                data-confirm-title="Commission the Computation File?" data-confirm="A Computation File is numbered for {{ $case->file_number }}. AD Cad Info attaches the job and the surveyor later.">
                             @csrf
-                            <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission Field Jacket</button>
+                            <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission Computation File (Field Jacket)</button>
                           </form>
                         @elseif ($key === 'its' && $fieldJacket)
                           <button type="button" onclick="document.getElementById('cd-pnd-its-modal').classList.remove('hidden')"
@@ -252,22 +310,17 @@
                           <button type="button" onclick="document.getElementById('cd-its-modal').classList.remove('hidden')"
                                   class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Issue Instruction to Surveyor</button>
                         @else
-                          <span class="text-xs text-gray-500">{{ $key === 'job_its' ? 'Attach the job and surveyor first' : 'Commission the field jacket first' }}</span>
+                          <span class="text-xs text-gray-500">{{ $key === 'job_its' ? 'Attach the job and surveyor first' : 'Commission the Computation File first' }}</span>
                         @endif
                       </span>
                     @elseif ($key === 'land12')
                       {{-- Land 12 on its own line (transcript, 2026-10-16): the Cadastral to Land (Land 12) page, then the tick. --}}
                       <span class="flex items-center gap-2">
                         @if (isset($done[$key]))
-                          <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
-                        @else
-                          <a href="{{ route('survey-report.index') }}?url=cadastral" target="_blank" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 text-xs font-semibold">Open Land 12</a>
-                          <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
-                                data-confirm-title="Mark Land 12 done?" data-confirm="Land 12: ticked as done for {{ $case->case_ref }}.">
-                            @csrf
-                            <input type="hidden" name="task" value="{{ $key }}">
-                            <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
-                          </form>
+                          <span class="text-xs text-gray-500">{{ $done[$key]->note ? $done[$key]->note . ' · ' : '' }}{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
+                        @elseif ($case->isOpen())
+                          {{-- The Land 12 form opens here, prefilled from the file; saving it ticks this task (Land12Link). --}}
+                          @include('cadastral_dept.partials._land12_button', ['cdL12Small' => true])
                         @endif
                       </span>
                     @elseif ($key === 'yes_no' && $yesNoInstalled)
@@ -316,17 +369,17 @@
                         @elseif (! $edms['indexed'])
                           <span class="text-xs text-red-700">Not in the file index: DMS cannot be updated from here</span>
                         @else
-                          <span class="text-xs {{ $edms['complete'] ? 'text-green-700' : 'text-yellow-700' }}">
+                          <span class="text-xs {{ $edms['complete'] ? 'text-green-700' : 'text-yellow-700' }}" title="Page typing is optional here: it can be done later on Page Typing">
                             @if ($pageCounts['new_pages'] > 0){{ $pageCounts['new_pages'] }} new page(s) · @endif{{ $edms['new_pages'] }} file(s) uploaded · {{ $edms['typed'] }} page-typed
                           </span>
                           <button type="button" onclick="document.getElementById('cd-dms-modal').classList.remove('hidden')"
                                   class="px-3 py-1 rounded-md {{ $edms['new_pages'] ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">DMS update</button>
                           @if ($edms['new_pages'])
-                            <a href="{{ $edms['type_url'] }}" target="_blank" class="px-3 py-1 rounded-md {{ $edms['complete'] ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">Page type</a>
+                            <a href="{{ $edms['type_url'] }}" target="_blank" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 text-xs font-semibold">Page type (optional)</a>
                           @endif
                           @if ($edms['complete'])
                             <form method="POST" action="{{ route('cadastral-dept.cases.tasks.mark-done', $case->id) }}"
-                                  data-confirm-title="DMS updated?" data-confirm="{{ $edms['new_pages'] }} new page(s) uploaded and page-typed for {{ $case->file_number }}.">
+                                  data-confirm-title="DMS updated?" data-confirm="{{ $edms['new_pages'] }} new page(s) uploaded for {{ $case->file_number }}. Page typing can be finished later on Page Typing.">
                               @csrf
                               <input type="hidden" name="task" value="{{ $key }}">
                               <button class="px-3 py-1 rounded-md bg-gray-800 text-white text-xs font-semibold">Mark done</button>
@@ -455,6 +508,35 @@
           </div>
         @endif
 
+        @if ($stepDocuments->isNotEmpty())
+          {{-- Final Survey Plan and signed Fees P&D (StepDocuments), to view or download. --}}
+          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mt-6 mb-3">Final Survey Plan and signed Fees P&amp;D</h3>
+          <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                <tr><th class="px-3 py-2">S/N</th><th class="px-3 py-2">Kind</th><th class="px-3 py-2">Document</th><th class="px-3 py-2">Uploaded</th><th class="px-3 py-2 text-right">Action</th></tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                @foreach ($stepDocuments as $sd)
+                  <tr>
+                    <td class="px-3 py-2 text-gray-500">{{ $loop->iteration }}</td>
+                    <td class="px-3 py-2">{{ $sd->kind_label }}</td>
+                    <td class="px-3 py-2">{{ $sd->original_name }}</td>
+                    <td class="px-3 py-2 text-gray-600 whitespace-nowrap">{{ \Illuminate\Support\Carbon::parse($sd->created_at)->format('d M Y H:i') }}</td>
+                    <td class="px-3 py-2 text-right">
+                      @if ($sd->url)
+                        @include('cadastral_dept.partials._row_actions', ['items' => [['View / download', 'download', $sd->url, true]]])
+                      @else
+                        <span class="text-xs text-red-700">Scan missing</span>
+                      @endif
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @endif
+
         @if ($planningAdvice->isNotEmpty())
           {{-- KAMMA / Physical Planning's Planning Advice, to view or download (PlanningAdvice). --}}
           <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mt-6 mb-3">Planning Advice</h3>
@@ -515,7 +597,20 @@
           </div>
         @endif
 
-        @if ($custodyHistory->isNotEmpty())
+        @php
+          // The Computation File's attach / detach are part of the correspondence file's history (change request 26-10-2026).
+          $cdCfEvents = collect();
+          if ($fieldJacket && \App\Services\CadastralDept\FieldJackets::attachInstalled() && $fieldJacket->attached_at) {
+              $cdCfFile = $fieldJacket->shadow_fileno ?: $fieldJacket->correspondence_fileno;
+              $cdCfEvents->push(['label' => 'Computation File ' . $fieldJacket->field_jacket_no . ' attached', 'file' => $cdCfFile, 'note' => null,
+                  'by' => optional(\App\Models\User::find($fieldJacket->attached_by))->name, 'at' => \Illuminate\Support\Carbon::parse($fieldJacket->attached_at)]);
+              if ($fieldJacket->detached_at) {
+                  $cdCfEvents->push(['label' => 'Computation File ' . $fieldJacket->field_jacket_no . ' detached', 'file' => $cdCfFile, 'note' => $fieldJacket->detach_note,
+                      'by' => optional(\App\Models\User::find($fieldJacket->detached_by))->name, 'at' => \Illuminate\Support\Carbon::parse($fieldJacket->detached_at)]);
+              }
+          }
+        @endphp
+        @if ($custodyHistory->isNotEmpty() || $cdCfEvents->isNotEmpty())
           <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mt-6 mb-3">Correspondence file custody</h3>
           <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -533,6 +628,16 @@
                     <td class="px-3 py-2 whitespace-nowrap">{{ optional($ev->doer)->name }}, {{ $ev->done_at->format('d M Y H:i') }}</td>
                   </tr>
                 @endforeach
+                @foreach ($cdCfEvents as $cf)
+                  <tr class="bg-blue-50">
+                    <td class="px-3 py-2 text-gray-500">{{ $custodyHistory->count() + $loop->iteration }}</td>
+                    <td class="px-3 py-2">{{ $cf['label'] }}</td>
+                    <td class="px-3 py-2 font-mono">{{ $cf['file'] }}</td>
+                    <td class="px-3 py-2">—</td>
+                    <td class="px-3 py-2">{{ $cf['note'] ?: '—' }}</td>
+                    <td class="px-3 py-2 whitespace-nowrap">{{ $cf['by'] }}, {{ $cf['at']->format('d M Y H:i') }}</td>
+                  </tr>
+                @endforeach
               </tbody>
             </table>
           </div>
@@ -540,7 +645,7 @@
 
         @if ($fieldJacket)
           @php
-            $cdFjItems = [['Open field jacket', 'briefcase', route('cadastral-dept.field-jackets.show', $fieldJacket->id)]];
+            $cdFjItems = [['Open Computation File', 'briefcase', route('cadastral-dept.field-jackets.show', $fieldJacket->id)]];
             if (\App\Services\CadastralDept\DeskAccess::can(auth()->user(), 'print')) {
                 $cdFjItems[] = ['Print jacket cover', 'printer', route('cadastral-dept.field-jackets.print', $fieldJacket->id), true];
                 if ($fieldJacket->job?->its_number) {
@@ -548,11 +653,11 @@
                 }
             }
           @endphp
-          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mt-6 mb-3">Field jacket</h3>
+          <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mt-6 mb-3">Computation File (Field Jacket)</h3>
           <div class="rounded-xl border border-gray-200 bg-white overflow-x-auto">
             <table class="min-w-full text-sm">
               <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
-                <tr><th class="px-3 py-2">S/N</th><th class="px-3 py-2">Field Jacket</th><th class="px-3 py-2">Job No.</th><th class="px-3 py-2">Surveyor</th><th class="px-3 py-2">I to S</th><th class="px-3 py-2">Status</th><th class="px-3 py-2 text-right">Action</th></tr>
+                <tr><th class="px-3 py-2">S/N</th><th class="px-3 py-2">Computation File (Field Jacket)</th><th class="px-3 py-2">Job No.</th><th class="px-3 py-2">Surveyor</th><th class="px-3 py-2">I to S</th><th class="px-3 py-2">Status</th><th class="px-3 py-2 text-right">Action</th></tr>
               </thead>
               <tbody>
                 <tr>
@@ -624,6 +729,36 @@
   @include('cadastral_dept.field_jackets._attach_job_modal')
 @endif
 
+@foreach (\App\Services\CadastralDept\StepDocuments::TASKS as $cdSdKey => $cdSd)
+  @if (\App\Services\CadastralDept\StepDocuments::installed() && app(\App\Services\CadastralDept\StepDocuments::class)->due($case, $cdSdKey))
+    {{-- Upload pop-up for a step document (StepDocuments). --}}
+    <div id="cd-sd-modal-{{ $cdSdKey }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
+      <form method="POST" action="{{ route('cadastral-dept.cases.step-documents.store', [$case->id, $cdSdKey]) }}" enctype="multipart/form-data"
+            data-confirm-title="Upload the {{ $cdSd['label'] }}?" data-confirm="It is filed into the file's EDMS folder and ticks the task."
+            class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
+        @csrf
+        <div>
+          <div class="text-xs font-bold uppercase text-gray-500">{{ $case->case_ref }} · {{ $case->file_number }}</div>
+          <div class="text-lg font-bold text-gray-800">Upload {{ $cdSd['label'] }}</div>
+          <p class="text-xs text-gray-500 mt-1">{{ $cdSd['hint'] }} PDF, JPG or PNG, up to {{ \App\Services\Cadastral\CadastralDocuments::MAX_KB / 1024 }} MB each.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Documents <span class="text-red-600">*</span></label>
+          <input type="file" name="documents[]" multiple required accept=".pdf,.jpg,.jpeg,.png" class="w-full text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Comments</label>
+          <textarea name="comments" rows="3" maxlength="2000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('cd-sd-modal-{{ $cdSdKey }}').classList.add('hidden')" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
+          <button class="px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold">Upload</button>
+        </div>
+      </form>
+    </div>
+  @endif
+@endforeach
+
 @if ($planningAdviceDue)
   {{-- Upload KAMMA / Physical Planning's Planning Advice (PlanningAdvice). --}}
   <div id="cd-pa-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
@@ -664,7 +799,7 @@
 @if ($pndItsDefault !== null)
   {{-- P&D's plain I to S: the instruction to AD Cad Info to attach a job and a surveyor. --}}
   <div id="cd-pnd-its-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-    <form method="POST" action="{{ route('cadastral-dept.cases.its.store', $case->id) }}" data-confirm-title="Issue the I to S?" data-confirm="The I to S goes with the field jacket to AD Cad Info, who attaches the job and the surveyor." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
+    <form method="POST" action="{{ route('cadastral-dept.cases.its.store', $case->id) }}" data-confirm-title="Issue the I to S?" data-confirm="The I to S goes with the Computation File to AD Cad Info, who attaches the job and the surveyor." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
       @csrf
       <div>
         <div class="text-xs font-bold uppercase text-gray-500">{{ $fieldJacket->field_jacket_no }} · {{ $case->file_number }}</div>

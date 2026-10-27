@@ -486,19 +486,12 @@
           </a> --}}
         </div>
 
-        <!-- Parcel registers: Parcel Update + Duplex + Legacy, one table per type -->
-        @foreach ([
-            'subdivision'       => ['Subdivision', 'split-square-horizontal'],
-            'merger'            => ['Merger', 'combine'],
-            'extension'         => ['Extension', 'expand'],
-            'change-of-purpose' => ['Change of Purpose', 'repeat'],
-        ] as $registerType => [$registerLabel, $registerIcon])
-          <a href="{{ route('parcel-register.index', ['type' => $registerType, 'mode' => 'land']) }}"
-            class="sidebar-submodule-header flex items-center gap-2 py-1.5 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('parcel-register.index') && request()->route('type') === $registerType && request()->query('mode') === 'land' ? 'active' : '' }}">
-            <i data-lucide="{{ $registerIcon }}" class="h-4 w-4 text-orange-500"></i>
-            <span>{{ $registerLabel }}</span>
-          </a>
-        @endforeach
+        <!-- Parcel Update: the registers (Parcel Update + Duplex + Legacy), one tab per type -->
+        <a href="{{ route('parcel-register.index', ['type' => 'subdivision', 'mode' => 'land']) }}"
+          class="sidebar-submodule-header flex items-center gap-2 py-1.5 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('parcel-register.index') && request()->query('mode') === 'land' ? 'active' : '' }}">
+          <i data-lucide="map" class="h-4 w-4 text-orange-500"></i>
+          <span>Parcel Update</span>
+        </a>
       @endif
 
       <!-- h. Digital Archive (standalone) -->

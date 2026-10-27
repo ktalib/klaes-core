@@ -1,5 +1,5 @@
 {{--
-    Field jacket cover, for the front of the small survey file. Same family as
+    Computation File (Field Jacket) cover, for the front of the small survey file. Same family as
     the FMC and charting card prints: standalone, no sidebar, black on white.
     The QR code opens the file's page in the Cadastral Department workflow.
 --}}
@@ -10,7 +10,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>Field Jacket {{ $jacket->field_jacket_no }} · {{ $jacket->file_number }}</title>
+    <title>Computation File (Field Jacket) {{ $jacket->field_jacket_no }} · {{ $jacket->file_number }}</title>
     <style>
         @page { size: A5 landscape; margin: 10mm; }
         body { font-family: "Times New Roman", Georgia, serif; font-size: 12px; color: #000; margin: 0; }
@@ -40,14 +40,14 @@
         <div>
             <h1>Kano State Ministry of Land and Physical Planning</h1>
             <h2>Cadastral Department · Plans and Descriptions</h2>
-            <h3>Field Jacket</h3>
+            <h3>Computation File (Field Jacket)</h3>
         </div>
         @if ($qr)<img src="{{ $qr }}" alt="QR code to the file's page" />@endif
     </div>
 
     <table>
         <tr>
-            <td class="label">Field Jacket No.</td><td class="value big">{{ $jacket->field_jacket_no }}</td>
+            <td class="label">Computation File (Field Jacket) No.</td><td class="value big">{{ $jacket->field_jacket_no }}</td>
             <td class="label">Survey Job No.</td><td class="value big">{{ $job->job_number }}</td>
         </tr>
         <tr>
@@ -55,6 +55,8 @@
             <td class="label">I to S No.</td><td class="value">{{ $job->its_number ?: '—' }}</td>
         </tr>
         <tr><td class="label">File Title</td><td class="value" colspan="3">{{ $jacket->file_title ?: '—' }}</td></tr>
+        {{-- Attached to the correspondence file when commissioned (change request 26-10-2026). --}}
+        <tr><td class="label">Correspondence File</td><td class="value" colspan="3">{{ trim(($jacket->correspondence_fileno ?? '') . (($jacket->shadow_fileno ?? null) ? ' · ' . $jacket->shadow_fileno : '')) ?: 'Not attached' }}</td></tr>
         <tr>
             <td class="label">Plot No.</td><td class="value">{{ $jacket->plot_no ?: '—' }}</td>
             <td class="label">District</td><td class="value">{{ $jacket->district ?: '—' }}</td>

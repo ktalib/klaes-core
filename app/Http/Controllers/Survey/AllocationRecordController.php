@@ -7,6 +7,7 @@ use App\Models\Survey\SurveyCoFile;
 use App\Models\Survey\SurveyProject;
 use App\Models\Survey\SurveyProjectSurveyor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Allocation Records (Compensation > Records): the portions each surveyor was
@@ -17,6 +18,10 @@ class AllocationRecordController extends Controller
 {
     public function index(Request $r)
     {
+        if ($r->query('tab') === 'direct') {
+            return $this->directAllocation($r);
+        }
+
         $q = SurveyProjectSurveyor::query()
             ->with(['project.coFile'])
             ->withCount(['cases as surveyed' => fn ($c) => $c->whereNotNull('portion_no')])
@@ -64,6 +69,59 @@ class AllocationRecordController extends Controller
             'stats'       => $stats,
             'projects'    => SurveyProject::orderByDesc('id')->get(['id', 'project_code', 'name']),
             'coFiles'     => SurveyCoFile::orderByDesc('id')->get(['id', 'co_file_no', 'title']),
+        ]);
+    }
+
+    /**
+     * Direct Allocation files (user, 2026-10-27): every file commissioned as a Direct
+     * Allocation (mls_file_no.source), read live from its file_indexings row, joined on
+     * the file-number string. Read-only; nothing is copied.
+     */
+    private function directAllocation(Request $r)
+    {
+        $db = DB::connection('sqlsrv');
+        $live = fn ($w, $t) => $w->whereNull("$t.is_deleted")->orWhere("$t.is_deleted", 0);
+        $base = fn () => $db->table('file_indexings as fi')
+            ->join('mls_file_no as m', 'm.full_file_number', '=', 'fi.file_number')
+            ->where('m.source', 'Direct Allocation')
+            ->where(fn ($w) => $live($w, 'm'))
+            ->where(fn ($w) => $live($w, 'fi'));
+
+        $q = $base();
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                foreach (['fi.file_number', 'fi.file_title', 'fi.plot_number', 'fi.district', 'm.district', 'fi.location', 'm.tp_no'] as $col) {
+                    $w->orWhere($col, 'like', "%$term%");
+                }
+            });
+        }
+        if ($lga = $r->query('lga')) $q->where('fi.lga', $lga);
+        if ($use = $r->query('land_use')) $q->where('fi.land_use_type', $use);
+        if ($year = $r->query('year')) $q->where('m.year', (int) $year);
+
+        $files = $q->select([
+                'fi.id', 'fi.file_number', 'fi.file_title', 'fi.plot_number', 'fi.district', 'fi.lga', 'fi.location',
+                'fi.land_use_type', 'fi.plot_size', 'fi.is_decommissioned', 'fi.successor_file_no',
+                'm.district as mls_district', 'm.tp_no', 'm.commissioning_date', 'm.year',
+            ])
+            ->orderByDesc('m.commissioning_date')->orderByDesc('fi.id')
+            ->paginate(20)->withQueryString();
+
+        $stats = [
+            'files'          => $base()->count(),
+            'this_year'      => $base()->where('m.year', now()->year)->count(),
+            'decommissioned' => $base()->where('fi.is_decommissioned', 1)->count(),
+            'not_indexed'    => $db->table('mls_file_no as m')->where('m.source', 'Direct Allocation')->where(fn ($w) => $live($w, 'm'))
+                ->whereNotExists(fn ($x) => $x->from('file_indexings as fi')->whereColumn('fi.file_number', 'm.full_file_number'))->count(),
+        ];
+
+        return view('survey_module.compensation.allocation_records', [
+            'tab'      => 'direct',
+            'files'    => $files,
+            'stats'    => $stats,
+            'lgas'     => $base()->whereNotNull('fi.lga')->where('fi.lga', '<>', '')->distinct()->orderBy('fi.lga')->pluck('fi.lga'),
+            'landUses' => $base()->whereNotNull('fi.land_use_type')->where('fi.land_use_type', '<>', '')->distinct()->orderBy('fi.land_use_type')->pluck('fi.land_use_type'),
+            'years'    => $base()->whereNotNull('m.year')->distinct()->orderByDesc('m.year')->pluck('m.year'),
         ]);
     }
 }

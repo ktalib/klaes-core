@@ -114,7 +114,7 @@
                   </button>
                   <div x-show="open" x-cloak class="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
                     <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> {{ $canAct ? 'Open file (tasks)' : 'View' }}</a>
-                    @if ($fmcInstalled && $case->fmc)
+                    @if ($fmcInstalled && $fmcVisible && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
                     @if ($canAct)
@@ -127,10 +127,10 @@
                         <div class="border-t border-gray-100">
                           @if ($m['jacket'] === 'commission')
                             <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
-                                  data-confirm-title="Commission the field jacket?" data-confirm="A field jacket is numbered for {{ $case->file_number }}.">
+                                  data-confirm-title="Commission the Computation File?" data-confirm="A Computation File is numbered for {{ $case->file_number }}.">
                               @csrf
                               <button class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
-                                <span class="inline-flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4"></i> Commission Field Jacket</span>
+                                <span class="inline-flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4"></i> Commission Computation File (Field Jacket)</span>
                                 <span class="block text-xs text-gray-500">Then issue the I to S</span>
                               </button>
                             </form>

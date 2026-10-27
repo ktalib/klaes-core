@@ -155,7 +155,7 @@
                     @endunless
                     @if ($f->finding === 'changes_required')
                       <a href="{{ route('survey-module.workflow.change-reports.create', ['line' => $f->id]) }}" class="{{ $svItem }}">
-                        <i data-lucide="file-check" class="w-4 h-4 text-gray-500"></i> Surveyors' Report (Changes)
+                        <i data-lucide="file-check" class="w-4 h-4 text-gray-500"></i> Surveyors' Report
                       </a>
                     @endif
                     @if ($f->cadastral_case_id && $canOpenCases)
