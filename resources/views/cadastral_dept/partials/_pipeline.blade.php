@@ -68,6 +68,24 @@
         @if ($cdCanJump)
           <span class="absolute inset-x-1 -top-1 h-10 rounded-lg ring-2 ring-transparent group-hover:ring-indigo-300"></span>
         @endif
+        @if (! empty($cdP['only_if']) && $cdP['state'] !== 'done')
+          <span class="mt-0.5 px-1 text-xs italic text-orange-600 leading-tight" title="Only files that need it go through this step; the others skip it">if {{ $cdP['only_if'] }}</span>
+        @endif
+        {{-- A split route (GIS buffer: KAMMA OR Physical Planning): the other route's step at this
+             position, when it is at another desk (WorkflowEngine::pipeline 'alts', 2026-10-27). --}}
+        @foreach (collect($cdP['alts'] ?? [])->filter(fn ($a) => $a['desk'] !== $cdP['desk']) as $cdAlt)
+          <span class="relative z-10 mt-1 flex flex-col items-center leading-tight" title="{{ $cdAlt['desk'] }}: {{ $cdAlt['label'] }}{{ $cdJump ? "
+
+Click to move the file here" : '' }}">
+            <span class="font-bold uppercase tracking-wide text-orange-600" style="font-size:10px">or</span>
+            @if ($cdJump)
+              <button type="button" class="px-1 rounded text-xs text-gray-500 italic hover:bg-indigo-50 hover:text-indigo-700"
+                      @click.stop="jump = @js(['step' => $cdAlt['key'], 'desk' => $cdAlt['desk'], 'label' => $cdAlt['label']]); reason = ''">{!! str_replace('/', '/<wbr>', e($cdAlt['desk'])) !!}</button>
+            @else
+              <span class="px-1 text-xs text-gray-500 italic">{!! str_replace('/', '/<wbr>', e($cdAlt['desk'])) !!}</span>
+            @endif
+          </span>
+        @endforeach
       </li>
     @endforeach
   </ol>

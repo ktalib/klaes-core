@@ -37,6 +37,75 @@
             <i data-lucide="shield-alert" class="w-4 h-4"></i> Master Delete
           </button>
         @endif
+        {{-- Change application type (user, 2026-10-28): a wrong pick at registration is corrected
+             while the file is still at Registry intake (CaseWorkflow::changeType). --}}
+        @php
+          $cdType = app(\App\Services\CadastralDept\CaseWorkflow::class)->canChangeType($case)
+              && app(\App\Services\CadastralDept\DeskAccess::class)->canActOn(auth()->user(), $case);
+          $cdTypeFt = $def->fileTypes()[$case->file_type] ?? [];
+          $cdTypeWfs = array_values(array_filter((array) ($cdTypeFt['workflows'] ?? []), fn ($w) => $def->has($w)));
+          $cdTypeGroups = array_values(array_intersect(['conversion', 'direct'], $cdTypeWfs));
+          $cdTypeAskTenure = ! array_key_exists('tenure', $cdTypeFt) || $cdTypeFt['tenure'] === null;
+          $cdTypeAskRoute = ($cdTypeFt['route'] ?? null) === 'ask';
+          $cdRoutesFrom = $def->workflow('verification')['asks_allocation_route'] ?? 'direct';
+        @endphp
+        @if ($cdType && count($cdTypeWfs) > 1)
+          <div x-data="{ open: false, wf: @js($case->workflow) }" class="mt-3">
+            <button type="button" @click="open = !open"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 text-xs font-semibold hover:bg-amber-50">
+              <i data-lucide="replace" class="w-4 h-4"></i> Change application type
+            </button>
+            <form x-show="open" x-cloak method="POST" action="{{ route('cadastral-dept.cases.application-type.update', $case->id) }}"
+                  data-confirm-title="Change the application type?"
+                  data-confirm="{{ $case->case_ref }} will follow the new type's route from Registry intake."
+                  class="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2 text-sm max-w-md">
+              @csrf
+              <p class="text-xs text-amber-900">Picked the wrong type at registration? Change it here while the file is still at Registry intake.</p>
+              <label class="block text-xs font-medium text-gray-600">Application type</label>
+              <select name="workflow" x-model="wf" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                @foreach ($cdTypeWfs as $w)
+                  <option value="{{ $w }}" @selected($case->workflow === $w)>{{ $def->workflow($w)['label'] }}</option>
+                @endforeach
+              </select>
+              @if (count($cdTypeGroups) > 1)
+                <div x-show="wf === 'verification'">
+                  <label class="block text-xs font-medium text-gray-600">Verification of</label>
+                  <select name="verification_group" x-bind:disabled="wf !== 'verification'" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                    @foreach ($cdTypeGroups as $g)<option value="{{ $g }}">{{ $def->workflow($g)['label'] }}</option>@endforeach
+                  </select>
+                </div>
+              @endif
+              @if ($cdTypeAskTenure && $def->subTypes('verification'))
+                <div x-show="wf === 'verification'">
+                  <label class="block text-xs font-medium text-gray-600">{{ $def->workflow('verification')['sub_type_label'] ?? 'Tenure' }}</label>
+                  <select name="sub_type" x-bind:disabled="wf !== 'verification'" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                    @foreach ($def->subTypes('verification') as $k => $label)<option value="{{ $k }}" @selected($case->sub_type === $k)>{{ $label }}</option>@endforeach
+                  </select>
+                </div>
+              @endif
+              @if ($cdTypeAskRoute)
+                <div x-show="wf === 'verification'">
+                  <label class="block text-xs font-medium text-gray-600">Resettlement / Direct</label>
+                  <select name="allocation_route" x-bind:disabled="wf !== 'verification'" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                    @foreach ($def->subTypes($cdRoutesFrom) as $k => $label)<option value="{{ $k }}" @selected($case->allocation_route === $k)>{{ $label }}</option>@endforeach
+                  </select>
+                </div>
+                @foreach ($cdTypeWfs as $w)
+                  @if ($w !== 'verification' && $def->subTypes($w))
+                    <div x-show="wf === @js($w)">
+                      <label class="block text-xs font-medium text-gray-600">{{ $def->workflow($w)['sub_type_label'] ?? 'Route' }}</label>
+                      <select name="sub_type" x-bind:disabled="wf !== @js($w)" class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                        @foreach ($def->subTypes($w) as $k => $label)<option value="{{ $k }}" @selected($case->sub_type === $k)>{{ $label }}</option>@endforeach
+                      </select>
+                    </div>
+                  @endif
+                @endforeach
+              @endif
+              <button type="submit" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700"
+                      x-bind:disabled="wf === @js($case->workflow)" x-bind:class="wf === @js($case->workflow) ? 'opacity-50 cursor-not-allowed' : ''">Save application type</button>
+            </form>
+          </div>
+        @endif
       </div>
       <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <dt class="text-gray-500">File type</dt><dd>{{ $case->fileTypeLabel() }}</dd>
@@ -162,6 +231,22 @@
           <div class="rounded-xl border-2 border-{{ $c }}-300 bg-white p-5">
             <div class="text-xs font-bold uppercase text-{{ $c }}-700">Now at: {{ $def->deskLabel($step['desk']) }}</div>
             <div class="text-lg font-bold text-gray-800">{{ $cdStepLabel }}</div>
+            {{-- Sent here, not accepted yet (CadastralFileTracking, 2026-10-27): accept, then work on it. --}}
+            @php $cdAwaiting = \App\Services\CadastralDept\CadastralFileTracking::awaiting($case); @endphp
+            @if ($cdAwaiting)
+              <div class="mt-2 flex flex-wrap items-center gap-3 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-900">
+                <span><strong>Awaiting acceptance.</strong> {{ $case->deskShort() }} has not accepted this file yet. Accept it when it is in hand; it can be sent on only after that.</span>
+                <form method="POST" action="{{ route('cadastral-dept.cases.accept.save', $case->id) }}" class="ml-auto">
+                  @csrf
+                  <button class="px-3 py-1.5 rounded-lg bg-purple-700 text-white text-sm font-semibold inline-flex items-center gap-1.5"><i data-lucide="check-circle" class="w-4 h-4"></i> Accept file</button>
+                </form>
+              </div>
+            @elseif (\App\Services\CadastralDept\CadastralFileTracking::installed() && $case->accepted_at && ! empty($def->desks()[$case->current_desk]['internal']))
+              <div class="mt-1 text-xs text-gray-500">Accepted {{ \Illuminate\Support\Carbon::parse($case->accepted_at)->format('d M Y H:i') }}@if ($case->accepted_by) by {{ optional(\App\Models\User::find($case->accepted_by))->name }}@endif</div>
+            @endif
+            {{-- Awaiting acceptance: nothing below works until the unit accepts the file (user, 2026-10-27).
+                 The server refuses the actions too (CadastralDeskAccess). --}}
+            <div @if ($cdAwaiting) class="opacity-50 pointer-events-none select-none" inert aria-disabled="true" @endif>
             @php $cdBack = $case->sentBack(); @endphp
             @if ($cdBack)
               <div class="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -179,7 +264,8 @@
               </div>
             @endif
             @if (! empty($step['external']))
-              <p class="text-sm text-gray-500 mt-1">The file is with another department. {{ $def->deskLabel($actingDesk) }} records its return.</p>
+              @php $cdUnitRole = config('cadastral_dept.external_desk_roles', [])[$step['desk']] ?? null; @endphp
+              <p class="text-sm text-gray-500 mt-1">The file is with another department. {{ $def->deskLabel($actingDesk) }} records its return{{ $cdUnitRole ? ', or ' . $def->deskShort($step['desk']) . ' sends it on itself' : '' }}.</p>
             @endif
 
             @if ($tasks)
@@ -391,9 +477,9 @@
                       <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
                     @elseif ($key === 'correspondence_created')
                       <form method="POST" action="{{ route('cadastral-dept.cases.correspondence.store', $case->id) }}"
-                            data-confirm-title="Create the correspondence file?" data-confirm="For {{ $case->file_number }}. If it already has one, it is matched instead.">
+                            data-confirm-title="Commission the correspondence file?" data-confirm="For {{ $case->file_number }}. If it already has one, it is matched instead.">
                         @csrf
-                        <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Create Correspondence File</button>
+                        <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission Correspondence File</button>
                       </form>
                     @elseif ($key === 'fmc_commissioned')
                       @if ($fmcBackfill !== null)
@@ -500,6 +586,7 @@
                 </div>
               </form>
             @endif
+            </div>
           </div>
         @else
           <div class="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">

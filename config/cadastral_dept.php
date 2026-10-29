@@ -118,13 +118,13 @@ $sharedTail = [
     // The Planning Advice (with the field comments, on the JSI) is uploaded when the file comes
     // back, so the next desks can view or download it (transcript, 2026-10-16; PlanningAdvice).
     'kamma_advice' => [
-        'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA/Physical Planning)',
+        'phase' => 3, 'desk' => 'kamma', 'label' => 'With KAMMA for the Planning Advice',
         'external' => true, 'recorded_by' => 'director_cadastral',
         'tasks' => ['planning_advice_uploaded' => 'Planning Advice uploaded'],
         'next' => 'perm_sec_review',
     ],
     'ppd_advice' => [
-        'phase' => 3, 'desk' => 'physical_planning', 'label' => 'Planning Advice (Physical Planning)',
+        'phase' => 3, 'desk' => 'physical_planning', 'label' => 'With Physical Planning for the Planning Advice',
         'external' => true, 'recorded_by' => 'director_cadastral',
         'tasks' => ['planning_advice_uploaded' => 'Planning Advice uploaded'],
         'next' => 'perm_sec_review',
@@ -214,12 +214,19 @@ $sharedTail = [
         'next' => 'final_charting',
     ],
     'final_charting' => [
-        'phase' => 6, 'desk' => 'ad_drawing', 'label' => 'Final Charting; send to the Surveyor General',
+        'phase' => 6, 'desk' => 'ad_drawing', 'label' => 'Final Charting; send to the SG (Government surveyor) or AD Cad Info (private surveyor)',
         'tasks' => ['final_charting' => 'Final charting done'],
-        'next' => 'sg_signing',
+        // Only a Government survey goes to the SG for signing; a private surveyor's file skips the SG
+        // and goes straight to AD Cad Info (user, 2026-10-28). The surveyor on the Computation File
+        // decides which answer is offered (SurveyRoute): Survey Dept staff = Government.
+        'outcomes' => [
+            'government' => ['label' => 'Government surveyor: send to the SG for signing', 'next' => 'sg_signing'],
+            'private' => ['label' => 'Private surveyor: send to AD Cad Info (no SG signing)', 'next' => 'info_after_sg'],
+        ],
     ],
     'sg_signing' => [
-        'phase' => 6, 'desk' => 'surveyor_general', 'label' => 'SG signs the Final Survey Plan',
+        'phase' => 6, 'desk' => 'surveyor_general', 'label' => 'SG signs the Final Survey Plan (Government surveyor only)',
+        'only_if' => 'Govt survey',
         'external' => true, 'recorded_by' => 'ad_information',
         // Change request 26-10-2026: "SG upload Final Survey Plan" (StepDocuments).
         'tasks' => ['final_plan_uploaded' => 'Final Survey Plan uploaded (signed by the SG)'],
@@ -227,7 +234,7 @@ $sharedTail = [
     ],
     // Phase 7: Billing and final hand-off.
     'info_after_sg' => [
-        'phase' => 7, 'desk' => 'ad_information', 'label' => 'Receive the signed plan; send to AD P&D',
+        'phase' => 7, 'desk' => 'ad_information', 'label' => 'Receive the Final Survey Plan; send to AD P&D',
         'next' => 'pnd_billing',
     ],
     'pnd_billing' => [
@@ -281,12 +288,12 @@ $conversionAdvice = [
         'next' => 'ps_to_kamma',
     ],
     'ps_to_kamma' => [
-        'phase' => 3, 'desk' => 'permanent_secretary', 'label' => 'PS sends the file to KAMMA',
+        'phase' => 3, 'desk' => 'permanent_secretary', 'label' => 'With the PS, to be sent to KAMMA',
         'external' => true, 'recorded_by' => 'director_cadastral',
         'next' => 'kamma_advice',
     ],
     'kamma_advice' => [
-        'phase' => 3, 'desk' => 'kamma', 'label' => 'Planning Advice (KAMMA); back to the PS',
+        'phase' => 3, 'desk' => 'kamma', 'label' => 'With KAMMA for the Planning Advice',
         'external' => true, 'recorded_by' => 'director_cadastral',
         'next' => 'perm_sec_review',
     ],
@@ -303,7 +310,7 @@ $conversionAdvice = [
         'next' => 'ppd_advice',
     ],
     'ppd_advice' => [
-        'phase' => 3, 'desk' => 'physical_planning', 'label' => 'Planning Advice (Physical Planning); to the PS',
+        'phase' => 3, 'desk' => 'physical_planning', 'label' => 'With Physical Planning for the Planning Advice',
         'external' => true, 'recorded_by' => 'director_cadastral',
         'next' => 'perm_sec_review',
     ],
@@ -347,7 +354,7 @@ return [
 
         'compensation_unit' => ['label' => 'Compensation Unit (Survey Dept)', 'short' => 'Compensation', 'internal' => false],
         'dsg' => ['label' => 'Deputy Director Survey (DSG)', 'short' => 'DSG', 'internal' => false],
-        'kamma' => ['label' => 'KAMMA/Physical Planning', 'short' => 'KAMMA/Physical Planning', 'internal' => false],
+        'kamma' => ['label' => 'KAMMA', 'short' => 'KAMMA', 'internal' => false],
         'physical_planning' => ['label' => 'Physical Planning Department', 'short' => 'Physical Planning', 'internal' => false],
         'permanent_secretary' => ['label' => 'Permanent Secretary', 'short' => 'PS', 'internal' => false],
         'director_land' => ['label' => 'Director Land (Land Dept)', 'short' => 'Land', 'internal' => false],
@@ -355,6 +362,35 @@ return [
         // Updated workflow doc (2026-10-15).
         'examination_unit' => ['label' => 'Examination Unit (Survey Dept)', 'short' => 'Examination', 'internal' => false],
         'surveyor_general' => ['label' => 'Surveyor General', 'short' => 'SG', 'internal' => false],
+    ],
+
+    /*
+    | The Ministry office (offices.office_code) each desk logs files at in the shared file tracker
+    | (file_tracker.movement_log), so a file sent between units shows where it is and waits for
+    | the unit to accept it (user, 2026-10-27; CadastralFileTracking). The five CAD-* unit offices
+    | were added by the 2026_10_27_130000 migration. Compensation, KAMMA and Examination have no
+    | office in the Ministry list yet: a send there closes the current line, and the file is
+    | logged again when it comes back.
+    */
+    // A file sent to a Cadastral unit is accepted there automatically (user, 2026-10-27); false brings
+    // back the manual Accept step (button / scan), which locks the file until the unit accepts it.
+    'auto_accept' => true,
+
+    'desk_offices' => [
+        'registry' => 'CAD-R',
+        'director_cadastral' => 'CAD',
+        'deputy_director_cadastral' => 'DDCAD',
+        'ad_information' => 'CAD-INFO',
+        'ad_report' => 'CAD-REP',
+        'ad_pnd' => 'CAD-PND',
+        'ad_drawing' => 'CAD-DRW',
+        'cadastral_gis' => 'CAD-GIS',
+        'dsg' => 'DSG',
+        'physical_planning' => 'PPD',
+        'permanent_secretary' => 'PS',
+        'director_land' => 'DIR-L',
+        'field_survey' => 'SUR',
+        'surveyor_general' => 'SUR-G',
     ],
 
     /*
@@ -378,6 +414,16 @@ return [
     ],
     // More roles that open a desk besides its own (user, 2026-10-26: "Cad - Records is supposed to see
     // Cadastral Report"). desk key => [role, ...].
+    // The Survey Department units a Cadastral file goes out to act on their own step (user, 2026-10-28:
+    // Survey sidebar > Other Departments > Cadastral). Their role opens the unit's page and lets them
+    // send the file on while it is with them, alongside the Cadastral desk that records it.
+    // Role rows: database/migrations/manual/2026_10_28_survey_unit_roles.sql.
+    'external_desk_roles' => [
+        'compensation_unit' => 'Survey - Compensation Check',
+        'dsg' => 'Survey - DSG',
+        'examination_unit' => 'Survey - Examination',
+        'surveyor_general' => 'Survey - SG',
+    ],
     'desk_extra_roles' => [
         'ad_report' => ['Cad - Records'],
     ],
@@ -489,6 +535,9 @@ return [
         'conversion_file' => ['label' => 'Conversion File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => null, 'prefixes' => ['CON-']],
         'quarry' => ['label' => 'Quarry File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'customary', 'route' => 'direct_allocation'],
         'sit' => ['label' => 'SIT File', 'workflows' => ['conversion', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
+        // The regular Direct Allocation main file (RES- / COM- / IND- / AG-), first of the Direct types
+        // (user, 2026-10-27). Statutory, Direct route; its prefixes pick the files listed.
+        'direct_file' => ['label' => 'Direct Allocation File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation', 'prefixes' => ['RES-', 'COM-', 'IND-', 'AG-']],
         'dciv' => ['label' => 'DCIV/LPCC File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => false, 'route' => 'direct_allocation'],
         'gkn' => ['label' => 'GKN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
         'misc_kn' => ['label' => 'Misc KN File', 'workflows' => ['direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation'],
@@ -496,7 +545,7 @@ return [
         // LPCC is the same file type as DCIV (user, 2026-10-15): one DCIV/LPCC File option.
         // ST and SLTR files (change request 26-10-2026, handwritten list; user 2026-10-27: file types under
         // Conversion AND Direct, same steps as the application type). Their prefixes pick the files listed.
-        // SLTR prints its Plan Description on CAD 13, ST on CAD 20 (PndBills::defaultForm).
+        // Plan Description: Conversion prints CAD 20, Direct Allocation CAD 13 (PndBills::defaultForm).
         'st_file' => ['label' => 'ST File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => 'statutory', 'route' => 'direct_allocation', 'prefixes' => ['ST-']],
         'sltr_file' => ['label' => 'SLTR File', 'workflows' => ['conversion', 'direct', 'verification'], 'tenure' => 'customary', 'route' => 'direct_allocation', 'prefixes' => ['SLTR-']],
     ],
@@ -549,7 +598,7 @@ return [
                         // Separate lines (transcript, 2026-10-16): Land 12, then the Yes/No form.
                         'land12' => 'Land 12',
                         'yes_no' => 'Yes/No form',
-                        'correspondence_created' => 'Correspondence file created',
+                        'correspondence_created' => 'Correspondence file commissioned',
                     ],
                     'next' => 'compensation_check',
                 ],
@@ -600,7 +649,7 @@ return [
                         // Separate lines (transcript, 2026-10-16): Land 12, then the Yes/No form.
                         'land12' => 'Land 12',
                         'yes_no' => 'Yes/No form',
-                        'correspondence_created' => 'Correspondence file created',
+                        'correspondence_created' => 'Correspondence file commissioned',
                     ],
                     'route_by' => 'sub_type',
                     'routes' => [

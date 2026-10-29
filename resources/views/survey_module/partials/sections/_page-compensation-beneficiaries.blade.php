@@ -211,7 +211,18 @@
                     <tr>
                         <td>{{ $beneficiaries->firstItem() + $loop->index }}</td>
                         <td><strong>{{ $b->full_name }}</strong></td>
-                        <td>{{ $b->phone ?: '—' }}</td>
+                        <td style="white-space:nowrap;">
+                            @if ($b->phone)
+                                {{-- Opens the outreach card (Call / SMS / WhatsApp / Email). --}}
+                                <button type="button" data-sv-contact data-phone="{{ $b->phone }}" data-name="{{ $b->full_name }}"
+                                        data-email="" data-ref="{{ $b->case?->case_ref }}" title="Contact {{ $b->full_name }}"
+                                        class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-600 hover:text-white hover:border-emerald-600">
+                                    <i data-lucide="phone" class="h-3 w-3"></i><span>{{ $b->phone }}</span>
+                                </button>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td>{{ $b->nin ?: '—' }}</td>
                         <td>{{ $b->person_address ?: '—' }}</td>
                         <td>{{ $b->bank_name ?: '—' }}</td>
@@ -326,3 +337,5 @@
         });
     </script>
 @endif
+
+@include('survey_module.partials._contact_card', ['contactWho' => 'Beneficiary'])

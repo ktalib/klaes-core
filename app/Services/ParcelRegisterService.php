@@ -87,7 +87,10 @@ class ParcelRegisterService
         $ids = [];
         foreach (array_chunk($numbers, 500) as $chunk) {
             DB::connection('sqlsrv')->table('file_indexings')
-                ->whereIn(DB::raw('UPPER(LTRIM(RTRIM(file_number)))'), $chunk)
+                // Plain column match so the file_number index is used: the column is
+                // case-insensitive (CI_AS) and = ignores trailing spaces, so this finds
+                // what UPPER(LTRIM(RTRIM())) did without scanning every indexed file.
+                ->whereIn('file_number', $chunk)
                 ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
                 ->orderBy('id')
                 ->get(['id', 'file_number'])

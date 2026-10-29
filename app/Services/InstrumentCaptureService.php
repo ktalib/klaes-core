@@ -988,6 +988,24 @@ class InstrumentCaptureService
                 $parties
             );
 
+            // The registration this capture produced holds its own copy of the two
+            // party names (grantor / grantee), which the Instrument Registration
+            // screen shows. Copy over only a name this edit actually changed.
+            $registrationNames = [];
+            if (array_key_exists('party_1_name', $updateData)
+                && (string) $updateData['party_1_name'] !== (string) ($existing->party_1_name ?? '')) {
+                $registrationNames['grantor'] = $updateData['party_1_name'];
+            }
+            if (array_key_exists('party_2_name', $updateData)
+                && (string) $updateData['party_2_name'] !== (string) ($existing->party_2_name ?? '')) {
+                $registrationNames['grantee'] = $updateData['party_2_name'];
+            }
+            if ($registrationNames) {
+                DB::connection('sqlsrv')->table('deed_registrations')
+                    ->where('instrument_capture_id', $id)
+                    ->update($registrationNames + ['updated_at' => now()]);
+            }
+
             // Propagate name changes to core tables for specific instrument types (Deed of Assignment/Gift)
             $syncResult = $this->regService->syncPartyNames($primary, $instrumentType, $parties['party_2']['name'], [
                 'instrument_capture_id' => $id,

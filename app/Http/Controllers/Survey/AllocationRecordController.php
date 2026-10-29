@@ -16,9 +16,12 @@ use Illuminate\Support\Facades\DB;
  */
 class AllocationRecordController extends Controller
 {
+    /** Surveyor Allocations tab hidden "for now" (user, 2026-10-28); true brings it back. */
+    public const SHOW_SURVEYOR_TAB = false;
+
     public function index(Request $r)
     {
-        if ($r->query('tab') === 'direct') {
+        if (! self::SHOW_SURVEYOR_TAB || $r->query('tab') === 'direct') {
             return $this->directAllocation($r);
         }
 
@@ -73,55 +76,68 @@ class AllocationRecordController extends Controller
     }
 
     /**
-     * Direct Allocation files (user, 2026-10-27): every file commissioned as a Direct
-     * Allocation (mls_file_no.source), read live from its file_indexings row, joined on
-     * the file-number string. Read-only; nothing is copied.
+     * Direct Allocation files (user, 2026-10-28): every indexed file that is a Direct
+     * Allocation, of any year — its Occupancy Permit Type in File Indexing says so
+     * (pra.op_type), or it was commissioned as one (mls_file_no.source, 2026 onwards).
+     * Joined on the file-number string; "OP " prefix tolerated. Year is a table filter:
+     * the OP date's year, else the commissioning year. Read-only; nothing is copied.
      */
     private function directAllocation(Request $r)
     {
         $db = DB::connection('sqlsrv');
-        $live = fn ($w, $t) => $w->whereNull("$t.is_deleted")->orWhere("$t.is_deleted", 0);
-        $base = fn () => $db->table('file_indexings as fi')
-            ->join('mls_file_no as m', 'm.full_file_number', '=', 'fi.file_number')
-            ->where('m.source', 'Direct Allocation')
-            ->where(fn ($w) => $live($w, 'm'))
-            ->where(fn ($w) => $live($w, 'fi'));
+        $types = "('Direct Allocation', 'OP Direct Allocation')";
+        $rows = $db->table(DB::raw("(
+                SELECT fi.id, fi.file_number, fi.file_title, fi.plot_number, fi.district, fi.lga, fi.location,
+                       fi.land_use_type, COALESCE(NULLIF(fi.tp_no, ''), m.tp_no) AS tp_no,
+                       fi.is_decommissioned, fi.successor_file_no,
+                       pr.transaction_date AS op_date, pr.op_serial_number, m.commissioning_date,
+                       -- A mistyped OP date (0001-01-01, 22015-01-11) gives no year.
+                       COALESCE(CASE WHEN pr.transaction_date LIKE '[12][09][0-9][0-9]-[01][0-9]-[0-3][0-9]'
+                                      AND LEFT(pr.transaction_date, 4) BETWEEN '1900' AND CAST(YEAR(GETDATE()) AS varchar(4))
+                                     THEN LEFT(pr.transaction_date, 4) END,
+                                CAST(m.year AS varchar(4))) AS da_year
+                FROM (SELECT p.mlsFNo AS fn FROM pra p
+                       WHERE p.instrument_type = 'Occupancy Permit' AND LTRIM(RTRIM(p.op_type)) IN $types
+                         AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                      UNION
+                      SELECT x.full_file_number FROM mls_file_no x
+                       WHERE x.source IN $types AND (x.is_deleted IS NULL OR x.is_deleted = 0)) c
+                JOIN file_indexings fi ON fi.file_number = c.fn
+                OUTER APPLY (SELECT TOP 1 p.id, p.transaction_date, p.op_serial_number FROM pra p
+                             WHERE p.mlsFNo = fi.file_number AND p.instrument_type = 'Occupancy Permit'
+                               AND LTRIM(RTRIM(p.op_type)) IN $types AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+                             ORDER BY p.id DESC) pr
+                OUTER APPLY (SELECT TOP 1 x.id, x.tp_no, x.commissioning_date, x.year FROM mls_file_no x
+                             WHERE x.full_file_number = fi.file_number AND x.source IN $types
+                               AND (x.is_deleted IS NULL OR x.is_deleted = 0)
+                             ORDER BY x.id DESC) m
+                WHERE (fi.is_deleted IS NULL OR fi.is_deleted = 0) AND (pr.id IS NOT NULL OR m.id IS NOT NULL)
+            ) AS d"));
+        $base = fn () => clone $rows;
 
         $q = $base();
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
-                foreach (['fi.file_number', 'fi.file_title', 'fi.plot_number', 'fi.district', 'm.district', 'fi.location', 'm.tp_no'] as $col) {
-                    $w->orWhere($col, 'like', "%$term%");
+                foreach (['file_number', 'file_title', 'plot_number', 'district', 'location', 'tp_no', 'op_serial_number'] as $col) {
+                    $w->orWhere("d.$col", 'like', "%$term%");
                 }
             });
         }
-        if ($lga = $r->query('lga')) $q->where('fi.lga', $lga);
-        if ($use = $r->query('land_use')) $q->where('fi.land_use_type', $use);
-        if ($year = $r->query('year')) $q->where('m.year', (int) $year);
+        if ($lga = $r->query('lga')) $q->where('d.lga', $lga);
+        if ($use = $r->query('land_use')) $q->where('d.land_use_type', $use);
+        if ($year = (int) $r->query('year')) $q->where('d.da_year', (string) $year);
 
-        $files = $q->select([
-                'fi.id', 'fi.file_number', 'fi.file_title', 'fi.plot_number', 'fi.district', 'fi.lga', 'fi.location',
-                'fi.land_use_type', 'fi.plot_size', 'fi.is_decommissioned', 'fi.successor_file_no',
-                'm.district as mls_district', 'm.tp_no', 'm.commissioning_date', 'm.year',
-            ])
-            ->orderByDesc('m.commissioning_date')->orderByDesc('fi.id')
+        $files = $q->select('d.*')
+            ->orderByDesc('d.da_year')->orderByDesc('d.id')
             ->paginate(20)->withQueryString();
-
-        $stats = [
-            'files'          => $base()->count(),
-            'this_year'      => $base()->where('m.year', now()->year)->count(),
-            'decommissioned' => $base()->where('fi.is_decommissioned', 1)->count(),
-            'not_indexed'    => $db->table('mls_file_no as m')->where('m.source', 'Direct Allocation')->where(fn ($w) => $live($w, 'm'))
-                ->whereNotExists(fn ($x) => $x->from('file_indexings as fi')->whereColumn('fi.file_number', 'm.full_file_number'))->count(),
-        ];
 
         return view('survey_module.compensation.allocation_records', [
             'tab'      => 'direct',
             'files'    => $files,
-            'stats'    => $stats,
-            'lgas'     => $base()->whereNotNull('fi.lga')->where('fi.lga', '<>', '')->distinct()->orderBy('fi.lga')->pluck('fi.lga'),
-            'landUses' => $base()->whereNotNull('fi.land_use_type')->where('fi.land_use_type', '<>', '')->distinct()->orderBy('fi.land_use_type')->pluck('fi.land_use_type'),
-            'years'    => $base()->whereNotNull('m.year')->distinct()->orderByDesc('m.year')->pluck('m.year'),
+            'stats'    => ['files' => $base()->count()],
+            'lgas'     => $base()->whereNotNull('d.lga')->where('d.lga', '<>', '')->distinct()->orderBy('d.lga')->pluck('d.lga'),
+            'landUses' => $base()->whereNotNull('d.land_use_type')->where('d.land_use_type', '<>', '')->distinct()->orderBy('d.land_use_type')->pluck('d.land_use_type'),
+            'years'    => $base()->whereNotNull('d.da_year')->distinct()->orderByDesc('d.da_year')->pluck('d.da_year'),
         ]);
     }
 }

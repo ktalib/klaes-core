@@ -8,10 +8,12 @@
     .survey-proto .al-tabs a.on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
 </style>
 <div class="al-tabs" role="tablist">
-    <a href="{{ route('survey-module.compensation.allocation-records') }}" class="{{ $alTab === 'surveyors' ? 'on' : '' }}"
-       role="tab" aria-selected="{{ $alTab === 'surveyors' ? 'true' : 'false' }}">
-        <i class="fas fa-user-friends"></i> Surveyor Allocations
-    </a>
+    @if (\App\Http\Controllers\Survey\AllocationRecordController::SHOW_SURVEYOR_TAB)
+        <a href="{{ route('survey-module.compensation.allocation-records') }}" class="{{ $alTab === 'surveyors' ? 'on' : '' }}"
+           role="tab" aria-selected="{{ $alTab === 'surveyors' ? 'true' : 'false' }}">
+            <i class="fas fa-user-friends"></i> Surveyor Allocations
+        </a>
+    @endif
     <a href="{{ route('survey-module.compensation.allocation-records', ['tab' => 'direct']) }}" class="{{ $alTab === 'direct' ? 'on' : '' }}"
        role="tab" aria-selected="{{ $alTab === 'direct' ? 'true' : 'false' }}">
         <i class="fas fa-folder-open"></i> Direct Allocation Files

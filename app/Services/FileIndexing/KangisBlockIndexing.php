@@ -90,20 +90,32 @@ class KangisBlockIndexing
     /**
      * KANGIS file numbers of the live KANGIS Registry records carrying this land file.
      *
+     * $skipNpf leaves out KANGIS files the land file was indexed as NPF (physical file
+     * not sighted) with: they do not hold it, so it stays free to relate elsewhere (user,
+     * 2026-10-28). Only the one-KANGIS-file lock passes it; names, plots and counts
+     * still see the link.
+     *
      * @return string[]
      */
-    public function kangisFilesFor(string $landFileNo, ?int $excludeFileIndexingId = null): array
+    public function kangisFilesFor(string $landFileNo, ?int $excludeFileIndexingId = null, bool $skipNpf = false): array
     {
         if (self::key($landFileNo) === '') {
             return [];
         }
 
-        return $this->kangisRecordsFor($landFileNo, $excludeFileIndexingId)
+        $files = $this->kangisRecordsFor($landFileNo, $excludeFileIndexingId)
             ->pluck('file_number')
             ->filter()
             ->unique()
             ->values()
             ->all();
+
+        if ($skipNpf && $files) {
+            $npf = app(RelatedFileSightings::class)->npfPairs(array_merge([$landFileNo], $files));
+            $files = array_values(array_filter($files, fn ($k) => !isset($npf[RelatedFileSightings::pairKey($landFileNo, $k)])));
+        }
+
+        return $files;
     }
 
     /** Live KANGIS Registry records carrying this land file as their Related File No. */
@@ -154,7 +166,7 @@ class KangisBlockIndexing
     {
         return [
             'land_file' => trim($landFileNo),
-            'kangis_files' => $this->kangisFilesFor($landFileNo, $excludeFileIndexingId),
+            'kangis_files' => $this->kangisFilesFor($landFileNo, $excludeFileIndexingId, true),
             'allow_multiple' => $this->allowsMultiple($landFileNo),
             'indexed' => $this->landRows($landFileNo)->exists(),
         ];
@@ -173,7 +185,7 @@ class KangisBlockIndexing
             if (self::key($landFileNo) === '' || $this->allowsMultiple($landFileNo)) {
                 continue;
             }
-            $holders = $this->kangisFilesFor($landFileNo, $excludeFileIndexingId);
+            $holders = $this->kangisFilesFor($landFileNo, $excludeFileIndexingId, true);
             if (!empty($holders)) {
                 $conflicts[$landFileNo] = $holders;
             }

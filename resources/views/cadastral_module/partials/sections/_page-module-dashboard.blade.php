@@ -88,6 +88,12 @@
          'hint'  => 'Flagged on arrival', 'href' => route('cadastral-module.registry.duplicates')],
     ];
 
+    // The Cadastral workflow's files (user, 2026-10-29): the cards count them, not the old
+    // receipts; no Duplicates card for now. CadastralDept\DashboardFigures.
+    if (!empty($wf['kpis'])) {
+        $tiles = array_map(fn ($k) => ['label' => $k['label'], 'value' => $k['value'], 'icon' => $k['fa'], 'hint' => $k['hint'], 'href' => $k['url']], $wf['kpis']);
+    }
+
     $activityKinds = [
         'receipt'   => ['icon' => 'fa-inbox',         'verb' => 'File received'],
         'card'      => ['icon' => 'fa-id-card',       'verb' => 'Index card commissioned'],
@@ -122,6 +128,35 @@
 
 <div class="dash-grid">
     {{-- Latest open report --}}
+    @if (isset($wf))
+    <div class="dash-card">
+        <div class="card-header">
+            <h3>Latest Files Received</h3>
+            <a href="{{ route('cadastral-dept.central-admin.index') }}">All files</a>
+        </div>
+        @if ($wf['latest']->isEmpty())
+            <div class="cad-dash-empty">
+                <i class="fas fa-inbox"></i>
+                <span>No file has been registered yet.</span>
+            </div>
+        @else
+            <div class="activity-feed">
+                @foreach ($wf['latest'] as $c)
+                    <div class="activity-item">
+                        <div class="activity-icon is-receipt"><i class="fas fa-folder-open"></i></div>
+                        <div class="activity-content">
+                            <div class="text">
+                                <a href="{{ route('cadastral-dept.cases.show', $c->id) }}"><strong>{{ $c->file_number }}</strong> · {{ $c->case_ref }}</a>
+                            </div>
+                            <div class="time" style="text-transform:uppercase;">{{ \Illuminate\Support\Str::limit((string) $c->file_title, 60) }}</div>
+                            <div class="time">{{ $c->isOpen() ? 'With ' . $c->deskShort() . ': ' . $c->stepLabel() : ucfirst(str_replace('_', ' ', (string) $c->status)) }}</div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+    @else
     <div class="dash-card">
         <div class="card-header">
             <h3>Latest Open Report</h3>
@@ -183,7 +218,38 @@
         @endif
     </div>
 
+    @endif
+
     {{-- Recent activity --}}
+    @if (isset($wf))
+    <div class="dash-card">
+        <div class="card-header">
+            <h3>Recent Activity</h3>
+            <a href="{{ route('cadastral-dept.desks.show', 'registry') }}">Registry desk</a>
+        </div>
+        @if ($wf['activity']->isEmpty())
+            <div class="cad-dash-empty">
+                <i class="fas fa-clock-rotate-left"></i>
+                <span>No file has moved yet.</span>
+            </div>
+        @else
+            <div class="activity-feed">
+                @foreach ($wf['activity'] as $e)
+                    <div class="activity-item">
+                        <div class="activity-icon is-receipt"><i class="fas fa-right-left"></i></div>
+                        <div class="activity-content">
+                            <div class="text">
+                                <a href="{{ route('cadastral-dept.cases.show', $e['case_id']) }}">{{ $e['text'] }} · <strong>{{ $e['file_number'] ?: '—' }}</strong></a>
+                            </div>
+                            @if ($e['detail'])<div class="time">{{ $e['detail'] }}</div>@endif
+                            @if ($e['at'])<div class="time" title="{{ $e['at']->format('j M Y, H:i') }}">{{ $e['at']->diffForHumans() }}</div>@endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+    @else
     <div class="dash-card">
         <div class="card-header">
             <h3>Recent Activity</h3>
@@ -216,6 +282,7 @@
             </div>
         @endif
     </div>
+    @endif
 </div>
 
 <div class="dash-card">

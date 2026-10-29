@@ -55,6 +55,8 @@ class VirtualFileExplorerController extends Controller
             'PageDescription' => 'Find an indexed file, then open its virtual folder',
             'files' => $files,
             'missedByScope' => $missedByScope,
+            // Found only in Blind Scanning (not indexed yet): listed apart, flagged.
+            'blindOnly' => $this->presenter->blindScanOnlyMatches($filters['q']),
             'stats' => $this->presenter->registerStats(),
             'registries' => $this->presenter->registries(),
             'filters' => $filters,

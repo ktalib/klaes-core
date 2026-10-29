@@ -8,21 +8,9 @@
 @include('survey_module.partials._flash')
 
 <div class="kpi-grid">
-    <div class="kpi-card">
+    <div class="kpi-card" title="Indexed files whose Occupancy Permit Type in File Indexing is Direct Allocation">
         <div class="kpi-label">Direct Allocation Files</div>
         <div class="kpi-value">{{ number_format($stats['files']) }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Commissioned in {{ now()->year }}</div>
-        <div class="kpi-value">{{ number_format($stats['this_year']) }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Decommissioned</div>
-        <div class="kpi-value">{{ number_format($stats['decommissioned']) }}</div>
-    </div>
-    <div class="kpi-card" title="Commissioned as Direct Allocation but with no File Indexing record yet">
-        <div class="kpi-label">Not Yet Indexed</div>
-        <div class="kpi-value">{{ number_format($stats['not_indexed']) }}</div>
     </div>
 </div>
 
@@ -69,7 +57,10 @@
                     <th>Location</th>
                     <th>TP No.</th>
                     <th>Land Use</th>
+                    <th>OP Serial</th>
+                    <th>OP Date</th>
                     <th>Commissioned</th>
+                    <th>Year</th>
                     <th></th>
                 </tr>
             </thead>
@@ -87,12 +78,25 @@
                         </td>
                         <td>{{ $dash($f->file_title) }}</td>
                         <td>{{ $dash($f->plot_number) }}</td>
-                        <td>{{ $dash($f->district ?: $f->mls_district) }}</td>
+                        <td>{{ $dash($f->district) }}</td>
                         <td>{{ $dash($f->lga) }}</td>
                         <td>{{ $dash($f->location) }}</td>
                         <td style="white-space:nowrap;">{{ $dash($f->tp_no) }}</td>
                         <td>{{ $dash($f->land_use_type) }}</td>
+                        <td style="white-space:nowrap;">{{ $dash($f->op_serial_number) }}</td>
+                        @php
+                            // pra.transaction_date is free text; a mistyped one (0001-01-01, 22015-01-11) shows as typed.
+                            $opDate = '—';
+                            if ($f->op_date) {
+                                $opDate = $f->op_date;
+                                if (preg_match('/^(19|20)\d\d-\d\d-\d\d$/', $f->op_date)) {
+                                    try { $opDate = \Illuminate\Support\Carbon::parse($f->op_date)->format('d M Y'); } catch (\Throwable $e) {}
+                                }
+                            }
+                        @endphp
+                        <td style="white-space:nowrap;">{{ $opDate }}</td>
                         <td style="white-space:nowrap;">{{ $f->commissioning_date ? \Illuminate\Support\Carbon::parse($f->commissioning_date)->format('d M Y') : '—' }}</td>
+                        <td>{{ $dash($f->da_year) }}</td>
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
@@ -112,7 +116,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="11" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="14" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             {{ request()->hasAny($filters) ? 'No Direct Allocation files match these filters.' : 'No Direct Allocation files are indexed yet.' }}
                         </td>

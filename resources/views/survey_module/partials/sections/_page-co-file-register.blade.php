@@ -61,19 +61,20 @@
                 </div>
             </div>
 
-            <div class="form-grid">
-                <div class="form-group full">
-                    <label>Remarks</label>
-                    <textarea name="remarks" maxlength="4000" placeholder="Optional notes…">{{ old('remarks', $coFile->remarks) }}</textarea>
-                </div>
-            </div>
-
             @include('survey_module.partials._address_builder', [
                 'prefix' => 'prop_',
                 'mode'   => 'property',
                 'model'  => $coFile,
                 'legend' => 'Acquisition Location',
             ])
+
+            {{-- Remarks sit after Property Location (auto) (user, 2026-10-28) --}}
+            <div class="form-grid">
+                <div class="form-group full">
+                    <label>Remarks</label>
+                    <textarea name="remarks" maxlength="4000" placeholder="Optional notes…">{{ old('remarks', $coFile->remarks) }}</textarea>
+                </div>
+            </div>
 
             <div class="form-actions">
                 <div class="left">

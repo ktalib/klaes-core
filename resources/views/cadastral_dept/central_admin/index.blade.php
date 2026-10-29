@@ -50,6 +50,7 @@
             <th class="px-4 py-2 whitespace-nowrap">@if ($canAct)<input type="checkbox" class="cd-batch-all h-3.5 w-3.5 mr-1.5 align-middle rounded border-gray-300" aria-label="Select all">@endif S/N</th>
             <th class="px-4 py-2">Ref</th><th class="px-4 py-2">File No.</th><th class="px-4 py-2">Title</th>
             <th class="px-4 py-2">Type</th><th class="px-4 py-2">With</th><th class="px-4 py-2">Status</th>
+            <th class="px-4 py-2 whitespace-nowrap">Date created</th><th class="px-4 py-2 whitespace-nowrap">Created by</th>
             <th class="px-4 py-2">Last moved</th>
             <th class="px-4 py-2 text-right">Action</th>
           </tr>
@@ -105,6 +106,8 @@
                   <div class="text-xs text-red-700 mt-0.5">"{{ $back['reason'] }}"</div>
                 @endif
               </td>
+              <td class="px-4 py-2 text-gray-600 whitespace-nowrap">{{ optional($case->received_at ?? $case->created_at)->format('d M Y H:i') ?: '—' }}</td>
+              <td class="px-4 py-2 text-gray-600">{{ optional($case->receiver)->name ?: '—' }}</td>
               <td class="px-4 py-2 whitespace-nowrap {{ $isStuck ? 'text-red-700 font-semibold' : 'text-gray-500' }}">{{ optional($case->updated_at)->diffForHumans() }}</td>
               <td class="px-4 py-2 text-right">
                 <div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false">
@@ -243,7 +246,7 @@
               </td>
             </tr>
           @empty
-            <tr><td colspan="9" class="px-4 py-6 text-center text-gray-400">No open files{{ ($term !== '' || $filterWorkflow || $filterDesk || $stuck) ? ' match the filter' : '' }}.</td></tr>
+            <tr><td colspan="11" class="px-4 py-6 text-center text-gray-400">No open files{{ ($term !== '' || $filterWorkflow || $filterDesk || $stuck) ? ' match the filter' : '' }}.</td></tr>
           @endforelse
         </tbody>
       </table>

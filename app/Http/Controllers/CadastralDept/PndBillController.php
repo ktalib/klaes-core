@@ -97,7 +97,8 @@ class PndBillController extends Controller
         $pd = $this->bills->record($case);
         abort_unless($pd, 404, 'Save the Plan Description first.');
         $header = $this->bills->headerDefaults($case, $pd);
-        $form = array_key_exists((string) $request->query('form'), PndBills::FORMS) ? $request->query('form') : $header['description_form'];
+        // The form is fixed by the application type (PndBills::defaultForm), not chosen.
+        $form = $header['description_form'];
 
         return view('cadastral_dept.bills.description_print', [
             'case' => $case,

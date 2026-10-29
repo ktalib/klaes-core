@@ -402,6 +402,22 @@ class InstrumentController extends Controller
                 return redirect()->back()->with('error', $consentBlock)->withInput();
             }
 
+            // The consent the capture is linked to must be the instrument's own type.
+            if ($mismatch = $this->consentTypeMismatch($instrumentType, $request->input('consent_application_id'))) {
+                $this->captureLog()->warning('Capture blocked: consent type does not match instrument', [
+                    'ref' => $ref,
+                    'instrument_type' => $instrumentType,
+                    'consent_application_id' => $request->input('consent_application_id'),
+                    'user_id' => Auth::id(),
+                ]);
+
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $mismatch], 422);
+                }
+
+                return redirect()->back()->with('error', $mismatch)->withInput();
+            }
+
             // --- Robust Duplicate Check (5 Parameters) ---
             $checkType = (stripos($instrumentType, 'Occupancy Permit') !== false) ? 'op' : 'instrument';
 
@@ -844,14 +860,14 @@ class InstrumentController extends Controller
         $consentApp = null;
         if ($type && isset($consentTypeMap[$type])) {
             $requestedType = $consentTypeMap[$type];
-            // Assignment and Gift are interchangeable enough to fall back on each
-            // other; a Mortgage consent never stands in for either.
-            // An ST Assignment consent backs a Deed of Assignment (and a Gift, the
-            // same way a plain Assignment consent does), but only as a fallback —
-            // a real Assignment consent on the file still wins.
+            // Each consent backs only its own instrument: an Assignment consent
+            // never fills a Deed of Gift, nor the reverse, and a Mortgage consent
+            // stands in for neither. An ST Assignment memo backs a Deed of
+            // Assignment, but only as a fallback - a real Assignment consent on
+            // the file still wins.
             $consentGroups = [
-                'Assignment' => ['Assignment', 'Gift', StAssignmentConsentResolver::CONSENT_TYPE],
-                'Gift' => ['Assignment', 'Gift', StAssignmentConsentResolver::CONSENT_TYPE],
+                'Assignment' => ['Assignment', StAssignmentConsentResolver::CONSENT_TYPE],
+                'Gift' => ['Gift'],
                 'Mortgage' => ['Mortgage'],
             ];
             $allowedFallbackTypes = $consentGroups[$requestedType] ?? [$requestedType];
@@ -1966,6 +1982,33 @@ class InstrumentController extends Controller
             return redirect()->back()->withErrors(['instrument_type' => $message]);
         }
 
+        $existing = DB::connection('sqlsrv')->table('instrument_capture')->where('id', $id)->first();
+        if ($existing) {
+            $newType = $request->input('instrument_type') ?: $existing->instrument_type;
+            $newConsent = $request->filled('consent_application_id')
+                ? $request->input('consent_application_id')
+                : ($existing->consent_application_id ?? null);
+
+            $changed = strcasecmp(trim((string) $newType), trim((string) $existing->instrument_type)) !== 0
+                || (string) $newConsent !== (string) ($existing->consent_application_id ?? '');
+
+            if ($changed && ($mismatch = $this->consentTypeMismatch($newType, $newConsent))) {
+                $this->captureLog()->warning('Update blocked: consent type does not match instrument', [
+                    'ref' => $ref,
+                    'instrument_capture_id' => $id,
+                    'instrument_type' => $newType,
+                    'consent_application_id' => $newConsent,
+                    'user_id' => Auth::id(),
+                ]);
+
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $mismatch, 'ref' => $ref], 422);
+                }
+
+                return redirect()->back()->withErrors(['instrument_type' => $mismatch]);
+            }
+        }
+
         try {
             // Validate if necessary?
             // Service handles most logic, but basic presence checks might be good?
@@ -3064,5 +3107,40 @@ class InstrumentController extends Controller
                 'message' => 'Failed to resolve duplicates: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Refuse a capture linked to a consent of another type: an Assignment
+     * consent backs only a Deed of Assignment, a Gift consent only a Deed of
+     * Gift, a Mortgage consent only a (Tripartite) Mortgage. Nothing to check
+     * when the instrument is not consent-gated or no consent row is linked
+     * (an ST memo posts no consent_application_id).
+     */
+    private function consentTypeMismatch(?string $instrumentType, $consentId): ?string
+    {
+        $expected = app(\App\Services\DeedsPipelineStatus::class)->consentTypeFor($instrumentType);
+        $consentId = trim((string) $consentId);
+
+        if ($expected === null || !ctype_digit($consentId) || (int) $consentId < 1) {
+            return null;
+        }
+
+        $consent = DB::connection('sqlsrv')->table('consent_applications')
+            ->where('id', (int) $consentId)
+            ->first(['id', 'file_number', 'consent_type']);
+
+        if (!$consent) {
+            return null;
+        }
+
+        $actual = trim((string) $consent->consent_type);
+        if (strcasecmp($actual, $expected) === 0) {
+            return null;
+        }
+
+        $an = fn (string $w) => (preg_match('/^[aeiou]/i', $w) ? 'an ' : 'a ') . $w;
+
+        return "The consent for file {$consent->file_number} is {$an($actual)} consent, so it cannot be used for {$an((string) $instrumentType)}. "
+            . "Select the instrument that matches the consent, or capture {$an($expected)} consent first.";
     }
 }

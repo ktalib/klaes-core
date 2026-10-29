@@ -32,6 +32,7 @@ use App\Services\EdmsScanUploadFolderService;
 use App\Services\FileSnapshotService;
 use App\Support\FileIndexingYearPolicy;
 use App\Services\FileIndexing\KangisBlockIndexing;
+use App\Services\FileIndexing\RelatedFileSightings;
 
 class FileIndexingController extends Controller
 {
@@ -1128,6 +1129,10 @@ class FileIndexingController extends Controller
             }
             $this->applyKangisIndexingType($request, $existingRecord);
 
+            if ($sightingRefusal = $this->relatedSightingRefusal($request)) {
+                return $sightingRefusal;
+            }
+
             $validated = $request->validate([
                 'file_number' => 'required|string|max:255',
                 'file_title' => 'required', // Allow array or string
@@ -1590,6 +1595,8 @@ class FileIndexingController extends Controller
                         $explicitRelatedSubmission
                     );
                     $this->syncMasterDcivLinks($fileIndexingModel, $relatedFileNos, $relatedDetails);
+                    $this->syncRelatedSightings($request, $fileIndexingModel, $relatedFileNos);
+                    $this->clearNpfForIndexed($request, $fileIndexingModel);
 
                     // Keep the related_file_number register in step with the edit. Pruning is
                     // allowed only on an explicit submission (same rule as the links above),
@@ -2998,6 +3005,8 @@ class FileIndexingController extends Controller
                 'customer_property_address' => $record->customer_property_address ?? $record->property_address ?? null,
                 'customer_id' => $record->customer_id ?? null,
                 'has_rofo' => (int) ($record->has_rofo ?? 0),
+                // Physical File Sighted answers per related file (opens the form answered).
+                'related_file_sightings' => app(RelatedFileSightings::class)->forRecord(isset($record->id) ? (int) $record->id : null),
             ];
 
             // Enrich with RoFO details from PRA table
@@ -3588,6 +3597,10 @@ class FileIndexingController extends Controller
                 return $kangisBlock;
             }
             $this->applyKangisIndexingType($request);
+
+            if ($sightingRefusal = $this->relatedSightingRefusal($request)) {
+                return $sightingRefusal;
+            }
 
             // Check for duplicate file number before processing
             // Skip duplicate check when a KANGIS FileNo Placeholder is supplied —
@@ -4765,6 +4778,8 @@ class FileIndexingController extends Controller
             // indexed file is itself a DCIV (its related files become links) or an
             // ordinary file whose related number points at a DCIV.
             $this->syncMasterDcivLinks($fileIndexing, $relatedFileNos, $relatedDetails);
+            $this->syncRelatedSightings($request, $fileIndexing, $relatedFileNos);
+            $this->clearNpfForIndexed($request, $fileIndexing);
 
             // Register the same numbers in related_file_number. file_indexings.related_fileno
             // is the row's own JSON list; the register is what Legal Search and the Related
@@ -7214,6 +7229,92 @@ class FileIndexingController extends Controller
      *                         list. Only then does an empty list mean "remove them all"; without
      *                         it an empty list is treated as "not submitted" and links are kept.
      */
+    /**
+     * "Related File (Physical File is Sighted)" (user, 2026-10-28): every related file
+     * picked on the form must be answered Yes or No. Only forms carrying the answers
+     * field are checked (App\Services\FileIndexing\RelatedFileSightings).
+     */
+    protected function relatedSightingRefusal(Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        $message = app(RelatedFileSightings::class)->refusal($request);
+        if ($message === null) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'error_type' => 'related_sighting_required',
+        ], 422);
+    }
+
+    /**
+     * Save the Physical File Sighted answers (and the NPF they derive) for the record's
+     * related files. Kept to the numbers on the saved row plus those just submitted.
+     */
+    protected function syncRelatedSightings(Request $request, $record, array $relatedFileNos): void
+    {
+        $service = app(RelatedFileSightings::class);
+        if (!$record || !$service->submitted($request)) {
+            return;
+        }
+
+        $stored = DB::connection('sqlsrv')->table('file_indexings')->where('id', $record->id)->value('related_fileno');
+        $onRecord = array_merge(
+            KangisBlockIndexing::landFilesFrom($stored),
+            KangisBlockIndexing::landFilesFrom($relatedFileNos)
+        );
+
+        $service->sync(
+            (int) $record->id,
+            $record->file_number ?? null,
+            $onRecord,
+            $service->answersFrom($request),
+            $request->user()
+        );
+    }
+
+    /**
+     * This file is indexed now, so it was physically handled: clear any NPF answer that
+     * names it as a related file elsewhere (user, 2026-10-29). Never blocks the save.
+     */
+    protected function clearNpfForIndexed(Request $request, $record): void
+    {
+        if (!$record) {
+            return;
+        }
+
+        try {
+            app(RelatedFileSightings::class)->clearNpfFor([
+                $record->file_number ?? null,
+                $record->kangis_file_no ?? null,
+                $record->new_kangis_file_no ?? null,
+            ], $request->user());
+        } catch (\Throwable $e) {
+            Log::warning('NPF clear on indexing failed', ['file_indexing_id' => $record->id ?? null, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * AJAX: is this related file indexed? An indexed file was physically handled, so the
+     * form answers "Physical File is Sighted" Yes for it and locks the answer.
+     */
+    public function relatedFileIndexedStatus(Request $request)
+    {
+        $fileNumber = trim((string) $request->query('file_number', ''));
+        if ($fileNumber === '') {
+            return response()->json(['success' => false, 'message' => 'file_number is required.'], 422);
+        }
+
+        $indexed = app(RelatedFileSightings::class)->indexedKeys([$fileNumber]);
+
+        return response()->json([
+            'success' => true,
+            'file_number' => $fileNumber,
+            'indexed' => isset($indexed[KangisBlockIndexing::key($fileNumber)]),
+        ]);
+    }
+
     /**
      * KANGIS Block Indexing guard (user, 2026-10-17). On a KANGIS Registry record the
      * land (MLS) file is the Related File No; it may be related to one KANGIS file only

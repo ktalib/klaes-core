@@ -167,11 +167,12 @@ class ProjectController extends Controller
 
         foreach ($rows as $i => $row) {
             $alloc    = ! empty($row['id']) ? $existing->get((int) $row['id']) : null;
-            $surveyor = SurveyorListEntry::find($row['surveyor_id']);
+            // "Other (specify)": a surveyor not on the List of Surveyors, kept by name only.
+            $surveyor = $row['surveyor_id'] === 'other' ? null : SurveyorListEntry::find($row['surveyor_id']);
 
             $attrs = [
-                'surveyor_id'     => $surveyor->id,
-                'surveyor_name'   => $surveyor->full_name,
+                'surveyor_id'     => $surveyor?->id,
+                'surveyor_name'   => $surveyor ? $surveyor->full_name : $row['surveyor_other'],
                 'portions'        => (int) $row['portions'],
                 'portion_size_ha' => round((float) $row['portion_size_ha'], 4),
             ];
@@ -183,7 +184,10 @@ class ProjectController extends Controller
                         "surveyors.$i.portions" => "{$alloc->surveyor_name} has already surveyed portion {$used}, so the portions cannot drop below {$used}.",
                     ]);
                 }
-                if ((int) $alloc->surveyor_id !== $surveyor->id && $alloc->cases()->exists()) {
+                $swapped = $surveyor
+                    ? (int) $alloc->surveyor_id !== $surveyor->id
+                    : $alloc->surveyor_id || mb_strtoupper($alloc->surveyor_name) !== mb_strtoupper($attrs['surveyor_name']);
+                if ($swapped && $alloc->cases()->exists()) {
                     throw ValidationException::withMessages([
                         "surveyors.$i.surveyor_id" => "{$alloc->surveyor_name} already has cases on this project and cannot be swapped for another surveyor.",
                     ]);
@@ -209,8 +213,38 @@ class ProjectController extends Controller
     private function validated(Request $r, ?SurveyProject $existing = null): array
     {
         // Blank rows added and never filled in are ignored.
-        $r->merge(['surveyors' => array_values(array_filter((array) $r->input('surveyors'),
-            fn ($row) => is_array($row) && trim((string) ($row['surveyor_id'] ?? '')) !== ''))]);
+        $rows = array_values(array_filter((array) $r->input('surveyors'),
+            fn ($row) => is_array($row) && trim((string) ($row['surveyor_id'] ?? '')) !== ''));
+
+        // "Other (specify)": whitespace-normalised, case kept as typed. A name already on
+        // the List of Surveyors (any case/spacing) is taken as that surveyor, not a new one.
+        $staff = null;
+        foreach ($rows as &$row) {
+            if ((string) $row['surveyor_id'] !== 'other') {
+                unset($row['surveyor_other']);
+                continue;
+            }
+            $name = preg_replace('/\s+/u', ' ', trim((string) ($row['surveyor_other'] ?? '')));
+            $row['surveyor_other'] = $name;
+            $staff ??= SurveyorListEntry::get(['id', 'first_name', 'surname', 'other_name']);
+            $match = $name === '' ? null : $staff->first(fn ($s) => mb_strtoupper($s->full_name) === mb_strtoupper($name));
+            if ($match) {
+                $row['surveyor_id'] = (string) $match->id;
+                unset($row['surveyor_other']);
+            }
+        }
+        unset($row);
+        $r->merge(['surveyors' => $rows]);
+
+        // One row per surveyor: listed ones by id, Other ones by name.
+        $seen = [];
+        foreach ($rows as $i => $row) {
+            $key = $row['surveyor_id'] === 'other' ? 'n:' . mb_strtoupper($row['surveyor_other']) : 'id:' . $row['surveyor_id'];
+            if ($key !== 'n:' && isset($seen[$key])) {
+                throw ValidationException::withMessages(["surveyors.$i.surveyor_id" => 'A surveyor appears twice. Give each surveyor one row.']);
+            }
+            $seen[$key] = true;
+        }
 
         $rules = [
             'survey_co_file_id'   => ['required', Rule::exists('sqlsrv.survey_co_files', 'id')->whereNull('deleted_at')],
@@ -218,7 +252,10 @@ class ProjectController extends Controller
 
             'surveyors'                   => 'nullable|array',
             'surveyors.*.id'              => 'nullable|integer',
-            'surveyors.*.surveyor_id'     => ['required', 'distinct', Rule::exists('sqlsrv.surveyors_list', 'id')],
+            'surveyors.*.surveyor_id'     => ['required', function ($attr, $value, $fail) {
+                if ($value !== 'other' && ! SurveyorListEntry::whereKey($value)->exists()) $fail('Select a surveyor from the list, or Other (specify).');
+            }],
+            'surveyors.*.surveyor_other'  => 'required_if:surveyors.*.surveyor_id,other|nullable|string|max:255',
             'surveyors.*.portions'        => 'required|integer|min:1|max:10000',
             'surveyors.*.portion_size_ha' => 'required|numeric|min:0.0001|max:9999999999',
 
@@ -237,7 +274,7 @@ class ProjectController extends Controller
             'prop_lga.required'            => 'The LGA is required.',
             'survey_co_file_id.required'   => 'Select the CO file this project belongs to.',
             'acquisition_size_ha.required' => 'Enter the size of acquisition.',
-            'surveyors.*.surveyor_id.distinct'     => 'A surveyor appears twice. Give each surveyor one row.',
+            'surveyors.*.surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
             'surveyors.*.portions.required'        => 'Every surveyor needs a number of portions.',
             'surveyors.*.portion_size_ha.required' => 'Every surveyor needs a size per portion.',
         ]);

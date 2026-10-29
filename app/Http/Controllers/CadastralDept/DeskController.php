@@ -30,6 +30,45 @@ class DeskController extends Controller
      * One table per page: files at the desk, those out with another department,
      * then (view only) the open files this desk has already sent on.
      */
+    /**
+     * Accept by scan (2026-10-27): the unit scans the file's QR (or types its tracking ID / file
+     * number) and the open file sent to this desk is accepted. The route has no {case}, so the
+     * desk check the cadastral.desk middleware makes for case routes is made here.
+     */
+    public function acceptScan(Request $request, string $desk, \App\Services\CadastralDept\IntakeLookup $lookup,
+                               \App\Services\CadastralDept\CadastralFileTracking $tracking, \App\Services\CadastralDept\DeskAccess $access)
+    {
+        $code = trim(mb_substr((string) $request->input('code', ''), 0, 2000));
+        $back = redirect()->route('cadastral-dept.desks.show', $desk);
+        if ($code === '') {
+            return $back->with('error', 'Scan the file\'s QR code, or type its tracking ID or file number.');
+        }
+        $numbers = collect($lookup->scan($code)['matches'])->pluck('file_number')->map(fn ($n) => strtoupper(trim($n)))->all();
+        if (!$numbers) {
+            return $back->with('error', 'No file matches that code.');
+        }
+        $case = CadastralCase::query()->open()->where('current_desk', $desk)
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('UPPER(LTRIM(RTRIM(file_number)))'), $numbers)->orderByDesc('id')->first();
+        if (!$case) {
+            $elsewhere = CadastralCase::query()->open()->whereIn(\Illuminate\Support\Facades\DB::raw('UPPER(LTRIM(RTRIM(file_number)))'), $numbers)->first();
+
+            return $back->with('error', $elsewhere
+                ? "{$elsewhere->file_number} ({$elsewhere->case_ref}) is with {$elsewhere->deskShort()}, not this desk."
+                : implode(', ', $numbers) . ' is not an open file in the department.');
+        }
+        if (!$access->canActOn($request->user(), $case)) {
+            return $back->with('error', "Accepting {$case->case_ref} needs this desk's role.");
+        }
+        if (!\App\Services\CadastralDept\CadastralFileTracking::awaiting($case)) {
+            return $back->with('success', "{$case->case_ref} ({$case->file_number}) is already accepted here.");
+        }
+        try {
+            return $back->with('success', $tracking->accept($case, $request->user()?->id, 'scan'));
+        } catch (\App\Services\InstrumentWorkflow\WorkflowGuardException $e) {
+            return $back->with('error', $e->getMessage());
+        }
+    }
+
     public function show(Request $request, string $desk, WorkflowEngine $engine)
     {
         $def = $engine->definition();
@@ -84,6 +123,10 @@ class DeskController extends Controller
                 ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
                 ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
             ];
+            if (\App\Services\CadastralDept\CadastralFileTracking::installed() && !\App\Services\CadastralDept\CadastralFileTracking::autoAccept()) {   // sent here, not yet accepted (2026-10-27)
+                array_splice($cards, 1, 0, [['label' => 'Awaiting acceptance', 'value' => $here->filter(fn ($c) => \App\Services\CadastralDept\CadastralFileTracking::awaiting($c))->count(),
+                    'hint' => 'accept before working on it', 'colour' => 'purple']]);
+            }
             if (($def->desk($desk)['head'] ?? null) && \App\Services\CadastralDept\HeadApproval::enabled()) {   // a unit: files its staff sent to the head
                 $heads = app(\App\Services\CadastralDept\HeadApproval::class);
                 $cards[] = ['label' => 'With the ' . $def->desk($desk)['head'], 'value' => $here->filter(fn ($c) => $heads->awaiting($c))->count(),
@@ -157,6 +200,8 @@ class DeskController extends Controller
         return view('cadastral_dept.desk', [
             'def' => $def,
             'desk' => $desk,
+            'acceptInstalled' => $installed && \App\Services\CadastralDept\CadastralFileTracking::installed()
+                && !\App\Services\CadastralDept\CadastralFileTracking::autoAccept(),
             'deskInfo' => $def->desk($desk),
             'installed' => $installed,
             'here' => $here,
@@ -251,6 +296,8 @@ class DeskController extends Controller
 
         try {
             $actions = $engine->actions($case->workflow, $case->current_step, $case->sub_type);
+            // Final Charting: only the route the file's surveyor calls for (SG for a Government survey).
+            $actions = app(\App\Services\CadastralDept\SurveyRoute::class)->filter($case, $actions);
         } catch (WorkflowGuardException $e) {
             $actions = [];   // an OP file with no sub-type yet: the file page asks for it
         }

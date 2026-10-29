@@ -1241,7 +1241,7 @@
                             ${relatedChips.length ? `
                             <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                                 <span class="font-semibold text-violet-700">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
-                                ${relatedChips.map(f => `<span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800"><span class="font-semibold">${esc(f.file_number)}</span>${f.file_title ? `<span class="text-violet-700">— ${esc(f.file_title)}</span>` : ''}</span>`).join('')}
+                                ${relatedChips.map(f => `<span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800"><span class="font-semibold">${esc(f.file_number)}</span>${f.file_title ? `<span class="text-violet-700">— ${esc(f.file_title)}</span>` : ''}${f.npf ? `<span class="rounded-full bg-red-100 px-2 text-xs font-bold text-red-700" title="Indexed as No Physical File: not kept with this file">NPF</span>` : ''}</span>`).join('')}
                             </div>` : ''}
                             <div class="text-sm text-gray-500">${esc(d.file_title || '—')}</div>
                             </div>

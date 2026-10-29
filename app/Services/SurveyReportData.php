@@ -53,7 +53,7 @@ class SurveyReportData
                 'projects'      => SurveyProject::count(),
                 'cases'         => $in(SurveyCompCase::query())->count(),
                 'cash'          => (float) $in(SurveyCaseTree::query())->sum('line_total'),
-                'complaints_open' => SurveyComplaint::whereIn('status', [SurveyComplaint::OPEN, SurveyComplaint::INVESTIGATING, SurveyComplaint::ESCALATED])->count(),
+                'complaints_open' => SurveyComplaint::where('status', '!=', SurveyComplaint::RESOLVED)->count(),
             ],
             'gkn' => [
                 'applications' => $apps,

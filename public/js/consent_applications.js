@@ -127,6 +127,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // choice resets the fields to them; a loaded record keeps its own.
         setRateDefault('registration', registrationRate, fromUser);
         setRateDefault('stamp_duty', stampRate, fromUser);
+        applyFixedLine('registration', profile);
+        applyFixedLine('stamp_duty', profile);
 
         // The processing fee's fallback follows the type (₦12,000 / ₦20,000).
         const processingEl = document.getElementById('bill_processing_fee');
@@ -148,10 +150,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     + (isFederal ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900');
                 const setByConsent = transactionTypeSelect.dataset.locked === '1'
                     ? ' <span class="font-normal opacity-75">(set by Consent Type)</span>' : '';
+                const regText = fixedFee('registration', profile) !== null
+                    ? formatMoney(fixedFee('registration', profile)) + ' (flat)' : formatRate(profile.registration_rate);
+                const sdText = fixedFee('stamp_duty', profile) !== null
+                    ? formatMoney(fixedFee('stamp_duty', profile)) + ' (flat)' : formatRate(profile.stamp_duty_rate);
                 summary.innerHTML = '<div class="font-bold mb-0.5">' + profile.label + setByConsent + '</div>'
-                    + 'Registration ' + formatRate(profile.registration_rate)
+                    + 'Registration ' + regText
                     + ' + Processing ' + formatMoney(profile.processing_fee) + ' to the Ministry.<br>'
-                    + 'Stamp duty <strong>' + formatRate(profile.stamp_duty_rate) + '</strong> payable to the <strong>'
+                    + 'Stamp duty <strong>' + sdText + '</strong> payable to the <strong>'
                     + payeeName + '</strong>.';
             }
         }
@@ -183,6 +189,37 @@ document.addEventListener('DOMContentLoaded', function () {
      * edited rate is recomputed and audited server-side.
      */
     const rateInput = (key) => document.querySelector(`[data-rate-input="${key}"]`);
+
+    // A flat amount for this line under the type (Gift), or null for a percentage line.
+    function fixedFee(key, profile) {
+        if (!profile) return null;
+        const raw = key === 'registration' ? profile.registration_fee_fixed : profile.stamp_duty_fixed;
+        return raw === undefined || raw === null ? null : Number(raw);
+    }
+
+    // Show a flat line as "Registration Fee" with no "( 5 %)" field, and back.
+    function applyFixedLine(key, profile) {
+        const input = rateInput(key);
+        if (!input) return;
+        const flat = fixedFee(key, profile);
+        const wrap = input.parentElement;
+        const spans = wrap ? wrap.querySelectorAll('span') : [];
+        if (spans.length >= 2) {
+            if (!spans[0].dataset.name) spans[0].dataset.name = spans[0].textContent.replace(/\s*\($/, '');
+            spans[0].textContent = flat !== null ? spans[0].dataset.name : spans[0].dataset.name + ' (';
+            spans[1].classList.toggle('hidden', flat !== null);
+        }
+        input.classList.toggle('hidden', flat !== null);
+        const row = input.closest('.bill-row');
+        if (row) {
+            const note = row.querySelector('.bill-row-note');
+            if (note) {
+                if (!note.dataset.text) note.dataset.text = note.textContent;
+                note.textContent = flat !== null ? 'Flat fee' : note.dataset.text;
+            }
+            row.dataset.default = (flat !== null ? flat : 0).toFixed(2);
+        }
+    }
 
     function syncRateName(input) {
         const value = parseFloat(String(input.value).replace(/[^0-9.]/g, ''));
@@ -429,7 +466,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 setRows(null);
                 // No valuation is exactly when the assessed amount is
                 // overridden by hand; the rows must show what it bills.
-                refreshBillPreview();
+                // A flat-fee type (Gift) is billed without one, so paint it.
+                const flatProfile = currentTransactionType();
+                if (fixedFee('registration', flatProfile) !== null || fixedFee('stamp_duty', flatProfile) !== null) {
+                    rebasePercentageFees(currentBillBase());
+                } else {
+                    refreshBillPreview();
+                }
                 return;
             }
 
@@ -633,9 +676,15 @@ document.addEventListener('DOMContentLoaded', function () {
             ['bill_registration_fee', currentRate('registration', profile ? profile.registration_rate : section.dataset.registrationRate)]
         ];
 
+        const flatFor = { bill_stamp_duty: fixedFee('stamp_duty', profile), bill_registration_fee: fixedFee('registration', profile) };
         pairs.forEach(([id, rate]) => {
             const el = document.getElementById(id);
             if (!el) return;
+            // A flat line (Gift) does not depend on the base.
+            if (flatFor[id] !== null) {
+                el.textContent = money(flatFor[id]);
+                return;
+            }
             // Round each line before it is summed, matching the server.
             el.textContent = money(Math.round(base * rate) / 100);
         });
@@ -3276,11 +3325,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         <select id="pt-type" class="${field}"><option value="">Select transfer type…</option>${typeOptions}</select>
                     </div>
                     <div>
-                        <label class="${label}">Registration (%)</label>
+                        <label class="${label}" id="pt-reg-label">Registration (%)</label>
                         <input id="pt-reg" type="text" inputmode="decimal" class="${field} font-mono">
                     </div>
                     <div>
-                        <label class="${label}">Stamp Duty (%)</label>
+                        <label class="${label}" id="pt-sd-label">Stamp Duty (%)</label>
                         <input id="pt-sd" type="text" inputmode="decimal" class="${field} font-mono">
                     </div>
                     <div class="col-span-2 text-xs text-slate-500" id="pt-payee"></div>
@@ -3304,9 +3353,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         document.getElementById('pt-payee').textContent = '';
                         return;
                     }
-                    // Defaults follow the type; the percentages stay editable.
-                    document.getElementById('pt-reg').value = String(profile.registration_rate);
-                    document.getElementById('pt-sd').value = String(profile.stamp_duty_rate);
+                    // Defaults follow the type; the percentages stay editable. A
+                    // flat line (Gift: N50,000 / N20,000) shows its amount, read-only.
+                    [['registration', 'pt-reg', 'Registration', profile.registration_rate],
+                     ['stamp_duty', 'pt-sd', 'Stamp Duty', profile.stamp_duty_rate]].forEach(([key, id, name, rate]) => {
+                        const input = document.getElementById(id);
+                        const flat = fixedFee(key, profile);
+                        document.getElementById(id + '-label').textContent = name + (flat !== null ? ' (₦, flat)' : ' (%)');
+                        input.value = flat !== null ? formatMoney(flat) : String(rate);
+                        input.readOnly = flat !== null;
+                        input.classList.toggle('bg-slate-100', flat !== null);
+                    });
                     document.getElementById('pt-payee').textContent = profile.label + ': stamp duty payable to the '
                         + (STAMP_DUTY_PAYEES[profile.payee] || profile.payee)
                         + '. Processing fee ' + formatMoney(profile.processing_fee) + '.';
@@ -3328,9 +3385,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     consent_type: document.getElementById('pt-consent').value,
                     bill_rate: {}
                 };
-                // Only rates that differ from the type's are sent as edits.
+                // Only rates that differ from the type's are sent as edits. A flat
+                // line has no rate to edit; the server bills its fixed amount.
                 [['registration', 'pt-reg', profile.registration_rate], ['stamp_duty', 'pt-sd', profile.stamp_duty_rate]]
                     .forEach(([key, el, fallback]) => {
+                        if (fixedFee(key, profile) !== null) return;
                         const v = parseFloat(document.getElementById(el).value);
                         if (!isNaN(v) && Math.abs(v - Number(fallback)) > 0.00005) body.bill_rate[key] = v;
                     });

@@ -15,6 +15,57 @@
 
     <div class="form-container">
         <div class="form-body">
+            {{-- Scheme type comes first (user, 2026-10-28). --}}
+            <div class="form-grid" style="margin-bottom:22px;">
+                <div class="form-group full">
+                    <label>Compensation Scheme Type <span class="required">*</span></label>
+
+                    @if ($locked)
+                        <div class="comp-type-note" style="margin-bottom:10px;">
+                            <i class="fas fa-lock"></i>
+                            This project already has <strong>{{ $project->cases()->count() }}</strong> case(s), which
+                            inherited <strong>{{ $project->scheme_label }}</strong>. The scheme can no longer be changed.
+                        </div>
+                        <input type="hidden" name="scheme_type" value="{{ $project->scheme_type }}" />
+                    @else
+                        <p class="helper-text" style="margin-bottom:10px;">
+                            This choice is permanent once cases are registered. All cases under this project use the
+                            selected scheme exclusively.
+                        </p>
+                    @endif
+
+                    <div class="comp-type-grid">
+                        <label class="comp-type-option {{ $scheme === 'monetary' ? 'selected' : '' }}"
+                               id="newTypeOptMonetary" onclick="selectNewProjectType('monetary')">
+                            <input type="radio" name="scheme_type" value="monetary"
+                                   @checked($scheme === 'monetary') @disabled($locked) />
+                            <div class="type-icon"><i class="fas fa-money-bill-wave"></i></div>
+                            <div class="type-title">Cash for Trees</div>
+                            <div class="type-desc">Payment for economic trees only. Tree Type × Quantity × Unit Price. No land allocation.</div>
+                            <span class="type-badge">Cash for Trees</span>
+                        </label>
+
+                        <label class="comp-type-option {{ $scheme === 'land' ? 'selected' : '' }}"
+                               id="newTypeOptLand" onclick="selectNewProjectType('land')">
+                            <input type="radio" name="scheme_type" value="land"
+                                   @checked($scheme === 'land') @disabled($locked) />
+                            <div class="type-icon"><i class="fas fa-map-marked-alt"></i></div>
+                            <div class="type-title">Plot for Plot (50:50)</div>
+                            <div class="type-desc">Physical plot allocation. Total plots split 50:50 — half to farmers, half to government. No cash component.</div>
+                            <span class="type-badge">Plots Only</span>
+                        </label>
+                    </div>
+
+                    @unless ($locked)
+                        <div class="comp-type-note">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Critical:</strong> once cases are registered under this project the scheme type
+                            is locked, because those cases inherited it.
+                        </div>
+                    @endunless
+                </div>
+            </div>
+
             <div class="form-grid">
                 @if ($editing)
                     <div class="form-group">
@@ -97,7 +148,9 @@
             @php
                 $svRows = old('surveyors', $project->exists
                     ? $project->surveyors->map(fn ($a) => [
-                        'id' => $a->id, 'surveyor_id' => $a->surveyor_id,
+                        // A surveyor typed under "Other (specify)" has a name but no List of Surveyors id.
+                        'id' => $a->id, 'surveyor_id' => $a->surveyor_id ?: 'other',
+                        'surveyor_other' => $a->surveyor_id ? '' : $a->surveyor_name,
                         'portions' => $a->portions, 'portion_size_ha' => (float) $a->portion_size_ha,
                       ])->all()
                     : []);
@@ -124,6 +177,9 @@
                 .survey-proto table.pa-table input[type=number] { width: 100%; height: 38px; padding: 6px 10px; border: 1.5px solid var(--gray-300, #d1d5db);
                     border-radius: var(--radius-sm, 6px); font-family: var(--font); font-size: 14px; background: #fff; }
                 .survey-proto table.pa-table input[type=number] { text-align: right; }
+                .survey-proto table.pa-table input.pa-other { width: 100%; height: 38px; margin-top: 6px; padding: 6px 10px; border: 1.5px solid var(--gray-300, #d1d5db);
+                    border-radius: var(--radius-sm, 6px); font-family: var(--font); font-size: 14px; background: #fff; }
+                .survey-proto table.pa-table .select2-container .select2-selection--single { height: 38px; }
                 .survey-proto table.pa-table select:focus,
                 .survey-proto table.pa-table input:focus { outline: 0; border-color: var(--primary, #2563eb); box-shadow: 0 0 0 3px var(--primary-100, #dbeafe); }
                 .survey-proto table.pa-table [data-subtotal] { font-weight: 600; color: var(--gray-900, #111827); white-space: nowrap; }
@@ -165,14 +221,20 @@
                                         <td class="sn" data-sn>{{ $loop->iteration }}</td>
                                         <td>
                                             <input type="hidden" name="surveyors[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
-                                            <select name="surveyors[{{ $i }}][surveyor_id]" required aria-label="Surveyor">
+                                            @php $isOther = (string) ($row['surveyor_id'] ?? '') === 'other'; @endphp
+                                            <select name="surveyors[{{ $i }}][surveyor_id]" class="pa-surveyor" required aria-label="Surveyor">
                                                 <option value="">— Select surveyor —</option>
                                                 @foreach ($surveyors as $sv)
                                                     <option value="{{ $sv->id }}" @selected((string) ($row['surveyor_id'] ?? '') === (string) $sv->id)>
                                                         {{ $sv->full_name }}{{ $sv->rank ? ' · ' . $sv->rank : '' }}{{ $sv->is_active ? '' : ' (inactive)' }}
                                                     </option>
                                                 @endforeach
+                                                <option value="other" @selected($isOther)>Other (specify)</option>
                                             </select>
+                                            <input type="text" name="surveyors[{{ $i }}][surveyor_other]" class="pa-other" maxlength="255"
+                                                   placeholder="Specify surveyor's full name *" aria-label="Specify surveyor"
+                                                   value="{{ $row['surveyor_other'] ?? '' }}"
+                                                   @style(['display:none' => ! $isOther]) @if ($isOther) required @else disabled @endif />
                                         </td>
                                         <td>
                                             <input type="number" name="surveyors[{{ $i }}][portions]" min="{{ $minPortions }}" step="1" aria-label="No. of portions"
@@ -214,12 +276,16 @@
                     <td class="sn" data-sn></td>
                     <td>
                         <input type="hidden" name="surveyors[__i__][id]" value="" />
-                        <select name="surveyors[__i__][surveyor_id]" required aria-label="Surveyor">
+                        <select name="surveyors[__i__][surveyor_id]" class="pa-surveyor" required aria-label="Surveyor">
                             <option value="">— Select surveyor —</option>
                             @foreach ($surveyors->where('is_active', true) as $sv)
                                 <option value="{{ $sv->id }}">{{ $sv->full_name }}{{ $sv->rank ? ' · ' . $sv->rank : '' }}</option>
                             @endforeach
+                            <option value="other">Other (specify)</option>
                         </select>
+                        <input type="text" name="surveyors[__i__][surveyor_other]" class="pa-other" maxlength="255"
+                               placeholder="Specify surveyor's full name *" aria-label="Specify surveyor"
+                               style="display:none" disabled />
                     </td>
                     <td><input type="number" name="surveyors[__i__][portions]" min="1" step="1" required aria-label="No. of portions" oninput="projSurveyors.total()" /></td>
                     <td><input type="number" name="surveyors[__i__][portion_size_ha]" min="0.0001" step="0.0001" required aria-label="Size per portion (Ha)" oninput="projSurveyors.total()" /></td>
@@ -230,56 +296,6 @@
                     </td>
                 </tr>
             </template>
-
-            <div class="form-grid" style="margin-top:22px;">
-                <div class="form-group full">
-                    <label>Compensation Scheme Type <span class="required">*</span></label>
-
-                    @if ($locked)
-                        <div class="comp-type-note" style="margin-bottom:10px;">
-                            <i class="fas fa-lock"></i>
-                            This project already has <strong>{{ $project->cases()->count() }}</strong> case(s), which
-                            inherited <strong>{{ $project->scheme_label }}</strong>. The scheme can no longer be changed.
-                        </div>
-                        <input type="hidden" name="scheme_type" value="{{ $project->scheme_type }}" />
-                    @else
-                        <p class="helper-text" style="margin-bottom:10px;">
-                            This choice is permanent once cases are registered. All cases under this project use the
-                            selected scheme exclusively.
-                        </p>
-                    @endif
-
-                    <div class="comp-type-grid">
-                        <label class="comp-type-option {{ $scheme === 'monetary' ? 'selected' : '' }}"
-                               id="newTypeOptMonetary" onclick="selectNewProjectType('monetary')">
-                            <input type="radio" name="scheme_type" value="monetary"
-                                   @checked($scheme === 'monetary') @disabled($locked) />
-                            <div class="type-icon"><i class="fas fa-money-bill-wave"></i></div>
-                            <div class="type-title">Cash for Trees</div>
-                            <div class="type-desc">Payment for economic trees only. Tree Type × Quantity × Unit Price. No land allocation.</div>
-                            <span class="type-badge">Cash for Trees</span>
-                        </label>
-
-                        <label class="comp-type-option {{ $scheme === 'land' ? 'selected' : '' }}"
-                               id="newTypeOptLand" onclick="selectNewProjectType('land')">
-                            <input type="radio" name="scheme_type" value="land"
-                                   @checked($scheme === 'land') @disabled($locked) />
-                            <div class="type-icon"><i class="fas fa-map-marked-alt"></i></div>
-                            <div class="type-title">Plot for Plot (50:50)</div>
-                            <div class="type-desc">Physical plot allocation. Total plots split 50:50 — half to farmers, half to government. No cash component.</div>
-                            <span class="type-badge">Plots Only</span>
-                        </label>
-                    </div>
-
-                    @unless ($locked)
-                        <div class="comp-type-note">
-                            <i class="fas fa-info-circle"></i>
-                            <strong>Critical:</strong> once cases are registered under this project the scheme type
-                            is locked, because those cases inherited it.
-                        </div>
-                    @endunless
-                </div>
-            </div>
 
             <div class="form-actions">
                 <div class="left">
@@ -331,17 +347,51 @@
             tmp.innerHTML = html.trim();
             var tr = tmp.querySelector('tr');
             body.insertBefore(tr, document.getElementById('projSurveyorEmpty'));
-            var first = tr.querySelector('select');
-            if (first) first.focus();
+            var sel = tr.querySelector('select.pa-surveyor');
+            if (sel) {
+                wire(sel);
+                var $ = $j();
+                if ($) $(sel).select2('open'); else sel.focus();
+            }
             total();
         }
 
         function remove(btn) {
+            var $ = $j(), sel = btn.closest('tr').querySelector('select.pa-surveyor');
+            if ($ && sel && $(sel).data('select2')) $(sel).select2('destroy');
             btn.closest('tr').remove();
             total();
         }
 
-        document.addEventListener('DOMContentLoaded', total);
+        function $j() { return window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null; }
+
+        // "Other (specify)" reveals a required name box; any other choice hides, clears and disables it.
+        function syncOther(sel) {
+            var box = sel.closest('td').querySelector('input.pa-other');
+            if (!box) return;
+            var on = sel.value === 'other';
+            box.style.display = on ? '' : 'none';
+            box.disabled = !on;
+            box.required = on;
+            if (on) { if (!box.value) box.focus(); } else box.value = '';
+        }
+
+        // Searchable surveyor select (Select2, as elsewhere in the module); plain select if it failed to load.
+        function wire(sel) {
+            var $ = $j();
+            if ($) {
+                // No dropdownParent: the default (<body>) keeps the panel clear of the scroll containers.
+                $(sel).select2({ width: '100%', placeholder: '— Select surveyor —' })
+                      .on('change', function () { syncOther(sel); });
+            } else {
+                sel.addEventListener('change', function () { syncOther(sel); });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            body.querySelectorAll('select.pa-surveyor').forEach(wire);
+            total();
+        });
         return { add: add, remove: remove, total: total };
     })();
 

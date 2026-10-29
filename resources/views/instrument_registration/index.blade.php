@@ -20,6 +20,9 @@
         window.KlaesConfig = {
             baseUrl: "{{ url('/') }}",
             csrfToken: "{{ csrf_token() }}",
+            // Master Delete / Move Registration menu entries (Supper Admin only;
+            // the instrument-master endpoints enforce it again).
+            isMasterDeleter: @json(optional(auth()->user())->assign_role === 'Supper Admin'),
             urls: {
                 base: "{{ url('instrument_registration') }}",
                 delete: "{{ url('instrument_registration/delete') }}",
@@ -881,18 +884,18 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <!-- Include the external JavaScript file -->
-    <script src="{{ asset('js/instrument_registration.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/instrument_registration.js') }}?v={{ filemtime(public_path('js/instrument_registration.js')) }}"></script>
 
     <!-- Include the updated JavaScript file for single registration modal -->
-    <script src="{{ asset('js/instrument_registration_updated.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/instrument_registration_updated.js') }}?v={{ filemtime(public_path('js/instrument_registration_updated.js')) }}"></script>
 
     <!-- Include the FINAL batch registration handler -->
-    <script src="{{ asset('js/batch_registration_handler_final.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/batch_registration_handler_final.js') }}?v={{ filemtime(public_path('js/batch_registration_handler_final.js')) }}"></script>
 
     <!-- Include the batch fix to handle empty selectedBatchProperties -->
 
     <!-- Include the quick batch handler -->
-    <script src="{{ asset('js/quick_batch_handler.js') }}?v={{ time() }}">
+    <script src="{{ asset('js/quick_batch_handler.js') }}?v={{ filemtime(public_path('js/quick_batch_handler.js')) }}">
 
     </script>
 
@@ -1014,9 +1017,12 @@
             });
         })();
     </script>
+    <script>window.InstrumentMasterBase = "{{ url('instrument-master') }}";</script>
+    <script src="{{ asset('js/master-delete.js') }}"></script>
+    <script src="{{ asset('js/instrument-master-actions.js') }}?v={{ filemtime(public_path('js/instrument-master-actions.js')) }}"></script>
     <script src="{{ asset('js/instrument_registration_index.js') }}?v={{ filemtime(public_path('js/instrument_registration_index.js')) }}"></script>
-    <script src="{{ asset('js/instrument_registration_batch_print.js') }}?v={{ time() }}"></script>
-    <script src="{{ asset('js/instrument_capture_export.js') }}?v={{ time() }}"></script>
+    <script src="{{ asset('js/instrument_registration_batch_print.js') }}?v={{ filemtime(public_path('js/instrument_registration_batch_print.js')) }}"></script>
+    <script src="{{ asset('js/instrument_capture_export.js') }}?v={{ filemtime(public_path('js/instrument_capture_export.js')) }}"></script>
 
 {{-- ===== GROUP BATCH REGISTRATION MODAL ===== --}}
 <style>

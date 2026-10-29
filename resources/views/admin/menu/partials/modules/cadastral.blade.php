@@ -169,12 +169,12 @@
           </a>
         @endif
 
-        {{-- ii. Create Correspondence File (was "Commission Correspondence File (Match MLSFileNo)", renamed 2026-10-10) --}}
+        {{-- ii. Commission Correspondence File (was "Create Correspondence File" 2026-10-10 to 2026-10-27, renamed back by the user) --}}
         @if($cadMatch)
           <a href="{{ route('mls-file-no-matching.index') }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('mls-file-no-matching.index') ? 'active' : '' }}">
             <i data-lucide="check" class="h-3.5 w-3.5 text-rose-400"></i>
-            <span>Create Correspondence File</span>
+            <span>Commission Correspondence File</span>
           </a>
         @endif
 

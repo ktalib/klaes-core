@@ -26,7 +26,7 @@ class GknGenerationController extends Controller
      */
     public function index(Request $request)
     {
-        $PageTitle = 'GKN File Number Commissioning';
+        $PageTitle = 'Application Files Commissioning';
         $PageDescription = '';
 
         $districts = District::where('is_active', 1)->orderBy('name')->get();
@@ -287,6 +287,7 @@ class GknGenerationController extends Controller
             'plot_number' => 'nullable|string|max:255',
             'tp_no' => 'nullable|string|max:100',
             'district_id' => 'nullable|integer',
+            'district_other' => 'nullable|string|max:255',
             'lga_id' => 'required|integer',
             'type' => 'required|string|in:GKN,LPKN,MISCS',
             'location' => 'required|string',
@@ -294,6 +295,7 @@ class GknGenerationController extends Controller
             'location_entries.*.plot_number' => 'nullable|string|max:100',
             'location_entries.*.tp_no' => 'nullable|string|max:100',
             'location_entries.*.district_id' => 'nullable|integer',
+            'location_entries.*.district_other' => 'nullable|string|max:255',
             'location_entries.*.lga_id' => 'nullable|integer',
             'location_entries.*.location' => 'nullable|string',
             'customer_type' => 'required|string',
@@ -301,8 +303,17 @@ class GknGenerationController extends Controller
 
         $batchMode = $validated['batch_mode'];
         $quantity = $batchMode ? $validated['quantity'] : 1;
-        $district = District::find($validated['district_id']);
         $lga = Lga::find($validated['lga_id']);
+
+        // District names, resolved before anything is written: "Other" takes the
+        // specified name (required). One per file in batch mode.
+        $districtName = $this->districtName($validated['district_id'] ?? null, $validated['district_other'] ?? null, 'district_other');
+        $entryDistrictNames = [];
+        foreach (($batchMode ? ($validated['location_entries'] ?? []) : []) as $i => $entry) {
+            $entryDistrictNames[$i] = array_key_exists('district_id', $entry)
+                ? $this->districtName($entry['district_id'] ?? null, $entry['district_other'] ?? null, "location_entries.$i.district_other")
+                : $districtName;
+        }
 
         $type = $validated['type'];
 
@@ -378,7 +389,7 @@ class GknGenerationController extends Controller
             $plotNo = $validated['plot_number'];
             $tpNo = $validated['tp_no'] ?? null;
             $loc = $validated['location'];
-            $currentDistrictId = $validated['district_id'];
+            $currentDistrictName = $districtName;
             $currentLgaId = $validated['lga_id'];
 
             // Override with batch-specific entry if available
@@ -387,15 +398,12 @@ class GknGenerationController extends Controller
                 $plotNo = $entry['plot_number'] ?? $plotNo;
                 $tpNo = $entry['tp_no'] ?? $tpNo;
                 $loc = $entry['location'] ?? $loc;
-                $currentDistrictId = $entry['district_id'] ?? $currentDistrictId;
+                $currentDistrictName = $entryDistrictNames[$index] ?? $currentDistrictName;
                 $currentLgaId = $entry['lga_id'] ?? $currentLgaId;
             }
 
-            // Fetch names for district and lga
-            $currentDistrictName = ($currentDistrictId == $validated['district_id']) 
-                ? ($district->name ?? null) 
-                : (District::find($currentDistrictId)->name ?? null);
-            $currentLgaName = ($currentLgaId == $validated['lga_id']) 
+            // Fetch the lga name (district names were resolved above)
+            $currentLgaName= ($currentLgaId == $validated['lga_id']) 
                 ? ($lga->name ?? null) 
                 : (Lga::find($currentLgaId)->name ?? null);
 
@@ -537,7 +545,9 @@ class GknGenerationController extends Controller
     {
         try {
             $record = GknFileNo::findOrFail($id);
-            
+            // The form maps this name back to a district, or to Other + the name.
+            $record->district_name = FileIndexing::where('file_number', $record->full_file_number)->value('district');
+
             // Map district/lga back to IDs for the form
             $district = District::where('name', 'LIKE', '%' . $record->district . '%')->first(); // Wait, GknFileNo doesn't have district column, it has location
             // Checking model again... it has plot_no, location, lga.
@@ -567,18 +577,19 @@ class GknGenerationController extends Controller
             'plot_no' => 'nullable|string|max:100',
             'tp_no' => 'nullable|string|max:100',
             'district_id' => 'nullable|integer',
+            'district_other' => 'nullable|string|max:255',
             'lga_id' => 'required|integer',
             'type' => 'required|string|in:GKN,LPKN,MISCS',
             'location' => 'required|string',
             'customer_type' => 'required|string',
         ]);
+        $districtName = $this->districtName($validated['district_id'] ?? null, $validated['district_other'] ?? null, 'district_other');
 
         DB::connection('sqlsrv')->beginTransaction();
         try {
             $record = GknFileNo::findOrFail($id);
             $oldFileNo = $record->full_file_number;
 
-            $district = District::find($validated['district_id']);
             $lga = Lga::find($validated['lga_id']);
 
             // Update GKN record
@@ -600,7 +611,7 @@ class GknGenerationController extends Controller
                 'plot_number' => $validated['plot_no'],
                 'tp_no' => $validated['tp_no'],
                 'location' => $validated['location'],
-                'district' => $district->name ?? null,
+                'district' => $districtName,
                 'lga' => $lga->name ?? null,
                 'land_use_type' => $validated['type'],
             ]);
@@ -626,7 +637,33 @@ class GknGenerationController extends Controller
     }
 
     /**
-     * Serial initialization moved to System Admin → Configurable Entries →
+     * District name to save. "Other" (the one districts row of that name) takes the
+     * specified text, whitespace-normalised with its case kept; a name already on the
+     * list (any case) is saved in the list's spelling, so no variant is created.
+     */
+    private function districtName($districtId, $other, string $field): ?string
+    {
+        $district = $districtId ? District::find($districtId) : null;
+        if (!$district) {
+            return null;
+        }
+        if (strtolower(trim($district->name)) !== 'other') {
+            return $district->name;
+        }
+
+        $other = trim(preg_replace('/\s+/u', ' ', (string) $other));
+        if ($other === '') {
+            throw \Illuminate\Validation\ValidationException::withMessages([$field => 'District is Other: please specify the district.']);
+        }
+        $listed = District::whereRaw('LOWER(LTRIM(RTRIM(name))) = ?', [mb_strtolower($other)])
+            ->whereRaw("LOWER(LTRIM(RTRIM(name))) <> 'other'")
+            ->value('name');
+
+        return $listed ?? $other;
+    }
+
+    /**
+     * Serial initialization moved to System Admin→ Configurable Entries →
      * Serial Initialization (Land & Deeds). That one screen sets and locks the
      * starting serial for every generator; see
      * ConfigurableEntriesController::SERIAL_REGISTERS.

@@ -66,12 +66,14 @@ return [
         'Tripartite Mortgage' => 'Mortgage',
     ],
 
-    // Consent types that may stand in for one another. An Assignment consent
-    // backs a Deed of Gift and the reverse, the way the capture screen already
-    // treats them; a Mortgage consent stands only for a mortgage.
+    // Consent types that may back each instrument. Each consent backs only its
+    // own instrument: an Assignment consent does NOT back a Deed of Gift, nor
+    // the reverse (that grouping let Gifts be captured on Assignment consents,
+    // e.g. CON-AG-2023-93). An ST Assignment memo still backs a Deed of
+    // Assignment for a sectional unit.
     'consent_groups' => [
-        'Assignment' => ['Assignment', 'Gift', 'ST Assignment'],
-        'Gift' => ['Gift', 'Assignment', 'ST Assignment'],
+        'Assignment' => ['Assignment', 'ST Assignment'],
+        'Gift' => ['Gift'],
         'Mortgage' => ['Mortgage'],
     ],
 

@@ -71,15 +71,22 @@ class YesNoForms
      *
      * @return array{lkn: ?string, sltr: ?string, gkn: ?string, sit: ?string}
      */
-    public function refs(CadastralCase $case, ?Form $form = null): array
+    /** The reference line the file number goes on: lkn, sltr, gkn or sit (from its type, source and number). */
+    public static function line(CadastralCase $case): string
     {
         $n = strtoupper(ltrim((string) $case->file_number));
-        $line = match (true) {
+
+        return match (true) {
             $case->file_source === 'sltr' || str_starts_with($n, 'SLTR') => 'sltr',
             $case->file_type === 'sit' || str_starts_with($n, 'SIT') => 'sit',
             $case->file_type === 'gkn' || str_starts_with($n, 'GKN') => 'gkn',
             default => 'lkn',
         };
+    }
+
+    public function refs(CadastralCase $case, ?Form $form = null): array
+    {
+        $line = self::line($case);
         $mine = fn (string $l) => $line === $l ? $case->file_number : null;
 
         return [
@@ -119,6 +126,57 @@ class YesNoForms
         }
 
         return ['ha' => null, 'source' => null];
+    }
+
+    /**
+     * Q4(c) "The application is for", backfilled from the file (user, 2026-10-28): the file's
+     * indexing land use, else the use in its number (CON-COM-…, RES-…). Indexing holds variants
+     * (COM, RESIDENCIAL, "COMMERCIAL (SCHOOL)"), so its first word picks one of Form::PURPOSES;
+     * any other real use (e.g. GOVERNMENT) becomes the "Other" text. READ ONLY.
+     *
+     * @return array{value: ?string, source: ?string}
+     */
+    public function fileLandUse(CadastralCase $case): array
+    {
+        $indexed = null;
+        try {
+            $indexed = DB::connection(self::CONN)->table('file_indexings')
+                ->where('file_number', trim((string) $case->file_number))
+                ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->whereNotNull('land_use_type')->orderByDesc('id')->value('land_use_type');
+        } catch (\Throwable $e) {
+            // No indexing row to read: fall back to the file number.
+        }
+
+        if (($use = self::landUse($indexed, true)) !== null) {
+            return ['value' => $use, 'source' => 'file indexing'];
+        }
+        foreach (explode('-', strtoupper((string) $case->file_number)) as $segment) {
+            if (($use = self::landUse($segment, false)) !== null) {
+                return ['value' => $use, 'source' => 'file number'];
+            }
+        }
+
+        return ['value' => null, 'source' => null];
+    }
+
+    /** One of Form::PURPOSES for a land-use word; $other keeps an unlisted real use as typed. */
+    public static function landUse(?string $raw, bool $other): ?string
+    {
+        $word = strtoupper(trim((string) $raw));
+        if ($word === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_starts_with($word, 'RES') => 'Residential',
+            str_starts_with($word, 'COM') => 'Commercial',
+            str_starts_with($word, 'IND') => 'Industrial',
+            str_starts_with($word, 'AG') => 'Agricultural',
+            // Registry names and file kinds sometimes typed in the land-use column are not uses.
+            !$other || in_array($word, ['DCIV', 'SIT', 'SLTR', 'ST', 'GKN', 'CON', 'NIL', 'N/A', '-'], true) => null,
+            default => mb_convert_case(mb_strtolower(trim((string) $raw)), MB_CASE_TITLE, 'UTF-8'),
+        };
     }
 
     /**
@@ -173,7 +231,7 @@ class YesNoForms
                 ['complete' => $complete], "Yes/No form for {$case->case_ref}" . ($complete ? ' (complete)' : ' (incomplete)'));
 
             return $complete
-                ? 'Yes/No form saved. All seven questions are answered; press "Mark the Yes/No form done" to lock it and go on.'
+                ? 'Yes/No form saved. All seven questions are answered: mark "Yes/No form" done below to lock it and go on.'
                 : 'Yes/No form saved. Still to answer: ' . implode(', ', array_map(fn ($c) => 'Q' . substr($c, 1, 1), $form->unanswered())) . '.';
         });
     }

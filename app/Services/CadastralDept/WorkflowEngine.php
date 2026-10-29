@@ -54,11 +54,9 @@ class WorkflowEngine
 
         // A file out with another department: the receiving desk records that
         // it came back, and where it goes from there.
-        $label = !empty($s['external'])
-            ? $this->definition->deskShort($s['desk']) . ' done: ' . ($nextDesk === $this->definition->actingDesk($workflow, $step)
-                ? 'sent back to ' . $this->definition->deskShort($nextDesk)   // e.g. "DSG done: sent back to D Cad" (user, 2026-10-12)
-                : 'now with ' . $this->definition->deskShort($nextDesk))
-            : 'Send to ' . $this->definition->deskShort($nextDesk);
+        // Plain "Send to X" everywhere, outside steps included (user, 2026-10-28: "KAMMA done: now
+        // with PS" and "Record: KAMMA has sent the file to PS" both read as if it were with the PS).
+        $label = 'Send to ' . $this->definition->deskShort($nextDesk);
 
         return [[
             'outcome' => 'forward',
@@ -125,6 +123,39 @@ class WorkflowEngine
      * @param  iterable<object>  $movements  CadastralCaseMovement rows, oldest first
      * @return list<array{key:?string, label:string, desk:string, state:string, outcome:?string, by:?string, at:mixed, options:list<string>}>
      */
+    /**
+     * Where a split route rejoins the main one, and the alternative's steps until then.
+     *
+     * @return array{0: ?string, 1: array<int, array{key:string, label:string, desk:string}>}
+     */
+    private function altRoute(string $workflow, string $main, string $alt): array
+    {
+        $def = $this->definition;
+        $forwardNext = function (string $k) use ($def, $workflow): ?string {
+            $s = $def->step($workflow, $k);
+            if (isset($s['outcomes'])) {
+                foreach ($s['outcomes'] as $o) {
+                    if (empty($o['reason'])) {
+                        return $o['next'];
+                    }
+                }
+                return null;
+            }
+            return isset($s['routes']) ? reset($s['routes']) : ($s['next'] ?? null);
+        };
+        $onMain = [];
+        for ($k = $main, $n = 0; $k && $def->hasStep($workflow, $k) && $n < 60; $k = $forwardNext($k), $n++) {
+            $onMain[$k] = true;
+        }
+        $steps = [];
+        for ($k = $alt, $n = 0; $k && $def->hasStep($workflow, $k) && !isset($onMain[$k]) && $n < 30; $k = $forwardNext($k), $n++) {
+            $s = $def->step($workflow, $k);
+            $steps[] = ['key' => $k, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk'])];
+        }
+
+        return [isset($onMain[$k ?? '']) ? $k : null, $steps];
+    }
+
     public function pipeline(string $workflow, ?string $subType = null, iterable $movements = [], ?string $current = null, ?string $closedAs = null): array
     {
         $def = $this->definition;
@@ -169,6 +200,11 @@ class WorkflowEngine
         // The way on, from the current step (or the start).
         $key = $current ?? $def->startStep($workflow);
         $seen = [];
+        // A step with two forward answers (GIS buffer: KAMMA or Physical Planning) splits the way on
+        // until the routes join. The bar follows the first; the other route's steps ride along
+        // under the steps they stand in for, as "OR" (user, 2026-10-27).
+        $altQueue = [];
+        $joinAt = null;
         while ($key && $def->hasStep($workflow, $key) && !isset($seen[$key]) && count($seen) < 60) {
             $seen[$key] = true;
             $s = $def->step($workflow, $key);
@@ -195,9 +231,31 @@ class WorkflowEngine
                 $next = $s['next'] ?? null;
             }
 
+            // On a split route: the other route's step at this position (and, at the last step
+            // before the routes join, any of its steps left over).
+            $alts = [];
+            if ($altQueue && $key !== $joinAt) {
+                $alts[] = array_shift($altQueue);
+                if ($next === $joinAt) {
+                    $alts = array_merge($alts, $altQueue);
+                    $altQueue = [];
+                }
+            }
+
             $out[] = ['key' => $key, 'label' => $s['label'], 'desk' => $def->deskShort($s['desk']),
                 'state' => $key === $current ? 'current' : 'next', 'outcome' => null, 'by' => null, 'at' => null,
-                'options' => count($options) > 1 ? $options : [], 'zero' => !empty($s['step_zero'])];
+                'options' => count($options) > 1 ? $options : [], 'zero' => !empty($s['step_zero']),
+                'alts' => array_values(array_filter($alts)),
+                // A step only some files go through (SG: Government surveys only, 2026-10-28).
+                'only_if' => $s['only_if'] ?? null];
+
+            // A second forward answer leading elsewhere: walk its route until it meets this one.
+            if (isset($s['outcomes']) && !$altQueue) {
+                $forward = array_values(array_unique(array_column(array_filter($s['outcomes'], fn ($o) => empty($o['reason'])), 'next')));
+                if (count($forward) > 1) {
+                    [$joinAt, $altQueue] = $this->altRoute($workflow, $forward[0], $forward[1]);
+                }
+            }
 
             if (isset($s['end'])) {
                 $out[] = ['key' => null, 'label' => $s['end'] === 'returned' ? 'Sent back to source' : 'Completed', 'desk' => '',

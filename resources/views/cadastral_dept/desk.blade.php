@@ -33,6 +33,24 @@
       @endif
     </form>
 
+    {{-- Accept by scan (2026-10-27): a file sent here waits until the unit accepts it. Scan its QR
+         (or type the tracking ID / file number); a USB scanner types straight into the box. --}}
+    @if ($acceptInstalled)
+      <form method="POST" action="{{ route('cadastral-dept.desks.accept.save', $desk) }}" x-ref="cdAcceptForm"
+            class="flex flex-wrap items-center gap-2 mb-6 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+        @csrf
+        <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-purple-900"><i data-lucide="scan-line" class="w-4 h-4"></i> Accept a file</span>
+        <input type="text" name="code" x-ref="cdAcceptCode" autocomplete="off" required
+               placeholder="Scan the file's QR, or type its tracking ID / file number"
+               class="flex-1 border border-purple-300 rounded-lg px-3 py-2 text-sm bg-white" style="min-width:220px">
+        <button class="px-3 py-2 rounded-lg bg-purple-700 text-white text-sm font-semibold inline-flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> Accept</button>
+        <button type="button" class="px-3 py-2 rounded-lg border border-purple-300 bg-white text-purple-800 text-sm font-semibold inline-flex items-center gap-1.5"
+                @click="window.CdQrScan && window.CdQrScan.open(t => { $refs.cdAcceptCode.value = t; $refs.cdAcceptForm.submit(); })">
+          <i data-lucide="camera" class="w-4 h-4"></i> Camera
+        </button>
+      </form>
+    @endif
+
     {{-- One table: files at this desk, any out with another department that this desk takes back,
          then the open files this desk has sent on (view only, status says where they are). --}}
     @php
@@ -63,7 +81,9 @@
               $isAway = ! $isSent && $case->current_desk !== $desk;
               $back = $isSent ? null : $back;
               // Batch Send (_batch_send): the row's own menu actions, only when the menu offers them.
-              $cdBatch = ($m && ! $isSent && ! $m['tasks_open'] && ! $m['failing'] && ! $m['custody'])
+              // Sent here but not accepted yet (CadastralFileTracking): accept first, nothing else.
+              $cdAwaiting = ! $isSent && ! $isAway && $acceptInstalled && \App\Services\CadastralDept\CadastralFileTracking::awaiting($case);
+              $cdBatch = ($m && ! $isSent && ! $cdAwaiting && ! $m['tasks_open'] && ! $m['failing'] && ! $m['custody'])
                   ? array_map(fn ($a) => ['o' => $a['outcome'], 'l' => $a['label'], 'r' => (bool) $a['reason']], $m['actions'])
                   : [];
             @endphp
@@ -72,7 +92,8 @@
                 @unless ($isSent)
                   <input type="checkbox" class="cd-batch-check h-3.5 w-3.5 mr-1.5 align-middle rounded border-gray-300" value="{{ $case->id }}"
                          data-file="{{ $case->file_number }}" data-url="{{ route('cadastral-dept.cases.move.save', $case->id) }}"
-                         data-actions='@json($cdBatch)' aria-label="Select {{ $case->file_number }}">
+                         data-actions='@json($cdBatch)' aria-label="Select {{ $case->file_number }}"
+                         @if (! $isClosed && $case->masterDeleteJs()) data-delete-url="{{ route('cadastral-dept.cases.master-destroy', $case->id) }}" data-ref="{{ $case->case_ref }}" @endif>
                 @endunless{{ $loop->iteration }}
               </td>
               <td class="px-4 py-2 font-mono whitespace-nowrap">
@@ -94,6 +115,8 @@
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800">Sent to {{ $case->deskShort() }}</span>
                 @elseif ($isAway)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">With {{ $case->deskShort() }}</span>
+                @elseif ($cdAwaiting)
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">Awaiting acceptance</span>
                 @elseif ($m && $m['head']['awaiting'])
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-800">With the {{ $m['head']['head'] }} for approval</span>
                 @elseif ($back)
@@ -121,6 +144,14 @@
                   </button>
                   <div x-show="open" x-cloak class="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
                     <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
+                    @if ($cdAwaiting)
+                      <form method="POST" action="{{ route('cadastral-dept.cases.accept.save', $case->id) }}">
+                        @csrf
+                        <button class="w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold text-purple-800 hover:bg-purple-50"><i data-lucide="check-circle" class="w-4 h-4"></i> Accept file</button>
+                      </form>
+                    @endif
+                    {{-- Not accepted yet: only View and Accept (user, 2026-10-27). --}}
+                    @unless ($cdAwaiting)
                     @if ($fmcInstalled && $fmcVisible && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
@@ -243,6 +274,7 @@
                         </div>
                       @endforeach
                     @endif
+                    @endunless
                     @php $cdDel = $isClosed ? null : $case->masterDeleteJs(); @endphp
                     @if ($cdDel)
                       <button type="button" onclick="{{ $cdDel }}" @click="open = false"
@@ -312,6 +344,7 @@
 </div>
 @include('cadastral_dept.partials._custody_preview')
 @include('cadastral_dept.partials._batch_send')
+@include('cadastral_dept.partials._qr_scan')
 @if ($waitingJobs !== null)
   @include('cadastral_dept.field_jackets._attach_job_modal')
 @endif

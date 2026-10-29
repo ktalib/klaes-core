@@ -29,6 +29,9 @@ use App\Http\Controllers\Survey\PlotAllocationController;
 use App\Http\Controllers\Survey\ProjectController;
 use App\Http\Controllers\Survey\RegisterFileController;
 use App\Http\Controllers\Survey\ReportController;
+use App\Http\Controllers\Survey\SdiMapRequestController;
+use App\Http\Controllers\Survey\SdiProductionController;
+use App\Http\Controllers\Survey\SdiRegistryController;
 use App\Http\Controllers\Survey\SurveyCoordinateController;
 use App\Http\Controllers\Survey\SurveyItsController;
 use App\Http\Controllers\Survey\SurveyorReportController;
@@ -67,6 +70,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Complaints (2026-10-25)
         Route::get('/complaints', [ComplaintController::class, 'index'])->name('complaints');
         Route::post('/complaints', [ComplaintController::class, 'store'])->name('complaints.store');
+        Route::get('/complaints/print-blank', [ComplaintController::class, 'printBlank'])->name('complaints.print-blank');
+        Route::get('/complaints/{complaint}/print', [ComplaintController::class, 'print'])->name('complaints.print');
         Route::get('/complaints/{complaint}/edit', [ComplaintController::class, 'edit'])->name('complaints.edit');
         Route::put('/complaints/{complaint}', [ComplaintController::class, 'update'])->name('complaints.update');
         Route::post('/complaints/{complaint}/status', [ComplaintController::class, 'status'])->name('complaints.status');
@@ -300,6 +305,32 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::put('/plot-allocation/{plot}', [PlotAllocationController::class, 'update'])->name('plot-allocation.update');
         Route::delete('/plot-allocation/{plot}', [PlotAllocationController::class, 'destroy'])->name('plot-allocation.destroy');
         Route::get('/plot-allocation/export', [PlotAllocationController::class, 'export'])->name('plot-allocation.export');
+    });
+
+    /* ------------- Geo-informatics → SDI (ported from ALAES, 2026-10-29) ------------- */
+    Route::prefix('sdi')->name('sdi.')->group(function () {
+        Route::get('/map-requests', [SdiMapRequestController::class, 'index'])->name('map-requests');
+        Route::get('/map-requests/create', [SdiMapRequestController::class, 'create'])->name('map-requests.create');
+        Route::get('/map-requests/land-use-points', [SdiMapRequestController::class, 'landUsePoints'])->name('map-requests.land-use-points');
+        Route::post('/map-requests', [SdiMapRequestController::class, 'store'])->name('map-requests.store');
+        Route::get('/map-requests/{mapRequest}', [SdiMapRequestController::class, 'show'])->whereNumber('mapRequest')->name('map-requests.show');
+        Route::get('/map-requests/{mapRequest}/edit', [SdiMapRequestController::class, 'edit'])->whereNumber('mapRequest')->name('map-requests.edit');
+        Route::put('/map-requests/{mapRequest}', [SdiMapRequestController::class, 'update'])->whereNumber('mapRequest')->name('map-requests.update');
+        Route::delete('/map-requests/{mapRequest}', [SdiMapRequestController::class, 'destroy'])->whereNumber('mapRequest')->name('map-requests.destroy');
+        Route::get('/map-requests/{mapRequest}/map', [SdiMapRequestController::class, 'deliverable'])->whereNumber('mapRequest')->name('map-requests.deliverable');
+
+        Route::get('/production', [SdiProductionController::class, 'index'])->name('production');
+        Route::post('/production/{mapRequest}/start', [SdiProductionController::class, 'start'])->whereNumber('mapRequest')->name('production.start');
+        Route::post('/production/{mapRequest}/fulfil', [SdiProductionController::class, 'fulfil'])->whereNumber('mapRequest')->name('production.fulfil');
+        Route::post('/production/{mapRequest}/reject', [SdiProductionController::class, 'reject'])->whereNumber('mapRequest')->name('production.reject');
+
+        Route::get('/registry', [SdiRegistryController::class, 'index'])->name('registry');
+        Route::post('/registry/mdas', [SdiRegistryController::class, 'storeMda'])->name('registry.mdas.store');
+        Route::put('/registry/mdas/{mda}', [SdiRegistryController::class, 'updateMda'])->whereNumber('mda')->name('registry.mdas.update');
+        Route::post('/registry/mdas/{mda}/toggle', [SdiRegistryController::class, 'toggleMda'])->whereNumber('mda')->name('registry.mdas.toggle');
+        Route::post('/registry/map-types', [SdiRegistryController::class, 'storeType'])->name('registry.types.store');
+        Route::put('/registry/map-types/{mapType}', [SdiRegistryController::class, 'updateType'])->whereNumber('mapType')->name('registry.types.update');
+        Route::post('/registry/map-types/{mapType}/toggle', [SdiRegistryController::class, 'toggleType'])->whereNumber('mapType')->name('registry.types.toggle');
     });
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports');

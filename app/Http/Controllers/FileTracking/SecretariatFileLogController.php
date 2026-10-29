@@ -286,6 +286,7 @@ class SecretariatFileLogController extends Controller
             'days'   => 'nullable|integer|min:1|max:365',
             'from'   => 'nullable|date_format:Y-m-d',
             'to'     => 'nullable|date_format:Y-m-d|after_or_equal:from',
+            'q'      => 'nullable|string|max:100',
         ]);
 
         $office = $this->actingOffice($request);
@@ -295,7 +296,8 @@ class SecretariatFileLogController extends Controller
                 $office,
                 (int) $request->input('days', 7),
                 $request->input('from') ?: null,
-                $request->input('to') ?: null
+                $request->input('to') ?: null,
+                $request->input('q') ?: null
             ));
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);

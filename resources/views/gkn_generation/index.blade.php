@@ -21,7 +21,7 @@
         <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">GKN File Numbers</h1>
+                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Application Files</h1>
                     <p class="text-slate-500 text-sm mt-1">Manage and generate GKN file numbers.</p>
                 </div>
                 <div class="flex items-center gap-3 w-full md:w-auto">
@@ -39,7 +39,7 @@
                             @click="showGenerateModal = true"
                             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm hover:shadow-md active:scale-95">
                             <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span class="font-bold">Generate GKN FileNo</span>
+                            <span class="font-bold">Generate Application FileNo</span>
                         </button>
                     </div>
                     @endif
@@ -81,7 +81,7 @@
                             <!-- Modal Header -->
                             <div class="bg-white px-8 py-5 border-b border-slate-200 flex justify-between items-center">
                                 <div>
-                                    <h2 class="text-xl font-bold text-slate-900">Generate GKN File Numbers</h2>
+                                    <h2 class="text-xl font-bold text-slate-900">Generate Application File Numbers</h2>
                                     <p class="text-sm text-slate-500">Configure and generate new serial-based records</p>
                                 </div>
                                 <div class="flex items-center gap-6">
@@ -252,19 +252,7 @@
                                             </div>
 
                                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                                <div>
-                                                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase text-left">District</label>
-                                                    <select x-model="current.district_id" 
-                                                            :disabled="viewMode"
-                                                            @change="if(applyLocationToAll) syncToAll('district_id')"
-                                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50 disabled:text-slate-500 appearance-none bg-no-repeat bg-[right_1rem_center] bg-[length:1em_1em]"
-                                                            style="background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 fill=%22none%22 viewBox=%220 0 20 20%22%3E%3Cpath stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22m6 8 4 4 4-4%22%2F%3E%3C%2Fsvg%3E')">
-                                                        <option value="">Select District</option>
-                                                        <template x-for="district in districts" :key="district.id">
-                                                            <option :value="district.id" x-text="district.name"></option>
-                                                        </template>
-                                                    </select>
-                                                </div>
+                                                @include('gkn_generation.partials._district_picker', ['ctx' => 'current'])
                                                 <div>
                                                     <label class="block text-xs font-bold text-slate-600 mb-1 uppercase text-left">LGA</label>
                                                     <select x-model="current.lga_id" 
@@ -463,15 +451,7 @@
                                                 </div>
                                             </div>
                                             <div class="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">District</label>
-                                                    <select x-model="formData.district_id" :disabled="viewMode" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50">
-                                                        <option value="">Select District</option>
-                                                        <template x-for="district in districts" :key="district.id">
-                                                            <option :value="district.id" x-text="district.name"></option>
-                                                        </template>
-                                                    </select>
-                                                </div>
+                                                @include('gkn_generation.partials._district_picker', ['ctx' => 'formData'])
                                                 <div>
                                                     <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">LGA</label>
                                                     <select x-model="formData.lga_id" :disabled="viewMode" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-50">

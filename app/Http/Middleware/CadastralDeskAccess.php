@@ -24,6 +24,9 @@ class CadastralDeskAccess
 {
     private const UNCHECKED = ['cadastral-dept.fmc.log.save', 'cadastral-dept.cases.master-destroy'];
 
+    /** Writes allowed on a file that is waiting to be accepted (CadastralFileTracking). */
+    private const BEFORE_ACCEPT = ['cadastral-dept.cases.accept.save', 'cadastral-dept.cases.jump.save', 'cadastral-dept.cases.master-destroy'];
+
     public function __construct(private DeskAccess $access)
     {
     }
@@ -47,7 +50,7 @@ class CadastralDeskAccess
             return $next($request);
         }
 
-        if ($name === 'cadastral-dept.cases.store') {
+        if ($name === 'cadastral-dept.cases.store' || $name === 'cadastral-dept.cases.batch.store') {
             if (!$this->access->canWorkDesk($user, 'registry')) {
                 return $this->deny($request, 'Only Registry registers files (role ' . (DeskAccess::deskRoles()['registry'] ?? 'Cad - Registry') . ').');
             }
@@ -68,6 +71,13 @@ class CadastralDeskAccess
             $role = DeskAccess::deskRoles()[$desk] ?? DeskAccess::centralAdminRole();
 
             return $this->deny($request, "{$case->case_ref} is with " . $case->deskShort() . "; acting on it needs the {$role} role.");
+        }
+
+        // Sent to a unit and not accepted there yet: nothing is done on the file until it is
+        // accepted (user, 2026-10-27). Accept itself, Master Delete and the admin's move-to-step pass.
+        if ($case && !in_array($name, self::BEFORE_ACCEPT, true)
+            && \App\Services\CadastralDept\CadastralFileTracking::awaiting($case)) {
+            return $this->deny($request, "Accept {$case->case_ref} first: it was sent to {$case->deskShort()} and has not been accepted there yet.");
         }
 
         return $case ? $this->passOn($request, $next, $user, $this->access->actingDesk($case), $case) : $next($request);

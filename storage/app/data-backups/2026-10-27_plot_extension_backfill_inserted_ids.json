@@ -1,0 +1,21 @@
+{
+    "inserted_ids": [
+        57,
+        58,
+        59,
+        60,
+        61
+    ],
+    "undo": "DELETE FROM plot_extension_applications WHERE id IN (57,58,59,60,61)",
+    "removed_2026_10_27": [
+        56,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69
+    ]
+}

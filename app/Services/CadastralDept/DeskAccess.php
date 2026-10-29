@@ -46,7 +46,9 @@ class DeskAccess
 
         return array_values(array_filter(array_merge(
             [self::deskRoles()[$desk] ?? null],
-            (array) (config('cadastral_dept.desk_extra_roles', [])[$desk] ?? [])
+            (array) (config('cadastral_dept.desk_extra_roles', [])[$desk] ?? []),
+            // A Survey unit's own role (Compensation, DSG, Examination, SG; 2026-10-28).
+            [config('cadastral_dept.external_desk_roles', [])[$desk] ?? null]
         )));
     }
 
@@ -153,6 +155,12 @@ class DeskAccess
 
     public function canActOn(?User $user, CadastralCase $case): bool
     {
+        // A file out with a Survey unit: the unit acts on its own step too (2026-10-28).
+        $unitRole = config('cadastral_dept.external_desk_roles', [])[$case->current_desk] ?? null;
+        if ($unitRole && $user && $user->canDo($unitRole, 'view')) {
+            return true;
+        }
+
         return $this->canWorkDesk($user, $this->actingDesk($case));
     }
 }

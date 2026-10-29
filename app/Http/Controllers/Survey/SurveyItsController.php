@@ -122,7 +122,8 @@ class SurveyItsController extends Controller
 
         if ($its->isIssued()) return back()->with('error', "{$its->job_ref} already carries {$its->its_number}.");
         if ($its->status === SurveyIts::CANCELLED) return back()->with('error', "{$its->job_ref} is cancelled.");
-        if (! $its->surveyor_id) return back()->with('error', 'Assign a surveyor before issuing the instruction.');
+        // A listed surveyor, or one typed under "Other (specify)" (name only).
+        if (! $its->surveyor_name) return back()->with('error', 'Assign a surveyor before issuing the instruction.');
 
         $its = DB::connection('sqlsrv')->transaction(function () use ($its, $data) {
             $its->update([
@@ -205,19 +206,35 @@ class SurveyItsController extends Controller
 
     private function validated(Request $r, ?SurveyIts $existing = null): array
     {
+        // "Other (specify)": whitespace-normalised, case kept. A name already on the
+        // List of Surveyors (any case/spacing) is taken as that surveyor.
+        $other = null;
+        if ($r->input('surveyor_id') === 'other') {
+            $other = preg_replace('/\s+/u', ' ', trim((string) $r->input('surveyor_other')));
+            $match = $other === '' ? null : SurveyorListEntry::get(['id', 'first_name', 'surname', 'other_name'])
+                ->first(fn ($s) => mb_strtoupper($s->full_name) === mb_strtoupper($other));
+            $r->merge($match ? ['surveyor_id' => (string) $match->id, 'surveyor_other' => null] : ['surveyor_other' => $other]);
+            if ($match) $other = null;
+        }
+
         $data = $r->validate([
             'file_number' => $existing ? 'nullable' : 'required|string|max:100',
             'file_title'  => 'nullable|string|max:500',
             'plot_no'     => 'nullable|string|max:100',
             'district'    => 'nullable|string|max:255',
             'lga'         => 'nullable|string|max:255',
-            'surveyor_id' => ['nullable', Rule::exists('sqlsrv.surveyors_list', 'id')],
+            'surveyor_id' => ['nullable', function ($attr, $value, $fail) {
+                if ($value !== 'other' && ! SurveyorListEntry::whereKey($value)->exists()) $fail('Select a surveyor from the list, or Other (specify).');
+            }],
+            'surveyor_other' => 'required_if:surveyor_id,other|nullable|string|max:255',
             'job_scope'   => 'nullable|string|max:4000',
             'its_instructions' => 'nullable|string|max:8000',
             'remarks'     => 'nullable|string|max:2000',
         ], [
             'file_number.required' => 'Select the file with Select File Number.',
+            'surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
         ]);
+        unset($data['surveyor_other']);
 
         if ($existing) {
             unset($data['file_number']);
@@ -227,9 +244,15 @@ class SurveyItsController extends Controller
         }
 
         // The surveyor's name and rank are kept as they were when assigned.
-        $sv = ! empty($data['surveyor_id']) ? SurveyorListEntry::find($data['surveyor_id']) : null;
-        $data['surveyor_name'] = $sv?->full_name;
-        $data['surveyor_rank'] = $sv?->rank;
+        if (($data['surveyor_id'] ?? null) === 'other') {
+            $data['surveyor_id'] = null;
+            $data['surveyor_name'] = $other;
+            $data['surveyor_rank'] = null;
+        } else {
+            $sv = ! empty($data['surveyor_id']) ? SurveyorListEntry::find($data['surveyor_id']) : null;
+            $data['surveyor_name'] = $sv?->full_name;
+            $data['surveyor_rank'] = $sv?->rank;
+        }
 
         // The location is district + LGA; the plot number never goes in it.
         $data['location'] = implode(', ', array_filter([$data['district'] ?? null, $data['lga'] ?? null])) ?: null;

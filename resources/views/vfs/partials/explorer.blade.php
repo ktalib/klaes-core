@@ -9,7 +9,7 @@
 
 @php
     $sections = [
-        'documents' => ['label' => 'Current Documents', 'icon' => 'folder', 'count' => $summary['page_count'] + ($summary['system_count'] ?? 0)],
+        'documents' => ['label' => 'Current Documents', 'icon' => 'folder', 'count' => $summary['page_count'] + ($summary['system_count'] ?? 0) + ($summary['blind_count'] ?? 0)],
         'lineage'   => ['label' => 'Linked Files', 'icon' => 'git-branch', 'count' => $lineage['total']],
         'timeline'  => ['label' => 'Status Timeline', 'icon' => 'clock', 'count' => count($timeline)],
         'sources'   => ['label' => 'Source Folders', 'icon' => 'server', 'count' => count($sources)],
@@ -72,7 +72,7 @@
         <a href="{{ route('vfs.show', $file->id) }}" class="text-gray-600">{{ $summary['display_number'] }}</a>
         @if($section === 'documents' && $activeFolder)
             <i data-lucide="chevron-right" class="h-3 w-3 text-gray-400"></i>
-            <span class="font-semibold">{{ $activeFolder === '__unclassified' ? 'Unclassified' : $activeFolder }}</span>
+            <span class="font-semibold">{{ collect($folders)->firstWhere('key', $activeFolder)['label'] ?? $activeFolder }}</span>
         @elseif($section !== 'documents')
             <i data-lucide="chevron-right" class="h-3 w-3 text-gray-400"></i>
             <span class="font-semibold">{{ $sections[$section]['label'] ?? '' }}</span>

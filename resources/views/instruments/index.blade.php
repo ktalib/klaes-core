@@ -182,6 +182,9 @@
                                     </tr>
                                 </thead>
                             <tbody>
+                                @php
+                                    $isMasterDeleter = optional(auth()->user())->assign_role === 'Supper Admin';
+                                @endphp
                                 @forelse($instruments as $instrument)
                                     @php
                                         // Occupancy Permits record an existing paper permit rather than a
@@ -430,29 +433,26 @@
                                                 </a>
                                                 @endcanDo
 
-                                                @canDo('Deeds Registration', 'delete')
-                                                <form action="{{ route('instruments.destroy', $instrument->id) }}" method="POST" role="menuitem">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" disabled class="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-300 opacity-50 pointer-events-none cursor-not-allowed transition">
-                                                        <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
-                                                    </button>
-                                                </form>
-                                                @endcanDo
-
-                                                {{-- Solicitor details are hand-keyed at capture and are the one part of
-                                                     a captured instrument officers routinely have to correct afterwards.
-                                                     Full Edit is disabled on this screen, so this opens a small modal
-                                                     carrying the capture card's Solicitor fields. Every instrument type
-                                                     gets it except an OP, which has no solicitor to correct. --}}
-                                                @unless($isOP)
-                                                    <div class="border-t border-gray-100 my-1"></div>
-
-                                                    <a href="#" onclick="showUpdateSolicitorModal('{{ $instrument->id }}'); return false;"
-                                                       class="flex items-center gap-2 px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 transition" role="menuitem">
-                                                        <i data-lucide="briefcase" class="w-4 h-4"></i> Update Solicitors Details
-                                                    </a>
-                                                @endunless
+                                                {{-- Move Registration: Supper Admin only (the instrument-master endpoints
+                                                     enforce it again). Only to a related instrument (same capture form); it voids any
+                                                     RDS / CoR already generated. --}}
+                                                @if($isMasterDeleter)
+                                                    @php
+                                                        $canMoveReg = !empty($instrument->registered_instrument_id)
+                                                            && preg_match('/deed of assignment|deed of gift|mortgage|surrender|power of attorney|occupancy permit/i', trim((string) $instrument->instrument_type));
+                                                    @endphp
+                                                    @if($canMoveReg)
+                                                        <a href="#" onclick="InstrumentMasterActions.move('{{ $instrument->id }}'); return false;"
+                                                           class="flex items-center gap-2 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition" role="menuitem">
+                                                            <i data-lucide="arrow-left-right" class="w-4 h-4"></i> Move Registration
+                                                        </a>
+                                                    @else
+                                                        <span class="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 cursor-not-allowed" role="menuitem"
+                                                              title="{{ empty($instrument->registered_instrument_id) ? 'Not registered yet' : 'Only related instruments can be moved (Assignment/Gift, Mortgage/Tripartite, Surrender/Power of Attorney, OP Resettlement/Direct Allocation)' }}">
+                                                            <i data-lucide="arrow-left-right" class="w-4 h-4"></i> Move Registration
+                                                        </span>
+                                                    @endif
+                                                @endif
 
                                                 @if(!empty($instrument->registered_instrument_id))
                                                     <div class="border-t border-gray-100 my-1"></div>
@@ -547,6 +547,38 @@
                                                             </span>
                                                         @endif
                                                     </div>
+                                                @endif
+
+                                                {{-- Solicitor details are hand-keyed at capture and are the one part of
+                                                     a captured instrument officers routinely have to correct afterwards.
+                                                     Full Edit is disabled on this screen, so this opens a small modal
+                                                     carrying the capture card's Solicitor fields. Every instrument type
+                                                     gets it except an OP, which has no solicitor to correct. --}}
+                                                @unless($isOP)
+                                                    <div class="border-t border-gray-100 my-1"></div>
+
+                                                    <a href="#" onclick="showUpdateSolicitorModal('{{ $instrument->id }}'); return false;"
+                                                       class="flex items-center gap-2 px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 transition" role="menuitem">
+                                                        <i data-lucide="briefcase" class="w-4 h-4"></i> Update Solicitors Details
+                                                    </a>
+                                                @endunless
+
+                                                <div class="border-t border-gray-100 my-1"></div>
+                                                @canDo('Deeds Registration', 'delete')
+                                                <form action="{{ route('instruments.destroy', $instrument->id) }}" method="POST" role="menuitem">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" disabled class="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-300 opacity-50 pointer-events-none cursor-not-allowed transition">
+                                                        <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                                                    </button>
+                                                </form>
+                                                @endcanDo
+
+                                                @if($isMasterDeleter)
+                                                    <a href="#" onclick="InstrumentMasterActions.masterDelete('{{ $instrument->id }}'); return false;"
+                                                       class="flex items-center gap-2 px-4 py-2 text-sm text-red-700 hover:bg-red-50 transition" role="menuitem">
+                                                        <i data-lucide="skull" class="w-4 h-4"></i> Master Delete
+                                                    </a>
                                                 @endif
                                             </div>
                                         </td>
@@ -692,6 +724,9 @@
 
     <!-- Reuse Instrument Registration Logic -->
     <script src="{{ asset('js/instrument_registration_index.js') }}"></script>
+    <script>window.InstrumentMasterBase = "{{ url('instrument-master') }}";</script>
+    <script src="{{ asset('js/master-delete.js') }}"></script>
+    <script src="{{ asset('js/instrument-master-actions.js') }}?v={{ filemtime(public_path('js/instrument-master-actions.js')) }}"></script>
     <script src="{{ asset('js/property-timeline-modal.js') }}"></script>
     
     <script>

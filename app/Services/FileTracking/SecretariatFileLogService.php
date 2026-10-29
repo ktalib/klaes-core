@@ -424,8 +424,10 @@ class SecretariatFileLogService
      * held:    received here and not sent on.
      * sent:    sent from my office in the last $days days, with where it is now.
      *          With a date range ($from / $to, Y-m-d) the range replaces $days.
+     *          With a $search and no date range, older sends whose file number or
+     *          title match are added too, so a search finds the file whatever its age.
      */
-    public function lists(string $officeCode, int $days = 7, ?string $from = null, ?string $to = null): array
+    public function lists(string $officeCode, int $days = 7, ?string $from = null, ?string $to = null, ?string $search = null): array
     {
         $sentFrom = $from ? \Carbon\Carbon::parse($from)->startOfDay() : now()->subDays(max(1, $days));
         $sentTo = $to ? \Carbon\Carbon::parse($to)->endOfDay() : null;
@@ -500,9 +502,26 @@ class SecretariatFileLogService
             ->limit(500)
             ->get();
 
+        // A search with no date range looks past the "Last N days" window.
+        $search = trim((string) $search);
+        $matchedIds = [];
+        if ($search !== '' && !$from && !$to) {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $search) . '%';
+            $matched = FileTracker::where('movement_log', 'like', $needle)
+                ->where(function ($q) use ($like) {
+                    $q->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like);
+                })
+                ->orderByDesc('updated_at')
+                ->limit(200)
+                ->get();
+            $matchedIds = $matched->pluck('id')->map(fn ($id) => (int) $id)->flip()->all();
+            $recent = $recent->concat($matched)->unique('id')->values();
+        }
+
         $sent = [];
         foreach ($recent as $tracker) {
             $log = array_values($tracker->movement_log ?: []);
+            $anyAge = isset($matchedIds[(int) $tracker->id]);
             for ($i = count($log) - 2; $i >= 0; $i--) {
                 $entryOffice = $log[$i]['receiving_office_code'] ?? $log[$i]['office_code'] ?? null;
                 if ($entryOffice !== $code || empty($log[$i]['log_out_date'])) {
@@ -510,7 +529,7 @@ class SecretariatFileLogService
                 }
                 $next = $log[$i + 1];
                 $sentAt = $log[$i]['log_out_date'] . ' ' . ($log[$i]['log_out_time'] ?? '');
-                if (strtotime($sentAt) && strtotime($sentAt) < $sentFrom->getTimestamp()) {
+                if (!$anyAge && strtotime($sentAt) && strtotime($sentAt) < $sentFrom->getTimestamp()) {
                     break;
                 }
                 // Sent after the range: an earlier send from this office may still fall in it.
@@ -530,7 +549,30 @@ class SecretariatFileLogService
             }
         }
 
+        [$pending, $held, $sent] = $this->markDiit($pending, $held, $sent);
+
         return compact('pending', 'held', 'sent');
+    }
+
+    /**
+     * DIIT files (user, 2026-10-29): commissioned in KLAES, the same test the File Tracker page
+     * uses for its "File Commissioning · DIIT" line. The line is derived from mls_file_no, so a
+     * file is DIIT even when its tracker does not store the line; one primed query per list.
+     */
+    private function markDiit(array ...$lists): array
+    {
+        $diit = app(\App\Services\FileCommissioningTrackingService::class);
+        try {
+            $diit->prime(collect($lists)->flatten(1)->pluck('file_number')->filter()->unique()->values());
+        } catch (\Throwable $e) {
+            return $lists;   // the tag is a hint; never fail the lists over it
+        }
+
+        return array_map(fn ($rows) => array_map(function ($r) use ($diit) {
+            $r['diit'] = $r['diit'] || $diit->isCommissioned($r['file_number'] ?? null);
+
+            return $r;
+        }, $rows), $lists);
     }
 
     /**
@@ -783,6 +825,8 @@ class SecretariatFileLogService
             'sender_rank' => $meta['sender_rank'] ?? null,
             'reference'   => $meta['reference'] ?? null,
             'related_file_number' => $meta['related_file_number'] ?? null,
+            // Commissioned in KLAES (DIIT): set for the whole list by markDiit().
+            'diit'        => !empty($tracker->movement_log) && collect($tracker->movement_log)->contains(fn ($e) => is_array($e) && !empty($e['_diit'])),
             // The entry's own id; unique within its tracker (tracking_id is unique overall).
             'log_id'      => $entry['log_id'] ?? null,
             // 'received' is the internal tag on a receipt entry, not a purpose.

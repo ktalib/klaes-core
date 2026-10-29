@@ -649,6 +649,17 @@
             @endforeach
         </div>
 
+        {{-- Related File (Physical File is Sighted): one Yes/No per related file row, added by
+             js/fileindexing/related-file-sighting.js. No sets NPF (No Physical File). --}}
+        @php
+            $relatedSightings = app(\App\Services\FileIndexing\RelatedFileSightings::class)->forRecord(isset($record) ? ($record->id ?? null) : null);
+        @endphp
+        <input type="hidden" id="related-file-sightings" name="{{ \App\Services\FileIndexing\RelatedFileSightings::REQUEST_FIELD }}"
+            value="{{ json_encode($relatedSightings) }}"
+            data-required-message="{{ \App\Services\FileIndexing\RelatedFileSightings::REQUIRED_MESSAGE }}"
+            data-cover-text="{{ \App\Services\FileIndexing\RelatedFileSightings::COVER_MISSING_TEXT }}">
+        <script src="{{ asset('js/fileindexing/related-file-sighting.js') }}?v={{ is_file(public_path('js/fileindexing/related-file-sighting.js')) ? filemtime(public_path('js/fileindexing/related-file-sighting.js')) : 1 }}"></script>
+
         <div class="mt-4 flex justify-between items-center">
             <button type="button" id="add-related-file-btn" class="{{ (isset($record) && $record->has_related_file) ? '' : 'hidden' }} inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                 <i data-lucide="plus" class="h-4 w-4 mr-2 text-gray-700"></i>

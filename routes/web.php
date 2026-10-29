@@ -692,6 +692,17 @@ Route::group(['middleware' => ['auth'], 'prefix' => 'instrument_registration'], 
     Route::delete('delete/{id}', [InstrumentRegistrationController::class, 'destroy'])->name('instrument_registration.destroy');
 });
 
+// Master Delete + Move Registration for the Instrument Capture and Instrument
+// Registration tables (Supper Admin only, enforced in the controller).
+// {ref} = deed_reg_{id} | instr_capture_{id} | bare capture id.
+Route::middleware(['auth', 'XSS'])->prefix('instrument-master')->name('instrument_master.')
+    ->where(['ref' => '(deed_reg_|instr_capture_)?[0-9]+'])->group(function () {
+    Route::get('{ref}/delete-preview', [\App\Http\Controllers\InstrumentMasterActionsController::class, 'deletePreview'])->name('delete-preview');
+    Route::delete('{ref}/master-destroy', [\App\Http\Controllers\InstrumentMasterActionsController::class, 'masterDestroy'])->name('master-destroy');
+    Route::get('{ref}/move-options', [\App\Http\Controllers\InstrumentMasterActionsController::class, 'moveOptions'])->name('move-options');
+    Route::post('{ref}/move', [\App\Http\Controllers\InstrumentMasterActionsController::class, 'move'])->name('move');
+});
+
 // Instrument Types Management
 Route::resource('instrument-types', \App\Http\Controllers\InstrumentTypeController::class)->middleware(['auth', 'XSS']);
 
@@ -1417,6 +1428,7 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'fileindexing'], func
     Route::get('/api/sltr-grouping-details', [App\Http\Controllers\FileIndexingController::class, 'getSltrGroupingDetails'])->name('fileindexing.api.sltr-grouping-details');
     Route::get('/api/check-temp-association', [App\Http\Controllers\FileIndexingController::class, 'checkTempAssociation'])->name('fileindexing.api.check-temp-association');
     Route::get('/api/kangis-land-file', [App\Http\Controllers\FileIndexingController::class, 'kangisLandFileStatus'])->name('fileindexing.api.kangis-land-file');
+    Route::get('/api/related-file-indexed', [App\Http\Controllers\FileIndexingController::class, 'relatedFileIndexedStatus'])->name('fileindexing.api.related-file-indexed');
 
     // Other authenticated routes
     Route::get('/search-applications', [App\Http\Controllers\FileIndexController::class, 'searchApplications'])->name('fileindexing.search-applications');

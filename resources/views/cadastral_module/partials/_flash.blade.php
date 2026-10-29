@@ -1,9 +1,4 @@
-@if (session('success'))
-    <div class="comp-type-note" style="border-left:4px solid var(--secondary);background:#eafaf1;margin-bottom:16px;">
-        <i class="fas fa-check-circle" style="color:var(--secondary-dark);"></i>
-        {{ session('success') }}
-    </div>
-@endif
+{{-- Success shows as the slim Cadastral banner (cadastral_dept.partials._flash_banner, layouts.app, 2026-10-29). --}}
 
 @if (session('error'))
     <div class="comp-type-note" style="border-left:4px solid var(--danger);background:#fdecea;margin-bottom:16px;">

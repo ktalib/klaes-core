@@ -406,6 +406,19 @@ class GroupingApiController extends Controller
         $awaitingFileNumber = $validated['awaiting_file_number'] ?? $mlsFileNumber;
         $registry = $validated['registry'] ?? 'Lands Registry';
 
+        // A File Extension has no grouping row and must never be linked onto the
+        // mother's: that wrote "X AND EXTENSION" over the mother's mls_fileno on every
+        // lookup. Hand back the extension's own on-the-fly tracking ID instead.
+        if (\App\Support\FileExtensionTracking::isExtensionNumber($mlsFileNumber)) {
+            return response()->json([
+                'success' => true,
+                'status' => 'extension',
+                'message' => 'File Extension: on-the-fly tracking ID, no grouping link.',
+                'data' => ['tracking_id' => \App\Support\FileExtensionTracking::resolveFor(strtoupper(trim($mlsFileNumber)))],
+                'meta' => ['on_the_fly' => true],
+            ]);
+        }
+
         try {
             $result = $service->linkAwaitingToMls($mlsFileNumber, $awaitingFileNumber, $registry);
         } catch (\InvalidArgumentException $exception) {

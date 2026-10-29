@@ -430,7 +430,6 @@
             <thead>
                 <tr>
                     <th>S/N</th>
-                    <th>Date</th>
                     <th>Type</th>
                     <th>File No.</th>
                     <th>Register No.</th>
@@ -448,6 +447,7 @@
                     <th>Teller No.</th>
                     <th>Amount (₦)</th>
                     <th>Date Received</th>
+                    <th>Date Created</th>
                     <th>Status</th>
                     <th style="width:48px;"></th>
                 </tr>
@@ -456,7 +456,6 @@
                 @forelse ($entries as $row)
                     <tr @if ($e && $e->id === $row->id) style="background:#fff8e1;" @endif>
                         <td>{{ $entries->firstItem() + $loop->index }}</td>
-                        <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
                         <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
                         <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
                         <td>{{ $row->register_no ?: '—' }}</td>
@@ -483,6 +482,7 @@
                         </td>
                         <td style="text-align:right;">{{ $row->amount !== null ? number_format((float) $row->amount, 2) : '—' }}</td>
                         <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
                         <td style="white-space:nowrap;">
                             @if ($row->audited_at)
                                 <span class="status-badge completed" title="Audited by {{ $userName($row->auditor) }} on {{ $row->audited_at->format('d/m/Y H:i') }}"><span class="dot"></span>Audited</span>
@@ -547,7 +547,6 @@
                         @foreach ($row->numbers as $n)
                             <tr class="br-num-row" data-parent="{{ $row->id }}" hidden>
                                 <td class="br-num-sn">{{ $rowSn }}.{{ $loop->iteration }}</td>
-                                <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
                                 <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
                                 <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
                                 <td>{{ $row->register_no ?: '—' }}</td>
@@ -565,6 +564,7 @@
                                 <td>{{ $row->teller_no ?: '—' }}</td>
                                 <td style="text-align:right;color:var(--gray-400);">—</td>
                                 <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
+                                <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
                                 <td></td>
                                 <td></td>
                             </tr>

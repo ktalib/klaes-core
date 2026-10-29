@@ -16,12 +16,22 @@
       $areaValue = round($area['ha'] * 10000, 2);
   }
   $purpose = $v('q4_purpose');
+  // Q4(c) backfilled from the file's land use until the officer saves one (user, 2026-10-28).
+  $purposePrefilled = ($purpose === null || $purpose === '') && ($landUse['value'] ?? null) !== null;
+  if ($purposePrefilled) {
+      $purpose = $landUse['value'];
+  }
   $purposeIsOther = $purpose !== null && $purpose !== '' && $purpose !== 'Other' && ! in_array($purpose, $F::PURPOSES, true);
   $cdYn = [
       'q2_ground_open' => $v('q2_ground_open'), 'q3_beaconed' => $v('q3_beaconed'),
       'q4_town_plan' => $v('q4_town_plan'), 'q5_previous_title' => $v('q5_previous_title'),
       'purpose' => $purposeIsOther ? 'Other' : $purpose,
       'sqm' => $areaValue === null ? '' : (string) $areaValue,
+      // Q8 from dimensions (2026-10-28): the form's own, else the file's plan description's.
+      // Save stays disabled until something is changed (user, 2026-10-28).
+      'dirty' => false,
+      'dimsText' => (string) (old('area_dimensions', $form?->area_dimensions ?? null)
+          ?: (\App\Models\Cadastral\CadastralPlanDescription::query()->where('file_number', $case->file_number)->whereNotNull('dimensions')->orderByDesc('id')->value('dimensions') ?? '')),
   ];
   $input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100';
   $label = 'block text-xs font-medium text-gray-600 mb-1';
@@ -98,15 +108,31 @@
 
     @if ($installed)
     <form method="POST" action="{{ route('cadastral-dept.cases.yes-no.save', $case->id) }}" x-data='{!! json_encode($cdYn, JSON_HEX_APOS | JSON_HEX_QUOT) !!}'
+          @input="dirty = true" @change="dirty = true" @click="if ($event.target.closest('button[type=button]')) dirty = true"
           class="rounded-xl border border-gray-200 bg-white" data-confirm-title="Save the Yes/No form?" data-confirm="The answers for {{ $case->file_number }} are saved.">
       @csrf
       <fieldset @disabled(! $editable) class="divide-y divide-gray-100">
         <div class="p-5 grid gap-4 sm:grid-cols-4">
-          <div><label class="{{ $label }}">R. of O. No. LKN/</label>@php $cdRef = old('lkn_no', $refs['lkn']); $cdLock = $cdRef !== null && $cdRef === $fileRef('LKN'); @endphp<input type="text" name="lkn_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
-          <div><label class="{{ $label }}">SLTR/</label>@php $cdRef = old('sltr_no', $refs['sltr']); $cdLock = $cdRef !== null && $cdRef === $fileRef('SLTR'); @endphp<input type="text" name="sltr_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
-          <div><label class="{{ $label }}">Government Item No. GKN/</label>@php $cdRef = old('govt_item_no', $refs['gkn']); $cdLock = $cdRef !== null && $cdRef === $fileRef('GKN'); @endphp<input type="text" name="govt_item_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
-          <div><label class="{{ $label }}">SIT/</label>@php $cdRef = old('sit_no', $refs['sit']); $cdLock = $cdRef !== null && $cdRef === $fileRef('SIT'); @endphp<input type="text" name="sit_no" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
-          <p class="sm:col-span-4 text-xs text-gray-500">A blank line prints the file number on the line its file type says (shown greyed in the box).</p>
+          {{-- Only the reference line the file number goes on is shown (user, 2026-10-28); the others
+               keep any saved value as hidden fields, and print as the form always has. --}}
+          @php
+            $cdLine = \App\Services\CadastralDept\YesNoForms::line($case);
+            $cdRefFields = [
+              'lkn' => ['lkn_no', 'R. of O. No. LKN/', 'LKN'],
+              'sltr' => ['sltr_no', 'SLTR/', 'SLTR'],
+              'gkn' => ['govt_item_no', 'Government Item No. GKN/', 'GKN'],
+              'sit' => ['sit_no', 'SIT/', 'SIT'],
+            ];
+          @endphp
+          @foreach ($cdRefFields as $cdKey => [$cdName, $cdLabel, $cdPrefix])
+            @php $cdRef = old($cdName, $refs[$cdKey]); @endphp
+            @if ($cdKey === $cdLine)
+              @php $cdLock = $cdRef !== null && $cdRef === $fileRef($cdPrefix); @endphp
+              <div><label class="{{ $label }}">{{ $cdLabel }}</label><input type="text" name="{{ $cdName }}" maxlength="100" value="{{ $cdRef }}" @if ($cdLock) readonly title="Filled from the file number" @endif class="{{ $input }} {{ $cdLock ? 'bg-gray-100 text-gray-700' : '' }}"></div>
+            @else
+              <input type="hidden" name="{{ $cdName }}" value="{{ $cdRef }}">
+            @endif
+          @endforeach
         </div>
 
         @php
@@ -158,6 +184,9 @@
                 @endforeach
                 <option value="Other" @selected($cdYn['purpose'] === 'Other')>Other</option>
               </select>
+              @if ($purposePrefilled)
+                <p class="mt-1 text-xs text-blue-700">Filled from the {{ $landUse['source'] }} ({{ $landUse['value'] }}). Change it if the application is for another use.</p>
+              @endif
             </div>
             <div x-show="purpose === 'Other'" x-cloak>
               <label class="{{ $label }}">Specify the other purpose *</label>
@@ -177,17 +206,44 @@
         <div class="p-5"><div class="{{ $q }}"><span>{{ $F::QUESTIONS['q6_railway'] }}</span>{!! $yn('q6_railway') !!}</div></div>
         <div class="p-5"><div class="{{ $q }}"><span>{{ $F::QUESTIONS['q7_trunk_road'] }}</span>{!! $yn('q7_trunk_road') !!}</div></div>
 
-        <div class="p-5">
+        <div class="p-5" x-data="cdYnDims(dimsText)" x-init="fromDims = total() > 0; sync()">
           <div class="{{ $q }}"><span>8. Area applied for</span></div>
+          {{-- Worked out from dimensions (user, 2026-10-28): rows of length x width in metres, + to add a
+               row; the total fills Square metres. With no rows filled, the area can be typed. --}}
+          <div class="mt-2 mb-3">
+            <label class="{{ $label }}">Dimensions</label>
+            <div class="space-y-2">
+              <template x-for="(d, i) in dims" :key="i">
+                <div class="flex flex-wrap items-center gap-2">
+                  <input type="text" inputmode="decimal" x-model="d.l" @input="sync()" placeholder="Length" aria-label="Length (m)"
+                         class="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono">
+                  <span class="text-gray-500">m ×</span>
+                  <input type="text" inputmode="decimal" x-model="d.w" @input="sync()" placeholder="Width" aria-label="Width (m)"
+                         class="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono">
+                  <span class="text-gray-500">m</span>
+                  <span class="text-sm text-gray-600" x-show="rowArea(d)" x-text="'= ' + rowArea(d).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' m²'"></span>
+                  <button type="button" @click="dims.splice(i, 1); sync()" x-show="dims.length > 1" aria-label="Remove this row"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-full text-red-600 hover:bg-red-50">&times;</button>
+                </div>
+              </template>
+            </div>
+            <button type="button" @click="dims.push({l: '', w: ''})"
+                    class="mt-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-green-600 text-green-700 text-sm font-semibold hover:bg-green-50">+ Add</button>
+            <input type="hidden" name="area_dimensions" :value="text()">
+          </div>
           <div class="{{ $sub }}">
             <div>
               <label class="{{ $label }}">Square metres (m²)</label>
-              <input type="number" step="0.01" min="0" name="area_applied_sqm" x-model="sqm" value="{{ $areaValue }}" class="{{ $input }}">
+              <input type="number" step="0.01" min="0" name="area_applied_sqm" x-model="sqm" value="{{ $areaValue }}" :readonly="total() > 0"
+                     :class="total() > 0 ? 'bg-gray-100 text-gray-700' : ''" class="{{ $input }}">
               <p class="mt-1 text-xs text-gray-500">
+                <span x-show="total() > 0">Worked out from the dimensions.</span>
+                <span x-show="!(total() > 0)">
                 @if ($areaPrefilled) Filled in from {{ $area['source'] }}; saved when you save the form.
                 @elseif ($area['source'] === 'entered') As entered.
                 @else No plan description or charting card area for this file yet.
                 @endif
+                </span>
               </p>
             </div>
             <div>
@@ -200,9 +256,9 @@
 
       @if ($editable)
         <div class="p-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100">
-          <span class="text-xs text-gray-500">"Yes/No form" can be ticked once questions 1–7 are all answered.</span>
+          <span class="text-xs text-gray-500" x-text="dirty ? 'With questions 1–7 all answered, saving takes you to the file to mark the Yes/No form done.' : @js($form ? 'Saved. Change an answer to save again.' : 'Answer questions 1–7, then save.')"></span>
           @cadCan('edit')
-            <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold">
+            <button type="submit" :disabled="!dirty" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
               <i data-lucide="save" class="w-4 h-4"></i> Save the Yes/No form
             </button>
           @endcadCan
@@ -214,3 +270,26 @@
   @include('admin.footer')
 </div>
 @endsection
+
+@push('scripts')
+<script>
+  // Yes/No form Q8: dimensions rows (length x width, metres) and their total in m2 (2026-10-28).
+  function cdYnDims(text) {
+    const num = v => { const n = parseFloat(String(v ?? '').replace(/[ ,]/g, '')); return isNaN(n) ? null : n; };
+    const rows = String(text || '').split(/[;\n]+/).map(r => r.match(/([\d.,]+)\s*m?\s*[x×*]\s*([\d.,]+)/i)).filter(Boolean).map(m => ({l: m[1], w: m[2]}));
+    return {
+      dims: rows.length ? rows : [{l: '', w: ''}],
+      rowArea(d) { const l = num(d.l), w = num(d.w); return l && w ? l * w : 0; },
+      total() { return this.dims.reduce((s, d) => s + this.rowArea(d), 0); },
+      text() { return this.dims.filter(d => num(d.l) && num(d.w)).map(d => num(d.l) + ' m x ' + num(d.w) + ' m').join('; '); },
+      // The total fills Square metres; when the last dimension is cleared, the figure it gave is cleared too.
+      fromDims: false,
+      sync() {
+        const t = this.total();
+        if (t) { this.sqm = String(+t.toFixed(2)); this.fromDims = true; }
+        else if (this.fromDims) { this.sqm = ''; this.fromDims = false; }
+      },
+    };
+  }
+</script>
+@endpush

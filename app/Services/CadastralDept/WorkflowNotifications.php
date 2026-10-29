@@ -4,6 +4,7 @@ namespace App\Services\CadastralDept;
 
 use App\Models\CadastralDept\CadastralCase;
 use App\Models\CadastralOfficer;
+use App\Models\User;
 use App\Services\UserNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,9 +19,8 @@ use Illuminate\Support\Facades\Log;
  *   closed     completed, or returned to its source            -> the closing desk, Registry, and
  *                                                                 the officer who registered it
  *
- * A desk's officers are the users holding its `post` (config cadastral_dept.desks) in the
- * Cadastral staff directory (Configurable Entries > Cadastral > Officers). A desk with nobody
- * set notifies no one. The officer who made the move is never notified of it.
+ * A desk's officers are the users holding its desk role (the role that opens the desk), plus
+ * anyone set on its `post` in the officers directory. A desk with nobody notifies no one. The officer who made the move is never notified of it.
  *
  * Sent after the save commits, so a refused or rolled-back move notifies nobody, and a
  * notification failure is logged, never shown to the officer: the move has already happened.
@@ -95,7 +95,8 @@ class WorkflowNotifications
         if (!empty($to['external'])) {   // out with another department; a Cadastral desk records its return
             $recorder = $def->actingDesk($wf, $toStep);
 
-            return [$this->without($this->officers($def, $recorder), $actorId), 'out',
+            // The Survey unit's own staff are told too (Survey > Other Departments, 2026-10-28).
+            return [$this->without(array_merge($this->officers($def, $recorder), $this->officers($def, $toDesk)), $actorId), 'out',
                 "{$case->file_number} sent to " . $def->deskShort($toDesk),
                 "{$case->case_ref}: file {$file} is out with " . $def->deskLabel($toDesk) . ' (' . $to['label'] . '). Record it on ' . $def->deskShort($recorder) . ' when it comes back.' . $reason];
         }
@@ -128,6 +129,12 @@ class WorkflowNotifications
     private function send(CadastralCase $case, ?string $fromStep, ?string $toStep, string $outcome, ?string $remarks, ?int $actorId): void
     {
         [$users, $event, $title, $body] = $this->plan($case, $fromStep, $toStep, $outcome, $remarks, $actorId);
+        if ($title === '') {
+            return;   // nothing to tell (the next step on the same desk)
+        }
+        // Super Admin and Central Admin see every Cadastral notification, their own moves included
+        // (user, 2026-10-27: "the admin should be able to see all the notifications").
+        $users = array_values(array_unique(array_merge($users, $this->admins())));
         if (!$users) {
             return;
         }
@@ -151,12 +158,55 @@ class WorkflowNotifications
         }
     }
 
-    /** Users holding the desk's post (active directory rows with a KLAES user). */
+    /**
+     * The desk's officers: active users holding the desk's role (DeskAccess::rolesFor, the roles
+     * that open the desk), plus anyone still set on its post in the officers directory. Desks open
+     * by role since 2026-10-26 and no posts were ever set, so post-only sent nothing (2026-10-27).
+     */
     private function officers(WorkflowDefinition $def, ?string $desk): array
     {
-        $post = $desk ? ($def->desks()[$desk]['post'] ?? null) : null;
+        if (!$desk) {
+            return [];
+        }
+        $post = $def->desks()[$desk]['post'] ?? null;
+        $byPost = $post ? CadastralOfficer::userIdsForPost($post) : [];
 
-        return $post ? CadastralOfficer::userIdsForPost($post) : [];
+        return array_merge($byPost, $this->roleHolders($desk));
+    }
+
+    /** Active Super Admins and Central Admin role holders. */
+    private function admins(): array
+    {
+        $central = mb_strtolower(DeskAccess::centralAdminRole());
+        $this->rolesByUser ??= User::query()->whereNotNull('assign_role')->where('assign_role', '!=', '')
+            ->where(fn ($q) => $q->whereNull('is_active')->orWhere('is_active', 1))
+            ->get()
+            ->mapWithKeys(fn ($u) => [(int) $u->id => array_map('mb_strtolower', $u->assignedRoleNames())])
+            ->all();
+        $ids = array_keys(array_filter($this->rolesByUser, fn ($roles) => (bool) array_intersect($roles, ['super admin', 'supper admin', $central])));
+        // Super Admin by account type (users.type) too.
+        $byType = User::query()->whereIn(DB::raw('LOWER(type)'), ['super admin', 'supper admin'])
+            ->where(fn ($q) => $q->whereNull('is_active')->orWhere('is_active', 1))->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        return array_values(array_unique(array_merge($ids, $byType)));
+    }
+
+    /** @var array<int, string[]>|null user id => lower-cased role names, read once per request */
+    private ?array $rolesByUser = null;
+
+    private function roleHolders(string $desk): array
+    {
+        $want = array_map('mb_strtolower', DeskAccess::rolesFor($desk));
+        if (!$want) {
+            return [];
+        }
+        $this->rolesByUser ??= User::query()->whereNotNull('assign_role')->where('assign_role', '!=', '')
+            ->where(fn ($q) => $q->whereNull('is_active')->orWhere('is_active', 1))
+            ->get()
+            ->mapWithKeys(fn ($u) => [(int) $u->id => array_map('mb_strtolower', $u->assignedRoleNames())])
+            ->all();
+
+        return array_keys(array_filter($this->rolesByUser, fn ($roles) => (bool) array_intersect($roles, $want)));
     }
 
     private function without(array $users, ?int $actorId): array

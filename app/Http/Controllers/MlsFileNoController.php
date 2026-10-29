@@ -3338,7 +3338,9 @@ class MlsFileNoController extends Controller
                 $isOwnExtension = $fileOption === 'extension'
                     && \App\Support\FileExtensionTracking::isExtensionNumber($fullFileNumber);
                 if ($isOwnExtension) {
-                    $trackingId = \App\Support\FileExtensionTracking::resolveFor($fullFileNumber);
+                    // The on-the-fly ID the form showed is kept when it is still free, so
+                    // the saved ID is the one the officer saw.
+                    $trackingId = \App\Support\FileExtensionTracking::resolveFor($fullFileNumber, $validated['tracking_id'] ?? null);
                 }
 
                 if (empty($trackingId)) {
@@ -6580,6 +6582,20 @@ class MlsFileNoController extends Controller
     {
         try {
             $preferred = trim((string) $request->query('preferred', ''));
+
+            // A File Extension ("X AND EXTENSION") has no grouping row: its tracking ID is
+            // its own, generated on the fly, and the form shows it as such.
+            $extension = strtoupper(trim((string) $request->query('extension', '')));
+            if ($extension !== '' && \App\Support\FileExtensionTracking::isExtensionNumber($extension)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'tracking_id' => \App\Support\FileExtensionTracking::resolveFor($extension, $preferred ?: null),
+                        'on_the_fly' => true,
+                    ],
+                ]);
+            }
+
             $trackingId = $this->getUniqueTrackingId($preferred !== '' ? $preferred : null);
 
             return response()->json([

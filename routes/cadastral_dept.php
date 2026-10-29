@@ -6,6 +6,7 @@ use App\Http\Controllers\CadastralDept\ChartingController;
 use App\Http\Controllers\CadastralDept\DeskController;
 use App\Http\Controllers\CadastralDept\FieldJacketController;
 use App\Http\Controllers\CadastralDept\FmcController;
+use App\Http\Controllers\CadastralDept\OtherDepartmentsController;
 use App\Http\Controllers\CadastralDept\PndBillController;
 use App\Http\Controllers\CadastralDept\PropertyIndexCardController;
 use App\Http\Controllers\CadastralDept\WorkflowController;
@@ -52,12 +53,20 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
 
     // Desk inboxes: files currently waiting at one desk.
     Route::get('/desks/{desk}', [DeskController::class, 'show'])->name('desks.show');
+    // Survey > Other Departments > Cadastral: the files now with a Survey unit (Compensation, DSG, Examination, SG).
+    Route::get('/other-departments/{desk}', [OtherDepartmentsController::class, 'show'])->name('other-departments.show');
+    // Accept a file sent to the desk by scanning its QR (or typing its tracking ID / file number).
+    Route::post('/desks/{desk}/accept', [DeskController::class, 'acceptScan'])->name('desks.accept.save');
 
     // Cases: one per main file passing through the department.
     Route::get('/cases', [CaseController::class, 'index'])->name('cases.index');
     Route::get('/cases/create', [CaseController::class, 'create'])->name('cases.create');
+    // Register File's Batch mode: many files, one application type and file type at a time.
+    Route::post('/cases/batch', [CaseController::class, 'batchStore'])->name('cases.batch.store');
     Route::get('/lookup/file', [CaseController::class, 'lookupFile'])->name('lookup.file');
     Route::get('/lookup/files', [CaseController::class, 'lookupFiles'])->name('lookup.files');
+    // Register File: scan a QR (or type a tracking ID / file number) to find the file, any tab.
+    Route::get('/lookup/qr', [CaseController::class, 'lookupQr'])->name('lookup.qr');
     // Register File, Verification: the File Status checks for the picked file, before it is registered.
     Route::get('/lookup/file-status', [CaseController::class, 'lookupFileStatus'])->name('lookup.file-status');
     Route::post('/cases', [CaseController::class, 'store'])->name('cases.store');
@@ -67,9 +76,13 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
 
     Route::post('/cases/{case}/tasks', [CaseController::class, 'completeTask'])->whereNumber('case')->name('cases.tasks.mark-done');
     Route::post('/cases/{case}/move', [CaseController::class, 'advance'])->whereNumber('case')->name('cases.move.save');
+    // The unit accepts a file it was sent (logged in the Ministry file tracker).
+    Route::post('/cases/{case}/accept', [CaseController::class, 'accept'])->whereNumber('case')->name('cases.accept.save');
     // Super Admin / Central Admin: move to any step from the step bar, past the checks, with a reason (2026-10-26).
     Route::post('/cases/{case}/jump', [CaseController::class, 'jump'])->whereNumber('case')->name('cases.jump.save');
     Route::post('/cases/{case}/sub-type', [CaseController::class, 'setSubType'])->whereNumber('case')->name('cases.sub-type.update');
+    // Wrong application type picked at registration: changed while still at Registry intake (user, 2026-10-28).
+    Route::post('/cases/{case}/application-type', [CaseController::class, 'changeType'])->whereNumber('case')->name('cases.application-type.update');
     // Master Delete (Supper Admin, typed confirmation): clears a file and its workflow rows.
     Route::delete('/cases/{case}/master-destroy', [CaseController::class, 'masterDestroy'])->whereNumber('case')->name('cases.master-destroy');
 

@@ -118,17 +118,15 @@
                             @endphp
                             @forelse($records as $record)
                                 @php
-                                    // Same conditions as this row's menu: KAMMA until approved;
-                                    // reject while open; approve also needs the Master JSI.
-                                    $batchOpen = !in_array($record->status, ['approved', 'rejected', 'commissioned'], true);
-                                    $batchKammaDone = strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0;
+                                    // Same rules as this row's menu (App\Support\PlotExtensionWorkflow).
+                                    $batchBlock = \App\Support\PlotExtensionWorkflow::blockers($record, (bool) ($jsiCleared[$record->id] ?? false));
                                 @endphp
                                 <tr data-record='@json($record)'>
-                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchKammaDone, 'canApprove' => $batchOpen && ($jsiCleared[$record->id] ?? false), 'canReject' => $batchOpen]){{ $records->firstItem() + $loop->index }}</td>
+                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono whitespace-nowrap">@include('deeds.parcel_update.partials.batch_check', ['canKnupda' => !$batchBlock['kamma'], 'canApprove' => !$batchBlock['decision'], 'canReject' => !$batchBlock['decision']]){{ $records->firstItem() + $loop->index }}</td>
                                     <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
                                     <td class="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">{{ $record->file_no ?: '—' }}</td>
                                     @include('deeds.parcel_update.partials.new_file_nos_cell', ['newFiles' => $newFileNos[$record->id] ?? [], 'newFilesFrom' => $record->file_no])
-                                    <td class="px-4 py-2.5 text-slate-700">{{ $record->land_use ?: '—' }}</td>
+                                    <td class="px-4 py-2.5 text-slate-700">{{ \App\Support\FileNumberLandUse::LABELS[strtoupper(trim((string) $record->land_use))] ?? ($record->land_use ?: '—') }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->plot_no ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-600 text-xs leading-snug">
                                         {{-- District, LGA (+ state) only: the plot has its own column. --}}
@@ -149,113 +147,92 @@
                                     <td class="px-4 py-2.5 font-mono text-xs text-slate-600">
                                         {{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('M d, Y') : '—' }}
                                     </td>
-                                    <td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by])</td>
+                                    <td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">@include('deeds.parcel_update.partials.created_by_cell', ['userId' => $record->captured_by, 'name' => str_starts_with((string) $record->remarks, '[System backfill]') ? 'System Backfill' : null])</td>
                                     <td class="px-4 py-2.5 text-center">
                                             <div class="relative inline-block text-left" id="pe-dropdown-{{ $record->id }}">
                                                 <button type="button" onclick="togglePeDropdown({{ $record->id }})" class="p-2 hover:bg-slate-100 text-slate-600 rounded-full transition">
                                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                                 </button>
                                                 
+                                                {{-- Each item is open only at its step (App\Support\PlotExtensionWorkflow); a
+                                                     disabled one says why on hover. The endpoints check the same rules. --}}
+                                                @php
+                                                    $peBlock = \App\Support\PlotExtensionWorkflow::blockers($record, (bool) ($jsiCleared[$record->id] ?? false));
+                                                    $peOff = 'flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50';
+                                                @endphp
                                                 <div id="pe-menu-{{ $record->id }}" class="hidden fixed z-[999] mt-2 w-max origin-top-right rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none divide-y divide-slate-100 whitespace-nowrap">
                                                     <div class="py-1">
                                                         <button onclick="peView(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
                                                             <i data-lucide="eye" class="w-4 h-4 text-blue-500"></i> View Details
                                                         </button>
+                                                        @if($peBlock['edit'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['edit'] }}"><i data-lucide="edit" class="w-4 h-4 text-slate-300"></i> Edit</button>
+                                                        @else
+                                                            <button onclick="peEdit(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 gap-2">
+                                                                <i data-lucide="edit" class="w-4 h-4"></i> Edit
+                                                            </button>
+                                                        @endif
                                                     </div>
                                                     <div class="py-1 border-t border-slate-100">
-                                                        @if(strcasecmp(trim((string) ($record->knupda_status ?? '')), 'Approved') === 0)
-                                                        <button disabled title="Already approved by KAMMA / Physical Planning" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50"><i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> KAMMA / Physical Planning</button>
+                                                        @if($peBlock['kamma'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['kamma'] }}"><i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> KAMMA / Physical Planning</button>
                                                         @else
-                                                        <button onclick="peOpenKnupdaModal({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 gap-2">
-                                                            <i data-lucide="ruler" class="w-4 h-4 text-blue-500"></i> KAMMA / Physical Planning
-                                                        </button>
-                                                        @endif
-                                                    </div>
-                                                    <div class="py-1">
-                                                        @if(($jsiCleared[$record->id] ?? false))
-                                                            @if(!$record->recommendation_generated_at)
-                                                                <button onclick="peGenerateRecommendation({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-check" class="w-4 h-4 text-emerald-500"></i> Generate Recommendation
-                                                                </button>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Recommendation already generated">
-                                                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
-                                                                </button>
-                                                            @endif
-
-                                                            @if($record->recommendation_generated_at)
-                                                                <a href="{{ route('plot-extension.print-recommendation', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-text" class="w-4 h-4 text-indigo-500"></i> Print Recommendation
-                                                                </a>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate recommendation first">
-                                                                    <i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation
-                                                                </button>
-                                                            @endif
-                                                        @else
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-check" class="w-4 h-4 text-slate-300"></i> Generate Recommendation
-                                                            </button>
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation
+                                                            <button onclick="peOpenKnupdaModal({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 gap-2">
+                                                                <i data-lucide="ruler" class="w-4 h-4 text-blue-500"></i> KAMMA / Physical Planning
                                                             </button>
                                                         @endif
                                                     </div>
                                                     <div class="py-1">
-                                                        <button onclick="peEdit(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 gap-2">
-                                                            <i data-lucide="edit" class="w-4 h-4"></i> Edit
-                                                        </button>
+                                                        @if($peBlock['generate-recommendation'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['generate-recommendation'] }}"><i data-lucide="file-check" class="w-4 h-4 text-slate-300"></i> Generate Recommendation</button>
+                                                        @else
+                                                            <button onclick="peGenerateRecommendation({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                <i data-lucide="file-check" class="w-4 h-4 text-emerald-500"></i> Generate Recommendation
+                                                            </button>
+                                                        @endif
+                                                        @if($peBlock['print-recommendation'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['print-recommendation'] }}"><i data-lucide="file-text" class="w-4 h-4 text-slate-300"></i> Print Recommendation</button>
+                                                        @else
+                                                            <a href="{{ route('plot-extension.print-recommendation', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                <i data-lucide="file-text" class="w-4 h-4 text-indigo-500"></i> Print Recommendation
+                                                            </a>
+                                                        @endif
                                                     </div>
                                                     <div class="py-1">
-                                                        {{-- Approve sits BELOW the recommendation and above the
-                                                             application, for the same reason as the other parcel-update
-                                                             pages: it is given on the strength of the recommendation
-                                                             memo. peApprove() and peReject() both already existed - they
-                                                             had simply never been put on the menu. --}}
-                                                        @if(in_array($record->status, ['approved', 'rejected', 'commissioned'], true))
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Already approved{{ ($jsiCleared[$record->id] ?? false) ? ' via the Master JSI' : '' }}">
-                                                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-300"></i> Approve / Reject
-                                                            </button>
+                                                        {{-- Approve sits BELOW the recommendation and above the application:
+                                                             it is given on the strength of the recommendation memo. --}}
+                                                        @if($peBlock['decision'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['decision'] }}"><i data-lucide="scale" class="w-4 h-4 text-slate-300"></i> Approve / Reject</button>
                                                         @else
-                                                            <button onclick="peOpenApprovalDecision({{ $record->id }}, {{ ($jsiCleared[$record->id] ?? false) ? 'true' : 'false' }})" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 gap-2 font-bold">
+                                                            <button onclick="peOpenApprovalDecision({{ $record->id }}, true)" class="flex items-center w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 gap-2 font-bold">
                                                                 <i data-lucide="scale" class="w-4 h-4 text-emerald-500"></i> Approve / Reject
                                                             </button>
                                                         @endif
                                                     </div>
                                                     <div class="py-1">
-                                                        @if(($jsiCleared[$record->id] ?? false))
-                                                            @if(!$record->application_generated_at)
-                                                                <button onclick="peGenerateApplication({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="file-plus" class="w-4 h-4 text-orange-500"></i> Generate Application
-                                                                </button>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Application already generated">
-                                                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-300"></i> Generate Application
-                                                                </button>
-                                                            @endif
-
-                                                            @if($record->application_generated_at)
-                                                                <a href="{{ route('plot-extension.print-application', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
-                                                                    <i data-lucide="printer" class="w-4 h-4 text-slate-500"></i> Print Application
-                                                                </a>
-                                                            @else
-                                                                <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Generate application first">
-                                                                    <i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application
-                                                                </button>
-                                                            @endif
+                                                        @if($peBlock['generate-application'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['generate-application'] }}"><i data-lucide="file-plus" class="w-4 h-4 text-slate-300"></i> Generate Application</button>
                                                         @else
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="file-plus" class="w-4 h-4 text-slate-300"></i> Generate Application
+                                                            <button onclick="peGenerateApplication({{ $record->id }})" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                <i data-lucide="file-plus" class="w-4 h-4 text-orange-500"></i> Generate Application
                                                             </button>
-                                                            <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed" title="Requires an approved Master JSI">
-                                                                <i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application
-                                                            </button>
+                                                        @endif
+                                                        @if($peBlock['print-application'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['print-application'] }}"><i data-lucide="printer" class="w-4 h-4 text-slate-300"></i> Print Application</button>
+                                                        @else
+                                                            <a href="{{ route('plot-extension.print-application', $record->id) }}" target="_blank" class="flex items-center w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 gap-2">
+                                                                <i data-lucide="printer" class="w-4 h-4 text-slate-500"></i> Print Application
+                                                            </a>
                                                         @endif
                                                     </div>
                                                     <div class="py-1">
-                                                        <button onclick="peDelete(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 gap-2">
-                                                            <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
-                                                        </button>
+                                                        @if($peBlock['delete'])
+                                                            <button disabled class="{{ $peOff }}" title="{{ $peBlock['delete'] }}"><i data-lucide="trash-2" class="w-4 h-4 text-slate-300"></i> Delete</button>
+                                                        @else
+                                                            <button onclick="peDelete(this)" class="flex items-center w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 gap-2">
+                                                                <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                                                            </button>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>

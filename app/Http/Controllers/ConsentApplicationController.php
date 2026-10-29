@@ -784,7 +784,7 @@ class ConsentApplicationController extends Controller
 
         $rateAudit = $this->rateAudit($rates, $profile);
 
-        if ($basis > 0) {
+        if ($basis > 0 || ConsentBillCalculator::hasFixedFees($type)) {
             $bill = $calculator->compute($basis, $type, $rates);
 
             $columns += [
@@ -920,14 +920,17 @@ class ConsentApplicationController extends Controller
 
         // With neither a valuation nor a manual figure there is nothing to bill.
         // Everything stays null rather than being stored as a ₦0.00 assessment.
+        // A flat-fee type (Gift) is the exception: its bill needs no valuation.
+        $flatFee = ConsentBillCalculator::hasFixedFees($transactionType);
         if ((!$bill['has_valuation'] || $bill['valuation_amount'] <= 0)
-            && $overrides === [] && $basis === null) {
+            && $overrides === [] && $basis === null && !$flatFee) {
             return $nulled;
         }
 
         $columns = [
             'valuation_report_id' => $bill['valuation_report_id'],
-            'valuation_amount' => $bill['valuation_amount'],
+            // A flat-fee bill raised without a valuation records no assessed amount.
+            'valuation_amount' => ($bill['has_valuation'] || $basis !== null) ? $bill['valuation_amount'] : null,
             'cgt_rate' => $bill['cgt_rate'],
             'cgt_amount' => $bill['cgt_amount'],
             'stamp_duty_rate' => $bill['stamp_duty_rate'],
@@ -1544,15 +1547,23 @@ class ConsentApplicationController extends Controller
                 'stamp_duty' => $application->stamp_duty_rate !== null ? (float) $application->stamp_duty_rate : null,
             ], fn($rate) => $rate !== null));
 
+            $flat = ConsentBillCalculator::hasFixedFees($application->transaction_type);
             $fees = [
                 'registration_rate' => (float) $bill['registration_rate'],
-                'registration_fee' => $basis > 0 ? $bill['registration_fee'] : null,
+                'registration_fee' => ($basis > 0 || $flat) ? $bill['registration_fee'] : null,
                 'processing_fee' => $bill['processing_fee'],
-                'total' => $basis > 0 ? $bill['bill_total'] : null,
+                'total' => ($basis > 0 || $flat) ? $bill['bill_total'] : null,
                 'stamp_duty_rate' => (float) $bill['stamp_duty_rate'],
-                'stamp_duty_amount' => $basis > 0 ? $bill['stamp_duty_amount'] : null,
+                'stamp_duty_amount' => ($basis > 0 || $flat) ? $bill['stamp_duty_amount'] : null,
             ];
         }
+
+        // A flat line prints without a percentage (Gift). Judged from the saved
+        // rate: a bill issued at a percentage before the flat fee existed keeps
+        // its "(5%)" label on reprint.
+        $fixed = ConsentBillCalculator::fixedLines($application->transaction_type);
+        $fees['registration_fixed'] = $fixed['registration'] && (float) $fees['registration_rate'] == 0.0;
+        $fees['stamp_duty_fixed'] = $fixed['stamp_duty'] && (float) $fees['stamp_duty_rate'] == 0.0;
 
         $payee = $application->stamp_duty_payee ?: ($profile['payee'] ?? 'KIRS');
 

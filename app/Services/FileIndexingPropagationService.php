@@ -53,6 +53,15 @@ use Throwable;
  *    filled from the selected file number, so it is a mirror of the title rather than a
  *    party of its own. See syncLandRecommendations().
  *
+ *    The Instrument Registration screen reads deed_registrations.grantor / grantee,
+ *    which are copies of the capture's party_1 / party_2. Whatever a title edit
+ *    renames on a capture is therefore copied onto the registration that capture
+ *    produced (mirrorCaptureNamesToRegistrations()).
+ *
+ *    Applications for Consent: the applicant is renamed only on consents no
+ *    registration has used yet. A used consent records a completed transaction
+ *    and is history (syncConsentApplicant()).
+ *
  *    Still deliberately NOT written: mother_applications first_name / surname /
  *    corporate_name — the identity of who submitted an application, not a property
  *    attribute of the file.
@@ -122,6 +131,12 @@ class FileIndexingPropagationService
 
         $targets = [];
 
+        // Capture party names before any step renames them, so the registrations
+        // they produced can be brought into line afterwards.
+        $captureNamesBefore = isset($changes['file_title'])
+            ? $this->captureNames($fileNumbers)
+            : collect();
+
         foreach ([
             'fileNumber' => fn () => $this->syncFileNumber($changes, $fileNumbers),
             'mls_file_no' => fn () => $this->syncMlsFileNo($changes, $fileNumbers),
@@ -145,6 +160,8 @@ class FileIndexingPropagationService
             'land_recommendations_land_use' => fn () => $this->syncRecommendationLandUse($changes, $after, $fileNumbers),
             'mother_applications' => fn () => $this->syncMotherApplication($changes, $after),
             'subapplications' => fn () => $this->syncSubApplication($changes, $after),
+            'consent_applicant_name' => fn () => $this->syncConsentApplicant($changes, $fileNumbers),
+            'deed_registrations_parties' => fn () => $this->mirrorCaptureNamesToRegistrations($captureNamesBefore, $fileNumbers),
         ] as $label => $sync) {
             try {
                 $rows = $sync();
@@ -497,6 +514,103 @@ class FileIndexingPropagationService
      * of Title — behind a transfer the capture row names the original allottee or an
      * earlier owner, which is history, not the current holder.
      */
+    /** party_1 / party_2 names of every capture on the file, keyed by capture id. */
+    private function captureNames(array $fileNumbers)
+    {
+        return DB::connection('sqlsrv')->table('instrument_capture')
+            ->where(function ($query) use ($fileNumbers) {
+                $query->whereIn('mlsFNo', $fileNumbers)
+                    ->orWhereIn('kangisFileNo', $fileNumbers)
+                    ->orWhereIn('NewKANGISFileno', $fileNumbers)
+                    ->orWhereIn('temp_fileno', $fileNumbers);
+            })
+            ->get(['id', 'party_1_name', 'party_2_name'])
+            ->keyBy('id');
+    }
+
+    /**
+     * Copy a capture rename onto its registration: party_1 -> grantor,
+     * party_2 -> grantee, and only the side this save actually changed.
+     */
+    private function mirrorCaptureNamesToRegistrations($before, array $fileNumbers): int
+    {
+        if ($before->isEmpty()) {
+            return 0;
+        }
+
+        $affected = 0;
+
+        foreach ($this->captureNames($fileNumbers) as $id => $now) {
+            $was = $before->get($id);
+            if (!$was) {
+                continue;
+            }
+
+            $payload = [];
+            if ((string) $now->party_1_name !== (string) $was->party_1_name) {
+                $payload['grantor'] = $now->party_1_name;
+            }
+            if ((string) $now->party_2_name !== (string) $was->party_2_name) {
+                $payload['grantee'] = $now->party_2_name;
+            }
+
+            if ($payload === []) {
+                continue;
+            }
+
+            Log::info('FileIndexingPropagation: mirroring capture rename to registration', [
+                'instrument_capture_id' => $id,
+                'columns' => array_keys($payload),
+            ]);
+
+            $affected += DB::connection('sqlsrv')->table('deed_registrations')
+                ->where('instrument_capture_id', $id)
+                ->update($payload + ['updated_at' => now()]);
+        }
+
+        return $affected;
+    }
+
+    /**
+     * Rename the applicant on the file's consents that no registration has used
+     * yet (no instrument_capture points at them). A used consent is the record
+     * of a completed transaction and keeps the name it was granted under.
+     */
+    private function syncConsentApplicant(array $changes, array $fileNumbers): int
+    {
+        $newTitle = trim((string) ($changes['file_title'] ?? ''));
+
+        if ($newTitle === '' || !Schema::connection('sqlsrv')->hasTable('consent_applications')) {
+            return 0;
+        }
+
+        $rows = DB::connection('sqlsrv')->table('consent_applications as ca')
+            ->whereIn('ca.file_number', $fileNumbers)
+            ->whereNotExists(function ($query) {
+                $query->from('instrument_capture as ic')->whereColumn('ic.consent_application_id', 'ca.id');
+            })
+            ->get(['ca.id', 'ca.applicant_name']);
+
+        $affected = 0;
+
+        foreach ($rows as $row) {
+            if ($this->normalize($row->applicant_name ?? '') === $this->normalize($newTitle)) {
+                continue;
+            }
+
+            Log::info('FileIndexingPropagation: renaming unused consent applicant', [
+                'consent_application_id' => $row->id,
+                'to' => $newTitle,
+            ]);
+
+            $affected += DB::connection('sqlsrv')->table('consent_applications')
+                ->where('id', $row->id)
+                ->update(['applicant_name' => $newTitle, 'updated_at' => now()]);
+        }
+
+        return $affected;
+    }
+
     private function renameCaptureHolder(array $changes, array $fileNumbers): int
     {
         $newTitle = $changes['file_title'] ?? null;

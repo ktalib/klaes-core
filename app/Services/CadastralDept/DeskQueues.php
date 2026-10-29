@@ -55,6 +55,8 @@ class DeskQueues
             $hasRule = true;
             try {
                 $actions = $this->engine->actions($case->workflow, $case->current_step, $case->sub_type);
+                // Final Charting: only the route the file's surveyor calls for (SG for a Government survey).
+                $actions = app(\App\Services\CadastralDept\SurveyRoute::class)->filter($case, $actions);
             } catch (WorkflowGuardException $e) {
                 $actions = [];
             }

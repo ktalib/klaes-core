@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\FileIndexing;
 use App\Models\FileTracker;
 use App\Models\MissingFile;
+use App\Services\FileIndexing\RelatedFileSightings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -410,12 +411,29 @@ class FileLocationResolver
             ->get(['file_number', 'file_title'])
             ->mapWithKeys(fn ($row) => [strtoupper(trim((string) $row->file_number)) => trim((string) $row->file_title) ?: null]);
 
+        $npf = $this->npfPairs(array_merge([(string) $indexing->file_number], $numbers->all()));
+
         return $numbers
             ->map(fn ($number) => [
                 'file_number' => $number,
                 'file_title' => $titles->get(strtoupper($number)),
+                // Indexed as "physical file not sighted" with this record.
+                'npf' => isset($npf[RelatedFileSightings::pairKey((string) $indexing->file_number, $number)]),
             ])
             ->all();
+    }
+
+    /**
+     * NPF (No Physical File) pairs among these file numbers, from the File Indexing
+     * "Related File (Physical File is Sighted)" answer. An NPF pair is not "kept inside"
+     * each other, so the KANGIS / Land container lookups below skip it. Unanswered pairs
+     * (indexed before the answer existed) keep the old behaviour.
+     *
+     * @return array<string, true>
+     */
+    protected function npfPairs(array $fileNumbers): array
+    {
+        return app(RelatedFileSightings::class)->npfPairs($fileNumbers);
     }
 
     /**
@@ -486,6 +504,10 @@ class FileLocationResolver
                 }
             }
         }
+
+        // A land file indexed as NPF (physical file not sighted) is not kept inside it.
+        $npf = $this->npfPairs(array_merge([$self], array_values($numbers)));
+        $numbers = array_filter($numbers, fn ($n) => !isset($npf[RelatedFileSightings::pairKey($self, $n)]));
 
         if (!$numbers) {
             return [];
@@ -617,6 +639,19 @@ class FileLocationResolver
             foreach ($forwardPairs as [$land, $entry]) {
                 if ($kangisRows->has(strtoupper($entry))) {
                     $add($land, $kangisRows->get(strtoupper($entry)));
+                }
+            }
+        }
+
+        // A land file indexed as NPF (physical file not sighted) is not kept inside that KANGIS file.
+        if ($found) {
+            $npf = $this->npfPairs(array_merge(array_keys($found), ...array_values($found)));
+            foreach ($found as $land => $kangisFiles) {
+                $kept = array_values(array_filter($kangisFiles, fn ($k) => !isset($npf[RelatedFileSightings::pairKey($land, $k)])));
+                if ($kept) {
+                    $found[$land] = $kept;
+                } else {
+                    unset($found[$land]);
                 }
             }
         }

@@ -217,7 +217,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     const numberInput = document.getElementById('sr-file-number');
                     const titleInput = document.getElementById('sr-file-title');
 
-                    if (numberInput) numberInput.value = fileNumber;
+                    if (numberInput) {
+                        numberInput.value = fileNumber;
+                        // The form follows the file number (ROFO No = file number, 2026-10-28).
+                        numberInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
 
                     if (titleInput && data.record) {
                         const title = data.record.file_name || data.record.FileName || data.record.applicant_name || '';
@@ -271,7 +275,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Sync to Step 2 hidden name fields (the actual form fields)
                 const numberInput = document.getElementById('sr-file-number');
                 const titleInput = document.getElementById('sr-file-title');
-                if (numberInput) numberInput.value = fileNumber;
+                if (numberInput) {
+                    numberInput.value = fileNumber;
+                    numberInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
                 if (titleInput && title) titleInput.value = title;
             }
         });

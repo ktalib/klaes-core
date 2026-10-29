@@ -272,9 +272,6 @@ function populateDropdownContent(app, context = null) {
         registerClick = 'onclick="showSTCofoRestrictionMessage(); return false;"';
     }
 
-    const deleteClass = app.status === 'pending' ? 'text-red-600 hover:bg-gray-100' : 'text-gray-400 cursor-not-allowed';
-    const deleteIcon = app.status === 'pending' ? '' : 'text-gray-300';
-    const deleteClick = app.status === 'pending' ? `onclick="deleteInstrument('${app.id}'); return false;"` : 'onclick="return false;"';
 
     // RDS logic - implement workflow control based on instrument type
     let generateRdsContent = '';
@@ -411,11 +408,42 @@ function populateDropdownContent(app, context = null) {
         </a>`
         : '';
 
+    // Master Delete / Move Registration (Supper Admin). Only rows that are a
+    // capture or a deeds registration - ST rows are generated from applications.
+    let moveContent = '';
+    let masterDeleteContent = '';
+    const masterRef = String(app.id || '');
+    const isMasterRow = /^(deed_reg_|instr_capture_)\d+$/.test(masterRef);
+    if (window.KlaesConfig?.isMasterDeleter && isMasterRow && window.InstrumentMasterActions) {
+        // Only instruments captured on the same form move into one another
+        // (RegistrationMoveService::FAMILIES).
+        const hasRelated = /deed of assignment|deed of gift|mortgage|surrender|power of attorney|occupancy permit/i.test(String(app.instrument_type || '').trim());
+        const canMove = app.status === 'registered' && masterRef.startsWith('deed_reg_') && hasRelated;
+        const moveTitle = !hasRelated ? 'Only related instruments can be moved (Assignment/Gift, Mortgage/Tripartite, Surrender/Power of Attorney, OP Resettlement/Direct Allocation)' : 'Not registered yet';
+
+        moveContent = canMove
+            ? `<a href="#" onclick="closeDropdown(); InstrumentMasterActions.move('${masterRef}'); return false;" class="dropdown-item text-gray-700 hover:bg-gray-100">
+                <i class="fas fa-exchange-alt w-4 h-4 text-blue-500"></i>
+                <span>Move Registration</span>
+            </a>`
+            : `<a href="#" onclick="return false;" title="${moveTitle}" class="dropdown-item text-gray-400 cursor-not-allowed">
+                <i class="fas fa-exchange-alt w-4 h-4 text-gray-300"></i>
+                <span>Move Registration</span>
+            </a>`;
+
+        masterDeleteContent = `<div class="border-t border-gray-100 my-1"></div>
+        <a href="#" onclick="closeDropdown(); InstrumentMasterActions.masterDelete('${masterRef}'); return false;" class="dropdown-item text-red-700 hover:bg-red-50">
+            <i class="fas fa-skull-crossbones w-4 h-4 text-red-600"></i>
+            <span>Master Delete</span>
+        </a>`;
+    }
+
     dropdown.innerHTML = `
         <a href="${editHref}" ${editClick} class="dropdown-item ${editClass}">
             <i class="fas fa-edit w-4 h-4 ${editIcon}"></i>
             <span>Edit Record</span>
         </a>
+        ${moveContent}
         <a href="#" ${registerClick} class="dropdown-item ${registerClass}">
             <i class="fas fa-file-signature w-4 h-4 ${registerIcon}"></i>
             <span>Register Instrument</span>
@@ -425,10 +453,7 @@ function populateDropdownContent(app, context = null) {
         ${generateCorContent}
         ${viewCorContent}
         ${timelineContent}
-        <a href="#" ${deleteClick} class="dropdown-item ${deleteClass}">
-            <i class="fas fa-trash w-4 h-4 ${deleteIcon}"></i>
-            <span>Delete Record</span>
-        </a>
+        ${masterDeleteContent}
     `;
 }
 

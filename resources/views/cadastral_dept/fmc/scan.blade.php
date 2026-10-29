@@ -5,9 +5,6 @@
   @include('admin.header', ['PageTitle' => 'File Movement Card', 'PageDescription' => 'Log the file in or out of a unit'])
 
   <div class="p-4 max-w-xl mx-auto space-y-4">
-    @if (session('success'))
-      <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
-    @endif
     @if (session('error'))
       <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
     @endif

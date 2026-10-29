@@ -188,6 +188,17 @@ window.secretariatFileLog = function (config) {
             ['tab', 'sub', 'incomingView', 'filter', 'memoFilter', 'dateFrom', 'dateTo', 'perPage']
                 .forEach((key) => this.$watch(key, () => { this.page = 1; }));
 
+            // With no date range, the Filter box also searches Outgoing beyond "Last N days"
+            // (server side), so a file sent weeks ago is still found.
+            this.$watch('filter', () => {
+                clearTimeout(this._searchTimer);
+                this._searchTimer = setTimeout(() => {
+                    if (this.dateFrom || this.dateTo) return;
+                    const q = this.outgoingSearch();
+                    if (q !== this._lastSearch) this.loadLists(true);
+                }, 400);
+            });
+
             // Normal users work as the office their account maps to (server-side,
             // config/file_movement.php) and cannot change it. Only a super admin
             // picks an office, remembered per user in localStorage.
@@ -333,6 +344,9 @@ window.secretariatFileLog = function (config) {
                 const params = { office: this.office, days: this.days };
                 if (this.dateFrom) params.from = this.dateFrom;
                 if (this.dateTo) params.to = this.dateTo;
+                const q = this.dateFrom || this.dateTo ? '' : this.outgoingSearch();
+                if (q) params.q = q;
+                this._lastSearch = q;
                 const data = await this.request(this.urls.lists + '?' + new URLSearchParams(params));
                 const pending = (data.pending || []).map(r => ({ ...r, bucket: 'pending' }));
                 const held = (data.held || []).map(r => ({ ...r, bucket: 'held' }));
@@ -491,6 +505,13 @@ window.secretariatFileLog = function (config) {
             if (this.dateFrom) return 'From ' + f(this.dateFrom);
             if (this.dateTo) return 'Up to ' + f(this.dateTo);
             return '';
+        },
+
+        // The Filter box text sent to the server for the all-time Outgoing search
+        // (3+ characters, so a stray letter does not pull every old send).
+        outgoingSearch() {
+            const q = String(this.filter || '').trim();
+            return q.length >= 3 ? q.slice(0, 100) : '';
         },
 
         // The Filter box: case-insensitive, over everything the row shows (and its ids), on every

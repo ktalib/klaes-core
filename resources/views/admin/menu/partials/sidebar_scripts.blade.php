@@ -4,8 +4,12 @@
     lucide.createIcons();
   }
 
+  // A page's own link: an ordinary item, or a link styled as a submodule header
+  // (e.g. Land / Deeds > Parcel Update). Both must open the module they sit in.
+  const ACTIVE_SIDEBAR_LINKS = '.sidebar-item.active, a.sidebar-submodule-header.active';
+
   function scrollToActiveItem() {
-    const activeItem = document.querySelector('.sidebar-item.active');
+    const activeItem = document.querySelector(ACTIVE_SIDEBAR_LINKS);
     const sidebarContent = document.querySelector('.sidebar-content');
     if (activeItem && sidebarContent) {
       const offsetTop = activeItem.offsetTop;
@@ -35,7 +39,7 @@
   }
 
   function expandActiveMenus() {
-    const activeItems = document.querySelectorAll('.sidebar-item.active');
+    const activeItems = document.querySelectorAll(ACTIVE_SIDEBAR_LINKS);
     activeItems.forEach(item => {
       let ancestor = item.parentElement;
       while (ancestor && ancestor !== document) {

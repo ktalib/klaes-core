@@ -1257,9 +1257,14 @@
                                                 </button>
                                             </template>
                                             <template x-if="view() === 'sent'">
-                                                <span class="px-2 py-1 rounded-full text-xs font-semibold"
-                                                      :class="row.state === 'Received' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'"
-                                                      x-text="row.state"></span>
+                                                <span class="inline-flex flex-col items-center align-middle">
+                                                    <span class="px-2 py-1 rounded-full text-xs font-semibold"
+                                                          :class="row.state === 'Received' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'"
+                                                          x-text="row.state"></span>
+                                                    {{-- Tracked from file commissioning (user, 2026-10-29), as on the File Tracker page. --}}
+                                                    <span x-show="row.diit" class="mt-0.5 font-bold uppercase tracking-wider text-indigo-500" style="font-size:10px"
+                                                          title="Default In-process In-transit Tracking">DIIT</span>
+                                                </span>
                                             </template>
                                             <button type="button" x-show="canDeleteLogs" :disabled="busy" @click="deleteTracker(row)"
                                                     title="Delete this entire file tracker (all log entries) — admin"

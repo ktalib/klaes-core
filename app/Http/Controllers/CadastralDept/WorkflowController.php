@@ -26,12 +26,16 @@ class WorkflowController extends Controller
             $recent = CadastralCase::query()->orderByDesc('id')->limit(10)->get();
         }
 
+        // The dashboard cards, shared with /cadastral-module/dashboard (DashboardFigures, 2026-10-29).
+        $kpis = app(\App\Services\CadastralDept\DashboardFigures::class)->kpis();
+
         return view('cadastral_dept.index', [
             'def' => $def,
             'installed' => $installed,
             'byDesk' => $byDesk,
             'byWorkflow' => $byWorkflow,
             'recent' => $recent,
+            'kpis' => $kpis,
         ]);
     }
 

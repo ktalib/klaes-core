@@ -8,11 +8,19 @@
      carrying the row's OWN menu actions (HeadApproval-shaped), so a batch never does what the
      row's menu would not. A row with no action is disabled. The bar offers only the actions
      EVERY selected file has, and posts each file to the existing move endpoint one at a time,
-     so every server rule still applies; the result lists done and refused files. --}}
+     so every server rule still applies; the result lists done and refused files.
+
+     Batch Master Delete (Supper Admin, user 2026-10-27): rows carry data-delete-url / data-ref
+     when the user may Master Delete them (CadastralCase::masterDeleteJs). The bar's Master Delete
+     asks for "DELETE {n}" typed once, then calls the same per-file endpoint (which re-checks the
+     role and blockers) one file at a time, with progress, and lists any refused. --}}
 <div id="cd-batch-bar" class="hidden fixed bottom-5 left-1/2 transform -translate-x-1/2 z-50 bg-white border border-blue-200 shadow-2xl rounded-2xl px-4 py-3 flex flex-wrap items-center gap-3">
   <span class="text-sm font-bold text-blue-800"><span id="cd-batch-count">0</span> selected</span>
   <button type="button" id="cd-batch-send" class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700">
     <i data-lucide="send" class="w-3.5 h-3.5"></i> Batch Send
+  </button>
+  <button type="button" id="cd-batch-delete" class="hidden inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
+    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Master Delete
   </button>
   <button type="button" id="cd-batch-clear" class="text-xs font-semibold text-gray-500 hover:text-gray-700">Clear</button>
 </div>
@@ -23,6 +31,7 @@
   const bar = document.getElementById('cd-batch-bar');
   const countEl = document.getElementById('cd-batch-count');
   const sendBtn = document.getElementById('cd-batch-send');
+  const delBtn = document.getElementById('cd-batch-delete');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 
   const checks = () => Array.from(document.querySelectorAll('.cd-batch-check'));
@@ -32,7 +41,7 @@
 
   // Nothing this user can do on the row: it cannot be picked.
   checks().forEach((c) => {
-    if (!actionsOf(c).length) {
+    if (!actionsOf(c).length && !c.dataset.deleteUrl) {
       c.disabled = true;
       c.checked = false;
       c.title = 'Nothing you can send on this file now';
@@ -62,6 +71,8 @@
     sendBtn.title = ok ? '' : 'The selected files are not at the same step: pick files with the same action';
     sendBtn.classList.toggle('opacity-50', !ok);
     sendBtn.classList.toggle('cursor-not-allowed', !ok);
+    // Master Delete: only when every selected file can be deleted by this user.
+    delBtn.classList.toggle('hidden', !(n > 0 && selected().every((c) => c.dataset.deleteUrl)));
     document.querySelectorAll('.cd-batch-all').forEach((all) => {
       const total = pickable().length;
       all.checked = total > 0 && n === total;
@@ -142,6 +153,61 @@
     let html = '<p class="text-sm"><b>' + done.length + '</b> of ' + picked.length + ' file(s) sent.</p>';
     if (failed.length) html += '<p class="text-xs font-bold text-red-600 mt-3">Refused:</p>' + list(failed);
     await Swal.fire({ title: form.value.action.l, html: html, icon: failed.length ? 'warning' : 'success' });
+    window.location.reload();
+  });
+
+  delBtn.addEventListener('click', async () => {
+    const picked = selected().filter((c) => c.dataset.deleteUrl);
+    if (!picked.length) return;
+    const phrase = 'DELETE ' + picked.length;
+    const ask = await Swal.fire({
+      title: 'Master Delete ' + picked.length + ' file(s)?',
+      icon: 'warning',
+      html: '<div class="text-left space-y-2 text-sm">'
+        + '<p>This permanently deletes these files from the Cadastral Department, with everything recorded for them. It cannot be undone.</p>'
+        + '<ul class="text-xs font-mono max-h-40 overflow-y-auto border rounded p-2">' + picked.map((c) => '<li>' + esc(c.dataset.ref) + ' · ' + esc(c.dataset.file) + '</li>').join('') + '</ul>'
+        + '<p class="text-xs text-gray-500">Kept: the file numbers and indexing, correspondence files, plan descriptions and P&amp;D bills. A file with a live P&amp;D bill is refused.</p>'
+        + '<label class="block text-xs font-bold text-gray-700">Type <span class="font-mono text-red-700">' + esc(phrase) + '</span> to confirm</label>'
+        + '<input id="cd-batch-del-confirm" class="swal2-input !m-0 !w-full" autocomplete="off">'
+        + '</div>',
+      showCancelButton: true, reverseButtons: true, focusCancel: true,
+      confirmButtonText: 'Delete ' + picked.length + ' file(s)', confirmButtonColor: '#dc2626',
+      preConfirm: () => {
+        const typed = (document.getElementById('cd-batch-del-confirm').value || '').trim().toUpperCase();
+        if (typed !== phrase) { Swal.showValidationMessage('Type ' + phrase + ' exactly'); return false; }
+        return true;
+      },
+    });
+    if (!ask.isConfirmed) return;
+
+    const done = [], failed = [];
+    Swal.fire({ title: 'Master Delete', html: 'Deleting <b id="cd-batch-del-progress">1</b> of ' + picked.length + '… <div id="cd-batch-del-current" class="text-xs font-mono mt-1"></div>',
+      allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    for (let i = 0; i < picked.length; i++) {
+      const c = picked[i];
+      const p = document.getElementById('cd-batch-del-progress');
+      const cur = document.getElementById('cd-batch-del-current');
+      if (p) p.textContent = i + 1;
+      if (cur) cur.textContent = c.dataset.ref + ' · ' + c.dataset.file;
+      try {
+        // The per-file endpoint re-checks the role and blockers; the typed phrase was asked once above.
+        const res = await fetch(c.dataset.deleteUrl, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+          body: JSON.stringify({ confirm: c.dataset.ref }),
+        });
+        let data = {};
+        try { data = await res.json(); } catch (e) {}
+        if (!res.ok || data.success === false) throw new Error(data.message || ('HTTP ' + res.status));
+        done.push(c.dataset.ref);
+      } catch (err) {
+        failed.push(c.dataset.ref + ' (' + c.dataset.file + ') — ' + err.message);
+      }
+    }
+    const list = (items) => '<ul class="text-left text-xs mt-1 max-h-40 overflow-y-auto">' + items.map((i) => '<li>' + esc(i) + '</li>').join('') + '</ul>';
+    let html = '<p class="text-sm"><b>' + done.length + '</b> of ' + picked.length + ' file(s) deleted.</p>';
+    if (failed.length) html += '<p class="text-xs font-bold text-red-600 mt-3">Not deleted:</p>' + list(failed);
+    await Swal.fire({ title: 'Master Delete', html: html, icon: failed.length ? 'warning' : 'success' });
     window.location.reload();
   });
 

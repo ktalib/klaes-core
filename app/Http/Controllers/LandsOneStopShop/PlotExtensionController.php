@@ -43,8 +43,7 @@ class PlotExtensionController extends Controller
                         ->orWhere('file_no', 'LIKE', "%{$search}%")
                         ->orWhere('land_use', 'LIKE', "%{$search}%")
                         ->orWhere('location', 'LIKE', "%{$search}%")
-                        ->orWhere('plot_no', 'LIKE', "%{$search}%")
-                        ->orWhere('plan_no', 'LIKE', "%{$search}%");
+                        ->orWhere('plot_no', 'LIKE', "%{$search}%");
                 });
             })
             ->orderByDesc('created_at')
@@ -157,6 +156,9 @@ class PlotExtensionController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $record = PlotExtensionApplication::findOrFail($id);
+        if ($refusal = $this->blocked($record, 'edit')) {
+            return $refusal;
+        }
 
         $validator = Validator::make($request->all(), $this->rules());
 
@@ -186,8 +188,8 @@ class PlotExtensionController extends Controller
     {
         $record = PlotExtensionApplication::findOrFail($id);
         
-        if ($record->status === PlotExtensionApplication::STATUS_APPROVED) {
-            return response()->json(['success' => false, 'message' => 'Approved applications cannot be deleted.'], 403);
+        if ($refusal = $this->blocked($record, 'delete', 403)) {
+            return $refusal;
         }
 
         $record->update([
@@ -205,6 +207,9 @@ class PlotExtensionController extends Controller
     public function approve(int $id): JsonResponse
     {
         $record = PlotExtensionApplication::findOrFail($id);
+        if ($refusal = $this->blocked($record, 'decision')) {
+            return $refusal;
+        }
 
         $record->update([
             'status' => PlotExtensionApplication::STATUS_APPROVED,
@@ -227,6 +232,9 @@ class PlotExtensionController extends Controller
     public function reject(Request $request, int $id): JsonResponse
     {
         $record = PlotExtensionApplication::findOrFail($id);
+        if ($refusal = $this->blocked($record, 'decision')) {
+            return $refusal;
+        }
 
         $reason = trim((string) $request->input('reason', ''));
 
@@ -242,6 +250,9 @@ class PlotExtensionController extends Controller
     public function generateApplication(int $id): JsonResponse
     {
         $record = PlotExtensionApplication::findOrFail($id);
+        if ($refusal = $this->blocked($record, 'generate-application')) {
+            return $refusal;
+        }
         $record->update([
             'application_generated_at' => now(),
             'updated_by' => Auth::id(),
@@ -267,11 +278,8 @@ class PlotExtensionController extends Controller
     {
         $record = PlotExtensionApplication::findOrFail($id);
 
-        if (!MasterJsiGate::clearedFor($record, 'extension')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'An approved Master JSI is required before the recommendation can be generated.',
-            ], 422);
+        if ($refusal = $this->blocked($record, 'generate-recommendation')) {
+            return $refusal;
         }
 
         $record->update([
@@ -292,6 +300,9 @@ class PlotExtensionController extends Controller
     public function updateKnupda(Request $request, int $id): JsonResponse
     {
         $record = PlotExtensionApplication::findOrFail($id);
+        if ($refusal = $this->blocked($record, 'kamma')) {
+            return $refusal;
+        }
         $record->update([
             'land_value' => $request->input('land_value'),
             'knupda_fee' => $request->input('knupda_fee'),
@@ -300,6 +311,20 @@ class PlotExtensionController extends Controller
             'updated_by' => Auth::id(),
         ]);
         return response()->json(['success' => true, 'message' => 'KAMMA/Physical Planning status updated.']);
+    }
+
+    /**
+     * The same step rules the row menu uses (App\Support\PlotExtensionWorkflow), so an
+     * action the menu shows disabled cannot be reached by calling the endpoint.
+     */
+    private function blocked(PlotExtensionApplication $record, string $action, int $status = 422): ?JsonResponse
+    {
+        $reason = \App\Support\PlotExtensionWorkflow::blockers(
+            $record,
+            MasterJsiGate::clearedFor($record, 'extension')
+        )[$action] ?? null;
+
+        return $reason ? response()->json(['success' => false, 'message' => $reason], $status) : null;
     }
 
     private function rules(): array

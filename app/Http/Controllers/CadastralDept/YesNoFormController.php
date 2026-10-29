@@ -35,6 +35,7 @@ class YesNoFormController extends Controller
                 && !in_array(YesNoForms::TASK, $case->doneTaskKeys($case->current_step), true),
             'refs' => $this->forms->refs($case, $form),
             'area' => $this->forms->appliedArea($case, $form),
+            'landUse' => $this->forms->fileLandUse($case),
         ]);
     }
 
@@ -67,6 +68,8 @@ class YesNoFormController extends Controller
             'q7_trunk_road' => $yn,
             // Square metres in; hectares (m2 / 10,000) stored (transcript, 2026-10-16: no acres).
             'area_applied_sqm' => 'nullable|numeric|min:0|max:999999999999',
+            // The dimensions the area is worked out from (2026-10-28), "46.13 m x 49.52 m; 20.68 m x 10 m".
+            'area_dimensions' => 'nullable|string|max:4000',
         ], [
             'q2_overlapping_title.required_if' => 'Q2 is No: say what title or application lies over the land.',
             'q3_tracing_no.required_if' => 'Q3 is Yes: give the Tracing No.',
@@ -82,6 +85,11 @@ class YesNoFormController extends Controller
         $data['area_applied_ha'] = isset($data['area_applied_sqm']) && $data['area_applied_sqm'] !== ''
             ? round((float) $data['area_applied_sqm'] / 10000, 4) : null;
         unset($data['area_applied_sqm']);
+        if (!\Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('cadastral_yes_no_forms', 'area_dimensions')) {
+            unset($data['area_dimensions']);
+        } else {
+            $data['area_dimensions'] = trim((string) ($data['area_dimensions'] ?? '')) ?: null;
+        }
 
         // "Other" stores the officer's own words.
         if (($data['q4_purpose'] ?? null) === 'Other') {
@@ -98,8 +106,10 @@ class YesNoFormController extends Controller
         // All seven answered: stay on the form, where "Mark done" now shows (change request 26-10-2026:
         // "once they fill it, it should bring Mark done" instead of sending them back to find it).
         $answered = collect(array_keys(CadastralYesNoForm::QUESTIONS))->every(fn ($q) => in_array($data[$q] ?? null, ['Yes', 'No'], true));
-        if ($answered && $this->forms->dueNow($case) && !in_array(YesNoForms::TASK, $case->doneTaskKeys($case->current_step), true)) {
-            $back = route('cadastral-dept.cases.yes-no.show', $case->id);
+        // After saving (user, 2026-10-28): all seven answered goes to the file, where the Yes/No task
+        // is marked done with the step's other tasks; not yet answered stays on the form to finish it.
+        if ($this->forms->dueNow($case)) {
+            $back = $answered ? route('cadastral-dept.cases.show', $case->id) : route('cadastral-dept.cases.yes-no.show', $case->id);
         }
 
         return $this->attempt(fn () => $this->forms->save($case, $data, auth()->id()), "{$case->case_ref}: Yes/No form saved.", $back);

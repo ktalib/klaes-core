@@ -16,6 +16,10 @@ class InstrumentRegistrationController extends Controller
     public function __construct(InstrumentRegistrationService $instrumentService)
     {
         $this->instrumentService = $instrumentService;
+
+        // The register embeds every row for client-side paging (~20 MB of
+        // HTML); gzipped it is ~1 MB.
+        $this->middleware(\App\Http\Middleware\GzipResponse::class)->only('InstrumentRegistration');
     }
 
     /**
@@ -740,7 +744,40 @@ class InstrumentRegistrationController extends Controller
      * and one group per standalone SUA. Each group tracks Fragmentation, Assignment,
      * and CofO status independently, enforcing the registration order rules.
      */
-    private function buildSTGroups($approvedSubapplications, $approvedMotherApplications): \Illuminate\Support\Collection
+    /**
+     * Registered ST deeds (Assignment, CofO, Fragmentation) for the given file
+     * numbers, oldest first. Only the columns the register reads: select *
+     * drags in the text column title_status_remark, which alone made this
+     * table's reads several times slower.
+     */
+    private function fetchStDeedRegistrations(array $filenos): \Illuminate\Support\Collection
+    {
+        $filenos = array_values(array_unique(array_filter($filenos, fn($f) => $f !== null && $f !== '')));
+        $rows = collect();
+
+        // Chunked to stay under the 2,100-parameter ceiling sqlsrv enforces.
+        foreach (array_chunk($filenos, 1000) as $chunk) {
+            $rows = $rows->merge(DB::connection('sqlsrv')->table('deed_registrations')
+                ->whereIn('fileno', $chunk)
+                ->whereIn('instrument_type', [
+                    'ST Assignment (Transfer of Title)',
+                    'Sectional Titling CofO',
+                    'ST Fragmentation',
+                ])
+                ->where('status', 'registered')
+                ->orderBy('id')
+                ->get([
+                    'id', 'fileno', 'instrument_type', 'registration_number', 'volume_no',
+                    'deeds_date', 'deeds_time', 'instrument_date', 'rds_exists', 'cor_exists', 'data',
+                    'registration_number as particularsRegistrationNumber',
+                    'deeds_date as instrumentDate',
+                ]));
+        }
+
+        return $rows->sortBy('id')->values();
+    }
+
+    private function buildSTGroups($approvedSubapplications, $approvedMotherApplications, $deedRegs = null): \Illuminate\Support\Collection
     {
         $groups = collect();
 
@@ -754,15 +791,8 @@ class InstrumentRegistrationController extends Controller
             return $groups;
         }
 
-        $deedRegs = DB::connection('sqlsrv')->table('deed_registrations')
-            ->whereIn('fileno', $allFilenos)
-            ->whereIn('instrument_type', [
-                'ST Assignment (Transfer of Title)',
-                'Sectional Titling CofO',
-                'ST Fragmentation',
-            ])
-            ->where('status', 'registered')
-            ->get();
+        // The page loader has usually fetched these already for its flat rows.
+        $deedRegs = $deedRegs ?? $this->fetchStDeedRegistrations($allFilenos);
 
         // Lookup: "fileno::instrument_type" => registration row
         $deedLookup = [];
@@ -1410,6 +1440,25 @@ class InstrumentRegistrationController extends Controller
                     ->get();
             }
 
+            // Every registered ST deed the sub/mother rows below can point at, in
+            // one query. This used to be a first() per row per instrument type
+            // (232 of them), and deed_registrations has no index, so each one
+            // was a full scan - ~1.8s together. Keys mimic SQL Server's
+            // case/trailing-space rules, and the lowest id wins as first() did.
+            $stDeedKey = fn($fileno, $type) => strtoupper(rtrim((string) $fileno)) . '::' . strtoupper(rtrim((string) $type));
+            $stDeedRegs = $this->fetchStDeedRegistrations(array_merge(
+                $approvedSubapplications->pluck('fileno')->all(),
+                $approvedMotherApplications->pluck('fileno')->all(),
+                $approvedMotherApplications->pluck('np_fileno')->all()
+            ));
+            $stDeedLookup = [];
+            foreach ($stDeedRegs as $reg) {
+                $key = $stDeedKey($reg->fileno, $reg->instrument_type);
+                if (!isset($stDeedLookup[$key])) {
+                    $stDeedLookup[$key] = $reg;
+                }
+            }
+
             foreach ($capturedInstruments as $instrument) {
                 // Determine the file number to use
                 $fileNo = $instrument->mlsFNo ?? $instrument->kangisFileNo ?? $instrument->NewKANGISFileno ?? $instrument->temp_fileno ?? 'N/A';
@@ -1487,28 +1536,10 @@ class InstrumentRegistrationController extends Controller
 
                 $allocationEntity = $this->normalizeApplicantComponent($subApp->allocation_entity ?? null);
 
-                // Get registration details from registered_instruments table
-                // Get registration details from deed_registrations table (New Architecture)
-                $stRegistration = DB::connection('sqlsrv')->table('deed_registrations')
-                    ->where('fileno', $subApp->fileno)
-                    ->where('instrument_type', 'ST Assignment (Transfer of Title)')
-                    ->where('status', 'registered')
-                    ->select('*', 'registration_number as particularsRegistrationNumber', 'deeds_date as instrumentDate')
-                    ->first();
-
-                $sectionalRegistration = DB::connection('sqlsrv')->table('deed_registrations')
-                    ->where('fileno', $subApp->fileno)
-                    ->where('instrument_type', 'Sectional Titling CofO')
-                    ->where('status', 'registered')
-                    ->select('*', 'registration_number as particularsRegistrationNumber', 'deeds_date as instrumentDate')
-                    ->first();
-
-                $stFragmentationRegistration = DB::connection('sqlsrv')->table('deed_registrations')
-                    ->where('fileno', $subApp->fileno)
-                    ->where('instrument_type', 'ST Fragmentation')
-                    ->where('status', 'registered')
-                    ->select('*', 'registration_number as particularsRegistrationNumber', 'deeds_date as instrumentDate')
-                    ->first();
+                // Registration details from deed_registrations (New Architecture)
+                $stRegistration = $stDeedLookup[$stDeedKey($subApp->fileno, 'ST Assignment (Transfer of Title)')] ?? null;
+                $sectionalRegistration = $stDeedLookup[$stDeedKey($subApp->fileno, 'Sectional Titling CofO')] ?? null;
+                $stFragmentationRegistration = $stDeedLookup[$stDeedKey($subApp->fileno, 'ST Fragmentation')] ?? null;
 
                 // Decode JSON data for STM_Ref if needed
                 if ($stRegistration && !empty($stRegistration->data)) {
@@ -1740,12 +1771,7 @@ class InstrumentRegistrationController extends Controller
             // Add ST Fragmentation records from approved mother applications
             foreach ($approvedMotherApplications as $motherApp) {
                 // Check if ST Fragmentation is already registered in deed_registrations
-                $stFragmentationRegistration = DB::connection('sqlsrv')->table('deed_registrations')
-                    ->where('fileno', $motherApp->fileno)
-                    ->where('instrument_type', 'ST Fragmentation')
-                    ->where('status', 'registered')
-                    ->select('*', 'registration_number as particularsRegistrationNumber', 'deeds_date as instrumentDate')
-                    ->first();
+                $stFragmentationRegistration = $stDeedLookup[$stDeedKey($motherApp->fileno, 'ST Fragmentation')] ?? null;
 
                 if ($stFragmentationRegistration && !empty($stFragmentationRegistration->data)) {
                     $stFragmentationRegistration->STM_Ref = json_decode($stFragmentationRegistration->data)->stm_ref ?? null;
@@ -1870,8 +1896,32 @@ class InstrumentRegistrationController extends Controller
                 $registeredOtherInstrumentsQuery->where('deed_registrations.fileno', 'like', 'ST-%');
             }
 
+            // Named columns, not deed_registrations.*: the * pulls the text
+            // column title_status_remark for ~20k rows, measured at 650ms
+            // against 89ms without it.
             $registeredOtherInstruments = $registeredOtherInstrumentsQuery->select(
-                'deed_registrations.*',
+                'deed_registrations.id',
+                'deed_registrations.fileno',
+                'deed_registrations.parent_fileno',
+                'deed_registrations.registration_number',
+                'deed_registrations.volume_no',
+                'deed_registrations.instrument_type',
+                'deed_registrations.grantor',
+                'deed_registrations.grantee',
+                'deed_registrations.property_description',
+                'deed_registrations.lga',
+                'deed_registrations.district',
+                'deed_registrations.size',
+                'deed_registrations.plot_number',
+                'deed_registrations.deeds_date',
+                'deed_registrations.deeds_time',
+                'deed_registrations.instrument_date',
+                'deed_registrations.created_by',
+                'deed_registrations.created_at',
+                'deed_registrations.rds_exists',
+                'deed_registrations.cor_exists',
+                'deed_registrations.prop_id',
+                'deed_registrations.data',
                 'deed_registrations.rds_exists as rds_exists_db',
                 'deed_registrations.cor_exists as cor_exists_db',
                 DB::raw("CONCAT(COALESCE(users.first_name, ''), ' ', COALESCE(users.last_name, '')) as reg_creator_name")
@@ -2045,7 +2095,7 @@ class InstrumentRegistrationController extends Controller
             ]);
 
             // Build grouped ST structure for the grouped view
-            $stGroups = $this->buildSTGroups($approvedSubapplications, $approvedMotherApplications);
+            $stGroups = $this->buildSTGroups($approvedSubapplications, $approvedMotherApplications, $stDeedRegs);
 
             // Sort by captured_date descending THEN reg_date descending
             // For ST Deeds, prioritize registered instruments first

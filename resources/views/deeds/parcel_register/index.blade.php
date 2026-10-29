@@ -24,7 +24,7 @@
 @section('content')
 <div class="flex-1 overflow-auto bg-gray-50">
   @include('admin.header', [
-      'PageTitle'       => 'Parcel Update',
+      'PageTitle'       => 'Post CofO',
       'PageDescription' => $label . ' register: every ' . $label . ' on record from Parcel Update, Advance Parcel Update (Duplex) and Parcel Update - Legacy, in one table.',
   ])
 
@@ -132,7 +132,16 @@
                   @if ($row->origin)<div class="text-xs text-gray-400 mt-0.5">{{ $row->origin }}</div>@endif
                 </td>
                 <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">{{ $row->reference ?: '—' }}</td>
-                @foreach ([$row->from_files, $row->to_files] as $list)
+                @foreach ([$row->from_files, $row->to_files] as $listIndex => $list)
+                  @if ($listIndex === 1 && $type !== 'merger')
+                    {{-- New File No(s): the first file in the row, the rest as rows opened
+                         from the arrow in front of S/N, as on the Plot Subdivision listing. --}}
+                    @include('deeds.parcel_update.partials.new_file_nos_cell', [
+                        'newFiles' => $list,
+                        'newFilesFrom' => $row->from_files[0] ?? '',
+                    ])
+                    @continue
+                  @endif
                   <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">
                     @forelse (array_slice($list, 0, 2) as $f)
                       <div>{{ $f }}</div>

@@ -16,12 +16,16 @@
 
 @include('survey_module.partials._flash')
 
-<div class="page-header">
-    <div></div>
-    <a class="btn btn-primary" href="{{ route('survey-module.compensation.cases.register') }}">
-        <i class="fas fa-plus"></i> New Land Case
-    </a>
-</div>
+{{-- New Land Case hidden "for now" (user, 2026-10-28); set $showNewLandCase to true to bring it back. --}}
+@php $showNewLandCase = false; @endphp
+@if ($showNewLandCase)
+    <div class="page-header">
+        <div></div>
+        <a class="btn btn-primary" href="{{ route('survey-module.compensation.cases.register') }}">
+            <i class="fas fa-plus"></i> New Land Case
+        </a>
+    </div>
+@endif
 
 <div class="kpi-grid">
     <div class="kpi-card">

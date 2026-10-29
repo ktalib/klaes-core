@@ -844,6 +844,12 @@
         showEditModeBanner(record || editModeState.record);
         updateCreateButtonState();
 
+        // Physical File Sighted answers of the record being edited (checkIndexed sends them;
+        // a dedicated update page already rendered them, so leave those alone).
+        if (Array.isArray(record?.related_file_sightings)) {
+            window.RelatedFileSighting?.reload(record.related_file_sightings);
+        }
+
         const hasCofoToggle = document.getElementById('has-cofo-toggle');
         if (hasCofoToggle) {
             hasCofoToggle.disabled = false;
@@ -881,6 +887,7 @@
         editModeState.recordId = null;
         editModeState.record = null;
         editModeState.fileNumber = null;
+        window.RelatedFileSighting?.reload([]);
 
         const form = document.getElementById('new-file-form');
         if (form) {
@@ -6827,8 +6834,19 @@
         const currentFileNumberForSource = hasTempFile ? tempFileNo : baseFileNumber;
         const resolvedSourceFileId = getSourceFileIdForSubmit(currentFileNumberForSource);
 
+        // Related File (Physical File is Sighted): every related file must be answered.
+        if (window.RelatedFileSighting && !window.RelatedFileSighting.validate()) {
+            updateCreateButtonState();
+            return;
+        }
+        const relatedSightingsField = document.getElementById('related-file-sightings');
+
         const formData = {
             file_number: hasTempFile ? tempFileNo : baseFileNumber,
+            // Absent when the form has no Related File section; the server checks only when sent.
+            related_file_sightings: relatedSightingsField
+                ? (window.RelatedFileSighting ? window.RelatedFileSighting.collect() : relatedSightingsField.value)
+                : undefined,
             override_year_block: yearOverrideChecked() ? 1 : 0,
             kangis_block_index: kangisBlockIndexChecked() ? 1 : 0,
             // Plot No. and Name beside each Related File Number row (KANGIS Registry), paired with its land file.

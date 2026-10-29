@@ -79,15 +79,26 @@
                 <div class="sv-group"><i class="fas fa-user-tie"></i><span>Assignment</span></div>
                 <div class="form-group">
                     <label>Surveyor <span class="required">*</span></label>
-                    <select name="surveyor_id" @disabled($locked)>
+                    @php
+                        // A surveyor typed under "Other (specify)" has a name but no List of Surveyors id.
+                        $svPick = (string) old('surveyor_id', $its->surveyor_id ?: ($its->surveyor_name ? 'other' : ''));
+                        $svOther = old('surveyor_other', $its->surveyor_id ? '' : $its->surveyor_name);
+                    @endphp
+                    <select name="surveyor_id" id="itsSurveyor" @disabled($locked)>
                         <option value="">— Select from the List of Surveyors —</option>
                         @foreach ($surveyors as $s)
-                            <option value="{{ $s->id }}" @selected((string) old('surveyor_id', $its->surveyor_id) === (string) $s->id)>
+                            <option value="{{ $s->id }}" @selected($svPick === (string) $s->id)>
                                 {{ $s->full_name }}{{ $s->rank ? ' · ' . $s->rank : '' }}{{ $s->is_active ? '' : ' (inactive)' }}
                             </option>
                         @endforeach
+                        <option value="other" @selected($svPick === 'other')>Other (specify)</option>
                     </select>
-                    <p class="helper-text">Survey Department staff. Needed before the instruction is issued.</p>
+                    <input type="text" name="surveyor_other" id="itsSurveyorOther" maxlength="255" value="{{ $svOther }}"
+                           placeholder="Specify surveyor's full name *" aria-label="Specify surveyor" style="margin-top:6px;{{ $svPick === 'other' ? '' : 'display:none;' }}"
+                           class="@error('surveyor_other') is-invalid @enderror"
+                           @if ($svPick === 'other' && ! $locked) required @else disabled @endif />
+                    @error('surveyor_other')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                    <p class="helper-text">Survey Department staff, or Other (specify). Needed before the instruction is issued.</p>
                 </div>
 
                 <div class="form-group full">
@@ -133,7 +144,7 @@
                 <div class="form-actions">
                     <div class="left"></div>
                     <div class="right">
-                        <button class="btn btn-primary" type="submit" @disabled(! $its->surveyor_id)><i class="fas fa-paper-plane"></i> Issue Instruction</button>
+                        <button class="btn btn-primary" type="submit" @disabled(! $its->surveyor_name)><i class="fas fa-paper-plane"></i> Issue Instruction</button>
                     </div>
                 </div>
             </div>
@@ -209,3 +220,31 @@
 </script>
 @endpush
 @endunless
+
+@push('scripts')
+<script>
+// Surveyor: searchable (Select2, as elsewhere in the module) with "Other (specify)",
+// which reveals a required name box; any other choice hides, clears and disables it.
+document.addEventListener('DOMContentLoaded', function () {
+    var sel = document.getElementById('itsSurveyor');
+    var box = document.getElementById('itsSurveyorOther');
+    if (!sel || !box) return;
+    function sync() {
+        var on = sel.value === 'other';
+        box.style.display = on ? '' : 'none';
+        box.disabled = !on || sel.disabled;
+        box.required = on && !sel.disabled;
+        if (!on) box.value = '';
+    }
+    var $ = window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null;
+    if ($) {
+        // No dropdownParent: the default (<body>) keeps the panel clear of the scroll containers.
+        $(sel).select2({ width: '100%', placeholder: '— Select from the List of Surveyors —' })
+              .on('change', function () { sync(); if (sel.value === 'other') box.focus(); });
+    } else {
+        sel.addEventListener('change', sync);
+    }
+    sync();
+});
+</script>
+@endpush

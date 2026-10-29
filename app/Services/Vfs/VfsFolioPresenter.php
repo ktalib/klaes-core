@@ -44,6 +44,9 @@ class VfsFolioPresenter
      */
     public const SYSTEM_FOLDER = '__commissioning';
 
+    /** Pages still sitting in EDMS/BLIND_SCAN (not yet converted into a scanning). */
+    public const BLIND_FOLDER = '__blind_scan';
+
     /** Hard ceiling regardless of what the request asks for. */
     private const MAX_PER_PAGE = 120;
 
@@ -412,6 +415,57 @@ class VfsFolioPresenter
     }
 
     /**
+     * Blind Scanning folders matching a search whose file number is not indexed
+     * yet, so the register (built on file_indexings) cannot list them. Shown apart,
+     * flagged as blind scan, so a file sitting only in Blind Scanning is still found.
+     *
+     * @return Collection<int, object{file_number:string, pages:int, registry_type:?string, last_at:?string}>
+     */
+    public function blindScanOnlyMatches(?string $term, int $limit = 20): Collection
+    {
+        $term = trim((string) $term);
+        // Folders are named by file number: a term with no digit (a holder name, a bare
+        // prefix) cannot narrow 1.8M rows usefully, so it is not run.
+        if (mb_strlen($term) < 4 || !preg_match('/\d/', $term)) {
+            return collect();
+        }
+
+        try {
+            // Group first, then check indexing for that short list in one query: a
+            // NOT EXISTS per blind row ran for minutes over 1.8M rows on a broad term.
+            $candidates = DB::connection('sqlsrv')->table('blind_scannings')
+                ->select('file_number', DB::raw('count(*) as pages'), DB::raw('max(registry_type) as registry_type'), DB::raw('max(created_at) as last_at'))
+                ->where('file_number', 'like', '%' . $term . '%')
+                ->where(fn ($q) => $q->where('status', '!=', 'converted')->orWhereNull('status'))
+                ->whereNull('file_indexing_id')
+                ->groupBy('file_number')
+                ->orderBy('file_number')
+                ->limit(300)
+                ->get();
+            if ($candidates->isEmpty()) {
+                return collect();
+            }
+
+            $numbers = $candidates->pluck('file_number')->filter()->all();
+            $indexed = FileIndexing::query()
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->where(fn ($q) => $q->whereIn('file_number', $numbers)->orWhereIn('temp_file_no', $numbers))
+                ->get(['file_number', 'temp_file_no'])
+                ->flatMap(fn ($f) => [strtoupper(trim((string) $f->file_number)), strtoupper(trim((string) $f->temp_file_no))])
+                ->filter()->flip();
+
+            return $candidates
+                ->reject(fn ($c) => isset($indexed[strtoupper(trim((string) $c->file_number))]))
+                ->take($limit)
+                ->values();
+        } catch (\Throwable $e) {
+            Log::info('VFS: blind scan search unavailable', ['error' => $e->getMessage()]);
+
+            return collect();
+        }
+    }
+
+    /**
      * How many files the SAME search would return under a different scope.
      *
      * The register defaults to "mapped", and 95% of indexed files have never been
@@ -629,9 +683,35 @@ class VfsFolioPresenter
             ->groupBy('file_indexing_id')
             ->pluck('total', 'file_indexing_id');
 
+        // Pages still in the Blind Scanning folder, by linked indexing id or folder file number.
+        $blindByNumber = collect();
+        $blindById = collect();
+        try {
+            $blind = DB::connection('sqlsrv')->table('blind_scannings')
+                ->select('file_number', 'file_indexing_id', DB::raw('count(*) as total'))
+                ->where(fn ($q) => $q->where('status', '!=', 'converted')->orWhereNull('status'))
+                ->where(function ($q) use ($rows, $fileNumbers) {
+                    $q->whereIn('file_indexing_id', $rows->pluck('id')->all());
+                    if ($fileNumbers) {
+                        $q->orWhereIn('file_number', $fileNumbers);
+                    }
+                })
+                ->groupBy('file_number', 'file_indexing_id')
+                ->get();
+            $blindByNumber = $blind->groupBy(fn ($b) => strtoupper(trim((string) $b->file_number)));
+            $blindById = $blind->whereNotNull('file_indexing_id')->groupBy('file_indexing_id');
+        } catch (\Throwable $e) {
+            Log::info('VFS: blind scan counts unavailable', ['error' => $e->getMessage()]);
+        }
+
         foreach ($rows as $row) {
             $row->vfs_pages = (int) ($pageCounts[$row->id] ?? 0);
             $row->vfs_scans = (int) ($scanCounts[$row->id] ?? 0);
+            $row->vfs_blind = (int) collect([$row->file_number, $row->temp_file_no])->filter()
+                ->flatMap(fn ($no) => $blindByNumber->get(strtoupper(trim($no)), collect()))
+                ->merge($blindById->get($row->id, collect()))
+                ->unique(fn ($b) => $b->file_number . '|' . $b->file_indexing_id)
+                ->sum('total');
 
             $events = collect([$row->file_number, $row->temp_file_no])
                 ->filter()
@@ -671,6 +751,7 @@ class VfsFolioPresenter
             'is_temporary' => $this->isTemporary($file),
             'page_count' => $file->pagetypings()->count(),
             'system_count' => count($this->systemDocuments($file)),
+            'blind_count' => $this->blindScanQuery($file)->count(),
             'structural_status' => $this->structuralStatus($file),
             'structural_class' => $this->structuralClass($this->structuralStatus($file)),
         ];
@@ -787,7 +868,78 @@ class VfsFolioPresenter
             ];
         }
 
+        $blind = $this->blindScanQuery($file)->count();
+        if ($blind > 0) {
+            $folders[] = [
+                'key' => self::BLIND_FOLDER,
+                'label' => 'Blind Scan',
+                'count' => $blind,
+                'classified' => false,
+                'blind' => true,
+            ];
+        }
+
         return $folders;
+    }
+
+    /**
+     * This file's pages still in the Blind Scanning folder: matched on the linked
+     * indexing id or on the folder's file number. Converted rows are left out —
+     * they became EDMS scannings and show in the typed folders instead.
+     */
+    private function blindScanQuery(FileIndexing $file)
+    {
+        $numbers = array_values(array_filter([trim((string) $file->file_number), trim((string) $file->temp_file_no)]));
+
+        return DB::connection('sqlsrv')->table('blind_scannings')
+            ->where(fn ($q) => $q->where('status', '!=', 'converted')->orWhereNull('status'))
+            ->where(function ($q) use ($file, $numbers) {
+                $q->where('file_indexing_id', $file->id);
+                if ($numbers) {
+                    $q->orWhereIn('file_number', $numbers);
+                }
+            });
+    }
+
+    /** Tiles for the Blind Scan folder, shaped like page tiles plus is_blind. */
+    private function blindScanPage(FileIndexing $file, int $page, int $perPage): LengthAwarePaginator
+    {
+        $paginator = $this->blindScanQuery($file)
+            ->select(['id', 'original_filename', 'document_path', 'paper_size', 'created_at'])
+            ->orderBy('document_path')
+            ->paginate($perPage, ['*'], 'page', $page)
+            ->withQueryString();
+
+        $offset = ($paginator->currentPage() - 1) * $paginator->perPage();
+        $paginator->setCollection($paginator->getCollection()->values()->map(function ($row, int $i) use ($file, $offset) {
+            $url = $row->document_path ? $this->paths->resolveUrl($row->document_path) : null;
+            $extension = strtolower((string) pathinfo((string) $row->document_path, PATHINFO_EXTENSION)) ?: null;
+            $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tif'], true);
+
+            return [
+                'id' => 'blind-' . $row->id,
+                'label' => $row->original_filename ?: basename((string) $row->document_path),
+                'page_type' => 'Blind Scan',
+                'page_subtype' => null,
+                'page_number' => $offset + $i + 1,
+                'serial_number' => null,
+                'extension' => $extension,
+                'media_type' => $extension === 'pdf' ? 'pdf' : ($isImage ? 'image' : 'document'),
+                'viewer_url' => $url,
+                'thumbnail_url' => $isImage ? $url : null,
+                'pdf_page_number' => null,
+                'scanning_id' => null,
+                'source_file_number' => $file->file_number,
+                'source_relative' => $row->document_path,
+                'is_unmapped' => false,
+                'is_unavailable' => $url === null,
+                'is_blind' => true,
+                'paper_size' => $row->paper_size,
+                'qc_status' => null,
+            ];
+        }));
+
+        return $paginator;
     }
 
     /**
@@ -865,6 +1017,9 @@ class VfsFolioPresenter
 
         if ($folder === self::SYSTEM_FOLDER) {
             return $this->systemDocumentPage($file, $page, $perPage);
+        }
+        if ($folder === self::BLIND_FOLDER) {
+            return $this->blindScanPage($file, $page, $perPage);
         }
 
         $query = PageTyping::query()

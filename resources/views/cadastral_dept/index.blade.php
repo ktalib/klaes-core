@@ -2,10 +2,24 @@
 
 @section('content')
 <div class="flex-1 overflow-auto bg-gray-50">
-  @include('admin.header', ['PageTitle' => 'Cadastral Department', 'PageDescription' => 'Files in the department, desk by desk'])
+  @include('admin.header', ['PageTitle' => 'Cadastral Dashboard', 'PageDescription' => 'Files in the Cadastral Department, desk by desk'])
 
   <div class="p-6">
     @include('cadastral_dept.partials._nav')
+
+    {{-- Dashboard cards: this workflow's own figures (2026-10-29). No Duplicates card for now. --}}
+    @if (!empty($kpis))
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+        @foreach ($kpis as $k)
+          <a href="{{ $k['url'] }}" class="relative rounded-xl border border-gray-200 border-l-4 bg-white p-4 shadow-sm hover:shadow" style="border-left-color:#e11d48">
+            <i data-lucide="{{ $k['icon'] }}" class="absolute top-4 right-4 w-6 h-6 text-rose-300"></i>
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-600 pr-8">{{ $k['label'] }}</div>
+            <div class="text-2xl font-black text-gray-800 mt-2">{{ $k['value'] }}</div>
+            <div class="text-xs text-gray-400 mt-1">{{ $k['hint'] }}</div>
+          </a>
+        @endforeach
+      </div>
+    @endif
 
     {{-- Open files per application type --}}
     <div class="grid gap-4 md:grid-cols-3 mb-8">

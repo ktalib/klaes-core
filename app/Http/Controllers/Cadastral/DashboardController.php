@@ -39,6 +39,12 @@ class DashboardController extends Controller
             // Surfaced on the landing page because numbers issued in a
             // placeholder format would all need reissuing.
             'jobFormatUnconfirmed' => $this->numbers->formatIsPlaceholder(),
+            // The dashboard counts the Cadastral workflow's files (user, 2026-10-29), not the old receipts.
+            'wf' => [
+                'kpis' => ($figures = app(\App\Services\CadastralDept\DashboardFigures::class))->kpis(),
+                'latest' => $figures->latestCases(6),
+                'activity' => $figures->recentActivity(8),
+            ],
         ]);
     }
 

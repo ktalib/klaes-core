@@ -397,6 +397,9 @@
     // prefix is only used when no source is stored for the record.
     function getCommissioningSourceLabel(source, fileNumber) {
         const src = String(source || '').trim();
+        // An extension file prints as plain "Extension" on the sheet, as the server-side
+        // sheet (commissioning_sheet/pdf) already does; the record keeps "Extension File".
+        if (['EXTENSION FILE', 'FILE EXTENSION'].includes(src.toUpperCase())) return 'Extension';
         if (src && src.toUpperCase() !== 'N/A') return src;
         return getCommissioningFileType(fileNumber);
     }
@@ -511,6 +514,7 @@
     }
 
     function resetTrackingIdDisplay(text = '--') {
+        setTrackingOnTheFlyBadge(false);
         const displayEl = document.getElementById('trackingIdDisplay');
         if (displayEl) {
             displayEl.textContent = text;
@@ -529,9 +533,27 @@
         setActionButtonsDisabled(true);
     }
 
-    function applyTrackingIdToDisplay(trackingId, fallbackText = '--') {
+    // Red "ON-THE-FLY" label beside the Tracking ID: a File Extension's ID is generated
+    // on the fly, not taken from grouping.
+    function setTrackingOnTheFlyBadge(show) {
+        const displayEl = document.getElementById('trackingIdDisplay');
+        if (!displayEl) return;
+        let badge = document.getElementById('trackingIdOnTheFly');
+        if (!badge && show) {
+            badge = document.createElement('span');
+            badge.id = 'trackingIdOnTheFly';
+            badge.className = 'ml-2 px-1.5 py-0.5 rounded border border-red-300 bg-red-50 text-red-600 text-[10px] font-extrabold uppercase tracking-wider';
+            badge.textContent = 'On-the-fly';
+            badge.title = 'File Extension: tracking ID generated on the fly (no grouping record)';
+            displayEl.insertAdjacentElement('afterend', badge);
+        }
+        if (badge) badge.style.display = show ? '' : 'none';
+    }
+
+    function applyTrackingIdToDisplay(trackingId, fallbackText = '--', onTheFly = false) {
         const displayValue = trackingId || fallbackText;
-        
+        setTrackingOnTheFlyBadge(onTheFly && !!trackingId);
+
         const inputEl = document.getElementById('trackingIdInput');
         if (inputEl) {
             inputEl.value = trackingId || '';
@@ -676,7 +698,29 @@
             const registrySelect = document.getElementById('mlsfRegistry');
             const registryName = registrySelect?.options[registrySelect.selectedIndex]?.text || 'Lands Registry';
 
-            const payload = { 
+            // A File Extension has no grouping row: never link it onto the mother's.
+            // Its tracking ID is its own, generated on the fly (shown with a red label).
+            // "Keep the file number as-is" drops the suffix: that file is the mother itself
+            // and keeps the mother's grouping tracking ID (normal lookup below).
+            if (state.fileOption === 'extension' && /\s+AND\s+EXTENSION\s*$/i.test(targetMlsNumber || '')) {
+                clearTimeout(timeoutHandle);
+                // Pass the ID already on screen so re-checks keep it instead of minting anew.
+                const shown = (document.getElementById('trackingIdInput')?.value || '').trim();
+                const response = await fetch("{{ route('mls-fileno.preview-tracking-id') }}?extension="
+                    + encodeURIComponent(targetMlsNumber.trim()) + '&preferred=' + encodeURIComponent(shown), {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const payload = await response.json();
+                if (groupingLookupState.inFlightRequestId !== requestId) return;
+                const trackingId = (payload.data?.tracking_id ?? '').trim();
+                applyTrackingIdToDisplay(trackingId, 'Not Found', true);
+                // Not cached: ticking "keep as-is" must re-run the lookup for the same mother.
+                groupingLookupState.lastSuccessfulNumber = null;
+                setActionButtonsDisabled(trackingId === '');
+                return;
+            }
+
+            const payload = {
                 mls_file_number: targetMlsNumber || '-',
                 awaiting_file_number: fileNumber,
                 registry: registryName

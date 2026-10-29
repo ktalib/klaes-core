@@ -107,7 +107,10 @@ class IntakeLookup
             $file['record'] === 'commissioned' ? ['info', 'Commissioned, not yet indexed'] : null,
             $out['duplicate']['flag'] ? ['warn', 'Possible duplicate: ' . $out['duplicate']['note']] : null,
             $out['correspondence']['exists']
-                ? ['ok', 'Correspondence file: ' . ($out['correspondence']['shadow'] ?: ($out['correspondence']['fileno'] ?: 'yes'))]
+                // Matched through file indexing (a flag, no CSF row): labelled KLAES Matched, in red (user, 2026-10-27).
+                ? ($out['correspondence']['shadow']
+                    ? ['ok', 'Correspondence file: ' . $out['correspondence']['shadow']]
+                    : ['danger', 'KLAES Matched'])
                 : ['info', 'No correspondence file yet'],
         ]));
 
@@ -313,6 +316,136 @@ class IntakeLookup
         }
 
         return ['flag' => $notes !== [], 'note' => $notes ? implode(' ', $notes) : null];
+    }
+
+    /**
+     * Scan to register (backlog, 2026-10-27): turn any KLAES QR (tracking sheet, label, RofO, a
+     * typed tracking ID or file number) into the file(s) it names, each with its open case (if it
+     * is already in the department) and the application types its number allows. The Register
+     * page then asks Conversion / Direct Allocation / Verification with the detected one marked,
+     * so nobody has to open the right tab first. READ ONLY.
+     *
+     * @return array{resolved:bool, message:?string, matches:array<int, array>}
+     */
+    public function scan(string $payload): array
+    {
+        $r = app(\App\Services\FileTracking\FileQrResolver::class)->resolve($payload);
+        $matches = [];
+        foreach ($r['matches'] as $m) {
+            $number = (string) ($m['file_number'] ?? '');
+            if ($number === '') {
+                continue;
+            }
+            $open = $this->openCase($number);
+            $matches[] = [
+                'file_number' => $number,
+                'title' => $m['file_title'],
+                'tracking_id' => $m['tracking_id'],
+                'indexed' => (bool) $m['indexed'],
+                'open_case' => $open ? $open + ['url' => route('cadastral-dept.cases.show', $open['id'])] : null,
+                // The file's details for the right half of the scan panel (only the first few matches).
+                'details' => count($matches) < 3 ? $this->scanDetails($number) : null,
+            ] + self::detect($number);
+            // Already has a correspondence file: suggest Verification (user, 2026-10-27).
+            $last = &$matches[count($matches) - 1];
+            if (!empty($last['details']['csf']) && in_array('verification', $last['workflows'], true)) {
+                $last['suggested'] = 'verification';
+                $last['proceed_verification'] = true;
+            }
+            unset($last);
+        }
+
+        return [
+            'resolved' => $matches !== [],
+            'message' => $matches ? (count($matches) > 1 ? 'This code matches more than one file. Pick the right one.' : null)
+                // The resolver's wording is the Secretariat's ("log it manually"); here the fallback is the list.
+                : preg_replace('/\s*Log (the file|it) manually\.?$/', '', (string) ($r['message'] ?: 'No KLAES file matches this code.'))
+                    . ' Choose the application type below and pick the file from the list.',
+            'matches' => $matches,
+        ];
+    }
+
+    /** Plot, district, LGA, location and correspondence file of a scanned file, from resolve(). */
+    private function scanDetails(string $number): ?array
+    {
+        try {
+            $r = $this->resolve(['file_number' => $number, 'workflow' => 'verification']);
+        } catch (\Throwable $e) {
+            return null;
+        }
+        $f = $r['file'] ?? null;
+        if (!$f) {
+            return null;
+        }
+
+        return [
+            'plot' => $f['plot'] ?? null,
+            'district' => $f['district'] ?? null,
+            'lga' => $f['lga'] ?? null,
+            'location' => $f['location'] ?? null,
+            'correspondence' => !empty($r['correspondence']['exists'])
+                ? (($r['correspondence']['shadow'] ?? null) ?: ($r['correspondence']['fileno'] ?? 'yes')) : null,
+            'csf' => !empty($r['correspondence']['exists']) ? $this->csfDetails($r['correspondence']) : null,
+        ];
+    }
+
+    /**
+     * The correspondence file's own details, for the scan panel (user, 2026-10-27): a file that
+     * already has one has been through Cadastral, so the officer is told to proceed with Verification.
+     */
+    private function csfDetails(array $c): array
+    {
+        $row = !empty($c['shadow'])
+            ? DB::connection('sqlsrv')->table('cadastral_shadow_files')->where('ref_number', $c['shadow'])->first()
+            : null;
+
+        return [
+            'ref' => $row->ref_number ?? ($c['shadow'] ?? null),
+            'file_number' => $row->full_number ?? ($c['fileno'] ?? null),
+            'name' => $row->file_name ?? null,
+            'plot' => $row->plot_no ?? null,
+            'lga' => $row->lga ?? null,
+            'location' => $row->location ?? null,
+            // 'csf': a correspondence (shadow) file row; 'indexing': matched through file indexing (KLAES Matched).
+            'source' => $row ? 'csf' : 'indexing',
+            'matched' => $row && $row->date_matched ? trim(\Illuminate\Support\Carbon::parse($row->date_matched)->format('d M Y') . ' ' . substr((string) $row->time_matched, 0, 5)) : null,
+        ];
+    }
+
+    /**
+     * What a file number allows, from its prefix: the group (Conversion: CON-; Direct Allocation:
+     * RES- / COM- / IND- / AG-), a file type when the prefix fixes one (CON-, ST-, SLTR-), and the
+     * application types it can be registered under. The suggestion is only a default: the
+     * officer still chooses, Verification included, since the number cannot tell (user, 2026-10-27).
+     *
+     * @return array{group:?string, file_type:?string, workflows:string[], suggested:?string}
+     */
+    public static function detect(string $number): array
+    {
+        $n = strtoupper(trim($number));
+        $fileType = null;
+        foreach ((array) config('cadastral_dept.file_types', []) as $key => $type) {
+            foreach ((array) ($type['prefixes'] ?? []) as $prefix) {
+                if (str_starts_with($n, strtoupper($prefix))) {
+                    $fileType = $key;
+                    break 2;
+                }
+            }
+        }
+        $group = null;
+        foreach (self::LIST_PREFIXES as $g => $prefixes) {
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with($n, $prefix)) {
+                    $group = $g;
+                    break 2;
+                }
+            }
+        }
+        $workflows = $fileType
+            ? array_values((array) config("cadastral_dept.file_types.{$fileType}.workflows", []))
+            : ($group ? [$group, 'verification'] : ['conversion', 'direct', 'verification']);
+
+        return ['group' => $group, 'file_type' => $fileType, 'workflows' => $workflows, 'suggested' => $group];
     }
 
     /** @return array{ref:string, desk:string, step:string}|null */

@@ -364,7 +364,8 @@
                         <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">ROFO No</label>
                         <input type="text" name="rofo_no" placeholder="e.g., ROFO/2026/123"
                             class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500"
-                            value="{{ $record->rofo_no ?? '' }}" @if($isView || $isLands) disabled @endif>
+                            value="{{ ($record->rofo_no ?? null) ?: (($record->file_number ?? null) ?: ($cdPrefill['file_number'] ?? '')) }}" @if($isView || $isLands) disabled @endif>
+                        {{-- ROFO No is the file number (user, 2026-10-28): filled with it, still editable. --}}
                     </div>
 
                 </div>
@@ -1244,6 +1245,46 @@
 
     hydrateFromDescription();
 
+    // ROFO No follows the file number (user, 2026-10-28) until the officer types a different one.
+    if (rofoInput && srFileNumberInput && !rofoInput.disabled) {
+        let rofoAuto = !rofoInput.value.trim() || rofoInput.value.trim() === srFileNumberInput.value.trim();
+        if (!rofoInput.value.trim() && srFileNumberInput.value.trim()) rofoInput.value = srFileNumberInput.value.trim();
+        rofoInput.addEventListener('input', () => { rofoAuto = !rofoInput.value.trim() || rofoInput.value.trim() === srFileNumberInput.value.trim(); });
+        srFileNumberInput.addEventListener('change', () => {
+            if (rofoAuto) rofoInput.value = srFileNumberInput.value.trim();
+        });
+    }
+
+    // Opened from a Cadastral Dept file (Land12Link::prefill): fill plot, district and LGA straight
+    // from the file. Splitting the joined description put the district in Street and the LGA in
+    // District (it assigns Street first), leaving LGA blank (fixed 2026-10-28).
+    const cdLocation = @json($cdPrefill ? ['plot' => $cdPrefill['plot'], 'district' => $cdPrefill['district'], 'lga' => $cdPrefill['lga']] : null);
+    if (cdLocation) {
+        const pick = (selectEl, value) => {
+            const v = String(value || '').trim().toUpperCase();
+            const opt = v ? Array.from(selectEl?.options || []).find((o) => o.value && o.value.trim().toUpperCase() === v) : null;
+            return opt ? opt.value : '';
+        };
+        if (inputs.plot && cdLocation.plot) inputs.plot.value = cdLocation.plot;
+        if (inputs.street) { inputs.street.value = ''; }
+        if (inputs.streetOther) { inputs.streetOther.value = ''; }
+        if (inputs.district) {
+            const d = pick(inputs.district, cdLocation.district);
+            if (d) {
+                inputs.district.value = d;
+                if (inputs.districtOther) inputs.districtOther.value = '';
+            } else if (cdLocation.district && inputs.districtOther) {
+                inputs.district.value = 'Other';
+                inputs.districtOther.value = cdLocation.district;
+            } else {
+                inputs.district.value = '';
+            }
+        }
+        if (inputs.lga) inputs.lga.value = pick(inputs.lga, cdLocation.lga);
+        syncWrappers();
+        scheduleRebuild();
+    }
+
     const validationTargets = new Map();
 
     function setModalStep(step) {
@@ -1370,7 +1411,6 @@
             }
 
             if (step === 3) {
-                requireValue(errors, 3, 'item_g_no', itemGInput, 'Item G number is required.');
                 requireValue(errors, 3, 'plot_description', inputs.plot, 'Enter the plot number.');
                 requireValue(errors, 3, 'lga_meta', inputs.lga, 'Select the LGA.');
 

@@ -92,14 +92,19 @@ return [
             'payee' => 'FIRS',
             'template' => 'consent_mortgage_2026',
         ],
-        // A gift is billed and worded exactly as an individual-to-individual
-        // assignment; it keeps its own consent_type for the pipeline.
+        // A gift is worded as an individual-to-individual assignment and keeps
+        // its own consent_type for the pipeline. It is NOT valued, so it is
+        // billed at flat amounts rather than percentages: registration
+        // N50,000 and stamp duty N20,000 (the *_fixed keys; when present they
+        // replace the matching rate, which is then 0).
         'gift' => [
             'label' => 'Gift',
             'consent_type' => 'Gift',
-            'registration_rate' => 5.0,
+            'registration_rate' => 0,
+            'registration_fee_fixed' => 50000,
             'processing_fee' => 12000,
-            'stamp_duty_rate' => 3.0,
+            'stamp_duty_rate' => 0,
+            'stamp_duty_fixed' => 20000,
             'payee' => 'KIRS',
             'template' => 'consent_assignment_2026',
         ],

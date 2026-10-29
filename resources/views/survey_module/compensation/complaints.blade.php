@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Complaints';
-  $PageDescription = 'Grievances from compensation or OP allocation: Open → Under Investigation → Resolved or Escalated.';
+  $PageDescription = 'Compensation Complaint Form: Pending → Under Review → Overpaid / Underpaid / Adequately Compensated → Resolved.';
 @endphp
 
 @section('survey-content')

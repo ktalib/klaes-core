@@ -61,6 +61,92 @@ class CaseWorkflow
     {
         $def = $this->def();
         $workflow = $data['workflow'] ?? '';
+        [$subType, $allocationRoute] = $this->resolveType($data);
+
+        if (!isset($def->fileSources()[$data['file_source'] ?? ''])) {
+            throw WorkflowGuardException::because('Choose where the file came from.');
+        }
+        // "Other" needs its specify text (tidied: trimmed, single spaces); any other source keeps none.
+        $sourceOther = $data['file_source'] === 'other'
+            ? (preg_replace('/\s+/', ' ', trim((string) ($data['file_source_other'] ?? ''))) ?: null)
+            : null;
+        if ($data['file_source'] === 'other' && $sourceOther === null) {
+            throw WorkflowGuardException::because('Specify where the file came from.');
+        }
+        $fileNumber = trim((string) ($data['file_number'] ?? ''));
+        if ($fileNumber === '') {
+            throw WorkflowGuardException::because('Pick the file with the file number selector.');
+        }
+
+        return DB::connection(self::CONN)->transaction(function () use ($data, $def, $workflow, $subType, $fileNumber, $userId, $sourceOther, $allocationRoute) {
+            $open = CadastralCase::query()->open()
+                ->where('file_number', $fileNumber)
+                ->lockForUpdate()
+                ->first();
+            if ($open) {
+                throw WorkflowGuardException::because("{$fileNumber} is already in the department as {$open->case_ref} ({$open->deskShort()}: {$open->stepLabel()}).");
+            }
+
+            $start = $def->startStep($workflow);
+            $now = now();
+
+            $case = CadastralCase::create([
+                'case_ref' => $this->nextRef($now->year),
+                'workflow' => $workflow,
+                'sub_type' => $subType,
+                'file_type' => $data['file_type'],
+                'file_source' => $data['file_source'],
+                'file_source_other' => $sourceOther,
+            ] + ($allocationRoute !== null ? ['allocation_route' => $allocationRoute] : []) + [
+                'file_number' => $fileNumber,
+                'file_indexing_id' => $data['file_indexing_id'] ?? null,
+                'file_system' => $data['file_system'] ?? null,
+                'tracking_id' => $data['tracking_id'] ?? null,
+                'file_title' => $data['file_title'] ?? null,
+                'location' => $data['location'] ?? null,
+            ] + $this->propertyColumns($data) + [
+                'correspondence_fileno' => $data['correspondence_fileno'] ?? null,
+            ] + (CorrespondenceColumns::available() ? ['shadow_fileno' => $data['shadow_fileno'] ?? null] : []) + [
+                'duplicate_flag' => (bool) ($data['duplicate_flag'] ?? false),
+                'duplicate_note' => $data['duplicate_note'] ?? null,
+                'current_step' => $start,
+                'current_desk' => $def->step($workflow, $start)['desk'],
+                'status' => CadastralCase::STATUS_IN_PROGRESS,
+                'received_at' => $data['received_at'] ?? $now,
+                'received_by' => $userId,
+                'remarks' => $data['remarks'] ?? null,
+            ]);
+
+            // No correspondence file yet: make it now (2026-10-27); the step later only matches it.
+            $csf = app(CorrespondenceStep::class)->atIntake($case, $userId);
+
+            // The registration itself: Registry to the first desk, as one movement.
+            $remarks = trim(implode(' ', array_filter([$data['remarks'] ?? null, $csf ? "({$csf})" : null])));
+            $this->move($case, null, $start, 'registered', $remarks !== '' ? $remarks : null, $userId, 'registry');
+            // A first step with a unit head (registry_intake): registering is the staff's send to the
+            // head, so the file waits in AD CAD Registry > Approval and only the head sends it to D Cad.
+            if (app(HeadApproval::class)->required($case)) {
+                $this->move($case, $start, $start, HeadApproval::TO_HEAD, $data['remarks'] ?? null, $userId);
+            }
+            $this->audit->logAction('Cadastral Case Opened', 'CadastralCase', $case->id, null,
+                $case->only(['case_ref', 'workflow', 'sub_type', 'file_type', 'file_source', 'file_number']),
+                "{$case->case_ref} registered for {$fileNumber} and sent to " . $def->deskLabel($case->current_desk));
+
+            return $case;
+        });
+    }
+
+    /**
+     * The application type checks shared by registration and Change application type: the
+     * file type must allow the workflow and its number prefix, Verification's group must fit,
+     * and the tenure / route answers come from the file type (asked only where it is open).
+     *
+     * @return array{0: ?string, 1: ?string} [sub_type, allocation_route]
+     */
+    private function resolveType(array $data): array
+    {
+        $def = $this->def();
+        $workflow = $data['workflow'] ?? '';
 
         if (!$def->has($workflow)) {
             throw WorkflowGuardException::because('Choose an application type.');
@@ -124,73 +210,8 @@ class CaseWorkflow
             $subType = $route && isset($def->subTypes($workflow)[$route]) ? $route : $def->defaultSubType($workflow);
         }
 
-        if (!isset($def->fileSources()[$data['file_source'] ?? ''])) {
-            throw WorkflowGuardException::because('Choose where the file came from.');
-        }
-        // "Other" needs its specify text (tidied: trimmed, single spaces); any other source keeps none.
-        $sourceOther = $data['file_source'] === 'other'
-            ? (preg_replace('/\s+/', ' ', trim((string) ($data['file_source_other'] ?? ''))) ?: null)
-            : null;
-        if ($data['file_source'] === 'other' && $sourceOther === null) {
-            throw WorkflowGuardException::because('Specify where the file came from.');
-        }
-        $fileNumber = trim((string) ($data['file_number'] ?? ''));
-        if ($fileNumber === '') {
-            throw WorkflowGuardException::because('Pick the file with the file number selector.');
-        }
 
-        return DB::connection(self::CONN)->transaction(function () use ($data, $def, $workflow, $subType, $fileNumber, $userId, $sourceOther, $allocationRoute) {
-            $open = CadastralCase::query()->open()
-                ->where('file_number', $fileNumber)
-                ->lockForUpdate()
-                ->first();
-            if ($open) {
-                throw WorkflowGuardException::because("{$fileNumber} is already in the department as {$open->case_ref} ({$open->deskShort()}: {$open->stepLabel()}).");
-            }
-
-            $start = $def->startStep($workflow);
-            $now = now();
-
-            $case = CadastralCase::create([
-                'case_ref' => $this->nextRef($now->year),
-                'workflow' => $workflow,
-                'sub_type' => $subType,
-                'file_type' => $data['file_type'],
-                'file_source' => $data['file_source'],
-                'file_source_other' => $sourceOther,
-            ] + ($allocationRoute !== null ? ['allocation_route' => $allocationRoute] : []) + [
-                'file_number' => $fileNumber,
-                'file_indexing_id' => $data['file_indexing_id'] ?? null,
-                'file_system' => $data['file_system'] ?? null,
-                'tracking_id' => $data['tracking_id'] ?? null,
-                'file_title' => $data['file_title'] ?? null,
-                'location' => $data['location'] ?? null,
-            ] + $this->propertyColumns($data) + [
-                'correspondence_fileno' => $data['correspondence_fileno'] ?? null,
-            ] + (CorrespondenceColumns::available() ? ['shadow_fileno' => $data['shadow_fileno'] ?? null] : []) + [
-                'duplicate_flag' => (bool) ($data['duplicate_flag'] ?? false),
-                'duplicate_note' => $data['duplicate_note'] ?? null,
-                'current_step' => $start,
-                'current_desk' => $def->step($workflow, $start)['desk'],
-                'status' => CadastralCase::STATUS_IN_PROGRESS,
-                'received_at' => $data['received_at'] ?? $now,
-                'received_by' => $userId,
-                'remarks' => $data['remarks'] ?? null,
-            ]);
-
-            // The registration itself: Registry to the first desk, as one movement.
-            $this->move($case, null, $start, 'registered', $data['remarks'] ?? null, $userId, 'registry');
-            // A first step with a unit head (registry_intake): registering is the staff's send to the
-            // head, so the file waits in AD CAD Registry > Approval and only the head sends it to D Cad.
-            if (app(HeadApproval::class)->required($case)) {
-                $this->move($case, $start, $start, HeadApproval::TO_HEAD, $data['remarks'] ?? null, $userId);
-            }
-            $this->audit->logAction('Cadastral Case Opened', 'CadastralCase', $case->id, null,
-                $case->only(['case_ref', 'workflow', 'sub_type', 'file_type', 'file_source', 'file_number']),
-                "{$case->case_ref} registered for {$fileNumber} and sent to " . $def->deskLabel($case->current_desk));
-
-            return $case;
-        });
+        return [$subType, $allocationRoute];
     }
 
     /** Tick a task of the current step. Ticking twice is a no-op. */
@@ -205,7 +226,7 @@ class CaseWorkflow
             throw WorkflowGuardException::because('Commission the File Movement Card; that ticks this task.');
         }
         if ($taskKey === CorrespondenceStep::TASK) {
-            throw WorkflowGuardException::because('Use Create Correspondence File; that ticks this task.');
+            throw WorkflowGuardException::because('Use Commission Correspondence File; that ticks this task.');
         }
         if (in_array($taskKey, CorrespondenceCustody::TASKS, true) && CorrespondenceCustody::installed()) {
             throw WorkflowGuardException::because('Use Detach / Attach correspondence file; that ticks this task.');
@@ -301,6 +322,7 @@ class CaseWorkflow
         return DB::connection(self::CONN)->transaction(function () use ($case, $outcome, $remarks, $userId, $def) {
             $case = CadastralCase::query()->lockForUpdate()->findOrFail($case->id);
             $this->assertOpen($case);
+            $this->assertAccepted($case);
 
             $this->assertTasksDone($case);
 
@@ -312,6 +334,8 @@ class CaseWorkflow
             }
 
             $from = $case->current_step;
+            // Final Charting: a Government survey goes to the SG, a private one skips it (SurveyRoute).
+            app(SurveyRoute::class)->assertAllowed($case, $outcome);
             if (isset($def->step($case->workflow, $from)['outcomes'][$outcome])
                 && $def->outcomeNeedsReason($case->workflow, $from, $outcome)
                 && trim((string) $remarks) === '') {
@@ -371,6 +395,7 @@ class CaseWorkflow
             if ($heads->awaiting($case)) {
                 throw WorkflowGuardException::because("{$case->case_ref} is already with the " . $heads->headOf($case->current_desk) . '.');
             }
+            $this->assertAccepted($case);
             $this->assertTasksDone($case);
 
             $this->move($case, $case->current_step, $case->current_step, HeadApproval::TO_HEAD, $remarks, $userId);
@@ -504,6 +529,60 @@ class CaseWorkflow
     }
 
     /**
+     * Change application type (user, 2026-10-28): Registry picked the wrong one (Verification
+     * for a Direct Allocation File). Allowed while the file is still at Registry intake, before
+     * it has been sent on, so no step of the old route has been worked. The same checks as
+     * registration apply (resolveType); the file stays at the new route's first step.
+     *
+     * @param array{workflow:string, file_type?:?string, sub_type?:?string, allocation_route?:?string, verification_group?:?string} $data
+     */
+    public function changeType(CadastralCase $case, array $data, ?int $userId): string
+    {
+        $this->assertOpen($case);
+        $def = $this->def();
+        $start = $def->startStep($case->workflow);
+        $sentOn = CadastralCaseMovement::query()->where('cadastral_case_id', $case->id)
+            ->whereNotNull('from_step')->where('to_step', '!=', $start)->exists();
+        if ($case->current_step !== $start || $sentOn) {
+            throw WorkflowGuardException::because("{$case->case_ref} has left Registry intake, so its application type can no longer be changed. Master Delete it and register it again.");
+        }
+
+        $data['file_type'] = ($data['file_type'] ?? '') ?: $case->file_type;
+        $data['file_number'] = $case->file_number;
+        [$subType, $allocationRoute] = $this->resolveType($data);
+        $workflow = $data['workflow'];
+        $newStart = $def->startStep($workflow);
+
+        $before = $case->only(['workflow', 'file_type', 'sub_type', 'allocation_route']);
+        $after = ['workflow' => $workflow, 'file_type' => $data['file_type'], 'sub_type' => $subType, 'allocation_route' => $allocationRoute];
+        if ($before == $after) {
+            return 'Nothing changed: the file is already ' . $def->workflow($workflow)['label'] . '.';
+        }
+
+        DB::connection(self::CONN)->transaction(function () use ($case, $after, $newStart, $def, $workflow, $before, $userId) {
+            $case->update($after + ['current_step' => $newStart, 'current_desk' => $def->step($workflow, $newStart)['desk']]);
+            $this->audit->logAction('Cadastral Case Application Type Changed', 'CadastralCase', $case->id, $before, $after,
+                "{$case->case_ref} application type changed from " . $def->workflow($before['workflow'])['label']
+                . ' to ' . $def->workflow($workflow)['label'] . ($userId ? " by user {$userId}" : ''));
+        });
+
+        return "{$case->case_ref} is now " . $def->workflow($workflow)['label']
+            . ($subType && isset($def->subTypes($workflow)[$subType]) ? ' (' . $def->subTypes($workflow)[$subType] . ')' : '') . '.';
+    }
+
+    /** True while the application type may still be changed (changeType). */
+    public function canChangeType(CadastralCase $case): bool
+    {
+        if (!$case->isOpen()) {
+            return false;
+        }
+        $start = $this->def()->startStep($case->workflow);
+
+        return $case->current_step === $start && !CadastralCaseMovement::query()->where('cadastral_case_id', $case->id)
+            ->whereNotNull('from_step')->where('to_step', '!=', $start)->exists();
+    }
+
+    /**
      * Plot No., District and LGA, once the FMC migration has added their
      * columns (2026_10_10_110000). Before that they are simply not saved.
      */
@@ -531,6 +610,14 @@ class CaseWorkflow
         }
     }
 
+    /** A file sent to a unit is accepted there before the unit sends it on (CadastralFileTracking). */
+    private function assertAccepted(CadastralCase $case): void
+    {
+        if (CadastralFileTracking::awaiting($case)) {
+            throw WorkflowGuardException::because("Accept {$case->case_ref} first: it was sent to " . $case->deskShort() . ' and has not been accepted there yet.');
+        }
+    }
+
     private function move(CadastralCase $case, ?string $from, ?string $to, string $outcome, ?string $remarks, ?int $userId, ?string $fromDesk = null): void
     {
         $def = $this->def();
@@ -545,6 +632,9 @@ class CaseWorkflow
             'acted_by' => $userId,
             'acted_at' => now(),
         ]);
+
+        // The Ministry file tracker and the receiving unit's acceptance (2026-10-27).
+        app(CadastralFileTracking::class)->moved($case, $from, $to, $outcome, $userId, $fromDesk);
 
         // In-app notification to the desk concerned, sent once the move commits.
         app(WorkflowNotifications::class)->moved($case, $from, $to, $outcome, $remarks, $userId);

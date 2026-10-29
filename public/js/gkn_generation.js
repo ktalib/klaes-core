@@ -28,6 +28,7 @@ function gknGeneratorFixed(config) {
             plot_number: '',
             tp_no: '',
             district_id: '',
+            district_other: '',
             lga_id: '',
             quantity: 1
         },
@@ -149,6 +150,7 @@ function gknGeneratorFixed(config) {
                         plot_number: this.formData.plot_number || '',
                         tp_no: this.formData.tp_no || '',
                         district_id: this.formData.district_id || '',
+                        district_other: this.formData.district_other || '',
                         lga_id: this.formData.lga_id || '',
                         location: '' 
                     });
@@ -177,12 +179,14 @@ function gknGeneratorFixed(config) {
                 entry.plot_number = current.plot_number;
                 entry.tp_no = current.tp_no;
                 entry.district_id = current.district_id;
+                entry.district_other = current.district_other;
                 entry.lga_id = current.lga_id;
             });
 
             this.formData.plot_number = current.plot_number;
             this.formData.tp_no = current.tp_no;
             this.formData.district_id = current.district_id;
+            this.formData.district_other = current.district_other;
             this.formData.lga_id = current.lga_id;
 
             Swal.fire({
@@ -255,10 +259,7 @@ function gknGeneratorFixed(config) {
                     const prefixes = { 'GKN': 'GKN-', 'LPKN': 'LPKN-', 'MISCS': 'MISC KN ' };
                     this.formData.prefix = prefixes[this.formData.type] || 'GKN-';
                     
-                    if (rec.location) {
-                        const district = this.districts.find(d => rec.location.toLowerCase().includes(d.name.toLowerCase()));
-                        if (district) this.formData.district_id = district.id;
-                    }
+                    this.loadDistrict(rec);
                     
                     if (rec.lga) {
                         const lga = this.lgas.find(l => rec.lga.toLowerCase().trim() === l.name.toLowerCase().trim());
@@ -269,6 +270,28 @@ function gknGeneratorFixed(config) {
                 console.error('Failed to fetch record for edit', e);
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // District saved on the file's indexing row (rec.district_name); an unlisted name
+        // reopens as Other + the name. Rows without one fall back to the location text.
+        loadDistrict(rec) {
+            this.formData.district_id = '';
+            this.formData.district_other = '';
+            const name = (rec.district_name || '').trim();
+            if (name) {
+                const d = this.districts.find(i => i.name.trim().toLowerCase() === name.toLowerCase());
+                if (d) { this.formData.district_id = d.id; return; }
+                const other = this.districts.find(i => i.name.trim().toLowerCase() === 'other');
+                if (other) { this.formData.district_id = other.id; this.formData.district_other = name; }
+                return;
+            }
+            // "plot, district, LGA, state": the first comma part that is a listed district.
+            if (rec.location) {
+                for (const part of rec.location.split(',').map(x => x.trim().toLowerCase()).filter(Boolean)) {
+                    const d = this.districts.find(i => i.name.trim().toLowerCase() === part && part !== 'other');
+                    if (d) { this.formData.district_id = d.id; break; }
+                }
             }
         },
 
@@ -309,10 +332,7 @@ function gknGeneratorFixed(config) {
                     const prefixes = { 'GKN': 'GKN-', 'LPKN': 'LPKN-', 'MISCS': 'MISC KN ' };
                     this.formData.prefix = prefixes[this.formData.type] || 'GKN-';
                     
-                    if (rec.location) {
-                       const district = this.districts.find(d => rec.location.toLowerCase().includes(d.name.toLowerCase()));
-                       if (district) this.formData.district_id = district.id;
-                    }
+                    this.loadDistrict(rec);
                     
                     if (rec.lga) {
                        const lga = this.lgas.find(l => rec.lga.toLowerCase().trim() === l.name.toLowerCase().trim());
@@ -327,6 +347,10 @@ function gknGeneratorFixed(config) {
         },
 
         async updateRecord() {
+            if (this.missingDistrictOther() !== null) {
+                Swal.fire({ title: 'Specify the district', text: 'District is Other: please specify the district.', icon: 'warning', confirmButtonColor: '#3b82f6' });
+                return;
+            }
             this.loading = true;
             try {
                 const response = await fetch(`/gkn/generation/${this.editingId}/update`, {
@@ -341,6 +365,7 @@ function gknGeneratorFixed(config) {
                         plot_no: this.formData.plot_number,
                         tp_no: this.formData.tp_no,
                         district_id: this.formData.district_id,
+                        district_other: this.formData.district_other,
                         lga_id: this.formData.lga_id,
                         land_use_id: this.formData.land_use_id,
                         purpose_id: this.formData.purpose_id,
@@ -381,13 +406,10 @@ function gknGeneratorFixed(config) {
 
         formatLocation(context) {
             if (!context) return '';
+            // Location is district + LGA + state; the plot number has its own field.
             let parts = [];
-            if (context.plot_number) parts.push(context.plot_number);
-            
-            if (context.district_id) {
-                const d = this.districts.find(i => i.id == context.district_id);
-                if (d) parts.push(d.name);
-            }
+            const district = this.districtLabel(context);
+            if (district) parts.push(district);
 
             if (context.lga_id) {
                 const l = this.lgas.find(i => i.id == context.lga_id);
@@ -396,6 +418,43 @@ function gknGeneratorFixed(config) {
 
             parts.push('Kano');
             return parts.join(', ');
+        },
+
+        // District picker: 1,800+ districts, so it searches. "Other" is the districts
+        // row of that name (one only) and reveals a required "specify" box.
+        isOtherDistrict(id) {
+            const d = id ? this.districts.find(i => i.id == id) : null;
+            return !!d && d.name.trim().toLowerCase() === 'other';
+        },
+
+        districtLabel(context) {
+            if (!context || !context.district_id) return '';
+            if (this.isOtherDistrict(context.district_id)) return (context.district_other || '').trim();
+            const d = this.districts.find(i => i.id == context.district_id);
+            return d ? d.name : '';
+        },
+
+        searchDistricts(term) {
+            const q = (term || '').trim().toLowerCase();
+            const isOther = d => d.name.trim().toLowerCase() === 'other';
+            const rest = this.districts.filter(d => !isOther(d) && (!q || d.name.toLowerCase().includes(q)));
+            return { list: rest.slice(0, 100), more: Math.max(0, rest.length - 100), other: this.districts.filter(isOther).slice(0, 1) };
+        },
+
+        pickDistrict(context, d) {
+            context.district_id = d ? d.id : '';
+            if (!this.isOtherDistrict(context.district_id)) context.district_other = '';
+            if (this.batchMode && this.applyLocationToAll) {
+                this.syncToAll('district_id');
+                this.syncToAll('district_other');
+            }
+        },
+
+        // Index of the first entry whose district is Other with no name given, or null.
+        missingDistrictOther() {
+            const ctxs = this.batchMode && !this.editMode ? this.locationEntries : [this.formData];
+            const i = ctxs.findIndex(c => this.isOtherDistrict(c.district_id) && !(c.district_other || '').trim());
+            return i === -1 ? null : i;
         },
 
         async fetchNextGkn() {
@@ -463,6 +522,17 @@ function gknGeneratorFixed(config) {
                 Swal.fire({
                     title: 'Missing Information',
                     text: 'Please fill in all required fields (File Title, Land Use, Purpose, LGA)',
+                    icon: 'warning',
+                    confirmButtonColor: '#3b82f6'
+                });
+                return;
+            }
+            const noOther = this.missingDistrictOther();
+            if (noOther !== null) {
+                if (this.batchMode) this.currentEntryIndex = noOther;
+                Swal.fire({
+                    title: 'Specify the district',
+                    text: 'District is Other: please specify the district' + (this.batchMode ? ' for file ' + (noOther + 1) : '') + '.',
                     icon: 'warning',
                     confirmButtonColor: '#3b82f6'
                 });
@@ -543,6 +613,7 @@ function gknGeneratorFixed(config) {
                 plot_number: '',
                 tp_no: '',
                 district_id: '',
+                district_other: '',
                 lga_id: '',
                 quantity: 1
             };

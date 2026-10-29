@@ -5,7 +5,8 @@
     @if(
       $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') ||
       $hasRole('Survey - GIS') || $hasRole('Survey - E-Registry') ||
-      $hasRole('Survey Reports') || $hasRole('Survey - Beacon Register') || $hasRole('Supper Admin')
+      $hasRole('Survey Reports') || $hasRole('Survey - Beacon Register') || $hasRole('Supper Admin') ||
+      $hasRole('Survey - Compensation Check') || $hasRole('Survey - DSG') || $hasRole('Survey - Examination') || $hasRole('Survey - SG')
     )
     @php
       $svSoon = fn (string $label, string $icon) =>
@@ -196,6 +197,16 @@
             <i data-lucide="table" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Plot Allocation</span>
           </a>
+          {{-- SDI (ported from ALAES, 2026-10-29): Map Request feeds the Production Unit. --}}
+          <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">SDI</div>
+          <a href="{{ route('survey-module.sdi.map-requests') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.map-requests*') || request()->routeIs('survey-module.sdi.registry*') ? 'active' : '' }}">
+            <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>Map Request</span>
+          </a>
+          <a href="{{ route('survey-module.sdi.production') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.production*') ? 'active' : '' }}">
+            <i data-lucide="factory" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>Production Unit</span>
+          </a>
           @if($hasRole('Survey Reports') || $hasRole('Supper Admin'))
           <a href="{{ route('survey_plan_extraction.index') }}?url=survey" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey_plan_extraction.index') && request()->query('url') === 'survey' ? 'active' : '' }}">
             <i data-lucide="sparkles" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -292,7 +303,52 @@
           </div>
         @endif
 
-        {{-- f. File Digital Library / g. Digital Archive --}}
+        {{-- f. Other Departments ▸ Cadastral (user, 2026-10-28): the Cadastral files now with each Survey
+             unit, which sends them on itself. Each entry is its unit role's (config cadastral_dept.external_desk_roles);
+             Supper Admin and Cad - Central Admin see all four. --}}
+        @php
+          $svUnit = fn (string $role) => $hasRole($role) || $hasRole('Supper Admin') || $hasRole(\App\Services\CadastralDept\DeskAccess::centralAdminRole());
+          $svComp = $svUnit('Survey - Compensation Check');
+          $svDsg  = $svUnit('Survey - DSG');
+          $svExam = $svUnit('Survey - Examination');
+          $svSg   = $svUnit('Survey - SG');
+          $svOn   = fn (string $desk) => request()->routeIs('cadastral-dept.other-departments.show') && request()->route('desk') === $desk;
+          $svOdLink = fn (string $label, string $desk, string $icon) =>
+              '<a href="' . e(route('cadastral-dept.other-departments.show', $desk)) . '" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 ' . ($svOn($desk) ? 'active' : '') . '">'
+              . '<i data-lucide="' . e($icon) . '" class="h-3.5 w-3.5 text-pink-400"></i><span>' . e($label) . '</span></a>';
+          $svOdGroup = fn (string $key, string $label, string $icon, bool $sub = false) =>
+              '<div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="' . e($key) . '">'
+              . '<div class="flex items-center gap-2"><i data-lucide="' . e($icon) . '" class="' . ($sub ? 'h-3.5 w-3.5 text-pink-400' : 'h-4 w-4 text-pink-500') . '"></i><span>' . e($label) . '</span></div>'
+              . '<i data-lucide="chevron-right" class="' . ($sub ? 'h-3.5 w-3.5' : 'h-4 w-4') . ' transition-transform duration-200" data-chevron="' . e($key) . '"></i></div>';
+        @endphp
+        @if($svComp || $svDsg || $svExam || $svSg)
+          {!! $svOdGroup('survey-other-departments', 'Other Departments', 'building-2') !!}
+          <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-departments">
+            {!! $svOdGroup('survey-other-cadastral', 'Cadastral', 'map', true) !!}
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-cadastral">
+              @if($svComp)
+                {!! $svOdLink('Compensation Check', 'compensation_unit', 'scale') !!}
+              @endif
+              @if($svDsg)
+                {!! $svOdGroup('survey-other-dsg', 'DSG', 'user-check', true) !!}
+                <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-dsg">
+                  {!! $svOdLink('Approval', 'dsg', 'check-circle') !!}
+                </div>
+              @endif
+              @if($svExam)
+                {!! $svOdLink('Examination Check', 'examination_unit', 'search-check') !!}
+              @endif
+              @if($svSg)
+                {!! $svOdGroup('survey-other-sg', 'SG', 'award', true) !!}
+                <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-sg">
+                  {!! $svOdLink('Approval', 'surveyor_general', 'check-circle') !!}
+                </div>
+              @endif
+            </div>
+          </div>
+        @endif
+
+        {{-- g. File Digital Library / h. Digital Archive --}}
         @if($hasRole('Survey - E-Registry') || $hasRole('Supper Admin'))
           <a href="{{ route('filearchive.index', ['url' => 'survey']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'survey' ? 'active' : '' }}">

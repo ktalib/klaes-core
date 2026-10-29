@@ -101,7 +101,8 @@
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const payload = {
-        success: @json(session('success')),
+        // Cadastral pages show success as a slim banner instead (cadastral_dept.partials._flash_banner, 2026-10-29).
+        success: @json(request()->routeIs('cadastral-dept.*', 'cadastral-module.*') ? null : session('success')),
         error: @json(session('error')),
         validation: @json($errors->any() ? $errors->all() : []),
       };
@@ -123,6 +124,12 @@
   <!-- Main Content (Placeholder) -->
 
   @include('admin.content')
+  @if (request()->routeIs('cadastral-dept.*', 'cadastral-module.*'))
+    @include('cadastral_dept.partials._flash_banner')
+    {{-- Cadastral tables read in capitals (user, 2026-10-29). Display only: the saved values are
+         untouched; inputs, selects and buttons inside a table keep their own case. --}}
+    <style>table tbody td, table tbody td * { text-transform: uppercase; } table tbody td input, table tbody td textarea, table tbody td select, table tbody td option, table tbody td a[href^="mailto:"] { text-transform: none; }</style>
+  @endif
 
   {{-- Borrowed session (ImpersonationController). Fixed to the viewport rather than placed
        in the flow: <body> is a flex row holding the sidebar and the content pane, and a

@@ -272,7 +272,7 @@
           data-section="ppParcelTitleManagement">
           <div class="flex items-center gap-2">
             <i data-lucide="layout-grid" class="h-4 w-4 text-red-500"></i>
-            <span>Parcel/Title Management</span>
+            <span>Parcel/Title Management (Post CofO)</span>
           </div>
           <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200"
             data-chevron="ppParcelTitleManagement"></i>

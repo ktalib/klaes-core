@@ -6161,6 +6161,18 @@
             const _kangisUrlParam = new URLSearchParams(window.location.search).get('url');
             const isKangisView = _kangisUrlParam === 'kangis' || _kangisUrlParam === 'dgis' || _kangisUrlParam === 'dg';
 
+            // Completed Files tab only: who logged each entry, and who completed the
+            // file (the entry that set it to Completed / logged it back in).
+            const showCompletionCols = !isKangisView && window._fileLogView === 'completed';
+            const completionCells = (entry, cellCls) => {
+                if (!showCompletionCols) return '';
+                if (!entry) return `<td class="${cellCls}">—</td><td class="${cellCls}">—</td>`;
+                const by = entry.createdByName ? sanitize(entry.createdByName) : '';
+                const lbl = String(resolveStatusDisplay(entry, (entry.status || 'completed').toLowerCase()).label || '').toLowerCase();
+                const isCompletion = /completed/i.test(String(entry.newStatus || '')) || lbl === 'completed';
+                return `<td class="${cellCls}">${by || '—'}</td><td class="${cellCls}">${isCompletion && by ? `<span class="font-semibold text-blue-700">${by}</span>` : '—'}</td>`;
+            };
+
             const kangisAwaitingOfficeDetails = isKangisAwaitingOfficeDetails(tracker);
 
             const rows = totalMovements > 0
@@ -6431,6 +6443,7 @@
                             <td class="px-4 py-3 text-sm text-gray-600">
                                 ${safeDelayReason ? '<span class="line-clamp-2 text-amber-700" title="' + safeDelayReason + '">' + safeDelayReason + '</span>' : '—'}
                             </td>
+                            ${completionCells(entry, 'whitespace-nowrap px-4 py-3 text-sm text-gray-700')}
                             <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
                                 <div class="relative inline-block text-left">
                                     <button type="button" class="dropdown-trigger inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -6556,6 +6569,7 @@
                             <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-400">—</td>
                             <td class="px-4 py-3 text-sm text-gray-400">—</td>
                             <td class="px-4 py-3 text-sm text-gray-400">—</td>
+                            ${completionCells(null, 'whitespace-nowrap px-4 py-3 text-sm text-gray-400')}
                             <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-400">—</td>
                         </tr>
                     `;
@@ -6645,6 +6659,7 @@
                             <td class="px-4 py-3 text-sm text-gray-500">
                                 ${safeDelayReason ? `<span class="line-clamp-2 text-amber-700" title="${safeDelayReason}">${safeDelayReason}</span>` : '—'}
                             </td>
+                            ${completionCells(entry, 'whitespace-nowrap px-4 py-3 text-sm text-gray-500')}
                             <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-400">—</td>
                         </tr>
                     `;
@@ -6988,6 +7003,7 @@
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Expected Return Date</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Notes</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Delay Reason</th>
+                                        ${showCompletionCols ? `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Logged By</th><th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Completed By</th>` : ''}
                                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
                                         `}
                                     </tr>
@@ -8351,7 +8367,13 @@
         const rackShelfValue = escapeHtml(tracker.rackShelfLocation || tracker.rackShelf || tracker.shelf_location || '-');
         const requestPurposeValue = escapeHtml(tracker.requestPurposeName || '-');
         const timelineBadgeForPrint = getTimelineBadge(tracker);
-        const requestTypeForPrint = resolveFileRequestType(tracker);
+        // A DIIT sheet (File Commissioning) reads "DIIT In-transit", printed as written.
+        const requestTypeForPrint = (() => {
+            const type = resolveFileRequestType(tracker);
+            return type && isDiitSheet && type.key === 'IN_TRANSIT'
+                ? { ...type, label: 'DIIT In-transit', keepCase: true }
+                : type;
+        })();
 
         // Timeline / Request Purpose / Expected Return Date cells for the Movement
         // History table — mirrors the on-screen File Log Table's per-row columns.
@@ -8571,7 +8593,7 @@
                                 <div class="request-type-tag">
                                     ${requestTypeForPrint ? `
                                     <span class="request-type-label">Request Type</span>
-                                    <span class="request-type-pill" style="color:${requestTypeForPrint.color};background:${requestTypeForPrint.bg};border-color:${requestTypeForPrint.border};">${escapeHtml(requestTypeForPrint.label)}</span>
+                                    <span class="request-type-pill" style="color:${requestTypeForPrint.color};background:${requestTypeForPrint.bg};border-color:${requestTypeForPrint.border};${requestTypeForPrint.keepCase ? 'text-transform:none;' : ''}">${escapeHtml(requestTypeForPrint.label)}</span>
                                     ` : ''}
                                 </div>
                                 <div class="qr-wrapper">

@@ -249,7 +249,8 @@ class SurveyReportController extends Controller
             'director_rank' => ['nullable', 'string', 'max:100'],
             'director_signature' => ['nullable', 'string', 'max:255'],
             'rofo_no' => [Rule::requiredIf(!$isLands), 'nullable', 'string', 'max:100'],
-            'item_g_no' => [Rule::requiredIf(!$isLands), 'nullable', 'string', 'max:100'],
+            // Optional (user, 2026-10-28).
+            'item_g_no' => ['nullable', 'string', 'max:100'],
             'plot_description' => [Rule::requiredIf(!$isLands), 'nullable', 'string', 'max:1000'],
             'survey_necessary' => [Rule::requiredIf(!$isLands), 'nullable', 'string', 'max:500'],
             'beacon_numbers' => ['nullable', 'string', 'max:2000'],
@@ -273,7 +274,6 @@ class SurveyReportController extends Controller
             'land_officer_id.required' => 'A signing officer is required before you can submit this request.',
             'signature_verification_method.required' => 'Select how the Lands officer signature will be verified.',
             'rofo_no.required' => 'ROFO number is required.',
-            'item_g_no.required' => 'Item G number is required.',
             'plot_description.required' => 'Complete the property location details so the plot description can be generated.',
             'survey_necessary.required' => 'State whether survey will be necessary.',
             'director_cadastral_signature_method.required' => 'Select how the Director Cadastral signature will be verified.',

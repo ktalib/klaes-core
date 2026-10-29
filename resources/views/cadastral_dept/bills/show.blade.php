@@ -75,7 +75,9 @@
     @if ($linesInstalled)
     {{-- 1. Plan Description: CAD 20 / CAD 13 header and boundary lines (change request 26-10-2026) --}}
     <form method="POST" action="{{ route('cadastral-dept.cases.bill.area.save', $case->id) }}" class="rounded-xl border border-gray-200 bg-white p-5 space-y-5"
-          x-data="cdPndLines(@js($cdPillars), @js($cdHeader), @js(['types' => $beaconTypes, 'ownership' => $defaultOwnership, 'register' => $registerBeacons]))"
+          x-data="cdPndLines(@js($cdPillars), @js($cdHeader), @js(['types' => $beaconTypes, 'ownership' => $defaultOwnership, 'register' => $registerBeacons,
+            'factors' => app(\App\Services\Cadastral\AreaCalculator::class)->factors(), 'units' => $units,
+            'area' => (string) old('area_value', $pd && $pd->area_source === 'manual' ? $pd->area_sqm : ''), 'unit' => (string) old('area_unit', 'sqm')]))"
           data-confirm-title="Save the Plan Description?" data-confirm="The header, boundary lines and area for {{ $case->file_number }} are saved.">
       @csrf
       <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -84,7 +86,7 @@
           @if ($pd)
             <span class="text-sm text-gray-600">{{ $pd->pd_ref }} · saved area <strong>{{ number_format((float) $pd->area_sqm, 2) }} m²</strong> ({{ number_format((float) $pd->area_ha, 4) }} ha, {{ ['manual' => 'typed', 'bearings' => 'from bearings and distances'][$pd->area_source] ?? 'from coordinates' }})</span>
             @cadCan('print')
-              @foreach ($forms as $fk => $fl)
+              @foreach (array_intersect_key($forms, [$header['description_form'] => 1]) as $fk => $fl)
                 <a href="{{ route('cadastral-dept.cases.bill.description.print', ['case' => $case->id, 'form' => $fk]) }}" target="_blank"
                    class="inline-flex items-center gap-1 px-3 py-1 rounded-md {{ $fk === $header['description_form'] ? 'bg-gray-800 text-white' : 'border border-gray-300 text-gray-700' }} text-xs font-semibold">
                   <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print {{ strtoupper(str_replace('cad', 'CAD ', $fk)) }}
@@ -125,9 +127,12 @@
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-600 mb-1">Form</label>
-          <select name="description_form" x-model="h.description_form" class="w-full border border-gray-300 rounded-lg px-3 py-2" @disabled(! $due)>
+          {{-- Fixed by the application type (user, 2026-10-27): shown, greyed out, not changeable. --}}
+          <select x-model="h.description_form" class="w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed" disabled
+                  title="Set by the application type: Conversion prints CAD 20, Direct Allocation CAD 13">
             @foreach ($forms as $fk => $fl)<option value="{{ $fk }}">{{ $fl }}</option>@endforeach
           </select>
+          <input type="hidden" name="description_form" value="{{ $header['description_form'] }}">
         </div>
       </div>
 
@@ -212,22 +217,52 @@
         <span x-show="area()" x-cloak>Area from coordinates: <strong x-text="fmtArea(area())"></strong></span>
       </div>
 
+      {{-- Dimensions (user, 2026-10-27): rows of length x width in metres, + to add a row (a plot made
+           of several rectangles). The total, in the chosen unit, fills Area; typing an area keeps it.
+           Saved as text ("46.13 m x 49.52 m; 20.68 m x 10 m"), which the CAD 20 print shows. --}}
       <div class="grid gap-3 lg:grid-cols-3">
         <div class="lg:col-span-2">
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Dimensions (for irregular shapes; optional)</label>
-          <textarea name="dimensions" x-model="h.dimensions" rows="2" maxlength="4000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 46.13 m x 49.52 m x 20.68 m ..." @disabled(! $due)></textarea>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Dimensions</label>
+          <div class="space-y-2">
+            <template x-for="(d, i) in dims" :key="i">
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="text" inputmode="decimal" x-model="d.l" @input="onDims()" placeholder="Length" aria-label="Length (m)"
+                       class="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" @disabled(! $due)>
+                <span class="text-gray-500">m ×</span>
+                <input type="text" inputmode="decimal" x-model="d.w" @input="onDims()" placeholder="Width" aria-label="Width (m)"
+                       class="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" @disabled(! $due)>
+                <span class="text-gray-500">m</span>
+                <span class="text-sm text-gray-600" x-show="dimArea(d)" x-text="'= ' + fmtIn(dimArea(d))"></span>
+                @if ($due)
+                  <button type="button" @click="dims.splice(i, 1); onDims()" x-show="dims.length > 1" aria-label="Remove this row"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-full text-red-600 hover:bg-red-50"><i data-lucide="x" class="w-4 h-4"></i></button>
+                @endif
+              </div>
+            </template>
+          </div>
+          @if ($due)
+            <button type="button" @click="dims.push({l: '', w: ''}); $nextTick(() => window.lucide && lucide.createIcons())"
+                    class="mt-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-green-600 text-green-700 text-sm font-semibold hover:bg-green-50">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add
+            </button>
+          @endif
+          <div class="mt-2 text-sm text-gray-700" x-show="dimsTotal()" x-cloak>
+            Total: <strong x-text="fmtIn(dimsTotal())"></strong> <span class="text-xs text-gray-500" x-text="unit !== 'sqm' ? '(' + dimsTotal().toLocaleString(undefined, {maximumFractionDigits: 2}) + ' m²)' : ''"></span>
+          </div>
+          <input type="hidden" name="dimensions" :value="dimsText()">
         </div>
         <div class="flex flex-wrap items-end gap-2">
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1">Area (blank = worked out)</label>
-            <input type="text" inputmode="decimal" name="area_value" value="{{ old('area_value', $pd && $pd->area_source === 'manual' ? $pd->area_sqm : '') }}" class="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)>
+            <input type="text" inputmode="decimal" name="area_value" x-model="areaValue" @input="areaAuto = false" class="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)>
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-600 mb-1">Unit</label>
-            <select name="area_unit" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)>
-              @foreach ($units as $k => $u)<option value="{{ $k }}" @selected(old('area_unit', 'sqm') === $k)>{{ is_array($u) ? ($u['label'] ?? $k) : $u }}</option>@endforeach
+            <select name="area_unit" x-model="unit" @change="onUnit()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" @disabled(! $due)>
+              @foreach ($units as $k => $u)<option value="{{ $k }}">{{ is_array($u) ? ($u['label'] ?? $k) : $u }}</option>@endforeach
             </select>
           </div>
+          <div class="w-full text-xs text-green-700" x-show="areaAuto && areaValue" x-cloak>From the dimensions.</div>
         </div>
       </div>
       @if ($due)
@@ -441,8 +476,38 @@
     const blank = () => ({pillar_number: '', pillar_type: '', pillar_type_other: '', distance_m: '', bearing_deg: '', bearing_min: '', bearing_sec: '', ownership: o.ownership, easting: '', northing: ''});
     const keys = new Set((o.register || []).map(b => String(b).replace(/\s+/g, '').toUpperCase()));
     const num = v => { const n = parseFloat(String(v ?? '').replace(/[ ,]/g, '')); return isNaN(n) ? null : n; };
+    // Saved dimensions text back into rows: "46.13 m x 49.52 m; 20.68 m x 10 m".
+    const parseDims = t => {
+      const rows = String(t || '').split(/[;\n]+/).map(r => r.match(/([\d.,]+)\s*m?\s*[x×*]\s*([\d.,]+)/i)).filter(Boolean).map(m => ({l: m[1], w: m[2]}));
+      return rows.length ? rows : [{l: '', w: ''}];
+    };
     return {
       o: o, h: header,
+      dims: parseDims(header.dimensions), unit: o.unit || 'sqm', areaValue: o.area || '', areaAuto: false,
+      // Reopened: an area that equals the saved dimensions' total came from them, so it keeps
+      // following the dimensions; a different figure was typed and is left alone.
+      init() {
+        const t = this.dimsTotal(), a = num(this.areaValue), f = (o.factors || {})[this.unit] || 1;
+        if (t && (a === null || Math.abs(a - t / f) <= Math.max(0.01, (t / f) * 0.0001))) { this.areaAuto = true; this.setArea(t); }
+      },
+      dimArea(d) { const l = num(d.l), w = num(d.w); return l && w ? l * w : 0; },
+      dimsTotal() { return this.dims.reduce((s, d) => s + this.dimArea(d), 0); },
+      fmtIn(sqm) {
+        const f = (o.factors || {})[this.unit] || 1;
+        const label = {sqm: 'm²', ha: 'ha', acres: 'acres'}[this.unit] || this.unit;
+        return (sqm / f).toLocaleString(undefined, {maximumFractionDigits: this.unit === 'sqm' ? 2 : 4}) + ' ' + label;
+      },
+      dimsText() {
+        return this.dims.filter(d => num(d.l) && num(d.w)).map(d => num(d.l) + ' m x ' + num(d.w) + ' m').join('; ');
+      },
+      // The total fills Area (in the chosen unit) unless the officer typed an area of their own.
+      onDims() {
+        const t = this.dimsTotal();
+        if (!t) { if (this.areaAuto) { this.areaValue = ''; } return; }
+        if (this.areaAuto || !String(this.areaValue).trim()) { this.areaAuto = true; this.setArea(t); }
+      },
+      onUnit() { if (this.areaAuto && this.dimsTotal()) this.setArea(this.dimsTotal()); },
+      setArea(sqm) { const f = (o.factors || {})[this.unit] || 1; this.areaValue = String(+(sqm / f).toFixed(this.unit === 'sqm' ? 2 : 4)); },
       pillars: (pillars && pillars.length) ? pillars.map(p => Object.assign(blank(), p)) : [blank(), blank(), blank(), blank()],
       addLine() { this.pillars.push(blank()); },
       inRegister(b) { return keys.has(String(b || '').replace(/\s+/g, '').toUpperCase()); },

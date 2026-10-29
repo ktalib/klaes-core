@@ -36,7 +36,7 @@ use Illuminate\Validation\ValidationException;
  * CAD 20 form - its beacon (from the Survey beacon register, or typed when not in it), the
  * beacon type, and the distance and bearing to the next beacon. The area is typed, or worked
  * out from coordinates, or from the lines (BoundaryTraverse; the plot need not close). The
- * description prints on CAD 20, or CAD 13 for SLTR files.
+ * description prints on CAD 20 (Conversion) or CAD 13 (Direct Allocation).
  */
 class PndBills
 {
@@ -46,7 +46,7 @@ class PndBills
 
     public const FORM_CAD20 = 'cad20';
     public const FORM_CAD13 = 'cad13';
-    public const FORMS = [self::FORM_CAD20 => 'CAD 20 (bearings and distances)', self::FORM_CAD13 => 'CAD 13 (SLTR)'];
+    public const FORMS = [self::FORM_CAD20 => 'CAD 20 (Conversion)', self::FORM_CAD13 => 'CAD 13 (Direct Allocation)'];
 
     private static ?bool $linesInstalled = null;
 
@@ -76,11 +76,11 @@ class PndBills
         return $case->workflow === 'conversion' ? CadastralPillar::OWNERSHIP_PRIVATE : CadastralPillar::OWNERSHIP_GOVERNMENT;
     }
 
-    /** CAD 13 for SLTR files, CAD 20 for the rest. */
+    /** CAD 20 for Conversion, CAD 13 for Direct Allocation; the officer can switch on the print page. */
     public static function defaultForm(CadastralCase $case): string
     {
-        return str_starts_with(strtoupper((string) $case->file_number), 'SLTR') || $case->file_source === 'sltr'
-            ? self::FORM_CAD13 : self::FORM_CAD20;
+        // Conversion prints CAD 20, Direct Allocation CAD 13 (user, 2026-10-27).
+        return $case->workflow === 'direct' ? self::FORM_CAD13 : self::FORM_CAD20;
     }
 
     /** @return array<int, string> */
@@ -109,10 +109,12 @@ class PndBills
             'situated_at' => $col('situated_at') ?: ($case->location ?: null),
             'district' => $pd->prop_district ?? $case->district,
             'lga' => $pd->prop_lga ?? $case->lga,
-            'plan_drawing_no' => $col('plan_drawing_no'),
+            // Backfilled with the file number until one is saved; still editable (user, 2026-10-27).
+            'plan_drawing_no' => $col('plan_drawing_no') ?: ($case->file_number ?: null),
             'copied_from_plan_no' => $col('copied_from_plan_no'),
             'dimensions' => $col('dimensions'),
-            'description_form' => $col('description_form') ?: self::defaultForm($case),
+            // Fixed by the application type (user, 2026-10-27): Conversion CAD 20, Direct Allocation CAD 13.
+            'description_form' => self::defaultForm($case),
         ];
     }
 
@@ -191,7 +193,7 @@ class PndBills
         $this->assertDue($case);
         $lines = self::linesInstalled();
         $pillars = $this->cleanPillars((array) ($input['pillars'] ?? []), $lines);
-        $header = $lines ? $this->cleanHeader($input) : [];
+        $header = $lines ? ['description_form' => self::defaultForm($case)] + $this->cleanHeader($input) : [];
         $traverse = $lines ? BoundaryTraverse::measure($pillars) : ['area_sqm' => null, 'misclosure_m' => null];
 
         $typed = trim((string) ($input['area_value'] ?? ''));
@@ -440,7 +442,6 @@ class PndBills
     private function cleanHeader(array $input): array
     {
         $text = fn (string $k, int $max) => ($v = Normalise::text($input[$k] ?? '')) === '' ? null : mb_substr($v, 0, $max);
-        $form = (string) ($input['description_form'] ?? '');
         $place = $text('situated_at', 255);
 
         return [
@@ -448,7 +449,6 @@ class PndBills
             'plan_drawing_no' => $text('plan_drawing_no', 100),
             'copied_from_plan_no' => $text('copied_from_plan_no', 100),
             'dimensions' => ($d = trim((string) ($input['dimensions'] ?? ''))) === '' ? null : mb_substr($d, 0, 4000),
-            'description_form' => array_key_exists($form, self::FORMS) ? $form : self::FORM_CAD20,
         ];
     }
 

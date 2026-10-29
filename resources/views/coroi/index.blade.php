@@ -654,8 +654,10 @@
                                     WAS DELIVERED TO ME FOR REGISTRATION BY
 
                                     @php
+                                        // A Deed of Gift is delivered the same way as an Assignment: by the solicitor.
                                         $isDeedOfAssignment = isset($data) && isset($data->instrument_type)
-                                            && stripos((string) $data->instrument_type, 'DEED OF ASSIGNMENT') !== false;
+                                            && (stripos((string) $data->instrument_type, 'DEED OF ASSIGNMENT') !== false
+                                                || stripos((string) $data->instrument_type, 'DEED OF GIFT') !== false);
 
                                         $isMortgage = isset($data) && isset($data->instrument_type)
                                             && stripos((string) $data->instrument_type, 'MORTGAGE') !== false;

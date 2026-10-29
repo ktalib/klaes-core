@@ -23,6 +23,8 @@ class CadastralYesNoForm extends Model
         'q5_previous_title', 'q5_details',
         'q6_railway', 'q7_trunk_road',
         'area_applied_ha',
+        // Q8's dimensions, "46.13 m x 49.52 m; 20.68 m x 10 m" (migration 2026_10_28_100000).
+        'area_dimensions',
     ];
 
     /** The seven headline questions; all answered = form complete. */

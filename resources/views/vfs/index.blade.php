@@ -124,8 +124,14 @@
                     </thead>
                     <tbody>
                     @forelse($files as $row)
-                        <tr class="border-b {{ $row->vfs_pages === 0 ? 'bg-red-50 border-red-100 text-red-900' : 'border-gray-100' }}"
-                            @if($row->vfs_pages === 0) title="{{ $row->vfs_scans ? 'Scanned but no page has been typed' : 'No EDMS record: never scanned or uploaded' }}" @endif>
+                        {{-- Red: no pages anywhere. Purple: no typed pages, but the pages are
+                             still in the Blind Scanning folder. --}}
+                        @php
+                            $vfsBlindOnly = $row->vfs_pages === 0 && ($row->vfs_blind ?? 0) > 0;
+                        @endphp
+                        <tr class="border-b {{ $vfsBlindOnly ? 'bg-purple-50 border-purple-100 text-purple-900' : ($row->vfs_pages === 0 ? 'bg-red-50 border-red-100 text-red-900' : 'border-gray-100') }}"
+                            @if($vfsBlindOnly) title="Pages are in the Blind Scanning folder, not yet page-typed"
+                            @elseif($row->vfs_pages === 0) title="{{ $row->vfs_scans ? 'Scanned but no page has been typed' : 'No EDMS record: never scanned or uploaded' }}" @endif>
                             <td class="px-4 py-3 text-xs text-gray-600">{{ $row->prop_id ?: '—' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
@@ -154,8 +160,19 @@
                                     {{ $row->vfs_registry_badge['label'] }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-xs {{ $row->vfs_pages === 0 ? 'text-red-700 font-bold' : 'text-gray-600' }}">{{ $row->vfs_pages }}</td>
+                            <td class="px-4 py-3 text-xs {{ $vfsBlindOnly ? 'text-purple-700 font-bold' : ($row->vfs_pages === 0 ? 'text-red-700 font-bold' : 'text-gray-600') }}">
+                                {{ $row->vfs_pages }}
+                                @if(($row->vfs_blind ?? 0) > 0)
+                                    <span class="block text-xs font-semibold text-purple-700">+{{ number_format($row->vfs_blind) }} in blind scan</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">
+                                @if(($row->vfs_blind ?? 0) > 0)
+                                    <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-purple-100 text-purple-800 border border-purple-300 mb-1"
+                                          title="{{ number_format($row->vfs_blind) }} {{ \Illuminate\Support\Str::plural('page', $row->vfs_blind) }} still in the Blind Scanning folder">
+                                        IN BLIND SCAN
+                                    </span>
+                                @endif
                                 @if($row->vfs_state)
                                     <span class="inline-block text-xs font-bold px-2 py-1 rounded {{ $row->vfs_state['chip'] }}">
                                         {{ strtoupper($row->vfs_state['label']) }}
@@ -168,7 +185,7 @@
                                     @endif
                                 @elseif($row->vfs_is_temporary)
                                     <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">TEMPORARY FILE</span>
-                                @elseif($row->vfs_pages === 0)
+                                @elseif($row->vfs_pages === 0 && !$vfsBlindOnly)
                                     <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-red-100 text-red-700 border border-red-300">
                                         {{ $row->vfs_scans ? 'NOT PAGE-TYPED (' . $row->vfs_scans . ' ' . \Illuminate\Support\Str::plural('scan', $row->vfs_scans) . ')' : 'NO EDMS RECORD' }}
                                     </span>
@@ -177,15 +194,11 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right">
-                                @if($row->vfs_pages === 0)
-                                    {{-- Indexed but never scanned. Opening an empty folder teaches
-                                         staff to distrust the screen, so the row refuses instead. --}}
-                                    <span class="inline-block text-xs font-semibold border border-gray-200 text-gray-400 rounded-md py-1 px-3 cursor-not-allowed"
-                                          title="Indexed but never scanned — nothing to display">Open</span>
-                                @else
-                                    <a href="{{ route('vfs.show', $row->id) }}"
-                                       class="inline-block text-xs font-semibold rounded-md py-1 px-3 {{ $row->vfs_state && ($row->vfs_state['restricting'] ?? false) ? 'bg-blue-700 text-white' : 'border border-gray-300 text-gray-700' }}">Open</a>
-                                @endif
+                                {{-- Always open: a file with no pages yet can still have linked
+                                     files (lineage), blind-scan pages or KLAES-issued sheets. --}}
+                                <a href="{{ route('vfs.show', $row->id) }}"
+                                   @if($row->vfs_pages === 0) title="No typed pages yet — open for linked files, blind scans and status" @endif
+                                   class="inline-block text-xs font-semibold rounded-md py-1 px-3 {{ $row->vfs_state && ($row->vfs_state['restricting'] ?? false) ? 'bg-blue-700 text-white' : 'border border-gray-300 text-gray-700' }}">Open</a>
                             </td>
                         </tr>
                     @empty
@@ -226,6 +239,45 @@
                 {{ $files->links() }}
             </div>
         </div>
+
+        {{-- Folders sitting only in Blind Scanning: the file number is not indexed, so
+             there is no folio to open yet, but the search must still show they exist. --}}
+        @if(($blindOnly ?? collect())->isNotEmpty())
+            <div class="bg-white border border-purple-200 rounded-lg overflow-hidden">
+                <div class="px-4 py-2 bg-purple-50 border-b border-purple-200 flex items-center gap-2">
+                    <i data-lucide="scan-line" class="h-4 w-4 text-purple-700"></i>
+                    <span class="text-xs font-bold tracking-wider text-purple-900">ALSO IN BLIND SCANNING — NOT INDEXED YET</span>
+                    <span class="text-xs text-purple-700">({{ $blindOnly->count() }}{{ $blindOnly->count() >= 20 ? '+' : '' }})</span>
+                </div>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200 text-left">
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">S/N</th>
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">FILE NUMBER</th>
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">REGISTRY</th>
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">PAGES</th>
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">LAST SCANNED</th>
+                            <th class="px-4 py-2 text-xs font-bold tracking-wider text-gray-500">STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($blindOnly as $blind)
+                            <tr class="border-b border-purple-100 bg-purple-50 text-purple-900">
+                                <td class="px-4 py-2 text-xs">{{ $loop->iteration }}</td>
+                                <td class="px-4 py-2 font-bold">{{ $blind->file_number }}</td>
+                                <td class="px-4 py-2 text-xs">{{ strtoupper((string) $blind->registry_type) ?: '—' }}</td>
+                                <td class="px-4 py-2 text-xs font-semibold">{{ number_format($blind->pages) }}</td>
+                                <td class="px-4 py-2 text-xs">{{ $blind->last_at ? \Carbon\Carbon::parse($blind->last_at)->format('d M Y') : '—' }}</td>
+                                <td class="px-4 py-2">
+                                    <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-purple-100 text-purple-800 border border-purple-300"
+                                          title="Pages are in the Blind Scanning folder; index the file to open its folio">IN BLIND SCAN · NOT INDEXED</span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
 
         <div class="bg-white border border-gray-200 rounded-lg px-4 py-3 flex gap-3">
             <i data-lucide="info" class="h-4 w-4 text-blue-700 flex-shrink-0" style="margin-top: 2px;"></i>

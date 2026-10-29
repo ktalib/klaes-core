@@ -608,7 +608,7 @@
                 </tr>
                 <tr class="fee-paid">
                     <td class="fee-no">ii.</td>
-                    <td class="fee-label">Registration fees ({{ $rate($fees['registration_rate']) }})</td>
+                    <td class="fee-label">Registration fees{{ empty($fees['registration_fixed']) ? ' (' . $rate($fees['registration_rate']) . ')' : '' }}</td>
                     <td class="fee-amount">{{ $money($fees['registration_fee']) }}</td>
                     <td class="fee-note">(Already paid to MOL&amp;PP)</td>
                 </tr>
@@ -626,7 +626,7 @@
                 </tr>
                 <tr class="is-outstanding">
                     <td class="fee-no">iv.</td>
-                    <td class="fee-label">Stamp Duty ({{ $rate($fees['stamp_duty_rate']) }})</td>
+                    <td class="fee-label">Stamp Duty{{ empty($fees['stamp_duty_fixed']) ? ' (' . $rate($fees['stamp_duty_rate']) . ')' : '' }}</td>
                     <td class="fee-amount">{{ $money($fees['stamp_duty_amount']) }}</td>
                     <td class="fee-note">(Outstanding, to be paid to {{ $fees['payee'] }})</td>
                 </tr>
@@ -642,8 +642,8 @@
             <div class="clause-sub is-outstanding">
                 <span class="clause-sub-no">i.</span>
                 <span>The sum of <span class="json-data">{{ $fees['stamp_duty_amount'] === null ? '_______________________' : \App\Services\ConsentBillCalculator::amountInWords($fees['stamp_duty_amount']) }}
-                ({{ $money($fees['stamp_duty_amount']) }})</span> being
-                <span class="json-data">{{ $rate($fees['stamp_duty_rate']) }}</span> for Stamp duty.</span>
+                ({{ $money($fees['stamp_duty_amount']) }})</span>@if(empty($fees['stamp_duty_fixed'])) being
+                <span class="json-data">{{ $rate($fees['stamp_duty_rate']) }}</span>@endif for Stamp duty.</span>
             </div>
         </div>
 

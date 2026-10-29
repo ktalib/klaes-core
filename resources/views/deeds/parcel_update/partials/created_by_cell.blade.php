@@ -17,6 +17,9 @@
 @endphp
 @if($cardUserId > 0 && $cardName !== '')
     <span class="upc-trigger" data-user-card data-user-id="{{ $cardUserId }}" title="{{ __('View profile') }}">{{ \App\Support\PersonName::display($cardName) }}</span>
+@elseif($cardName !== '')
+    {{-- No account behind it (e.g. "System Backfill"): the name only, no profile card. --}}
+    <span class="text-slate-500 italic">{{ $cardName }}</span>
 @else
     <span class="text-slate-400">&mdash;</span>
 @endif

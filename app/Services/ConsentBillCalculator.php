@@ -81,6 +81,30 @@ class ConsentBillCalculator
     }
 
     /**
+     * Whether a transaction type bills a line at a flat amount instead of a
+     * percentage (config *_fixed keys) - true for a Gift. Such a type is billed
+     * even with no valuation, since nothing on the bill depends on one.
+     *
+     * @return array{registration: bool, stamp_duty: bool}
+     */
+    public static function fixedLines(?string $transactionType): array
+    {
+        $profile = self::transactionType($transactionType) ?? [];
+
+        return [
+            'registration' => isset($profile['registration_fee_fixed']),
+            'stamp_duty' => isset($profile['stamp_duty_fixed']),
+        ];
+    }
+
+    public static function hasFixedFees(?string $transactionType): bool
+    {
+        $fixed = self::fixedLines($transactionType);
+
+        return $fixed['registration'] && $fixed['stamp_duty'];
+    }
+
+    /**
      * The full name of a stamp duty payee, as the letter prints it.
      */
     public static function payeeName(?string $payee): string
@@ -120,16 +144,22 @@ class ConsentBillCalculator
         $valuationAmount = max(0.0, round($valuationAmount, 2));
 
         $profile = self::transactionType($transactionType);
+        $fixed = self::fixedLines($transactionType);
 
-        $stampDutyRate = (float) ($rates['stamp_duty']
+        // A flat line ignores the valuation and any edited percentage.
+        $stampDutyRate = $fixed['stamp_duty'] ? 0.0 : (float) ($rates['stamp_duty']
             ?? $profile['stamp_duty_rate'] ?? config('consent_bill.rates.stamp_duty', 0));
-        $registrationRate = (float) ($rates['registration']
+        $registrationRate = $fixed['registration'] ? 0.0 : (float) ($rates['registration']
             ?? $profile['registration_rate'] ?? config('consent_bill.rates.registration', 0));
         $processingFee = (float) ($profile['processing_fee'] ?? config('consent_bill.fixed_fees.processing', 0));
 
         $lines = [
-            'stamp_duty_amount' => round($valuationAmount * $stampDutyRate / 100, 2),
-            'registration_fee' => round($valuationAmount * $registrationRate / 100, 2),
+            'stamp_duty_amount' => $fixed['stamp_duty']
+                ? round((float) $profile['stamp_duty_fixed'], 2)
+                : round($valuationAmount * $stampDutyRate / 100, 2),
+            'registration_fee' => $fixed['registration']
+                ? round((float) $profile['registration_fee_fixed'], 2)
+                : round($valuationAmount * $registrationRate / 100, 2),
             'processing_fee' => round($processingFee, 2),
         ];
 
@@ -149,6 +179,8 @@ class ConsentBillCalculator
         ], $lines, [
             'bill_total' => round($billed, 2),
             'stamp_duty_payee' => $profile['payee'] ?? null,
+            'registration_fixed' => $fixed['registration'],
+            'stamp_duty_fixed' => $fixed['stamp_duty'],
         ]);
     }
 

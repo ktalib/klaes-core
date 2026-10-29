@@ -369,7 +369,7 @@
           data-section="otherApplications-lands">
           <div class="flex items-center gap-2">
             <i data-lucide="files" class="h-4 w-4 text-orange-500"></i>
-            <span>Parcel/Title Management</span>
+            <span>Parcel/Title Management (Post CofO)</span>
           </div>
           <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200"
             data-chevron="otherApplications-lands"></i>
@@ -490,7 +490,7 @@
         <a href="{{ route('parcel-register.index', ['type' => 'subdivision', 'mode' => 'land']) }}"
           class="sidebar-submodule-header flex items-center gap-2 py-1.5 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('parcel-register.index') && request()->query('mode') === 'land' ? 'active' : '' }}">
           <i data-lucide="map" class="h-4 w-4 text-orange-500"></i>
-          <span>Parcel Update</span>
+          <span>Post CofO</span>
         </a>
       @endif
 

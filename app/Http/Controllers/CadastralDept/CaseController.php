@@ -78,7 +78,135 @@ class CaseController extends Controller
         return view('cadastral_dept.cases.create', [
             'def' => $def,
             'installed' => CaseWorkflow::installed(),
+            // Batch mode: the last batch's result per file (batchStore).
+            'batchResults' => session('cd_batch_results'),
         ]);
+    }
+
+    /**
+     * Batch mode on Register File (backlog, user 2026-10-27): many files under ONE application type
+     * and ONE file type, with one file source / date received / remarks; Conversion, Direct
+     * Allocation and Verification are batched one at a time, never mixed.
+     * Each file is checked and registered on its own, exactly as Register File does (lookup, then
+     * CaseWorkflow::open with its own transaction), so one bad file never stops the others; the
+     * result of every file is listed back.
+     */
+    public function batchStore(Request $request, CaseWorkflow $workflow, IntakeLookup $lookup)
+    {
+        $data = $request->validate([
+            'workflow' => 'required|string|max:20',
+            'file_type' => 'required|string|max:20',
+            'sub_type' => 'nullable|string|max:30',
+            'allocation_route' => 'nullable|string|max:30',
+            'verification_group' => 'nullable|required_if:workflow,verification|in:conversion,direct',
+            'file_source' => 'required|string|max:20',
+            'file_source_other' => 'nullable|required_if:file_source,other|string|max:100',
+            'received_at' => 'nullable|date',
+            'remarks' => 'nullable|string|max:2000',
+            'files' => 'required|array|min:1|max:' . self::BATCH_MAX,
+            'files.*.file_number' => 'required|string|max:100',
+            'files.*.file_indexing_id' => 'nullable|integer|min:1',
+            'files.*.tracking_id' => 'nullable|string|max:50',
+        ], [
+            'files.required' => 'Add at least one file to the batch.',
+            'files.max' => 'A batch takes at most ' . self::BATCH_MAX . ' files. Register the rest in another batch.',
+            'file_type.required' => 'Choose the file type.',
+            'verification_group.required_if' => 'Choose Conversion or Direct Allocation.',
+            'file_source.required' => 'Choose where the files came from.',
+            'file_source_other.required_if' => 'Specify where the files came from.',
+        ]);
+        @set_time_limit(600);
+
+        $results = [];
+        $seen = [];
+        $pic = PropertyIndexCards::installed() ? app(PropertyIndexCards::class) : null;
+        foreach ($data['files'] as $row) {
+            $number = trim($row['file_number']);
+            $key = strtoupper($number);
+            if (isset($seen[$key])) {
+                continue;   // the same file twice in one batch
+            }
+            $seen[$key] = true;
+            $found = $lookup->resolve([
+                'file_number' => $number,
+                'file_indexing_id' => (int) ($row['file_indexing_id'] ?? 0),
+                'workflow' => $data['workflow'],
+            ]);
+            if ($found['status'] !== 'ok') {
+                $results[] = ['file_number' => $number, 'ok' => false, 'message' => $found['message'] ?: 'Cannot be registered.'];
+                continue;
+            }
+            $file = $found['file'];
+            try {
+                $case = $workflow->open([
+                    'workflow' => $data['workflow'],
+                    'file_type' => $data['file_type'],
+                    'sub_type' => $data['sub_type'] ?? null,
+                    'allocation_route' => $data['allocation_route'] ?? null,
+                    'verification_group' => $data['verification_group'] ?? null,
+                    'file_source' => $data['file_source'],
+                    'file_source_other' => $data['file_source_other'] ?? null,
+                    'file_number' => $file['file_number'],
+                    'file_indexing_id' => $file['file_indexing_id'],
+                    'tracking_id' => $row['tracking_id'] ?? null,
+                    'file_title' => $file['title'],
+                    'plot_no' => $file['plot'],
+                    'district' => $file['district'],
+                    'lga' => $file['lga'],
+                    'location' => $file['location'],
+                    'correspondence_fileno' => $found['correspondence']['fileno'],
+                    'shadow_fileno' => $found['correspondence']['shadow'] ?? null,
+                    'duplicate_flag' => $found['duplicate']['flag'],
+                    'duplicate_note' => $found['duplicate']['note'],
+                    'received_at' => $data['received_at'] ?? null,
+                    'remarks' => $data['remarks'] ?? null,
+                ], auth()->id());
+            } catch (WorkflowGuardException $e) {
+                $results[] = ['file_number' => $number, 'ok' => false, 'message' => $e->getMessage()];
+                continue;
+            } catch (\Throwable $e) {
+                Log::warning('Cadastral batch registration failed', ['file_no' => $number, 'error' => $e->getMessage()]);
+                $results[] = ['file_number' => $number, 'ok' => false, 'message' => 'Could not be registered: ' . $e->getMessage()];
+                continue;
+            }
+            $notes = [];
+            if (empty($found['correspondence']['exists']) && ($case->shadow_fileno ?? null)) {
+                $notes[] = "Correspondence file {$case->shadow_fileno} created.";
+            }
+            if ($case->duplicate_flag) {
+                $notes[] = 'Possible duplicate: ' . $case->duplicate_note;
+            }
+            if ($pic) {
+                try {
+                    $pic->generate($case->file_number, 'intake', (int) $case->id, auth()->id());
+                } catch (\Throwable $e) {
+                    Log::warning('Property Index Card on batch registration failed', ['case' => $case->id, 'error' => $e->getMessage()]);
+                    $notes[] = 'Property Index Card not generated; generate it from Generate Property Index Card.';
+                }
+            }
+            $results[] = ['file_number' => $case->file_number, 'ok' => true, 'ref' => $case->case_ref, 'url' => route('cadastral-dept.cases.show', $case->id),
+                'title' => $case->file_title, 'desk' => $case->deskShort(), 'message' => implode(' ', $notes)];
+        }
+
+        $done = collect($results)->where('ok', true)->count();
+        $failed = count($results) - $done;
+
+        // Batch mode sends the files one at a time, so the page can show "3 of 12" (user, 2026-10-27).
+        if ($request->expectsJson()) {
+            return response()->json(['results' => $results, 'registered' => $done, 'failed' => $failed]);
+        }
+
+        return redirect()->route('cadastral-dept.cases.create')
+            ->with('cd_batch_results', $results)
+            ->with($failed ? 'error' : 'success', "{$done} of " . count($results) . ' file(s) registered' . ($failed ? "; {$failed} could not be (see the list)." : '.'));
+    }
+
+    /** The most files one Batch Register takes. */
+    private const BATCH_MAX = 100;
+
+    public static function batchMax(): int
+    {
+        return self::BATCH_MAX;
     }
 
     /**
@@ -93,6 +221,12 @@ class CaseController extends Controller
             'file_indexing_id' => (int) $request->query('file_indexing_id', 0),
             'workflow' => mb_substr((string) $request->query('workflow', ''), 0, 20),
         ]));
+    }
+
+    /** Scan to register: the file(s) a scanned QR or typed tracking ID / file number names. Read only. */
+    public function lookupQr(Request $request, IntakeLookup $lookup): JsonResponse
+    {
+        return response()->json($lookup->scan(mb_substr((string) $request->query('code', ''), 0, 2000)));
     }
 
     /** The intake form's file dropdown: indexed files for the application type, filtered by what was typed. */
@@ -183,6 +317,10 @@ class CaseController extends Controller
         $message = $heads->awaiting($case)
             ? "{$case->case_ref}: {$case->file_number} registered; it waits for the " . $heads->headOf($case->current_desk) . "'s approval (AD CAD Registry > Approval) before going to D Cad."
             : "{$case->case_ref}: {$case->file_number} registered and sent to " . $case->deskShort() . '.';
+        // Made at registration because the file had none (CorrespondenceStep::atIntake).
+        if (empty($found['correspondence']['exists']) && ($case->shadow_fileno ?? null)) {
+            $message .= " Correspondence file {$case->shadow_fileno} created.";
+        }
         if ($case->duplicate_flag) {
             $message .= ' Note, possible duplicate: ' . $case->duplicate_note;
         }
@@ -217,6 +355,8 @@ class CaseController extends Controller
         if ($case->isOpen()) {
             try {
                 $actions = $engine->actions($case->workflow, $case->current_step, $case->sub_type);
+                // Final Charting: only the route the file's surveyor calls for (SG for a Government survey).
+                $actions = app(\App\Services\CadastralDept\SurveyRoute::class)->filter($case, $actions);
             } catch (WorkflowGuardException $e) {
                 // A sub-type route with no sub-type yet: the page asks for it instead.
             }
@@ -324,6 +464,14 @@ class CaseController extends Controller
             \App\Services\CadastralDept\HeadApproval::RETURNED => $workflow->returnToStaff($case, $data['remarks'] ?? null, auth()->id()),
             default => $workflow->advance($case, $data['outcome'], $data['remarks'] ?? null, auth()->id()),
         }, 'Case moved.');
+    }
+
+    /** The unit accepts a file it was sent (CadastralFileTracking); desk-gated by cadastral.desk. */
+    public function accept(int $case, \App\Services\CadastralDept\CadastralFileTracking $tracking)
+    {
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $tracking->accept($case, auth()->id()), 'File accepted.');
     }
 
     /** Super Admin / Central Admin: move the file to any step (the step bar on the file page). */
@@ -542,5 +690,19 @@ class CaseController extends Controller
         $case = CadastralCase::findOrFail($case);
 
         return $this->attempt(fn () => $workflow->setSubType($case, $data['sub_type'], auth()->id()), 'Sub-type set.');
+    }
+
+    /** Change application type while the file is still at Registry intake (CaseWorkflow::changeType). */
+    public function changeType(Request $request, int $case, CaseWorkflow $workflow)
+    {
+        $data = $request->validate([
+            'workflow' => 'required|string|max:20',
+            'sub_type' => 'nullable|string|max:30',
+            'allocation_route' => 'nullable|string|max:30',
+            'verification_group' => 'nullable|in:conversion,direct',
+        ], ['workflow.required' => 'Choose the application type.']);
+        $case = CadastralCase::findOrFail($case);
+
+        return $this->attempt(fn () => $workflow->changeType($case, $data, auth()->id()), 'Application type changed.');
     }
 }

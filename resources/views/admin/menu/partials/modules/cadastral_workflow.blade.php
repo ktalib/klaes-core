@@ -86,7 +86,7 @@
       class="sidebar-module-header flex items-center justify-between py-2 px-3 mb-0.5 cursor-pointer hover:bg-slate-50 rounded-md"
       data-module="cadastral">
       <div class="flex items-center gap-2">
-        <i data-lucide="map" class="h-5 w-5 text-rose-600"></i>
+        <i data-lucide="land-plot" class="h-5 w-5 text-rose-600"></i>
         <span class="text-sm font-bold uppercase tracking-wider">Cadastral</span>
       </div>
       <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="cadastral"></i>
@@ -112,7 +112,7 @@
         <div class="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin</div>
         <a href="{{ route('cadastral-dept.central-admin.index') }}"
           class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('cadastral-dept.central-admin.*') ? 'active' : '' }}">
-          <i data-lucide="shield-check" class="h-4 w-4 text-rose-500"></i>
+          <i data-lucide="user-cog" class="h-4 w-4 text-rose-500"></i>
           <span>Central Admin</span>
         </a>
       @endif
@@ -156,9 +156,9 @@
       {{-- b. Registry: Intake Queue, Cadastral Print File Label, AD CAD Registry > Approval, DMS Update > Scan More / More Pages --}}
       {{-- The whole group, Print File Label included, is the Registry role's (user, 2026-10-26: every entry gated). --}}
       @if($cadDesk('registry'))
-      {!! $cadGroup('cadastralDept-registry', 'Registry', 'inbox') !!}
+      {!! $cadGroup('cadastralDept-registry', 'Registry', 'folder-input') !!}
       <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-registry">
-          {!! $cadLink('Intake Queue', $cadDeskUrl('registry'), 'list', $cadDeskOn('registry'), $cadBadge($cadCount('registry'), 'Files at Registry')) !!}
+          {!! $cadLink('Intake Queue', $cadDeskUrl('registry'), 'inbox', $cadDeskOn('registry'), $cadBadge($cadCount('registry'), 'Files at Registry')) !!}
           {!! $cadLink('Cadastral Print File Label', route('cadastral_printlabel.index'), 'printer', request()->routeIs('cadastral_printlabel.index')) !!}
           {!! $cadApproval('registry', 'AD CAD Registry') !!}
           {{-- iv. DMS Update (sidebar, cadastral.jpeg 2026-10-20): the DMS Scan More and Type More pages,
@@ -177,9 +177,9 @@
       {{-- D CAD > Recommend, DD CAD > Recommend (renamed from Approval, user 2026-10-18) (sidebar, WhatsApp image 2026-10-16 5.38 PM). The directors
            have no head above them in the unit, so Recommend is every file at their desk, waiting
            for their decision (queue `approval`, no rule). --}}
-      @foreach (['director_cadastral' => 'D CAD', 'deputy_director_cadastral' => 'DD CAD'] as $cadDirDesk => $cadDirLabel)
+      @foreach (['director_cadastral' => ['D CAD', 'crown'], 'deputy_director_cadastral' => ['DD CAD', 'briefcase']] as $cadDirDesk => [$cadDirLabel, $cadDirIcon])
         @if($cadDesk($cadDirDesk))
-          {!! $cadGroup('cadastralDept-' . $cadDirDesk, $cadDirLabel, 'inbox') !!}
+          {!! $cadGroup('cadastralDept-' . $cadDirDesk, $cadDirLabel, $cadDirIcon) !!}
           <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-{{ $cadDirDesk }}">
             {!! $cadLink('Recommend', $cadDeskUrl($cadDirDesk, 'approval'), 'thumbs-up', $cadDeskOn($cadDirDesk, 'approval') || $cadDeskOn($cadDirDesk), $cadBadge($cadCount($cadDirDesk, 'approval'), 'Files at ' . $cadDirLabel)) !!}
           </div>
@@ -190,10 +190,10 @@
         {{-- e. Cadastral Information: Job Book and Surveyors moved here from P&D (sidebar doc, 2026-10-15),
              since AD Cad Info now issues the job number and assigns the surveyor. Surveyors also
              shows for the Cad - Surveyors role, alone for a user who has only that (2026-10-21). --}}
-        {!! $cadGroup('cadastralDept-ad_information', 'Cadastral Information', 'inbox') !!}
+        {!! $cadGroup('cadastralDept-ad_information', 'Cadastral Information', 'clipboard-list') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_information">
           @if($cadDesk('ad_information'))
-            @foreach (['fmc' => ['File Movement Card (FMC)', 'id-card'], 'first_charting' => ['1st Charting (Direct Allocation Files)', 'map']] as $cadQKey => [$cadQLabel, $cadQIcon])
+            @foreach (['fmc' => ['File Movement Card (FMC)', 'id-card'], 'first_charting' => ['1st Charting (Direct Allocation Files)', 'route']] as $cadQKey => [$cadQLabel, $cadQIcon])
               {!! $cadLink($cadLabel('ad_information', $cadQKey, $cadQLabel), $cadDeskUrl('ad_information', $cadQKey), $cadQIcon, $cadDeskOn('ad_information', $cadQKey), $cadBadge($cadCount('ad_information', $cadQKey), $cadQLabel)) !!}
             @endforeach
             {!! $cadLink('Job Book', route('cadastral-module.survey-jobs.index'), 'book-open', request()->routeIs('cadastral-module.survey-jobs.*')) !!}
@@ -210,7 +210,7 @@
            iv. Property Index Cards (Legacy Records) stays here (sidebar doc, 2026-10-20); Generate
            Property Index Card is a button on that page, not its own entry. --}}
       @if($cadDesk('ad_report') || $cadLegacyIc)
-        {!! $cadGroup('cadastralDept-ad_report', 'Cadastral Report', 'inbox') !!}
+        {!! $cadGroup('cadastralDept-ad_report', 'Cadastral Report', 'file-text') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_report">
           @if($cadDesk('ad_report'))
             {!! $cadLink($cadLabel('ad_report', 'all', 'All Reports'), $cadDeskUrl('ad_report'), 'list', $cadDeskOn('ad_report') || $cadDeskOn('ad_report', 'all'), $cadBadge($cadCount('ad_report'), 'Files at AD Cad Report')) !!}
@@ -226,7 +226,7 @@
             {{-- The old "Commission Correspondence File (Match MLSFileNo)" page. --}}
             {!! $cadLink('Commission/Match Correspondence File', route('mls-file-no-matching.index'), 'check', request()->routeIs('mls-file-no-matching.index')) !!}
           @endif
-          {!! $cadLink('Property Index Cards (Legacy Records)', route('property_index_card.index'), 'book-open', request()->routeIs('property_index_card.index') || request()->routeIs('cadastral-dept.pic.*')) !!}
+          {!! $cadLink('Property Index Cards (Legacy Records)', route('property_index_card.index'), 'book-marked', request()->routeIs('property_index_card.index') || request()->routeIs('cadastral-dept.pic.*')) !!}
           @if($cadDesk('ad_report'))
             {!! $cadApproval('ad_report', 'AD CAD Report') !!}
           @endif
@@ -238,7 +238,7 @@
 
       @if($cadDesk('ad_pnd'))
         {{-- g. Plans & Descriptions --}}
-        {!! $cadGroup('cadastralDept-ad_pnd', 'Plans & Descriptions', 'inbox') !!}
+        {!! $cadGroup('cadastralDept-ad_pnd', 'Plans & Descriptions', 'drafting-compass') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_pnd">
           {!! $cadLink($cadLabel('ad_pnd', 'all', 'All Files at P&D'), $cadDeskUrl('ad_pnd'), 'list', $cadDeskOn('ad_pnd') || $cadDeskOn('ad_pnd', 'all'), $cadBadge($cadCount('ad_pnd'), 'Files at AD P&D')) !!}
           @foreach (['its' => ['I to S', 'send'], 'bill' => ['Fees, Plan and Description', 'receipt']] as $cadQKey => [$cadQLabel, $cadQIcon])
@@ -250,9 +250,9 @@
 
       @if($cadDesk('ad_drawing'))
         {{-- h. Drawing & Charting (updated workflow, 2026-10-15) --}}
-        {!! $cadGroup('cadastralDept-ad_drawing', 'Drawing & Charting', 'inbox') !!}
+        {!! $cadGroup('cadastralDept-ad_drawing', 'Drawing & Charting', 'pencil-ruler') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastralDept-ad_drawing">
-          {!! $cadLink($cadLabel('ad_drawing', 'final_charting', 'Final Charting'), $cadDeskUrl('ad_drawing', 'final_charting'), 'pencil-ruler', $cadDeskOn('ad_drawing', 'final_charting') || $cadDeskOn('ad_drawing'), $cadBadge($cadCount('ad_drawing', 'final_charting'), 'Final Charting')) !!}
+          {!! $cadLink($cadLabel('ad_drawing', 'final_charting', 'Final Charting'), $cadDeskUrl('ad_drawing', 'final_charting'), 'pen-tool', $cadDeskOn('ad_drawing', 'final_charting') || $cadDeskOn('ad_drawing'), $cadBadge($cadCount('ad_drawing', 'final_charting'), 'Final Charting')) !!}
           {!! $cadApproval('ad_drawing', 'AD CAD D&C') !!}
         </div>
       @endif
@@ -260,7 +260,7 @@
       {{-- i. GIS (sidebar, WhatsApp image 2026-10-16 4.27 PM): Buffer Analysis and AD GIS > Approval,
            shown again under the doc's names. Survey Plan Extraction stays for its own users. --}}
       @if($cadExtract || $cadDesk('cadastral_gis'))
-        {!! $cadGroup('cadastral-gis', 'GIS', 'map-pinned') !!}
+        {!! $cadGroup('cadastral-gis', 'GIS', 'globe') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-gis">
           @if($cadDesk('cadastral_gis'))
             {{-- The Cadastral GIS Unit's buffer analysis (transcript, 2026-10-16); AD GIS sends to KAMMA / Physical Planning. --}}
@@ -322,7 +322,7 @@
       <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-departments">
         {!! $cadGroup('cadastral-other-land', 'Land', 'map', true) !!}
         <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-land">
-          {!! $cadLink('Cadastral to Land (Land 12)', route('survey-report.index') . '?url=cadastral', 'file-text', request()->routeIs('survey-report.index') && request()->query('url') === 'cadastral') !!}
+          {!! $cadLink('Cadastral to Land (Land 12)', route('survey-report.index') . '?url=cadastral', 'file-output', request()->routeIs('survey-report.index') && request()->query('url') === 'cadastral') !!}
         </div>
       </div>
       @endif
@@ -335,12 +335,12 @@
         {!! $cadGroup('digitalArchive-cadastral', 'Digital Archive', 'archive') !!}
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="digitalArchive-cadastral">
           {!! $cadLink('File Tracker Dashboard', route('file-tracker.dashboard', ['url' => 'cadastral']), 'bar-chart-2', request()->routeIs('file-tracker.dashboard') && request('url') === 'cadastral') !!}
-          {!! $cadLink('File Tracker (Archive)', route('track-file-archive.index', ['url' => 'cadastral']), 'archive', request()->routeIs('track-file-archive.index') && request('url') === 'cadastral') !!}
+          {!! $cadLink('File Tracker (Archive)', route('track-file-archive.index', ['url' => 'cadastral']), 'folder-search', request()->routeIs('track-file-archive.index') && request('url') === 'cadastral') !!}
           {{-- Quick Search, Log a File, DMS Update (sidebar doc, 2026-10-15), as in the previous layout;
                DMS Update has no page yet, the same placeholder as the other modules' menus. --}}
           {!! $cadLink('Quick Search', route('create-file-tracker.quick-search', ['url' => 'cadastral']), 'search', request()->routeIs('create-file-tracker.quick-search') && request('url') === 'cadastral') !!}
           {!! $cadLink('Log a File', route('create-file-tracker.index', ['url' => 'cadastral']), 'file-plus', request()->routeIs('create-file-tracker.index') && request('url') === 'cadastral') !!}
-          {!! $cadLink('DMS Update', '#', 'refresh-cw', false) !!}
+          {!! $cadLink('DMS Update', '#', 'hard-drive-upload', false) !!}
         </div>
       @endif
 

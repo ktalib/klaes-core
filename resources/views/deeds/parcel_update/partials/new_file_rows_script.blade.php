@@ -60,7 +60,7 @@
     // file, the application's (the row above) where it is about the application.
     function cellFor(label, parentCell, f, n, parentSn) {
         if (label === 's/n' || label === '#') return '<span class="font-mono text-xs text-slate-400 pl-7">' + esc(parentSn ? parentSn + '.' + n : n) + '</span>';
-        if (label.indexOf('new fileno') === 0) return '<span class="font-mono font-bold text-emerald-700 whitespace-nowrap">' + esc(f.f) + '</span>';
+        if (label.indexOf('new fileno') === 0 || label.indexOf('new file no') === 0) return '<span class="font-mono font-bold text-emerald-700 whitespace-nowrap">' + esc(f.f) + '</span>';
         if (label.indexOf('title') !== -1 || label.indexOf('applicant') === 0) return val(f.t);
         if (label === 'plots' || label.indexOf('plot no') === 0) return val(f.p);
         if (label === 'location') return val(f.l);

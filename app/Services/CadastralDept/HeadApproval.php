@@ -92,7 +92,9 @@ class HeadApproval
         if (!$user || !$desk) {
             return false;
         }
-        if (DeskAccess::holdsCentralAdminRole($user)) {
+        // Central Admin and Super Admin approve for any unit, whoever its picked head is
+        // (user, 2026-10-27: "the supper admin should approve too, even if he is not the HOU").
+        if (DeskAccess::holdsCentralAdminRole($user) || $user->isSuperAdmin()) {
             return true;
         }
         $head = self::headUserId($desk);
