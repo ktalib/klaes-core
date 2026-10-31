@@ -19,7 +19,8 @@
         'label'   => $p->scheme_label,
     ]])->all();
 
-    $treePrices = $treeTypes->pluck('default_unit_price', 'name')->all();
+    // The phone records Mature lines, so it offers the Mature rate (one catalogue row per tree per Category, 2026-10-30).
+    $treePrices = $treeTypes->where('maturity', '!=', 'Early')->pluck('default_unit_price', 'name')->all();
 
     $benRows  = old('beneficiaries', []);
     $treeRows = old('trees', []);
@@ -134,7 +135,7 @@
                         <option value="">— Choose a registered project —</option>
                         @foreach ($projects as $p)
                             <option value="{{ $p->id }}" @selected((string) old('survey_project_id', $case->survey_project_id) === (string) $p->id)>
-                                {{ $p->project_code }} · {{ $p->name }} ({{ $p->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }})
+                                {{ $p->project_code }} · {{ $p->name }} ({{ $p->isMonetary() ? 'Monetary Compensation' : 'Land to Land' }})
                             </option>
                         @endforeach
                     </select>
@@ -361,7 +362,7 @@
                     <label for="caseNumPlots">Number of Plots <span class="req" id="plotsReq" style="display:none;">*</span></label>
                     <input class="input" type="number" inputmode="numeric" min="0" step="1" name="num_plots" id="caseNumPlots"
                            value="{{ old('num_plots', $case->num_plots) }}" placeholder="e.g. 10">
-                    <div class="err">A plot-for-plot case needs the number of plots.</div>
+                    <div class="err">A land-to-land case needs the number of plots.</div>
                     <div class="hint" id="plotsHint">Drives the 50:50 split.</div>
                 </div>
                 <div class="field span-2" data-key="boundary_file">
@@ -387,7 +388,7 @@
 
             <div class="note" id="treesNA" style="display:none;">
                 <i class="fas fa-ban"></i>
-                <span><strong>Not applicable.</strong> Plot for Plot compensation pays no cash for trees, so nothing is recorded on this step.</span>
+                <span><strong>Not applicable.</strong> Land to Land compensation pays no monetary compensation, so nothing is recorded on this step.</span>
             </div>
 
             <div id="treesActive">
@@ -396,7 +397,7 @@
                     <div class="err">Add at least one economic tree line.</div>
                 </div>
                 <datalist id="treeCatalogue">
-                    @foreach ($treeTypes as $t) <option value="{{ $t->name }}"></option> @endforeach
+                    @foreach ($treeTypes->unique('name') as $t) <option value="{{ $t->name }}"></option> @endforeach
                 </datalist>
                 <div class="rows two" id="treeRows">
                     @foreach ($treeRows as $i => $row)
@@ -418,7 +419,7 @@
                 <div class="step-icon"><i class="fas fa-scale-balanced"></i></div>
                 <div>
                     <h2>Compensation Summary</h2>
-                    <p>The scheme is exclusive: monetary or plot-for-plot, never both.</p>
+                    <p>The scheme is exclusive: monetary or land-to-land, never both.</p>
                 </div>
             </div>
 
@@ -436,7 +437,7 @@
 
             <div id="compLand" style="display:none;">
                 <div class="stat">
-                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Plot for Plot (50:50)</div>
+                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Land to Land (50:50)</div>
                     <div class="big"><span id="landPlots">0</span> plots</div>
                     <div class="hint">Physical land allocation · no cash component</div>
                     <div class="split">
@@ -641,7 +642,7 @@
         $('schemeBox').style.display = scheme ? '' : 'none';
         var badge = $('schemeBadge');
         badge.className = 'badge ' + (mon ? 'monetary' : 'land');
-        badge.textContent = mon ? 'Cash for Trees' : 'Plot for Plot (50:50)';
+        badge.textContent = mon ? 'Monetary Compensation' : 'Land to Land (50:50)';
         $('schemeText').textContent = mon
             ? 'Record economic trees and the cash they are worth. No plots are allocated.'
             : 'Plots are split 50:50 between Farmer and Government. No cash is paid for trees.';

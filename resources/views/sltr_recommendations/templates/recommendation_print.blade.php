@@ -460,7 +460,8 @@
      already on the letter. A white copy is one sheet. --}}
 @unless($isWhiteCopy)
 <div class="ack-sheet-wrap">
-    @include('sltr_recommendations.templates._ack_sheet')
+    {{-- File Copy only: the "Original" acknowledgement copy is not printed on the SLTR Recommendation. --}}
+    @include('sltr_recommendations.templates._ack_sheet', ['ackCopies' => ['File Copy' => 'file-copy']])
 </div>
 @endunless
 

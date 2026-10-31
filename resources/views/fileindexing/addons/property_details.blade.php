@@ -70,7 +70,7 @@
     <div class="grid grid-cols-2 gap-4">
         <div class="form-group">
             <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
-            <input type="text" id="location" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50" readonly placeholder="Auto-generated from Plot Number, District, LGA" style="cursor: default; text-transform: uppercase;">
+            <input type="text" id="location" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50" readonly placeholder="Auto-generated from District, LGA" style="cursor: default; text-transform: uppercase;">
         </div>
         <div class="form-group">
             <label class="block text-sm font-medium text-gray-700 mb-2">Plot Size</label>

@@ -314,7 +314,7 @@ class SecretariatFileLogService
 
     /** @return FileTracker */
     public function forward(string $officeCode, int $trackerId, string $toOfficeCode, ?int $purposeId, ?int $officerId, ?string $notes, User $user,
-                            ?string $purposeOther = null, ?string $officerOther = null): FileTracker
+                            ?string $purposeOther = null, ?string $officerOther = null, ?int $timelineDays = null): FileTracker
     {
         $office = $this->office($officeCode);
         $to = $this->office($toOfficeCode);
@@ -341,7 +341,7 @@ class SecretariatFileLogService
             throw new RuntimeException("You cannot send a file to yourself. Choose the officer at {$to['name']} who is receiving it.");
         }
 
-        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user) {
+        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user, $timelineDays) {
             $tracker = FileTracker::lockForUpdate()->find($trackerId);
             if (!$tracker) {
                 throw new RuntimeException('File tracker not found.');
@@ -410,6 +410,7 @@ class SecretariatFileLogService
                 $tracker->request_purpose_id = $purpose->id;
                 $tracker->request_purpose_name = $purpose->name;
             }
+            $this->stampTimeline($tracker, $timelineDays);
             $tracker->assignment_status = FileTracker::ASSIGNMENT_PENDING;
             $tracker->assignment_accepted_at = null;
             $this->markIfRequested($tracker);
@@ -834,6 +835,11 @@ class SecretariatFileLogService
                 ? $entry['purpose']
                 : $tracker->request_purpose_name,
             'notes'       => $entry['notes'] ?? null,
+            // Timeline (Days) / Expected Return Date, for the tab tables' Timeline column.
+            'timeline_days'       => $tracker->timeline_days !== null ? (int) $tracker->timeline_days : null,
+            'deadline'            => $tracker->deadline ? $tracker->deadline->format('Y-m-d') : null,
+            'timeline_status'     => $tracker->timeline_status,
+            'days_until_deadline' => $tracker->days_until_deadline,
         ], $extra);
     }
 
@@ -1480,6 +1486,22 @@ class SecretariatFileLogService
             $tracker->receiving_officer_id = $officer->id;
             $tracker->receiving_officer_name = $officer->name;
         }
+        $this->stampTimeline($tracker, isset($data['timeline_days']) && $data['timeline_days'] !== '' ? (int) $data['timeline_days'] : null);
+    }
+
+    /**
+     * Timeline (Days), as on Log a File (CreateFileTrackerController): the agreed
+     * window and its Expected Return Date, due by the end of that day. setTime, not
+     * endOfDay(): its microseconds round up to the next midnight in SQL Server
+     * `datetime`. No timeline given leaves an existing one alone.
+     */
+    private function stampTimeline(FileTracker $tracker, ?int $days): void
+    {
+        if ($days === null) {
+            return;
+        }
+        $tracker->timeline_days = $days;
+        $tracker->deadline = now()->addDays($days)->setTime(23, 59, 59);
     }
 
     private function composeNotes(array $data, ?string $fromName): ?string

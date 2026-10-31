@@ -26,7 +26,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>.hidden{di
         const url = new URL(route.request().url());
         if (url.pathname === '/fileindexing/api/related-file-indexed') {
             const no = (url.searchParams.get('file_number') || '').toUpperCase();
-            return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, file_number: no, indexed: no === 'RES-7' }) });
+            return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, file_number: no, indexed: no === 'RES-7', file_title: no === 'RES-7' ? 'DANLADI AKAWU' : null }) });
         }
         return route.fulfill({ contentType: 'text/html', body: html });
     });
@@ -92,11 +92,12 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>.hidden{di
     assert.equal((await state(0)).sighted, '');
 
     // 8. reload() swaps in another record's answers.
-    await page.evaluate(() => window.RelatedFileSighting.reload([{ file_number: 'RES-9', sighted: true, cover_missing: 'Cover missing – contents sighted' }]));
+    await page.evaluate(() => window.RelatedFileSighting.reload([{ file_number: 'RES-9', sighted: true, cover_missing: 'Cover missing – contents sighted' }, { file_number: 'RES-7', sighted: false, cover_missing: null }]));
     assert.deepEqual(await state(0), { hidden: false, sighted: '1', npf: false, cover: true });
     assert.equal(await rows.nth(0).locator('.rf-cover-cb').isChecked(), true);
 
-    // 9. An indexed related file (RES-7) is Yes and locked, even over a saved No.
+    // 9. No has two categories (recording 289). An indexed related file (RES-7) keeps the
+    //    saved No, stays answerable, and is labelled "Physical File Indexed"...
     await page.evaluate(() => {
         const w = document.getElementById('related-files-wrapper');
         const c = w.querySelector('.related-file-row').cloneNode(true);
@@ -104,13 +105,22 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>.hidden{di
         w.appendChild(c);
     });
     await page.waitForTimeout(300);
-    const locked = page.locator('.related-file-row').nth(3).locator('.related-sighting');
-    assert.equal(await locked.evaluate(b => b.dataset.sighted), '1');
-    assert.equal(await locked.locator('.rf-choice[data-value="0"]').isDisabled(), true);
-    assert.equal(await locked.locator('.rf-indexed-note').isVisible(), true);
-    assert.equal(JSON.parse(await page.evaluate(() => window.RelatedFileSighting.collect())).find(a => a.file_number === 'RES-7').sighted, true);
-    // ...and an unindexed one in the same form stays open to answer.
-    assert.equal(await page.locator('.related-file-row').nth(2).locator('.rf-choice[data-value="0"]').isDisabled(), false);
+    const indexedRow = page.locator('.related-file-row').nth(3).locator('.related-sighting');
+    assert.equal(await indexedRow.evaluate(b => b.dataset.sighted), '0');
+    assert.equal(await indexedRow.locator('.rf-choice[data-value="1"]').isDisabled(), false);
+    assert.equal(await indexedRow.locator('.rf-npf-badge').textContent(), 'Physical File Indexed');
+    // The related file's title shows in the box; none is shown when there is no title.
+    assert.equal(await indexedRow.locator('.rf-title-text').textContent(), 'DANLADI AKAWU');
+    assert.equal(await indexedRow.locator('.rf-title').isVisible(), true);
+    assert.equal(await page.locator('.related-file-row').nth(2).locator('.rf-title').isVisible(), false);
+    assert.equal(JSON.parse(await page.evaluate(() => window.RelatedFileSighting.collect())).find(a => a.file_number === 'RES-7').sighted, false);
+    // ...while No on an unindexed file (RES-3) is the NPF category.
+    const plainRow = page.locator('.related-file-row').nth(2).locator('.related-sighting');
+    await plainRow.locator('.rf-choice[data-value="0"]').click();
+    assert.equal(await plainRow.locator('.rf-npf-badge').textContent(), 'NPF – Physical File Not in the File');
+    // Yes hides the category label.
+    await indexedRow.locator('.rf-choice[data-value="1"]').click();
+    assert.equal(await indexedRow.locator('.rf-npf-badge').isVisible(), false);
 
     assert.deepEqual(errors, []);
     await browser.close();

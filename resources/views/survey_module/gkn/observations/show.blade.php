@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Field Observations · ' . $anchor['prefill']['its_number'];
-  $PageDescription = $anchor['prefill']['file_number'] . ($anchor['prefill']['grantee_name'] ? ' · ' . $anchor['prefill']['grantee_name'] : '') . ' · ' . ($anchor['source'] === 'cadastral' ? 'Cadastral I to S' : 'Survey I to S');
+  $PageDescription = $anchor['prefill']['file_number'] . ($anchor['prefill']['grantee_name'] ? ' · ' . $anchor['prefill']['grantee_name'] : '') . ' · ' . (['cadastral' => 'Cadastral I to S', 'private' => "Surveyor's Report (Private)"][$anchor['source']] ?? 'Survey I to S');
 @endphp
 
 @section('survey-content')

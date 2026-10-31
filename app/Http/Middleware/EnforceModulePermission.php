@@ -61,6 +61,13 @@ class EnforceModulePermission
             return $next($request);
         }
 
+        // A narrower role for this page area (config 'alternatives') passes too.
+        foreach (ModuleRoutes::alternativesFor((string) optional($request->route())->getName()) as $alt) {
+            if ($user->canDo($alt, $action)) {
+                return $next($request);
+            }
+        }
+
         // Record it either way: a refusal that is only logged is still the signal that the
         // map needs correcting, and the log is the only reason we know about the two that
         // reached production.

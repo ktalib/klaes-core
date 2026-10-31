@@ -9,11 +9,13 @@ use App\Http\Controllers\Survey\CalculatorController;
 use App\Http\Controllers\Survey\CaseController;
 use App\Http\Controllers\Survey\ChangeReportController;
 use App\Http\Controllers\Survey\CoFileController;
+use App\Http\Controllers\Survey\CommissioningSheetController;
 use App\Http\Controllers\Survey\ControlPointRegisterController;
 use App\Http\Controllers\Survey\CoordinateRegisterController;
 use App\Http\Controllers\Survey\ComplaintController;
 use App\Http\Controllers\Survey\DashboardController;
 use App\Http\Controllers\Survey\ExaminationController;
+use App\Http\Controllers\Survey\FileStatusController;
 use App\Http\Controllers\Survey\GknApplicationController;
 use App\Http\Controllers\Survey\GknController;
 use App\Http\Controllers\Survey\LookupController;
@@ -22,17 +24,23 @@ use App\Http\Controllers\Survey\MiscKnController;
 use App\Http\Controllers\Survey\MobileCaseController;
 use App\Http\Controllers\Survey\MobileObservationController;
 use App\Http\Controllers\Survey\MobileOfflineController;
+use App\Http\Controllers\Survey\MobilePlotController;
+use App\Http\Controllers\Survey\PlotConfirmationController;
 use App\Http\Controllers\Survey\OldSurveyController;
 use App\Http\Controllers\Survey\OpController;
+use App\Http\Controllers\Survey\OpShowingController;
 use App\Http\Controllers\Survey\OpVerificationController;
 use App\Http\Controllers\Survey\PlotAllocationController;
 use App\Http\Controllers\Survey\ProjectController;
 use App\Http\Controllers\Survey\RegisterFileController;
 use App\Http\Controllers\Survey\ReportController;
+use App\Http\Controllers\Survey\ResettlementCalculatorController;
 use App\Http\Controllers\Survey\SdiMapRequestController;
 use App\Http\Controllers\Survey\SdiProductionController;
 use App\Http\Controllers\Survey\SdiRegistryController;
+use App\Http\Controllers\Survey\SurveyBeaconNosController;
 use App\Http\Controllers\Survey\SurveyCoordinateController;
+use App\Http\Controllers\Survey\SurveySketchPlanController;
 use App\Http\Controllers\Survey\SurveyItsController;
 use App\Http\Controllers\Survey\SurveyorReportController;
 use App\Http\Controllers\Survey\SurveyorListController;
@@ -50,6 +58,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    // File Status search across every File Status list (CR 30102026 item 29, 2026-10-31).
+    Route::get('/file-status', [FileStatusController::class, 'index'])->name('file-status');
 
     /* ------------------------------ Compensation ------------------------------ */
     Route::prefix('compensation')->name('compensation.')->group(function () {
@@ -57,15 +67,35 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/dashboard', [DashboardController::class, 'compensation'])->name('dashboard');
 
         // CO files (CO-YYYY-0001), one to many projects (user, 2026-10-25)
+        // Two lists (user, 2026-10-30): CO Files = captured files, Commission CO File = commissioned files.
         Route::get('/co-files', [CoFileController::class, 'index'])->name('co-files');
+        Route::get('/co-files/commissioned', [CoFileController::class, 'commissioned'])->name('co-files.commissioned');
         Route::get('/co-files/commission', [CoFileController::class, 'create'])->name('co-files.create');
+        Route::get('/co-files/related-lookup', [CoFileController::class, 'relatedLookup'])->name('co-files.related-lookup');
+        Route::get('/co-files/number-lookup', [CoFileController::class, 'numberLookup'])->name('co-files.number-lookup');
+        Route::get('/co-files/options', [CoFileController::class, 'options'])->name('co-files.options');
         Route::post('/co-files', [CoFileController::class, 'store'])->name('co-files.store');
+        // Commissioning Sheet (CR 30102026 item 2): the MLPP sheet, issued by the Survey Department.
+        Route::get('/co-files/{coFile}/commissioning-sheet', [CommissioningSheetController::class, 'coFile'])->name('co-files.commissioning-sheet');
         Route::get('/co-files/{coFile}/edit', [CoFileController::class, 'edit'])->name('co-files.edit');
         Route::put('/co-files/{coFile}', [CoFileController::class, 'update'])->name('co-files.update');
         Route::delete('/co-files/{coFile}', [CoFileController::class, 'destroy'])->name('co-files.destroy');
 
         // Allocation Records: surveyor portions per project, read-only (2026-10-25)
         Route::get('/allocation-records', [AllocationRecordController::class, 'index'])->name('allocation-records');
+
+        // Letter of Grant: every Direct Allocation OP, from Deeds (2026-10-30).
+        Route::get('/letter-of-grant', [\App\Http\Controllers\Survey\LetterOfGrantController::class, 'index'])->name('letter-of-grant');
+
+        // Plot Confirmation register: OP showings and ground checks from the field app (2026-10-30).
+        Route::get('/plot-confirmations', [PlotConfirmationController::class, 'index'])->name('plot-confirmations');
+
+        // Resettlement Calculator: plots = area ÷ plot size by land use / density (SG formulas, 2026-10-29).
+        Route::get('/resettlement-calculator', [ResettlementCalculatorController::class, 'index'])->name('resettlement-calculator');
+        Route::post('/resettlement-calculator', [ResettlementCalculatorController::class, 'store'])->name('resettlement-calculator.store');
+        Route::post('/resettlement-calculator/rates', [ResettlementCalculatorController::class, 'storeRate'])->name('resettlement-calculator.rates.store');
+        Route::put('/resettlement-calculator/rates/{rate}', [ResettlementCalculatorController::class, 'updateRate'])->whereNumber('rate')->name('resettlement-calculator.rates.update');
+        Route::post('/resettlement-calculator/rates/{rate}/toggle', [ResettlementCalculatorController::class, 'toggleRate'])->whereNumber('rate')->name('resettlement-calculator.rates.toggle');
 
         // Complaints (2026-10-25)
         Route::get('/complaints', [ComplaintController::class, 'index'])->name('complaints');
@@ -88,6 +118,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Cases — the six-step register
         Route::get('/cases', [CaseController::class, 'index'])->name('cases');
         Route::get('/cases/register', [CaseController::class, 'create'])->name('cases.register');
+        // Capture Compensation List: paper lists keyed in by hand (user, 2026-10-30)
+        Route::get('/capture-list', [\App\Http\Controllers\Survey\CompensationCaptureController::class, 'create'])->name('capture-list');
+        Route::post('/capture-list', [\App\Http\Controllers\Survey\CompensationCaptureController::class, 'store'])->name('capture-list.store');
         Route::post('/cases', [CaseController::class, 'store'])->name('cases.store');
         Route::get('/cases/{case}', [CaseController::class, 'show'])->name('cases.show');
         Route::get('/cases/{case}/edit', [CaseController::class, 'edit'])->name('cases.edit');
@@ -118,6 +151,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // OP Verification (Records): Survey checks each generated OP, then marks it sent to Deeds (Survey-side only).
         Route::get('/op-verification', [OpVerificationController::class, 'index'])->name('op-verification');
         Route::post('/op-verification/{op}', [OpVerificationController::class, 'act'])->name('op-verification.act');
+        // Showing History per OP (Compensation Status → Verification (Records), 2026-10-29).
+        Route::get('/op-verification/{op}/showings', [OpShowingController::class, 'index'])->whereNumber('op')->name('op-verification.showings');
+        Route::post('/op-verification/{op}/showings', [OpShowingController::class, 'store'])->whereNumber('op')->name('op-verification.showings.store');
+        Route::get('/op-showing-photos/{photo}', [OpShowingController::class, 'photo'])->whereNumber('photo')->name('op-showings.photo');
 
         // Occupancy Permits
         Route::get('/op', [OpController::class, 'index'])->name('op');
@@ -133,6 +170,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/dashboard', [DashboardController::class, 'gkn'])->name('dashboard');
         // Applications: GKN / LPKN / LPPL / Misc KN files in one typed table (2026-10-25).
         Route::get('/applications', [GknApplicationController::class, 'index'])->name('applications');
+        // Commissioning Sheet for GKN, Misc KN, LPKN, LPPL and RDKN files (CR 30102026 item 2).
+        Route::get('/applications/{id}/commissioning-sheet', [CommissioningSheetController::class, 'applicationFile'])->whereNumber('id')->name('applications.commissioning-sheet');
+        // Computation Files (Field Jackets), CR 30102026 item 12: blank table, source pending (2026-10-31).
+        Route::view('/computation-files', 'survey_module.gkn.computation_files')->name('computation-files');
         // Instruction to Survey: Survey's own jobs plus Cadastral's, read-only (2026-10-25).
         Route::prefix('instruction-to-survey')->name('its.')->group(function () {
             Route::get('/', [SurveyItsController::class, 'index'])->name('index');
@@ -161,6 +202,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             Route::post('/{its}', [SurveyCoordinateController::class, 'storeObservation'])->where('its', '(survey|cadastral)-[0-9]+')->name('store');
             Route::delete('/{its}/{obs}', [SurveyCoordinateController::class, 'destroyObservation'])->where('its', '(survey|cadastral)-[0-9]+')->name('destroy');
         });
+        // Beacon Nos (checked against the Beacon Register) and the Sketch Plan on Field Observations (change list p.2, 2026-10-29).
+        Route::get('/beacon-nos', [SurveyBeaconNosController::class, 'index'])->name('beacons.index');
+        Route::get('/beacon-nos/{its}', [SurveyBeaconNosController::class, 'show'])->where('its', '(survey|cadastral)-[0-9]+')->name('beacons.show');
+        Route::post('/field-observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', '(survey|cadastral)-[0-9]+')->name('sketch.store');
         // Surveyors Report against an issued I to S, from the Survey Dept form (2026-10-25).
         Route::prefix('surveyors-report')->name('reports.')->group(function () {
             Route::get('/', [SurveyorReportController::class, 'index'])->name('index');
@@ -203,6 +248,19 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             Route::post('/{surveyor}/toggle', [SurveyorListController::class, 'toggle'])->name('toggle');
         });
 
+        // Public Survey → Private Layout and Layout Records (user, 2026-10-30).
+        Route::get('/private-layouts', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'index'])->name('private-layouts');
+        Route::post('/private-layouts', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'store'])->name('private-layouts.store');
+        Route::put('/private-layouts/{layout}', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'update'])->whereNumber('layout')->name('private-layouts.update');
+        Route::delete('/private-layouts/{layout}', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'destroy'])->whereNumber('layout')->name('private-layouts.destroy');
+        Route::get('/private-layouts/{layout}/plan', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'plan'])->whereNumber('layout')->name('private-layouts.plan');
+        Route::get('/layout-records', [\App\Http\Controllers\Survey\LayoutRecordsController::class, 'index'])->name('layout-records');
+        // TP Nos register, by serial number (user, 2026-10-30).
+        Route::get('/tp-numbers', [\App\Http\Controllers\Survey\TpNumberController::class, 'index'])->name('tp-numbers');
+        Route::post('/tp-numbers', [\App\Http\Controllers\Survey\TpNumberController::class, 'store'])->name('tp-numbers.store');
+        Route::put('/tp-numbers/{tp}', [\App\Http\Controllers\Survey\TpNumberController::class, 'update'])->whereNumber('tp')->name('tp-numbers.update');
+        Route::delete('/tp-numbers/{tp}', [\App\Http\Controllers\Survey\TpNumberController::class, 'destroy'])->whereNumber('tp')->name('tp-numbers.destroy');
+
         Route::get('/lpkn', [LpknController::class, 'index'])->name('lpkn');
         foreach (['instruction', 'report', 'coordinates', 'observations'] as $section) {
             Route::get('/lpkn/' . $section, [LpknController::class, 'section'])
@@ -219,6 +277,22 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
     /* -------------------------------- Workflow -------------------------------- */
     Route::prefix('workflow')->name('workflow.')->group(function () {
+        // Surveyor's Report (Private): List of Coordinates, Beacon Nos, Field Observations and Sketch Plan
+        // on the report (change list p.2, 2026-10-29). The GKN editors, anchored "private-<report id>".
+        Route::prefix('private-report')->name('private.')->group(function () {
+            $p = 'private-[0-9]+';
+            Route::get('/coordinates/{its}', [SurveyCoordinateController::class, 'show'])->where('its', $p)->name('coordinates.show');
+            Route::post('/coordinates/{its}', [SurveyCoordinateController::class, 'storeCoordinate'])->where('its', $p)->name('coordinates.store');
+            Route::put('/coordinates/{its}/{coord}', [SurveyCoordinateController::class, 'updateCoordinate'])->where('its', $p)->name('coordinates.update');
+            Route::post('/coordinates/{its}/{coord}/move', [SurveyCoordinateController::class, 'moveCoordinate'])->where('its', $p)->name('coordinates.move');
+            Route::delete('/coordinates/{its}/{coord}', [SurveyCoordinateController::class, 'destroyCoordinate'])->where('its', $p)->name('coordinates.destroy');
+            Route::get('/field-observations/{its}', [SurveyCoordinateController::class, 'showObservations'])->where('its', $p)->name('observations.show');
+            Route::post('/field-observations/{its}', [SurveyCoordinateController::class, 'storeObservation'])->where('its', $p)->name('observations.store');
+            Route::delete('/field-observations/{its}/{obs}', [SurveyCoordinateController::class, 'destroyObservation'])->where('its', $p)->name('observations.destroy');
+            Route::post('/field-observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', $p)->name('sketch.store');
+            Route::get('/beacon-nos/{its}', [SurveyBeaconNosController::class, 'show'])->where('its', $p)->name('beacons.show');
+        });
+
         Route::get('/examination', [ExaminationController::class, 'index'])->name('examination');
         Route::post('/examination', [ExaminationController::class, 'store'])->name('examination.store');
         Route::post('/examination/{examination}/pass', [ExaminationController::class, 'pass'])->name('examination.pass');
@@ -376,7 +450,25 @@ Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(func
         Route::post('/cases/{case}/photos', [MobileOfflineController::class, 'storePhoto'])->name('cases.photos.store');
         Route::get('/cases/{case}/photos/{photo}', [MobileOfflineController::class, 'showPhoto'])->name('cases.photos.show');
         Route::get('/observations', [MobileObservationController::class, 'index'])->name('observations');
-        Route::get('/observations/{its}', [MobileObservationController::class, 'show'])->where('its', '(survey|cadastral)-[0-9]+')->name('observations.show');
-        Route::post('/observations/{its}', [MobileObservationController::class, 'store'])->where('its', '(survey|cadastral)-[0-9]+')->name('observations.store');
+        // Computation & Field Observations app (2026-10-30): private reports too, beacons, Sketch Plan.
+        Route::get('/observations/{its}', [MobileObservationController::class, 'show'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.show');
+        Route::post('/observations/{its}', [MobileObservationController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.store');
+        Route::post('/observations/{its}/coordinates', [MobileObservationController::class, 'storeCoordinate'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.coords.store');
+        Route::post('/observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.sketch.store');
+
+        // Plot Confirmation app (2026-10-30): show OP plots to allottees, ground-check plots.
+        Route::prefix('plots')->name('plots.')->group(function () {
+            Route::get('/', [MobilePlotController::class, 'index'])->name('index');
+            Route::get('/ops', [MobilePlotController::class, 'ops'])->name('ops');
+            Route::get('/ops/{op}', [MobilePlotController::class, 'op'])->where('op', '(capture|pra)-[0-9]+')->name('op');
+            Route::post('/ops/{op}/showings', [MobilePlotController::class, 'storeShowing'])->where('op', '(capture|pra)-[0-9]+')->name('showings.store');
+            Route::post('/showings/{showing}/photos', [MobilePlotController::class, 'storeShowingPhoto'])->whereNumber('showing')->name('showings.photos.store');
+            Route::get('/showing-photos/{photo}', [MobilePlotController::class, 'showingPhoto'])->whereNumber('photo')->name('showings.photos.show');
+            Route::get('/checks/new', [MobilePlotController::class, 'createCheck'])->name('checks.create');
+            Route::post('/checks', [MobilePlotController::class, 'storeCheck'])->name('checks.store');
+            Route::get('/checks/{check}', [MobilePlotController::class, 'check'])->whereNumber('check')->name('checks.show');
+            Route::post('/checks/{check}/photos', [MobilePlotController::class, 'storeCheckPhoto'])->whereNumber('check')->name('checks.photos.store');
+            Route::get('/check-photos/{photo}', [MobilePlotController::class, 'checkPhoto'])->whereNumber('photo')->name('checks.photos.show');
+        });
     });
 });

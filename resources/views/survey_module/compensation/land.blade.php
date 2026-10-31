@@ -1,10 +1,10 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'OP Allocation — KLAES')
+@section('page-title', 'Resettlement Plot Allocation — KLAES')
 
 @php
-  $PageTitle = 'OP Allocation';
-  $PageDescription = 'Plot for Plot compensation cases · 50:50 plot split. For detailed plot rows use Plot Allocation under Tools.';
+  $PageTitle = 'Resettlement Plot Allocation';
+  $PageDescription = 'Land to Land compensation cases · 50:50 plot split. For detailed plot rows use Resettlement Plots under Geo-informatics.';
 @endphp
 
 @section('survey-content')

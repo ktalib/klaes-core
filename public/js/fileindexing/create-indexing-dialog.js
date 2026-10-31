@@ -8058,14 +8058,11 @@
                 return;
             }
 
+            // Location is district + LGA only; the plot number has its own field.
             const parts = [];
-            const plotNumber = plotNumberInput?.value?.trim();
             const districtName = getDistrictValueLocal();
             const lgaName = getSelectedOptionName(lgaSelect);
 
-            if (plotNumber) {
-                parts.push(plotNumber);
-            }
             if (districtName) {
                 parts.push(districtName);
             }
@@ -8086,7 +8083,6 @@
 
         if (plotNumberInput) {
             plotNumberInput.removeEventListener('input', updateLocationField);
-            plotNumberInput.addEventListener('input', updateLocationField);
         }
 
         if (districtSelect) {

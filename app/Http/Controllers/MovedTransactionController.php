@@ -115,18 +115,36 @@ class MovedTransactionController extends Controller
             });
         }
 
-        $total = (clone $query)->count();
+        // Paged by file, not by transaction: one file's moves share a temp file no
+        // and would otherwise repeat down the list (and split across pages). Each
+        // group is ordered by the sorted column's latest/earliest value in it.
+        $groupKey = "ISNULL(file_number, '')";
+        $aggregate = $direction === 'asc' ? 'MIN' : 'MAX';
 
-        $rows = $query->orderBy($sortColumn, $direction)
-            ->orderBy('id', $direction)
+        $totalTransactions = (clone $query)->count();
+        $total = (int) ((clone $query)->selectRaw("COUNT(DISTINCT $groupKey) AS c")->value('c') ?? 0);
+
+        $groups = (clone $query)
+            ->selectRaw("$groupKey AS group_key, COUNT(*) AS tx_count, MAX(moved_at) AS last_moved_at")
+            ->groupBy(DB::raw($groupKey))
+            ->orderByRaw("$aggregate($sortColumn) $direction")
+            ->orderByRaw("$groupKey asc")
             ->forPage($page, $perPage)
+            ->get();
+
+        $groupKeys = $groups->pluck('group_key')->all();
+
+        $rows = empty($groupKeys) ? collect() : (clone $query)
+            ->whereIn(DB::raw($groupKey), $groupKeys)
+            ->orderBy($sortColumn, $direction)
+            ->orderBy('id', $direction)
             ->get([
                 'id', 'temp_file_no', 'file_indexing_id', 'file_number', 'source_table', 'source_id',
                 'transaction_type', 'party_1', 'party_2', 'transaction_date', 'reg_no',
                 'belongs_to', 'reason', 'moved_by', 'moved_at',
             ]);
 
-        $data = $rows->map(fn ($row) => [
+        $mapRow = fn ($row) => [
             'id'               => $row->id,
             'temp_file_no'     => $row->temp_file_no,
             'file_number'      => $row->file_number,
@@ -141,17 +159,35 @@ class MovedTransactionController extends Controller
             'reason'           => $row->reason,
             'moved_by'         => $row->moved_by,
             'moved_at'         => $this->formatDate($row->moved_at),
-        ])->all();
+        ];
+
+        $rowsByGroup = $rows->groupBy(fn ($row) => (string) ($row->file_number ?? ''));
+
+        $data = $groups->map(function ($group) use ($rowsByGroup, $mapRow) {
+            $members = $rowsByGroup->get((string) $group->group_key, collect());
+
+            return [
+                'file_number'   => $group->group_key !== '' ? $group->group_key : null,
+                'tx_count'      => (int) $group->tx_count,
+                'temp_file_nos' => $members->pluck('temp_file_no')->filter()->unique()->values()->all(),
+                'sources'       => $members->map(fn ($r) => TransactionMoveService::MOVABLE_SOURCES[$r->source_table] ?? $r->source_table)
+                    ->filter()->unique()->values()->all(),
+                'moved_by'      => $members->pluck('moved_by')->filter()->unique()->values()->all(),
+                'last_moved_at' => $this->formatDate($group->last_moved_at),
+                'rows'          => $members->map($mapRow)->values()->all(),
+            ];
+        })->all();
 
         return response()->json([
             'data' => $data,
             'meta' => [
-                'page'      => $page,
-                'per_page'  => $perPage,
-                'total'     => $total,
-                'last_page' => max(1, (int) ceil($total / $perPage)),
-                'from'      => $rows->isEmpty() ? 0 : (($page - 1) * $perPage) + 1,
-                'to'        => $rows->isEmpty() ? 0 : (($page - 1) * $perPage) + $rows->count(),
+                'page'               => $page,
+                'per_page'           => $perPage,
+                'total'              => $total,
+                'total_transactions' => $totalTransactions,
+                'last_page'          => max(1, (int) ceil($total / $perPage)),
+                'from'               => $groups->isEmpty() ? 0 : (($page - 1) * $perPage) + 1,
+                'to'                 => $groups->isEmpty() ? 0 : (($page - 1) * $perPage) + $groups->count(),
             ],
         ]);
     }

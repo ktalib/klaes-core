@@ -90,8 +90,8 @@ class KangisBlockIndexing
     /**
      * KANGIS file numbers of the live KANGIS Registry records carrying this land file.
      *
-     * $skipNpf leaves out KANGIS files the land file was indexed as NPF (physical file
-     * not sighted) with: they do not hold it, so it stays free to relate elsewhere (user,
+     * $skipNpf leaves out KANGIS files the land file was answered No with (not in that
+     * file: NPF or indexed on its own): they do not hold it, so it stays free to relate elsewhere (user,
      * 2026-10-28). Only the one-KANGIS-file lock passes it; names, plots and counts
      * still see the link.
      *

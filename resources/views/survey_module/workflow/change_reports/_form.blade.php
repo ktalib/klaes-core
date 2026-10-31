@@ -68,6 +68,46 @@
     </fieldset>
 </form>
 
+@if ($editing && isset($records))
+    @php
+        $BNC = \App\Services\Survey\BeaconNumberCheck::class;
+        $rk = $records['key'];
+        $bs = $records['summary'];
+        $card = 'display:block;background:#fff;border:1px solid var(--gray-200,#e5e7eb);border-radius:12px;padding:14px 16px;text-decoration:none;color:inherit;';
+    @endphp
+    {{-- Survey records on the private report (change list p.2): the same core records as the GKN report. --}}
+    <div style="margin-top:18px;">
+        <div class="sv-group" style="margin-bottom:10px;"><i class="fas fa-layer-group"></i><span>Survey Records</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+            <a href="{{ route('survey-module.workflow.private.coordinates.show', $rk) }}" style="{{ $card }}">
+                <div style="font-size:12px;color:var(--gray-500);"><i class="fas fa-map-pin"></i> List of Coordinates</div>
+                <div style="font-size:20px;font-weight:700;">{{ $records['coords']->count() }} <span style="font-size:13px;font-weight:400;">beacon{{ $records['coords']->count() === 1 ? '' : 's' }}</span></div>
+                <div style="font-size:12px;color:var(--primary);">{{ $locked ? 'View' : ($records['coords']->isEmpty() ? 'Add coordinates' : 'Open') }} →</div>
+            </a>
+            <a href="{{ route('survey-module.workflow.private.beacons.show', $rk) }}" style="{{ $card }}">
+                <div style="font-size:12px;color:var(--gray-500);"><i class="fas fa-map-marker-alt"></i> Beacon Nos</div>
+                <div style="font-size:20px;font-weight:700;">{{ $bs[$BNC::REGISTERED] }} / {{ $bs['total'] }} <span style="font-size:13px;font-weight:400;">in register</span></div>
+                <div style="font-size:12px;{{ $bs[$BNC::UNREGISTERED] || $bs[$BNC::OTHER_SURVEYOR] ? 'color:#b91c1c;' : 'color:var(--gray-500);' }}">
+                    {{ $bs[$BNC::UNREGISTERED] }} not in register · {{ $bs[$BNC::OTHER_SURVEYOR] }} another surveyor's
+                </div>
+            </a>
+            <a href="{{ route('survey-module.workflow.private.observations.show', $rk) }}" style="{{ $card }}">
+                <div style="font-size:12px;color:var(--gray-500);"><i class="fas fa-calculator"></i> Computation Field Observations</div>
+                <div style="font-size:20px;font-weight:700;">{{ $records['readings'] }} <span style="font-size:13px;font-weight:400;">reading{{ $records['readings'] === 1 ? '' : 's' }}</span></div>
+                <div style="font-size:12px;color:var(--primary);">{{ $locked ? 'View' : 'Open' }} →</div>
+            </a>
+            <a href="{{ route('survey-module.workflow.private.observations.show', $rk) }}" style="{{ $card }}">
+                <div style="font-size:12px;color:var(--gray-500);"><i class="fas fa-drafting-compass"></i> Sketch Plan</div>
+                <div style="font-size:15px;font-weight:600;margin-top:4px;">{{ $records['sketch'] ? $records['sketch']->original_name : 'Not uploaded' }}</div>
+                <div style="font-size:12px;color:var(--primary);">{{ $records['sketch'] ? 'View / replace' : ($locked ? '' : 'Upload on Field Observations') }} →</div>
+            </a>
+        </div>
+        @unless ($locked)
+            <p style="margin-top:8px;font-size:12px;color:var(--gray-500);">These lock with the report when it is issued, and print with it.</p>
+        @endunless
+    </div>
+@endif
+
 @if ($editing && ! $locked)
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
         <form method="POST" action="{{ route('survey-module.workflow.change-reports.destroy', $report) }}" onsubmit="return confirm('Delete draft {{ $report->report_ref }}?');">

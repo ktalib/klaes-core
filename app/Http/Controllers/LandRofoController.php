@@ -878,6 +878,8 @@ class LandRofoController extends Controller
                 ->where('paper_code', $request->paper_code)
                 ->update([
                     'is_used' => true,
+                    // Status was left 'available' here, so 783 used codes still read as available (2026-10-31).
+                    'status' => 'assigned',
                     'assigned_to_type' => 'LandRecommendation',
                     'assigned_to_id' => $recommendation->id,
                     'assigned_by' => Auth::id(),
@@ -941,6 +943,202 @@ class LandRofoController extends Controller
             DB::connection('sqlsrv')->rollBack();
             return response()->json(['success' => false, 'message' => 'Failed to reset security paper code. ' . $e->getMessage()], 500);
         }
+    }
+
+    /** Most codes one batch entry may cover; the largest batch is ~1,600 letters. */
+    private const BATCH_PAPER_MAX = 5000;
+
+    /**
+     * Security paper codes for a whole batch (CR 30102026 item 25, user 2026-10-31): a range of
+     * codes, e.g. 001335–001400, laid onto the batch's printed letters that have no code yet,
+     * in the order they came off the printer. That order is the order their security serials
+     * were minted (the serial is minted on the first print and reused on reprints), which is
+     * what each sheet shows, so the operator can check the plan against the paper.
+     *
+     * Nothing is saved while anything is wrong: a range that does not cover exactly those
+     * letters, or a code that is used, voided or not in the pool, blocks and is listed for
+     * the operator to correct (user, 2026-10-31).
+     */
+    private function batchPaperPlan(string $batchId, ?string $from, ?string $to): array
+    {
+        $children = LandRecommendation::where('rofo_batch_id', $batchId)
+            ->where('rofo_status', LandRecommendation::ROFO_GENERATED)
+            ->get(['id', 'batch_seq', 'file_number', 'applicant_name', 'land_rofo_serial_no',
+                   'rofo_print_count', 'rofo_originals_printed_at', 'rofo_office_copies_printed_at']);
+
+        $printed = $children->filter(fn ($c) => $c->rofo_print_stage !== LandRecommendation::PRINT_STAGE_NONE);
+        $needing = $printed->filter(fn ($c) => trim((string) $c->land_rofo_serial_no) === '');
+
+        // Print order: the first unused security serial minted for each letter, as batchChildren() reads it.
+        $minted = [];
+        $codeService = app(\App\Services\SecurityCodeService::class);
+        foreach (array_chunk($needing->pluck('id')->all(), 1000) as $chunk) {
+            foreach (DB::connection('sqlsrv')->table('security_codes')
+                ->whereIn('document_id', $chunk)->where('document_type', 'Land ROFO')->where('is_used', 0)
+                ->orderBy('id')->get(['id', 'document_id', 'code']) as $sc) {
+                $minted[$sc->document_id] ??= ['order' => (int) $sc->id, 'serial' => $codeService->formatForDisplay($sc->code)];
+            }
+        }
+        $letters = $needing->sortBy(fn ($c) => [$minted[$c->id]['order'] ?? PHP_INT_MAX, (int) $c->batch_seq, (int) $c->id])->values();
+
+        $plan = [
+            'batch_id'      => $batchId,
+            'total'         => $children->count(),
+            'not_printed'   => $children->count() - $printed->count(),
+            'already_coded' => $printed->count() - $needing->count(),
+            'needing'       => $letters->count(),
+            'from'          => null,
+            'to'            => null,
+            'rows'          => [],
+            'errors'        => [],
+        ];
+
+        if ($children->isEmpty()) {
+            $plan['errors'][] = 'Batch not found.';
+            return $plan;
+        }
+        if ($letters->isEmpty()) {
+            $plan['errors'][] = 'No letter in this batch is waiting for a security paper code: codes go on printed letters that have none yet.';
+            return $plan;
+        }
+
+        $from = trim((string) $from);
+        $to   = trim((string) $to);
+        if ($from === '' || $to === '') {
+            $plan['errors'][] = 'Enter the first and the last security paper code of the range.';
+            return $plan;
+        }
+        if (! ctype_digit($from) || ! ctype_digit($to)) {
+            $plan['errors'][] = 'Security paper codes are numbers only, e.g. 001335.';
+            return $plan;
+        }
+        $width = max(6, strlen($from), strlen($to));
+        $first = (int) $from;
+        $last  = (int) $to;
+        $plan['from'] = str_pad((string) $first, $width, '0', STR_PAD_LEFT);
+        $plan['to']   = str_pad((string) $last, $width, '0', STR_PAD_LEFT);
+        if ($last < $first) {
+            $plan['errors'][] = "The range runs backwards: {$plan['from']} is after {$plan['to']}.";
+            return $plan;
+        }
+        $count = $last - $first + 1;
+        if ($count > self::BATCH_PAPER_MAX) {
+            $plan['errors'][] = 'That range holds ' . number_format($count) . ' codes; one entry may cover at most ' . number_format(self::BATCH_PAPER_MAX) . '.';
+            return $plan;
+        }
+        if ($count !== $letters->count()) {
+            $plan['errors'][] = "The range {$plan['from']}–{$plan['to']} holds " . number_format($count) . ' code(s), but '
+                . number_format($letters->count()) . ' printed letter(s) in this batch need one. Correct the range to '
+                . $plan['from'] . '–' . str_pad((string) ($first + $letters->count() - 1), $width, '0', STR_PAD_LEFT) . '.';
+        }
+
+        $codes = [];
+        for ($n = $first; $n <= $last; $n++) $codes[] = str_pad((string) $n, $width, '0', STR_PAD_LEFT);
+
+        $pool = [];
+        foreach (array_chunk($codes, 1000) as $chunk) {
+            foreach (DB::connection('sqlsrv')->table('global_security_paper_codes')->whereIn('paper_code', $chunk)
+                ->get(['paper_code', 'is_used', 'status', 'void_reason', 'assigned_to_type', 'assigned_to_id']) as $p) {
+                $pool[$p->paper_code] = $p;
+            }
+        }
+        $missing = []; $voided = []; $used = [];
+        foreach ($codes as $code) {
+            $p = $pool[$code] ?? null;
+            if (! $p) { $missing[] = $code; continue; }
+            if (($p->status ?? null) === 'voided') { $voided[] = $code . ' (' . SecurityPaperCodeService::label($p->void_reason) . ')'; continue; }
+            if ($p->is_used) { $used[] = $code; }
+        }
+        $list = fn (array $xs) => implode(', ', array_slice($xs, 0, 15)) . (count($xs) > 15 ? ' and ' . (count($xs) - 15) . ' more' : '');
+        if ($missing) $plan['errors'][] = count($missing) . ' code(s) are not in the security paper pool: ' . $list($missing) . '.';
+        if ($voided)  $plan['errors'][] = count($voided) . ' code(s) were voided and cannot be used: ' . $list($voided) . '.';
+        if ($used)    $plan['errors'][] = count($used) . ' code(s) are already in use: ' . $list($used) . '.';
+
+        foreach ($letters as $i => $c) {
+            $plan['rows'][] = [
+                'n'           => $i + 1,
+                'id'          => $c->id,
+                'seq'         => $c->batch_seq,
+                'file_number' => $c->file_number,
+                'applicant'   => $c->applicant_name,
+                'serial'      => $minted[$c->id]['serial'] ?? null,
+                'code'        => $codes[$i] ?? null,
+            ];
+        }
+
+        return $plan;
+    }
+
+    /** The plan for a range on a batch, without saving anything. */
+    public function batchSecurityPaperPreview(Request $request, string $batchId)
+    {
+        $plan = $this->batchPaperPlan($batchId, $request->input('from'), $request->input('to'));
+
+        return response()->json(['success' => ! $plan['errors']] + $plan);
+    }
+
+    /** Save the plan: every letter and code, or none of them. */
+    public function batchSecurityPaperAssign(Request $request, string $batchId)
+    {
+        $plan = $this->batchPaperPlan($batchId, $request->input('from'), $request->input('to'));
+        if ($plan['errors']) {
+            return response()->json(['success' => false] + $plan, 422);
+        }
+
+        $db = DB::connection('sqlsrv');
+        $now = now();
+        $userId = Auth::id();
+        $db->beginTransaction();
+        try {
+            // Set-based, 400 letters a statement, so even the largest batch holds its locks briefly.
+            foreach (array_chunk($plan['rows'], 400) as $chunk) {
+                $values = implode(',', array_fill(0, count($chunk), '(?, ?)'));
+                $bind = [];
+                foreach ($chunk as $row) { $bind[] = (int) $row['id']; $bind[] = $row['code']; }
+
+                $letters = $db->update(
+                    "UPDATE lr SET land_rofo_serial_no = v.code, updated_at = ?
+                       FROM land_recommendations lr JOIN (VALUES $values) v(id, code) ON lr.id = v.id
+                      WHERE LTRIM(RTRIM(ISNULL(lr.land_rofo_serial_no, ''))) = ''",
+                    array_merge([$now], $bind));
+                $papers = $db->update(
+                    "UPDATE g SET is_used = 1, status = 'assigned', assigned_to_type = 'LandRecommendation',
+                            assigned_to_id = v.id, assigned_by = ?, assigned_at = ?, updated_at = ?
+                       FROM global_security_paper_codes g JOIN (VALUES $values) v(id, code) ON g.paper_code = v.code
+                      WHERE g.is_used = 0 AND (g.status IS NULL OR g.status <> 'voided')",
+                    array_merge([$userId, $now, $now], $bind));
+
+                // Someone else took a letter or a code since the plan was made: undo it all.
+                if ($letters !== count($chunk) || $papers !== count($chunk)) {
+                    $db->rollBack();
+                    return response()->json(['success' => false, 'errors' => [
+                        'Some of these letters or codes changed while you were entering them. Nothing was saved; preview the range again.',
+                    ]] + array_diff_key($plan, ['errors' => 1]), 409);
+                }
+
+                // The same tracking row the single entry writes (assignSecurityPaperCode()); 150 rows
+                // an insert keeps 11 columns under SQL Server's 2,100-parameter limit.
+                foreach (array_chunk($chunk, 150) as $part) {
+                    $db->table('security_codes')->insert(array_map(fn ($row) => [
+                        'code' => 'L-' . $row['code'], 'security_paper_code' => $row['code'], 'used_security_paper_code' => $row['code'],
+                        'is_used' => true, 'assigned_to' => 'Land ROFO', 'assigned_by' => $userId, 'assigned_at' => $now,
+                        'file_number' => $row['file_number'], 'document_id' => $row['id'], 'document_type' => 'Land ROFO',
+                        'created_at' => $now, 'updated_at' => $now,
+                    ], $part));
+                }
+            }
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            Log::error('Batch security paper assign failed', ['batch' => $batchId, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'errors' => ['Saving failed; nothing was saved. ' . $e->getMessage()]], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => number_format(count($plan['rows'])) . " security paper code(s) entered, {$plan['from']}–{$plan['to']}.",
+            'count'   => count($plan['rows']),
+        ]);
     }
 
     public function generate(Request $request, $id)

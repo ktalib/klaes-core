@@ -51,6 +51,12 @@ class SurveyOpRecord extends SurveyModel
         return $this->belongsTo(SurveyBeneficiary::class, 'survey_beneficiary_id');
     }
 
+    /** Showing History (Compensation Status → Verification (Records)). */
+    public function showings(): HasMany
+    {
+        return $this->hasMany(SurveyOpShowing::class, 'survey_op_record_id');
+    }
+
     public function steps(): HasMany
     {
         return $this->hasMany(SurveyOpWorkflowStep::class, 'survey_op_record_id')->orderBy('step_no');

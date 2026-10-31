@@ -97,7 +97,9 @@ function gknGeneratorFixed(config) {
                 const prefixes = {
                     'GKN': 'GKN-',
                     'LPKN': 'LPKN-',
-                    'MISCS': 'MISC KN '
+                    'MISCS': 'MISC KN ',
+                    'LPPL': 'LPPL-',
+                    'RDKN': 'RDKN-'
                 };
                 this.formData.prefix = prefixes[val] || 'GKN-';
                 this.fetchNextGkn();
@@ -114,7 +116,8 @@ function gknGeneratorFixed(config) {
                 this.formData.customer_type = this.customerTypes[0].customer_type_name;
             }
 
-            setInterval(() => this.fetchWorldTime(), 1000);
+            // pollTimeWhenOpen (GKN > Applications): read the clock only while the Generate dialog is open.
+            setInterval(() => { if (!config.pollTimeWhenOpen || this.showGenerateModal) this.fetchWorldTime(); }, 1000);
         },
 
         async refreshTable() {
@@ -256,7 +259,7 @@ function gknGeneratorFixed(config) {
                     }
 
                     this.formData.type = rec.type || 'GKN';
-                    const prefixes = { 'GKN': 'GKN-', 'LPKN': 'LPKN-', 'MISCS': 'MISC KN ' };
+                    const prefixes = { 'GKN': 'GKN-', 'LPKN': 'LPKN-', 'MISCS': 'MISC KN ', 'LPPL': 'LPPL-', 'RDKN': 'RDKN-' };
                     this.formData.prefix = prefixes[this.formData.type] || 'GKN-';
                     
                     this.loadDistrict(rec);
@@ -329,7 +332,7 @@ function gknGeneratorFixed(config) {
                     }
 
                     this.formData.type = rec.type || 'GKN';
-                    const prefixes = { 'GKN': 'GKN-', 'LPKN': 'LPKN-', 'MISCS': 'MISC KN ' };
+                    const prefixes = { 'GKN': 'GKN-', 'LPKN': 'LPKN-', 'MISCS': 'MISC KN ', 'LPPL': 'LPPL-', 'RDKN': 'RDKN-' };
                     this.formData.prefix = prefixes[this.formData.type] || 'GKN-';
                     
                     this.loadDistrict(rec);

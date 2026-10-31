@@ -1723,6 +1723,8 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'blind-scanning'], fu
     Route::post('/sync-migrations', [App\Http\Controllers\BlindScanningController::class, 'syncMigrationLog'])->name('blind-scanning.sync-migrations');
     Route::post('/save-image', [App\Http\Controllers\BlindScanningController::class, 'apiSaveImage'])->name('blind-scanning.save-image');
     Route::post('/delete-file', [App\Http\Controllers\BlindScanningController::class, 'apiDeleteFile'])->name('blind-scanning.delete-file');
+    // A whole uploaded folder, admin only (user, 2026-10-30): moved to edms-deleted, records removed.
+    Route::post('/delete-folder', [App\Http\Controllers\BlindScanningController::class, 'apiDeleteFolder'])->name('blind-scanning.delete-folder');
     Route::post('/convert-to-upload', [App\Http\Controllers\BlindScanningController::class, 'convertToUpload'])->name('blind-scanning.convert-to-upload');
     Route::get('/{id}', [App\Http\Controllers\BlindScanningController::class, 'show'])->where('id', '[0-9]+')->name('blind-scanning.show');
     Route::delete('/{id}', [App\Http\Controllers\BlindScanningController::class, 'destroy'])->where('id', '[0-9]+')->name('blind-scanning.destroy');

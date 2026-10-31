@@ -466,6 +466,10 @@
                             <div class="ml-auto flex items-center gap-2">
                                 {{-- Apply-to-all lives in the toolbar rather than as a row wedged
                                      into the table body, which broke the row rhythm. --}}
+                                {{-- Shown when the selected files mix land uses (CR 30102026 item 24). --}}
+                                <span id="batch-mixed-landuse-note" class="hidden items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <i data-lucide="alert-triangle" class="h-3.5 w-3.5"></i> Mixed land uses: Apply to all is off
+                                </span>
                                 <button type="button" id="batch-apply-all" disabled
                                     class="px-3 py-1.5 text-[11px] font-bold bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition inline-flex items-center gap-1.5">
                                     <i data-lucide="arrow-down-to-line" class="h-3.5 w-3.5"></i>
@@ -3308,6 +3312,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.batch-col-apply').forEach(function (b) {
             b.disabled = n < 2;
         });
+        applyMixedLandUseLock();
 
         // Keep the header box honest when rows arrive part-selected — children that
         // already have a recommendation come back unticked.
@@ -4136,6 +4141,61 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ── Mixed land uses switch Apply-to-all off (CR 30102026 item 24, user 2026-10-31) ──
+    // Land use comes from the file number prefix: RES-2026-1 is RES; CON-RES-… (conversion) and
+    // RC-COM-… (recertification) are RES and COM. Files of different land uses carry different
+    // terms, so copying one file's values onto the rest would give them the wrong terms. A mixed
+    // batch is still allowed; each file is keyed on its own. Prefixes outside COM/RES/IND/AG are ignored.
+    function landUseOfFile(fileNumber) {
+        var parts = String(fileNumber || '').trim().toUpperCase().split('-');
+        var code = (parts[0] === 'CON' || parts[0] === 'RC') ? parts[1] : parts[0];
+        return ['COM', 'RES', 'IND', 'AG'].indexOf(code) !== -1 ? code : null;
+    }
+    function batchLandUses() {
+        var seen = {};
+        grantRows().forEach(function (tr) {
+            var hid = tr.querySelector('input[name$="[file_number]"]');
+            var lu = landUseOfFile(hid ? hid.value : '');
+            if (lu) seen[lu] = true;
+        });
+        return Object.keys(seen);
+    }
+    function batchMixesLandUse() {
+        return batchLandUses().length > 1;
+    }
+    // Runs after the code that enables these buttons (updateCount, renderGrantStep), so it has the last word.
+    // The RofO and Reasons card buttons have no enabling code of their own, so their state is put back on unlock.
+    function applyMixedLandUseLock() {
+        var uses = batchLandUses();
+        var mixed = uses.length > 1;
+        var why = 'Off: the selected files mix land uses (' + uses.join(', ') + '), which carry different terms. Enter each file on its own.';
+        var unmanaged = ['rofo-card-apply-all', 'reasons-card-apply-all'];
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.batch-col-apply'));
+        ['batch-apply-all', 'applicant-card-apply-all', 'grant-card-apply-all', 'page-card-apply-all'].concat(unmanaged)
+            .forEach(function (id) { var b = document.getElementById(id); if (b) buttons.push(b); });
+        buttons.forEach(function (b) {
+            if (mixed) {
+                if (b.dataset.mixedLock !== '1') {
+                    b.dataset.mixedLock = '1';
+                    b.dataset.titleBefore = b.getAttribute('title') || '';
+                    b.dataset.disabledBefore = b.disabled ? '1' : '0';
+                }
+                b.disabled = true;
+                b.setAttribute('title', why);
+            } else if (b.dataset.mixedLock === '1') {
+                delete b.dataset.mixedLock;
+                b.setAttribute('title', b.dataset.titleBefore || '');
+                if (unmanaged.indexOf(b.id) !== -1) b.disabled = b.dataset.disabledBefore === '1';
+            }
+        });
+        var note = document.getElementById('batch-mixed-landuse-note');
+        if (note) {
+            note.classList.toggle('hidden', !mixed);
+            note.classList.toggle('inline-flex', mixed);
+            note.setAttribute('title', why);
+        }
+    }
+
     // Editing a saved batch with files just added to it: the cards' "1 of N"
     // stepper and every Apply-to-all work on the newly added files only, so
     // keying the new files never walks or overwrites the files already saved.
@@ -4205,6 +4265,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var btn = document.getElementById(id);
             if (btn) btn.disabled = total < 2;
         });
+        applyMixedLandUseLock();
 
         writeMirrors();
     }
@@ -4390,6 +4451,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var source = grantStore[grantIndex];
             var scope = grantScope();
             if (!source || scope.length < 2) return;
+            if (batchMixesLandUse()) return;   // mixed land uses: never copy (CR 30102026 item 24)
 
             var where = newFilesOnly() ? ' newly added files' : ' files in this batch';
             if (!confirm('Copy ' + cardLabel + ' on screen onto all '

@@ -10509,6 +10509,8 @@
         const submittedCountEl = document.getElementById('submitted-request-count');
         if (inTransitCountEl && stats.in_transit !== undefined) inTransitCountEl.textContent = stats.in_transit ?? 0;
         if (submittedCountEl && stats.submitted !== undefined) submittedCountEl.textContent = stats.submitted ?? 0;
+        const diitCountEl = document.getElementById('diit-count');
+        if (diitCountEl && stats.diit !== undefined) diitCountEl.textContent = stats.diit ?? 0;
 
         // File Log Table sub-tab counts (Active vs Completed/logged-back-in)
         const fileLogActiveCountEl = document.getElementById('file-log-active-count');

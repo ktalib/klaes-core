@@ -134,12 +134,12 @@
 
         {{-- 3. Part-to-whole per project: stacked horizontal bars. --}}
         <div class="viz-card">
-            <h3>Plot for Plot: plots by project</h3>
+            <h3>Land to Land: plots by project</h3>
             <p class="sub">Owner and Government plots, split 50:50 per beneficiary (odd plot to Government)</p>
             @if ($plots)
                 <div class="viz-box" style="height:{{ max(160, 56 * count($plots) + 70) }}px;"><canvas id="svPlots" role="img" aria-label="Owner and Government plots by project"></canvas></div>
             @else
-                <div class="viz-empty">No Plot for Plot cases with plots yet.</div>
+                <div class="viz-empty">No Land to Land cases with plots yet.</div>
             @endif
             <details class="viz-table"><summary>Show table</summary>
                 <table><thead><tr><th>Project</th><th>Owner</th><th>Government</th><th>Total</th></tr></thead><tbody>
@@ -151,7 +151,7 @@
 
         {{-- 4. Magnitude per project, one series: one hue, no legend. --}}
         <div class="viz-card">
-            <h3>Cash for Trees: valuation by project</h3>
+            <h3>Monetary Compensation: valuation by project</h3>
             <p class="sub">Trees valued on the project's cases (rejected cases left out)</p>
             @if ($cash)
                 <div class="viz-box" style="height:{{ max(160, 44 * count($cash) + 70) }}px;"><canvas id="svCash" role="img" aria-label="Cash valued by project"></canvas></div>

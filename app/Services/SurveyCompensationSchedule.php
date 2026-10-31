@@ -11,9 +11,9 @@ use Illuminate\Support\Collection;
  * The Compensation Calculator's per-beneficiary schedule for one project
  * (user transcript, 2026-10-25):
  *
- * - Plot for Plot: a beneficiary appears once however many cases (portions)
+ * - Land to Land: a beneficiary appears once however many cases (portions)
  *   name them; their plots are totalled and split 50:50, odd plot to Government.
- * - Cash for Trees: each beneficiary's trees, count x rate, totalled.
+ * - Monetary Compensation: each beneficiary's trees, count x rate, totalled.
  *
  * A case belongs to the people registered on it. When a case names several
  * people it is a joint holding and is shown as one row for them together; the

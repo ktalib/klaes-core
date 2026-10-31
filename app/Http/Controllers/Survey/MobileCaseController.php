@@ -10,6 +10,7 @@ use App\Models\Survey\SurveyProject;
 use App\Models\User;
 use App\Services\LoginOtpService;
 use App\Support\AddressBuilder;
+use App\Support\SurveyMobileApps;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -28,13 +29,15 @@ class MobileCaseController extends CaseController
     /** Modules that may use the field register; the route gate maps survey-module.* to the first. */
     private const MODULES = ['Survey - Records', 'Supper Admin'];
 
-    public function loginForm()
+    public function loginForm(Request $r)
     {
+        // Each field app opens this page with ?app=<key> (SurveyMobileApps).
+        SurveyMobileApps::remember($r->query('app'));
         if (Auth::check()) {
-            return redirect()->route('survey-module.mobile.index');
+            return redirect(SurveyMobileApps::home());
         }
 
-        return view('survey_module.mobile.login');
+        return view('survey_module.mobile.login', ['app' => SurveyMobileApps::get()]);
     }
 
     /**
@@ -48,6 +51,7 @@ class MobileCaseController extends CaseController
             'identifier' => 'required|string',
             'password'   => 'required|string',
         ]);
+        SurveyMobileApps::remember($r->input('app'));
 
         $identifier = trim($r->input('identifier'));
         $user = User::where('username', $identifier)->orWhere('email', $identifier)->first();
@@ -69,7 +73,7 @@ class MobileCaseController extends CaseController
                 ->withErrors(['identifier' => 'Your account does not have access to the Survey module.']);
         }
 
-        $r->session()->put('url.intended', route('survey-module.mobile.index'));
+        $r->session()->put('url.intended', SurveyMobileApps::home());
 
         $otp = app(LoginOtpService::class);
         if ($otp->requiredFor($user)) {
@@ -85,11 +89,12 @@ class MobileCaseController extends CaseController
 
     public function logout(Request $r)
     {
+        $app = SurveyMobileApps::current();
         Auth::logout();
         $r->session()->invalidate();
         $r->session()->regenerateToken();
 
-        return redirect()->route('survey-module.mobile.login');
+        return redirect()->route('survey-module.mobile.login', ['app' => $app]);
     }
 
     /**

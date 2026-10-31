@@ -414,12 +414,19 @@ class FileLocationResolver
         $npf = $this->npfPairs(array_merge([(string) $indexing->file_number], $numbers->all()));
 
         return $numbers
-            ->map(fn ($number) => [
-                'file_number' => $number,
-                'file_title' => $titles->get(strtoupper($number)),
-                // Indexed as "physical file not sighted" with this record.
-                'npf' => isset($npf[RelatedFileSightings::pairKey((string) $indexing->file_number, $number)]),
-            ])
+            ->map(function ($number) use ($titles, $npf, $indexing) {
+                // Answered No ("not in the file") with this record: NPF when the related
+                // file was never indexed, "Physical File Indexed" when it was.
+                $category = $npf[RelatedFileSightings::pairKey((string) $indexing->file_number, $number)] ?? null;
+
+                return [
+                    'file_number' => $number,
+                    'file_title' => $titles->get(strtoupper($number)),
+                    'npf' => $category === RelatedFileSightings::NOT_IN_FILE,
+                    'sighting' => $category,
+                    'sighting_label' => $category ? RelatedFileSightings::CATEGORY_LABELS[$category] : null,
+                ];
+            })
             ->all();
     }
 
@@ -505,7 +512,8 @@ class FileLocationResolver
             }
         }
 
-        // A land file indexed as NPF (physical file not sighted) is not kept inside it.
+        // Answered No (not in this file; NPF or indexed on its own): not kept inside it, so
+        // the land file is shown where it really is, never referred to the KANGIS file.
         $npf = $this->npfPairs(array_merge([$self], array_values($numbers)));
         $numbers = array_filter($numbers, fn ($n) => !isset($npf[RelatedFileSightings::pairKey($self, $n)]));
 
@@ -643,7 +651,8 @@ class FileLocationResolver
             }
         }
 
-        // A land file indexed as NPF (physical file not sighted) is not kept inside that KANGIS file.
+        // Answered No (not in that KANGIS file; NPF or indexed on its own): not kept inside it,
+        // so the requester is shown the land file's own location, not the KANGIS Registry.
         if ($found) {
             $npf = $this->npfPairs(array_merge(array_keys($found), ...array_values($found)));
             foreach ($found as $land => $kangisFiles) {

@@ -975,26 +975,29 @@
                                 {{-- Hidden for an Internal sender (the sender's department above is used) and an External one (the MDA / LGA says where it came from). --}}
                                 <div x-show="!senderGivesDepartment() && !senderIsExternal()">
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Received from (department) *</label>
-                                    <select x-model="manual.from_department" @change="fromDepartmentChanged()"
-                                            class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
-                                            :class="manual.from_department ? 'border-gray-300' : 'border-red-300'">
-                                        <option value="">— Select the department —</option>
-                                        <template x-for="d in departments()" :key="'fd-' + d">
-                                            <option :value="d" x-text="d"></option>
-                                        </template>
-                                        <option value="other">Other (Specify)…</option>
-                                    </select>
+                                    <div class="relative" x-data="fileLogPickList(() => manual.from_department)" @click.outside="psClose()">
+                                        <select x-ref="sel" x-model="manual.from_department" @change="fromDepartmentChanged()" class="hidden">
+                                            <option value="">— Select the department —</option>
+                                            <template x-for="d in departments()" :key="'fd-' + d">
+                                                <option :value="d" x-text="d"></option>
+                                            </template>
+                                            <option value="other">Other (Specify)…</option>
+                                        </select>
+                                        @include('secretariat_file_log.partials.pick_list', ['model' => 'manual.from_department', 'placeholder' => "'— Select the department —'", 'required' => true])
+                                    </div>
                                 </div>
                                 <div x-show="!senderIsExternal()">
                                     <label class="block text-xs font-semibold text-gray-600 mb-1"><span x-text="senderGivesDepartment() ? 'Sender’s department' : 'Received from (office)'"></span> *</label>
-                                    <select x-model="manual.from_office" class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
-                                            :class="manual.from_office ? 'border-gray-300' : 'border-red-300'">
-                                        <option value="" x-text="manual.from_department ? '— Select the office —' : '— Select the department first —'"></option>
-                                        <template x-for="o in officesIn(manual.from_department)" :key="'from-' + o.office_code">
-                                            <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
-                                        </template>
-                                        <option value="other">Other</option>
-                                    </select>
+                                    <div class="relative" x-data="fileLogPickList(() => manual.from_office)" @click.outside="psClose()">
+                                        <select x-ref="sel" x-model="manual.from_office" class="hidden">
+                                            <option value="" x-text="manual.from_department ? '— Select the office —' : '— Select the department first —'"></option>
+                                            <template x-for="o in officesIn(manual.from_department)" :key="'from-' + o.office_code">
+                                                <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                            </template>
+                                            <option value="other">Other</option>
+                                        </select>
+                                        @include('secretariat_file_log.partials.pick_list', ['model' => 'manual.from_office', 'placeholder' => "manual.from_department ? '— Select the office —' : '— Select the department first —'", 'required' => true])
+                                    </div>
                                     <input type="text" x-show="manual.from_office === 'other'" x-model="manual.from_other" placeholder="Specify where the file came from *"
                                            class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                            :class="manual.from_other.trim() ? 'border-gray-300' : 'border-red-300'">
@@ -1013,17 +1016,19 @@
                                 {{-- Send: the office it goes to. Pre-filled from the receiving officer's office; the item is logged here and sent on in one step. --}}
                                 <div x-show="mode === 'out'">
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Send to (office) *</label>
-                                    <select x-model="manual.send_to_office" class="w-full border rounded-lg text-sm px-2 py-2 bg-white"
-                                            :class="manual.send_to_office ? 'border-gray-300' : 'border-red-300'">
-                                        <option value="">— Select the office —</option>
-                                        <template x-for="group in officeGroups()" :key="'mst-' + group.department">
-                                            <optgroup :label="group.department">
-                                                <template x-for="o in group.items.filter(i => i.office_code !== office)" :key="'msto-' + o.office_code">
-                                                    <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
-                                                </template>
-                                            </optgroup>
-                                        </template>
-                                    </select>
+                                    <div class="relative" x-data="fileLogPickList(() => manual.send_to_office)" @click.outside="psClose()">
+                                        <select x-ref="sel" x-model="manual.send_to_office" class="hidden">
+                                            <option value="">— Select the office —</option>
+                                            <template x-for="group in officeGroups()" :key="'mst-' + group.department">
+                                                <optgroup :label="group.department">
+                                                    <template x-for="o in group.items.filter(i => i.office_code !== office)" :key="'msto-' + o.office_code">
+                                                        <option :value="o.office_code" x-text="o.office_name.trim() + ' (' + o.office_code + ')'"></option>
+                                                    </template>
+                                                </optgroup>
+                                            </template>
+                                        </select>
+                                        @include('secretariat_file_log.partials.pick_list', ['model' => 'manual.send_to_office', 'placeholder' => "'— Select the office —'", 'required' => true])
+                                    </div>
                                 </div>
                                 <div class="relative" @click.outside="manual.officerOpen = false">
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer *
@@ -1073,16 +1078,36 @@
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Request purpose
                                         <span x-show="manual.entry_type === 'non_file'" class="font-normal text-gray-400">(optional)</span></label>
-                                    <select x-model="manual.request_purpose_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                        <option value="">— Select the reason this file was brought —</option>
-                                        <template x-for="p in requestPurposes" :key="'mrp-' + p.id">
-                                            <option :value="p.id" x-text="nice(p.name)"></option>
-                                        </template>
-                                        <option value="other">Other</option>
-                                    </select>
+                                    <div class="relative" x-data="fileLogPickList(() => manual.request_purpose_id)" @click.outside="psClose()">
+                                        <select x-ref="sel" x-model="manual.request_purpose_id" class="hidden">
+                                            <option value="">— Select the reason this file was brought —</option>
+                                            <template x-for="p in requestPurposes" :key="'mrp-' + p.id">
+                                                <option :value="p.id" x-text="nice(p.name)"></option>
+                                            </template>
+                                            <option value="other">Other</option>
+                                        </select>
+                                        @include('secretariat_file_log.partials.pick_list', ['model' => 'manual.request_purpose_id', 'placeholder' => "'— Select the reason this file was brought —'", 'required' => false])
+                                    </div>
                                     <input type="text" x-show="manual.request_purpose_id === 'other'" x-model="manual.purpose_other" placeholder="Specify the reason this file was brought *"
                                            class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                            :class="manual.purpose_other.trim() ? 'border-gray-300' : 'border-red-300'">
+                                </div>
+                                {{-- Timeline (Days), as on Log a File: sets the Expected Return Date and its Green/Amber/Red status. --}}
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Timeline (Days)
+                                        <span class="font-normal text-gray-400">(optional)</span></label>
+                                    <input type="number" min="0" max="365" step="1" x-model="manual.timeline_days" placeholder="e.g. 5"
+                                           class="w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           :class="manualTimelineDays() === false ? 'border-red-300' : 'border-gray-300'">
+                                    <p x-show="manualTimelineDays() === false" class="mt-1 text-xs text-red-600">A whole number of days, 0 to 365.</p>
+                                    <p x-show="!manualTimelinePreview() && manualTimelineDays() !== false" class="mt-1 text-xs text-gray-500">Days the file may stay before it is due back. Sets the Expected Return Date.</p>
+                                    <div x-show="manualTimelinePreview()" class="mt-1 flex items-center gap-2 flex-wrap text-xs">
+                                        <span class="text-gray-600">Expected return: <strong x-text="manualTimelinePreview() && manualTimelinePreview().date"></strong>
+                                            · <span x-text="manualTimelinePreview() && manualTimelinePreview().days"></span></span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full font-medium"
+                                              :style="manualTimelinePreview() && manualTimelinePreview().style"
+                                              x-text="manualTimelinePreview() && ('Timeline: ' + manualTimelinePreview().label)"></span>
+                                    </div>
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
@@ -1208,6 +1233,7 @@
                                     <th class="px-5 py-3 text-left">To</th>
                                     <th class="px-5 py-3 text-left" x-text="view() === 'sent' ? 'Sent' : 'Date'"></th>
                                     <th class="px-5 py-3 text-left">Purpose / Notes</th>
+                                    <th class="px-5 py-3 text-left">Timeline</th>
                                     <th class="px-5 py-3 text-right">Action</th>
                                 </tr>
                             </thead>
@@ -1245,6 +1271,18 @@
                                             <div x-text="nice(row.purpose) || ''"></div>
                                             <div class="text-xs text-gray-400" x-text="row.notes || ''"></div>
                                         </td>
+                                        {{-- Timeline (Days) and Expected Return Date, with the same badge as the file profile. --}}
+                                        <td class="px-5 py-3 whitespace-nowrap normal-case">
+                                            <template x-if="timelineBadge(row)">
+                                                <div>
+                                                    <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" :style="timelineBadge(row).style" x-text="timelineBadge(row).label"></span>
+                                                    <div class="text-xs text-gray-500 mt-0.5">
+                                                        <span x-text="'Due ' + dueDate(row.deadline)"></span><span x-show="row.timeline_days !== null && row.timeline_days !== undefined" x-text="' · ' + row.timeline_days + ' day' + (row.timeline_days == 1 ? '' : 's')"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <span x-show="!timelineBadge(row)" class="text-gray-400">—</span>
+                                        </td>
                                         <td class="px-5 py-3 text-right whitespace-nowrap normal-case" @click.stop>
                                             <template x-if="view() !== 'sent' && rowBucket(row) === 'pending'">
                                                 <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50" :disabled="busy" @click="receivePending(row)">
@@ -1275,7 +1313,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="!visibleRows().length">
-                                    <td colspan="8" class="px-5 py-10 text-center text-gray-400">
+                                    <td colspan="9" class="px-5 py-10 text-center text-gray-400">
                                         <i data-lucide="inbox" class="w-8 h-8 mx-auto"></i>
                                         <p class="mt-2" x-text="listsLoading ? 'Loading…' : 'Nothing here.'"></p>
                                     </td>

@@ -111,7 +111,7 @@
             return put(item);
         });
         return first
-            .then(function () { return item.kind === 'case' && item.photosUrl ? sendPhotos(item, token) : null; })
+            .then(function () { return item.photosUrl ? sendPhotos(item, token) : null; })
             .then(function () { return del(item.id); });
     }
 
@@ -202,6 +202,31 @@
             }).catch(function (e) {
                 if (e && e.kind === 'invalid') return { errors: e.detail };
                 if (e && e.kind === 'login') return keep().then(function (r) { r.login = true; return r; });
+                return keep();
+            });
+        },
+
+        /**
+         * Save any field record (a beacon, a showing, a ground check) the same way, with
+         * optional geo-tagged photos posted after it to the URL the server answers with
+         * (res.photos). The record carries client_uuid so a resend is harmless.
+         * Resolves { saved, queued, errors, res, photosWaiting }.
+         */
+        submit: function (url, fields, label, photos) {
+            var item = { id: uuid(), kind: 'record', url: url, fields: fields.concat([['client_uuid', '']]), created: Date.now(), label: label,
+                         photos: (photos || []).map(function (p) { return Object.assign({ uuid: uuid(), done: false }, p); }) };
+            item.fields[item.fields.length - 1][1] = item.id;
+            var keep = function () { return put(item).then(function () { render(); return { queued: true }; }); };
+            if (!navigator.onLine) return keep();
+            return freshToken().then(function (token) {
+                return post(url, fieldsToForm(item.fields), token).then(function (res) {
+                    item.serverId = res.id; item.photosUrl = res.photos || null;
+                    if (!item.photos.length || !item.photosUrl) return { saved: true, res: res };
+                    return put(item).then(function () { return sendPhotos(item, token); }).then(function () { return del(item.id); })
+                        .then(function () { return { saved: true, res: res }; }, function () { render(); return { saved: true, res: res, photosWaiting: true }; });
+                });
+            }).catch(function (e) {
+                if (e && e.kind === 'invalid') return { errors: e.detail };
                 return keep();
             });
         },

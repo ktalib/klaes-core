@@ -1,10 +1,10 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Register Compensation Case — KLAES')
+@section('page-title', 'Register Land — KLAES')
 
 @php
-  $PageTitle = 'Register Compensation Case';
-  $PageDescription = 'Select a Project first. The compensation scheme (Cash for Trees or Plot for Plot) is inherited from the Project and drives the rest of the form.';
+  $PageTitle = 'Register Land';
+  $PageDescription = 'Select a Project first. The compensation scheme (Monetary Compensation or Land to Land) is inherited from the Project and drives the rest of the form.';
 @endphp
 
 @section('survey-content')

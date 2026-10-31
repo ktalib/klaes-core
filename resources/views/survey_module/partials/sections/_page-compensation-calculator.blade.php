@@ -1,7 +1,14 @@
 @php
     $activeMode  = $result['mode'] ?? $mode;
     $oldLines    = old('lines', [['survey_tree_type_id' => '', 'quantity' => 1, 'unit_price' => '']]);
-    $priceMap    = $treeTypes->pluck('default_unit_price', 'id')->map(fn ($p) => $p === null ? null : (float) $p);
+    // Each catalogue row is one tree in one Category (Mature / Early) with its own rate (2026-10-30).
+    $priceMap    = $treeTypes->mapWithKeys(fn ($t) => [$t->id => $t->default_unit_price === null ? null : (float) $t->default_unit_price]);
+    $maturityMap = $treeTypes->mapWithKeys(fn ($t) => [$t->id => $t->maturity ?: 'Mature']);
+    // Tree Type lists each tree once; the Category picked (Mature / Early) chooses its row and rate (user, 2026-10-30).
+    $treeRows  = $treeTypes->groupBy('name')->map(fn ($g) => $g->mapWithKeys(fn ($t) => [$t->maturity ?: 'Mature' => $t->id]));
+    $treeNames = $treeTypes->unique('name')->values();
+    $rowName   = $treeTypes->mapWithKeys(fn ($t) => [$t->id => $t->name]);
+    $maturities = \App\Models\Survey\SurveyTreeType::MATURITIES;
 @endphp
 
 @include('survey_module.partials._flash')
@@ -28,13 +35,13 @@
     <label class="comp-type-option {{ $activeMode === 'monetary' ? 'selected' : '' }}"
            id="ccOptMon" onclick="ccSelectMode('monetary')">
         <div class="type-icon"><i class="fas fa-money-bill-wave"></i></div>
-        <div class="type-title">Cash for Trees Calculator</div>
+        <div class="type-title">Monetary Compensation Calculator</div>
         <div class="type-desc">Cash for economic trees · Tree × Qty × Unit Price</div>
     </label>
     <label class="comp-type-option {{ $activeMode === 'land' ? 'selected' : '' }}"
            id="ccOptLand" onclick="ccSelectMode('land')">
         <div class="type-icon"><i class="fas fa-map-marked-alt"></i></div>
-        <div class="type-title">Plot for Plot Calculator</div>
+        <div class="type-title">Land to Land Calculator</div>
         <div class="type-desc">50:50 plot split · Farmer : Government</div>
     </label>
 </div>
@@ -46,7 +53,7 @@
     tree rates; the running preview while you type is only a guide.
 </div>
 
-{{-- ------------------------------- Cash for Trees ------------------------------- --}}
+{{-- ------------------------------- Monetary Compensation ------------------------------- --}}
 <div id="ccMon" style="{{ $activeMode === 'monetary' ? '' : 'display:none;' }}">
     @include('survey_module.partials.sections._calculator-schedule', ['for' => 'trees'])
     @if ($treeTypes->isEmpty())
@@ -74,15 +81,23 @@
                             <div class="form-grid" style="margin-bottom:0;">
                                 <div class="form-group">
                                     <label>Tree Type <span class="required">*</span></label>
-                                    <select name="lines[{{ $i }}][survey_tree_type_id]" data-cc-type onchange="ccPrefill(this)">
+                                    @php $pickedId = (string) ($line['survey_tree_type_id'] ?? ''); @endphp
+                                    <input type="hidden" name="lines[{{ $i }}][survey_tree_type_id]" value="{{ $pickedId }}" data-cc-type />
+                                    <select data-cc-name onchange="ccPrefill(this)">
                                         <option value="">Select from catalogue…</option>
-                                        @foreach ($treeTypes as $t)
-                                            <option value="{{ $t->id }}" data-price="{{ $t->default_unit_price === null ? '' : (float) $t->default_unit_price }}"
-                                                @selected((string) ($line['survey_tree_type_id'] ?? '') === (string) $t->id)>
-                                                {{ $t->name }} ({{ $t->category }}) — {{ $t->default_unit_price === null ? 'rate not set' : '₦' . number_format((float) $t->default_unit_price, 2) }}
-                                            </option>
+                                        @foreach ($treeNames as $t)
+                                            <option value="{{ $t->name }}" @selected(($rowName[$pickedId] ?? null) === $t->name)>{{ $t->name }} ({{ $t->category }})</option>
                                         @endforeach
                                     </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Category <span class="required">*</span></label>
+                                    <select data-cc-maturity onchange="ccPrefill(this)">
+                                        @foreach ($maturities as $m)
+                                            <option value="{{ $m }}" @selected(($maturityMap[$pickedId] ?? 'Mature') === $m)>{{ $m }}</option>
+                                        @endforeach
+                                    </select>
+                                    <p class="helper-text" data-cc-rate></p>
                                 </div>
                                 <div class="form-group">
                                     <label>Quantity <span class="required">*</span></label>
@@ -174,6 +189,7 @@
                             <tr>
                                 <th>S/N</th>
                                 <th>Tree Type</th>
+                                <th>Type</th>
                                 <th>Category</th>
                                 <th>Quantity</th>
                                 <th>Unit Price (₦)</th>
@@ -186,6 +202,7 @@
                                     <td>{{ $loop->iteration }}</td>
                                     <td><strong>{{ $l['tree_type'] }}</strong></td>
                                     <td>{{ $l['category'] ?: '—' }}</td>
+                                    <td>{{ $l['maturity'] ?? 'Mature' }}</td>
                                     <td>{{ number_format($l['quantity']) }}</td>
                                     <td>
                                         {{ number_format($l['unit_price'], 2) }}
@@ -229,7 +246,7 @@
     @endif
 </div>
 
-{{-- ----------------------------- Plot for Plot ----------------------------- --}}
+{{-- ----------------------------- Land to Land ----------------------------- --}}
 <div id="ccLand" style="{{ $activeMode === 'land' ? '' : 'display:none;' }}">
     @include('survey_module.partials.sections._calculator-schedule', ['for' => 'plots'])
     <form method="POST" action="{{ route('survey-module.compensation.calculator.run') }}">
@@ -239,7 +256,7 @@
         <div class="dash-card" style="margin-bottom:20px;">
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Plot for Plot case (optional)</label>
+                    <label>Land to Land case (optional)</label>
                     <select name="survey_comp_case_id" onchange="ccLandCasePicked(this)">
                         <option value="">None — ad-hoc estimate</option>
                         @foreach ($cases->where('scheme_type', '!=', $schemeMonetary) as $c)
@@ -252,7 +269,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Total Plots to Carve <span class="required">*</span></label>
+                    <label>Creatable Plots <span class="required">*</span></label>
                     <input type="number" min="1" name="total_plots" id="ccPlots"
                            value="{{ old('total_plots', 10) }}" oninput="ccLandPreview()" />
                 </div>
@@ -287,7 +304,7 @@
 
         <div class="comp-type-note" style="margin-top:16px;">
             <i class="fas fa-info-circle"></i>
-            Plot for Plot schemes have <strong>no cash component</strong>. Assign plot numbers and OP numbers in
+            Land to Land schemes have <strong>no cash component</strong>. Assign plot numbers and OP numbers in
             <a href="{{ route('survey-module.tools.plot-allocation') }}">Plot Allocation</a> after case approval.
         </div>
 
@@ -342,12 +359,23 @@
             </div>
         </div>
     @endif
+
+    {{-- The Resettlement Calculator sits under the Land to Land calculator (CR 30102026 item 10); its own page is unchanged. --}}
+    <div class="dash-card" style="margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+            <h3 style="margin:0 0 4px;font-size:16px;"><i class="fas fa-calculator" style="color:var(--primary);"></i> Resettlement Calculator</h3>
+            <div style="font-size:13px;color:var(--gray-500);">Plots = area (ha) ÷ plot size for the land use and density, with the 50:50 split on Land to Land lands. Plot sizes are managed there.</div>
+        </div>
+        <a href="{{ route('survey-module.compensation.resettlement-calculator') }}" class="btn btn-primary"><i class="fas fa-arrow-right"></i> Open Resettlement Calculator</a>
+    </div>
 </div>
 
 <script>
     // Distinct names: _scripts.blade.php already defines runCashCalc()/runLandCalc()
     // against the prototype's demo ids, and is loaded after this partial.
     var ccPrices = @json($priceMap);
+    var ccMaturity = @json($maturityMap);
+    var ccRows = @json($treeRows);   // tree name => { Mature: id, Early: id }
 
     function ccSelectMode(mode) {
         document.getElementById('ccMon').style.display = mode === 'monetary' ? 'block' : 'none';
@@ -368,10 +396,14 @@
         var rows = document.querySelectorAll('#ccLines [data-cc-line]');
         if (!rows.length) return;
         var clone = rows[0].cloneNode(true);
-        clone.querySelector('[data-cc-type]').selectedIndex = 0;
+        if (window.svSearchable) svSearchable.cleanClone(clone);   // the tree list is a search box
+        clone.querySelector('[data-cc-name]').selectedIndex = 0;
+        clone.querySelector('[data-cc-type]').value = '';
+        clone.querySelector('[data-cc-maturity]').value = 'Mature';
         clone.querySelector('[data-cc-qty]').value = 1;
         clone.querySelector('[data-cc-price]').value = '';
         document.getElementById('ccLines').appendChild(clone);
+        if (window.svSearchable) svSearchable(clone);
         ccRenumber();
         ccPreview();
     }
@@ -384,11 +416,19 @@
         ccPreview();
     }
 
+    // The catalogue rate of the line's tree row (a tree in one Category).
+    function ccRate(row) {
+        var id = row.querySelector('[data-cc-type]').value;
+        return id && ccPrices[id] !== undefined ? ccPrices[id] : null;
+    }
+
+    // Tree + Category -> that catalogue row (hidden id) and its rate.
     function ccPrefill(select) {
         var row = select.closest('[data-cc-line]');
-        var price = row.querySelector('[data-cc-price]');
-        var opt = select.options[select.selectedIndex];
-        price.value = opt && opt.dataset.price ? opt.dataset.price : '';
+        var name = row.querySelector('[data-cc-name]').value, cat = row.querySelector('[data-cc-maturity]').value;
+        row.querySelector('[data-cc-type]').value = name && ccRows[name] && ccRows[name][cat] ? ccRows[name][cat] : '';
+        var r = ccRate(row);
+        row.querySelector('[data-cc-price]').value = r == null ? '' : r;
         ccPreview();
     }
 
@@ -403,7 +443,12 @@
             var id = sel.value;
             var qty = parseInt(row.querySelector('[data-cc-qty]').value, 10) || 0;
             var priceEl = row.querySelector('[data-cc-price]');
-            var price = priceEl.value !== '' ? parseFloat(priceEl.value) : (ccPrices[id] || 0);
+            var rate = ccRate(row);
+            var cat = row.querySelector('[data-cc-maturity]').value, name = row.querySelector('[data-cc-name]').value;
+            var note = row.querySelector('[data-cc-rate]');
+            if (note) note.textContent = id ? (rate == null ? cat + ' rate not set' : cat + ' rate ' + ccMoney(rate))
+                : (name ? name + ' has no ' + cat + ' entry in the catalogue' : '');
+            var price = priceEl.value !== '' ? parseFloat(priceEl.value) : (rate || 0);
             var line = qty * (price || 0);
             total += line;
             row.querySelector('[data-cc-line-total]').value = ccMoney(line);

@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A compensation project. The scheme type is set here and is exclusive:
- * cases inherit it and cannot mix monetary with plot-for-plot.
+ * cases inherit it and cannot mix monetary with land-to-land.
  */
 class SurveyProject extends SurveyModel
 {
+    use Concerns\HasImportOrigin;
+
     protected $table = 'survey_projects';
 
     protected $casts = [
@@ -45,6 +47,15 @@ class SurveyProject extends SurveyModel
 
     public function getSchemeLabelAttribute(): string
     {
-        return $this->isMonetary() ? 'Cash for Trees' : 'Plot for Plot (50:50)';
+        return $this->isMonetary() ? 'Monetary Compensation' : 'Land to Land (50:50)';
+    }
+
+    /** The name for listings: the imported names end in "(TP/…)", which the TP No. already shows. */
+    public function getDisplayNameAttribute(): string
+    {
+        $name = (string) $this->name;
+        $plan = trim((string) $this->plan_no);
+
+        return $plan === '' ? $name : (preg_replace('/\s*\(' . preg_quote($plan, '/') . '\)\s*$/i', '', $name) ?: $name);
     }
 }

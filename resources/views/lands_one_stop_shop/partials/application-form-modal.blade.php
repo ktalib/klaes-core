@@ -224,7 +224,7 @@
                                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-600">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">Grantee</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Grantee (Original Allottee)</label>
                                     <input type="text" id="oss_opd_grantee" placeholder="Enter grantee name"
                                            style="text-transform: uppercase;"
                                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500">

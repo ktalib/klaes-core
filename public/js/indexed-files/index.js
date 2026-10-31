@@ -1358,7 +1358,7 @@ function openRelatedFilesModal(id, options) {
                 </button>
             </td>
             <td class="px-4 py-3 text-sm text-gray-700 font-semibold js-cell-title">${escapeHtml(file.file_title || '-')}</td>
-            <td class="px-4 py-3 text-sm text-gray-600 js-cell-location">${escapeHtml(file.location || '-')}</td>
+            <td class="px-4 py-3 text-sm text-gray-600 js-cell-location">${escapeHtml(locationWithoutPlot(file.location, file.plot_number) || '-')}</td>
             <td class="px-4 py-3 text-xs text-gray-500">
                 <div class="flex flex-col gap-1">
                     <span class="font-medium js-cell-plot">Plot: ${escapeHtml(file.plot_number || '-')}</span>
@@ -1371,7 +1371,7 @@ function openRelatedFilesModal(id, options) {
                     data-parent-id="${id}"
                     data-file-number="${escapeHtml(file.file_number)}"
                     data-file-title="${escapeHtml(file.file_title || '')}"
-                    data-location="${escapeHtml(file.location || '')}"
+                    data-location="${escapeHtml(locationWithoutPlot(file.location, file.plot_number))}"
                     data-plot-number="${escapeHtml(file.plot_number || '')}"
                     data-tp-no="${escapeHtml(file.tp_no || '')}"
                     data-lpkn-no="${escapeHtml(file.lpkn_no || '')}">
@@ -1719,7 +1719,7 @@ function bindRelatedFilenoBackfill() {
             if (el && val != null && String(val).trim() !== '') el.textContent = val;
           };
           setCell('.js-cell-title', d.file_title);
-          setCell('.js-cell-location', d.location);
+          setCell('.js-cell-location', locationWithoutPlot(d.location, d.plot_number));
           if (d.plot_number != null && String(d.plot_number).trim() !== '') {
             const plot = row.querySelector('.js-cell-plot');
             if (plot) plot.textContent = 'Plot: ' + d.plot_number;
@@ -1733,7 +1733,7 @@ function bindRelatedFilenoBackfill() {
           const editBtn = row.querySelector('.edit-related-file-btn');
           if (editBtn) {
             if (d.file_title) editBtn.dataset.fileTitle = d.file_title;
-            if (d.location) editBtn.dataset.location = d.location;
+            if (d.location) editBtn.dataset.location = locationWithoutPlot(d.location, d.plot_number);
             if (d.plot_number) editBtn.dataset.plotNumber = d.plot_number;
             if (d.tp_no) editBtn.dataset.tpNo = d.tp_no;
             if (d.lpkn_no) editBtn.dataset.lpknNo = d.lpkn_no;
@@ -2799,16 +2799,15 @@ async function generateMatchedFileCommissioningSheetPDF(row, watermarkText = 'OR
   doc.line(rightColX, colTopY + 9, rightColX + colWidth, colTopY + 9);
   doc.setDrawColor(120);
 
-  const mainLocationParts = [row.plot_number, row.district, row.lga].filter(v => v && String(v).trim() !== '' && String(v).trim() !== '-');
-  const mainLocation = (row.location && row.location !== '-') ? row.location : mainLocationParts.join(', ');
+  const mainLocationParts = [row.district, row.lga].filter(v => v && String(v).trim() !== '' && String(v).trim() !== '-');
+  const mainLocation = (row.location && row.location !== '-') ? locationWithoutPlot(row.location, row.plot_number) : mainLocationParts.join(', ');
 
   const matchedLocationParts = [];
   if (matchedDetails) {
-    if (matchedDetails.plot_no) matchedLocationParts.push(matchedDetails.plot_no);
     if (matchedDetails.district_name) matchedLocationParts.push(matchedDetails.district_name);
     if (matchedDetails.lga_name || matchedDetails.lga) matchedLocationParts.push(matchedDetails.lga_name || matchedDetails.lga);
   }
-  const matchedLocation = (matchedDetails && matchedDetails.location) ? matchedDetails.location : matchedLocationParts.join(', ');
+  const matchedLocation = (matchedDetails && matchedDetails.location) ? locationWithoutPlot(matchedDetails.location, matchedDetails.plot_no) : matchedLocationParts.join(', ');
 
   const mainFields = [
     ['File No:', mainFileNo],
@@ -3782,8 +3781,8 @@ function mccDetailRow(label, value) {
 function renderMccLandDetails(row) {
   const el = document.getElementById('mcc-land-details');
   if (!el) return;
-  const locationParts = [row.plot_number, row.district, row.lga].filter(v => v && String(v).trim() !== '' && String(v).trim() !== '-');
-  const location = (row.location && row.location !== '-') ? row.location : locationParts.join(', ');
+  const locationParts = [row.district, row.lga].filter(v => v && String(v).trim() !== '' && String(v).trim() !== '-');
+  const location = (row.location && row.location !== '-') ? locationWithoutPlot(row.location, row.plot_number) : locationParts.join(', ');
   el.innerHTML = [
     mccDetailRow('File No', row.file_number),
     mccDetailRow('File Title', row.file_title),
@@ -3801,11 +3800,10 @@ function renderMccCadastralDetails(fileNumber, details) {
   if (!el) return;
   const locationParts = [];
   if (details) {
-    if (details.plot_no) locationParts.push(details.plot_no);
     if (details.district_name) locationParts.push(details.district_name);
     if (details.lga_name || details.lga) locationParts.push(details.lga_name || details.lga);
   }
-  const location = (details && details.location) ? details.location : locationParts.join(', ');
+  const location = (details && details.location) ? locationWithoutPlot(details.location, details.plot_no) : locationParts.join(', ');
   el.innerHTML = [
     mccDetailRow('File No', fileNumber),
     mccDetailRow('File Title', details ? details.title : ''),
@@ -4050,8 +4048,8 @@ function mppShow(id, show) {
 function renderMppLandDetails(row) {
   const el = document.getElementById('mpp-land-details');
   if (!el) return;
-  const locationParts = [row.plot_number, row.district, row.lga].filter(v => v && String(v).trim() !== '' && String(v).trim() !== '-');
-  const location = (row.location && row.location !== '-') ? row.location : locationParts.join(', ');
+  const locationParts = [row.district, row.lga].filter(v => v && String(v).trim() !== '' && String(v).trim() !== '-');
+  const location = (row.location && row.location !== '-') ? locationWithoutPlot(row.location, row.plot_number) : locationParts.join(', ');
   el.innerHTML = [
     mccDetailRow('File No', row.file_number),
     mccDetailRow('File Title', row.file_title),
@@ -4069,11 +4067,10 @@ function renderMppPpDetails(fileNumber, details) {
   if (!el) return;
   const locationParts = [];
   if (details) {
-    if (details.plot_no) locationParts.push(details.plot_no);
     if (details.district_name) locationParts.push(details.district_name);
     if (details.lga_name || details.lga) locationParts.push(details.lga_name || details.lga);
   }
-  const location = (details && details.location) ? details.location : locationParts.join(', ');
+  const location = (details && details.location) ? locationWithoutPlot(details.location, details.plot_no) : locationParts.join(', ');
   el.innerHTML = [
     mccDetailRow('File No', fileNumber),
     mccDetailRow('File Title', details ? details.title : ''),
@@ -5258,6 +5255,22 @@ function debounce(callback, delay) {
     window.clearTimeout(timeoutId);
     timeoutId = window.setTimeout(() => callback(...args), delay);
   };
+}
+
+// Location is district + LGA (+ state) and never includes the plot number.
+// Older indexings saved "PLOT, DISTRICT, LGA, KANO STATE"; drop that leading
+// plot token for display so the plot is not repeated inside the location.
+function locationWithoutPlot(location, plotNumber) {
+  const text = location === undefined || location === null ? '' : String(location).trim();
+  const plot = plotNumber === undefined || plotNumber === null ? '' : String(plotNumber).trim().toUpperCase();
+  if (text === '' || text === '-' || plot === '' || plot === '-') return text;
+
+  const tokens = text.split(',');
+  const first = tokens[0].trim().toUpperCase().replace(/^PLOT\s*(NO\.?|NUMBER)?\s*/, '');
+  if (tokens.length > 1 && (first === plot || tokens[0].trim().toUpperCase() === plot)) {
+    return tokens.slice(1).join(',').trim();
+  }
+  return text;
 }
 
 function escapeHtml(value) {

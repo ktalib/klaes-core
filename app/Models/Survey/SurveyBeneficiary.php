@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SurveyBeneficiary extends SurveyModel
 {
+    use Concerns\HasImportOrigin;
+
     protected $table = 'survey_beneficiaries';
 
     public function case(): BelongsTo

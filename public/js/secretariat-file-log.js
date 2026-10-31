@@ -70,7 +70,7 @@ window.secretariatFileLog = function (config) {
         from_department: '', send_to_office: '', reference: '', from_office: '', notes: '',
         indexQ: '', indexOpen: false, related_file_number: '',
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
-        officer_other: '', purpose_other: '', from_other: '',
+        officer_other: '', purpose_other: '', from_other: '', timeline_days: '',
     });
     const blankSend = () => ({ row: null, to_office: '', receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', notes: '' });
@@ -1396,7 +1396,12 @@ window.secretariatFileLog = function (config) {
             return nice(entry.receiving_officer_name || entry.receivingOfficerName || entry.accepted_by_name || '-');
         },
         qsTimeline() {
-            const meta = this.historyMeta();
+            return this.timelineBadge(this.historyMeta());
+        },
+        // Green/Amber/Red timeline badge from {timeline_status, days_until_deadline}:
+        // the profile's history meta, or a register row (the tab tables).
+        timelineBadge(meta) {
+            meta = meta || {};
             const styles = {
                 green: 'background:#d1fae5;color:#166534;border:1px solid #a7f3d0;',
                 amber: 'background:#fef9c3;color:#78350f;border:1px solid #fde68a;',
@@ -1412,6 +1417,11 @@ window.secretariatFileLog = function (config) {
             else if (days === 0) label = 'Due today';
             else label = Math.abs(days) + ' day' + (Math.abs(days) === 1 ? '' : 's') + ' overdue';
             return { label, style: styles[meta.timeline_status] };
+        },
+        // A row's Expected Return Date (Y-m-d) as DD/MM/YYYY.
+        dueDate(value) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+            return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
         },
         profileRegistry() {
             const f = (this.profile.data && this.profile.data.file) || {};
@@ -1662,6 +1672,8 @@ window.secretariatFileLog = function (config) {
             // A request purpose is optional; "Other" must still be typed.
             const purposeOk = m.request_purpose_id !== 'other' || m.purpose_other.trim() !== '';
             if (!chosen(m.receiving_officer_id, m.officer_other) || !purposeOk) return false;
+            // Timeline (Days) is optional; when given, a whole number 0–365 (as on Log a File).
+            if (this.manualTimelineDays() === false) return false;
             // Send: where it goes.
             if (this.mode === 'out' && (!m.send_to_office || m.send_to_office === this.office)) return false;
             // Where it came from is required: a department, then an office (or Other, typed).
@@ -1680,6 +1692,30 @@ window.secretariatFileLog = function (config) {
             return m.file_number.trim() !== '';
         },
 
+        // Timeline (Days): null when blank, false when not a whole number 0–365.
+        manualTimelineDays() {
+            const raw = String(this.manual.timeline_days ?? '').trim();
+            if (raw === '') return null;
+            const n = Number(raw);
+            return /^\d+$/.test(raw) && n <= 365 ? n : false;
+        },
+        // Expected Return Date and the Green/Amber preview it would give, as Log a
+        // File shows them (due by the end of the day; 1 day or less left = Due Soon).
+        manualTimelinePreview() {
+            const days = this.manualTimelineDays();
+            if (days === null || days === false) return null;
+            const due = new Date();
+            due.setDate(due.getDate() + days);
+            due.setHours(23, 59, 59, 0);
+            const amber = (due.getTime() - Date.now()) / 86400000 <= 1;
+            return {
+                date: String(due.getDate()).padStart(2, '0') + '/' + String(due.getMonth() + 1).padStart(2, '0') + '/' + due.getFullYear(),
+                days: days === 0 ? 'Due today' : days + ' day' + (days === 1 ? '' : 's') + ' from today',
+                label: amber ? 'Due Soon' : 'On Track',
+                style: amber ? 'background:#fef9c3;color:#78350f;border:1px solid #fde68a;' : 'background:#d1fae5;color:#166534;border:1px solid #a7f3d0;',
+            };
+        },
+
         async receiveManual() {
             const m = this.manual;
             await this.receive({
@@ -1690,6 +1726,7 @@ window.secretariatFileLog = function (config) {
                 receiving_officer_other: typed(m.receiving_officer_id, m.officer_other),
                 request_purpose_id: listed(m.request_purpose_id),
                 request_purpose_other: typed(m.request_purpose_id, m.purpose_other),
+                timeline_days: typeof this.manualTimelineDays() === 'number' ? this.manualTimelineDays() : null,
                 from_office_other: this.senderIsExternal() ? null : typed(m.from_office, m.from_other),
                 file_title: m.file_title,
                 document_kind: m.entry_type === 'non_file' ? m.document_kind : null,
@@ -2305,6 +2342,90 @@ window.secretariatFileLog = function (config) {
             if (!p) return '';
             const label = [nice(p.type), nice(p.subtype)].filter(Boolean).join(' — ') || 'Page';
             return label + (p.code ? ' · ' + p.code : '') + (this.lightbox.items.length > 1 ? '  (' + (this.lightbox.index + 1) + ' / ' + this.lightbox.items.length + ')' : '');
+        },
+    };
+};
+
+/**
+ * Type-to-search dropdown over a hidden native <select x-ref="sel">. The select
+ * keeps its x-model, @change and x-for options, so it stays the source of truth:
+ * a pick sets its value and fires `change`, exactly as choosing it natively would.
+ * Use: <div x-data="fileLogPickList(() => model.value)"> <select x-ref="sel" class="hidden">…
+ * "Other" options always stay at the foot of the list, whatever is typed.
+ */
+window.fileLogPickList = function (getValue) {
+    return {
+        psOpen: false,
+        psQ: '',
+        psHi: 0,
+        psItems: [],
+        psRead() {
+            return Array.from(this.$refs.sel.options)
+                .filter(o => o.value !== '')
+                .map(o => ({
+                    value: o.value,
+                    text: o.text.trim(),
+                    group: o.parentElement && o.parentElement.tagName === 'OPTGROUP' ? o.parentElement.label : '',
+                    other: o.value === 'other',
+                }));
+        },
+        // The chosen option's text; re-evaluated whenever the bound model changes.
+        psLabel() {
+            const v = getValue();
+            if (v === '' || v === null || v === undefined) return '';
+            const o = Array.from(this.$refs.sel.options).find(i => i.value === String(v));
+            return o ? o.text.trim() : '';
+        },
+        psShow() {
+            if (this.$refs.sel.disabled) return;
+            if (!this.psOpen) { this.psItems = this.psRead(); this.psQ = ''; }
+            this.psOpen = true;
+            this.psHi = 0;
+        },
+        psClose() {
+            this.psOpen = false;
+            this.psQ = '';
+        },
+        psToggle() {
+            if (this.psOpen) { this.psClose(); return; }
+            this.$refs.psInput.focus();
+            this.psShow();
+        },
+        psFiltered() {
+            const words = this.psQ.toLowerCase().split(/\s+/).filter(Boolean);
+            const hit = it => words.every(w => (it.text + ' ' + it.group).toLowerCase().includes(w));
+            return this.psItems.filter(it => !it.other && hit(it)).concat(this.psItems.filter(it => it.other));
+        },
+        // Group headings only where the select uses optgroups.
+        psRows() {
+            const rows = [];
+            let last = null;
+            this.psFiltered().forEach((it, i) => {
+                if (it.group && it.group !== last && !it.other) rows.push({ key: 'g-' + it.group, heading: it.group });
+                if (!it.other) last = it.group;
+                rows.push({ key: 'o-' + it.value, item: it, index: i });
+            });
+            return rows;
+        },
+        psMove(step) {
+            const n = this.psFiltered().length;
+            if (!this.psOpen) { this.psShow(); return; }
+            if (n) this.psHi = (this.psHi + step + n) % n;
+            this.$nextTick(() => {
+                const el = this.$refs.psList && this.$refs.psList.querySelector('[data-ps-hi="1"]');
+                if (el) el.scrollIntoView({ block: 'nearest' });
+            });
+        },
+        psEnter() {
+            const it = this.psFiltered()[this.psHi];
+            if (this.psOpen && it) this.psPick(it);
+        },
+        psPick(it) {
+            const sel = this.$refs.sel;
+            sel.value = it.value;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            this.psClose();
+            this.$refs.psInput.blur();
         },
     };
 };

@@ -317,13 +317,49 @@
 
       {{-- i. Other Departments ▸ Land ▸ Cadastral to Land (Land 12) (WhatsApp image 2026-10-14). Land 12 is
            AD Cad Report's, done with the Yes/No form, so the group is that desk role's (2026-10-26). --}}
-      @if($cadDesk('ad_report'))
+      {{-- ii. Survey (user, 2026-10-30): the Cadastral files with each Survey unit, the same pages as Survey >
+           Other Departments > Cadastral. Each entry is its unit role's; Supper Admin and Cad - Central Admin see all.
+           ?url=cadastral lights only this menu's entry. --}}
+      @php
+        $cadSvUnit = fn (string $role) => $hasRole($role) || $hasRole('Supper Admin') || $hasRole(\App\Services\CadastralDept\DeskAccess::centralAdminRole());
+        $cadSv = ['compensation_unit' => $cadSvUnit('Survey - Compensation Check'), 'dsg' => $cadSvUnit('Survey - DSG'),
+                  'examination_unit' => $cadSvUnit('Survey - Examination'), 'surveyor_general' => $cadSvUnit('Survey - SG')];
+        $cadSvLink = fn (string $label, string $desk, string $icon) => $cadLink($label,
+            route('cadastral-dept.other-departments.show', $desk) . '?url=cadastral', $icon,
+            request()->routeIs('cadastral-dept.other-departments.show') && request()->route('desk') === $desk && request()->query('url') === 'cadastral');
+      @endphp
+      @if($cadDesk('ad_report') || in_array(true, $cadSv, true))
       {!! $cadGroup('cadastral-other-departments', 'Other Departments', 'building-2') !!}
       <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-departments">
+        @if($cadDesk('ad_report'))
         {!! $cadGroup('cadastral-other-land', 'Land', 'map', true) !!}
         <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-land">
           {!! $cadLink('Cadastral to Land (Land 12)', route('survey-report.index') . '?url=cadastral', 'file-output', request()->routeIs('survey-report.index') && request()->query('url') === 'cadastral') !!}
         </div>
+        @endif
+        @if(in_array(true, $cadSv, true))
+        {!! $cadGroup('cadastral-other-survey', 'Survey', 'compass', true) !!}
+        <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-survey">
+          @if($cadSv['compensation_unit'])
+            {!! $cadSvLink('Compensation Status', 'compensation_unit', 'scale') !!}
+          @endif
+          @if($cadSv['dsg'])
+            {!! $cadGroup('cadastral-other-survey-dsg', 'DSG', 'user-check', true) !!}
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-survey-dsg">
+              {!! $cadSvLink('Approval', 'dsg', 'check-circle') !!}
+            </div>
+          @endif
+          @if($cadSv['examination_unit'])
+            {!! $cadSvLink('Examination Check', 'examination_unit', 'search-check') !!}
+          @endif
+          @if($cadSv['surveyor_general'])
+            {!! $cadGroup('cadastral-other-survey-sg', 'SG', 'award', true) !!}
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-other-survey-sg">
+              {!! $cadSvLink('Approval', 'surveyor_general', 'check-circle') !!}
+            </div>
+          @endif
+        </div>
+        @endif
       </div>
       @endif
 

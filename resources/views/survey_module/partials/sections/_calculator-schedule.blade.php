@@ -4,7 +4,7 @@
 --}}
 @php
     $money  = fn ($v) => '₦' . number_format((float) $v, 2);
-    $wanted = $for === 'trees' ? 'Cash for Trees' : 'Plot for Plot';
+    $wanted = $for === 'trees' ? 'Monetary Compensation' : 'Land to Land';
 @endphp
 
 @if (! $project)

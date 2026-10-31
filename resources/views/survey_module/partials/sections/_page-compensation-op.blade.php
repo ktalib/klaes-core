@@ -40,7 +40,7 @@
                 <strong>Awaiting OP</strong>
                 <span class="helper-text" style="margin:0;">
                     Approved cases with no permit yet. The plot schedule or cash figure is taken
-                    from the case, never typed in.
+                    from the case, never typed in. Existing records (imported or captured from paper lists) are not listed: their OPs already exist.
                 </span>
             </div>
         </div>
@@ -66,9 +66,9 @@
                             <td>{{ $c['beneficiary'] ?: '— no beneficiary on file —' }}</td>
                             <td>
                                 @if ($c['case']->scheme_type === \App\Models\Survey\SurveyProject::SCHEME_MONETARY)
-                                    <span class="status-badge active"><span class="dot"></span>Cash for Trees</span>
+                                    <span class="status-badge active"><span class="dot"></span>Monetary Compensation</span>
                                 @else
-                                    <span class="status-badge completed"><span class="dot"></span>Plot for Plot</span>
+                                    <span class="status-badge completed"><span class="dot"></span>Land to Land</span>
                                 @endif
                             </td>
                             <td>
@@ -109,8 +109,8 @@
                style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
         <select name="scheme" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
             <option value="">All Schemes</option>
-            <option value="monetary" @selected(request('scheme')==='monetary')>Cash for Trees</option>
-            <option value="land" @selected(request('scheme')==='land')>Plot for Plot</option>
+            <option value="monetary" @selected(request('scheme')==='monetary')>Monetary Compensation</option>
+            <option value="land" @selected(request('scheme')==='land')>Land to Land</option>
         </select>
         <select name="status" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
             <option value="">All Status</option>
@@ -154,9 +154,9 @@
                         <td>{{ optional($op->beneficiary)->full_name ?: '—' }}</td>
                         <td>
                             @if ($op->scheme_type === \App\Models\Survey\SurveyProject::SCHEME_MONETARY)
-                                <span class="status-badge active"><span class="dot"></span>Cash for Trees</span>
+                                <span class="status-badge active"><span class="dot"></span>Monetary Compensation</span>
                             @else
-                                <span class="status-badge completed"><span class="dot"></span>Plot for Plot</span>
+                                <span class="status-badge completed"><span class="dot"></span>Land to Land</span>
                             @endif
                         </td>
                         <td>{{ $op->plot_or_cash_ref ?: '—' }}</td>

@@ -70,7 +70,9 @@
     /* The dropdown is appended to <body>, so it is NOT inside .survey-proto and
        must be styled unscoped. */
     .select2-dropdown { border-color: #dee2e6; font-family: 'Inter', sans-serif; font-size: 14px; }
-    .select2-container { z-index: 10050; }
+    /* Only the open list (attached to body) sits above dialogs; the boxes on the page stay
+       below them, or a filter box behind a dialog shows through it. */
+    body > .select2-container { z-index: 10050; }
 </style>
 
 <script>
@@ -252,5 +254,50 @@
     document.addEventListener('DOMContentLoaded', initAll);
     // Address builders inside modals or steps revealed later.
     window.initAddressBuilders = initAll;
+
+    /**
+     * Backfill an address builder from a picked record (2026-10-30, Register Land: the project's location).
+     * data: { street: [], street_other, district: [], district_other, lga: [], state }. Only empty parts are
+     * filled; what `previous` (the last call's return value) filled is cleared first if nobody changed it.
+     * Returns what this call filled.
+     */
+    window.fillAddressBuilder = function (prefix, data, previous) {
+        var root = document.querySelector('.address-builder[data-prefix="' + prefix + '"]');
+        if (!root) return {};
+        data = data || {}; previous = previous || {};
+        var filled = {};
+        var same = function (a, b) { return JSON.stringify((a || []).slice().sort()) === JSON.stringify((b || []).slice().sort()); };
+        var changed = function (el) {
+            if (window.jQuery && jQuery(el).data('select2')) jQuery(el).trigger('change');
+            else el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+        };
+        var picked = function (s) { return Array.prototype.filter.call(s.options, function (o) { return o.selected && o.value; }).map(function (o) { return o.value; }); };
+        var setMulti = function (s, vals, addMissing) {
+            Array.prototype.forEach.call(s.options, function (o) { o.selected = false; });
+            vals.forEach(function (v) {
+                var o = Array.prototype.find.call(s.options, function (x) { return x.value === v; });
+                if (!o && addMissing) { o = new Option(v === 'Other' ? 'Other (specify)' : v, v); s.appendChild(o); }
+                if (o) o.selected = true;
+            });
+            changed(s);
+        };
+        ['street', 'district', 'lga'].forEach(function (kind) {
+            var s = root.querySelector('select[name="' + prefix + kind + '[]"]');
+            if (!s) return;
+            var cur = picked(s);
+            if (previous[kind] && cur.length && same(cur, previous[kind])) { setMulti(s, [], false); cur = []; }
+            var want = data[kind] || [];
+            // District and street search the server, so their options are added; LGA keeps to its list.
+            if (!cur.length && want.length) { setMulti(s, want, kind !== 'lga'); filled[kind] = picked(s); }
+            var other = root.querySelector('input[name="' + prefix + kind + '_other"]');
+            if (other) {
+                if (previous[kind + '_other'] && other.value === previous[kind + '_other']) { other.value = ''; changed(other); }
+                if (filled[kind] && !other.value && data[kind + '_other']) { other.value = data[kind + '_other']; filled[kind + '_other'] = other.value; changed(other); }
+            }
+        });
+        var st = root.querySelector('select[name="' + prefix + 'state"]');
+        if (st && !st.value && data.state) { st.value = data.state; if (st.value) { filled.state = st.value; changed(st); } }
+        return filled;
+    };
 })();
 </script>

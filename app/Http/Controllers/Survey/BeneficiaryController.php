@@ -76,7 +76,7 @@ class BeneficiaryController extends Controller
     /** The list, its filters and the inline form's model. */
     private function pageData(Request $r, ?SurveyBeneficiary $editing = null): array
     {
-        $q = SurveyBeneficiary::query()->with('case.project');
+        $q = SurveyBeneficiary::query()->with(['case.project', 'creator:id,first_name,last_name']);
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
@@ -92,6 +92,7 @@ class BeneficiaryController extends Controller
         }
         if ($st = $r->query('status')) $q->where('status', $st);
         if ($c  = $r->query('case'))   $q->where('survey_comp_case_id', $c);
+        $q->origin($r->query('origin'));
 
         $beneficiaries = $q->orderByDesc('id')->paginate(15)->withQueryString();
 

@@ -40,7 +40,7 @@
     <div class="head">
         <h1>Kano State Ministry of Land and Physical Planning</h1>
         <h2>Survey Department · Examination / Verification Unit</h2>
-        <h3>Surveyors' Report</h3>
+        <h3>Surveyor's Report (Private)</h3>
     </div>
 
     <div class="refs">
@@ -63,6 +63,29 @@
 
     <h4>Changes required</h4>
     <ol>@foreach ($changes as $c)<li>{{ $c }}</li>@endforeach</ol>
+
+    @if (isset($records) && $records['coords']->isNotEmpty())
+        @php $reg = collect($records['beacons'])->keyBy('beacon_id'); @endphp
+        <h4>List of Coordinates &amp; Beacon Nos</h4>
+        <table class="f">
+            <tr><td class="l">S/N</td><td class="l">Beacon No.</td><td class="l">Northing</td><td class="l">Easting</td><td class="l">Beacon Register</td></tr>
+            @foreach ($records['coords'] as $c)
+                <tr>
+                    <td class="v">{{ $loop->iteration }}</td>
+                    <td class="v">{{ $c->beacon_id }}</td>
+                    <td class="v">{{ number_format((float) $c->northing, 3) }}</td>
+                    <td class="v">{{ number_format((float) $c->easting, 3) }}</td>
+                    <td class="v">{{ \App\Services\Survey\BeaconNumberCheck::LABELS[$reg->get($c->beacon_id)?->status] ?? '—' }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+    @if (isset($records))
+        <p style="font-size:12px;">
+            Computation Field Observations: {{ $records['readings'] }} reading{{ $records['readings'] === 1 ? '' : 's' }}.
+            Sketch Plan: {{ $records['sketch'] ? 'attached (' . $records['sketch']->original_name . ', filed in EDMS)' : 'not attached' }}.
+        </p>
+    @endif
 
     <p>The plan is to be corrected accordingly and resubmitted for examination.</p>
 

@@ -37,6 +37,12 @@ abstract class SurveyModel extends Model
         return parent::setAttribute($key, $value);
     }
 
+    /** The user who created the record (created_by). */
+    public function creator()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $m) {

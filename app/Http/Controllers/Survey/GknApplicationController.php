@@ -22,6 +22,7 @@ class GknApplicationController extends Controller
         'gkn'  => ['label' => 'GKN',     'like' => ['GKN%'],             'colour' => 'green'],
         'lpkn' => ['label' => 'LPKN',    'like' => ['LPKN%'],            'colour' => 'blue'],
         'lppl' => ['label' => 'LPPL',    'like' => ['LPPL%'],            'colour' => 'yellow'],
+        'rdkn' => ['label' => 'RDKN',    'like' => ['RDKN%', 'RD KN%', 'RD-KN%', 'RD/KN%'], 'colour' => 'red'],
         'misc' => ['label' => 'Misc KN', 'like' => ['MISC KN%', 'MISC-KN%', 'MISCKN%'], 'colour' => 'purple'],
     ];
 
@@ -77,6 +78,24 @@ class GknApplicationController extends Controller
             'files'  => $q->orderByDesc('created_at')->orderByDesc('id')->paginate(25)->withQueryString(),
             'tab'    => $tab,
             'counts' => $counts,
+            'gen'    => self::generatorData(),
         ]);
+    }
+    /** What the Generate Application File Numbers dialog needs, as GknGenerationController::index() loads it. */
+    private static function generatorData(): array
+    {
+        return [
+            'districts'      => \App\Models\District::where('is_active', 1)->orderBy('name')->get(),
+            'lgas'           => \App\Models\Lga::where('is_active', 1)->orderBy('name')->get(),
+            'landUses'       => \App\Models\LandUse::orderBy('landuse')->get(),
+            'purposes'       => \App\Models\Purpose::orderBy('name')->get(),
+            // Government first, then A-Z.
+            'customerTypes'  => \App\Models\CustomerType::all()->sort(function ($a, $b) {
+                if (strtolower(trim($a->customer_type_name)) === 'government') return -1;
+                if (strtolower(trim($b->customer_type_name)) === 'government') return 1;
+                return strcasecmp($a->customer_type_name, $b->customer_type_name);
+            })->values(),
+            'serialStatuses' => \App\Models\GknSerialControl::all()->keyBy('prefix'),
+        ];
     }
 }

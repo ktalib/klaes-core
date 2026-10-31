@@ -226,6 +226,8 @@ class GroupingFileNumberService
             $f = strtoupper($f);
             if (str_contains($f, 'GKN')) return 'gkn_grouping';
             if (str_contains($f, 'LPKN')) return 'lpkn_grouping';
+            if (str_contains($f, 'LPPL')) return 'lppl_grouping';
+            if (str_contains($f, 'RDKN')) return 'rdkn_grouping';
             if (str_contains($f, 'MISC')) return 'miscs_kn_grouping';
             if (str_contains($f, 'SLTR')) return 'sltr_grouping';
             if (str_contains($f, 'SIT')) return 'sit_grouping';
@@ -272,6 +274,10 @@ class GroupingFileNumberService
                 return 'lpkn_awaiting_fileno';
             case 'miscs_kn_grouping':
                 return 'miscs_kn_awaiting_fileno';
+            case 'lppl_grouping':
+                return 'lppl_awaiting_fileno';
+            case 'rdkn_grouping':
+                return 'rdkn_awaiting_fileno';
             case 'sltr_grouping':
                 return 'sltr_awaiting_fileno';
             case 'sit_grouping':
@@ -300,6 +306,8 @@ class GroupingFileNumberService
             'gkn_grouping' => 'gkn_fileno',
             'lpkn_grouping' => 'lpkn_fileno',
             'miscs_kn_grouping' => 'miscs_kn_fileno',
+            'lppl_grouping' => 'lppl_fileno',
+            'rdkn_grouping' => 'rdkn_fileno',
             'sltr_grouping' => 'sltr_fileno',
             'sit_grouping' => 'sit_fileno',
             'dciv_grouping' => 'dciv_fileno',
@@ -364,6 +372,8 @@ class GroupingFileNumberService
         elseif ($table === 'dciv_grouping') array_unshift($mlsColumnCandidates, 'dciv_fileno');
         elseif ($table === 'lpkn_grouping') array_unshift($mlsColumnCandidates, 'lpkn_fileno');
         elseif ($table === 'miscs_kn_grouping') array_unshift($mlsColumnCandidates, 'miscs_kn_fileno');
+        elseif ($table === 'lppl_grouping') array_unshift($mlsColumnCandidates, 'lppl_fileno');
+        elseif ($table === 'rdkn_grouping') array_unshift($mlsColumnCandidates, 'rdkn_fileno');
         elseif ($table === 'kangis_grouping') array_unshift($mlsColumnCandidates, 'kangis_fileno');
         elseif ($table === 'kn_grouping') array_unshift($mlsColumnCandidates, 'kn_fileno');
 

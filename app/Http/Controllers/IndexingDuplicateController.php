@@ -117,7 +117,38 @@ class IndexingDuplicateController extends Controller
             ->forPage($page, $perPage)
             ->get();
 
-        $data = $rows->map(function ($row) {
+        // The source indexing table stores created_by as either a display name or
+        // a users.id. Resolve numeric values just as the live Indexed Files table
+        // does, so archived rows do not expose a bare ID in the Indexed By column.
+        $userIds = $rows->flatMap(function ($row) {
+            return [$row->created_by ?? null, $row->moved_by_id ?? null];
+        })->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '' && ctype_digit($value) && (int) $value > 0)
+            ->unique()->values();
+
+        $userNames = $userIds->isEmpty()
+            ? collect()
+            : DB::connection('sqlsrv')->table('users')
+                ->whereIn('id', $userIds->map(fn ($value) => (int) $value)->all())
+                ->get(['id', 'first_name', 'last_name', 'username'])
+                ->mapWithKeys(function ($user) {
+                    $name = trim(sprintf('%s %s', $user->first_name ?? '', $user->last_name ?? ''));
+                    if ($name === '') {
+                        $name = trim((string) ($user->username ?? ''));
+                    }
+
+                    return [(string) $user->id => $name];
+                })->filter();
+
+        $resolveUserLabel = function ($value) use ($userNames) {
+            $value = trim((string) ($value ?? ''));
+            if ($value === '') {
+                return 'Unknown';
+            }
+            return ctype_digit($value) ? ($userNames->get($value) ?? 'Unknown') : $value;
+        };
+
+        $data = $rows->map(function ($row) use ($resolveUserLabel) {
             $counts = json_decode((string) $row->deleted_counts, true) ?: [];
 
             // The archive is a clone of file_indexings, so hand back the same
@@ -147,11 +178,11 @@ class IndexingDuplicateController extends Controller
                 'corresponding_fileno' => $row->corresponding_fileno,
                 'temp_file_no'         => $row->temp_file_no,
                 'status'               => $row->status,
-                'indexed_by'           => $row->created_by,
+                'indexed_by'           => $resolveUserLabel($row->created_by),
                 'indexed_at'           => $this->formatDate($row->created_at),
                 'duplicate_of'         => $row->duplicate_of,
                 'reason'               => $row->reason,
-                'moved_by'             => $row->moved_by,
+                'moved_by'             => $resolveUserLabel($row->moved_by_id ?? $row->moved_by),
                 'moved_at'             => $this->formatDate($row->moved_at),
                 'mls_file_no_retained' => (bool) $row->mls_file_no_retained,
                 'restored_at'          => $this->formatDate($row->restored_at),

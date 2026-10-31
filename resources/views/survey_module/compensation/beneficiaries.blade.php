@@ -1,9 +1,9 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Beneficiaries — KLAES')
+@section('page-title', 'Farmers — KLAES')
 
 @php
-  $PageTitle = 'Beneficiaries';
+  $PageTitle = 'Farmers';
   $PageDescription = 'Farmers and landowners registered across compensation cases';
 @endphp
 

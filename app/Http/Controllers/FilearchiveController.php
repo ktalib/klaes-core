@@ -369,6 +369,14 @@ class FilearchiveController extends Controller
                     WHEN '3' THEN 3
                     ELSE 4
                 END ASC,
+                -- Registry 1 has multiple file series; keep RES before COM within its year.
+                CASE
+                    WHEN file_number LIKE 'RES-%' THEN 1
+                    WHEN file_number LIKE 'COM-%' THEN 2
+                    WHEN file_number LIKE 'IND-%' THEN 3
+                    WHEN file_number LIKE 'AG-%' THEN 4
+                    ELSE 5
+                END ASC,
                 " . self::fileNumberOrderSql('ASC'));
                 break;
             case 'year_desc':

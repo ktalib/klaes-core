@@ -49,7 +49,7 @@
             <h2>{{ $case->case_ref }}</h2>
             <span class="pill {{ $statusClass($case->status) }}">{{ $statusLabel($case->status) }}</span>
         </div>
-        <p>{{ $isLand ? 'Plot for Plot (50:50)' : 'Cash for Trees' }} · registered {{ optional($case->created_at)->format('d M Y, H:i') }}</p>
+        <p>{{ $isLand ? 'Land to Land (50:50)' : 'Monetary Compensation' }} · registered {{ optional($case->created_at)->format('d M Y, H:i') }}</p>
     </div>
 </header>
 
@@ -66,7 +66,7 @@
     {{-- Compensation headline --}}
     <div class="stat">
         @if ($isLand)
-            <div class="lbl"><i class="fas fa-map-location-dot"></i> Plot for Plot</div>
+            <div class="lbl"><i class="fas fa-map-location-dot"></i> Land to Land</div>
             <div class="big">{{ $split['total'] }} plots</div>
             <div class="split">
                 <div><b>{{ $split['farmer'] }}</b><small>Farmer</small></div>

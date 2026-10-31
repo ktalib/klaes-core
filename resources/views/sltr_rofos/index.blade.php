@@ -215,7 +215,7 @@
                                             if (!this.open) {
                                                 const btn = $event.currentTarget;
                                                 const rect = btn.getBoundingClientRect();
-                                                const menuWidth = 208;
+                                                const menuWidth = 256;
                                                 // Clamped so a row near either edge still shows the whole menu.
                                                 const left = Math.min(Math.max(8, rect.right - menuWidth), window.innerWidth - menuWidth - 8);
                                                 this.menuStyle = { position: 'fixed', top: (rect.bottom + 4) + 'px', left: left + 'px', zIndex: 9999 };
@@ -223,8 +223,8 @@
                                             this.open = !this.open;
                                         }
                                     }" @click.outside="open = false">
-                                        <button @click="toggleMenu($event)" class="p-1.5 hover:bg-slate-100 rounded-lg transition">
-                                            <i data-lucide="more-horizontal" class="h-4 w-4 text-slate-500"></i>
+                                        <button @click="toggleMenu($event)" type="button" aria-label="Actions" class="p-1.5 hover:bg-slate-100 rounded-lg transition">
+                                            <i data-lucide="more-vertical" class="h-4 w-4 text-slate-500"></i>
                                         </button>
                                         {{-- Teleported to <body>. position:fixed still gets clipped when any
                                                  ancestor establishes a containing block, and this menu sits
@@ -232,7 +232,7 @@
                                                  of the table removes every ancestor that could cut it. --}}
                                         <template x-teleport="body">
                                         <div x-show="open" x-transition :style="menuStyle"
-                                             class="w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1 text-sm">
+                                             class="w-64 min-w-max whitespace-nowrap bg-white rounded-xl shadow-xl border border-slate-200 py-1 text-sm text-left">
                                             <button type="button"
                                                     onclick="viewRecord({{ json_encode($rec) }}, '{{ $rec->rofo_status === \App\Models\SltrRecommendation::ROFO_GENERATED ? route('sltr-rofos.print', $rec->id) : '' }}')"
                                                     class="flex w-full items-center px-4 py-2.5 text-slate-700 hover:bg-slate-50 transition gap-2">
@@ -317,10 +317,10 @@
                                             @endif
                                             <button type="button"
                                                     onclick="openAssignSecurityPaperModal({{ $rec->id }}, '{{ $rec->sltr_number }}', '{{ $rec->sltr_rofo_serial_no }}', '{{ route('sltr-rofos.assign-security-paper', $rec->id) }}')"
-                                                    class="flex w-full items-center px-4 py-2.5 text-sm text-slate-600 hover:bg-emerald-50 transition gap-2">
-                                                <i data-lucide="hash" class="h-4 w-4"></i>
+                                                    class="flex w-full items-center px-4 py-2.5 text-left text-emerald-700 hover:bg-emerald-50 transition gap-2 font-bold">
+                                                <i data-lucide="hash" class="h-4 w-4 shrink-0"></i>
                                                 {{-- The code itself is on the row; assigning over one swaps it. --}}
-                                                {{ $rec->sltr_rofo_serial_no ? 'Change Security Paper Code' : 'Enter Security Paper Code' }}
+                                                <span class="whitespace-nowrap">{{ $rec->sltr_rofo_serial_no ? 'Change Security Paper Code' : 'Enter Security Paper Code' }}</span>
                                             </button>
                                             {{-- Supper Admin only. A security paper code identifies a
                                                  numbered sheet already issued against this RofO, so

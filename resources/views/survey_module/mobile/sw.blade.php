@@ -8,7 +8,9 @@ var OFFLINE = @json(route('survey-module.mobile.offline'));
 var LOGIN = @json(route('survey-module.mobile.login'));
 
 // Opened once while online, so they are there without a signal.
-var WARM_PAGES = [OFFLINE, LOGIN, @json(route('survey-module.mobile.index')), @json(route('survey-module.mobile.register')), @json(route('survey-module.mobile.observations'))];
+// All three field apps share this scope (App\Support\SurveyMobileApps); pages a phone's account cannot open are skipped.
+var WARM_PAGES = [OFFLINE, LOGIN, @json(route('survey-module.mobile.index')), @json(route('survey-module.mobile.register')), @json(route('survey-module.mobile.observations')),
+                  @json(route('survey-module.mobile.plots.index')), @json(route('survey-module.mobile.plots.ops')), @json(route('survey-module.mobile.plots.checks.create'))];
 var WARM_ASSETS = [
     @json(asset('js/survey-mobile-offline.js') . '?v=' . $version),
     @json(asset('assets/logo/SCF.png')),
@@ -66,7 +68,7 @@ self.addEventListener('fetch', function (event) {
     }
 
     // Survey lookups (district / street / LGA pickers) and photos: network first, then the last answer.
-    if (url.origin === self.location.origin && /^\/survey-module\/(lookup|mobile\/cases\/\d+\/photos)\//.test(url.pathname)) {
+    if (url.origin === self.location.origin && /^\/survey-module\/(lookup\/|mobile\/cases\/\d+\/photos\/|mobile\/plots\/(showing|check)-photos\/)/.test(url.pathname)) {
         event.respondWith(fetch(req).then(function (r) {
             if (r.ok) { var copy = r.clone(); caches.open(PAGES).then(function (c) { c.put(req, copy); }); }
             return r;

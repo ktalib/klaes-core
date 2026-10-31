@@ -89,6 +89,28 @@ final class ModuleRoutes
     }
 
     /** The module a route name belongs to, or null when the map does not cover it. */
+    /**
+     * Further modules that also satisfy a route (config 'alternatives'), in addition to the
+     * one moduleFor() returns. Empty for most routes.
+     *
+     * @return string[]
+     */
+    public static function alternativesFor(string $name): array
+    {
+        if ($name === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach ((array) config('module_permissions.alternatives', []) as $pattern => $modules) {
+            if (Str::is($pattern, $name)) {
+                $out = array_merge($out, (array) $modules);
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
     public static function moduleFor(string $name): ?string
     {
         if ($name === '') {

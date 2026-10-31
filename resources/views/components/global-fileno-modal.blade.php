@@ -104,9 +104,14 @@
                     data-tab="gkn" onclick="GlobalFileNoModal.switchTab('gkn'); return false;">
                     <div class="flex items-center justify-center gap-1.5">
                         <i data-lucide="map-pinned" class="w-4 h-4 text-orange-600"></i>
-                        <span>GKN</span>
+                        <span>Survey</span>
                     </div>
                 </button>
+            </div>
+
+            <div id="survey-fileno-subtabs" class="hidden flex gap-2 mb-4 bg-white p-2 rounded border border-gray-200">
+                <button type="button" class="survey-fileno-subtab px-4 py-2 text-sm font-semibold rounded-md bg-orange-100 text-orange-800" data-survey-tab="gkn" onclick="GlobalFileNoModal.switchTab('gkn'); return false;">GKN</button>
+                <button type="button" class="survey-fileno-subtab px-4 py-2 text-sm font-semibold rounded-md text-gray-600 hover:bg-rose-50" data-survey-tab="co" onclick="GlobalFileNoModal.switchTab('co'); return false;">CO</button>
             </div>
 
             <!-- Tab Content Container -->
@@ -719,6 +724,78 @@
                         </div>
                         <!-- DCIV FILE DETAILS UI -->
                         <div id="dciv-details-container" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <!-- CO (Survey compensation) Tab Content -->
+                <div class="fileno-tab-content hidden bg-white rounded p-4 border border-gray-200" data-tab="co">
+                    <div class="bg-rose-600 text-white p-3 rounded mb-3">
+                        <div class="flex items-center">
+                            <i data-lucide="folder-check" class="w-4 h-4 mr-2"></i>
+                            <h4 class="font-medium text-sm">CO File (Survey compensation) &mdash; CO-serial-year</h4>
+                        </div>
+                    </div>
+
+                    <!-- Dropdown / Manual Entry -->
+                    <div class="flex p-1 bg-gray-100 rounded-lg mb-4">
+                        <label class="flex-1 flex items-center justify-center cursor-pointer group">
+                            <input type="radio" name="co-pick-method" value="list" class="sr-only peer" checked>
+                            <span class="flex items-center space-x-2 px-4 py-2 rounded-md font-medium text-sm transition-all duration-200
+                                             text-gray-600 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:shadow-sm
+                                             hover:text-gray-800 peer-checked:hover:bg-rose-600">
+                                <i data-lucide="list" class="w-4 h-4"></i>
+                                <span>Dropdown</span>
+                            </span>
+                        </label>
+                        <label class="flex-1 flex items-center justify-center cursor-pointer group">
+                            <input type="radio" name="co-pick-method" value="manual" class="sr-only peer">
+                            <span class="flex items-center space-x-2 px-4 py-2 rounded-md font-medium text-sm transition-all duration-200
+                                             text-gray-600 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:shadow-sm
+                                             hover:text-gray-800 peer-checked:hover:bg-rose-600">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                                <span>Manual Entry</span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="co-pick-section mb-3" data-method="list">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">CO Files in KLAES</label>
+                        <select id="co-file-list" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-rose-500">
+                            <option value=""></option>
+                        </select>
+                        <p id="co-file-list-info" class="text-xs text-gray-600 mt-1"></p>
+                        <p id="co-file-list-status" class="text-xs text-gray-500 mt-1"></p>
+                    </div>
+
+                    <div class="co-pick-section hidden" data-method="manual">
+                        <div class="grid grid-cols-3 gap-3 mb-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Prefix</label>
+                                <input type="text" value="CO" readonly class="w-full p-2 border border-gray-200 rounded bg-gray-100 text-gray-700">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Serial No.</label>
+                                <input type="text" id="co-serial" inputmode="numeric" maxlength="7"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                    class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-rose-500" placeholder="9">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                                <select id="co-year" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-rose-500">
+                                    <option value="">Select year</option>
+                                    @for ($year = (int) date('Y'); $year >= \App\Models\Survey\SurveyCoFile::FIRST_YEAR; $year--)
+                                        <option value="{{ $year }}">{{ $year }}</option>
+                                    @endfor
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border rounded p-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Preview</label>
+                        <div id="co-preview" class="text-lg font-mono font-bold text-rose-900 bg-white border px-3 py-2 rounded h-[48px] flex items-center">
+                            <span class="text-gray-400 font-normal">-</span>
+                        </div>
                     </div>
                 </div>
 

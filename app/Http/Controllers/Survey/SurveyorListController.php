@@ -19,6 +19,11 @@ class SurveyorListController extends Controller
 {
     public function index(Request $r)
     {
+        // Government (this staff list) / Private tabs (CR 30102026 item 15).
+        if ($r->query('tab') === 'private') {
+            return $this->privateSurveyors($r);
+        }
+
         $q = SurveyorListEntry::query();
 
         if ($term = trim((string) $r->query('q', ''))) {
@@ -53,6 +58,23 @@ class SurveyorListController extends Controller
             'stats'   => $stats,
             'ranks'   => SurveyorListEntry::query()->whereNotNull('rank')->distinct()->orderBy('rank')->pluck('rank'),
             'editing' => $r->filled('edit') ? SurveyorListEntry::find($r->query('edit')) : null,
+        ]);
+    }
+
+    /** Private tab: licensed surveyors in the Cadastral register that are not Survey staff copies. Read-only here. */
+    private function privateSurveyors(Request $r)
+    {
+        $q = \App\Models\Cadastral\CadastralSurveyor::query()->whereNull('surveyors_list_id');
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('full_name', 'like', "%$term%")
+                ->orWhere('surcon_number', 'like', "%$term%")
+                ->orWhere('firm_name', 'like', "%$term%")
+                ->orWhere('phone', 'like', "%$term%")
+                ->orWhere('email', 'like', "%$term%"));
+        }
+
+        return view('survey_module.records.surveyors_private', [
+            'surveyors' => $q->orderBy('full_name')->paginate(25)->withQueryString(),
         ]);
     }
 

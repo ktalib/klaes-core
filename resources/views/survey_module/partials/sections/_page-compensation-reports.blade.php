@@ -5,8 +5,8 @@
         <label>Scheme Type</label>
         <select name="scheme">
             <option value="">All</option>
-            <option value="monetary" @selected(request('scheme')==='monetary')>Cash for Trees</option>
-            <option value="land" @selected(request('scheme')==='land')>Plot for Plot</option>
+            <option value="monetary" @selected(request('scheme')==='monetary')>Monetary Compensation</option>
+            <option value="land" @selected(request('scheme')==='land')>Land to Land</option>
         </select>
     </div>
     <div class="form-group">
@@ -35,9 +35,9 @@
 <div class="section-cards">
     <div class="section-card">
         <div class="section-icon"><i class="fas fa-money-bill-wave"></i></div>
-        <h4>Cash for Trees Disbursed</h4>
+        <h4>Monetary Compensation Disbursed</h4>
         <div class="stat">&#8358;{{ number_format($totals['monetary_cash'], 2) }}</div>
-        <p>Cash for trees &middot; {{ number_format($byScheme['monetary'] ?? 0) }} case(s)</p>
+        <p>Monetary Compensation &middot; {{ number_format($byScheme['monetary'] ?? 0) }} case(s)</p>
     </div>
     <div class="section-card">
         <div class="section-icon"><i class="fas fa-map"></i></div>
@@ -70,11 +70,11 @@
                         <td>{{ $c->project->name ?? '—' }}</td>
                         <td>
                             <span class="status-badge {{ $c->isMonetary() ? 'active' : 'completed' }}">
-                                <span class="dot"></span>{{ $c->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}
+                                <span class="dot"></span>{{ $c->isMonetary() ? 'Monetary Compensation' : 'Land to Land' }}
                             </span>
                         </td>
                         <td>{{ $c->property_location ?: '—' }}</td>
-                        <td>{{ $c->area_ha !== null ? number_format((float) $c->area_ha, 2) : '—' }}</td>
+                        <td>{{ $c->area_ha !== null ? number_format((float) $c->area_ha, 4) : '—' }}</td>
                         <td>{{ $c->status }}</td>
                         <td>{{ optional($c->created_at)->format('Y-m-d') ?: '—' }}</td>
                     </tr>

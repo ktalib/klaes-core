@@ -99,6 +99,13 @@
                                                 </span>
                                             @endif
                                         </button>
+                                        {{-- Registration particulars, once an instrument is registered on this consent. --}}
+                                        @if(!empty($registrations[$app->id] ?? null))
+                                            <div class="mt-1 text-[11px] font-semibold text-blue-700"
+                                                title="Registered as {{ $registrations[$app->id]->instrument_type }}">
+                                                Reg: <span class="font-mono">{{ $registrations[$app->id]->registration_number }}</span>
+                                            </div>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4">
                                         @php

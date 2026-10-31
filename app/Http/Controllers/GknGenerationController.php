@@ -210,6 +210,8 @@ class GknGenerationController extends Controller
                 'GKN' => ['table' => 'gkn_grouping', 'column' => 'gkn_awaiting_fileno', 'prefix' => 'GKN-'],
                 'LPKN' => ['table' => 'lpkn_grouping', 'column' => 'lpkn_awaiting_fileno', 'prefix' => 'LPKN-'],
                 'MISCS' => ['table' => 'miscs_kn_grouping', 'column' => 'miscs_kn_awaiting_fileno', 'prefix' => 'MISC KN '],
+                'LPPL' => ['table' => 'lppl_grouping', 'column' => 'lppl_awaiting_fileno', 'prefix' => 'LPPL-'],
+                'RDKN' => ['table' => 'rdkn_grouping', 'column' => 'rdkn_awaiting_fileno', 'prefix' => 'RDKN-'],
             ];
 
             $config = $configMap[$type] ?? $configMap['GKN'];
@@ -289,7 +291,7 @@ class GknGenerationController extends Controller
             'district_id' => 'nullable|integer',
             'district_other' => 'nullable|string|max:255',
             'lga_id' => 'required|integer',
-            'type' => 'required|string|in:GKN,LPKN,MISCS',
+            'type' => 'required|string|in:GKN,LPKN,MISCS,LPPL,RDKN',
             'location' => 'required|string',
             'location_entries' => 'nullable|array',
             'location_entries.*.plot_number' => 'nullable|string|max:100',
@@ -337,6 +339,8 @@ class GknGenerationController extends Controller
                 'GKN' => ['table' => 'gkn_grouping', 'column' => 'gkn_awaiting_fileno', 'prefix' => 'GKN-'],
                 'LPKN' => ['table' => 'lpkn_grouping', 'column' => 'lpkn_awaiting_fileno', 'prefix' => 'LPKN-'],
                 'MISCS' => ['table' => 'miscs_kn_grouping', 'column' => 'miscs_kn_awaiting_fileno', 'prefix' => 'MISC KN '],
+                'LPPL' => ['table' => 'lppl_grouping', 'column' => 'lppl_awaiting_fileno', 'prefix' => 'LPPL-'],
+                'RDKN' => ['table' => 'rdkn_grouping', 'column' => 'rdkn_awaiting_fileno', 'prefix' => 'RDKN-'],
             ];
 
             $config = $configMap[$type] ?? $configMap['GKN'];
@@ -416,7 +420,7 @@ class GknGenerationController extends Controller
                 ->where('id', $gkn->id)
                 ->update([
                     'mapping' => 1,
-                    ($type === 'GKN' ? 'gkn_fileno' : ($type === 'LPKN' ? 'lpkn_fileno' : 'miscs_kn_fileno')) => $gknNumber,
+                    (['GKN' => 'gkn_fileno', 'LPKN' => 'lpkn_fileno', 'LPPL' => 'lppl_fileno', 'RDKN' => 'rdkn_fileno'][$type] ?? 'miscs_kn_fileno') => $gknNumber,
                     'created_by' => $userId,
                     'updated_at' => $now,
                 ]);
@@ -579,7 +583,7 @@ class GknGenerationController extends Controller
             'district_id' => 'nullable|integer',
             'district_other' => 'nullable|string|max:255',
             'lga_id' => 'required|integer',
-            'type' => 'required|string|in:GKN,LPKN,MISCS',
+            'type' => 'required|string|in:GKN,LPKN,MISCS,LPPL,RDKN',
             'location' => 'required|string',
             'customer_type' => 'required|string',
         ]);

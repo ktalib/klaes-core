@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Plot for Plot plot register: the 50:50 Farmer/Government split.
+ * Land to Land plot register: the 50:50 Farmer/Government split.
  *
  * One row is one plot. The split is taken from the ROW COUNT — the same source
  * SurveyCompCase::plotSplit() uses — not from the per-row govt_50 / farmer_50
@@ -23,7 +23,7 @@ class PlotAllocationController extends Controller
     {
         $case = $this->filterCase($r);
 
-        $q = SurveyPlotAllocation::query()->with('case:id,case_ref,scheme_type');
+        $q = SurveyPlotAllocation::query()->with(['case:id,case_ref,scheme_type', 'creator:id,first_name,last_name']);
         if ($case) $q->where('survey_comp_case_id', $case->id);
 
         if ($term = trim((string) $r->query('q', ''))) {
@@ -34,6 +34,8 @@ class PlotAllocationController extends Controller
                   ->orWhere('op_no', 'like', "%$term%");
             });
         }
+
+        $q->origin($r->query('origin'));
 
         $rows = (clone $q)->orderBy('sr')->orderBy('id')->paginate(50)->withQueryString();
 
@@ -49,7 +51,7 @@ class PlotAllocationController extends Controller
             'farmer' => (float) (clone $q)->sum('farmer_50'),
         ];
 
-        // Plot allocation is a Plot for Plot instrument; monetary cases are not offered.
+        // Plot allocation is a Land to Land instrument; monetary cases are not offered.
         $landCases = SurveyCompCase::where('scheme_type', SurveyProject::SCHEME_LAND)
             ->withCount('plots')
             ->orderByDesc('id')->get(['id', 'case_ref', 'scheme_type', 'num_plots']);
@@ -225,7 +227,7 @@ class PlotAllocationController extends Controller
 
         if ($case->isMonetary()) {
             return back()->with('error',
-                "Case {$case->case_ref} is a Cash for Trees case. Plot allocation applies to Plot for Plot cases only.")
+                "Case {$case->case_ref} is a Monetary Compensation case. Plot allocation applies to Land to Land cases only.")
                 ->withInput();
         }
 

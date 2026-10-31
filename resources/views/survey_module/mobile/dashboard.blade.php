@@ -387,7 +387,7 @@
                             <div class="code">{{ $p->project_code }}</div>
                             <div class="name">{{ $p->name }}</div>
                             <div class="foot">
-                                <span class="badge {{ $p->isMonetary() ? 'monetary' : 'land' }}" style="font-size:11px;padding:3px 8px;">{{ $p->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}</span>
+                                <span class="badge {{ $p->isMonetary() ? 'monetary' : 'land' }}" style="font-size:11px;padding:3px 8px;">{{ $p->isMonetary() ? 'Monetary Compensation' : 'Land to Land' }}</span>
                                 <span class="go">Register <i class="fas fa-arrow-right"></i></span>
                             </div>
                         </a>

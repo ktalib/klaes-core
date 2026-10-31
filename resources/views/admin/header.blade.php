@@ -208,6 +208,11 @@
   </div>
 </div>
 
+{{-- Survey > File Status tabs: one sidebar entry, each list a tab (user, 2026-10-30). --}}
+@if (request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index'))
+  @include('survey_module.partials._file_status_tabs')
+@endif
+
 {{-- Standing reminder for accounts with no usable passport photo on file — none at all,
      or a picture the face check found is not a photograph of a face (a stock avatar,
      a logo). Both are held the same way, because neither identifies the person.

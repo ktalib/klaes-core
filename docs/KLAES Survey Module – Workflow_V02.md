@@ -227,6 +227,53 @@ Checked against *KLAES Survey Module -Workflow_V02.docx* and the transcript of *
 6. **Letter of Grant** (recording, end): it must be **generated** (a printable letter) for Direct Allocation.
 7. **Compensation Complaint – Section 4 (Supporting Documents)**: neither the recording nor the .docx mentions it, but the scanned form carries a hand edit there (Receipt → Card). It is **kept**.
 
+### 9. Earlier change list (page 2), status as of 29 Oct 2026
+
+| Item | Status |
+|---|---|
+| Geo-informatics: "Plot Allocation" → **Resettlement Plots** (list) | ✅ Renamed (sidebar + page title) |
+| Geo-informatics: **Basemap (Satellite Imagery)** | ➖ Left as is (user, 29 Oct 2026) |
+| Geo-informatics: **SDI → Map Request, Production Unit** | ✅ Built (see §4) |
+| Boundary Dispute: **Property Boundary / Public Boundary (LGA, Interstate)** | ✅ Required *Boundary Type* on every dispute; filter on the list; sidebar sub-links Property / Public / LGA / Interstate |
+| Examination: "Surveyors' Report" → **Surveyor's Report (Private)** | ✅ Renamed (sidebar + page titles) |
+| …with **List of Coordinates, Beacon Nos, Computation Field Observations + Sketch Plan upload** | ✅ Built: once saved, the report has a *Survey Records* panel. The GKN editors are reused on the report (under Examination), lock when the report is issued, and print with it |
+| Examination: new **Compensation Status → Verification (Records)** | ✅ Section added, linked to the Survey-side OP Verification. **Showing History** built (see below) |
+| GKN Surveyors Report: **Beacon Nos, Computation Field Observations + Sketch Plan upload** | ✅ *Beacon Nos* added (sidebar + per I to S); Sketch Plan upload on Field Observations |
+
+
+**How the new pieces work (29 Oct 2026)**
+- **Beacon Nos** (GKN and private): the beacon numbers come from the survey's List of Coordinates, so nothing is entered twice. Each is checked against the Beacon Register: *In Beacon Register*, *Issued to another surveyor* (only when the register names a different surveyor), or *Not in Beacon Register*. A number already used on another survey's list is flagged.
+- **Sketch Plan** (GKN and private): uploaded on Computation Field Observations as an attachment, not a sidebar item. PDF, JPG or PNG. It is filed into the file's EDMS folder under **Survey Registry** (`SCAN_UPLOAD/Survey_Registry/<file no>/A4/`) as a scan, so it appears in Page Typing. A new upload replaces the current one, and the earlier one stays in EDMS. The file must have a single File Indexing record.
+- **Showing History** (Verification (Records) → an OP → *Showing History*): each visit records the surveyor (Survey staff list, or Other), date, time, up to 6 photographs and notes. From the **2nd showing** the reason is required: *Change of Ownership* or *Verification*. The latest showing is shown first and highlighted; the two most recent stay open and older ones fold into "N earlier showings". The OP list shows each OP's showing count and last date. Photographs are kept on the private disk, because an OP has no land file to file them under in EDMS.
+
+
+### 10. Sidebar update and tree categories (29 Oct 2026, evening)
+
+| Change | Status |
+|---|---|
+| Records: OP Verification → **Resettlement Plot Verification** | ✅ Renamed (sidebar + page title) |
+| Compensation Management: **Farmers**, **Economic Trees Assessment**, **Lands Assessment**, Map Sheet No ("Soon") | ✅ Renamed (sidebar + page titles) |
+| **Resettlement Plot Allocation** standalone: Plot for Plot Lands, OP (Resettlement), Letter of Grant ("Soon"), **Resettlement Calculator** | ✅ Calculator built (see 2.3; round down, area as given, 50:50 on Plot-for-Plot; plot sizes managed on the page) |
+| Boundary Dispute → Public Boundary → **Others** | ❌ Withdrawn 30 Oct: the spec lists Public Boundary as LGA + Interstate only. Sidebar sub-link, form option + *specify* box and filter option removed (no dispute used it) |
+| Examination: **Compensation Status → Verification (Records)** | ✅ Removed from the sidebar as marked. *Showing History* now lives under Records → **Plot Confirmation** (30 Oct, see 11) |
+| GKN → Public Survey: Public Layout Plans, **Private Layout**, Layout Records | ✅ "Layout Plan" is now Public Survey → Public Layout Plans; Private Layout (above Layout Records) and Layout Records shown as "Soon" |
+| **Economic tree categories** in the Compensation Calculator | ✅ As in recording 286: the old Category (Cash Crop / Fruit / Timber) is now the **Type**; the new **Category** is **Mature / Early**, each with its own rate in the catalogue. The category is chosen per tree line on a land, in the Register Land wizard and in the Compensation Calculator; existing lines read as Mature. The mobile app still saves Mature |
+
+### 11. Survey field apps (30 Oct 2026)
+
+Three Android apps, each a Flutter WebView clone of SCF (`C:\xampp\htdocs\klaes_app\`). Each opens the Survey mobile pages at `/survey-module/mobile/login?app=<key>`. The server remembers the app per phone and shows that app's login, home page, menu and footer tabs. All three work offline: records are queued on the phone and sync when there is a signal, and photos upload one at a time afterwards.
+
+| App | Folder / package | What it does |
+|---|---|---|
+| **SCF Mobile** (`scf`) | `SCF` · com.survey.app | Compensation fieldwork: register cases, farmers, trees, geo-tagged photos. *Field Observations moved out of this app.* |
+| **Field Observations** (`cfo`) | `Field_Observations_app` · com.survey.fieldobs | Computation & Field Observations for an open Instruction to Survey (Survey or Cadastral) or an unissued **Surveyor's Report (Private)**. Tabs: **Readings**, **Coordinates** (with the phone's GPS fix kept beside the official N/E as a field check, never converted into them), **Beacon Nos** (against the Beacon Register), **Computation** (traverse closure and precision, area/perimeter, each reading against the coordinates), **Sketch Plan** (photo or PDF, filed to EDMS → Survey Registry; needs a signal). |
+| **Plot Confirmation** (`plot`) | `Plot_Confirmation_app` · com.survey.plotconfirm | 1. **Show OP plot**: find the OP by serial, allottee, plot or file no., record each showing (surveyor, date, time, allottee present, reason from the 2nd showing, GPS, photos), which builds the OP's **Showing History**. 2. **Ground check**: an OP's plot or a layout plot; beacon numbers found on site are checked against the Beacon Register; result **Confirmed** or **Discrepancy** (Beacon missing, Beacon disturbed or moved, Plot encroached, Plot position differs from the layout, Plot occupied by another person, Other + specify). |
+
+- OPs are the **Deeds OPs** (instrument_capture and the older pra rows, ~59k), not Survey's own OP records (none exist yet). The allottee shown is the OP's original allottee.
+- The desktop **Compensation → Records → Plot Confirmation** page lists both (tabs *OP Showings* / *Ground Checks*, search, filters, details with photos and a map link). This is now the menu home of Showing History.
+- Photos stay on the private local disk (an OP has no land file, so no EDMS folder); the Sketch Plan goes to EDMS.
+- The APKs are signed with the debug key, like SCF; a proper release key is needed before wider rollout. The icons are SCF's until new ones are supplied.
+
 ---
  **Updated Survey Module Sidebar Hierarchy**  
  
@@ -237,14 +284,15 @@ SURVEY
 │   ├── Records
 │   │   ├── CO Files
 │   │   ├── Allocation Records
-│   │   └── OP Verification
+│   │   ├── Resettlement Plot Verification   (was OP Verification)
+│   │   └── Plot Confirmation               (from the Plot Confirmation app)
 │   ├── Project Management
 │   │   ├── Commission CO File
 │   │   └── Projects
 │   ├── Compensation Management
 │   │   ├── Farmers
-│   │   ├── Economic Trees          (with Mature / Early category)
-│   │   ├── Lands
+│   │   ├── Economic Trees Assessment  (Type: Cash Crop / Fruit / Timber · Category: Mature / Early)
+│   │   ├── Lands Assessment
 │   │   ├── Compensation Calculator
 │   │   └── Map Sheet No
 │   ├── Resettlement Plot Allocation   ← Standalone
@@ -264,6 +312,7 @@ SURVEY
 │   │   └── Misc KN
 │   ├── Public Survey
 │   │   ├── Public Layout Plans
+│   │   ├── Private Layout
 │   │   └── Layout Records
 │   ├── Surveyors
 │   ├── Instruction to Survey
@@ -285,12 +334,12 @@ SURVEY
 │
 ├── Examination/Verification
 │   ├── Register File
-│   ├── Compensation Status         ← Verification (Records) + Showing History
 │   ├── Boundary Dispute
 │   │   ├── Property Boundary
 │   │   └── Public Boundary
 │   │       ├── LGA Boundary
-│   │       └── Interstate Boundary
+│   │       ├── Interstate Boundary
+│   │       └── Others (specify)
 │   ├── Old Surveys
 │   ├── Control Points
 │   ├── Beacon Register

@@ -579,14 +579,12 @@ document.addEventListener('DOMContentLoaded', () => {
       districtHiddenInput.value = districtValue;
     }
 
-    // Only one of plot number OR street joins the address:
-    // if plot number has a value, use it; otherwise fall back to street.
-    const plotNo = (locPlotNumberInput?.value || '').trim();
+    // Location / Station never includes the plot number; the plot has its own field.
     const street = selectedOrOther(locStreetNameInput, locStreetOtherInput);
     const values = [
       // House number is the number on the building; it leads the address when given.
       (locHouseNumberInput?.value || '').trim(),
-      plotNo ? plotNo : street,
+      street,
       districtValue,
       (locLgaInput?.value || '').trim(),
       (locStateInput?.value || '').trim(),

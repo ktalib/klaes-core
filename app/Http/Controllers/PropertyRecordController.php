@@ -4469,6 +4469,28 @@ class PropertyRecordController extends Controller
             // against uncommitted state. Best-effort: the transactions are already
             // saved, so a failure here only costs the File Snapshot card.
             if ($response instanceof \Illuminate\Http\JsonResponse && $response->getStatusCode() === 200) {
+                // SLTR special case: a Sale Agreement and a CofO with no Transfer of Title
+                // between them get a system-generated one (App\Services\Sltr\SltrTotGenerator).
+                // Best-effort and after the commit: the captured rows are already saved.
+                if (\App\Services\Sltr\SltrTotGenerator::appliesTo($fileNumber)) {
+                    try {
+                        $totId = app(\App\Services\Sltr\SltrTotGenerator::class)->generate($fileNumber, Auth::id());
+                        if ($totId) {
+                            $payload = $response->getData(true);
+                            $payload['message'] = ($payload['message'] ?? '') . '. Transfer of Title (system generated) added between the Sale Agreement and the CofO';
+                            $payload['sltr_tot_id'] = $totId;
+                            // Listed on the "Transactions captured" card with the rest.
+                            foreach ($this->collectCapturedInstruments(['file_history_staging' => [$totId]]) as $instrument) {
+                                $instrument['instrument'] .= ' (system generated)';
+                                $payload['instruments'][] = $instrument;
+                            }
+                            $response->setData($payload);
+                        }
+                    } catch (\Throwable $e) {
+                        \Log::error('SLTR ToT generation failed', ['file_number' => $fileNumber, 'error' => $e->getMessage()]);
+                    }
+                }
+
                 $snapshot = $this->fileSnapshotService->captureByFileNumber(
                     $fileNumber,
                     \App\Models\FileSnapshot::EVENT_TRANSACTION_ADDED,

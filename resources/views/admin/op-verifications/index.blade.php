@@ -1,12 +1,16 @@
 @extends('layouts.app')
 
+@php
+    $opvTitle = request('url') === 'survey' ? 'Plot Showing Register' : 'OP Verification';
+@endphp
+
 @section('page-title')
-    OP Verification
+    {{ $opvTitle }}
 @endsection
 
 @section('content')
 <div class="flex-1 overflow-auto bg-slate-50/60">
-    @include('admin.header', ['PageTitle' => 'OP Verification', 'PageDescription' => 'Verify the authenticity of an Occupancy Permit.'])
+    @include('admin.header', ['PageTitle' => $opvTitle, 'PageDescription' => 'Verify the authenticity of an Occupancy Permit.'])
 
     <div class="p-6 space-y-6">
 

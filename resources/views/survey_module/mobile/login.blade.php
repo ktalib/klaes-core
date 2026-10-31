@@ -1,3 +1,4 @@
+@php $app = $app ?? \App\Support\SurveyMobileApps::get(); @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +7,7 @@
     <link rel="apple-touch-icon" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b2e">
-    <title>Survey Mobile — Sign in</title>
+    <title>{{ $app['name'] }} — Sign in</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -128,10 +129,10 @@
                 <div class="logo-box">
                     <img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF Survey Compensation"
                          onerror="this.style.display='none'; document.getElementById('fallback-icon').style.display='block';">
-                    <i class="fas fa-compass" id="fallback-icon" style="display:none"></i>
+                    <i class="fas {{ $app['icon'] }}" id="fallback-icon" style="display:none"></i>
                 </div>
-                <h1 class="brand-name">SURVEY MOBILE</h1>
-                <p class="brand-tagline">Register Compensation Case</p>
+                <h1 class="brand-name">{{ $app['title'] }}</h1>
+                <p class="brand-tagline">{{ $app['tagline'] }}</p>
             </div>
 
             @if ($errors->any())
@@ -150,6 +151,7 @@
 
             <form method="POST" action="{{ route('survey-module.mobile.login.submit') }}" id="login-form">
                 @csrf
+                <input type="hidden" name="app" value="{{ $app['key'] }}">
                 <div class="form-group">
                     <label class="label" for="identifier">Username or Email</label>
                     <div class="input-wrapper">

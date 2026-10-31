@@ -20,6 +20,7 @@
 @endphp
 
 @include('survey_module.partials._flash')
+@include('survey_module.partials._searchable_selects')
 
 @if ($detail)
     @php
@@ -43,9 +44,12 @@
                     </button>
                 </form>
             @endif
+            {{-- No Generate OP on existing records, imported or captured from paper (CR 30102026 item 32). --}}
+            @unless ($detail->isExistingRecord())
             <a class="btn btn-outline" href="{{ route('survey-module.compensation.op', ['case' => $detail->id]) }}">
                 <i class="fas fa-file-signature"></i> Generate OP
             </a>
+            @endunless
         </div>
     </div>
 
@@ -105,7 +109,7 @@
                 <div class="preview-item">
                     <span class="label">Compensation Scheme (from Project)</span>
                     <span class="value" style="color:var(--primary);font-weight:700;">
-                        {{ $detail->isMonetary() ? 'Cash for Trees' : 'Plot for Plot (50:50)' }}
+                        {{ $detail->isMonetary() ? 'Monetary Compensation' : 'Land to Land (50:50)' }}
                     </span>
                 </div>
                 <div class="preview-item">
@@ -126,12 +130,12 @@
             @if ($detail->isMonetary())
                 <div class="comp-panel active" style="margin-top:20px;">
                     <div class="comp-total">
-                        <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Cash for Trees)</span>
+                        <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Monetary Compensation)</span>
                         <span class="total-amount">₦{{ number_format($treeTotal, 2) }} cash to beneficiaries</span>
                     </div>
                     <div class="comp-type-note" style="margin-top:16px;">
                         <i class="fas fa-info-circle"></i>
-                        Cash for Trees compensation only — no plots are allocated on this case.
+                        Monetary Compensation only — no plots are allocated on this case.
                     </div>
                 </div>
             @else
@@ -139,7 +143,7 @@
                     <div class="comp-cards single">
                         <div class="comp-card" style="border-color:var(--primary);background:var(--primary-50);">
                             <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
-                            <div class="card-label">Plot for Plot Compensation (50:50)</div>
+                            <div class="card-label">Land to Land Compensation (50:50)</div>
                             <div style="font-size:20px;font-weight:600;color:var(--primary);margin:8px 0;">
                                 {{ number_format($split['total'] ?? 0) }} Plots Total
                             </div>
@@ -159,7 +163,7 @@
                     </div>
                     <div class="comp-type-note" style="margin-top:16px;">
                         <i class="fas fa-info-circle"></i>
-                        Plot for Plot only — no cash is paid for trees on this case. Assign plot and OP numbers under
+                        Land to Land only — no cash is paid for trees on this case. Assign plot and OP numbers under
                         <a href="{{ route('survey-module.tools.plot-allocation', ['case' => $detail->id]) }}">Plot Allocation</a>.
                     </div>
                 </div>
@@ -202,14 +206,19 @@
                 @if ($detail->isMonetary())
                     <div class="form-group full">
                         <label>Economic Trees ({{ $detail->trees->count() }})</label>
-                        <div class="tree-list">
+                        <style>
+                            /* Category column (Mature / Early, 2026-10-30), as on the Register Land wizard. */
+                            @media (min-width: 769px) { .survey-proto .tree-list.tl-m .list-header, .survey-proto .tree-list.tl-m .list-item { grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr auto; } }
+                        </style>
+                        <div class="tree-list tl-m">
                             <div class="list-header">
-                                <span>Tree Type</span><span>Quantity</span>
+                                <span>Tree Type</span><span>Category</span><span>Quantity</span>
                                 <span class="hide-mobile">Unit Price (₦)</span><span>Total (₦)</span><span></span>
                             </div>
                             @forelse ($detail->trees as $t)
                                 <div class="list-item">
                                     <span><strong>{{ $t->tree_type }}</strong></span>
+                                    <span>{{ $t->maturity ?: 'Mature' }}</span>
                                     <span>{{ number_format($t->quantity) }}</span>
                                     <span class="hide-mobile">{{ number_format((float) $t->unit_price, 2) }}</span>
                                     <span class="total">{{ number_format((float) $t->line_total, 2) }}</span>
@@ -249,9 +258,24 @@
 @else
     <div class="page-header">
         <div></div>
-        <a href="{{ route('survey-module.compensation.cases.register') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> Register Case
-        </a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{{ route('survey-module.compensation.capture-list') }}" class="btn btn-secondary">
+                <i class="fas fa-clipboard-list"></i> Capture Compensation List
+            </a>
+            <a href="{{ route('survey-module.compensation.cases.register') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Register
+            </a>
+        </div>
+    </div>
+
+    {{-- Imported / Captured tabs (CR 30102026 item 23); they replace the All Records dropdown. --}}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;" role="tablist">
+        @foreach (['imported' => ['Imported', 'fa-file-import'], 'entered' => ['Captured', 'fa-keyboard']] as $k => [$label, $icon])
+            <a href="{{ route('survey-module.compensation.cases', ['origin' => $k]) }}" role="tab" aria-selected="{{ $tab === $k ? 'true' : 'false' }}"
+               class="btn {{ $tab === $k ? 'btn-primary' : 'btn-outline' }} btn-sm">
+                <i class="fas {{ $icon }}"></i> {{ $label }} <span style="opacity:.75;">({{ number_format($tabCounts[$k]) }})</span>
+            </a>
+        @endforeach
     </div>
 
     <div class="kpi-grid">
@@ -274,6 +298,7 @@
     </div>
 
     <form method="GET" class="table-toolbar">
+        <input type="hidden" name="origin" value="{{ $tab }}" />
         <div class="left">
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Search case, project, officer…"
                    style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
@@ -283,7 +308,7 @@
                     <option value="{{ $s }}" @selected(request('status') === $s)>{{ $statusLabel($s) }}</option>
                 @endforeach
             </select>
-            <select name="project" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
+            <select name="project" class="sv-searchable" data-width="300px" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
                 <option value="">All Projects</option>
                 @foreach ($projects as $p)
                     <option value="{{ $p->id }}" @selected((string) request('project') === (string) $p->id)>
@@ -293,60 +318,68 @@
             </select>
             <select name="scheme" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
                 <option value="">All Schemes</option>
-                <option value="monetary" @selected(request('scheme') === 'monetary')>Cash for Trees</option>
-                <option value="land" @selected(request('scheme') === 'land')>Plot for Plot</option>
+                <option value="monetary" @selected(request('scheme') === 'monetary')>Monetary Compensation</option>
+                <option value="land" @selected(request('scheme') === 'land')>Land to Land</option>
             </select>
             <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
             @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
-                <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.cases') }}">Clear</a>
+                <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.cases', ['origin' => $tab]) }}">Clear</a>
             @endif
         </div>
     </form>
 
+    @include('survey_module.partials._table_ui')
+
     <div class="table-wrapper">
         <div class="table-scroll">
-            <table>
+            <table class="sv-dt">
                 <thead>
                     <tr>
                         <th>S/N</th>
-                        <th>Case No</th>
                         <th>Project</th>
+                        <th>TP No.</th>
+                        <th>Scheme</th>
                         <th>Surveyor / Portion</th>
                         <th>Location</th>
-                        <th>Area (Ha)</th>
-                        <th>Beneficiaries</th>
+                        <th class="num">Area (Ha)</th>
+                        <th class="ctr">Beneficiaries</th>
                         <th>Status</th>
-                        <th>Created Date</th>
-                        <th></th>
+                        <th>Created By</th>
+                        <th>Date Created</th>
+                        <th class="col-actions"></th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($cases as $c)
                         <tr>
-                            <td>{{ $cases->firstItem() + $loop->index }}</td>
+                            <td class="muted">{{ $cases->firstItem() + $loop->index }}</td>
+                            {{-- No case number column (user, 2026-10-30): the scheme has its own column instead. --}}
+                            {{-- Project code dropped; the TP No. has its own column (user, 2026-10-30). --}}
+                            <td class="wide strong">{{ $c->project?->display_name ?? '—' }}</td>
+                            <td class="nowrap">{!! $c->project?->plan_no ? '<span class="tp">' . e($c->project->plan_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
                             <td>
-                                <strong>{{ $c->case_ref }}</strong>
-                                <div style="font-size:11px;color:var(--gray-500);">
-                                    {{ $c->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}
-                                </div>
+                                @if ($c->isMonetary())
+                                    <span class="status-badge active"><span class="dot"></span>Monetary Compensation</span>
+                                @else
+                                    <span class="status-badge completed"><span class="dot"></span>Land to Land</span>
+                                @endif
                             </td>
-                            <td>{{ $c->project?->name ?? '—' }}</td>
-                            <td>@if ($c->allocation)
+                            <td class="mid">@if ($c->allocation)
     {{ $c->allocation->surveyor_name }}
     <div style="font-size:11px;color:var(--gray-500);">Portion {{ $c->portion_no }} of {{ $c->allocation->portions }} · {{ rtrim(rtrim(number_format((float) $c->portion_size_ha, 4), '0'), '.') }} Ha</div>
 @else
     <span style="color:var(--gray-500);">—</span>
 @endif</td>
-                            <td>{{ $c->property_location ?: '—' }}</td>
-                            <td>{{ $c->area_ha !== null ? number_format((float) $c->area_ha, 2) : '—' }}</td>
-                            <td>{{ number_format($c->beneficiaries_count) }}</td>
+                            <td class="mid">{{ $c->property_location ?: '—' }}</td>
+                            <td class="num">@if ($c->area_ha !== null){{ number_format((float) $c->area_ha, 4) }}@else<span class="muted">—</span>@endif</td>
+                            <td class="ctr">{{ number_format($c->beneficiaries_count) }}</td>
                             <td>
                                 <span class="status-badge {{ $badgeClass($c->status) }}">
                                     <span class="dot"></span>{{ $statusLabel($c->status) }}
                                 </span>
                             </td>
-                            <td>{{ optional($c->created_at)->format('Y-m-d') ?? '—' }}</td>
-                            <td>
+                            @include('survey_module.partials._created_cells', ['row' => $c])
+                            <td class="col-actions">
                                 @php $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50'; @endphp
                                 <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                     <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
@@ -359,7 +392,9 @@
                                          class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
                                         <a href="{{ route('survey-module.compensation.cases.show', $c) }}" class="{{ $svItem }}"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
                                         <a href="{{ route('survey-module.compensation.cases.edit', $c) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
+                                        @unless ($c->isExistingRecord())
                                         <a href="{{ route('survey-module.compensation.op', ['case' => $c->id]) }}" class="{{ $svItem }}"><i data-lucide="file-signature" class="w-4 h-4 text-gray-500"></i> Generate OP</a>
+                                        @endunless
                                         <form method="POST" action="{{ route('survey-module.compensation.cases.destroy', $c) }}"
                                               onsubmit="return confirm('Delete {{ $c->case_ref }}? This cannot be undone.');">
                                             @csrf @method('DELETE')
@@ -371,14 +406,17 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" style="text-align:center;padding:28px;color:var(--gray-500);">
+                            <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
                                 <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                                 @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
-                                    No cases match these filters.
-                                    <a href="{{ route('survey-module.compensation.cases') }}">Clear them</a>.
+                                    No lands match these filters.
+                                    <a href="{{ route('survey-module.compensation.cases', ['origin' => $tab]) }}">Clear them</a>.
+                                @elseif ($tab === 'entered')
+                                    No captured lands yet.
+                                    <a href="{{ route('survey-module.compensation.cases.register') }}">Register one</a> or
+                                    <a href="{{ route('survey-module.compensation.capture-list') }}">capture a compensation list</a>.
                                 @else
-                                    No compensation cases yet.
-                                    <a href="{{ route('survey-module.compensation.cases.register') }}">Register the first one</a>.
+                                    No imported lands.
                                 @endif
                             </td>
                         </tr>

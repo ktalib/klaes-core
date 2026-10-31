@@ -54,6 +54,29 @@ class BillBalance extends Model
     ];
 
     /**
+     * Location / Station for display. Location never includes the plot number,
+     * but rows saved before 2026-10-29 were built as "PLOT, DISTRICT, LGA, STATE",
+     * so a leading token equal to loc_plot_number is dropped here.
+     */
+    public function locationStationDisplay(): ?string
+    {
+        $location = trim((string) $this->location_station);
+        $plot = strtoupper(trim((string) $this->loc_plot_number));
+        if ($location === '' || $plot === '') {
+            return $location !== '' ? $location : null;
+        }
+
+        $tokens = explode(',', $location);
+        $first = strtoupper(trim($tokens[0]));
+        $firstBare = preg_replace('/^PLOT\s*(NO\.?|NUMBER)?\s*/', '', $first);
+        if (count($tokens) > 1 && ($first === $plot || $firstBare === $plot)) {
+            return trim(implode(',', array_slice($tokens, 1)));
+        }
+
+        return $location;
+    }
+
+    /**
      * Latest Deeds Bill Balance for a file number, joined to its billing record
      * for payment status + the fee breakdown. Returns a flat array (or null).
      * Shared by the web Quick Search and mobile file-search result cards.

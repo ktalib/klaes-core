@@ -8,5 +8,6 @@
 @endphp
 
 @section('survey-content')
+  @include('survey_module.partials._gov_private_tabs', ['route' => 'survey-module.records.surveyors.index', 'tab' => 'government'])
   @include('survey_module.partials.sections._page-surveyors')
 @endsection

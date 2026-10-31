@@ -3,6 +3,7 @@
 
     $key = $anchor['key'];
     $locked = $anchor['locked'];
+    $rp = $anchor['routes'] ?? 'survey-module.gkn';
     $num = fn ($v, $dp = 3) => $v === null ? '—' : number_format((float) $v, $dp);
     $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     // Field tolerances for flagging a reading against the coordinates.
@@ -12,9 +13,14 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.observations.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
-    <div style="display:flex;gap:8px;">
-        <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.coordinates.show', $key) }}"><i class="fas fa-map-pin"></i> List of Coordinates</a>
+    @if (! empty($anchor['back']))
+        <a class="btn btn-secondary btn-sm" href="{{ $anchor['back']['url'] }}"><i class="fas fa-arrow-left"></i> {{ $anchor['back']['label'] }}</a>
+    @else
+        <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.observations.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
+    @endif
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn btn-outline btn-sm" href="{{ route($rp . '.coordinates.show', $key) }}"><i class="fas fa-map-pin"></i> List of Coordinates</a>
+        <a class="btn btn-outline btn-sm" href="{{ route($rp . '.beacons.show', $key) }}"><i class="fas fa-map-marker-alt"></i> Beacon Nos</a>
         @unless ($locked)
             <button type="button" class="btn btn-primary btn-sm" onclick="svModal.open('obsForm')"><i class="fas fa-plus"></i> Add Reading</button>
         @endunless
@@ -38,39 +44,70 @@
     </div>
 </div>
 
+@include('survey_module.partials.sections._survey-sketch-plan', ['anchor' => $anchor, 'sketches' => $sketches ?? collect()])
+
 @if ($locked)
     <div class="comp-type-note" style="margin-bottom:16px;"><i class="fas fa-lock"></i> {{ $anchor['prefill']['its_number'] }} is closed; its readings can no longer be changed.</div>
 @else
-    <form method="POST" action="{{ route('survey-module.gkn.observations.store', $key) }}" id="obsForm"
+    <form method="POST" action="{{ route($rp . '.observations.store', $key) }}" id="obsForm"
           class="farmer-entry-form {{ $errors->any() ? 'open' : '' }}" data-sv-modal="Add Reading · {{ $anchor['prefill']['its_number'] }}">
         @csrf
         <datalist id="obsStations">@foreach ($stations as $s)<option value="{{ $s }}">@endforeach</datalist>
-        <div class="form-grid">
-            <div class="sv-group"><i class="fas fa-route"></i><span>Line</span></div>
-            <div class="form-group"><label>From station <span class="required">*</span></label>
-                <input type="text" name="from_station" list="obsStations" maxlength="50" value="{{ old('from_station', $obs->last()?->to_station) }}" required /></div>
-            <div class="form-group"><label>To station <span class="required">*</span></label>
-                <input type="text" name="to_station" list="obsStations" maxlength="50" value="{{ old('to_station') }}" required /></div>
+        {{-- Bearing and distance per line, "Add line" for more (CR 30102026 item 16); all lines save together. --}}
+        @php
+            $obsOldLines = old('lines');
+            $obsLines = is_array($obsOldLines) && $obsOldLines
+                ? array_values(array_map(fn ($l) => array_merge(['from_station' => '', 'to_station' => '', 'bearing_d' => '', 'bearing_m' => '', 'bearing_s' => '', 'observed_distance' => '', 'remarks' => ''], (array) $l), $obsOldLines))
+                : [['from_station' => (string) ($obs->last()?->to_station ?? ''), 'to_station' => '', 'bearing_d' => '', 'bearing_m' => '', 'bearing_s' => '', 'observed_distance' => '', 'remarks' => '']];
+        @endphp
+        <div x-data="{ lines: @js($obsLines),
+                       add() { const p = this.lines[this.lines.length - 1]; this.lines.push({ from_station: p ? p.to_station : '', to_station: '', bearing_d: '', bearing_m: '', bearing_s: '', observed_distance: '', remarks: '' }); },
+                       remove(i) { if (this.lines.length > 1) this.lines.splice(i, 1); } }">
+            <div class="sv-group"><i class="fas fa-route"></i><span>Lines</span></div>
+            <div class="table-scroll" style="margin-bottom:8px;">
+                <table class="obs-lines" style="width:100%;font-size:14px;">
+                    <thead>
+                        <tr>
+                            <th style="width:44px;">S/N</th>
+                            <th>From station <span class="required">*</span></th>
+                            <th>To station <span class="required">*</span></th>
+                            <th>Bearing (deg, min, sec) <span class="required">*</span></th>
+                            <th>Distance (m) <span class="required">*</span></th>
+                            <th>Remarks</th>
+                            <th style="width:44px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(line, i) in lines" :key="i">
+                            <tr>
+                                <td x-text="i + 1"></td>
+                                <td><input type="text" :name="`lines[${i}][from_station]`" x-model="line.from_station" list="obsStations" maxlength="50" required style="min-width:90px;" /></td>
+                                <td><input type="text" :name="`lines[${i}][to_station]`" x-model="line.to_station" list="obsStations" maxlength="50" required style="min-width:90px;" /></td>
+                                <td>
+                                    <div style="display:grid;grid-template-columns:repeat(3,minmax(56px,1fr));gap:6px;">
+                                        <input type="number" :name="`lines[${i}][bearing_d]`" x-model="line.bearing_d" min="0" max="359" step="1" placeholder="deg" required />
+                                        <input type="number" :name="`lines[${i}][bearing_m]`" x-model="line.bearing_m" min="0" max="59" step="1" placeholder="min" />
+                                        <input type="number" :name="`lines[${i}][bearing_s]`" x-model="line.bearing_s" min="0" max="59.9" step="0.1" placeholder="sec" />
+                                    </div>
+                                </td>
+                                <td><input type="number" :name="`lines[${i}][observed_distance]`" x-model="line.observed_distance" step="0.001" min="0.001" required style="min-width:90px;" /></td>
+                                <td><input type="text" :name="`lines[${i}][remarks]`" x-model="line.remarks" maxlength="500" style="min-width:120px;" /></td>
+                                <td>
+                                    <button type="button" class="btn btn-outline btn-sm" @click="remove(i)" :disabled="lines.length === 1" aria-label="Remove line" title="Remove line"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" @click="add()" style="margin-bottom:16px;"><i class="fas fa-plus"></i> Add line</button>
         </div>
         <div class="form-grid">
-            <div class="sv-group"><i class="fas fa-ruler-combined"></i><span>Measurement</span></div>
-            <div class="form-group"><label>Bearing (deg, min, sec) <span class="required">*</span></label>
-                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;">
-                    <input type="number" name="bearing_d" min="0" max="359" step="1" value="{{ old('bearing_d') }}" placeholder="deg" required />
-                    <input type="number" name="bearing_m" min="0" max="59" step="1" value="{{ old('bearing_m') }}" placeholder="min" />
-                    <input type="number" name="bearing_s" min="0" max="59.9" step="0.1" value="{{ old('bearing_s') }}" placeholder="sec" />
-                </div></div>
-            <div class="form-group"><label>Distance (m) <span class="required">*</span></label>
-                <input type="number" step="0.001" min="0.001" name="observed_distance" value="{{ old('observed_distance') }}" required /></div>
-        </div>
-        <div class="form-grid cols-3">
             <div class="sv-group"><i class="fas fa-book"></i><span>Field book</span></div>
             <div class="form-group"><label>Date observed</label>
                 <input type="date" name="observed_on" max="{{ now()->toDateString() }}" value="{{ old('observed_on', $obs->last()?->observed_on?->format('Y-m-d')) }}" /></div>
             <div class="form-group"><label>Observer</label>
                 <input type="text" name="observer" maxlength="255" value="{{ old('observer', $obs->last()?->observer ?? $anchor['prefill']['surveyor_name']) }}" /></div>
-            <div class="form-group"><label>Remarks</label>
-                <input type="text" name="remarks" maxlength="500" value="{{ old('remarks') }}" /></div>
             <p class="helper-text" style="grid-column:1/-1;margin:0;">
                 Enter readings in the order walked, from the field book. A run that returns to its first station is closed as a traverse.
                 Readings saved in the SCF field app arrive here too.
@@ -80,7 +117,7 @@
             <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('obsForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
             <div class="right">
                 <button class="btn btn-outline" type="submit" data-sv-again><i class="fas fa-redo"></i> Save &amp; add next</button>
-                <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Add Reading</button>
+                <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Save Readings</button>
             </div>
         </div>
     </form>
@@ -138,7 +175,7 @@
                                     <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                          :style="'top:' + top + 'px; left:' + left + 'px'"
                                          class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                        <form method="POST" action="{{ route('survey-module.gkn.observations.destroy', [$key, $o->id]) }}" onsubmit="return confirm('Remove reading {{ $o->from_station }} → {{ $o->to_station }}?');">
+                                        <form method="POST" action="{{ route($rp . '.observations.destroy', [$key, $o->id]) }}" onsubmit="return confirm('Remove reading {{ $o->from_station }} → {{ $o->to_station }}?');">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove reading</button>
                                         </form>

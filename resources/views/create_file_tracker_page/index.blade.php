@@ -1975,6 +1975,9 @@
                                                             class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                                             <option value="">All</option>
                                                             <option value="MANUAL">In-transit</option>
+                                                            @if(($module ?? '') === '')
+                                                            <option value="DIIT">DIIT</option>
+                                                            @endif
                                                             <option value="SUBMITTED">Submitted Request</option>
                                                         </select>
                                                     </div>
@@ -2114,6 +2117,17 @@
                                                 <span id="in-transit-count"
                                                     class="ml-0.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">0</span>
                                             </button>
+                                            @if(($module ?? '') === '')
+                                            {{-- DIIT: commissioned files not yet logged out (Land file log only). --}}
+                                            <button id="tab-diit"
+                                                class="main-tab inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                                                data-request-type-tab="DIIT" title="Default In-process In-transit Tracking">
+                                                <i data-lucide="stamp" class="h-3.5 w-3.5"></i>
+                                                DIIT
+                                                <span id="diit-count"
+                                                    class="ml-0.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">0</span>
+                                            </button>
+                                            @endif
                                             <button id="tab-submitted-request"
                                                 class="main-tab inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                                                 data-request-type-tab="SUBMITTED">

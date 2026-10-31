@@ -73,7 +73,18 @@ class RelatedFileSightingsTest extends TestCase
         ])), 'callers without the field are not checked');
     }
 
-    public function test_an_indexed_related_file_needs_no_answer_and_is_never_npf(): void
+    public function test_no_has_two_categories_by_whether_the_related_file_is_indexed(): void
+    {
+        // Recording 289 (user, 2026-10-29): No + never indexed = NPF; No + indexed = "Physical File Indexed".
+        $this->assertSame(RelatedFileSightings::NOT_IN_FILE, RelatedFileSightings::category(false, false));
+        $this->assertSame(RelatedFileSightings::INDEXED_ELSEWHERE, RelatedFileSightings::category(false, true));
+        $this->assertSame(RelatedFileSightings::SIGHTED, RelatedFileSightings::category(true, true));
+        $this->assertNull(RelatedFileSightings::category(null, true));
+        $this->assertSame('Physical File Indexed', RelatedFileSightings::CATEGORY_LABELS[RelatedFileSightings::INDEXED_ELSEWHERE]);
+        $this->assertSame('Physical File Not in the File', RelatedFileSightings::CATEGORY_LABELS[RelatedFileSightings::NOT_IN_FILE]);
+    }
+
+    public function test_an_indexed_related_file_must_still_be_answered(): void
     {
         $indexed = DB::connection('sqlsrv')->table('file_indexings')
             ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
@@ -89,8 +100,9 @@ class RelatedFileSightingsTest extends TestCase
             'related_fileno' => [$indexed, $unindexed],
             RelatedFileSightings::REQUEST_FIELD => '[]',
         ]));
+        // The officer answers every file, indexed or not; the answer is never overridden.
         $this->assertStringContainsString($unindexed, (string) $refusal);
-        $this->assertStringNotContainsString($indexed, (string) $refusal);
+        $this->assertStringContainsString($indexed, (string) $refusal);
 
         $status = app(FileIndexingController::class)->relatedFileIndexedStatus(Request::create('/x', 'GET', ['file_number' => strtolower($indexed)]));
         $this->assertTrue($status->getData(true)['indexed']);

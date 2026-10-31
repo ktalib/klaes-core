@@ -4189,6 +4189,9 @@ class ApplicationController extends Controller
                 'op_land_use'          => $opLandUse,
                 'grantor'              => $opGrantor,
                 'grantee'              => $opGrantee,
+                // A ToT hangs off this OP, so its Grantee (the original allottee) is read-only.
+                'op_grantee_fixed'     => $opRecordId > 0
+                    && !empty(\App\Support\OpAllottee::transferParty1Names('pra', $opRecordId, $opPropId)),
                 'transaction_date'     => $opTxnDate,
                 'deed_serial_no'       => $opDeedSerial,
                 'deed_page_no'         => $opDeedPage,
@@ -4574,6 +4577,21 @@ class ApplicationController extends Controller
         $vol = $updates['volumeNo'] ?? null;
         if ($serial !== null && $page !== null && $vol !== null) {
             $updates['regNo'] = $serial . '/' . $page . '/' . $vol;
+        }
+
+        // With a Transfer of Title on it, the OP's Grantee is the original allottee.
+        // Clerks typed the new owner into this box, overwriting the allottee on dozens
+        // of OPs; refuse that, but let a Grantee be corrected to the ToT's Party 1.
+        if (isset($updates['Grantee'])) {
+            $transferParty1 = \App\Support\OpAllottee::transferParty1Names('pra', $recordId, $source->prop_id ?? null);
+            $submitted = \App\Support\OpAllottee::norm($updates['Grantee']);
+            $stored = \App\Support\OpAllottee::norm(($source->Grantee ?? '') ?: ($source->party_2 ?? ''));
+            if ($transferParty1 && $stored !== '' && $submitted !== $stored && !in_array($submitted, $transferParty1, true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'occupancy_permit.grantee' => 'This OP already has a Transfer of Title, so its Grantee stays the original allottee ('
+                        . $stored . '). The new owner belongs on the Transfer of Title, not the OP.',
+                ]);
+            }
         }
 
         if (empty($updates)) {

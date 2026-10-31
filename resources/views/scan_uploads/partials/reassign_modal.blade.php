@@ -118,6 +118,8 @@
             <option value="KANGIS Registry">KANGIS Registry</option>
             <option value="SLTR Registry">SLTR Registry</option>
             <option value="ST Registry">ST Registry</option>
+            <option value="Deeds Registry">Deeds Registry</option>
+            <option value="Survey Registry">Survey Registry</option>
           </select>
           <p class="text-xs text-gray-500 mt-1">Pre-filtered to match your current file's registry by default</p>
         </div>

@@ -50,7 +50,11 @@ class ValuationReportController extends Controller
         $landUses = \App\Models\LandUse::with('purposes')->get();
         $valuationOfficers = ValuationOfficer::orderBy('name')->get(['name', 'rank']);
 
-        return view('valuation_reports.index', compact('reports', 'todayCount', 'totalCount', 'printedCount', 'unprintedCount', 'search', 'states', 'lgas', 'districts', 'streetNames', 'landUses', 'valuationOfficers'));
+        // Registration particulars and instrument type, where the file's
+        // dealing has been registered.
+        $registrations = app(\App\Services\DeedsRegistrationLookup::class)->forValuations($reports->items());
+
+        return view('valuation_reports.index', compact('reports', 'todayCount', 'totalCount', 'printedCount', 'unprintedCount', 'search', 'states', 'lgas', 'districts', 'streetNames', 'landUses', 'valuationOfficers', 'registrations'));
     }
 
     /**

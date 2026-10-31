@@ -24,46 +24,50 @@
     <style>
         @page { size: A4; margin: 14mm 16mm; }
         * { box-sizing: border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin: 0; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 0; }
         .sheet { max-width: 180mm; margin: 0 auto; }
+        /* One A4 sheet each (297mm less the 28mm @page margin), footer pinned to the
+           bottom, so a short page no longer leaves a blank band under its footer
+           (user, 2026-10-30). Long filled-in text still grows the page as before. */
+        .page { min-height: 262mm; display: flex; flex-direction: column; }
         .page-break { page-break-before: always; }
 
-        .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #999; padding-bottom: 8px; }
-        .head img { height: 70px; }
+        .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #999; padding-bottom: 10px; }
+        .head img { height: 72px; }
         .head .t { text-align: center; color: #1a4d38; }
-        .head .t .m { font-weight: bold; font-size: 14px; text-transform: uppercase; }
-        .head .t .d { font-weight: bold; font-size: 18px; color: #000; margin-top: 4px; }
-        .head .t .f { font-weight: bold; font-size: 15px; margin-top: 2px; }
-        .ref { text-align: right; font-size: 11px; margin: 6px 0 0; }
+        .head .t .m { font-weight: bold; font-size: 15px; text-transform: uppercase; }
+        .head .t .d { font-weight: bold; font-size: 20px; color: #000; margin-top: 4px; }
+        .head .t .f { font-weight: bold; font-size: 16px; margin-top: 3px; }
+        .ref { text-align: right; font-size: 12px; margin: 6px 0 0; }
 
-        .instr { border-top: 2px solid #1a4d38; margin-top: 10px; padding-top: 6px; font-size: 11.5px; }
+        .instr { border-top: 2px solid #1a4d38; margin-top: 12px; padding-top: 8px; font-size: 12.5px; line-height: 1.4; }
         .instr i { font-style: italic; }
-        h2 { font-size: 12.5px; color: #1a4d38; text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px;
-             padding-bottom: 3px; border-bottom: 1px solid #c9a54a; }
-        h3 { font-size: 12px; margin: 10px 0 2px; }
-        .desc { font-size: 11px; margin: 0 0 6px 18px; }
+        h2 { font-size: 13.5px; color: #1a4d38; text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 7px;
+             padding-bottom: 4px; border-bottom: 1px solid #c9a54a; }
+        h3 { font-size: 13px; margin: 14px 0 4px; }
+        .desc { font-size: 12px; line-height: 1.4; margin: 0 0 8px 18px; }
         .desc i { font-style: italic; }
 
         table.f { width: 100%; border-collapse: collapse; }
-        table.f th { background: #1a4d38; color: #fff; text-align: left; padding: 6px 8px; font-size: 11.5px; }
+        table.f th { background: #1a4d38; color: #fff; text-align: left; padding: 6px 8px; font-size: 12.5px; }
         table.f td { border: 1px solid #9aa9a2; padding: 6px 8px; vertical-align: top; }
-        table.f td.l { width: 45%; background: #f1f4f2; font-weight: bold; font-size: 11.5px; }
+        table.f td.l { width: 45%; background: #f1f4f2; font-weight: bold; font-size: 12.5px; }
         table.f td.v { height: 30px; white-space: pre-wrap; }
-        table.f td.tall { height: 52px; }
+        table.f td.tall { height: 58px; }
 
         .opts span { display: inline-block; margin-right: 18px; }
         .docs { width: 100%; border-collapse: collapse; }
-        .docs td { padding: 4px 6px; background: #f1f4f2; border-bottom: 2px solid #fff; width: 50%; }
+        .docs td { padding: 6px 8px; background: #f1f4f2; border-bottom: 3px solid #fff; width: 50%; }
         .line { display: inline-block; border-bottom: 1px solid #000; min-width: 40mm; padding: 0 4px; }
-        .decl p { margin: 6px 0 12px; }
-        .decl .row { display: flex; align-items: flex-end; gap: 6px; margin: 12px 0; white-space: nowrap; }
+        .decl p { margin: 8px 0 16px; line-height: 1.45; }
+        .decl .row { display: flex; align-items: flex-end; gap: 6px; margin: 16px 0; white-space: nowrap; }
         .decl .row .line { min-width: 0 !important; flex: 1; }
         .decl .row .line.s { flex: .6; }
 
         table.off { width: 100%; border-collapse: collapse; margin-top: 4px; }
-        table.off th { background: #1a1a1a; color: #fff; padding: 6px; font-size: 11px; font-weight: normal; }
-        table.off td { border: 1px solid #555; padding: 6px; vertical-align: top; height: 70px; font-size: 11px; }
-        .foot { margin-top: 14px; text-align: center; font-size: 10px; color: #444; }
+        table.off th { background: #1a1a1a; color: #fff; padding: 7px 6px; font-size: 12px; font-weight: normal; }
+        table.off td { border: 1px solid #555; padding: 7px 6px; vertical-align: top; height: 84px; font-size: 12px; }
+        .foot { margin-top: auto; padding-top: 14px; text-align: center; font-size: 10.5px; color: #444; }
 
         .no-print { margin: 10px 0; }
         @media print { .no-print { display: none; } }
@@ -78,6 +82,7 @@
     </div>
 
     {{-- ================= Page 1 ================= --}}
+    <div class="page">
     <div class="head">
         <img src="{{ asset('assets/logo/ministry1.jpg') }}" alt="" />
         <div class="t">
@@ -149,9 +154,10 @@
     </table>
 
     <div class="foot">KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING · COMPENSATION COMPLAINT FORM · Page 1 of 2</div>
+    </div>
 
     {{-- ================= Page 2 ================= --}}
-    <div class="page-break"></div>
+    <div class="page page-break">
 
     <h3>{!! $box($cat === SurveyComplaint::CAT_MISIDENTIFICATION) !!} Category 2: Misidentification of Farmland/Property</h3>
     <p class="desc"><strong>Description:</strong> <i>The farm owner assigned an authorized person to show/identify the farmland, and this person incorrectly identified the wrong farm/plot for compensation.</i></p>
@@ -225,6 +231,7 @@
         <strong>Date:</strong> <span class="line" style="min-width:30mm;">&nbsp;</span></p>
 
     <div class="foot">KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING · COMPENSATION COMPLAINT FORM · Page 2 of 2</div>
+    </div>
 </div>
 </body>
 </html>

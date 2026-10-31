@@ -106,8 +106,22 @@ function openActionMenu(trigger) {
   });
 }
 
-function renderRows(rows) {
-  if (!rows.length) {
+// Grouped by Moved From file number: one row per file (numbered by S/N), with its
+// moved transactions folded underneath. Collapsed by default; opened groups are
+// remembered across reloads of the table (search, sort, paging).
+const expandedGroups = new Set();
+
+function groupKey(group) {
+  return String(group.file_number ?? '');
+}
+
+function stacked(values) {
+  const list = (values || []).filter((v) => v !== null && v !== undefined && String(v).trim() !== '');
+  return list.length ? list.map((v) => `<div>${escapeHtml(v)}</div>`).join('') : '<span class="text-slate-300">—</span>';
+}
+
+function renderRows(groups) {
+  if (!groups.length) {
     dom.tbody.innerHTML = `<tr><td colspan="${COLUMN_COUNT}" class="p-8 text-center text-sm text-slate-400">
         No transactions have been moved yet.
       </td></tr>`;
@@ -116,11 +130,37 @@ function renderRows(rows) {
 
   const cell = 'px-4 py-3 whitespace-nowrap text-slate-600';
 
-  dom.tbody.innerHTML = rows.map((row, index) => `
-      <tr class="hover:bg-slate-50/60 transition-colors">
+  dom.tbody.innerHTML = groups.map((group, index) => {
+    const key = groupKey(group);
+    const open = expandedGroups.has(key);
+    const count = Number(group.tx_count) || (group.rows || []).length;
+
+    const header = `
+      <tr class="mt-group-row cursor-pointer bg-white hover:bg-slate-50/60 transition-colors" data-group="${escapeHtml(key)}" aria-expanded="${open}">
         <td class="px-4 py-3 whitespace-nowrap text-slate-400 text-xs">${state.rowOffset + index}</td>
-        <td class="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold text-slate-800">${dash(row.temp_file_no)}</td>
-        <td class="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">${dash(row.file_number)}</td>
+        <td class="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold text-slate-800">${stacked(group.temp_file_nos)}</td>
+        <td class="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">${dash(group.file_number)}</td>
+        <td class="${cell} text-xs">${stacked(group.sources)}</td>
+        <td class="px-4 py-3 whitespace-nowrap" colspan="4">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+            <i data-lucide="layers" class="h-3 w-3"></i> ${count} transaction${count === 1 ? '' : 's'}
+          </span>
+        </td>
+        <td class="${cell} text-xs">${stacked(group.moved_by)}</td>
+        <td class="${cell} text-xs">${dash(group.last_moved_at)}</td>
+        <td class="px-4 py-3 text-right">
+          <button type="button" class="mt-group-toggle inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:border-blue-200"
+                  aria-label="${open ? 'Hide' : 'Show'} transactions" data-group="${escapeHtml(key)}">
+            <i data-lucide="${open ? 'chevron-up' : 'chevron-down'}" class="h-4 w-4"></i>
+          </button>
+        </td>
+      </tr>`;
+
+    const children = (group.rows || []).map((row, childIndex) => `
+      <tr class="mt-child-row bg-slate-50/70 ${open ? '' : 'hidden'}" data-parent="${escapeHtml(key)}">
+        <td class="px-4 py-2.5 whitespace-nowrap text-slate-300 text-xs text-right">${state.rowOffset + index}.${childIndex + 1}</td>
+        <td class="px-4 py-2.5 whitespace-nowrap font-mono text-xs text-slate-500">${dash(row.temp_file_no)}</td>
+        <td class="px-4 py-2.5 whitespace-nowrap text-xs text-slate-400"><span class="pl-2 border-l-2 border-slate-200">↳</span></td>
         <td class="${cell} text-xs">${dash(row.source_label)}</td>
         <td class="px-4 py-3 text-slate-700 max-w-[14rem] truncate" title="${escapeHtml(row.transaction_type || '')}">${dash(row.transaction_type)}</td>
         <td class="px-4 py-3 text-slate-600 text-xs max-w-[16rem]">
@@ -137,9 +177,33 @@ function renderRows(rows) {
             <i data-lucide="more-vertical" class="h-4 w-4"></i>
           </button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`).join('');
 
+    return header + children;
+  }).join('');
+
+  refreshIcons();
+}
+
+function toggleGroup(key) {
+  const open = !expandedGroups.has(key);
+  if (open) {
+    expandedGroups.add(key);
+  } else {
+    expandedGroups.delete(key);
+  }
+
+  const selector = (attr) => `tr[${attr}="${CSS.escape(key)}"]`;
+  dom.tbody.querySelectorAll(selector('data-parent')).forEach((tr) => tr.classList.toggle('hidden', !open));
+  const header = dom.tbody.querySelector(`tr.mt-group-row[data-group="${CSS.escape(key)}"]`);
+  if (header) {
+    header.setAttribute('aria-expanded', String(open));
+    const button = header.querySelector('.mt-group-toggle');
+    if (button) {
+      button.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} transactions`);
+      button.innerHTML = `<i data-lucide="${open ? 'chevron-up' : 'chevron-down'}" class="h-4 w-4"></i>`;
+    }
+  }
   refreshIcons();
 }
 
@@ -170,7 +234,7 @@ function updatePagination(meta) {
   state.lastPage = meta.last_page || 1;
   dom.summary.textContent = meta.total === 0
     ? 'No records'
-    : `Showing ${meta.from}–${meta.to} of ${meta.total} moved transaction(s)`;
+    : `Showing files ${meta.from}–${meta.to} of ${meta.total} (${meta.total_transactions ?? 0} moved transaction(s))`;
   dom.page.textContent = `Page ${meta.page} of ${state.lastPage}`;
   dom.prev.disabled = meta.page <= 1;
   dom.next.disabled = meta.page >= state.lastPage;
@@ -200,6 +264,10 @@ async function loadTable() {
     }
     const payload = await response.json();
     state.rowOffset = Number(payload.meta && payload.meta.from) || 1;
+    // A search hit can be any transaction inside a file, so show them opened.
+    if (state.search.trim() !== '') {
+      (payload.data || []).forEach((group) => expandedGroups.add(groupKey(group)));
+    }
     renderRows(payload.data || []);
     updatePagination(payload.meta);
     updateSortIndicators();
@@ -333,6 +401,12 @@ function attachEventListeners() {
       }
       openActionMenu(trigger);
       actionMenu.dataset.for = trigger.getAttribute('data-id');
+      return;
+    }
+
+    const groupRow = event.target.closest('tr.mt-group-row');
+    if (groupRow) {
+      toggleGroup(groupRow.getAttribute('data-group'));
     }
   });
 

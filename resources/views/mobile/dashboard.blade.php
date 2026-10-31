@@ -938,7 +938,7 @@ const LOC_STATUS_META = {
   PENDING_FILE:               { label:'Pending (Not Indexed)',      color:'#6b7185', icon:'fa-circle-question' },
   BLIND_REQUEST_SENT:         { label:'Blind Request Sent',         color:'#dc2626', icon:'fa-paper-plane' },
   FILE_NOT_FOUND:             { label:'File Not Found',             color:'#ef4444', icon:'fa-triangle-exclamation' },
-  MISSING_FILE:               { label:'Missing File',               color:'#ef4444', icon:'fa-triangle-exclamation' },
+  MISSING_FILE:               { label:'Not With KLAES (NWK)',       color:'#ef4444', icon:'fa-triangle-exclamation' },
   REFER_TO_ORIGINAL_REGISTRY: { label:'Refer to Original Registry', color:'#6b7185', icon:'fa-share-from-square' },
 };
 
@@ -2889,7 +2889,7 @@ async function sendFrFromSearch(btn) {
     if (res.success) {
       const isMissing = d.is_missing_file;
       const msg = isMissing
-        ? `Request ${res.data?.request_no || ''} saved — file is in the missing list`
+        ? `Request ${res.data?.request_no || ''} saved — file is on the Not With KLAES (NWK) list`
         : `${d.is_blind ? 'Blind ' : ''}Request ${res.data?.request_no || ''} sent to SCB`;
       toast(msg);
       btn.outerHTML = `<div style="margin-top:12px;text-align:center;font-size:12px;font-weight:700;color:#10b981;"><i class="fas fa-check-circle"></i> Request ${esc(res.data?.request_no || '')} ${isMissing ? `saved (Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'})` : 'sent to SCB Monitor'}</div>`;
@@ -3242,7 +3242,7 @@ function renderFsrLog() {
       // For a Not Found outcome, spell out the kind (Missing / Pending) on the badge.
       const nft = (fr.status === 'NOT_FOUND' && fr.not_found_type)
         ? String(fr.not_found_type).toUpperCase() : '';
-      const badgeLabel = nft ? `${meta.label} · ${nft === 'MISSING' ? 'Missing' : 'Pending'}` : meta.label;
+      const badgeLabel = nft ? `${meta.label} · ${nft === 'MISSING' ? 'NWK' : 'Pending'}` : meta.label;
       return `
       <div class="result-card" style="margin-bottom:12px;">
         <div style="padding:14px 16px;">
@@ -3492,8 +3492,8 @@ function pickNotFoundType() {
       <div style="background:var(--card,#1b1b22);width:100%;max-width:480px;border-radius:18px 18px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,0.4);">
         <div style="width:42px;height:4px;border-radius:4px;background:var(--faint,#555);opacity:.5;margin:0 auto 16px;"></div>
         <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;"><i class="fas fa-triangle-exclamation" style="color:#ef4444;margin-right:6px;"></i> Not Found — which type?</div>
-        <div style="font-size:12px;color:var(--faint);margin-bottom:16px;">Tell the requester whether the file is missing or the search is still pending.</div>
-        <button class="btn" data-pick="missing" style="width:100%;padding:14px;font-size:14px;box-shadow:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;margin-bottom:10px;text-align:left;"><i class="fas fa-ban" style="margin-right:8px;"></i> Missing<span style="display:block;font-size:11px;font-weight:500;opacity:.9;margin-top:2px;">File not given to us</span></button>
+        <div style="font-size:12px;color:var(--faint);margin-bottom:16px;">Tell the requester whether the file is Not With KLAES (NWK) or the search is still pending.</div>
+        <button class="btn" data-pick="missing" style="width:100%;padding:14px;font-size:14px;box-shadow:none;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;margin-bottom:10px;text-align:left;"><i class="fas fa-ban" style="margin-right:8px;"></i> Not With KLAES (NWK)<span style="display:block;font-size:11px;font-weight:500;opacity:.9;margin-top:2px;">File not given to us</span></button>
         <button class="btn" data-pick="pending" style="width:100%;padding:14px;font-size:14px;box-shadow:none;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;margin-bottom:14px;text-align:left;"><i class="fas fa-hourglass-half" style="margin-right:8px;"></i> Pending<span style="display:block;font-size:11px;font-weight:500;opacity:.9;margin-top:2px;"></span></button>
         <button class="btn ghost-btn" data-pick="" style="width:100%;padding:12px;font-size:13px;box-shadow:none;">Cancel</button>
       </div>`;
@@ -3558,8 +3558,8 @@ async function respondFr(id, result, btn, isBlindRequest = false) {
       if (result === 'found') {
         toast(foundType === 'indexing' ? 'Marked as Found for Indexing ✅' : 'Marked as Found (Indexed) ✅');
       }
-      else if (notFoundType) toast(`Marked as Not Found — ${notFoundType === 'missing' ? 'Missing' : 'Pending'}`, 'error');
-      else if (sc === 'print_missing_slip') toast('Not found — print Missing File slip', 'error');
+      else if (notFoundType) toast(`Marked as Not Found — ${notFoundType === 'missing' ? 'NWK' : 'Pending'}`, 'error');
+      else if (sc === 'print_missing_slip') toast('Not found — print NWK slip', 'error');
       else if (sc === 'do_second_physical_search') toast('Not found — file is scanned; do a 2nd physical search', 'error');
       else toast('Feedback recorded');
       // Responded → the request leaves Open; refresh the Open count and move the
@@ -3600,7 +3600,7 @@ async function respondFrFromSearch(id, result, btn, isBlindRequest = false) {
     if (res && res.success) {
       openFileRequests = null;  // invalidate cache; this FR is no longer open
       const found = result === 'found';
-      const nftLabel = notFoundType ? ` — ${notFoundType === 'missing' ? 'Missing' : 'Pending'}` : '';
+      const nftLabel = notFoundType ? ` — ${notFoundType === 'missing' ? 'NWK' : 'Pending'}` : '';
       const foundLabel = foundType === 'indexing' ? 'Found for Indexing' : 'Found (Indexed)';
       toast(found ? `Marked as ${foundLabel} ✅` : 'Marked as Not Found' + nftLabel);
       if (wrap) {

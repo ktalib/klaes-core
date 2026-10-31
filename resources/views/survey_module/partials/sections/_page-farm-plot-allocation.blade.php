@@ -25,16 +25,16 @@
 
 <div class="comp-type-note" style="margin-bottom:16px;">
     <i class="fas fa-map-marked-alt"></i>
-    Plot allocation applies to <strong>Plot for Plot</strong> cases only — only those cases are listed below,
-    and the server refuses rows filed against a Cash for Trees case. One row is one plot; the
+    Plot allocation applies to <strong>Land to Land</strong> cases only — only those cases are listed below,
+    and the server refuses rows filed against a Monetary Compensation case. One row is one plot; the
     <strong>50:50 split is taken from the row count</strong>, the same source
     <code>SurveyCompCase::plotSplit()</code> uses.
 </div>
 
 <form method="GET" class="table-toolbar">
     <div class="left">
-        <select name="case" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;min-width:260px;">
-            <option value="">All Plot for Plot cases</option>
+        <select name="case" class="sv-searchable" data-width="300px" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;min-width:260px;">
+            <option value="">All Land to Land cases</option>
             @foreach ($landCases as $c)
                 <option value="{{ $c->id }}" @selected($caseId === $c->id)>
                     {{ $c->case_ref }} — {{ $c->plots_count }} plot row(s)
@@ -43,8 +43,9 @@
         </select>
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Search farmer, F. No., plot or OP…"
                style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
+        @include('survey_module.partials._origin_filter')
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if (request()->hasAny(['case','q']))
+        @if (request()->hasAny(['case','q','origin']))
             <a class="btn btn-outline btn-sm" href="{{ route('survey-module.tools.plot-allocation') }}">Clear</a>
         @endif
     </div>
@@ -132,6 +133,10 @@
     </div>
 </form>
 
+@include('survey_module.partials._table_ui')
+
+@include('survey_module.partials._searchable_selects')
+
 {{-- Wide register: horizontal scroll with a sticky Action column. --}}
 <div class="farm-table-wrapper">
     <div class="scroll-indicator">
@@ -154,6 +159,8 @@
                     <th class="col-opno">OP No.</th>
                     <th class="col-sign">Sign</th>
                     <th class="col-remarks">Remarks</th>
+                    <th style="min-width:110px;">Created By</th>
+                    <th style="min-width:95px;">Date Created</th>
                     <th class="col-action">Action</th>
                 </tr>
             </thead>
@@ -192,6 +199,7 @@
                             <input type="text" class="form-control form-control-sm" name="remarks"
                                    form="paRow{{ $row->id }}" value="{{ $row->remarks }}" />
                         </td>
+                        @include('survey_module.partials._created_cells', ['row' => $row])
                         <td class="col-action">
                             <div style="display:flex;gap:4px;justify-content:center;">
                                 {{-- The four editable cells above post through this form via their form= attribute. --}}
@@ -215,7 +223,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="13" style="text-align:center;padding:24px;color:var(--gray-500);">
+                        <td colspan="15" style="text-align:center;padding:24px;color:var(--gray-500);">
                             <i class="fas fa-info-circle"></i>
                             No plot rows {{ $case ? 'on ' . $case->case_ref : 'in the register' }} yet.
                             <a href="#" onclick="togglePlotFarmerForm();return false;">Add a farmer</a> to start.

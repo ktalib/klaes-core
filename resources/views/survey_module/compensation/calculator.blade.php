@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Compensation Calculator';
-  $PageDescription = 'Pick a project to see what each beneficiary is owed: Cash for Trees (count × rate) or Plot for Plot (50:50). A project is one or the other, never both.';
+  $PageDescription = 'Pick a project to see what each beneficiary is owed: Monetary Compensation (count × rate) or Land to Land (50:50). A project is one or the other, never both.';
 @endphp
 
 @section('survey-content')

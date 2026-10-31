@@ -16,8 +16,8 @@ use Illuminate\Support\Collection;
  * Survey -> GIS/KANGIS -> Commissioner -> Deeds -> Land/OSS.
  *
  * An OP belongs to one case and (usually) one beneficiary. What it references
- * is decided by the case's scheme and is always recomputed here: a Plot for Plot
- * OP carries the plot schedule, a Cash for Trees OP carries the cash figure. The two
+ * is decided by the case's scheme and is always recomputed here: a Land to Land
+ * OP carries the plot schedule, a Monetary Compensation OP carries the cash figure. The two
  * are never mixed and never read from the request.
  */
 class OpController extends Controller
@@ -107,6 +107,11 @@ class OpController extends Controller
             }
             if (!in_array($case->status, self::READY_CASE_STATUSES, true)) {
                 $skipped[] = "$label ({$case->case_ref} is {$case->status})";
+                continue;
+            }
+            // Existing records (imported or captured from paper) already hold their OPs; none is generated here (CR 30102026 item 32).
+            if ($case->isExistingRecord()) {
+                $skipped[] = "$label ({$case->case_ref} is an existing record)";
                 continue;
             }
             if ($this->existingOp($case->id, $beneficiary?->id)) {
@@ -251,8 +256,8 @@ class OpController extends Controller
     }
 
     /**
-     * What the permit points at. Cash for Trees carries cash and no plot schedule;
-     * Plot for Plot carries the plot schedule and no cash. Returning a null ref
+     * What the permit points at. Monetary Compensation carries cash and no plot schedule;
+     * Land to Land carries the plot schedule and no cash. Returning a null ref
      * means there is nothing to print yet, which keeps the OP in Draft.
      *
      * @return array{ref: ?string, cash: ?float}
@@ -343,7 +348,7 @@ class OpController extends Controller
         $rows = collect();
 
         $beneficiaries = SurveyBeneficiary::with('case')
-            ->whereHas('case', fn ($c) => $c->whereIn('status', self::READY_CASE_STATUSES))
+            ->whereHas('case', fn ($c) => $c->whereIn('status', self::READY_CASE_STATUSES)->newInKlaes())
             ->whereNotIn('id', SurveyOpRecord::whereNotNull('survey_beneficiary_id')->select('survey_beneficiary_id'))
             ->orderByDesc('id')
             ->limit(self::CANDIDATE_LIMIT)
@@ -361,6 +366,7 @@ class OpController extends Controller
 
         // Cases registered without a named beneficiary still need a permit.
         $cases = SurveyCompCase::whereIn('status', self::READY_CASE_STATUSES)
+            ->newInKlaes()   // existing records (imported or captured from paper) are never offered (CR 30102026 item 32)
             ->whereDoesntHave('beneficiaries')
             ->whereDoesntHave('opRecords')
             ->orderByDesc('id')

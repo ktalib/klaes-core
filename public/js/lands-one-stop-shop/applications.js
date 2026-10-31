@@ -1234,6 +1234,10 @@ var _ossOpdFromRecord = false;
 // Primary key of the PRA row the OP section was backfilled from (0 = none).
 var _ossOpdRecordId = 0;
 
+// True when a Transfer of Title hangs off the OP: its Grantee is the original
+// allottee, so the box stays read-only even after "Edit" (the new owner goes on the ToT).
+var _ossOpdGranteeFixed = false;
+
 // Show or hide the whole Occupancy Permit Details section (header + body).
 function _ossSetOpdVisible(show) {
     var section = document.getElementById('oss_opd_section');
@@ -1268,9 +1272,13 @@ function _ossSetOpdLocked(locked) {
     _OSS_OPD_EDITABLE.forEach(function (elId) {
         var el = document.getElementById(elId);
         if (!el) return;
-        el.disabled = !!locked;
-        el.classList.toggle('bg-slate-100', !!locked);
-        el.classList.toggle('text-slate-500', !!locked);
+        var off = !!locked || (elId === 'oss_opd_grantee' && _ossOpdGranteeFixed);
+        el.disabled = off;
+        el.classList.toggle('bg-slate-100', off);
+        el.classList.toggle('text-slate-500', off);
+        if (elId === 'oss_opd_grantee') {
+            el.title = _ossOpdGranteeFixed ? 'Original allottee: this OP has a Transfer of Title, so the new owner belongs on the ToT.' : '';
+        }
     });
     var btnText = document.getElementById('oss_opd_edit_btn_text');
     if (btnText) btnText.textContent = locked ? 'Edit' : 'Lock';
@@ -1371,6 +1379,7 @@ function _ossApplyOccupancyPermitFromPra(d) {
 
     // The PRA row this section will write back to on save.
     _ossOpdRecordId = opRecordId;
+    _ossOpdGranteeFixed = !!d.op_grantee_fixed;
 
     // Common backfill from the OP transaction.
     _ossSetOpdFileNumber((d.file_number || '').toString().trim());
@@ -1399,6 +1408,7 @@ function _ossApplyOccupancyPermitFromPra(d) {
 function _ossResetOccupancyPermit() {
     _ossOpdFromRecord = false;
     _ossOpdRecordId = 0;
+    _ossOpdGranteeFixed = false;
 
     _ossSetOpdVisible(false);
     _ossSetSaveDisabled(false);

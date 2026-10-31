@@ -319,6 +319,8 @@ class SecretariatFileLogController extends Controller
             'receiving_officer_other' => 'nullable|string|max:255',
             'request_purpose_id'      => 'nullable|integer|exists:sqlsrv.request_purposes,id',
             'request_purpose_other'   => 'nullable|string|max:255',
+            // Timeline (Days), as on Log a File: sets the Expected Return Date.
+            'timeline_days'           => 'nullable|integer|min:0|max:365',
             'from_office_other'       => 'nullable|string|max:255',
             'file_title'   => 'nullable|string|max:255',
             'from_office'  => 'nullable|string|max:50',
@@ -349,11 +351,13 @@ class SecretariatFileLogController extends Controller
                 // the one at the office it goes to. Both steps commit together or not at all.
                 $user = $request->user();
                 $result = \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($office, $data, $user, $sendTo) {
-                    $receipt = array_merge($data, ['receiving_officer_id' => $user->id, 'receiving_officer_other' => null]);
+                    // The timeline runs from the send, so it is stamped once, on the forward.
+                    $receipt = array_merge($data, ['receiving_officer_id' => $user->id, 'receiving_officer_other' => null, 'timeline_days' => null]);
                     $result = $this->log->receive($office, $receipt, $user);
                     $tracker = $this->log->forward($office, (int) $result['tracker']->id, $sendTo,
                         $data['request_purpose_id'] ?? null, $data['receiving_officer_id'] ?? null, null, $user,
-                        $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null);
+                        $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null,
+                        isset($data['timeline_days']) ? (int) $data['timeline_days'] : null);
 
                     return ['tracker' => $tracker, 'action' => 'sent'];
                 });

@@ -3625,8 +3625,11 @@ class OpResettlementApplicationController extends Controller
             if ($wasSubmitted('lga') && Schema::connection('sqlsrv')->hasColumn($fileNumberTable, 'lga')) {
                 $fileUpdates['lga'] = $validated['lga'] ?: null;
             }
-            // Ensure dedicated source is always stamped
-            $fileUpdates['SOURCE'] = 'OSS_CHANGE_OF_NAME';
+            // Stamp the source only on a file that has none. It records where the file
+            // came from (e.g. indexing); overwriting it relabelled indexed files.
+            if (!$base->id || trim((string) DB::connection('sqlsrv')->table($fileNumberTable)->where('id', $base->id)->value('SOURCE')) === '') {
+                $fileUpdates['SOURCE'] = 'OSS_CHANGE_OF_NAME';
+            }
             if ($base->id) {
                 DB::connection('sqlsrv')->table($fileNumberTable)->where('id', $base->id)->update($nonBlankUpdates($fileUpdates));
             }
@@ -3683,7 +3686,10 @@ class OpResettlementApplicationController extends Controller
                 if (Schema::connection('sqlsrv')->hasColumn($captureTable, 'party_1_name')) {
                     $captureUpdates['party_1_name'] = $icParty1Name;
                 }
-                if (Schema::connection('sqlsrv')->hasColumn($captureTable, 'party_2_name')) {
+                // file_name is the CURRENT holder; once a Transfer of Title hangs off this
+                // OP, party 2 is the original allottee and must be left as stored.
+                if (Schema::connection('sqlsrv')->hasColumn($captureTable, 'party_2_name')
+                    && empty(\App\Support\OpAllottee::transferParty1Names('instrument_capture', (int) $captureId))) {
                     $captureUpdates['party_2_name'] = $icParty2Name;
                 }
                 if ($wasSubmitted('plot_number') && Schema::connection('sqlsrv')->hasColumn($captureTable, 'plot_number')) {
@@ -3928,17 +3934,22 @@ class OpResettlementApplicationController extends Controller
                         $praUpdates['party_2'] = $party2Name;
                     }
                 } else {
-                    // OP row: Grantor is always Kano State Government
+                    // OP row: Grantor is always Kano State Government. $opGrantee is
+                    // file_name, the CURRENT holder; once a Transfer of Title hangs off
+                    // the OP, its Grantee is the original allottee and stays as stored.
+                    $opGranteeFixed = !empty(\App\Support\OpAllottee::transferParty1Names(
+                        'pra', $targetPraRow ? (int) $targetPraRow->id : null, $praPropId
+                    ));
                     if (Schema::connection('sqlsrv')->hasColumn($praTable, 'Grantor')) {
                         $praUpdates['Grantor'] = $opGrantor;
                     }
-                    if (Schema::connection('sqlsrv')->hasColumn($praTable, 'Grantee')) {
+                    if (!$opGranteeFixed && Schema::connection('sqlsrv')->hasColumn($praTable, 'Grantee')) {
                         $praUpdates['Grantee'] = $opGrantee;
                     }
                     if (Schema::connection('sqlsrv')->hasColumn($praTable, 'party_1')) {
                         $praUpdates['party_1'] = $opGrantor;
                     }
-                    if (Schema::connection('sqlsrv')->hasColumn($praTable, 'party_2')) {
+                    if (!$opGranteeFixed && Schema::connection('sqlsrv')->hasColumn($praTable, 'party_2')) {
                         $praUpdates['party_2'] = $opGrantee;
                     }
                 }

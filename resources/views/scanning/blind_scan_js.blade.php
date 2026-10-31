@@ -6,6 +6,7 @@
   const API_SYNC_MIGRATIONS = "{{ route('blind-scanning.sync-migrations') }}";
   const API_SAVE_IMAGE = "{{ route('blind-scanning.save-image') }}";
   const API_DELETE_FILE = "{{ route('blind-scanning.delete-file') }}";
+  const API_DELETE_FOLDER = "{{ route('blind-scanning.delete-folder') }}";
   const CSRF_TOKEN = "{{ csrf_token() }}";
   const MIGRATION_SYNC_INTERVAL_MS = 5 * 60 * 1000; // Auto-sync every 5 minutes
 
@@ -1139,6 +1140,36 @@
         setProgress(Math.min(99, Math.round(bytesDone / totalBytes * 100)));
       }
 
+      // A file PHP received incomplete (a network blip mid-upload) comes back as failed while the rest of its
+      // batch saved (2026-10-30). Send just those once more, as a non-final batch so the migration is not logged twice.
+      if (totals.failed.length && !cancelRequested) {
+        const norm = p => String(p || '').replace(/\\/g, '/').split('/').filter(s => s && s !== '.' && s !== '..').join('/');
+        const failedPaths = new Set(totals.failed.map(norm));
+        const again = files.filter(f => failedPaths.has(norm(computeRelativeUploadPath(f, folderName))));
+        if (again.length) {
+          setProgressDetail(`Re-sending ${again.length} file(s) the server did not receive whole...`);
+          const form = new FormData();
+          form.append('_token', CSRF_TOKEN);
+          form.append('folderName', folderName);
+          form.append('registry', registry);
+          form.append('uploadMethod', 'direct');
+          form.append('batch_index', '0');
+          form.append('batch_total', '2');
+          again.forEach(file => { form.append('files[]', file); form.append('paths[]', computeRelativeUploadPath(file, folderName)); });
+          try {
+            const retry = await sendBatch(form, () => {});
+            if (retry && retry.ok) {
+              const d = retry.data || {};
+              totals.saved += d.saved || 0;
+              totals.skipped += d.skipped || 0;
+              totals.registered += d.registered || 0;
+              totals.renamed.push(...(d.renamed || []));
+              totals.failed = (d.failed || []).slice();
+            }
+          } catch (e) { /* keep the original failed list */ }
+        }
+      }
+
       const summary = `${totals.saved} new file(s) saved${totals.skipped ? `, ${totals.skipped} already on the server (skipped)` : ''}${totals.renamed.length ? `, ${totals.renamed.length} renamed to avoid overwriting` : ''}${totals.failed.length ? `, <span class="text-red-600">${totals.failed.length} could not be saved</span>` : ''}.`;
 
       if (cancelRequested && completedBatches < batches.length) {
@@ -1148,7 +1179,10 @@
         setProgress(100);
         setProgressDetail(`${files.length} file(s) in ${formatDuration((Date.now() - started) / 1000)}`);
         doneProgress();
-        statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Upload complete.</span> ${summary} Saved to <code>${escapeHtml(serverPath)}</code>.`;
+        statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Upload complete.</span> ${summary} Saved to <code>${escapeHtml(serverPath)}</code>.`
+          + (totals.failed.length
+            ? `<div class="text-red-600 mt-1">Not saved (send these again): ${totals.failed.map(escapeHtml).join(', ')}. Select the folder again and click Migrate: files already on the server are skipped.</div>`
+            : '');
         folderEl.value = '';
         selectedFiles = [];
         skippedLocal = [];
@@ -1414,6 +1448,8 @@
       tbody.appendChild(trUp);
     }
 
+    // Admins delete whole file folders, one level inside a registry (Survey_Registry_Raw/CO-1-2022), 2026-10-30.
+    const canDeleteFolder = !!data.isAdmin && /^[^/]+_Raw$/i.test(currentSrvPath || '');
     const items = data.items || [];
     // If no items and at root, DataTables will show its own empty message.
     // However, if we're in a sub-path, we always have the 'Go Back' row.
@@ -1427,9 +1463,10 @@
             <td class="p-3">${item.files ? item.files + ' file(s)' : '-'}</td>
             <td class="p-3">${fmtDate(item.mtime)}</td>
             <td class="p-3">${escapeHtml(item.uploaded_by || '-')}</td>
-            <td class="p-3"></td>
+            <td class="p-3">${canDeleteFolder ? `<button class="btn srv-del-folder text-xs text-red-600 border-red-200 hover:bg-red-50" title="Delete this folder (admin)"><i class="fa-regular fa-trash-can mr-1"></i>Delete</button>` : ''}</td>
           `);
           tr.querySelector('.srv-nav').addEventListener('click', () => fetchServerList((currentSrvPath ? currentSrvPath + '/' : '') + item.name));
+          tr.querySelector('.srv-del-folder')?.addEventListener('click', () => deleteServerFolder(currentSrvPath + '/' + item.name, item.name, item.files));
           tbody.appendChild(tr);
         } else {
           const href = item.href || '#';
@@ -1474,6 +1511,25 @@
     });
 
     clearPreview();
+  }
+
+  async function deleteServerFolder(folderPath, name, files) {
+    const msg = `Delete the folder "${name}"${files ? ` (${files} file(s))` : ''} from Blind Scanning?\n\nIt is moved to the deleted-files area and its records are removed, so it can be uploaded again.`;
+    if (!confirm(msg)) return;
+    try {
+      const res = await fetch(API_DELETE_FOLDER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+        body: JSON.stringify({ folder: folderPath }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) { alert(data.error || 'The folder could not be deleted.'); return; }
+      alert(`${data.folder} deleted (${data.files} file(s)).`);
+      await Promise.all([fetchServerList(currentSrvPath).catch(() => {}), fetchLogs().catch(() => {})]);
+      if (typeof loadAggregates === 'function') loadAggregates();
+    } catch (e) {
+      alert('The folder could not be deleted: ' + e.message);
+    }
   }
 
   // Upload history: one row per file folder, newest first, with how far its

@@ -47,13 +47,14 @@
         block.dataset.uid = String(++uidSeq);
         block.dataset.sighted = '';
         block.innerHTML = ''
+            + '<div class="rf-title hidden mb-1 text-xs text-gray-700"><span class="font-semibold text-gray-500">File Title:</span> <span class="rf-title-text font-semibold text-gray-900"></span></div>'
             + '<div class="flex flex-wrap items-center gap-x-3 gap-y-1">'
             + '  <span class="font-medium text-gray-700">Related File (Physical File is Sighted) <span class="text-red-600">*</span></span>'
             + '  <div class="inline-flex rounded-md shadow-sm" role="radiogroup" aria-label="Related File (Physical File is Sighted)">'
             + '    <button type="button" role="radio" aria-checked="false" data-value="1" class="rf-choice px-3 py-1 text-xs font-semibold border border-gray-300 bg-white text-gray-700 rounded-l-md">Yes</button>'
             + '    <button type="button" role="radio" aria-checked="false" data-value="0" class="rf-choice px-3 py-1 text-xs font-semibold border border-l-0 border-gray-300 bg-white text-gray-700 rounded-r-md">No</button>'
             + '  </div>'
-            + '  <span class="rf-npf-badge hidden inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700" title="No Physical File">NPF</span>'
+            + '  <span class="rf-npf-badge hidden inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700" title="No Physical File">NPF – Physical File Not in the File</span>'
             + '</div>'
             + '<div class="rf-cover hidden mt-2 flex flex-wrap items-center gap-2">'
             + '  <label class="inline-flex items-center gap-2 text-xs text-gray-700">'
@@ -78,7 +79,7 @@
             btn.classList.toggle('bg-red-600', on && btn.dataset.value === '0');
             btn.classList.toggle('text-white', on);
         });
-        block.querySelector('.rf-npf-badge').classList.toggle('hidden', sighted !== false);
+        updateCategory(block);
 
         const cover = block.querySelector('.rf-cover');
         const cb = block.querySelector('.rf-cover-cb');
@@ -95,40 +96,48 @@
         if (sighted !== null) block.querySelector('.rf-error').classList.add('hidden');
     }
 
-    // An indexed related file was physically handled, so it is never NPF (user,
-    // 2026-10-29): its answer is Yes and locked. The server enforces the same.
+    // No has two categories (user, 2026-10-29, recording 289), labelled by whether the
+    // related file has its own indexing record: "Physical File Not in the File" (NPF) or
+    // "Physical File Indexed". The officer's answer is never changed; Quick Search
+    // shows the file's own location for both.
     const indexedCache = {};   // key -> Promise<boolean>
     const INDEXED_URL = '/fileindexing/api/related-file-indexed';
 
-    function setLocked(block, locked) {
-        block.dataset.locked = locked ? '1' : '';
-        block.querySelectorAll('.rf-choice').forEach(btn => {
-            btn.disabled = locked;
-            btn.classList.toggle('cursor-not-allowed', locked);
-            btn.classList.toggle('opacity-75', locked);
-        });
-        let note = block.querySelector('.rf-indexed-note');
-        if (locked && !note) {
-            note = document.createElement('span');
-            note.className = 'rf-indexed-note text-xs font-medium text-green-700';
-            note.textContent = 'Indexed file: physical file seen';
-            block.querySelector('[role="radiogroup"]').insertAdjacentElement('afterend', note);
-        }
-        note?.classList.toggle('hidden', !locked);
+    function updateCategory(block) {
+        const badge = block.querySelector('.rf-npf-badge');
+        const no = block.dataset.sighted === '0';
+        const indexed = block.dataset.indexed === '1';
+        badge.classList.toggle('hidden', !no);
+        badge.textContent = indexed ? 'Physical File Indexed' : 'NPF – Physical File Not in the File';
+        badge.title = indexed
+            ? 'Not in this file, but indexed on its own: Quick Search shows where it is'
+            : 'No Physical File: not in this file and not indexed';
+        badge.classList.toggle('bg-red-100', !indexed);
+        badge.classList.toggle('text-red-700', !indexed);
+        badge.classList.toggle('bg-blue-100', indexed);
+        badge.classList.toggle('text-blue-700', indexed);
+    }
+
+    function showTitle(block, title) {
+        const line = block.querySelector('.rf-title');
+        line.querySelector('.rf-title-text').textContent = title || '';
+        line.classList.toggle('hidden', !title);
     }
 
     function checkIndexed(block, k, fileNumber) {
+        block.dataset.indexed = '';
+        showTitle(block, '');
         if (!indexedCache[k]) {
             indexedCache[k] = fetch(`${INDEXED_URL}?file_number=${encodeURIComponent(fileNumber)}`, { headers: { Accept: 'application/json' } })
                 .then(r => r.ok ? r.json() : null)
-                .then(d => !!(d && d.success && d.indexed))
-                .catch(() => { delete indexedCache[k]; return false; });
+                .then(d => ({ indexed: !!(d && d.success && d.indexed), title: (d && d.success && d.file_title) || '' }))
+                .catch(() => { delete indexedCache[k]; return { indexed: false, title: '' }; });
         }
-        indexedCache[k].then(indexed => {
-            if (!indexed || block.dataset.for !== k) return; // changed while we were asking
-            setAnswer(block, true, undefined);
-            setLocked(block, true);
-            write();
+        indexedCache[k].then(info => {
+            if (block.dataset.for !== k) return; // changed while we were asking
+            block.dataset.indexed = info.indexed ? '1' : '';
+            showTitle(block, info.title);
+            updateCategory(block);
         });
     }
 
@@ -163,7 +172,6 @@
             if (block.dataset.for !== k) {
                 // Another file picked in this row: the old answer does not carry over.
                 block.dataset.for = k;
-                setLocked(block, false);
                 const saved = stored[k];
                 setAnswer(block, saved ? saved.sighted : null, saved ? saved.cover_missing : null);
                 if (k) checkIndexed(block, k, input.value.trim());

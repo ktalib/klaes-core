@@ -538,11 +538,22 @@
                   <option value="SLTR Registry">SLTR Registry</option>
                   <option value="ST Registry">ST Registry</option>
                   <option value="Deeds Registry">Deeds Registry</option>
+                  <option value="Survey Registry">Survey Registry</option>
                 </select>
                 <p class="text-xs text-gray-500 mt-1">Select the registry to proceed.</p>
               </div>
 
-              <div class="border border-gray-200 rounded-lg p-4 bg-blue-50/50 mb-4">
+              {{-- Survey Registry (user, 2026-10-30): the global file number selector, Survey tabs (GKN / CO).
+                   CO files are not in File Indexing; the first upload indexes the file. --}}
+              <div id="survey-file-picker" class="hidden border border-indigo-200 rounded-lg p-4 bg-indigo-50/50 mb-4">
+                <label class="block text-sm font-semibold text-indigo-900 mb-2">Survey file number (GKN / CO)</label>
+                <button type="button" id="survey-file-picker-btn" class="w-full inline-flex items-center justify-center gap-2 rounded-md border border-indigo-300 bg-white px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50">
+                  <i data-lucide="search" class="h-4 w-4"></i> Select Survey file number
+                </button>
+                <p class="text-xs text-gray-500 mt-1">Opens the file number selector on its Survey tabs. A CO file not yet in File Indexing is indexed for EDMS when picked.</p>
+              </div>
+
+              <div class="border border-gray-200 rounded-lg p-4 bg-blue-50/50 mb-4" id="smart-fileno-selector-box">
                 <label for="global-selected-fileno-select" class="block text-sm font-semibold text-blue-900 mb-2">Search via smart file number Selector</label>
                 <select id="global-selected-fileno-select" class="input w-full text-sm bg-blue-50 border-blue-200 text-blue-900 font-mono font-bold" disabled>
                   <option value="">Select registry first...</option>

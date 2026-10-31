@@ -151,16 +151,14 @@
             <div class="flex flex-col sm:flex-row gap-2">
                 <input type="text" :id="'location-' + index" name="location[]" x-model="param.location"
                     x-effect="
-                        let plot = (param.plot_number || '').trim();
                         let street = ((String(param.street_name || '').toLowerCase() === 'other') ? (param.custom_street_name || '') : (param.street_name || '')).trim();
                         if (['', 'SELECT STREET NAME'].includes(street.toUpperCase())) street = '';
                         let district = ((String(param.district || '').toLowerCase() === 'other') ? (param.custom_district || '') : (param.district || '')).trim();
                         if (['', 'SELECT DISTRICT'].includes(district.toUpperCase())) district = '';
                         let lga = (param.lga && !['', 'Select LGA'].includes(param.lga)) ? param.lga.trim() : '';
 
-                        if (plot || street || district || lga) {
+                        if (street || district || lga) {
                             let parts = [];
-                            if (plot) parts.push(plot);
                             if (street) parts.push(street);
                             if (district) parts.push(district);
                             if (lga) parts.push(lga);
@@ -170,7 +168,7 @@
                             param.location = '';
                         }
                     "
-                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50" readonly placeholder="Auto-generated as PLOT, STREET, DISTRICT, LGA, KANO STATE" style="cursor: default; text-transform: uppercase;">
+                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50" readonly placeholder="Auto-generated as STREET, DISTRICT, LGA, KANO STATE" style="cursor: default; text-transform: uppercase;">
 
                 <!-- Apply / Pin on Map -->
                 <button type="button"

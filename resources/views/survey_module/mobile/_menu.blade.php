@@ -1,9 +1,20 @@
 {{-- Account menu, opened by the user button in the app bar (ui.menu()). --}}
 <div class="menu" id="menu">
     <div class="who"><b>{{ auth()->user()->name }}</b><small>{{ auth()->user()->email }}</small></div>
-    <a href="{{ route('survey-module.mobile.index') }}"><i class="fas fa-house"></i> Dashboard</a>
-    <a href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> Register new case</a>
-    <a href="{{ route('survey-module.mobile.observations') }}"><i class="fas fa-compass-drafting"></i> Field observations</a>
+    {{-- Each field app shows only its own pages (App\Support\SurveyMobileApps). --}}
+    @switch(\App\Support\SurveyMobileApps::current())
+        @case('cfo')
+            <a href="{{ route('survey-module.mobile.observations') }}"><i class="fas fa-compass-drafting"></i> Survey jobs</a>
+            @break
+        @case('plot')
+            <a href="{{ route('survey-module.mobile.plots.index') }}"><i class="fas fa-house"></i> Home</a>
+            <a href="{{ route('survey-module.mobile.plots.ops') }}"><i class="fas fa-people-arrows"></i> Show OP plot</a>
+            <a href="{{ route('survey-module.mobile.plots.checks.create') }}"><i class="fas fa-map-location-dot"></i> Ground check</a>
+            @break
+        @default
+            <a href="{{ route('survey-module.mobile.index') }}"><i class="fas fa-house"></i> Dashboard</a>
+            <a href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> Register new case</a>
+    @endswitch
     <!-- <a href="{{ route('survey-module.compensation.cases') }}"><i class="fas fa-desktop"></i> Open desktop module</a> -->
     {{-- Signing out also clears the pages kept on the phone for offline use (they hold case details). --}}
     <form method="POST" action="{{ route('survey-module.mobile.logout') }}"

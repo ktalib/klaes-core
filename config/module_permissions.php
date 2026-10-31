@@ -240,6 +240,26 @@ return [
     ],
 
     /*
+    | ROUTE NAME PATTERN => FURTHER MODULES that also satisfy it.
+    |
+    | A route keeps the one module 'modules' gives it (and the grants, denial log and audits
+    | that go with it); a user holding one of these instead passes as well. Used where a
+    | page area gets its own role without taking it from the holders of the broader one:
+    | Survey - Records keeps every Survey page, and the Compensation and Public Survey roles
+    | (user, 2026-10-30) open just their own pages.
+    */
+    'alternatives' => [
+        'survey-module.compensation.*'           => ['Survey - Compensation'],
+        'survey-module.tools.plot-allocation*'   => ['Survey - Compensation'],
+        'survey-module.records.lpkn*'            => ['Survey - Public Survey'],
+        'survey-module.records.private-layouts*' => ['Survey - Public Survey'],
+        'survey-module.records.layout-records*'  => ['Survey - Public Survey'],
+        'survey-module.records.tp-numbers*'      => ['Survey - Public Survey'],
+        // Street / district lookups behind the address builder on both areas' forms.
+        'survey-module.lookup.*'                 => ['Survey - Compensation', 'Survey - Public Survey'],
+    ],
+
+    /*
     | ROUTE NAME => ACTION, where the name-and-verb inference below gets it wrong.
     |
     | The classic case is a destructive POST whose name says nothing (805 POST routes against

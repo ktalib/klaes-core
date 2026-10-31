@@ -151,7 +151,10 @@ class SurveyorReportController extends Controller
     /** The I to S a report answers, and what the report takes from it (SurveyItsAnchors). */
     private function anchor(string $key): ?array
     {
-        return app(SurveyItsAnchors::class)->resolve($key);
+        // Government reports answer a GKN I to S only, never a private report's anchor.
+        $a = app(SurveyItsAnchors::class)->resolve($key);
+
+        return $a && in_array($a['source'], ['survey', 'cadastral'], true) ? $a : null;
     }
 
     private function liveReportFor(array $anchor): ?SR

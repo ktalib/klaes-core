@@ -39,7 +39,7 @@
         <table>
             <thead>
                 <tr><th>S/N</th><th>OP No.</th><th>CO File / Project</th><th>Case</th><th>Beneficiary</th><th>Scheme</th><th>Plot / Cash</th>
-                    <th>OP Status</th><th>Verification</th><th></th></tr>
+                    <th>OP Status</th><th>Verification</th><th>Showings</th><th></th></tr>
             </thead>
             <tbody>
                 @forelse ($ops as $o)
@@ -50,11 +50,14 @@
                         <td>{{ $o->case?->project?->coFile?->co_file_no ?: '—' }}<div style="font-size:11px;color:var(--gray-500);">{{ $o->case?->project?->project_code }}</div></td>
                         <td>@if ($o->case)<a href="{{ route('survey-module.compensation.cases.show', $o->case) }}">{{ $o->case->case_ref }}</a>@else — @endif</td>
                         <td>{{ $o->beneficiary?->full_name ?: '—' }}</td>
-                        <td>{{ $o->scheme_type === 'land' ? 'Plot for Plot' : 'Cash for Trees' }}</td>
+                        <td>{{ $o->scheme_type === 'land' ? 'Land to Land' : 'Monetary Compensation' }}</td>
                         <td>{{ $o->scheme_type === 'land' ? ($o->plot_or_cash_ref ?: '—') : '₦' . number_format((float) $o->cash_amount, 2) }}</td>
                         <td>{{ $o->status }}</td>
                         <td>{!! $chip($vs, OP::V_COLOURS[$vs] ?? 'gray') !!}
                             @if ($o->verification_notes)<details style="font-size:12px;color:var(--gray-600);"><summary>Notes</summary><div style="white-space:pre-line;">{{ $o->verification_notes }}</div></details>@endif
+                        </td>
+                        <td><a href="{{ route('survey-module.compensation.op-verification.showings', $o) }}">{{ (int) $o->showings_count }}</a>
+                            @if ($o->showings_max_shown_on)<div style="font-size:11px;color:var(--gray-500);">Last {{ \Illuminate\Support\Carbon::parse($o->showings_max_shown_on)->format('d M Y') }}</div>@endif
                         </td>
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
@@ -76,6 +79,7 @@
                                     @if (in_array($vs, [OP::V_PENDING, OP::V_VERIFIED], true))
                                         <button type="button" class="{{ $svItem }}" @click="open = false; v = { open: true, url: @js($url), action: 'return', ref: @js($ref) }"><i data-lucide="undo-2" class="w-4 h-4 text-gray-500"></i> Return for correction</button>
                                     @endif
+                                    <a href="{{ route('survey-module.compensation.op-verification.showings', $o) }}" class="{{ $svItem }}"><i data-lucide="footprints" class="w-4 h-4 text-gray-500"></i> Showing History</a>
                                     <a href="{{ route('survey-module.compensation.op', ['q' => $o->op_number]) }}" class="{{ $svItem }}"><i data-lucide="file-signature" class="w-4 h-4 text-gray-500"></i> Open in OP Allocation</a>
                                     @if ($vs === OP::V_SENT)<div class="px-3 py-2 text-xs text-gray-500">Sent {{ optional($o->sent_to_deeds_at)->format('d M Y') }} · locked</div>@endif
                                 </div>
@@ -83,7 +87,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="10" style="text-align:center;padding:28px;color:var(--gray-500);">
+                    <tr><td colspan="11" style="text-align:center;padding:28px;color:var(--gray-500);">
                         @if (request()->hasAny($filters)) No OPs match these filters.
                         @else No OPs yet. Generate them in <a href="{{ route('survey-module.compensation.land') }}">OP Allocation</a>.
                         @endif

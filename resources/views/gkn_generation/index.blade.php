@@ -118,6 +118,8 @@
                                                     <option value="GKN">GKN</option>
                                                     <option value="MISCS">MISC KN</option>
                                                     <option value="LPKN">LPKN</option>
+                                                    <option value="LPPL">LPPL</option>
+                                                    <option value="RDKN">RDKN</option>
                                                 </select>
                                             </div>
                                             <div>
@@ -568,6 +570,6 @@
 </div>
 
 @push('scripts')
-<script src="{{ asset('js/gkn_generation.js') }}"></script>
+<script src="{{ asset('js/gkn_generation.js') }}?v={{ filemtime(public_path('js/gkn_generation.js')) }}"></script>
 @endpush
 @endsection

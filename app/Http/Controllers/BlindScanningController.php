@@ -1700,6 +1700,9 @@ class BlindScanningController extends Controller
         $filePath = implode('/', $segments);
 
         if (!$file || !$file->isValid() || $filePath === '') {
+            // PHP's own reason (partial upload, size limit, no temp dir...), so a failed page can be diagnosed.
+            Log::warning('Blind scan file rejected by the upload', ['path' => $filePath ?: $name,
+                'error' => $file ? $file->getErrorMessage() : 'no file received']);
             return ['status' => 'failed', 'path' => $filePath ?: ($name ?: 'unknown')];
         }
 
@@ -1741,6 +1744,85 @@ class BlindScanningController extends Controller
             Log::error('Blind scan file could not be saved', ['path' => $filePath, 'error' => $e->getMessage()]);
             return ['status' => 'failed', 'path' => $filePath];
         }
+    }
+
+    /**
+     * Delete one uploaded file folder ("Survey_Registry_Raw/CO-1-2022") so it can be uploaded again.
+     * Admin only (user, 2026-10-30). Nothing is erased: the folder is moved to
+     * storage/app/edms-deleted/blind-scan/ with its blind_scannings rows (CSV) and log lines beside it,
+     * as Doc-WARE's Delete File keeps its trash. Refused once any of its pages has moved into Scan Upload.
+     */
+    public function apiDeleteFolder(Request $request)
+    {
+        if (!$this->isBlindScanAdmin()) {
+            return response()->json(['ok' => false, 'error' => 'Only an administrator can delete a folder.'], 403);
+        }
+
+        $folder = trim(str_replace('\\', '/', (string) $request->input('folder', '')), '/');
+        $folder = preg_replace('#^(storage/)?(EDMS/)?BLIND_SCAN/#i', '', $folder);
+        $segments = array_values(array_filter(explode('/', $folder), fn ($s) => $s !== ''));
+        // Exactly {Registry}_Raw/{file folder}: never a registry folder or anything above it.
+        if (count($segments) !== 2 || !$this->isRegistryRawFolder($segments[0]) || in_array($segments[1], ['.', '..'], true)) {
+            return response()->json(['ok' => false, 'error' => 'Pick a file folder inside a registry.'], 422);
+        }
+
+        $root = realpath(file_storage_path('app/public/EDMS/BLIND_SCAN'));
+        $dir = realpath(file_storage_path('app/public/EDMS/BLIND_SCAN/' . $segments[0] . '/' . $segments[1]));
+        if (!$root || !$dir || !is_dir($dir) || strpos(str_replace('\\', '/', $dir), str_replace('\\', '/', $root) . '/') !== 0) {
+            return response()->json(['ok' => false, 'error' => 'That folder is not on the server.'], 404);
+        }
+
+        $prefix = 'EDMS/BLIND_SCAN/' . $segments[0] . '/' . $segments[1] . '/';
+        $rows = BlindScanning::where('document_path', 'like', str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $prefix) . '%')->get();
+        $converted = $rows->where('status', BlindScanning::STATUS_CONVERTED)->count();
+        if ($converted) {
+            return response()->json(['ok' => false, 'error' => "{$converted} page(s) of this folder are already in Scan Upload. Remove them there first."], 409);
+        }
+
+        $trash = file_storage_path('app/edms-deleted/blind-scan/' . now()->format('Ymd_His') . '_' . $segments[0] . '_' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $segments[1]));
+        if (!@mkdir($trash, 0775, true)) {
+            return response()->json(['ok' => false, 'error' => 'Could not prepare the deleted-files folder. Nothing was changed.'], 500);
+        }
+
+        // Keep what is removed: the rows and the folder's log lines.
+        $csv = fopen($trash . '/blind_scannings_rows.csv', 'w');
+        foreach ($rows as $i => $row) {
+            $a = $row->getAttributes();
+            if ($i === 0) fputcsv($csv, array_keys($a));
+            fputcsv($csv, array_values($a));
+        }
+        fclose($csv);
+
+        $logFile = file_storage_path('app/public/EDMS/BLIND_SCAN/_migrations.json');
+        $entries = is_file($logFile) ? (json_decode((string) file_get_contents($logFile), true) ?: []) : [];
+        $ours = fn ($e) => strcasecmp((string) ($e['folder'] ?? ''), $segments[0] . '/' . $segments[1]) === 0;
+        file_put_contents($trash . '/migration_log_entries_removed.json', json_encode(array_values(array_filter($entries, $ours)), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        $fileCount = iterator_count(new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS)));
+        if (!@rename($dir, $trash . '/' . $segments[1])) {
+            return response()->json(['ok' => false, 'error' => 'The folder could not be moved (is a file open?). Nothing was changed.'], 500);
+        }
+
+        $deleted = BlindScanning::whereIn('id', $rows->pluck('id'))->delete();
+        if ($entries) {
+            file_put_contents($logFile, json_encode(array_values(array_filter($entries, fn ($e) => !$ours($e))), JSON_PRETTY_PRINT));
+        }
+
+        $user = Auth::user();
+        $who = $user ? (trim((string) ($user->first_name . ' ' . $user->last_name)) ?: $user->email) : 'unknown';
+        file_put_contents($trash . '/MANIFEST.txt', "Deleted " . now()->format('Y-m-d H:i:s') . " by {$who} from Blind Scanning.\n"
+            . "Folder: {$segments[0]}/{$segments[1]} ({$fileCount} files, {$deleted} records).\n"
+            . "To restore: move the folder back to EDMS/BLIND_SCAN/{$segments[0]}/ and re-insert blind_scannings_rows.csv.\n");
+        Log::warning('Blind scan folder deleted', ['folder' => $segments[0] . '/' . $segments[1], 'files' => $fileCount, 'rows' => $deleted, 'kept_in' => $trash, 'user' => $who]);
+        try {
+            app(\App\Services\AuditService::class)->logAction('Blind Scan Folder Deleted', 'BlindScanning', null,
+                ['folder' => $segments[0] . '/' . $segments[1], 'files' => $fileCount, 'rows' => $deleted], ['kept_in' => $trash],
+                "Blind scan folder {$segments[1]} deleted ({$fileCount} files); kept in edms-deleted");
+        } catch (\Throwable $e) {
+            // The delete is done and logged above; the audit trail is best-effort.
+        }
+
+        return response()->json(['ok' => true, 'folder' => $segments[1], 'files' => $fileCount, 'rows' => $deleted]);
     }
 
     /**

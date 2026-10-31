@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Filterable reports. Every figure is queried; nothing is hard-coded.
  *
- * Cash for Trees and Plot for Plot totals come from disjoint sets of cases, because a
+ * Monetary Compensation and Land to Land totals come from disjoint sets of cases, because a
  * project's scheme is exclusive — so they are never double counted.
  */
 class ReportController extends Controller

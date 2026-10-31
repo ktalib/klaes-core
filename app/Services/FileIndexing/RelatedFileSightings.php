@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\Schema;
  * land-file lock does not hold it. NPF is derived, never set on its own. Cover
  * missing with the contents sighted is still Yes, with an optional note.
  *
+ * No has two categories, worked out live from whether the related file has its own
+ * indexing record (user, 2026-10-29, recording 289): "Physical File Not in the File"
+ * (never indexed — the true NPF) and "Physical File Indexed" (not in this folder, but
+ * indexed on its own). Either way Quick Search shows the related file where it really
+ * is and never refers the requester to the KANGIS file; the category is only a label.
+ *
  * A related file with no row is unanswered (indexed before this existed, or added by
  * code rather than the form) and keeps the old behaviour. The form is required to
  * answer every related file it submits.
@@ -24,6 +30,29 @@ class RelatedFileSightings
 {
     /** Hidden form field carrying the answers as JSON. */
     public const REQUEST_FIELD = 'related_file_sightings';
+
+    /** Categories of a related file's answer (category()). */
+    public const SIGHTED = 'sighted';
+    public const NOT_IN_FILE = 'not_in_file';      // No, never indexed: NPF
+    public const INDEXED_ELSEWHERE = 'indexed';    // No, but indexed on its own
+
+    public const CATEGORY_LABELS = [
+        self::SIGHTED => 'Physical File Sighted',
+        self::NOT_IN_FILE => 'Physical File Not in the File',
+        self::INDEXED_ELSEWHERE => 'Physical File Indexed',
+    ];
+
+    public static function category(?bool $sighted, bool $relatedIndexed): ?string
+    {
+        if ($sighted === null) {
+            return null;
+        }
+        if ($sighted) {
+            return self::SIGHTED;
+        }
+
+        return $relatedIndexed ? self::INDEXED_ELSEWHERE : self::NOT_IN_FILE;
+    }
 
     public const TABLE = 'file_indexing_related_sightings';
     public const LOG_TABLE = 'file_indexing_related_sighting_log';
@@ -87,9 +116,9 @@ class RelatedFileSightings
 
     /**
      * Which of these file numbers have a live indexing record of their own, keyed by
-     * KangisBlockIndexing::key(). A file that has been indexed was physically handled,
-     * so it is never NPF (user, 2026-10-29), whether it was indexed before or after
-     * the answer.
+     * KangisBlockIndexing::key(). Splits a No answer into "Physical File Indexed" (the
+     * related file has its own record) and "Physical File Not in the File" (NPF), read
+     * live so a file indexed later moves category by itself.
      *
      * @param  string[]  $fileNumbers
      * @return array<string, true>
@@ -129,59 +158,73 @@ class RelatedFileSightings
     }
 
     /**
-     * Indexing a file clears every NPF answer that names it as the related file: it is
-     * sighted now. Each cleared answer is logged ("cleared_indexed"). Returns the count.
-     *
-     * @param  string[]  $fileNumbers  the newly indexed record's numbers
+     * The related file's title for the form: its own indexing record first, then the
+     * file-number registers (fileNumber across its number columns, mls_file_no), so a
+     * file that was never indexed can still show a name. Null when none holds one.
      */
-    public function clearNpfFor(array $fileNumbers, $user = null): int
+    public function titleFor(string $fileNumber): ?string
     {
-        if (!self::tablesExist()) {
-            return 0;
+        $fileNumber = trim($fileNumber);
+        if ($fileNumber === '') {
+            return null;
         }
-        $keys = array_values(array_unique(array_filter(array_map([KangisBlockIndexing::class, 'key'], $fileNumbers))));
-        if (!$keys) {
-            return 0;
-        }
-
         $conn = DB::connection('sqlsrv');
-        $rows = $conn->table(self::TABLE)->whereIn('related_key', $keys)->where('npf', 1)->get();
-        if ($rows->isEmpty()) {
-            return 0;
+        // Placeholders ("-", "N/A", "Group Title") are not a title.
+        $clean = fn ($t) => (($t = trim((string) $t)) !== '' && !in_array(strtoupper($t), ['-', '--', 'N/A', 'NA', 'NONE', 'NIL', 'GROUP TITLE'], true)) ? $t : null;
+
+        $title = $conn->table('file_indexings')
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->where(fn ($q) => $q->where('file_number', $fileNumber)
+                ->orWhere('kangis_file_no', $fileNumber)
+                ->orWhere('new_kangis_file_no', $fileNumber))
+            ->orderByDesc('id')
+            ->value('file_title');
+        if ($clean($title)) {
+            return $clean($title);
         }
 
-        $now = now();
-        $userId = $user->id ?? null;
-        $userName = $user ? (trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? null)) : null;
-
-        $conn->table(self::TABLE)->whereIn('id', $rows->pluck('id')->all())->update([
-            'physical_sighted' => 1,
-            'npf' => 0,
-            'updated_by' => $userId,
-            'updated_at' => $now,
-        ]);
-
-        try {
-            $conn->table(self::LOG_TABLE)->insert($rows->map(fn ($old) => [
-                'file_indexing_id' => $old->file_indexing_id,
-                'file_number' => $old->file_number,
-                'related_file_number' => $old->related_file_number,
-                'action' => 'cleared_indexed',
-                'old_physical_sighted' => (int) $old->physical_sighted,
-                'new_physical_sighted' => 1,
-                'old_npf' => (int) $old->npf,
-                'new_npf' => 0,
-                'old_cover_missing' => $old->cover_missing,
-                'new_cover_missing' => $old->cover_missing,
-                'changed_by' => $userId,
-                'changed_by_name' => $userName,
-                'created_at' => $now,
-            ])->all());
-        } catch (\Throwable $e) {
-            Log::warning('Related file sighting clear not logged', ['keys' => $keys, 'error' => $e->getMessage()]);
+        $title = $conn->table('fileNumber')
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->where(fn ($q) => $q->where('mlsfNo', $fileNumber)
+                ->orWhere('kangisFileNo', $fileNumber)
+                ->orWhere('NewKANGISFileNo', $fileNumber)
+                ->orWhere('st_file_no', $fileNumber))
+            ->whereNotNull('FileName')
+            ->orderByDesc('id')
+            ->value('FileName');
+        if ($clean($title)) {
+            return $clean($title);
         }
 
-        return $rows->count();
+        $title = $conn->table('mls_file_no')
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->where(fn ($q) => $q->where('full_file_number', $fileNumber)->orWhere('kangis_file_no', $fileNumber))
+            ->whereNotNull('file_name')
+            ->orderByDesc('id')
+            ->value('file_name');
+        if ($clean($title)) {
+            return $clean($title);
+        }
+
+        // Titles officers typed for it under "Enter Related Details", then DCIV links.
+        $title = $conn->table('file_indexing_links')
+            ->whereNull('deleted_at')
+            ->where('file_number', $fileNumber)
+            ->whereNotNull('file_title')
+            ->where('file_title', '<>', '')
+            ->orderByDesc('id')
+            ->value('file_title');
+        if ($clean($title)) {
+            return $clean($title);
+        }
+
+        $title = $conn->table('master_dciv_links')
+            ->where('related_file_number', $fileNumber)
+            ->whereNotNull('related_file_title')
+            ->orderByDesc('id')
+            ->value('related_file_title');
+
+        return $clean($title);
     }
 
     /** True when the submitting form carries the Physical File Sighted answers. */
@@ -207,12 +250,6 @@ class RelatedFileSightings
             if (!isset($answers[$key]) || $answers[$key]['sighted'] === null) {
                 $missing[] = $fileNo;
             }
-        }
-
-        // An indexed related file is sighted by definition; nothing to answer.
-        if ($missing) {
-            $indexed = $this->indexedKeys($missing);
-            $missing = array_values(array_filter($missing, fn ($no) => !isset($indexed[KangisBlockIndexing::key($no)])));
         }
 
         if (!$missing) {
@@ -269,14 +306,8 @@ class RelatedFileSightings
             'created_at' => $now,
         ];
 
-        // A related file with its own indexing record is sighted, whatever was picked.
-        $indexed = $this->indexedKeys(array_values($onRecord));
-
         foreach ($onRecord as $key => $fileNo) {
             $answer = $answers[$key] ?? null;
-            if (isset($indexed[$key])) {
-                $answer = ['file_number' => $fileNo, 'sighted' => true, 'cover_missing' => $answer['cover_missing'] ?? null];
-            }
             if (!$answer || $answer['sighted'] === null) {
                 continue;
             }
@@ -351,13 +382,15 @@ class RelatedFileSightings
     }
 
     /**
-     * NPF pairs among these file numbers, keyed by pairKey(). A pair is the two files,
-     * whichever record stores the link (a KANGIS row lists its land file and the land
-     * row lists the KANGIS file back), so the answer on either side counts. When both
-     * sides were answered, the latest answer wins.
+     * Pairs answered No ("not in the file") among these file numbers, keyed by pairKey(),
+     * each with its category: NOT_IN_FILE (the related file was never indexed: NPF) or
+     * INDEXED_ELSEWHERE (indexed on its own). A pair is the two files, whichever record
+     * stores the link (a KANGIS row lists its land file and the land row lists the
+     * KANGIS file back), so the answer on either side counts. When both sides were
+     * answered, the latest answer wins.
      *
      * @param  string[]  $fileNumbers
-     * @return array<string, true>
+     * @return array<string, string>
      */
     public function npfPairs(array $fileNumbers): array
     {
@@ -390,21 +423,17 @@ class RelatedFileSightings
             }
         }
 
-        $npf = array_filter($latest, fn ($answer) => $answer['npf']);
-        if (!$npf) {
+        $notInFile = array_filter($latest, fn ($answer) => $answer['npf']);
+        if (!$notInFile) {
             return [];
         }
 
-        // An NPF answer no longer holds once that related file has been indexed (user,
-        // 2026-10-29): someone handled its physical file. Read here as well as cleared on
-        // indexing, so a file indexed before the answer is covered too.
-        $indexed = $this->indexedKeys(array_column($npf, 'related_file_number'));
+        // Both No categories keep the pair apart; the category only labels it.
+        $indexed = $this->indexedKeys(array_column($notInFile, 'related_file_number'));
 
         $pairs = [];
-        foreach ($npf as $pair => $answer) {
-            if (!isset($indexed[$answer['related_key']])) {
-                $pairs[$pair] = true;
-            }
+        foreach ($notInFile as $pair => $answer) {
+            $pairs[$pair] = isset($indexed[$answer['related_key']]) ? self::INDEXED_ELSEWHERE : self::NOT_IN_FILE;
         }
 
         return $pairs;

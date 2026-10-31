@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyItsCoordinate as Coord;
 use App\Models\Survey\SurveyItsObservation as Obs;
+use App\Services\Survey\SurveyDocuments;
 use App\Services\SurveyItsAnchors;
 use App\Support\SurveyGeometry as G;
 use Illuminate\Http\Request;
@@ -149,23 +150,34 @@ class SurveyCoordinateController extends Controller
             'closed'     => $closed,
             'misclosure' => $obs->isNotEmpty() ? G::misclosure($obs->map(fn ($o) => [$o->observed_bearing, $o->observed_distance])->all()) : null,
             'stations'   => $byBeacon->keys()->all(),
+            'sketches'   => $this->sketches($anchor),
         ]);
     }
 
     public function storeObservation(Request $r, string $its)
     {
         $anchor = $this->writableAnchor($its);
-        $data = $this->validatedObservation($r);
-        $last = Obs::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor))->max('sort_order');
+        // Several lines in one save ("add line", CR 30102026 item 16); a single reading still posts flat fields.
+        $rows = $r->has('lines') ? $this->validatedObservationLines($r) : [$this->validatedObservation($r)];
+        $last = (int) Obs::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor))->max('sort_order');
 
-        Obs::create($data + $anchor['keys'] + [
-            'its_number'  => $anchor['prefill']['its_number'],
-            'file_number' => $anchor['prefill']['file_number'],
-            'sort_order'  => (int) $last + 1,
-            'source'      => 'desktop',
-        ]);
+        DB::connection('sqlsrv')->transaction(function () use ($rows, $anchor, &$last) {
+            foreach ($rows as $data) {
+                Obs::create($data + $anchor['keys'] + [
+                    'its_number'  => $anchor['prefill']['its_number'],
+                    'file_number' => $anchor['prefill']['file_number'],
+                    'sort_order'  => ++$last,
+                    'source'      => 'desktop',
+                ]);
+            }
+        });
 
-        return back()->with('success', "Reading {$data['from_station']} → {$data['to_station']} added.");
+        $first = $rows[0];
+        $end = $rows[count($rows) - 1];
+
+        return back()->with('success', count($rows) === 1
+            ? "Reading {$first['from_station']} → {$first['to_station']} added."
+            : count($rows) . " readings added ({$first['from_station']} → {$end['to_station']}).");
     }
 
     public function destroyObservation(string $its, Obs $obs)
@@ -208,6 +220,14 @@ class SurveyCoordinateController extends Controller
         ];
     }
 
+    /** The Sketch Plan(s) filed for the survey, newest first (SurveyDocuments). */
+    private function sketches(array $anchor)
+    {
+        [$type, $id] = SurveyDocuments::owner($anchor);
+
+        return app(SurveyDocuments::class)->for($type, $id, SurveyDocuments::KIND_SKETCH_PLAN);
+    }
+
     private function coordsFor(array $anchor)
     {
         return Coord::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor))->orderBy('sort_order')->orderBy('id')->get()->values();
@@ -233,10 +253,7 @@ class SurveyCoordinateController extends Controller
 
     private function belongs($row, array $anchor): void
     {
-        $ok = isset($anchor['keys']['survey_its_id'])
-            ? (int) $row->survey_its_id === $anchor['keys']['survey_its_id']
-            : (int) $row->cadastral_survey_job_id === $anchor['keys']['cadastral_survey_job_id'];
-        abort_unless($ok, 404);
+        abort_unless(SurveyItsAnchors::owns($row, $anchor), 404);
     }
 
     private function validatedCoordinate(Request $r, array $anchor, ?Coord $existing = null): array
@@ -281,19 +298,65 @@ class SurveyCoordinateController extends Controller
             'bearing_d.required'   => 'Give the observed bearing (degrees at least).',
         ]);
 
-        $bearing = G::fromDms($data['bearing_d'], $data['bearing_m'] ?? 0, $data['bearing_s'] ?? 0);
+        return $this->observationRow($data, $data, 'bearing_d');
+    }
+
+    /**
+     * The "add line" form: lines[n][from_station, to_station, bearing_d/m/s, observed_distance, remarks],
+     * with one Date observed and Observer for the batch.
+     */
+    private function validatedObservationLines(Request $r): array
+    {
+        $attributes = [];
+        foreach (array_keys((array) $r->input('lines', [])) as $i) {
+            $n = is_int($i) ? $i + 1 : $i;
+            foreach (['from_station' => 'from station', 'to_station' => 'to station', 'bearing_d' => 'bearing (deg)',
+                      'bearing_m' => 'bearing (min)', 'bearing_s' => 'bearing (sec)', 'observed_distance' => 'distance',
+                      'remarks' => 'remarks'] as $f => $label) {
+                $attributes["lines.$i.$f"] = "line $n $label";
+            }
+        }
+
+        $data = $r->validate([
+            'lines'                     => 'required|array|min:1|max:200',
+            'lines.*.from_station'      => 'required|string|max:50',
+            'lines.*.to_station'        => 'required|string|max:50|different:lines.*.from_station',
+            'lines.*.bearing_d'         => 'required|integer|min:0|max:359',
+            'lines.*.bearing_m'         => 'nullable|integer|min:0|max:59',
+            'lines.*.bearing_s'         => 'nullable|numeric|min:0|lt:60',
+            'lines.*.observed_distance' => 'required|numeric|gt:0|max:1000000',
+            'lines.*.remarks'           => 'nullable|string|max:500',
+            'observed_on'               => 'nullable|date|before_or_equal:today',
+            'observer'                  => 'nullable|string|max:255',
+        ], [
+            'lines.required'               => 'Add at least one line.',
+            'lines.*.to_station.different' => 'A reading goes from one station to another (:attribute).',
+        ], $attributes);
+
+        $rows = [];
+        foreach (array_values($data['lines']) as $n => $line) {
+            $rows[] = $this->observationRow($line, $data, 'lines.' . $n . '.bearing_d');
+        }
+
+        return $rows;
+    }
+
+    /** One reading as stored: stations upper-cased, the bearing as decimal degrees. */
+    private function observationRow(array $line, array $shared, string $bearingField): array
+    {
+        $bearing = G::fromDms($line['bearing_d'], $line['bearing_m'] ?? 0, $line['bearing_s'] ?? 0);
         if ($bearing === null) {
-            throw ValidationException::withMessages(['bearing_d' => 'The bearing is out of range.']);
+            throw ValidationException::withMessages([$bearingField => 'The bearing is out of range.']);
         }
 
         return [
-            'from_station'      => mb_strtoupper(trim($data['from_station'])),
-            'to_station'        => mb_strtoupper(trim($data['to_station'])),
+            'from_station'      => mb_strtoupper(trim($line['from_station'])),
+            'to_station'        => mb_strtoupper(trim($line['to_station'])),
             'observed_bearing'  => $bearing,
-            'observed_distance' => (float) $data['observed_distance'],
-            'observed_on'       => $data['observed_on'] ?? null,
-            'observer'          => $data['observer'] ?? null,
-            'remarks'           => $data['remarks'] ?? null,
+            'observed_distance' => (float) $line['observed_distance'],
+            'observed_on'       => $shared['observed_on'] ?? null,
+            'observer'          => $shared['observer'] ?? null,
+            'remarks'           => $line['remarks'] ?? null,
         ];
     }
 }

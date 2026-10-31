@@ -91,7 +91,7 @@
                         <option value="{{ $c->id }}"
                             @selected((string) old('survey_comp_case_id', $beneficiary->survey_comp_case_id) === (string) $c->id)>
                             {{ $c->case_ref }} · {{ $c->project?->name ?? 'No project' }}
-                            ({{ $c->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }})
+                            ({{ $c->isMonetary() ? 'Monetary Compensation' : 'Land to Land' }})
                         </option>
                     @endforeach
                 </select>
@@ -180,16 +180,19 @@
                 <option value="{{ $s }}" @selected(request('status') === $s)>{{ $s }}</option>
             @endforeach
         </select>
+        @include('survey_module.partials._origin_filter')
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if (request()->hasAny(['q', 'status', 'case']))
+        @if (request()->hasAny(['q', 'status', 'case', 'origin']))
             <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.beneficiaries') }}">Clear</a>
         @endif
     </div>
 </form>
 
+@include('survey_module.partials._table_ui')
+
 <div class="table-wrapper">
     <div class="table-scroll">
-        <table>
+        <table class="sv-dt">
             <thead>
                 <tr>
                     <th>S/N</th>
@@ -203,14 +206,16 @@
                     <th>Status</th>
                     <th>Case</th>
                     <th>Scheme Type</th>
-                    <th></th>
+                    <th>Created By</th>
+                    <th>Date Created</th>
+                    <th class="col-actions"></th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($beneficiaries as $b)
                     <tr>
-                        <td>{{ $beneficiaries->firstItem() + $loop->index }}</td>
-                        <td><strong>{{ $b->full_name }}</strong></td>
+                        <td class="muted">{{ $beneficiaries->firstItem() + $loop->index }}</td>
+                        <td class="mid"><span class="strong">{{ $b->full_name }}</span></td>
                         <td style="white-space:nowrap;">
                             @if ($b->phone)
                                 {{-- Opens the outreach card (Call / SMS / WhatsApp / Email). --}}
@@ -223,11 +228,11 @@
                                 —
                             @endif
                         </td>
-                        <td>{{ $b->nin ?: '—' }}</td>
-                        <td>{{ $b->person_address ?: '—' }}</td>
-                        <td>{{ $b->bank_name ?: '—' }}</td>
-                        <td>{{ $b->account_name ?: '—' }}</td>
-                        <td>{{ $b->account_number ?: '—' }}</td>
+                        <td class="nowrap">{!! $b->nin ? e($b->nin) : '<span class="muted">—</span>' !!}</td>
+                        <td class="mid">{!! $b->person_address ? e($b->person_address) : '<span class="muted">—</span>' !!}</td>
+                        <td>{!! $b->bank_name ? e($b->bank_name) : '<span class="muted">—</span>' !!}</td>
+                        <td>{!! $b->account_name ? e($b->account_name) : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap">{!! $b->account_number ? e($b->account_number) : '<span class="muted">—</span>' !!}</td>
                         <td>
                             <span class="status-badge {{ $badgeClass($b->status) }}">
                                 <span class="dot"></span>{{ $b->status }}
@@ -235,19 +240,21 @@
                         </td>
                         <td>
                             @if ($b->case)
-                                <a href="{{ route('survey-module.compensation.cases.show', $b->case) }}">{{ $b->case->case_ref }}</a>
+                                <a class="nowrap" href="{{ route('survey-module.compensation.cases.show', $b->case) }}">{{ $b->case->case_ref }}</a>
+                                @if ($b->case->project)<span class="sub" title="{{ $b->case->project->display_name }}{{ $b->case->project->plan_no ? ' · ' . $b->case->project->plan_no : '' }}">{{ \Illuminate\Support\Str::limit($b->case->project->display_name, 28) }}</span>@endif
                             @else
                                 <span style="color:var(--gray-500);">Unlinked</span>
                             @endif
                         </td>
                         <td>
                             @if ($b->case)
-                                {{ $b->case->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}
+                                <span class="nowrap">{{ $b->case->isMonetary() ? 'Monetary Compensation' : 'Land to Land' }}</span>
                             @else
-                                —
+                                <span class="muted">—</span>
                             @endif
                         </td>
-                        <td>
+                        @include('survey_module.partials._created_cells', ['row' => $b])
+                        <td class="col-actions">
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
                                         @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
@@ -278,9 +285,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="14" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-users" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
-                            @if (request()->hasAny(['q', 'status', 'case']))
+                            @if (request()->hasAny(['q', 'status', 'case', 'origin']))
                                 No beneficiaries match these filters.
                                 <a href="{{ route('survey-module.compensation.beneficiaries') }}">Clear them</a>.
                             @else

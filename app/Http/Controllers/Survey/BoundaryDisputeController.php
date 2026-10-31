@@ -105,6 +105,9 @@ class BoundaryDisputeController extends Controller
         }
         if (in_array($s = $r->query('status'), BD::STATUSES, true)) $q->where('status', $s);
         if ($n = $r->query('nature')) $q->where('nature', $n);
+        if (in_array($t = $r->query('type'), BD::TYPES, true)) $q->where('boundary_type', $t);
+        // "Public Boundary" as a whole: both LGA and Interstate.
+        if ($r->query('type') === 'public') $q->whereIn('boundary_type', BD::PUBLIC_TYPES);
 
         $stats = [];
         foreach (BD::STATUSES as $s) $stats[$s] = BD::where('status', $s)->count();
@@ -133,6 +136,8 @@ class BoundaryDisputeController extends Controller
             'complainant_name'  => 'required|string|max:255',
             'complainant_phone' => 'nullable|string|max:50',
             'respondent_name'   => 'nullable|string|max:255',
+            'boundary_type'     => ['required', Rule::in(BD::TYPES)],
+            'boundary_type_other' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $r->input('boundary_type') === BD::TYPE_PUBLIC_OTHER)],
             'nature'            => 'required|string|max:100',
             'nature_other'      => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $r->input('nature') === self::NATURE_OTHER)],
             'plot_no'           => 'nullable|string|max:100',
@@ -142,6 +147,7 @@ class BoundaryDisputeController extends Controller
             'received_date'     => 'required|date|before_or_equal:today',
         ], [
             'nature_other.required'          => 'Please specify the nature of the dispute.',
+            'boundary_type_other.required'   => 'Specify the public boundary.',
             'received_date.before_or_equal'  => 'The date received cannot be in the future.',
         ]);
 
@@ -151,6 +157,11 @@ class BoundaryDisputeController extends Controller
             $data['nature'] = collect($this->natures())->first(fn ($n) => mb_strtolower($n) === mb_strtolower($typed)) ?? $typed;
         }
         unset($data['nature_other']);
+
+        // "Others": the typed boundary is kept only for that type, whitespace collapsed.
+        $data['boundary_type_other'] = $data['boundary_type'] === BD::TYPE_PUBLIC_OTHER
+            ? (trim(preg_replace('/\s+/', ' ', (string) ($data['boundary_type_other'] ?? ''))) ?: null)
+            : null;
 
         // A Register File line supplies its file when none was picked.
         if (! empty($data['survey_register_file_id']) && empty($data['file_number'])) {

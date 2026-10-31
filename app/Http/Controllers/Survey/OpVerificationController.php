@@ -22,7 +22,7 @@ class OpVerificationController extends Controller
 {
     public function index(Request $r)
     {
-        $q = OP::query()->with(['case.project.coFile', 'beneficiary']);
+        $q = OP::query()->with(['case.project.coFile', 'beneficiary'])->withCount('showings')->withMax('showings', 'shown_on');
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(fn ($w) => $w->where('op_number', 'like', "%$term%")->orWhere('plot_or_cash_ref', 'like', "%$term%")

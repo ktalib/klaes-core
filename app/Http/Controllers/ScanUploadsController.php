@@ -105,7 +105,7 @@ class ScanUploadsController extends Controller
         $validated = $request->validate([
             'file_number' => 'required|string|max:255',
             'file_indexing_id' => 'nullable|integer|exists:sqlsrv.file_indexings,id',
-            'registry' => 'required|string|in:Lands Registry,Cadastral Registry,DCIV Registry,Secret Registry,KANGIS Registry,SLTR Registry,ST Registry,Deeds Registry',
+            'registry' => 'required|string|in:Lands Registry,Cadastral Registry,DCIV Registry,Secret Registry,KANGIS Registry,SLTR Registry,ST Registry,Deeds Registry,Survey Registry',
             'edms_file_type' => 'nullable|string|' . EdmsFileType::validationRule(),
             'files' => 'nullable|array',
             'files.*.relative_path' => 'required_with:files|string|max:1024',
@@ -261,7 +261,7 @@ class ScanUploadsController extends Controller
             'parent_scan_id' => 'nullable|integer|exists:sqlsrv.scannings,id',
             'is_pdf_converted' => 'sometimes|boolean',
             'original_filename' => 'nullable|string|max:255',
-            'registry' => 'required|string|in:Lands Registry,Cadastral Registry,DCIV Registry,Secret Registry,KANGIS Registry,SLTR Registry,ST Registry,Deeds Registry',
+            'registry' => 'required|string|in:Lands Registry,Cadastral Registry,DCIV Registry,Secret Registry,KANGIS Registry,SLTR Registry,ST Registry,Deeds Registry,Survey Registry',
             // The EDMS master folder this file belongs in. Optional: a file whose
             // cover carries no instruction stays unclassified and keeps the legacy
             // layout directly under its registry.

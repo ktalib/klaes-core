@@ -4,7 +4,12 @@ namespace App\Http\Controllers\Survey;
 
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyChangeReport as CR;
+use App\Models\Survey\SurveyItsCoordinate;
+use App\Models\Survey\SurveyItsObservation;
 use App\Models\Survey\SurveyRegisterFile;
+use App\Services\Survey\BeaconNumberCheck;
+use App\Services\Survey\SurveyDocuments;
+use App\Services\SurveyItsAnchors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -15,6 +20,11 @@ use Illuminate\Validation\Rule;
  * existing records, this unit generates and prints a Surveyors Report detailing the
  * required changes." Raised from a Register File line (its file details are taken
  * from it) or on its own. Draft until issued; issuing locks and prints it.
+ *
+ * Surveyor's Report (Private) (change list p.2, 2026-10-29): once saved it carries the
+ * same core records as the GKN report: List of Coordinates, Beacon Nos, Computation
+ * Field Observations and the Sketch Plan, edited with the GKN editors anchored
+ * "private-<id>" (SurveyItsAnchors) and locked with the report on issue.
  */
 class ChangeReportController extends Controller
 {
@@ -66,7 +76,7 @@ class ChangeReportController extends Controller
 
     public function edit(CR $report)
     {
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile]);
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report)]);
     }
 
     public function update(Request $r, CR $report)
@@ -96,7 +106,25 @@ class ChangeReportController extends Controller
 
     public function print(CR $report)
     {
-        return view('survey_module.workflow.change_reports.print', ['report' => $report]);
+        return view('survey_module.workflow.change_reports.print', ['report' => $report, 'records' => $this->records($report)]);
+    }
+
+    /** The report's List of Coordinates, Beacon Nos, Field Observations and Sketch Plan. */
+    private function records(CR $report): array
+    {
+        $anchor = app(SurveyItsAnchors::class)->resolve('private-' . $report->id);
+        $coords = SurveyItsCoordinate::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor))->orderBy('sort_order')->orderBy('id')->get();
+        $beacons = app(BeaconNumberCheck::class)->forAnchor($anchor);
+        $sketch = app(SurveyDocuments::class)->for('private', $report->id, SurveyDocuments::KIND_SKETCH_PLAN)->firstWhere('is_superseded', 0);
+
+        return [
+            'key'      => $anchor['key'],
+            'coords'   => $coords,
+            'beacons'  => $beacons,
+            'summary'  => BeaconNumberCheck::summary($beacons),
+            'readings' => SurveyItsObservation::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor))->count(),
+            'sketch'   => $sketch,
+        ];
     }
 
     private function validated(Request $r, ?CR $existing = null): array

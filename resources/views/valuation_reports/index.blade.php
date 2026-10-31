@@ -119,6 +119,13 @@
                                     </td>
                                     <td class="px-6 py-4 text-slate-900 font-bold whitespace-nowrap">
                                         {{ $report->file_number }}
+                                        {{-- Registration particulars + instrument type, once registered. --}}
+                                        @if(!empty($registrations[$report->id] ?? null))
+                                            <div class="mt-1 text-[11px] font-semibold text-blue-700">
+                                                Reg: <span class="font-mono">{{ $registrations[$report->id]->registration_number }}</span>
+                                                <span class="text-slate-500 font-medium">· {{ $registrations[$report->id]->instrument_type }}</span>
+                                            </div>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 text-slate-900 font-semibold">{{ $report->full_name }}</td>
                                     <td class="px-6 py-4 text-slate-600 font-medium">{{ $report->property_type }}</td>

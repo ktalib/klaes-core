@@ -201,6 +201,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::prefix('scan-uploads/api')->name('scan-uploads.api.')->group(function () {
         Route::get('/indexed-files/quick', [ScanUploadsIndexedFilesController::class, 'quick'])->name('indexed-files.quick');
+        // Survey Registry: a GKN / CO file picked in the global selector, indexed on first use (2026-10-30).
+        Route::post('/indexed-files/survey', [ScanUploadsIndexedFilesController::class, 'survey'])->name('indexed-files.survey');
     });
 
     Route::prefix('manual-attendance')->name('manual-attendance.')->group(function () {
@@ -1282,6 +1284,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/batch-white-copy', [\App\Http\Controllers\LandRofoController::class, 'batchWhiteCopy'])->name('batch-white-copy');
         // Every RofO in a batch, for the Batches tab — unpaginated on purpose.
         Route::get('/batch/{batchId}/children', [\App\Http\Controllers\LandRofoController::class, 'batchChildren'])->name('batch-children');
+        // Security paper codes for a whole batch from a range (CR 30102026 item 25): preview, then save.
+        Route::post('/batch/{batchId}/security-paper/preview', [\App\Http\Controllers\LandRofoController::class, 'batchSecurityPaperPreview'])->name('batch-security-paper.preview');
+        Route::post('/batch/{batchId}/security-paper', [\App\Http\Controllers\LandRofoController::class, 'batchSecurityPaperAssign'])->name('batch-security-paper.assign');
         Route::post('/batch-print-log', [\App\Http\Controllers\LandRofoController::class, 'batchPrintLog'])->name('batch-print-log');
         // How far a previous split print of these ids got, so the print dialog can
         // offer to resume run 2 instead of reprinting the Originals.

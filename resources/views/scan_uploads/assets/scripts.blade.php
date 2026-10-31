@@ -201,6 +201,7 @@
     const documentTypes = ["Certificate", "Deed", "Letter", "Application Form", "Map", "Survey Plan", "Receipt", "Other"];
 
     const indexedFilesEndpoint = "{{ route('scan-uploads.api.indexed-files.quick') }}";
+    const surveyFileEndpoint = "{{ route('scan-uploads.api.indexed-files.survey') }}";
     let indexedFiles = [];
     let indexedFilesPagination = { current_page: 1, per_page: 10, last_page: 1, total: 0 };
     let indexedFilesLoading = false;
@@ -3250,6 +3251,7 @@
                         'SLTR_Registry': 'SLTR Registry',
                         'ST_Registry': 'ST Registry',
                         'Deeds_Registry': 'Deeds Registry',
+                        'Survey_Registry': 'Survey Registry',
                     };
                     registryFromBatch = folderToRegistry[pathMatch[1]] || null;
                 }
@@ -7108,7 +7110,49 @@
             });
         }
 
+        // Survey Registry (2026-10-30): the file comes from the global file number selector (GKN / CO), since CO
+        // files are not in file_indexings; the server indexes a Survey file the first time it is picked.
+        function toggleSurveyPicker() {
+            const isSurvey = (blindScanElements.registry?.value || '') === 'Survey Registry';
+            document.getElementById('survey-file-picker')?.classList.toggle('hidden', !isSurvey);
+            document.getElementById('smart-fileno-selector-box')?.classList.toggle('hidden', isSurvey);
+        }
+
+        function openSurveyFilePicker() {
+            if (!window.GlobalFileNoModal) { alert('The file number selector is not available on this page.'); return; }
+            window.GlobalFileNoModal.open({
+                allowedTabs: ['gkn', 'co'],
+                initialTab: 'co',
+                callback: async (picked) => {
+                    const fileNumber = picked?.fileNumber;
+                    if (!fileNumber) return;
+                    try {
+                        const response = await fetch(surveyFileEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(state.csrfToken ? { 'X-CSRF-TOKEN': state.csrfToken } : {}) },
+                            body: JSON.stringify({ file_number: fileNumber }),
+                        });
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok || !data.success || !data.file) {
+                            alert(data.message || 'This file could not be prepared for upload.');
+                            return;
+                        }
+                        indexedFiles = indexedFiles.filter(f => String(f.id) !== String(data.file.id));
+                        indexedFiles.unshift(data.file);
+                        selectIndexedFileTemp(String(data.file.id));
+                        renderIndexedFiles();
+                    } catch (error) {
+                        alert('This file could not be prepared for upload: ' + error.message);
+                    }
+                },
+            });
+        }
+
+        document.getElementById('survey-file-picker-btn')?.addEventListener('click', openSurveyFilePicker);
+        toggleSurveyPicker();
+
         if (blindScanElements.registry) {
+            blindScanElements.registry.addEventListener('change', toggleSurveyPicker);
             blindScanElements.registry.addEventListener('change', () => {
                 if (elements.globalSelectedFileNoSelect) {
                     const hasRegistry = Boolean(blindScanElements.registry.value);

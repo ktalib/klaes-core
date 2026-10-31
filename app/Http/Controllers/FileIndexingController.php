@@ -1384,6 +1384,19 @@ class FileIndexingController extends Controller
                 $validated['temp_file_no'] = null;
             }
 
+            // Re-pointing this record at a file number another record already holds would
+            // trip UX_file_indexings_file_number mid-transaction and show the user raw SQL.
+            // Refuse it here, before cascadeFileNumberRename() touches any related table.
+            $fileNumberConflict = $this->findFileNumberConflict((int) $id, $validated['file_number'] ?? null);
+            if ($fileNumberConflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->fileNumberTakenMessage($validated['file_number'], $fileNumberConflict),
+                    'error_type' => 'file_number_taken',
+                    'conflicting_record' => (array) $fileNumberConflict,
+                ], 422);
+            }
+
             $awaitingFileNoInput = Arr::pull($validated, 'awaiting_file_no');
 
             // Set updated metadata
@@ -1596,7 +1609,6 @@ class FileIndexingController extends Controller
                     );
                     $this->syncMasterDcivLinks($fileIndexingModel, $relatedFileNos, $relatedDetails);
                     $this->syncRelatedSightings($request, $fileIndexingModel, $relatedFileNos);
-                    $this->clearNpfForIndexed($request, $fileIndexingModel);
 
                     // Keep the related_file_number register in step with the edit. Pruning is
                     // allowed only on an explicit submission (same rule as the links above),
@@ -1733,11 +1745,67 @@ class FileIndexingController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
+            // The pre-check above covers this; the index still catches a concurrent save.
+            if ($this->isFileNumberUniqueViolation($e)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->fileNumberTakenMessage((string) $request->input('file_number', '')),
+                    'error_type' => 'file_number_taken',
+                ], 422);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * The other file_indexings row holding $fileNumber, or null when it is free.
+     *
+     * Same test as UX_file_indexings_file_number: one row per file number, compared
+     * under the column's case-insensitive collation, decommissioned rows included.
+     */
+    protected function findFileNumberConflict(int $id, ?string $fileNumber): ?object
+    {
+        $fileNumber = trim((string) $fileNumber);
+        if ($fileNumber === '') {
+            return null;
+        }
+
+        return DB::connection('sqlsrv')->table('file_indexings')
+            ->select('id', 'file_number', 'file_title', 'registry_batch_no', 'is_decommissioned')
+            ->where('file_number', $fileNumber)
+            ->where('id', '<>', $id)
+            ->first();
+    }
+
+    protected function fileNumberTakenMessage(string $fileNumber, ?object $conflict = null): string
+    {
+        $fileNumber = trim($fileNumber);
+
+        if (!$conflict) {
+            return "File number {$fileNumber} is already indexed to another record. "
+                . 'Pick a different file number, or correct that record first.';
+        }
+
+        $details = array_filter([
+            "record #{$conflict->id}",
+            trim((string) ($conflict->registry_batch_no ?? '')) !== '' ? "batch {$conflict->registry_batch_no}" : null,
+            !empty($conflict->is_decommissioned) ? 'decommissioned' : null,
+        ]);
+        $title = trim((string) ($conflict->file_title ?? ''));
+        $owner = ($title !== '' ? $title . ' ' : '') . '(' . implode(', ', $details) . ')';
+
+        return "File number {$fileNumber} is already indexed to {$owner}. "
+            . 'Pick a different file number, or correct that record first.';
+    }
+
+    protected function isFileNumberUniqueViolation(\Throwable $e): bool
+    {
+        return $e instanceof \Illuminate\Database\QueryException
+            && str_contains($e->getMessage(), 'UX_file_indexings_file_number');
     }
 
     public function transactions(FileIndexing $fileIndexing)
@@ -3257,8 +3325,9 @@ class FileIndexingController extends Controller
                     $archiveRecord = DB::connection('sqlsrv')
                         ->table('file_indexings')
                         ->where('id', $indexingId)
-                        ->whereHas('pagetypings')
-                        ->whereHas('scannings')
+                        // A plain table query has no whereHas (it became "[has] = pagetypings"): EXISTS instead.
+                        ->whereExists(fn ($x) => $x->selectRaw('1')->from('pagetypings')->whereColumn('pagetypings.file_indexing_id', 'file_indexings.id'))
+                        ->whereExists(fn ($x) => $x->selectRaw('1')->from('scannings')->whereColumn('scannings.file_indexing_id', 'file_indexings.id'))
                         ->whereColumn(
                             DB::raw('(SELECT COUNT(*) FROM pagetypings WHERE pagetypings.file_indexing_id = file_indexings.id)'),
                             '>=',
@@ -3306,8 +3375,9 @@ class FileIndexingController extends Controller
                                 $q->whereRaw('1 = 0');
                             }
                         })
-                        ->whereHas('pagetypings')
-                        ->whereHas('scannings')
+                        // A plain table query has no whereHas (it became "[has] = pagetypings"): EXISTS instead.
+                        ->whereExists(fn ($x) => $x->selectRaw('1')->from('pagetypings')->whereColumn('pagetypings.file_indexing_id', 'file_indexings.id'))
+                        ->whereExists(fn ($x) => $x->selectRaw('1')->from('scannings')->whereColumn('scannings.file_indexing_id', 'file_indexings.id'))
                         ->whereColumn(
                             DB::raw('(SELECT COUNT(*) FROM pagetypings WHERE pagetypings.file_indexing_id = file_indexings.id)'),
                             '>=',
@@ -4779,7 +4849,6 @@ class FileIndexingController extends Controller
             // ordinary file whose related number points at a DCIV.
             $this->syncMasterDcivLinks($fileIndexing, $relatedFileNos, $relatedDetails);
             $this->syncRelatedSightings($request, $fileIndexing, $relatedFileNos);
-            $this->clearNpfForIndexed($request, $fileIndexing);
 
             // Register the same numbers in related_file_number. file_indexings.related_fileno
             // is the row's own JSON list; the register is what Legal Search and the Related
@@ -7275,29 +7344,8 @@ class FileIndexingController extends Controller
     }
 
     /**
-     * This file is indexed now, so it was physically handled: clear any NPF answer that
-     * names it as a related file elsewhere (user, 2026-10-29). Never blocks the save.
-     */
-    protected function clearNpfForIndexed(Request $request, $record): void
-    {
-        if (!$record) {
-            return;
-        }
-
-        try {
-            app(RelatedFileSightings::class)->clearNpfFor([
-                $record->file_number ?? null,
-                $record->kangis_file_no ?? null,
-                $record->new_kangis_file_no ?? null,
-            ], $request->user());
-        } catch (\Throwable $e) {
-            Log::warning('NPF clear on indexing failed', ['file_indexing_id' => $record->id ?? null, 'error' => $e->getMessage()]);
-        }
-    }
-
-    /**
-     * AJAX: is this related file indexed? An indexed file was physically handled, so the
-     * form answers "Physical File is Sighted" Yes for it and locks the answer.
+     * AJAX: is this related file indexed? Labels a No answer on the form: "Physical File
+     * Indexed" when it is, "Physical File Not in the File" (NPF) when it is not.
      */
     public function relatedFileIndexedStatus(Request $request)
     {
@@ -7306,12 +7354,14 @@ class FileIndexingController extends Controller
             return response()->json(['success' => false, 'message' => 'file_number is required.'], 422);
         }
 
-        $indexed = app(RelatedFileSightings::class)->indexedKeys([$fileNumber]);
+        $service = app(RelatedFileSightings::class);
+        $indexed = $service->indexedKeys([$fileNumber]);
 
         return response()->json([
             'success' => true,
             'file_number' => $fileNumber,
             'indexed' => isset($indexed[KangisBlockIndexing::key($fileNumber)]),
+            'file_title' => $service->titleFor($fileNumber),
         ]);
     }
 

@@ -121,7 +121,7 @@ class SurveyReportData
         return ['labels' => array_values($months), 'series' => $series];
     }
 
-    /** Plot for Plot projects: owner and Government plots (per-beneficiary 50:50, as the calculator). */
+    /** Land to Land projects: owner and Government plots (per-beneficiary 50:50, as the calculator). */
     private function plotsByProject(): array
     {
         $schedule = app(SurveyCompensationSchedule::class);
@@ -134,7 +134,7 @@ class SurveyReportData
         return $out;
     }
 
-    /** Cash for Trees projects: the cash valued on their cases. */
+    /** Monetary Compensation projects: the cash valued on their cases. */
     private function cashByProject(): array
     {
         return SurveyCaseTree::query()

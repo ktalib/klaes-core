@@ -10,10 +10,10 @@
 
 <div class="page-header">
     <div></div>
-    {{-- The existing GKN file number generator (GKN-, LPKN-, MISC KN), opened from here (user, 2026-10-25). --}}
-    <a href="{{ route('gkn-generation.index') }}" class="btn btn-primary">
+    {{-- Opens Generate Application File Numbers on this page (user, 2026-10-30); was a link to the generator page. --}}
+    <button type="button" class="btn btn-primary" @click="showGenerateModal = true">
         <i class="fas fa-plus"></i> Commission Application Files
-    </a>
+    </button>
 </div>
 
 {{-- Type tabs: one table, coloured by type (transcript). --}}
@@ -95,6 +95,9 @@
                                     <a href="{{ route('fileindexing.show', $f->id) }}" class="{{ $svItem }}">
                                         <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> View Indexing Record
                                     </a>
+                                    <a href="{{ route('survey-module.gkn.applications.commissioning-sheet', $f->id) }}" class="{{ $svItem }}" target="_blank" rel="noopener">
+                                        <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Commissioning Sheet
+                                    </a>
                                     <a href="{{ route('filearchive.index', ['url' => 'survey', 'file_number' => $f->file_number]) }}" class="{{ $svItem }}">
                                         <i data-lucide="library" class="w-4 h-4 text-gray-500"></i> Open in Doc-WARE
                                     </a>
@@ -114,7 +117,7 @@
                             @if (request()->hasAny(['q', 'source']))
                                 No files match this search.
                             @elseif ($tab === 'lppl')
-                                No LPPL files yet. The file number generator has no LPPL prefix yet.
+                                No LPPL files yet. Use <strong>Commission Application Files</strong> above and pick LPPL.
                             @else
                                 No files here yet. Use <strong>Commission Application Files</strong> above.
                             @endif

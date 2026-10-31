@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyCasePhoto;
 use App\Models\Survey\SurveyCompCase;
+use App\Support\SurveyMobileApps;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -25,7 +26,7 @@ use Illuminate\Support\Str;
 class MobileOfflineController extends Controller
 {
     /** Bump to make every phone refresh its cached pages and assets. */
-    public const SW_VERSION = 'scf-2026-10-25-1';
+    public const SW_VERSION = 'scf-2026-10-30-1';
 
     public function serviceWorker()
     {
@@ -38,10 +39,13 @@ class MobileOfflineController extends Controller
 
     public function manifest()
     {
+        // The field app this phone runs (SurveyMobileApps): SCF, Field Observations or Plot Confirmation.
+        $app = SurveyMobileApps::get();
+
         return response()->json([
-            'name'             => 'SCF Mobile · KLAES Survey',
-            'short_name'       => 'SCF Mobile',
-            'start_url'        => route('survey-module.mobile.index'),
+            'name'             => $app['name'] . ' · KLAES Survey',
+            'short_name'       => $app['name'],
+            'start_url'        => route('survey-module.mobile.login', ['app' => $app['key']]),
             'scope'            => url('/survey-module/mobile') . '/',
             'display'          => 'standalone',
             'background_color' => '#ffffff',

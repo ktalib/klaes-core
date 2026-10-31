@@ -121,7 +121,9 @@ class TitleStatusController extends Controller
         // raised elsewhere (read-only) so they know a file's status, but cannot act on
         // them. They therefore aggregate every registry's records rather than filtering
         // to their own `url`, and the view hides all action controls.
-        $readOnly = in_array($url, ['deeds', 'dciv'], true);
+        // Survey > File Status > Title Status (?url=survey) is the same view-only window: every
+        // record is raised under land or dciv, so filtering to url=survey listed nothing.
+        $readOnly = in_array($url, ['deeds', 'dciv', 'survey'], true);
 
         $records = TitleStatusApplication::query()
             ->when(!$readOnly, fn ($q) => $q->where('url', $url))

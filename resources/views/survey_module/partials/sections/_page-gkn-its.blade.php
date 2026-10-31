@@ -6,15 +6,20 @@
     $inputStyle = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
     $chip = fn ($label, $c) => '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-' . $c . '-100 text-' . $c . '-800">' . e($label) . '</span>';
     $cadPrint = \Illuminate\Support\Facades\Route::has('cadastral-module.survey-jobs.its.print');
-    $filters = ['q', 'source', 'status'];
+    $filters = ['q', 'status'];
 @endphp
 
 @include('survey_module.partials._flash')
 
 <div class="page-header">
     <div></div>
-    <a href="{{ route('survey-module.gkn.its.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Create I to S</a>
+    {{-- Survey issues Government jobs only; the Private tab lists Cadastral's jobs, read-only. --}}
+    @if ($tab === 'government')
+        <a href="{{ route('survey-module.gkn.its.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Create I to S</a>
+    @endif
 </div>
+
+@include('survey_module.partials._gov_private_tabs', ['route' => 'survey-module.gkn.its.index', 'tab' => $tab])
 
 <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-label">Survey jobs</div><div class="kpi-value">{{ number_format($stats['survey']) }}</div></div>
@@ -24,13 +29,9 @@
 </div>
 
 <form method="GET" class="table-toolbar">
+    @if ($tab === 'private')<input type="hidden" name="tab" value="private" />@endif
     <div class="left" style="flex-wrap:wrap;">
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Search file, job, I to S no., surveyor…" style="{{ $inputStyle }}width:270px;" />
-        <select name="source" style="{{ $inputStyle }}">
-            <option value="">All Sources</option>
-            <option value="survey" @selected(request('source') === 'survey')>Survey</option>
-            <option value="cadastral" @selected(request('source') === 'cadastral')>Cadastral</option>
-        </select>
         <select name="status" style="{{ $inputStyle }}">
             <option value="">All Status</option>
             @foreach (array_unique(array_merge(SurveyIts::STATUSES, ['Submitted', 'Accepted'])) as $s)
@@ -39,7 +40,7 @@
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
         @if (request()->hasAny($filters))
-            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.its.index') }}">Clear</a>
+            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.its.index', $tab === 'private' ? ['tab' => 'private'] : []) }}">Clear</a>
         @endif
     </div>
 </form>

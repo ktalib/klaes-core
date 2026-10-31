@@ -12,6 +12,20 @@ const state = {
   hasLoadedInitialData: false,
 };
  
+// Location never includes the plot number; strip the leading plot token that
+// older indexings saved ("PLOT, DISTRICT, LGA, KANO STATE").
+function viewLocationWithoutPlot(location, plotNumber) {
+  const text = location == null ? '' : String(location).trim();
+  const plot = plotNumber == null ? '' : String(plotNumber).trim().toUpperCase();
+  if (text === '' || text === '-' || plot === '' || plot === '-') return text;
+  const tokens = text.split(',');
+  const first = tokens[0].trim().toUpperCase();
+  if (tokens.length > 1 && (first === plot || first.replace(/^PLOT\s*(NO\.?|NUMBER)?\s*/, '') === plot)) {
+    return tokens.slice(1).join(',').trim();
+  }
+  return text;
+}
+
 function escapeHtml(str) {
   if (typeof str !== 'string') return str;
   return str.replace(/[&<>"']/g, function (m) {
@@ -293,7 +307,7 @@ function openRelatedFilesModal(id) {
                 </span>
             </td>
             <td class="px-4 py-3 text-sm text-gray-700 font-semibold">${escapeHtml(file.file_title)}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(file.location || '-')}</td>
+            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(viewLocationWithoutPlot(file.location, file.plot_number) || '-')}</td>
             <td class="px-4 py-3 text-xs text-gray-500">
                 <div class="flex flex-col gap-1">
                     <span class="font-medium">Plot: ${escapeHtml(file.plot_number || '-')}</span>

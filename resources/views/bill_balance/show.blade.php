@@ -46,7 +46,7 @@
           </div>
           <div>
             <p class="font-semibold text-slate-600 text-xs uppercase">Location / Station</p>
-            <p class="text-slate-900">{{ $billBalance->location_station ?? '—' }}</p>
+            <p class="text-slate-900">{{ $billBalance->locationStationDisplay() ?? '—' }}</p>
           </div>
           <div>
             <p class="font-semibold text-slate-600 text-xs uppercase">District</p>

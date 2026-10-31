@@ -45,3 +45,6 @@
     @include('survey_module.partials._address_builder_js')
     @include('survey_module.partials._scripts')
 @endpush
+
+{{-- Every long dropdown on a Survey page is type-to-search. --}}
+@include('survey_module.partials._searchable_selects')

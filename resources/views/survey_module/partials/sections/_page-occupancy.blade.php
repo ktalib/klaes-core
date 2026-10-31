@@ -70,7 +70,7 @@
                 <div class="calc-card">
                     <div class="kpi-label">Scheme</div>
                     <div class="kpi-value" style="font-size:18px;">
-                        {{ $op->scheme_type === SurveyProject::SCHEME_MONETARY ? 'Cash for Trees' : 'Plot for Plot' }}
+                        {{ $op->scheme_type === SurveyProject::SCHEME_MONETARY ? 'Monetary Compensation' : 'Land to Land' }}
                     </div>
                 </div>
                 <div class="calc-card">
@@ -148,11 +148,11 @@
         {{-- The two scenarios the pipeline has to serve. --}}
         <div class="op-scenarios" style="margin-top:24px;">
             <div class="op-scenario">
-                <div class="scenario-title">Cash for Trees OP</div>
+                <div class="scenario-title">Monetary Compensation OP</div>
                 <div class="scenario-desc">References cash compensation amount and beneficiary NIN. No plot schedule attached.</div>
             </div>
             <div class="op-scenario">
-                <div class="scenario-title">Plot for Plot OP</div>
+                <div class="scenario-title">Land to Land OP</div>
                 <div class="scenario-desc">Includes plot schedule (Plot No., OP No.) from Plot Allocation under the 50:50 split.</div>
             </div>
         </div>

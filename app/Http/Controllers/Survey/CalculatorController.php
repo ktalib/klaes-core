@@ -11,8 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * Estimating tool for both schemes. Cash for Trees: tree x qty x unit price.
- * Plot for Plot: 50:50 split with a configurable odd-plot rule.
+ * Estimating tool for both schemes. Monetary Compensation: tree x qty x unit price.
+ * Land to Land: 50:50 split with a configurable odd-plot rule.
  *
  * Nothing is persisted here, but every figure is computed in calculate() rather
  * than in the browser so the numbers can be checked against the catalogue and
@@ -54,7 +54,7 @@ class CalculatorController extends Controller
         return view('survey_module.compensation.calculator', $this->pageData($r) + ['result' => $result]);
     }
 
-    /** Cash for Trees estimate: a multi-line quote, each line tree x qty x unit price. */
+    /** Monetary Compensation estimate: a multi-line quote, each line tree x qty x unit price. */
     private function calculateMonetary(Request $r): array
     {
         $data = $r->validate([
@@ -77,17 +77,20 @@ class CalculatorController extends Controller
 
         foreach ($data['lines'] as $line) {
             $type = $types[$line['survey_tree_type_id']];
+            // The catalogue row is one tree in one Category (Mature / Early) with its own rate (2026-10-30).
+            $maturity = $type->maturity ?: SurveyTreeType::MATURE;
+            $rate = $type->rate();
 
             // A blank unit price falls back to the catalogue; a supplied one is an
             // explicit override. Either way the line total is computed here, not sent.
             $hasOverride = isset($line['unit_price']) && $line['unit_price'] !== '';
             // No rate yet means no valuation, never a silent ₦0.
-            if (! $hasOverride && $type->default_unit_price === null) {
+            if (! $hasOverride && $rate === null) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'lines' => "{$type->name} has no rate yet. Enter its rate in the Economic Trees catalogue, or type a unit price on the line.",
+                    'lines' => "{$type->label} has no rate yet. Enter it in the Farm Assessment catalogue, or type a unit price on the line.",
                 ]);
             }
-            $unit      = $hasOverride ? (float) $line['unit_price'] : (float) $type->default_unit_price;
+            $unit      = $hasOverride ? (float) $line['unit_price'] : $rate;
             $qty       = (int) $line['quantity'];
             $lineTotal = $qty * $unit;
             $total    += $lineTotal;
@@ -95,10 +98,11 @@ class CalculatorController extends Controller
             $lines[] = [
                 'tree_type'  => $type->name,
                 'category'   => $type->category,
+                'maturity'   => $maturity,
                 'quantity'   => $qty,
                 'unit_price' => $unit,
                 'line_total' => $lineTotal,
-                'overridden' => $type->default_unit_price === null || $unit !== (float) $type->default_unit_price,
+                'overridden' => $rate === null || $unit !== $rate,
             ];
         }
 
@@ -115,7 +119,7 @@ class CalculatorController extends Controller
         ];
     }
 
-    /** Plot for Plot estimate: the 50:50 split, odd plot to whichever side the rule names. */
+    /** Land to Land estimate: the 50:50 split, odd plot to whichever side the rule names. */
     private function calculateLand(Request $r): array
     {
         $data = $r->validate([
@@ -124,7 +128,7 @@ class CalculatorController extends Controller
             'survey_comp_case_id' => 'nullable|integer',
             'beneficiaries'       => 'nullable|integer|min:1|max:100000',
         ], [
-            'total_plots.required' => 'Enter the number of plots to carve.',
+            'total_plots.required' => 'Enter the number of creatable plots.',
             'total_plots.min'      => 'There must be at least one plot to split.',
         ]);
 
@@ -195,7 +199,7 @@ class CalculatorController extends Controller
             'schedule' => $project ? app(SurveyCompensationSchedule::class)->forProject($project) : null,
 
             'treeTypes' => SurveyTreeType::where('status', 'Active')->orderBy('name')
-                ->get(['id', 'name', 'category', 'default_unit_price']),
+                ->orderBy('maturity', 'desc')->get(['id', 'name', 'category', 'maturity', 'default_unit_price']),
 
             'cases' => SurveyCompCase::withCount('beneficiaries')
                 ->orderByDesc('id')

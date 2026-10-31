@@ -16,7 +16,8 @@
             ST_FILES: '/api/file-numbers/st',
             KANGIS_FILES: '/api/file-numbers/kangis',
             NEWKANGIS_FILES: '/api/file-numbers/newkangis',
-            LOOKUP: '/api/file-numbers/lookup'
+            LOOKUP: '/api/file-numbers/lookup',
+            CO_FILES: '/survey-module/compensation/co-files/options'
         }
     };
 
@@ -88,6 +89,8 @@
                 $('#mls-smart-selector').removeData('select2-initialized');
             }
             this._lastTempOnly = Boolean(this.config.tempOnly);
+
+            this.ensureCOTab();
 
             // Restrict which registry tabs are visible when the caller scopes the
             // selector by module/registry (e.g. Land module → MLS only). null/empty
@@ -181,6 +184,15 @@
             // Update current tab state
             this.config.currentTab = tabName;
 
+            const isSurveyTab = tabName === 'gkn' || tabName === 'co';
+            $('#survey-fileno-subtabs').toggleClass('hidden', !isSurveyTab);
+            $('.survey-fileno-subtab').each(function () {
+                const active = $(this).data('survey-tab') === tabName;
+                $(this).toggleClass('bg-orange-100 text-orange-800', active && tabName === 'gkn')
+                    .toggleClass('bg-rose-100 text-rose-800', active && tabName === 'co')
+                    .toggleClass('text-gray-600 hover:bg-rose-50', !active);
+            });
+
             // Update header and tab button styling based on theme
             this.updateHeader(tabName);
 
@@ -206,17 +218,30 @@
             try { console.log('[GlobalFileNoModal] switchTab complete', { tabName }); } catch (e) { }
         },
 
+        // Remove the legacy top-level CO button if a page was initialized by an older
+        // cached copy of this script. CO now lives under the Survey tab.
+        ensureCOTab: function () {
+            $('.fileno-tab-btn[data-tab="co"]').remove();
+        },
+
         // Show only the registry tabs allowed for the current context. Passing null
         // (or an empty list) reveals every tab — the default for callers that don't scope.
         applyAllowedTabs: function (allowed) {
             const $buttons = $('.fileno-tab-btn');
             if (!allowed || !allowed.length) {
                 $buttons.show();
+                $('.survey-fileno-subtab').show();
                 return;
             }
             $buttons.each(function () {
                 const tab = $(this).attr('data-tab');
-                $(this).toggle(allowed.indexOf(tab) !== -1);
+                const visible = tab === 'gkn'
+                    ? (allowed.indexOf('gkn') !== -1 || allowed.indexOf('co') !== -1)
+                    : allowed.indexOf(tab) !== -1;
+                $(this).toggle(visible);
+            });
+            $('.survey-fileno-subtab').each(function () {
+                $(this).toggle(allowed.indexOf($(this).data('survey-tab')) !== -1);
             });
         },
 
@@ -226,7 +251,7 @@
         // MLS_FILES, and the `system` value handed to callers stays 'MLS' because
         // consumers compare against it. Only the visible wording is mapped.
         tabLabel: function (tabName) {
-            const labels = { mls: 'MLPP' };
+            const labels = { mls: 'MLPP', gkn: 'Survey', co: 'CO' };
             const key = String(tabName || '').toLowerCase();
             return labels[key] || String(tabName || '').toUpperCase();
         },
@@ -277,7 +302,7 @@
                     color: 'text-teal-600'
                 },
                 'gkn': {
-                    title: 'GKN (Survey Registry) Selector',
+                    title: 'Survey File Number Selector',
                     icon: 'map-pinned',
                     gradient: 'from-orange-600 via-orange-700 to-red-800',
                     color: 'text-orange-600'
@@ -287,6 +312,12 @@
                     icon: 'layers',
                     gradient: 'from-violet-600 via-violet-700 to-purple-800',
                     color: 'text-violet-600'
+                },
+                'co': {
+                    title: 'CO (Compensation) File Selector',
+                    icon: 'folder-check',
+                    gradient: 'from-pink-600 via-rose-700 to-red-800',
+                    color: 'text-rose-600'
                 }
             };
 
@@ -314,7 +345,7 @@
             $('.fileno-tab-btn').each(function() {
                 const btnTab = $(this).data('tab');
                 const btnConfig = headerConfig[btnTab];
-                if (btnTab === tabName) {
+                if (btnTab === tabName || (btnTab === 'gkn' && tabName === 'co')) {
                     $(this).removeClass('text-gray-700').addClass(btnConfig.color + ' bg-white shadow-sm font-bold');
                 } else {
                     $(this).removeClass(btnConfig.color + ' bg-white shadow-sm font-bold').addClass('text-gray-700');
@@ -352,6 +383,7 @@
 
         // Load data for specific tab
         loadTabData: function (tabName) {
+            if (tabName === 'co') { this.loadCOFiles(); return; } // Survey CO files: its own list, see loadCOFiles()
             if (['sltr', 'old_mls', 'sit', 'dciv', 'gkn'].includes(tabName)) return; // Only manual entry for these
             const loadingId = `${tabName}-loading`;
             const selector = $(`#${tabName}-smart-selector`);
@@ -617,6 +649,9 @@
                         break;
                     case 'st':
                         preview = this.generateSTPreview();
+                        break;
+                    case 'co':
+                        preview = this.generateCOPreview();
                         break;
                 }
 
@@ -912,6 +947,61 @@
             return '';
         },
 
+        // Generate CO (Survey compensation) preview: the CO file picked in the dropdown, or
+        // CO-<serial>-<year> typed in Manual Entry, serial without leading zeros (CO-9-2018),
+        // the format SurveyCoFile::normaliseNumber() stores. The CO tab's method radios are
+        // named co-pick-method (not *-input-method), so apply() reads this preview for both.
+        generateCOPreview: function () {
+            if (($('input[name="co-pick-method"]:checked').val() || 'list') === 'list') {
+                return String($('#co-file-list').val() || '');
+            }
+            const serial = String($('#co-serial').val() || '').replace(/^0+/, '');
+            const year = String($('#co-year').val() || '');
+            return serial && /^\d{4}$/.test(year) ? `CO-${serial}-${year}` : '';
+        },
+
+        // The CO dropdown: every CO file in the Survey module, loaded once per page.
+        loadCOFiles: function (force) {
+            const $sel = $('#co-file-list');
+            if (!$sel.length || (this._coLoaded && !force)) return;
+            this._coLoaded = true;
+            const self = this;
+            $('#co-file-list-status').text('Loading CO files…');
+            $.ajax({ url: CONFIG.API_ENDPOINTS.CO_FILES, method: 'GET', dataType: 'json' })
+                .done(function (rows) {
+                    const keep = $sel.val();
+                    $sel.empty().append(new Option('', ''));
+                    (rows || []).forEach(function (r) {
+                        const o = new Option(r.number + ' · ' + (r.title || '') + (r.status ? ' (' + r.status + ')' : ''), r.number);
+                        $(o).attr('data-info', (r.projects || 0) + ' project' + (r.projects === 1 ? '' : 's') + (r.tp ? ' · ' + r.tp : ''));
+                        $sel.append(o);
+                    });
+                    if (keep) $sel.val(keep);
+                    if ($.fn.select2) {
+                        if ($sel.data('select2')) $sel.select2('destroy');
+                        $sel.select2({
+                            width: '100%',
+                            placeholder: 'Search CO number, title or TP No.…',
+                            allowClear: true,
+                            dropdownParent: $('#global-fileno-modal'),
+                            // Match the TP numbers (kept in data-info) as well as the visible text.
+                            matcher: function (params, data) {
+                                const term = String(params.term || '').trim().toLowerCase();
+                                if (!term || !data.id) return data;
+                                const hay = (data.text + ' ' + ($(data.element).attr('data-info') || '')).toLowerCase();
+                                return hay.indexOf(term) !== -1 ? data : null;
+                            }
+                        });
+                    }
+                    $('#co-file-list-status').text((rows || []).length + ' CO files. Not listed? Use Manual Entry.');
+                    self.updatePreview();
+                })
+                .fail(function () {
+                    self._coLoaded = false;
+                    $('#co-file-list-status').text('The CO file list could not be loaded; use Manual Entry.');
+                });
+        },
+
         // Generate SLTR preview
         generateSLTRPreview: function () {
             const serial = $('#mls-sltr-serial').val();
@@ -1204,7 +1294,9 @@
 
             try {
                 try {
-                    record = await this.fetchFileDetails(fileNumber, tabName);
+                    // CO files are Survey records, not in the file-number lookup; the page that
+                    // asked for one checks it itself (Survey CO picker).
+                    record = tabName === 'co' ? null : await this.fetchFileDetails(fileNumber, tabName);
                 } catch (error) {
                     fetchFailed = true;
                     console.error('Failed to fetch file number details', error);
@@ -1804,6 +1896,18 @@
             // Input changes for preview updates
             $(document).on('input change', '#global-fileno-modal input, #global-fileno-modal select', function () {
                 self.updatePreview();
+            });
+
+            // CO tab: Dropdown / Manual Entry, and the picked file's details under the list.
+            $(document).on('change', 'input[name="co-pick-method"]', function () {
+                const method = $('input[name="co-pick-method"]:checked').val();
+                $('.co-pick-section').addClass('hidden');
+                $('.co-pick-section[data-method="' + method + '"]').removeClass('hidden');
+                self.updatePreview();
+            });
+            $(document).on('change', '#co-file-list', function () {
+                const info = $(this).find('option:selected').attr('data-info') || '';
+                $('#co-file-list-info').text(info);
             });
 
             // Copy buttons

@@ -30,7 +30,10 @@ class SurveyItsController extends Controller
     public function index(Request $r)
     {
         $term   = trim((string) $r->query('q', ''));
-        $source = in_array($r->query('source'), ['survey', 'cadastral'], true) ? $r->query('source') : null;
+        // Government / Private tabs (CR 30102026 item 15): Government = Survey's own jobs, Private = Cadastral's
+        // (private survey, items 13-14). Each tab lists one source.
+        $tab    = $r->query('tab') === 'private' ? 'private' : 'government';
+        $source = $tab === 'private' ? 'cadastral' : 'survey';
         $status = $r->query('status');
 
         $rows = collect();
@@ -71,6 +74,7 @@ class SurveyItsController extends Controller
         $page = max(1, (int) $r->query('page', 1));
 
         return view('survey_module.gkn.its.index', [
+            'tab'   => $tab,
             'rows'  => new LengthAwarePaginator($rows->forPage($page, 20)->values(), $rows->count(), 20, $page, ['path' => $r->url(), 'query' => $r->query()]),
             'stats' => [
                 'survey'    => SurveyIts::count(),

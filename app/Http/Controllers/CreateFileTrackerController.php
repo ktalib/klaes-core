@@ -664,6 +664,10 @@ class CreateFileTrackerController extends Controller
                 $query->whereRaw(self::SUBMITTED_REQUEST_TYPE_SQL);
             } elseif (in_array($fileRequestType, ['MANUAL', 'IN_TRANSIT', 'IN-TRANSIT'], true)) {
                 $this->applyInTransitScope($query);
+            } elseif ($fileRequestType === 'DIIT') {
+                // The DIIT tab lists only the commissioned-but-never-tracked files,
+                // which come from diitListQuery(); no real tracker belongs to it.
+                $query->whereRaw('1 = 0');
             }
 
             if ($request->has('search') && $request->search) {
@@ -765,12 +769,11 @@ class CreateFileTrackerController extends Controller
             // DIIT files are active by definition (in process at the File Commissioning
             // Office), so they count towards the Active badge — otherwise the badge
             // disagrees with the "N files found" total of the list it labels. They are
-            // never Completed, and they count as In-transit, so In-transit + Submitted
-            // Request adds up to Active.
+            // never Completed, and they have their own DIIT tab (not In-transit), so
+            // In-transit + DIIT + Submitted Request adds up to Active.
             if ($moduleFilter === '') {
                 $stats['diit'] = app(FileCommissioningTrackingService::class)->untrackedQuery()->count();
                 $stats['active'] += $stats['diit'];
-                $stats['in_transit'] += $stats['diit'];
             }
 
             // Extra new_kangis dashboard metrics:
@@ -1073,9 +1076,9 @@ class CreateFileTrackerController extends Controller
      */
     protected function diitExportQuery(?string $dateFrom, ?string $dateTo, string $module, ?string $requestType = null): ?\Illuminate\Database\Query\Builder
     {
-        // A commissioning counts as In-transit (nobody asked for the file), so it is
-        // left out of a Submitted Request export only — the same rule the list applies.
-        if ($module !== '' || $requestType === 'Submitted Request') {
+        // A commissioning has its own DIIT request type, so it is left out of the
+        // Submitted Request and In-transit exports — the same rule the list applies.
+        if ($module !== '' || in_array($requestType, ['Submitted Request', 'In-transit'], true)) {
             return null;
         }
 
@@ -1133,8 +1136,8 @@ class CreateFileTrackerController extends Controller
      * numbers, so the KANGIS / New KANGIS / DG / DGIS views are untouched. They are
      * also skipped for the tabs they cannot belong to — Completed (a DIIT file has
      * never been logged back in), the officer tabs (no receiving officer), a
-     * priority filter (no priority) and the Submitted Request tab (nobody asked for
-     * the file). They are listed under In-transit.
+     * priority filter (no priority), the Submitted Request tab (nobody asked for
+     * the file) and the In-transit tab (they have their own DIIT tab).
      */
     protected function diitListQuery(Request $request, string $moduleFilter): ?\Illuminate\Database\Query\Builder
     {
@@ -1152,7 +1155,8 @@ class CreateFileTrackerController extends Controller
             return null;
         }
 
-        if (strtoupper(trim((string) $request->input('file_request_type', ''))) === 'SUBMITTED') {
+        $fileRequestType = strtoupper(trim((string) $request->input('file_request_type', '')));
+        if (in_array($fileRequestType, ['SUBMITTED', 'MANUAL', 'IN_TRANSIT', 'IN-TRANSIT'], true)) {
             return null;
         }
 
@@ -1318,6 +1322,12 @@ class CreateFileTrackerController extends Controller
         if (in_array($type, ['MANUAL', 'IN_TRANSIT', 'IN-TRANSIT'], true)) {
             $this->applyInTransitScope($query);
             return 'In-transit';
+        }
+
+        if ($type === 'DIIT') {
+            // Only the commissioning rows, which diitExportQuery() adds.
+            $query->whereRaw('1 = 0');
+            return 'DIIT';
         }
 
         return null;

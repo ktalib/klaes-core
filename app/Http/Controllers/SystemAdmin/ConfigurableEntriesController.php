@@ -218,7 +218,7 @@ class ConfigurableEntriesController extends Controller
             'table' => 'gkn_serial_control',
             'key' => 'prefix',
             'key_label' => 'Prefix',
-            'keys' => ['GKN', 'LPKN', 'MISCS'],
+            'keys' => ['GKN', 'LPKN', 'MISCS', 'LPPL', 'RDKN'],
             'yearly' => false,
             'by' => 'id',
             'icon' => 'ruler',

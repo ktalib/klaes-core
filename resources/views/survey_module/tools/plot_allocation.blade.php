@@ -3,8 +3,8 @@
 @section('page-title', 'Plot Allocation — KLAES')
 
 @php
-  $PageTitle = 'Plot Allocation';
-  $PageDescription = 'Plot for Plot compensation only · Manage plot allocations with 50:50 split (Farmer : Government). Not used for Cash for Trees schemes.';
+  $PageTitle = 'Resettlement Plots (Production)';
+  $PageDescription = 'Land to Land compensation only · Manage plot allocations with 50:50 split (Farmer : Government). Not used for Monetary Compensation schemes.';
 @endphp
 
 @section('survey-content')

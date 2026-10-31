@@ -46,11 +46,11 @@
         <div class="card-header"><h3>Compensation Summary</h3></div>
         <div style="display:flex;flex-direction:column;gap:12px;">
             <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--gray-50);border-radius:var(--radius-sm);">
-                <span>Cash for Trees Schemes</span>
+                <span>Monetary Compensation Schemes</span>
                 <span style="font-weight:700;color:var(--primary);">&#8358;{{ number_format($summary['monetary_cash'], 2) }}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--gray-50);border-radius:var(--radius-sm);">
-                <span>Plot for Plot Schemes (Plots)</span>
+                <span>Land to Land Schemes (Plots)</span>
                 <span style="font-weight:700;color:var(--primary);">{{ number_format($summary['land_plots']) }} plots</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--gray-50);border-radius:var(--radius-sm);">

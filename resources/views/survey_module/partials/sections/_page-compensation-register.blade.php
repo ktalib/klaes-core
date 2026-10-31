@@ -22,15 +22,41 @@
     $showMonetaryPanel = ! $editing || $isMonetary;
     $showLandPanel     = ! $editing || $isLand;
 
+    // Location to backfill when a project is picked (user, 2026-10-30): the project's own, and for each part it
+    // leaves empty, its TP No. on the Public Layout Plans register, then its CO file.
+    $projects->loadMissing('coFile');
+    $tpRows = \App\Models\Survey\SurveyTpNumber::whereIn('tp_no', $projects->pluck('plan_no')->filter()->unique()->values()->all() ?: [''])
+        ->get()->keyBy(fn ($t) => mb_strtoupper($t->tp_no));
+    $projectLocation = function ($p) use ($tpRows) {
+        $sources = array_filter([$p, $p->plan_no ? ($tpRows[mb_strtoupper($p->plan_no)] ?? null) : null, $p->coFile]);
+        $pick = function (string $col, ?string $otherCol = null) use ($sources) {
+            foreach ($sources as $s) {
+                $v = \App\Support\AddressBuilder::split($s->{$col} ?? null);
+                if ($v) return [$v, $otherCol ? ($s->{$otherCol} ?? null) : null];
+            }
+            return [[], null];
+        };
+        [$street, $streetOther] = $pick('prop_street', 'prop_street_other');
+        [$district, $districtOther] = $pick('prop_district', 'prop_district_other');
+        [$lga] = $pick('prop_lga');
+        [$state] = $pick('prop_state');
+        return ['street' => $street, 'street_other' => $streetOther, 'district' => $district, 'district_other' => $districtOther,
+                'lga' => $lga, 'state' => $state[0] ?? null];
+    };
+
     $projectMeta = $projects->mapWithKeys(fn ($p) => [$p->id => [
-        'name'    => $p->name,
-        'code'    => $p->project_code,
-        'scheme'  => $p->scheme_type,
-        'purpose' => $p->purpose,
-        'label'   => $p->scheme_label,
+        'name'     => $p->name,
+        'code'     => $p->project_code,
+        'scheme'   => $p->scheme_type,
+        'purpose'  => $p->purpose,
+        'label'    => $p->scheme_label,
+        'location' => $projectLocation($p),
     ]])->all();
 
-    $treePrices = $treeTypes->pluck('default_unit_price', 'name')->all();
+    // Both catalogue rates per tree (Mature / Early, 2026-10-29), for the price prefill.
+    // name => [Mature => rate, Early => rate], from the catalogue rows (one per tree per Category, 2026-10-30).
+    $treePrices = [];
+    foreach ($treeTypes as $t) $treePrices[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price;
 
     // Rows already on the case, or whatever bounced back from validation.
     $benRows = old('beneficiaries', $editing
@@ -42,7 +68,7 @@
 
     $treeRows = old('trees', $editing
         ? $case->trees->map(fn ($t) => [
-            'id' => $t->id, 'tree_type' => $t->tree_type,
+            'id' => $t->id, 'tree_type' => $t->tree_type, 'maturity' => $t->maturity ?: 'Mature',
             'quantity' => $t->quantity, 'unit_price' => $t->unit_price,
         ])->all()
         : []);
@@ -100,14 +126,15 @@
             <div class="form-step active" data-step="0">
                 <div class="step-title">General Information</div>
                 <div class="step-subtitle">
-                    Select a Project. The compensation scheme (Cash for Trees or Plot for Plot 50:50) is defined at
+                    Select a Project. The compensation scheme (Monetary Compensation or Land to Land 50:50) is defined at
                     Project level and cannot be changed on the case.
                 </div>
 
                 <div class="form-grid">
-                    <div class="form-group full">
+                    <div class="form-group">
                         <label>Select Project <span class="required">*</span></label>
-                        <select name="survey_project_id" id="caseProject" onchange="caseReg.onProject()">
+                        <select name="survey_project_id" id="caseProject" onchange="caseReg.onProject()"
+                                class="sv-searchable" data-placeholder="Search project, code or TP No.…">
                             <option value="">— Choose a registered project —</option>
                             @foreach ($projects as $p)
                                 @php $mismatch = $editing && $p->scheme_type !== $case->scheme_type; @endphp
@@ -115,7 +142,7 @@
                                         @selected((string) old('survey_project_id', $case->survey_project_id) === (string) $p->id)
                                         @disabled($mismatch)>
                                     {{ $p->project_code }} · {{ $p->name }}
-                                    ({{ $p->isMonetary() ? 'Cash for Trees' : 'Plot for Plot' }}){{ $mismatch ? ' — different scheme' : '' }}
+                                    ({{ $p->isMonetary() ? 'Monetary Compensation' : 'Land to Land' }}){{ $mismatch ? ' — different scheme' : '' }}
                                 </option>
                             @endforeach
                         </select>
@@ -157,7 +184,7 @@
                             @if ($scheme)
                                 <span class="status-badge {{ $isMonetary ? 'active' : 'completed' }}" style="font-size:14px;padding:6px 16px;">
                                     <span class="dot"></span>
-                                    {{ $isMonetary ? 'Cash for Trees' : 'Plot for Plot (50:50)' }}
+                                    {{ $isMonetary ? 'Monetary Compensation' : 'Land to Land (50:50)' }}
                                 </span>
                                 <span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>
                             @endif
@@ -166,9 +193,9 @@
                             @if ($scheme)
                                 <i class="fas fa-info-circle"></i>
                                 @if ($isMonetary)
-                                    <strong>Cash for Trees scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.
+                                    <strong>Monetary Compensation scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.
                                 @else
-                                    <strong>Plot for Plot scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.
+                                    <strong>Land to Land scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.
                                 @endif
                             @endif
                         </div>
@@ -411,16 +438,16 @@
                     @if ($isLand)
                         Not applicable — this case is compensated with plots, not cash.
                     @else
-                        List the economic trees on the affected land. Required for a Cash for Trees case: Tree Type × Quantity × Unit Price.
+                        List the economic trees on the affected land. Required for a Monetary Compensation case: Tree Type × Quantity × Unit Price.
                     @endif
                 </div>
 
-                {{-- Plot for Plot: the whole step is not applicable and records nothing. --}}
+                {{-- Land to Land: the whole step is not applicable and records nothing. --}}
                 <div class="comp-type-note" id="caseTreesNA"
                      style="border-left:4px solid var(--gray-400);@if(! $isLand) display:none; @endif">
                     <i class="fas fa-ban"></i>
                     <strong>Not applicable to this case.</strong>
-                    Plot for Plot compensation pays no cash for economic trees, so nothing is recorded on this step.
+                    Land to Land compensation pays no cash for economic trees, so nothing is recorded on this step.
                     Compensation is the 50:50 plot allocation on Step 5. Any tree line entered here is discarded on save.
                 </div>
 
@@ -437,10 +464,17 @@
                                 <input type="text" id="newTreeName" list="caseTreeCatalogue" placeholder="e.g. Palm Oil"
                                        oninput="caseReg.priceFor()" />
                                 <datalist id="caseTreeCatalogue">
-                                    @foreach ($treeTypes as $t)
+                                    @foreach ($treeTypes->unique('name') as $t)
                                         <option value="{{ $t->name }}"></option>
                                     @endforeach
                                 </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label>Category <span class="required">*</span></label>
+                                <select id="newTreeMaturity" onchange="caseReg.priceFor(true)">
+                                    <option value="Mature">Mature</option>
+                                    <option value="Early">Early</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Quantity <span class="required">*</span></label>
@@ -464,9 +498,14 @@
                         </div>
                     </div>
 
-                    <div class="tree-list">
+                    <style>
+                        /* Category column (Mature / Early, 2026-10-29), this page only. */
+                        .survey-proto .tree-list.tl-m .list-header, .survey-proto .tree-list.tl-m .list-item { grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr auto; }
+                    </style>
+                    <div class="tree-list tl-m">
                         <div class="list-header">
                             <span>Tree Type</span>
+                            <span>Category</span>
                             <span>Quantity</span>
                             <span class="hide-mobile">Unit Price (₦)</span>
                             <span>Total (₦)</span>
@@ -476,6 +515,7 @@
                         {{-- Hidden prototype row, cloned by addTree(). --}}
                         <div class="list-item" id="caseTreeTemplate" style="display:none;">
                             <span><input type="text" data-f="tree_type" /><input type="hidden" data-f="id" /></span>
+                            <span><select data-f="maturity"><option value="Mature">Mature</option><option value="Early">Early</option></select></span>
                             <span><input type="number" min="1" step="1" data-f="quantity" oninput="caseReg.lineTotal(this)" /></span>
                             <span class="hide-mobile"><input type="number" min="0" step="0.01" data-f="unit_price" oninput="caseReg.lineTotal(this)" /></span>
                             <span class="total" data-role="line">0.00</span>
@@ -493,6 +533,9 @@
                                         <input type="text" name="trees[{{ $i }}][tree_type]" value="{{ $row['tree_type'] ?? '' }}" />
                                         <input type="hidden" name="trees[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
                                     </span>
+                                    <span><select name="trees[{{ $i }}][maturity]">
+                                        @foreach (['Mature', 'Early'] as $m)<option value="{{ $m }}" @selected(($row['maturity'] ?? 'Mature') === $m)>{{ $m }}</option>@endforeach
+                                    </select></span>
                                     <span><input type="number" min="1" step="1" name="trees[{{ $i }}][quantity]"
                                                  value="{{ $row['quantity'] ?? '' }}" oninput="caseReg.lineTotal(this)" /></span>
                                     <span class="hide-mobile"><input type="number" min="0" step="0.01" name="trees[{{ $i }}][unit_price]"
@@ -524,7 +567,7 @@
             <div class="form-step" data-step="4">
                 <div class="step-title">Compensation Summary</div>
                 <div class="step-subtitle" id="caseCompSubtitle">
-                    The scheme is exclusive — monetary or plot-for-plot, never both.
+                    The scheme is exclusive — monetary or land-to-land, never both.
                 </div>
 
                 {{-- Shown only until a project (and therefore a scheme) is chosen. --}}
@@ -548,12 +591,12 @@
                             </div>
                         </div>
                         <div class="comp-total">
-                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Cash for Trees)</span>
+                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Monetary Compensation)</span>
                             <span class="total-amount" id="caseCashTotalLabel">₦0.00 cash to beneficiaries</span>
                         </div>
                         <div class="comp-type-note" style="margin-top:16px;">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Cash for Trees compensation only.</strong> No plots are allocated on this case.
+                            <strong>Monetary Compensation only.</strong> No plots are allocated on this case.
                             Line totals shown here are a preview; the stored values are recalculated on save.
                         </div>
                     </div>
@@ -564,7 +607,7 @@
                         <div class="comp-cards single">
                             <div class="comp-card" style="border-color:var(--primary);background:var(--primary-50);">
                                 <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
-                                <div class="card-label">Plot for Plot Compensation (50:50)</div>
+                                <div class="card-label">Land to Land Compensation (50:50)</div>
                                 <div style="font-size:20px;font-weight:600;color:var(--primary);margin:8px 0;" id="caseLandPlots">
                                     {{ number_format($split['total'] ?? (int) old('num_plots', $case->num_plots)) }} Plots Total
                                 </div>
@@ -593,7 +636,7 @@
                             </div>
                         </div>
                         <div class="comp-total">
-                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Plot for Plot)</span>
+                            <span class="total-label"><i class="fas fa-calculator"></i> Scheme Total (Land to Land)</span>
                             <span class="total-amount" id="caseLandTotalLabel">
                                 @if ($split)
                                     {{ $split['total'] }} plots · {{ $split['farmer'] }} Farmer : {{ $split['govt'] }} Government
@@ -613,7 +656,7 @@
                         </div>
                         <div class="comp-type-note" style="margin-top:16px;">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Plot for Plot only.</strong> No cash is paid for trees on this case. Individual plot and
+                            <strong>Land to Land only.</strong> No cash is paid for trees on this case. Individual plot and
                             OP numbers are assigned under
                             <a href="{{ route('survey-module.tools.plot-allocation') }}">Plot Allocation</a>.
                         </div>
@@ -753,6 +796,7 @@
     // name in classic scripts would break both.
     var PROJECTS    = @json($projectMeta);
     var TREE_PRICES = @json($treePrices);
+    var autoPrice = null;   // the last price filled from the catalogue
     var TOTAL_STEPS = 6;
 
     var step     = 0;
@@ -810,14 +854,14 @@
         if (badge && scheme) {
             badge.innerHTML = '<span class="status-badge ' + (isMonetary ? 'active' : 'completed') +
                 '" style="font-size:14px;padding:6px 16px;"><span class="dot"></span>' +
-                (isMonetary ? 'Cash for Trees' : 'Plot for Plot (50:50)') + '</span>' +
+                (isMonetary ? 'Monetary Compensation' : 'Land to Land (50:50)') + '</span>' +
                 '<span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>';
         }
         var note = qs('caseSchemeNote');
         if (note && scheme) {
             note.innerHTML = '<i class="fas fa-info-circle"></i> ' + (isMonetary
-                ? '<strong>Cash for Trees scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.'
-                : '<strong>Plot for Plot scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.');
+                ? '<strong>Monetary Compensation scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.'
+                : '<strong>Land to Land scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.');
         }
 
         // Step 4 — required for monetary, explicitly not applicable for land.
@@ -827,10 +871,10 @@
         if (sub) {
             sub.textContent = isLand
                 ? 'Not applicable — this case is compensated with plots, not cash.'
-                : 'List the economic trees on the affected land. Required for a Cash for Trees case: Tree Type × Quantity × Unit Price.';
+                : 'List the economic trees on the affected land. Required for a Monetary Compensation case: Tree Type × Quantity × Unit Price.';
         }
 
-        // Step 3 — plot count only means something under plot-for-plot.
+        // Step 3 — plot count only means something under land-to-land.
         var plots = qs('caseNumPlots'), req = qs('caseNumPlotsReq'), help = qs('caseNumPlotsHelp');
         if (plots) plots.disabled = isMonetary;
         if (req)   req.style.display = isLand ? '' : 'none';
@@ -849,16 +893,21 @@
         var compSub = qs('caseCompSubtitle');
         if (compSub) {
             compSub.textContent = isLand
-                ? 'Plot for Plot: plots split 50:50 (Farmer : Government). No cash for trees on this case.'
+                ? 'Land to Land: plots split 50:50 (Farmer : Government). No monetary compensation on this case.'
                 : (isMonetary
-                    ? 'Cash for Trees: economic trees only (Tree × Quantity × Unit Price). No plots on this case.'
-                    : 'The scheme is exclusive — monetary or plot-for-plot, never both.');
+                    ? 'Monetary Compensation: economic trees only (Tree × Quantity × Unit Price). No plots on this case.'
+                    : 'The scheme is exclusive — monetary or land-to-land, never both.');
         }
     }
+
+    var projectLoc = null;   // what the last project pick filled, cleared when the project changes
 
     function onProject() {
         var sel  = qs('caseProject');
         var meta = sel ? PROJECTS[sel.value] : null;
+
+        // Case Property Location from the project (rule 5): empty fields only; the previous pick's values go.
+        if (window.fillAddressBuilder) projectLoc = window.fillAddressBuilder('prop_', meta ? meta.location : null, projectLoc);
 
         var name = qs('caseProjectName');
         if (name) name.value = meta ? meta.name : '';
@@ -914,13 +963,15 @@
         if (!name || !qty || price === '') { alert('Tree type, quantity and unit price are all needed.'); return; }
 
         var row = cloneRow('caseTreeTemplate', 'caseTreeRows', 'trees', treeIndex++, {
-            tree_type: name, quantity: qty, unit_price: price, id: ''
+            tree_type: name, maturity: qs('newTreeMaturity').value || 'Mature', quantity: qty, unit_price: price, id: ''
         });
 
         lineTotal(row.querySelector('[data-f="quantity"]'));
         qs('newTreeName').value = '';
         qs('newTreeQty').value = '';
         qs('newTreePrice').value = '';
+        qs('newTreeMaturity').value = 'Mature';
+        autoPrice = null;
         qs('caseTreeForm').classList.remove('open');
         refreshCounts();
     }
@@ -1093,15 +1144,27 @@
         lineTotal: lineTotal,
         mirrorArea: mirrorArea,
         mirrorPlots: mirrorPlots,
+        // The catalogue rate for the tree and its category; replaces only a price this filled in.
         priceFor: function () {
             var name = (qs('newTreeName').value || '').trim();
             var price = qs('newTreePrice');
-            if (price && !price.value && TREE_PRICES[name]) price.value = TREE_PRICES[name];
+            var rates = TREE_PRICES[name] || {};
+            var rate = rates[qs('newTreeMaturity').value || 'Mature'];
+            if (!price) return;
+            if (price.value === '' || price.value === autoPrice) {
+                price.value = rate == null ? '' : String(rate);
+                autoPrice = price.value;
+            }
         }
     };
 
     document.addEventListener('DOMContentLoaded', function () {
         applyScheme(scheme);
+        @unless ($editing)
+        // A new case opened with its project already chosen gets that project's location too.
+        var pre = qs('caseProject');
+        if (pre && pre.value && PROJECTS[pre.value] && window.fillAddressBuilder) projectLoc = window.fillAddressBuilder('prop_', PROJECTS[pre.value].location, null);
+        @endunless
         refreshCounts();
         refreshTotals();
         mirrorPlots();

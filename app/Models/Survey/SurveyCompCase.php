@@ -7,14 +7,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SurveyCompCase extends SurveyModel
 {
+    use Concerns\HasImportOrigin;
+
     protected $table = 'survey_comp_cases';
 
     protected $casts = [
         'case_date' => 'date',
-        'area_ha'   => 'decimal:2',
+        'area_ha'   => 'decimal:4',
         'portion_size_ha' => 'decimal:4',
         'survey_project_surveyor_id' => 'integer',
         'portion_no'      => 'integer',
+        'captured_from_paper' => 'boolean',
     ];
 
     public function project(): BelongsTo
@@ -52,6 +55,22 @@ class SurveyCompCase extends SurveyModel
     public function opRecords(): HasMany
     {
         return $this->hasMany(SurveyOpRecord::class, 'survey_comp_case_id');
+    }
+
+    /**
+     * An existing record: imported from the spreadsheets or keyed in from a paper list. Its OPs
+     * already exist, so none is generated in KLAES (CR 30102026 item 32, user 2026-10-31).
+     */
+    public function isExistingRecord(): bool
+    {
+        return $this->isImported() || (bool) $this->captured_from_paper;
+    }
+
+    /** Lands created in KLAES itself (neither imported nor captured from paper). */
+    public function scopeNewInKlaes($q)
+    {
+        return $q->whereNull($this->qualifyColumn('import_ref'))
+            ->where(fn ($w) => $w->whereNull($this->qualifyColumn('captured_from_paper'))->orWhere($this->qualifyColumn('captured_from_paper'), false));
     }
 
     public function isMonetary(): bool

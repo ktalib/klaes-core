@@ -12,7 +12,7 @@
     $natKnown = $natVal === null || $natVal === '' || $natVal === C::NATURE_OTHER || in_array($natVal, $natures, true);
     $natPick  = $natKnown ? $natVal : C::NATURE_OTHER;
     $natOther = old('nature_other', $natKnown ? '' : $natVal);
-    $filters  = ['q', 'status', 'nature'];
+    $filters  = ['q', 'status', 'nature', 'type'];
 @endphp
 
 @include('survey_module.partials._flash')
@@ -86,6 +86,15 @@
 
         <div class="form-grid">
             <div class="sv-group"><i class="fas fa-balance-scale"></i><span>Dispute</span></div>
+            <div class="form-group"><label>Boundary Type <span class="required">*</span></label>
+                <select name="boundary_type" id="bdType" required>
+                    <option value="">— Select —</option>
+                    <option value="{{ BD::TYPE_PROPERTY }}" @selected(old('boundary_type', $dispute->boundary_type) === BD::TYPE_PROPERTY)>Property Boundary (private, land to land)</option>
+                    <optgroup label="Public Boundary">
+                        <option value="{{ BD::TYPE_PUBLIC_LGA }}" @selected(old('boundary_type', $dispute->boundary_type) === BD::TYPE_PUBLIC_LGA)>LGA Boundary</option>
+                        <option value="{{ BD::TYPE_PUBLIC_INTERSTATE }}" @selected(old('boundary_type', $dispute->boundary_type) === BD::TYPE_PUBLIC_INTERSTATE)>Interstate Boundary</option>
+                    </optgroup>
+                </select></div>
             <div class="form-group"><label>Nature <span class="required">*</span></label>
                 <select name="nature" id="bdNature" required>
                     <option value="">— Select —</option>
@@ -117,6 +126,13 @@
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Search no., file, parties, district…" style="{{ $inputStyle }}width:260px;" />
         <select name="status" style="{{ $inputStyle }}"><option value="">All Status</option>
             @foreach (BD::STATUSES as $s)<option value="{{ $s }}" @selected(request('status') === $s)>{{ $s }}</option>@endforeach</select>
+        <select name="type" style="{{ $inputStyle }}"><option value="">All Boundary Types</option>
+            <option value="{{ BD::TYPE_PROPERTY }}" @selected(request('type') === BD::TYPE_PROPERTY)>Property Boundary</option>
+            <optgroup label="Public Boundary">
+                <option value="public" @selected(request('type') === 'public')>All Public (LGA + Interstate)</option>
+                <option value="{{ BD::TYPE_PUBLIC_LGA }}" @selected(request('type') === BD::TYPE_PUBLIC_LGA)>LGA Boundary</option>
+                <option value="{{ BD::TYPE_PUBLIC_INTERSTATE }}" @selected(request('type') === BD::TYPE_PUBLIC_INTERSTATE)>Interstate Boundary</option>
+            </optgroup></select>
         <select name="nature" style="{{ $inputStyle }}"><option value="">All Natures</option>
             @foreach ($natures as $n)<option value="{{ $n }}" @selected(request('nature') === $n)>{{ $n }}</option>@endforeach</select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
@@ -141,7 +157,7 @@
                         <td>{{ optional($d->received_date)->format('d M Y') }}</td>
                         <td style="font-family:monospace;">{{ $d->file_number ?: '—' }}@if ($d->other_file_number)<div style="font-size:11px;">vs {{ $d->other_file_number }}</div>@endif</td>
                         <td>{{ $d->complainant_name }}@if ($d->respondent_name)<div style="font-size:12px;color:var(--gray-500);">vs {{ $d->respondent_name }}</div>@endif</td>
-                        <td>{{ $d->nature }}
+                        <td>@if ($d->boundary_type)<div style="font-size:12px;font-weight:600;">{{ $d->boundary_label }}</div>@endif{{ $d->nature }}
                             @if ($d->notes)<details style="font-size:12px;color:var(--gray-600);"><summary>Notes</summary><div style="white-space:pre-line;">{{ $d->notes }}</div></details>@endif
                         </td>
                         <td>{{ $d->plot_no ?: '—' }}</td>

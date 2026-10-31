@@ -7,6 +7,7 @@
             'mode'    => 'property',       // 'property' | 'person'
             'model'   => $case ?? null,    // optional, for edit forms
             'legend'  => 'Property Location',
+            'fields'  => ['plot', 'district', 'lga', 'state'],  // optional: leave out House No. / Street
         ])
 
     Emits the eight sub-fields the convention expects:
@@ -30,6 +31,8 @@
     $mode   = $mode ?? 'property';
     $model  = $model ?? null;
     $legend = $legend ?? ($mode === 'person' ? 'Address' : 'Property Location');
+    $fields = $fields ?? null;
+    $shows  = fn (string $f): bool => $fields === null || in_array($f, $fields, true);
 
     $val = function (string $suffix) use ($prefix, $model) {
         return old($prefix . $suffix, $model->{$prefix . $suffix} ?? ($suffix === 'state' ? 'Kano' : ''));
@@ -55,17 +58,22 @@
     <div class="ab-legend">{{ $legend }}</div>
 
     <div class="form-grid">
+        @if ($shows('house'))
         <div class="form-group">
             <label>House No.</label>
             <input type="text" name="{{ $prefix }}house" value="{{ $val('house') }}" placeholder="e.g. 12" />
         </div>
+        @endif
 
+        @if ($shows('plot'))
         <div class="form-group">
             <label>Plot No.</label>
             <input type="text" name="{{ $prefix }}plot" value="{{ $val('plot') }}" placeholder="e.g. 4" />
-            <p class="helper-text">If both are given, the plot number is used.</p>
+            @if ($shows('house'))<p class="helper-text">If both are given, the plot number is used.</p>@endif
         </div>
+        @endif
 
+        @if ($shows('street'))
         <div class="form-group">
             <label>Street Name</label>
             <select name="{{ $prefix }}street[]" class="ab-street" multiple data-placeholder="Search street…">
@@ -81,6 +89,7 @@
             <input type="text" name="{{ $prefix }}street_other" value="{{ $val('street_other') }}"
                    placeholder="Type the street name" />
         </div>
+        @endif
 
         <div class="form-group">
             <label>District <span class="required">*</span></label>

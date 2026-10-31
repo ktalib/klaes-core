@@ -38,7 +38,7 @@ class CaseController extends Controller
 
     public function index(Request $r)
     {
-        $q = SurveyCompCase::query()->with(['project', 'allocation'])->withCount('beneficiaries');
+        $q = SurveyCompCase::query()->with(['project', 'allocation', 'creator:id,first_name,last_name'])->withCount('beneficiaries');
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
@@ -54,19 +54,26 @@ class CaseController extends Controller
         if ($st = $r->query('status'))  $q->where('status', $st);
         if ($p  = $r->query('project')) $q->where('survey_project_id', $p);
         if ($s  = $r->query('scheme'))  $q->where('scheme_type', $s);
+        // Two tabs (CR 30102026 item 23, user 2026-10-31): Imported (from the spreadsheets) and
+        // Captured (registered or keyed in from a paper list). Each tab lists, and counts, its own.
+        $tab = in_array($r->query('origin'), ['imported', 'entered'], true) ? $r->query('origin') : 'imported';
+        $q->origin($tab);
 
         $cases = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
+        $mine = fn () => SurveyCompCase::query()->origin($tab);
         $stats = [
-            'total'     => SurveyCompCase::count(),
-            'active'    => SurveyCompCase::where('status', 'Active')->count(),
-            'review'    => SurveyCompCase::where('status', self::STATUS_REVIEW)->count(),
-            'completed' => SurveyCompCase::where('status', 'Completed')->count(),
+            'total'     => $mine()->count(),
+            'active'    => $mine()->where('status', 'Active')->count(),
+            'review'    => $mine()->where('status', self::STATUS_REVIEW)->count(),
+            'completed' => $mine()->where('status', 'Completed')->count(),
         ];
 
         return view('survey_module.compensation.cases', [
             'cases'    => $cases,
             'stats'    => $stats,
+            'tab'      => $tab,
+            'tabCounts' => ['imported' => SurveyCompCase::query()->origin('imported')->count(), 'entered' => SurveyCompCase::query()->origin('entered')->count()],
             'projects' => $this->projectOptions(),
             'detail'   => null,
         ]);
@@ -258,14 +265,14 @@ class CaseController extends Controller
     }
 
     /**
-     * Plot for Plot cases only, with the 50:50 split. Cash for Trees cases allocate no
+     * Land to Land cases only, with the 50:50 split. Monetary Compensation cases allocate no
      * plots, so they are excluded outright rather than listed with zeros.
      */
     public function landAllocation(Request $r)
     {
         $q = SurveyCompCase::query()
             ->where('scheme_type', SurveyProject::SCHEME_LAND)
-            ->with('project')
+            ->with(['project', 'creator:id,first_name,last_name'])
             ->withCount(['plots', 'beneficiaries']);
 
         if ($term = trim((string) $r->query('q', ''))) {
@@ -279,6 +286,7 @@ class CaseController extends Controller
         }
         if ($st = $r->query('status'))  $q->where('status', $st);
         if ($p  = $r->query('project')) $q->where('survey_project_id', $p);
+        $q->origin($r->query('origin'));
 
         $cases = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -322,7 +330,7 @@ class CaseController extends Controller
             'projects'  => $projects,
             'portions'  => $this->portionOptions($projects, $case),
             'treeTypes' => SurveyTreeType::where('status', 'Active')->orderBy('name')->get(),
-            // Only meaningful once the case exists and is plot-for-plot.
+            // Only meaningful once the case exists and is land-to-land.
             'split'     => ($case->exists && ! $case->isMonetary()) ? $case->plotSplit() : null,
         ];
     }
@@ -428,7 +436,7 @@ class CaseController extends Controller
 
     protected function schemeLabel(?string $type): string
     {
-        return $type === SurveyProject::SCHEME_LAND ? 'Plot for Plot (50:50)' : 'Cash for Trees';
+        return $type === SurveyProject::SCHEME_LAND ? 'Land to Land (50:50)' : 'Monetary Compensation';
     }
 
     /** Why this case may not be submitted yet, or null when it may. */
@@ -441,7 +449,7 @@ class CaseController extends Controller
             return 'a monetary case needs at least one economic tree line (Step 4).';
         }
         if (! $case->isMonetary() && (int) $case->num_plots < 1 && ! $case->plots()->exists()) {
-            return 'a plot-for-plot case needs a plot count for the 50:50 split (Step 3).';
+            return 'a land-to-land case needs a plot count for the 50:50 split (Step 3).';
         }
 
         return null;
@@ -489,10 +497,11 @@ class CaseController extends Controller
             'beneficiaries.*.status'    => ['required', Rule::in(self::BEN_STATUSES)],
 
             // Step 4 is the valuation basis for a monetary case, so it is required
-            // there. For plot-for-plot it is not applicable and is dropped instead.
+            // there. For land-to-land it is not applicable and is dropped instead.
             'trees'              => $isMonetary ? 'required|array|min:1' : 'nullable|array',
             'trees.*.id'         => 'nullable|integer',
             'trees.*.tree_type'  => 'required|string|max:255',
+            'trees.*.maturity'   => ['nullable', Rule::in(SurveyTreeType::MATURITIES)],
             'trees.*.quantity'   => 'required|integer|min:1',
             'trees.*.unit_price' => 'required|numeric|min:0|max:99999999999',
         ] + AddressBuilder::rules('prop_');
@@ -502,7 +511,7 @@ class CaseController extends Controller
             'survey_project_id.exists'           => 'That project does not exist.',
             'trees.required'                     => 'A monetary case needs at least one economic tree line (Step 4).',
             'trees.min'                          => 'A monetary case needs at least one economic tree line (Step 4).',
-            'num_plots.required'                 => 'A plot-for-plot case needs the total number of plots for the 50:50 split (Step 3).',
+            'num_plots.required'                 => 'A land-to-land case needs the total number of plots for the 50:50 split (Step 3).',
             'beneficiaries.*.full_name.required' => 'Every beneficiary row needs a full name (Step 2).',
             'beneficiaries.*.status.required'    => 'Every beneficiary row needs a status (Step 2).',
             'trees.*.tree_type.required'         => 'Every tree line needs a tree type (Step 4).',
@@ -575,10 +584,11 @@ class CaseController extends Controller
 
             $attrs = [
                 'tree_type'           => $name,
+                'maturity'            => $row['maturity'] ?? SurveyTreeType::MATURE,
                 'quantity'            => (int) $row['quantity'],
                 'unit_price'          => (float) $row['unit_price'],
-                // Link to the catalogue when the name matches one, for reporting.
-                'survey_tree_type_id' => SurveyTreeType::where('name', $name)->value('id'),
+                // Link to the catalogue row for this tree and Category, for reporting.
+                'survey_tree_type_id' => SurveyTreeType::findFor($name, $row['maturity'] ?? null)?->id,
             ];
 
             $existing = ! empty($row['id']) ? $case->trees()->find($row['id']) : null;

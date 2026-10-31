@@ -6,8 +6,8 @@
   $capture = $coFile->source === \App\Models\Survey\SurveyCoFile::SOURCE_CAPTURED;
   $PageTitle = $coFile->exists ? 'Edit CO File ' . $coFile->co_file_no : ($capture ? 'Capture Existing CO File' : 'Commission CO File');
   $PageDescription = $capture
-      ? 'Key in an existing paper CO file under its own number.'
-      : 'Commission a new CO file. It is numbered CO-YYYY-0001 automatically and can hold many projects.';
+      ? 'Key in an existing paper CO file under its own number (CO-serial-year, e.g. CO-9-2018).'
+      : 'Commission a new CO file. It is numbered CO-serial-year (e.g. CO-9-2018) automatically and can hold many projects.';
 @endphp
 
 @section('survey-content')

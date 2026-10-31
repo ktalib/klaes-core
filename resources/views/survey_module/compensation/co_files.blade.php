@@ -1,10 +1,16 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'CO Files — KLAES')
+@php
+  $commissioned = ($only ?? null) === \App\Models\Survey\SurveyCoFile::SOURCE_COMMISSIONED;
+  $PageTitle = $commissioned ? 'Commission CO File' : 'CO Files';
+  $PageDescription = $commissioned
+      ? 'CO files commissioned in KLAES, numbered by the system. Each holds one or more projects.'
+      : 'Existing CO files captured from the paper records. Each holds one or more projects.';
+@endphp
+
+@section('page-title', $PageTitle . ' — KLAES')
 
 @php
-  $PageTitle = 'CO Files';
-  $PageDescription = 'Compensation (CO) files. Each CO file holds one or more projects; commission new files or capture existing ones.';
 @endphp
 
 @section('survey-content')

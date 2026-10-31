@@ -3,6 +3,8 @@
 
     $key = $anchor['key'];
     $locked = $anchor['locked'];
+    // GKN (government) or Examination (private report) pages, same editor.
+    $rp = $anchor['routes'] ?? 'survey-module.gkn';
     $num = fn ($v, $dp = 3) => $v === null ? '—' : number_format((float) $v, $dp);
     $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
 @endphp
@@ -10,9 +12,14 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.coordinates.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
-    <div style="display:flex;gap:8px;">
-        <a class="btn btn-outline btn-sm" href="{{ route('survey-module.gkn.observations.show', $key) }}"><i class="fas fa-calculator"></i> Field Observations</a>
+    @if (! empty($anchor['back']))
+        <a class="btn btn-secondary btn-sm" href="{{ $anchor['back']['url'] }}"><i class="fas fa-arrow-left"></i> {{ $anchor['back']['label'] }}</a>
+    @else
+        <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.coordinates.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
+    @endif
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn btn-outline btn-sm" href="{{ route($rp . '.beacons.show', $key) }}"><i class="fas fa-map-marker-alt"></i> Beacon Nos</a>
+        <a class="btn btn-outline btn-sm" href="{{ route($rp . '.observations.show', $key) }}"><i class="fas fa-calculator"></i> Field Observations</a>
         @unless ($locked)
             <button type="button" class="btn btn-primary btn-sm" onclick="svModal.open('coordForm')"><i class="fas fa-plus"></i> Add Beacon</button>
         @endunless
@@ -35,7 +42,7 @@
 @if ($locked)
     <div class="comp-type-note" style="margin-bottom:16px;"><i class="fas fa-lock"></i> {{ $anchor['prefill']['its_number'] }} is closed; this list can no longer be changed.</div>
 @else
-    <form method="POST" action="{{ route('survey-module.gkn.coordinates.store', $key) }}" id="coordForm"
+    <form method="POST" action="{{ route($rp . '.coordinates.store', $key) }}" id="coordForm"
           class="farmer-entry-form {{ $errors->any() && ! str_starts_with((string) old('_form'), 'edit-') ? 'open' : '' }}" data-sv-modal="Add Beacon · {{ $anchor['prefill']['its_number'] }}" data-sv-modal-size="sm">
         @csrf
         <div class="form-grid">
@@ -111,12 +118,12 @@
                                         </button>
                                         @foreach (['up' => 'Move up', 'down' => 'Move down'] as $dir => $label)
                                             @if (($dir === 'up' && ! $loop->parent->first) || ($dir === 'down' && ! $loop->parent->last))
-                                                <form method="POST" action="{{ route('survey-module.gkn.coordinates.move', [$key, $c->id]) }}">@csrf<input type="hidden" name="dir" value="{{ $dir }}">
+                                                <form method="POST" action="{{ route($rp . '.coordinates.move', [$key, $c->id]) }}">@csrf<input type="hidden" name="dir" value="{{ $dir }}">
                                                     <button class="{{ $svItem }}" type="submit"><i data-lucide="arrow-{{ $dir }}" class="w-4 h-4 text-gray-500"></i> {{ $label }}</button>
                                                 </form>
                                             @endif
                                         @endforeach
-                                        <form method="POST" action="{{ route('survey-module.gkn.coordinates.destroy', [$key, $c->id]) }}" onsubmit="return confirm('Remove beacon {{ $c->beacon_id }}?');">
+                                        <form method="POST" action="{{ route($rp . '.coordinates.destroy', [$key, $c->id]) }}" onsubmit="return confirm('Remove beacon {{ $c->beacon_id }}?');">
                                             @csrf @method('DELETE')
                                             <button class="{{ $svItem }} text-red-600" type="submit"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove</button>
                                         </form>
@@ -142,7 +149,7 @@
 @unless ($locked)
     @foreach ($coords as $c)
         @php $mine = $errors->any() && old('_form') === 'edit-' . $c->id; $v = fn ($f) => $mine ? old($f) : $c->{$f}; @endphp
-        <form method="POST" action="{{ route('survey-module.gkn.coordinates.update', [$key, $c->id]) }}" id="coordEdit{{ $c->id }}"
+        <form method="POST" action="{{ route($rp . '.coordinates.update', [$key, $c->id]) }}" id="coordEdit{{ $c->id }}"
               class="farmer-entry-form {{ $mine ? 'open' : '' }}" data-sv-modal="Edit Beacon {{ $c->beacon_id }}" data-sv-modal-size="sm">
             @csrf @method('PUT')
             <input type="hidden" name="_form" value="edit-{{ $c->id }}" />

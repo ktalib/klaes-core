@@ -356,6 +356,16 @@
                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-[11px] font-bold rounded-lg hover:bg-violet-700 transition disabled:opacity-60 disabled:cursor-wait">
                                             <i data-lucide="printer" class="h-3.5 w-3.5"></i> Print batch ({{ $generated }})
                                         </button>
+                                        {{-- Security paper codes for the whole batch from a range (CR 30102026 item 25). Codes go on
+                                             printed letters only, as the single entry does, so it opens once something is printed. --}}
+                                        @if($printed > 0)
+                                        <button type="button"
+                                            onclick="openBatchSecurityPaper(@js($b->rofo_batch_id))"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-red-700 border border-red-300 text-[11px] font-bold rounded-lg hover:bg-red-50 transition"
+                                            title="Enter the security paper codes for this batch's printed letters as one range">
+                                            <i data-lucide="hash" class="h-3.5 w-3.5"></i> Security paper codes
+                                        </button>
+                                        @endif
                                     @else
                                         <span class="text-[10px] text-slate-400 font-semibold">No RofO generated yet</span>
                                     @endif
@@ -2944,6 +2954,90 @@ function rofoWithExtras(body, extras) {
 //
 // The tab is claimed synchronously inside the click — a window opened after an
 // await is what pop-up blockers stop.
+// Security paper codes for a whole batch (CR 30102026 item 25): a range, previewed against the
+// batch's printed letters in print order, then saved all at once. Any problem blocks the save and is
+// shown above the inputs so the range can be corrected (user, 2026-10-31).
+function openBatchSecurityPaper(batchId, from, to, errors) {
+    var base = @js(route('land-rofos.batch-security-paper.assign', '__BATCH__')).replace('__BATCH__', encodeURIComponent(batchId));
+    var post = function (url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': rofoCsrf(), 'Accept': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json().catch(function () { return { success: false, errors: ['Unexpected response (HTTP ' + r.status + ').'] }; }); });
+    };
+    var errHtml = function (list) {
+        return (list && list.length)
+            ? '<div style="text-align:left;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px">'
+              + '<strong>Nothing was saved. Please correct:</strong><ul style="margin:6px 0 0 18px;list-style:disc">'
+              + list.map(function (e) { return '<li>' + rofoEscHtml(e) + '</li>'; }).join('') + '</ul></div>'
+            : '';
+    };
+
+    Swal.fire({
+        title: 'Security paper codes · batch',
+        width: 560,
+        html: '<div style="font-size:13px;color:#475569;text-align:left;margin-bottom:10px">Batch <strong>' + rofoEscHtml(batchId) + '</strong>. '
+            + 'Enter the range of security paper codes on this batch\'s printed sheets. They are matched to the letters in the order they were printed.</div>'
+            + errHtml(errors)
+            + '<div style="display:flex;gap:10px;align-items:end">'
+            + '<label style="flex:1;text-align:left;font-size:12px;font-weight:700;color:#334155">From<input id="bspFrom" class="swal2-input" style="margin:4px 0 0;width:100%" inputmode="numeric" placeholder="e.g. 001335" value="' + rofoEscHtml(from || '') + '"></label>'
+            + '<label style="flex:1;text-align:left;font-size:12px;font-weight:700;color:#334155">To<input id="bspTo" class="swal2-input" style="margin:4px 0 0;width:100%" inputmode="numeric" placeholder="e.g. 001400" value="' + rofoEscHtml(to || '') + '"></label>'
+            + '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'Preview',
+        focusConfirm: false,
+        showLoaderOnConfirm: true,
+        preConfirm: function () {
+            var f = document.getElementById('bspFrom').value.trim(), t = document.getElementById('bspTo').value.trim();
+            if (!f || !t) { Swal.showValidationMessage('Enter both the first and the last code.'); return false; }
+            return post(base + '/preview', { from: f, to: t }).then(function (plan) { return { plan: plan, from: f, to: t }; });
+        },
+        allowOutsideClick: function () { return !Swal.isLoading(); }
+    }).then(function (res) {
+        if (!res.isConfirmed) return;
+        var plan = res.value.plan, f = res.value.from, t = res.value.to;
+        if (!plan.success) { openBatchSecurityPaper(batchId, f, t, plan.errors || ['The range could not be checked.']); return; }
+
+        var rows = (plan.rows || []).map(function (r) {
+            return '<tr><td style="padding:4px 6px;color:#94a3b8">' + r.n + '</td>'
+                + '<td style="padding:4px 6px;font-family:monospace">' + rofoEscHtml(r.file_number || '') + '</td>'
+                + '<td style="padding:4px 6px;color:#059669;font-weight:900;white-space:nowrap">' + (r.serial
+                    ? '<span style="display:inline-flex;flex-direction:column;align-items:center;font-size:10px;line-height:1;vertical-align:middle"><span style="border-bottom:1.5px solid #059669">' + rofoEscHtml(r.serial.alphabet) + '</span><span>' + rofoEscHtml(r.serial.digits_start) + '</span></span> '
+                      + '<span style="font-family:Courier New,monospace;font-size:14px;letter-spacing:.08em;vertical-align:middle">' + rofoEscHtml(r.serial.digits_end) + '</span>'
+                    : '<span style="color:#94a3b8">—</span>') + '</td>'
+                + '<td style="padding:4px 6px;font-family:Courier New,monospace;font-weight:900;color:#dc2626">' + rofoEscHtml(r.code) + '</td></tr>';
+        }).join('');
+        Swal.fire({
+            title: 'Check before saving',
+            width: 720,
+            html: '<div style="font-size:13px;color:#475569;text-align:left;margin-bottom:8px">'
+                + '<strong>' + plan.needing + '</strong> printed letter(s) get <strong>' + rofoEscHtml(plan.from) + '–' + rofoEscHtml(plan.to) + '</strong>, in print order. '
+                + 'Check the security serial on the first and last sheets against this list.'
+                + (plan.already_coded ? ' ' + plan.already_coded + ' letter(s) already have a code and are left as they are.' : '')
+                + (plan.not_printed ? ' ' + plan.not_printed + ' letter(s) are not printed yet.' : '') + '</div>'
+                + '<div style="max-height:360px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px">'
+                + '<table style="width:100%;font-size:12px;text-align:left;border-collapse:collapse"><thead style="position:sticky;top:0;background:#f8fafc">'
+                + '<tr><th style="padding:6px">S/N</th><th style="padding:6px">File No.</th><th style="padding:6px">Security Serial</th><th style="padding:6px">Paper Code</th></tr></thead>'
+                + '<tbody>' + rows + '</tbody></table></div>',
+            showCancelButton: true,
+            showDenyButton: true,
+            denyButtonText: 'Change range',
+            confirmButtonText: 'Save ' + plan.needing + ' code(s)',
+            confirmButtonColor: '#dc2626',
+            showLoaderOnConfirm: true,
+            preConfirm: function () { return post(base, { from: f, to: t }); },
+            allowOutsideClick: function () { return !Swal.isLoading(); }
+        }).then(function (saved) {
+            if (saved.isDenied) { openBatchSecurityPaper(batchId, f, t); return; }
+            if (!saved.isConfirmed) return;
+            if (!saved.value || !saved.value.success) { openBatchSecurityPaper(batchId, f, t, (saved.value && saved.value.errors) || ['Saving failed.']); return; }
+            if (window.invalidateSecurityPaperCodes) window.invalidateSecurityPaperCodes();
+            Swal.fire({ icon: 'success', title: 'Saved', text: saved.value.message }).then(function () { location.reload(); });
+        });
+    });
+}
+
 function openBatchWhiteCopy(batchId) {
     loadRofoBatchChildren(batchId)
         .then(function (data) {

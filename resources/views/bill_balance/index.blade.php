@@ -277,7 +277,7 @@
                   <td class="px-4 py-3 text-left max-w-[200px] truncate" title="{{ $record->loc_street_name ? \Illuminate\Support\Str::upper((string) $record->loc_street_name) : '—' }}">{{ $record->loc_street_name ? \Illuminate\Support\Str::upper((string) $record->loc_street_name) : '—' }}</td>
                   <td class="px-4 py-3 text-left whitespace-nowrap">{{ ($record->loc_district ?: $record->district) ? \Illuminate\Support\Str::upper((string) ($record->loc_district ?: $record->district)) : '—' }}</td>
                   <td class="px-4 py-3 text-left whitespace-nowrap">{{ $record->loc_lga ? \Illuminate\Support\Str::upper((string) $record->loc_lga) : '—' }}</td>
-                  <td class="px-4 py-3 text-left max-w-[260px] truncate" title="{{ $record->location_station ? \Illuminate\Support\Str::upper((string) $record->location_station) : '—' }}">{{ $record->location_station ? \Illuminate\Support\Str::upper((string) $record->location_station) : '—' }}</td>
+                  <td class="px-4 py-3 text-left max-w-[260px] truncate" title="{{ $record->locationStationDisplay() ? \Illuminate\Support\Str::upper((string) $record->locationStationDisplay()) : '—' }}">{{ $record->locationStationDisplay() ? \Illuminate\Support\Str::upper((string) $record->locationStationDisplay()) : '—' }}</td>
                   <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums">{{ number_format((float) ($record->amount ?? 0), 2) }}</td>
                   <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums">{{ number_format($registrationFee, 2) }}</td>
                   <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums">{{ number_format($surveyFee, 2) }}</td>

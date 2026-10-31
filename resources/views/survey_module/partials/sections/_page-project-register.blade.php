@@ -40,9 +40,9 @@
                             <input type="radio" name="scheme_type" value="monetary"
                                    @checked($scheme === 'monetary') @disabled($locked) />
                             <div class="type-icon"><i class="fas fa-money-bill-wave"></i></div>
-                            <div class="type-title">Cash for Trees</div>
+                            <div class="type-title">Monetary Compensation</div>
                             <div class="type-desc">Payment for economic trees only. Tree Type × Quantity × Unit Price. No land allocation.</div>
-                            <span class="type-badge">Cash for Trees</span>
+                            <span class="type-badge">Monetary Compensation</span>
                         </label>
 
                         <label class="comp-type-option {{ $scheme === 'land' ? 'selected' : '' }}"
@@ -50,7 +50,7 @@
                             <input type="radio" name="scheme_type" value="land"
                                    @checked($scheme === 'land') @disabled($locked) />
                             <div class="type-icon"><i class="fas fa-map-marked-alt"></i></div>
-                            <div class="type-title">Plot for Plot (50:50)</div>
+                            <div class="type-title">Land to Land (50:50)</div>
                             <div class="type-desc">Physical plot allocation. Total plots split 50:50 — half to farmers, half to government. No cash component.</div>
                             <span class="type-badge">Plots Only</span>
                         </label>
@@ -76,21 +76,12 @@
                     </div>
                 @endif
 
-                <div class="form-group">
-                    <label>CO File <span class="required">*</span></label>
-                    <select name="survey_co_file_id" required>
-                        <option value="">— Choose a CO file —</option>
-                        @foreach ($coFiles as $f)
-                            <option value="{{ $f->id }}" @selected((string) old('survey_co_file_id', $project->survey_co_file_id) === (string) $f->id)>
-                                {{ $f->co_file_no }} · {{ $f->title }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="helper-text">
-                        A CO file holds many projects.
-                        <a href="{{ route('survey-module.compensation.co-files.create') }}">Commission a CO file</a> first if it is not listed.
-                    </p>
-                </div>
+                {{-- CO file from the global file number selector (user, 2026-10-30); one CO file holds many projects. --}}
+                @include('survey_module.partials._co_file_picker', [
+                    'coCurrent'  => $project->survey_co_file_id ? \App\Models\Survey\SurveyCoFile::find($project->survey_co_file_id) : null,
+                    'coRequired' => true,
+                    'coAllowNew' => false,
+                ])
 
                 <div class="form-group">
                     <label>Project Name <span class="required">*</span></label>
@@ -99,10 +90,18 @@
                 </div>
 
                 <div class="form-group">
+                    <label>TP No.</label>
+                    <input type="text" name="plan_no" value="{{ old('plan_no', $project->plan_no) }}" maxlength="100"
+                           placeholder="e.g. TP/KNUPDA/UC/GZ/02" />
+                    <p class="helper-text">The layout plan number, as written on the plan.</p>
+                </div>
+
+                <div class="form-group">
                     <label>Purpose <span class="required">*</span></label>
                     <select name="purpose">
                         <option value="">Select purpose…</option>
-                        @foreach (['Infrastructure Development','Housing','Commercial','Agricultural','Government Acquisition','Urban Renewal'] as $p)
+                        {{-- A purpose not on the list (e.g. from the imported lists) stays selectable, so an edit never blanks it. --}}
+                        @foreach (array_values(array_unique(array_filter(array_merge(['Infrastructure Development','Housing','Commercial','Agricultural','Government Acquisition','Urban Renewal'], [old('purpose', $project->purpose)])))) as $p)
                             <option value="{{ $p }}" @selected(old('purpose', $project->purpose) === $p)>{{ $p }}</option>
                         @endforeach
                     </select>

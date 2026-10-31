@@ -1,3 +1,5 @@
+{{-- Passport face check + crop at commissioning (CR 30102026 item 36). --}}
+<script src="{{ asset('js/passport-face-check.js') }}?v={{ filemtime(public_path('js/passport-face-check.js')) }}"></script>
 <!-- Custom Styles for Dropdown   -->
 <style>
     .dropdown-menu {
@@ -3872,6 +3874,12 @@
             const requiresPassport = !!passportInput && !isBatchSubmission && customerTypeValue === 'Individual';
             const hasPassport = !!(passportInput && passportInput.files && passportInput.files.length > 0);
 
+            // The face check is still running on the chosen photo (CR 30102026 item 36).
+            if (passportInput && passportInput.dataset.faceCheck === 'pending') {
+                Swal.fire({ icon: 'info', title: 'Checking the passport', text: 'The passport photograph is still being checked. Try again in a moment.', confirmButtonColor: '#3b82f6' });
+                return;
+            }
+
             if (requiresPassport && !hasPassport) {
                 Swal.fire({
                     icon: 'warning',
@@ -5147,6 +5155,14 @@
         // When supplied, the shared passport is sent as multipart data and filed
         // against every child. It is optional for an existing subdivision batch.
         const batchPassportInput = document.getElementById('generatePassport');
+        // Wait for the passport face check (CR 30102026 item 36).
+        if (batchPassportInput && batchPassportInput.dataset.faceCheck === 'pending') {
+            batchProgress.stop();
+            hideGlobalLoading();
+            hideLoadingButton(confirmBtn, originalText);
+            Swal.fire({ icon: 'info', title: 'Checking the passport', text: 'The passport photograph is still being checked. Try again in a moment.', confirmButtonColor: '#3b82f6' });
+            return;
+        }
         const batchPassportFile = batchPassportInput && batchPassportInput.files
             ? batchPassportInput.files[0]
             : null;
@@ -7531,6 +7547,34 @@
                     return;
                 }
 
+                // Face check (CR 30102026 item 36): no face / several faces / unclear / a drawing
+                // is refused; a whole-cover scan is cropped to the face and that file replaces the
+                // chosen one. js/passport-face-check.js; skipped if the detector cannot load.
+                // The original may be large (a whole cover); the 2MB rule is applied to what is kept.
+                if (!window.PassportFaceCheck) {
+                    this.acceptPassport(input, file, false);
+                    return;
+                }
+                input.dataset.faceCheck = 'pending';
+                this.passport = 'Checking the photo…';
+                window.PassportFaceCheck.check(file).then((res) => {
+                    if (input.files[0] !== file) return;   // another file was chosen meanwhile
+                    if (!res.ok) {
+                        delete input.dataset.faceCheck;
+                        Swal.fire({ icon: 'error', title: 'Not a passport photograph', text: res.message, confirmButtonColor: '#dc2626' });
+                        this.clearPassport();
+                        return;
+                    }
+                    input.dataset.faceCheck = res.skipped ? 'skipped' : 'ok';
+                    this.acceptPassport(input, res.file, res.cropped);
+                }).catch((error) => {
+                    delete input.dataset.faceCheck;
+                    Swal.fire({ icon: 'error', title: 'Passport', text: 'The photo could not be checked: ' + ((error && error.message) || 'unknown error') + '. Please choose it again.', confirmButtonColor: '#dc2626' });
+                    this.clearPassport();
+                });
+            },
+            // Keep the (possibly cropped) passport on the input so FormData posts it as-is.
+            acceptPassport(input, file, cropped) {
                 // Matches the server rule (max:2048), so an oversized image is refused here
                 // instead of coming back as a 422 after the operator filled the whole form.
                 if (file.size > 2 * 1024 * 1024) {
@@ -7538,13 +7582,27 @@
                     this.clearPassport();
                     return;
                 }
+                if (cropped) {
+                    try {
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        input.files = dt.files;
+                    } catch (e) {
+                        Swal.fire({ icon: 'warning', title: 'Passport', text: 'This browser could not keep the cropped photo. Please crop the passport photograph and upload it again.', confirmButtonColor: '#f59e0b' });
+                        this.clearPassport();
+                        return;
+                    }
+                }
 
                 if (this.passportPreview) {
                     URL.revokeObjectURL(this.passportPreview);
                 }
 
-                this.passport = file.name;
+                this.passport = file.name + (cropped ? ' (cropped to the face)' : '');
                 this.passportPreview = URL.createObjectURL(file);
+                if (cropped) {
+                    Swal.fire({ icon: 'info', title: 'Cropped to the face', text: 'The scan showed more than the passport photograph, so it was cropped around the applicant\'s face. Check the preview; choose the file again to redo it.', timer: 4500, showConfirmButton: false });
+                }
             },
             clearPassport() {
                 if (this.passportPreview) {
@@ -7553,7 +7611,10 @@
                 this.passport = '';
                 this.passportPreview = '';
                 const input = document.getElementById('generatePassport');
-                if (input) input.value = '';
+                if (input) {
+                    input.value = '';
+                    delete input.dataset.faceCheck;
+                }
             },
             // Default to normal file
             fileOption: 'normal',

@@ -33,7 +33,10 @@ class ConsentApplicationController extends Controller
         $landUseTypes = LandUseType::query()->where('is_active', 1)->orderBy('name')->get(['id', 'name']);
         $purposes = Purpose::query()->orderBy('name')->get(['id', 'landuseid', 'name']);
 
-        return view('consent_applications.index', compact('applications', 'states', 'lgas', 'districts', 'streetNames', 'landUseTypes', 'purposes'));
+        // Registration particulars of the instrument each consent was registered as.
+        $registrations = app(\App\Services\DeedsRegistrationLookup::class)->forConsents();
+
+        return view('consent_applications.index', compact('applications', 'states', 'lgas', 'districts', 'streetNames', 'landUseTypes', 'purposes', 'registrations'));
     }
 
     /**

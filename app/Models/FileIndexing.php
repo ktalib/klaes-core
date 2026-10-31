@@ -587,9 +587,10 @@ class FileIndexing extends Model
             return 'SIT Registry';
         }
 
-        // Survey Registry (GKN / LPKN)
+        // Survey Registry (GKN / LPKN; LPPL, RDKN and MISC KN added 2026-10-30)
         if (str_starts_with($f, 'GKN-') || str_starts_with($f, 'GKN/') || str_starts_with($f, 'GKN ')
-            || str_starts_with($f, 'LPKN-') || str_starts_with($f, 'LPKN/') || str_starts_with($f, 'LPKN ')) {
+            || str_starts_with($f, 'LPKN-') || str_starts_with($f, 'LPKN/') || str_starts_with($f, 'LPKN ')
+            || str_starts_with($f, 'LPPL-') || str_starts_with($f, 'RDKN-') || str_starts_with($f, 'MISC KN')) {
             return 'Survey Registry';
         }
 

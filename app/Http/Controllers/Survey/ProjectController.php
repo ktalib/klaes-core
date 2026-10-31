@@ -27,17 +27,19 @@ class ProjectController extends Controller
 {
     public function index(Request $r)
     {
-        $q = SurveyProject::query()->with(['coFile', 'surveyors'])->withCount('cases');
+        $q = SurveyProject::query()->with(['coFile', 'surveyors', 'creator:id,first_name,last_name'])->withCount('cases');
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
                 $w->where('name', 'like', "%$term%")
-                  ->orWhere('project_code', 'like', "%$term%");
+                  ->orWhere('project_code', 'like', "%$term%")
+                  ->orWhere('plan_no', 'like', "%$term%");
             });
         }
         if ($s = $r->query('scheme')) $q->where('scheme_type', $s);
         if ($st = $r->query('status')) $q->where('status', $st);
         if ($co = $r->query('co_file')) $q->where('survey_co_file_id', $co);
+        $q->origin($r->query('origin'));
 
         $projects = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -260,6 +262,8 @@ class ProjectController extends Controller
             'surveyors.*.portion_size_ha' => 'required|numeric|min:0.0001|max:9999999999',
 
             'name'        => 'required|string|max:255',
+            // The layout plan's TP number, e.g. TP/KNUPDA/UC/GZ/02 (an identifier: trimmed, never re-cased).
+            'plan_no'     => 'nullable|string|max:100',
             'purpose'     => 'nullable|string|max:100',
             'scheme_type' => ['required', Rule::in([SurveyProject::SCHEME_MONETARY, SurveyProject::SCHEME_LAND])],
             'status'      => ['required', Rule::in(['Active', 'Draft', 'Closed'])],

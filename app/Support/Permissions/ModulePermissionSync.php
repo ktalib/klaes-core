@@ -124,7 +124,10 @@ final class ModulePermissionSync
             // a module is renamed or dropped from the registry.
             $conn->table('module_permissions')->where('user_id', $user->id)->delete();
 
-            foreach (array_chunk(array_values($rows), 200) as $chunk) {
+            // SQL Server binds at most 2100 parameters per statement: 200 rows x 11 columns (4 + 7 actions)
+            // was 2200 and failed for any user with ~190+ modules. Size the batch from the row width.
+            $perBatch = max(1, intdiv(2000, max(1, count(reset($rows) ?: [1]))));
+            foreach (array_chunk(array_values($rows), $perBatch) as $chunk) {
                 $conn->table('module_permissions')->insert($chunk);
             }
         });
