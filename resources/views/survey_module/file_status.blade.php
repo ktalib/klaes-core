@@ -20,13 +20,19 @@
 @include('survey_module.partials._file_status_tabs')
 
 <style>
-  .fs-summary { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:8px; margin:12px 0 18px; }
+  .fs-summary { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; margin:12px 0 18px; }
   .fs-chip { display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--gray-200); background:#fff; text-decoration:none; color:var(--gray-500); }
   .fs-chip .fs-chip-group { font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
   .fs-chip .fs-chip-label { font-weight:600; font-size:14px; color:var(--gray-700); }
   .fs-chip .fs-chip-state { font-size:12px; }
   .fs-chip.is-found { border-color:var(--c); background:var(--bg); }
   .fs-chip.is-found .fs-chip-state { color:var(--c); font-weight:700; }
+  .fs-chip-details { margin:6px 0 0; padding-top:6px; border-top:1px dashed var(--c); display:flex; flex-direction:column; gap:3px; }
+  .fs-chip-details div { display:flex; gap:6px; font-size:12px; line-height:1.35; min-width:0; }
+  .fs-chip-details dt { flex-shrink:0; color:var(--gray-500); }
+  .fs-chip-details dt::after { content:':'; }
+  .fs-chip-details dd { margin:0; color:var(--gray-800); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fs-chip-more { font-size:11px; color:var(--c); }
   .fs-section { margin-bottom:18px; }
   .fs-section-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-left:4px solid var(--c); background:var(--bg); border-radius:var(--radius-sm) var(--radius-sm) 0 0; }
   .fs-section-head h3 { margin:0; font-size:15px; color:var(--c); }
@@ -118,6 +124,17 @@
                         {{ $s['note'] ?? 'Not found' }}
                     @endif
                 </span>
+                {{-- The key details of the first match, on the card itself (user, 2026-10-31). --}}
+                @if ($s['found'] && ! empty($s['card']))
+                    <dl class="fs-chip-details">
+                        @foreach ($s['card'] as $k => $v)
+                            <div><dt>{{ $k }}</dt><dd title="{{ $v }}">{{ $v }}</dd></div>
+                        @endforeach
+                    </dl>
+                    @if (count($s['rows']) + $s['more'] > 1)
+                        <span class="fs-chip-more">+{{ count($s['rows']) + $s['more'] - 1 }} more below</span>
+                    @endif
+                @endif
             </a>
         @endforeach
     </div>

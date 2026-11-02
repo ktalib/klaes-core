@@ -89,6 +89,7 @@
                     <p class="text-sm text-[var(--ink-soft)] dark:text-[var(--ink-soft)]">Not submitted yet — continue where you left off.</p>
                 @else
                     @include('laas.partials.stage-tracker', ['application' => $application, 'compact' => true])
+                    @include('laas.partials.cadastral-progress', ['progress' => $cadastral[mb_strtoupper(trim((string) $application->file_number))] ?? null, 'compact' => true])
                 @endif
 
                 <p class="mt-3 text-xs text-[var(--ink-faint)] dark:text-[var(--ink-faint)]">

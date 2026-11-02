@@ -288,6 +288,8 @@
 
           {!! $cadGroup('cadastral-file-status', 'File Status', 'file-search', true) !!}
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-file-status">
+            {{-- Search every list for one file (user, 2026-10-31), as Survey > File Status. --}}
+            {!! $cadLink('Search', route('cadastral-dept.file-status'), 'search', request()->routeIs('cadastral-dept.file-status')) !!}
             {!! $cadLink('RofO', route('land-rofos.index', ['url' => 'cadastral']), 'file-check', request()->routeIs('land-rofos.index') && request('url') === 'cadastral') !!}
             {!! $cadLink('CofO', route('propertycard.cofo', ['url' => 'cadastral']), 'award', request()->routeIs('propertycard.cofo') && request('url') === 'cadastral') !!}
             {!! $cadLink('Decommissioned Files', route('file-decommissioning.decommissioned', ['url' => 'cadastral']), 'archive', request()->routeIs('file-decommissioning.decommissioned') && request('url') === 'cadastral') !!}

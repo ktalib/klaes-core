@@ -27,10 +27,19 @@
 @include('survey_module.partials._flash')
 @include('survey_module.partials._table_ui')
 
+{{-- CR 30102026 item 33 (user, 2026-10-31): empty until the new TP lookup list replaces the old one;
+     see TpNumberController::LIST_PENDING. Adding is off meanwhile, as a new entry would not be listed. --}}
+@if (!empty($listPending))
+<div style="display:flex;gap:10px;align-items:flex-start;padding:12px 16px;margin-bottom:16px;border:1.5px solid #f59e0b;background:#fffbeb;border-radius:var(--radius-sm);color:#92400e;font-size:14px;">
+    <i class="fas fa-triangle-exclamation" style="margin-top:2px;"></i>
+    <div><strong>TP list pending.</strong> The TP Nos list is being replaced. It will show here once the new TP lookup table is loaded.</div>
+</div>
+@else
 <div class="page-header">
     <div></div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('tpForm').classList.add('open')"><i class="fas fa-plus"></i> Add TP No.</button>
 </div>
+@endif
 
 <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-label">TP Nos</div><div class="kpi-value">{{ number_format($stats['total']) }}</div></div>
@@ -190,7 +199,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="16" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $filtered ? 'No TP No. matches the filter.' : 'No TP Nos yet. Use Add TP No.' }}</td></tr>
+                    <tr><td colspan="16" style="text-align:center;padding:22px;color:var(--gray-500);">{{ !empty($listPending) ? 'TP list pending: the new TP lookup table will be loaded here.' : ($filtered ? 'No TP No. matches the filter.' : 'No TP Nos yet. Use Add TP No.') }}</td></tr>
                 @endforelse
             </tbody>
         </table>

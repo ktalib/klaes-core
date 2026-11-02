@@ -243,14 +243,14 @@ class SltrRofoController extends Controller
             if ($rec->sltr_rofo_serial_no) {
                 DB::connection('sqlsrv')->table('global_security_paper_codes')
                     ->where('paper_code', $rec->sltr_rofo_serial_no)
-                    ->update(['is_used' => false, 'assigned_to_type' => null, 'assigned_to_id' => null, 'assigned_by' => null, 'assigned_at' => null]);
+                    ->update(['is_used' => false, 'status' => 'available', 'assigned_to_type' => null, 'assigned_to_id' => null, 'assigned_by' => null, 'assigned_at' => null]);
             }
 
             $rec->update(['sltr_rofo_serial_no' => $request->paper_code]);
 
             DB::connection('sqlsrv')->table('global_security_paper_codes')
                 ->where('paper_code', $request->paper_code)
-                ->update(['is_used' => true, 'assigned_to_type' => 'SltrRecommendation', 'assigned_to_id' => $rec->id, 'assigned_by' => Auth::id(), 'assigned_at' => now()]);
+                ->update(['is_used' => true, 'status' => 'assigned', 'assigned_to_type' => 'SltrRecommendation', 'assigned_to_id' => $rec->id, 'assigned_by' => Auth::id(), 'assigned_at' => now()]);
 
             DB::connection('sqlsrv')->commit();
             return response()->json(['success' => true]);

@@ -49,8 +49,8 @@
 
 <div class="comp-type-note">
     <i class="fas fa-info-circle"></i>
-    Plots split 50:50 between farmer and government. When the total is odd the extra plot goes to
-    <strong>Government</strong>. No cash is paid for economic trees under this scheme.
+    Plots are split between farmer and government by the project's sharing ratio (50:50 unless the project set another).
+    Any part plot goes to <strong>Government</strong>. No cash is paid for economic trees under this scheme.
 </div>
 
 <form method="GET" class="table-toolbar">

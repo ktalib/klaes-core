@@ -174,17 +174,40 @@
                                 <span class="dot"></span>{{ $op->status }}
                             </span>
                         </td>
+                        {{-- One action menu per row (standard 4). Return sends a mistaken OP back to the table above and
+                             frees its number (CR 30102026 item 35); Delete keeps the number used. --}}
                         <td>
-                            <div class="action-icons">
-                                <a href="{{ route('survey-module.workflow.occupancy', ['op' => $op->id]) }}"
-                                   title="Open the OP pipeline"><i class="fas fa-eye"></i></a>
-                                @if ($op->status !== \App\Http\Controllers\Survey\OpController::STATUS_ISSUED)
-                                    <form method="POST" action="{{ route('survey-module.compensation.op.destroy', $op) }}"
-                                          style="display:inline" onsubmit="return confirm('Delete {{ $op->op_number }}? This cannot be undone.');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" title="Delete"><i class="fas fa-trash"></i></button>
-                                    </form>
-                                @endif
+                            @php
+                                $opItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
+                                $canUndo = $op->status !== \App\Http\Controllers\Survey\OpController::STATUS_ISSUED;
+                            @endphp
+                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                     :style="'top:' + top + 'px; left:' + left + 'px'"
+                                     class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    <a href="{{ route('survey-module.workflow.occupancy', ['op' => $op->id]) }}" class="{{ $opItem }}">
+                                        <i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> Open the OP pipeline
+                                    </a>
+                                    @if ($canUndo && ! $op->sent_to_deeds_at)
+                                        <form method="POST" action="{{ route('survey-module.compensation.op.return', $op) }}"
+                                              onsubmit="return confirm('Return {{ $op->op_number }}? It goes back to the table above to be generated again, and its number is used by the next OP.');">
+                                            @csrf
+                                            <button type="submit" class="{{ $opItem }}"><i data-lucide="undo-2" class="w-4 h-4 text-gray-500"></i> Return</button>
+                                        </form>
+                                    @endif
+                                    @if ($canUndo)
+                                        <form method="POST" action="{{ route('survey-module.compensation.op.destroy', $op) }}"
+                                              onsubmit="return confirm('Delete {{ $op->op_number }}? This cannot be undone, and the number is not used again.');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="{{ $opItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
+                                        </form>
+                                    @endif
+                                </div>
                             </div>
                         </td>
                     </tr>

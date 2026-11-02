@@ -864,6 +864,7 @@ class LandRofoController extends Controller
                     ->where('paper_code', $recommendation->land_rofo_serial_no)
                     ->update([
                         'is_used' => false,
+                        'status' => 'available',
                         'assigned_to_type' => null,
                         'assigned_to_id' => null,
                         'assigned_by' => null,
@@ -878,7 +879,8 @@ class LandRofoController extends Controller
                 ->where('paper_code', $request->paper_code)
                 ->update([
                     'is_used' => true,
-                    // Status was left 'available' here, so 783 used codes still read as available (2026-10-31).
+                    // Status was left 'available' here, so 783 used codes still read as available;
+                    // the 780 still held were corrected 2026-11-01 (CSV in storage/app/backups).
                     'status' => 'assigned',
                     'assigned_to_type' => 'LandRecommendation',
                     'assigned_to_id' => $recommendation->id,

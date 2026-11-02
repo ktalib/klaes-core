@@ -1,12 +1,18 @@
 @extends('layouts.app')
 
 @section('page-title')
-    File Indexing Activity Log
+    Supervisor Monitor
 @endsection
 
 @php
     // Weights may be fractional (e.g. 1.5) — show without trailing ".0".
     $fmtW = fn ($v) => rtrim(rtrim(number_format((float) $v, 1), '0'), '.');
+    // Indexing piece-rate pay, from EarningsService (same figures as My Indexing Earnings).
+    $naira = function ($v) {
+        $v = (float) $v;
+        return '₦' . number_format($v, abs($v - round($v)) < 0.005 ? 0 : 2);
+    };
+    $payStart = \Carbon\Carbon::parse(app(\App\Services\IndexingPay\EarningsService::class)->programme()[0]);
 @endphp
 
 @section('content')
@@ -54,9 +60,15 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="text-right">
-                                            <div class="text-lg font-bold text-indigo-600" x-text="user.weight"></div>
-                                            <div class="text-xs text-gray-500">Total Weight</div>
+                                        <div class="flex items-center gap-6 text-right">
+                                            <div>
+                                                <div class="text-lg font-bold text-green-700" x-text="'₦' + Number(user.earned || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })"></div>
+                                                <div class="text-xs text-gray-500">Earned</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-lg font-bold text-indigo-600" x-text="user.weight"></div>
+                                                <div class="text-xs text-gray-500">Total Weight</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </template>
@@ -78,9 +90,10 @@
                         <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
                             <i data-lucide="activity" class="h-5 w-5"></i>
                         </span>
-                        <h2 class="text-xl font-bold text-gray-800">File Indexing Activity Log</h2>
+                        <h2 class="text-xl font-bold text-gray-800">Supervisor Monitor</h2>
                     </div>
-                    <p class="text-sm text-gray-500 ml-12">Per-user file indexing productivity & weighted scoring.</p>
+                    <p class="text-sm text-gray-500 ml-12">Per-user file indexing productivity, weighted scoring and earnings.
+                        <span class="text-gray-400">Earned = indexing pay from {{ $payStart->format('j M Y') }} (base fee per file + rate per record captured).</span></p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <button type="button" @click="showLeaderboard = true; fetchLeaderboard()"
@@ -137,11 +150,12 @@
             <!-- Summary cards -->
             @php
                 $cards = [
-                    ['Number of Indexers', count($groups), 'users', 'blue'],
+                    ['Number of Indexers', count(array_filter($groups, fn ($g) => count($g['rows']) > 0)), 'users', 'blue'],
                     ['Total Files Indexed', $totals['indexed'], 'file-check-2', 'emerald'],
                     ['Related Files', $totals['related'], 'git-fork', 'violet'],
                     ['Transactions', $totals['transactions'], 'receipt-text', 'amber'],
                     ['Total Weight', $totals['weight'], 'scale', 'indigo'],
+                    ['Total Earned', $totals['earned'], 'wallet', 'green'],
                 ];
                 $palette = [
                     'blue'    => ['bg' => 'bg-blue-50',    'text' => 'text-blue-600',    'bar' => 'from-blue-500 to-blue-400'],
@@ -149,9 +163,10 @@
                     'violet'  => ['bg' => 'bg-violet-50',  'text' => 'text-violet-600',  'bar' => 'from-violet-500 to-violet-400'],
                     'amber'   => ['bg' => 'bg-amber-50',   'text' => 'text-amber-600',   'bar' => 'from-amber-500 to-amber-400'],
                     'indigo'  => ['bg' => 'bg-indigo-50',  'text' => 'text-indigo-600',  'bar' => 'from-indigo-500 to-indigo-400'],
+                    'green'   => ['bg' => 'bg-green-50',   'text' => 'text-green-700',   'bar' => 'from-green-500 to-green-400'],
                 ];
             @endphp
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
                 @foreach($cards as [$label, $value, $icon, $color])
                     @php $c = $palette[$color]; @endphp
                     <div class="relative bg-white rounded-xl border border-gray-200 shadow-sm p-4 overflow-hidden">
@@ -161,16 +176,16 @@
                                 <i data-lucide="{{ $icon }}" class="h-4 w-4"></i>
                             </span>
                         </div>
-                        <div class="text-3xl font-extrabold text-gray-800 leading-none">{{ $label === 'Total Weight' ? $fmtW($value) : number_format($value) }}</div>
+                        <div class="text-3xl font-extrabold leading-none {{ $label === 'Total Earned' ? 'text-green-800' : 'text-gray-800' }}">{{ $label === 'Total Weight' ? $fmtW($value) : ($label === 'Total Earned' ? $naira($value) : number_format($value)) }}</div>
                         <div class="mt-3 h-1 w-full rounded-full bg-gray-100 overflow-hidden">
-                            <div class="h-full rounded-full bg-gradient-to-r {{ $c['bar'] }}" style="width: {{ $totals['weight'] > 0 ? min(100, round($value / max($totals['weight'],1) * 100)) : 0 }}%"></div>
+                            <div class="h-full rounded-full bg-gradient-to-r {{ $c['bar'] }}" style="width: {{ $label === 'Total Earned' ? ($value > 0 ? 100 : 0) : ($totals['weight'] > 0 ? min(100, round($value / max($totals['weight'],1) * 100)) : 0) }}%"></div>
                         </div>
                     </div>
                 @endforeach
             </div>
 
             <!-- Grouped table -->
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead>
                         <tr class="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-200">
@@ -181,6 +196,7 @@
                             <th class="px-4 py-3 font-semibold text-center">File History / Transactions</th>
                             <th class="px-4 py-3 font-semibold">Registry</th>
                             <th class="px-5 py-3 font-semibold text-right">Total Weight</th>
+                            <th class="px-5 py-3 font-semibold text-right">Earned (₦)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -225,7 +241,7 @@
                                     @php $regs = $group['registries'] ?? []; @endphp
                                     <div class="flex flex-wrap gap-1">
                                         @forelse(array_slice($regs, 0, 2) as $reg)
-                                            <span class="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200">{{ $reg }}</span>
+                                            <span class="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 whitespace-nowrap">{{ $reg }}</span>
                                         @empty
                                             <span class="text-xs text-gray-300">&mdash;</span>
                                         @endforelse
@@ -238,6 +254,15 @@
                                     <span class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1 text-sm font-bold text-white shadow-sm">
                                         <i data-lucide="scale" class="h-3.5 w-3.5"></i> {{ $fmtW($group['weight']) }}
                                     </span>
+                                </td>
+                                <td class="px-5 py-3 text-right whitespace-nowrap">
+                                    @if($group['eligible'] ?? false)
+                                        <span class="inline-flex items-center gap-1 rounded-lg px-3 py-1 text-sm font-bold text-white shadow-sm" style="background:linear-gradient(90deg,#059669,#0f766e)">
+                                            <i data-lucide="wallet" class="h-3.5 w-3.5"></i> {{ $naira($group['earned'] ?? 0) }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-gray-400" title="Does not hold the module that earns indexing pay (Configurable Entries › Indexing Pay)">Not on indexing pay</span>
+                                    @endif
                                 </td>
                             </tr>
                             <!-- File rows (nested) -->
@@ -277,7 +302,7 @@
                                     </td>
                                     <td class="px-4 py-2.5">
                                         @if($row['registry'])
-                                            <span class="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">{{ $row['registry'] }}</span>
+                                            <span class="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 whitespace-nowrap">{{ $row['registry'] }}</span>
                                         @else
                                             <span class="text-xs text-gray-300">&mdash;</span>
                                         @endif
@@ -285,11 +310,33 @@
                                     <td class="px-5 py-2.5 text-right">
                                         <span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">{{ $fmtW($row['weight']) }}</span>
                                     </td>
+                                    <td class="px-5 py-2.5 text-right whitespace-nowrap">
+                                        @if(($group['eligible'] ?? false) && ($row['earned'] ?? 0) > 0)
+                                            <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-0.5 text-xs font-bold text-green-800"
+                                                title="File {{ $naira($row['earned_base']) }} + records {{ $naira($row['earned_records']) }}">{{ $naira($row['earned']) }}</span>
+                                        @else
+                                            <span class="text-xs text-gray-300">&mdash;</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
+                            @if(($group['other_records'] ?? 0) > 0)
+                                <tr x-show="open[{{ $i }}]" x-cloak class="border-b border-gray-50">
+                                    <td class="px-4 py-2.5"></td>
+                                    <td class="px-5 py-2.5" colspan="6">
+                                        <div class="flex items-center gap-2 pl-9 text-xs text-gray-500">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-green-300 shrink-0"></span>
+                                            Records captured on other files (transactions, ground rent, bill balance)
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-2.5 text-right">
+                                        <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-0.5 text-xs font-bold text-green-800">{{ $naira($group['other_records']) }}</span>
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-16 text-center">
+                                <td colspan="8" class="px-4 py-16 text-center">
                                     <div class="flex flex-col items-center gap-2 text-gray-400">
                                         <i data-lucide="inbox" class="h-10 w-10"></i>
                                         <p class="text-sm">No file indexing activity found for the selected filters.</p>
@@ -314,6 +361,11 @@
                                 <td class="px-5 py-3.5 text-right">
                                     <span class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1 text-sm text-white shadow-sm">
                                         <i data-lucide="scale" class="h-3.5 w-3.5"></i> {{ $fmtW($totals['weight']) }}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3.5 text-right whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 rounded-lg px-3 py-1 text-sm text-white shadow-sm" style="background:linear-gradient(90deg,#059669,#0f766e)">
+                                        <i data-lucide="wallet" class="h-3.5 w-3.5"></i> {{ $naira($totals['earned']) }}
                                     </span>
                                 </td>
                             </tr>

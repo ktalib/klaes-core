@@ -412,12 +412,23 @@ class LegalSearchController extends Controller
             ];
         })->values();
 
+        // Scanned but not yet filed to the Digital Archive: the Blind Scan folder and, as a
+        // fallback, the raw scans on the records server (user, 2026-11-01).
+        $scanCheck = null;
+        try {
+            $scanCheck = app(\App\Services\Scanning\ScanPresenceService::class)->check((string) $request->input('file_number'));
+            $scanCheck['sources'] = array_values(array_filter($scanCheck['sources'], fn ($s) => $s['source'] !== 'digital_archive'));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Legal Search: scan check failed', ['error' => $e->getMessage()]);
+        }
+
         return response()->json([
             'success' => true,
             'file_number' => $request->input('file_number'),
             'folders' => $folders,
-            'message' => $folders->isEmpty()
-                ? 'No files found in the digital archive for this file.'
+            'scan_check' => $scanCheck,
+            'message' => $folders->isEmpty() && empty($scanCheck['sources'])
+                ? 'No files found in the digital archive or the scanned folders for this file.'
                 : null,
         ]);
     }

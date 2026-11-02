@@ -103,7 +103,11 @@ class ConfigurableEntriesController extends Controller
         'spa-bill-items' => ['label' => 'SPAS Bill Items', 'icon' => 'receipt', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
         'map-types' => ['label' => 'Map Types', 'icon' => 'map-pin', 'accent' => '#0e7490', 'tint' => '#ecfeff', 'route' => 'sdi.admin.map-types.index'],
         // Survey compensation: economic tree rates live on the tree catalogue (user, 2026-10-25).
+        // Survey settings (CR 30102026, 2026-10-31): sharing ratios, Classmark, land rates, beacon prefixes.
+        'survey-settings' => ['label' => 'Survey', 'icon' => 'compass', 'accent' => '#be185d', 'tint' => '#fdf2f8'],
         'survey-tree-rates' => ['label' => 'Economic Tree Rates', 'icon' => 'tree-pine', 'accent' => '#be185d', 'tint' => '#fdf2f8', 'route' => 'survey-module.compensation.trees'],
+        // Indexing piece-rate pay (Kunle, 2026-11-01): the approved rate card, effective-dated.
+        'indexing-pay' => ['label' => 'Indexing Pay', 'icon' => 'wallet', 'accent' => '#047857', 'tint' => '#ecfdf5'],
     ];
 
     /**
@@ -212,7 +216,7 @@ class ConfigurableEntriesController extends Controller
             'icon' => 'book-marked',
         ],
         'survey' => [
-            'label' => 'Survey — GKN file numbers',
+            'label' => 'Survey — File numbers',
             'where' => 'Survey → Generate New FileNo (GKNFileNo)',
             'model' => \App\Models\GknSerialControl::class,
             'table' => 'gkn_serial_control',
@@ -222,6 +226,34 @@ class ConfigurableEntriesController extends Controller
             'yearly' => false,
             'by' => 'id',
             'icon' => 'ruler',
+        ],
+        // Computation Files (CR 30102026 items 13-14). LPKN (Survey, Government) is one series with no
+        // year, LPKN-<serial> (user, 2026-11-02), its counter kept at year 0; set it to the last serial
+        // Survey used to continue from it. LPPL (Cadastral, Private) is LPPL-<year>-<serial>.
+        'computation_lpkn' => [
+            'label' => 'Computation Files — Government (LPKN)',
+            'where' => 'Survey → GKN → Computation Files (LPKN-serial, all years)',
+            'model' => \App\Models\Survey\SurveyComputationSerial::class,
+            'table' => 'survey_computation_serials',
+            'key' => 'prefix',
+            'key_label' => 'Prefix',
+            'keys' => ['LPKN'],
+            'yearly' => false,
+            'fixed_year' => \App\Services\Survey\ComputationNumbers::ALL_YEARS,
+            'by' => 'id',
+            'icon' => 'folder-archive',
+        ],
+        'computation' => [
+            'label' => 'Computation Files — Private (LPPL)',
+            'where' => 'Cadastral → Computation Files (LPPL-year-serial)',
+            'model' => \App\Models\Survey\SurveyComputationSerial::class,
+            'table' => 'survey_computation_serials',
+            'key' => 'prefix',
+            'key_label' => 'Prefix',
+            'keys' => ['LPPL'],
+            'yearly' => true,
+            'by' => 'id',
+            'icon' => 'folder-archive',
         ],
     ];
 
@@ -286,6 +318,7 @@ class ConfigurableEntriesController extends Controller
             'cadastral' => fn () => $schema->hasTable('cadastral_settings'),
             'spa-bill-items' => fn () => $schema->hasTable('spa_bill_items'),
             'bill-settings' => fn () => $schema->hasTable('bill_master_types') && $schema->hasColumn('bill_master_types', 'payment_methods'),
+            'indexing-pay' => fn () => $schema->hasTable('indexing_pay_settings'),
         ];
 
         return array_filter(
@@ -327,6 +360,8 @@ class ConfigurableEntriesController extends Controller
             'cadastral' => $this->cadastralData(),
             'spa-bill-items' => $this->spaBillItemsData(),
             'bill-settings' => $this->billSettingsData($request),
+            'survey-settings' => \App\Services\Survey\SurveySettings::tabData(),
+            'indexing-pay' => \App\Services\IndexingPay\IndexingPaySettings::tabData(),
         });
     }
 
@@ -773,6 +808,10 @@ class ConfigurableEntriesController extends Controller
         return [
             'units' => $units,
             'departmentCount' => $parents->count(),
+            // File Movement units (CR 30102026 item 34): what Send to offers, by offices.department.
+            'fmUnits' => \App\Services\FileTracking\FileMovementUnits::all(),
+            'fmInstalled' => \App\Services\FileTracking\FileMovementUnits::installed(),
+            'fmDepartments' => \App\Http\Controllers\SystemAdmin\FileMovementUnitsController::departments(),
         ];
     }
 
@@ -1515,7 +1554,8 @@ class ConfigurableEntriesController extends Controller
 
             /** @var class-string<\Illuminate\Database\Eloquent\Model> $model */
             $model = $meta['model'];
-            $rows = $model::query()->when($meta['yearly'], fn ($q) => $q->where('year', $year))->get();
+            $rows = $model::query()->when($meta['yearly'], fn ($q) => $q->where('year', $year))
+                ->when(isset($meta['fixed_year']), fn ($q) => $q->where('year', $meta['fixed_year']))->get();
 
             $clean = fn ($value) => trim((string) $value);
 
@@ -1603,7 +1643,7 @@ class ConfigurableEntriesController extends Controller
 
             /** @var class-string<\Illuminate\Database\Eloquent\Model> $model */
             $model = $meta['model'];
-            $keys = [$meta['key'] => $name] + ($meta['yearly'] ? ['year' => $year] : []);
+            $keys = [$meta['key'] => $name] + ($meta['yearly'] ? ['year' => $year] : (isset($meta['fixed_year']) ? ['year' => $meta['fixed_year']] : []));
 
             // Every counter stays editable here, Land and Survey as well as Deeds: a
             // wrongly entered starting serial has to be correctable without the

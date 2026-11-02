@@ -70,6 +70,10 @@
             <h2 class="mb-5 text-sm font-extrabold uppercase tracking-widest text-[var(--ink-soft)] dark:text-[var(--ink-soft)]">Progress</h2>
             @include('laas.partials.stage-tracker', ['application' => $application])
         </div>
+        {{-- Cadastral & Survey progress, read live from the file's Cadastral case (user, 2026-11-02). --}}
+        @if(!empty($cadastral))
+            <div class="mt-6">@include('laas.partials.cadastral-progress', ['progress' => $cadastral])</div>
+        @endif
     </div>
 
     <div class="space-y-6 lg:col-span-2">

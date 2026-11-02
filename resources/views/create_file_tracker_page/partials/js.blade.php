@@ -4785,6 +4785,51 @@
     }
 
     // Receiving Office Selection Handler
+    // Unit (optional) for the receiving office's department, with Other (CR 30102026 item 34; user 2026-11-02).
+    function cftRefreshUnits() {
+        const group = document.getElementById('receiving-unit-group');
+        const office = document.getElementById('receiving-office');
+        if (!group || !office) return;
+        const select = document.getElementById('receiving-unit');
+        const other = document.getElementById('receiving-unit-other');
+        const opt = office.options[office.selectedIndex];
+        // The office's department when an office is chosen, else the Requester Department.
+        const deptSelect = document.getElementById('current-office');
+        const dept = String((office.value && opt && opt.dataset.department) || (deptSelect && deptSelect.value) || '').trim().toLowerCase();
+        let units = [];
+        try { units = JSON.parse(group.dataset.units || '[]'); } catch (e) { units = []; }
+        const keep = select.value;
+        select.innerHTML = '<option value="">' + (dept ? '— No unit —' : '— Select the department first —') + '</option>';
+        units.filter(u => String(u.department || '').trim().toLowerCase() === dept)
+            .forEach(u => { const o = document.createElement('option'); o.value = String(u.id); o.textContent = u.name; select.appendChild(o); });
+        select.insertAdjacentHTML('beforeend', '<option value="other">Other (specify)</option>');
+        select.disabled = !dept;
+        // Keep the choice when it is still offered (e.g. the office picked after the department).
+        if (keep && [...select.options].some(o => o.value === keep)) { select.value = keep; }
+        else { other.value = ''; other.classList.add('hidden'); }
+    }
+    window.cftUnitFields = function () {
+        const select = document.getElementById('receiving-unit');
+        const group = document.getElementById('receiving-unit-group');
+        if (!select || !group || select.disabled || !select.value) return { receiving_unit_id: null, receiving_unit_other: null };
+        if (select.value === 'other') return { receiving_unit_id: null, receiving_unit_other: (document.getElementById('receiving-unit-other').value || '').trim() || null };
+        return { receiving_unit_id: parseInt(select.value, 10), receiving_unit_other: null };
+    };
+    $(document).on('change', '#receiving-unit', function () {
+        const other = document.getElementById('receiving-unit-other');
+        other.classList.toggle('hidden', this.value !== 'other');
+        if (this.value === 'other') other.focus();
+    });
+    $(document).on('input', '#receiving-unit-other', function () {
+        this.classList.toggle('border-red-300', !this.value.trim());
+        this.classList.toggle('border-gray-300', !!this.value.trim());
+    });
+    if (document.getElementById('receiving-office')) {
+        cftRefreshUnits();
+        $('#receiving-office').on('change', cftRefreshUnits);
+        $(document).on('change', '#current-office', cftRefreshUnits);
+    }
+
     if (document.getElementById('receiving-office')) {
         $('#receiving-office').on('change', function () {
             const selectedOption = $(this).find('option:selected');
@@ -5659,8 +5704,16 @@
             is_temporary_file: isTempFileChecked(),
             requester_director_id: currentTracker.requesterDirectorId || null,
             requester_director_first_name: currentTracker.requesterDirectorFirstName || null,
-            requester_director_last_name: currentTracker.requesterDirectorLastName || null
+            requester_director_last_name: currentTracker.requesterDirectorLastName || null,
+            ...(window.cftUnitFields ? window.cftUnitFields() : {})
         };
+
+        // Other on the Unit must be specified.
+        if (document.getElementById('receiving-unit')?.value === 'other' && !apiData.receiving_unit_other) {
+            Swal.fire({ icon: 'warning', title: 'Specify the unit', text: 'You chose Other for the unit. Type the unit, or choose "No unit".' });
+            document.getElementById('receiving-unit-other')?.focus();
+            return;
+        }
 
         // Show loading state
         const saveButton = document.getElementById('save-tracker-btn');

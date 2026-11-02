@@ -52,7 +52,7 @@ class ResettlementCalculator
      * @return array{net_area:float, exact:float, plots:int, split:bool, farmer:?int, government:?int}
      */
     public function calculate(float $areaHa, float $plotSizeHa, float $deductionPercent = self::DEFAULT_DEDUCTION,
-                              string $rounding = self::DEFAULT_ROUNDING, bool $split = false): array
+                              string $rounding = self::DEFAULT_ROUNDING, bool $split = false, ?int $farmerPct = null): array
     {
         if ($plotSizeHa <= 0) {
             throw new \InvalidArgumentException('Plot size must be greater than zero.');
@@ -69,14 +69,19 @@ class ResettlementCalculator
             default   => (int) floor($exact + 1e-6),
         };
 
+        // The sharing ratio (CR 30102026 item 11): 50:50 unless the project picked another.
+        $shares = SurveySettings::splitPlots(max(0, $plots), $farmerPct);
+
         return [
             'net_area'   => $net,
             'exact'      => $exact,
             'plots'      => max(0, $plots),
+            // The Classmark reading of the exact figure (CR 30102026 item 8): 1.49 -> 1½.
+            'classmark'  => SurveySettings::applyClassmark($exact),
             'split'      => $split,
-            // SurveyCompCase::plotSplit(): Government takes the ceiling, the farmer the floor.
-            'farmer'     => $split ? intdiv(max(0, $plots), 2) : null,
-            'government' => $split ? (int) ceil(max(0, $plots) / 2) : null,
+            'ratio'      => SurveySettings::ratioLabel($shares['farmer_pct']),
+            'farmer'     => $split ? $shares['farmer'] : null,
+            'government' => $split ? $shares['govt'] : null,
         ];
     }
 }

@@ -27,7 +27,7 @@
     <i class="fas fa-map-marked-alt"></i>
     Plot allocation applies to <strong>Land to Land</strong> cases only — only those cases are listed below,
     and the server refuses rows filed against a Monetary Compensation case. One row is one plot; the
-    <strong>50:50 split is taken from the row count</strong>, the same source
+    <strong>split (by the project sharing ratio) is taken from the row count</strong>, the same source
     <code>SurveyCompCase::plotSplit()</code> uses.
 </div>
 
@@ -92,7 +92,7 @@
     </div>
 
     <div class="form-grid">
-        <div class="sv-group"><i class="fas fa-th"></i><span>Plot and 50:50 split</span></div>
+        <div class="sv-group"><i class="fas fa-th"></i><span>Plot and farmer / Government split</span></div>
         <div class="form-group">
             <label>Plot No. <span class="required">*</span></label>
             <input type="text" name="plot_no" value="{{ old('plot_no') }}" placeholder="e.g. 1" />

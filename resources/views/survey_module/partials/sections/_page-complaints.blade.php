@@ -217,7 +217,7 @@
             <div class="form-group" data-scheme="{{ SurveyProject::SCHEME_LAND }}">
                 <label>B — No. of Plots (Land to Land) <span class="required">*</span></label>
                 <input type="number" step="1" min="0" name="original_plots" id="cmpOrigPlots" value="{{ old('original_plots', $complaint->original_plots) }}" required />
-                <p class="helper-text">From a case: the farmer's half of the 50:50 split.</p>
+                <p class="helper-text">From a case: the farmer's share by the project sharing ratio.</p>
             </div>
         </div>
 

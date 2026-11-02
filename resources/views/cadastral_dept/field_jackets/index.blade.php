@@ -53,7 +53,8 @@
               @endphp
               <tr class="hover:bg-gray-50">
                 <td class="px-3 py-2 text-gray-500">{{ $rows->firstItem() + $loop->index }}</td>
-                <td class="px-3 py-2 font-mono">{{ $jacket->field_jacket_no }}</td>
+                {{-- LPPL-<year>-<serial> is the number (CR 30102026 item 14); FJ-... stays as the system code. --}}
+                <td class="px-3 py-2 font-mono">{{ $jacket->lppl_no ?: $jacket->field_jacket_no }}@if($jacket->lppl_no)<div class="text-xs text-gray-400">{{ $jacket->field_jacket_no }}</div>@endif</td>
                 <td class="px-3 py-2 font-mono">{{ $jacket->job?->job_number }}</td>
                 <td class="px-3 py-2 font-mono">{{ $jacket->file_number }}</td>
                 <td class="px-3 py-2">{{ $jacket->plot_no ?: '—' }}</td>

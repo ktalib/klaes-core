@@ -267,6 +267,39 @@ class DashboardController extends Controller
                     ->count();
                 $gknCommissioned = 0;
 
+                // 8a. Survey card (user, 2026-11-02): GKN, LPKN, LPPL, Misc KN, RDKN and CO. The KN types
+                //     are file_indexings rows by number prefix, split the way Survey > GKN > Applications
+                //     splits them (GknApplicationController::TYPES): commissioned = written by GKN FileNo
+                //     Commissioning, indexed = every other row. CO files are Survey's own register.
+                $surveyStats = [];
+                $kn = \App\Http\Controllers\Survey\GknApplicationController::TYPES;
+                $case = '';
+                $any = [];
+                $bind = [];
+                foreach ($kn as $key => $t) {
+                    $case .= ' WHEN ' . implode(' OR ', array_fill(0, count($t['like']), 'file_number LIKE ?')) . " THEN '{$key}'";
+                    array_push($bind, ...$t['like']);
+                    foreach ($t['like'] as $like) $any[] = $like;
+                }
+                $rows = $db->select(
+                    "SELECT t, COUNT(*) AS n, SUM(CASE WHEN source = ? THEN 1 ELSE 0 END) AS comm
+                       FROM (SELECT source, CASE{$case} END AS t FROM file_indexings
+                              WHERE ISNULL(is_deleted, 0) = 0 AND (" . implode(' OR ', array_fill(0, count($any), 'file_number LIKE ?')) . ")) x
+                      GROUP BY t",
+                    array_merge([\App\Http\Controllers\Survey\GknApplicationController::COMMISSIONED_SOURCE], $bind, $any)
+                );
+                $byType = collect($rows)->keyBy('t');
+                foreach (array_keys($kn) as $key) {
+                    $n = (int) ($byType[$key]->n ?? 0);
+                    $c = (int) ($byType[$key]->comm ?? 0);
+                    $surveyStats[$key] = ['label' => $kn[$key]['label'], 'indexed' => number_format($n - $c), 'commissioned' => number_format($c)];
+                }
+                $co = $db->table('survey_co_files')->whereNull('deleted_at')
+                    ->selectRaw("SUM(CASE WHEN source = ? THEN 1 ELSE 0 END) AS comm, SUM(CASE WHEN source = ? THEN 0 ELSE 1 END) AS other",
+                        [\App\Models\Survey\SurveyCoFile::SOURCE_COMMISSIONED, \App\Models\Survey\SurveyCoFile::SOURCE_COMMISSIONED])
+                    ->first();
+                $surveyStats['co'] = ['label' => 'CO', 'indexed' => number_format((int) ($co->other ?? 0)), 'commissioned' => number_format((int) ($co->comm ?? 0))];
+
                 // 8b. Physical Planning matched files (Shadow File Commissioning).
                 //     Matched = indexed files matched (file_indexings.pp_lands_matching = 1)
                 //     + fileNumber records matched directly (not sourced from indexing)
@@ -336,6 +369,7 @@ class DashboardController extends Controller
                     'phy_planning' => ['indexed' => number_format($phyMatched), 'commissioned' => number_format($phyCommissioned)],
                     'sltr'=> ['indexed' => number_format($sltrIndexed), 'commissioned' => number_format($sltrCommissioned)],
                     'gkn' => ['indexed' => number_format($gknIndexed),  'commissioned' => number_format($gknCommissioned)],
+                    'survey' => $surveyStats,
                 ];
 
                 // Keep $fileRegistry as alias for backward compat with old JS references

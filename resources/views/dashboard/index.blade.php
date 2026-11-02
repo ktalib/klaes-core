@@ -616,28 +616,29 @@
                     </div>
                 </div>
 
-                <!-- GKN Side -->
+                <!-- Survey files (user, 2026-11-02: was "Total GKN Files"): GKN, LPKN, LPPL, Misc KN, RDKN, CO -->
                 <div class="gradient-card hover-scale rounded-lg p-2 shadow-enhanced h-full flex flex-col justify-between" style="--gradient-start:#9d174d;--gradient-end:#7c2d12;">
                     <div class="decorative-circle"></div>
                     <div class="flex items-center justify-between mb-1 relative z-10">
-                        <h3 class="text-[11px] font-semibold text-white">Total GKN Files</h3>
+                        <h3 class="text-[11px] font-semibold text-white">Survey</h3>
                         <i data-lucide="folder-open" class="h-3.5 w-3.5 text-white/80"></i>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 relative z-10">
-                        <div class="rounded-xl p-3 ring-1 ring-fuchsia-300/30" style="background: linear-gradient(135deg, #9d174d 0%, #7c2d12 100%);">
-                            <div class="text-[10px] font-semibold uppercase text-fuchsia-100 mb-2">Indexed</div>
-                            <div class="bg-fuchsia-500/15 rounded-lg p-3 text-center">
-                                <div class="text-sm font-bold text-white" id="fs-gkn-indexed"><span class="loading-shimmer">…</span></div>
-                                {{-- <div class="text-[9px] text-fuchsia-100 mt-0.5">Total GKN Files</div> --}}
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 relative z-10">
+                        @foreach (['gkn' => 'GKN', 'lpkn' => 'LPKN', 'lppl' => 'LPPL', 'misc' => 'Misc KN', 'rdkn' => 'RDKN', 'co' => 'CO'] as $svKey => $svLabel)
+                            <div class="rounded-lg p-1.5 ring-1 ring-fuchsia-300/30" style="background: linear-gradient(135deg, #9d174d 0%, #7c2d12 100%);">
+                                <div class="text-[10px] font-semibold uppercase text-fuchsia-100 mb-1 text-center">{{ $svLabel }}</div>
+                                <div class="grid grid-cols-2 gap-1 text-center">
+                                    <div class="bg-fuchsia-500/15 rounded p-1">
+                                        <div class="text-xs font-bold text-white" id="fs-survey-{{ $svKey }}-indexed"><span class="loading-shimmer">…</span></div>
+                                        <div class="text-[8px] text-fuchsia-100" title="{{ $svKey === 'co' ? 'Captured (existing CO files keyed in)' : 'Indexed' }}">{{ $svKey === 'co' ? 'Capt.' : 'Indexed' }}</div>
+                                    </div>
+                                    <div class="bg-orange-500/15 rounded p-1">
+                                        <div class="text-xs font-bold text-white" id="fs-survey-{{ $svKey }}-commissioned"><span class="loading-shimmer">…</span></div>
+                                        <div class="text-[8px] text-orange-100">Comm</div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="rounded-xl p-3 ring-1 ring-orange-300/30" style="background: linear-gradient(135deg, #9a3412 0%, #7c2d12 100%);">
-                            <div class="text-[10px] font-semibold uppercase text-orange-100 mb-2">Comm</div>
-                            <div class="bg-orange-500/15 rounded-lg p-3 text-center">
-                                <div class="text-sm font-bold text-white" id="fs-gkn-commissioned"><span class="loading-shimmer">…</span></div>
-                                {{-- <div class="text-[9px] text-orange-100 mt-0.5">GKN</div> --}}
-                            </div>
-                        </div>
+                        @endforeach
                     </div>
                 </div>
 
@@ -2517,6 +2518,10 @@
                     setText('fs-sltr-commissioned',      fs.sltr?.commissioned);
                     setText('fs-gkn-indexed',            fs.gkn?.indexed);
                     setText('fs-gkn-commissioned',       fs.gkn?.commissioned);
+                    ['gkn', 'lpkn', 'lppl', 'misc', 'rdkn', 'co'].forEach(function (k) {
+                        setText('fs-survey-' + k + '-indexed',      fs.survey?.[k]?.indexed);
+                        setText('fs-survey-' + k + '-commissioned', fs.survey?.[k]?.commissioned);
+                    });
                     setText('fs-kangis-indexed',         fs.kangis?.indexed);
                     setText('fs-kangis-commissioned',    fs.kangis?.commissioned);
                     setText('fs-cadastral-indexed',      fs.cadastral?.indexed);

@@ -212,6 +212,9 @@ class FileTrackerApiController extends Controller
                 'receiving_officer_name' => 'nullable|string|max:255',
                 'num_pages' => 'nullable|integer|min:1|max:99999',
                 'num_pages_override' => 'nullable|boolean',
+                // Unit inside the receiving department, optional (CR 30102026 item 34; user 2026-11-02).
+                'receiving_unit_id' => 'nullable|integer',
+                'receiving_unit_other' => 'nullable|string|max:150',
             ]);
 
             if ($validator->fails()) {
@@ -220,6 +223,28 @@ class FileTrackerApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
+            }
+
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
+            }
+
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
             }
 
             // Scanned pages are the authoritative count. A Super Admin can make an
@@ -453,6 +478,20 @@ class FileTrackerApiController extends Controller
                     $processedEntry['receiving_office_name'] = $request->receiving_office_name;
                     $processedEntry['receiving_officer_id'] = $receivingOfficerId;
                     $processedEntry['receiving_officer_name'] = $resolvedOfficerName;
+
+                    // In-Unit (same department) or In Transit, and the unit it goes to, as File Movement stamps them.
+                    if (\App\Services\FileTracking\FileMovementUnits::installed() && $request->receiving_office_code) {
+                        $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', $request->receiving_office_code)->value('department');
+                        if ($toDept) {
+                            $processedEntry['movement_category'] = \App\Services\FileTracking\FileMovementUnits::category($request->origin_office_department, $toDept);
+                            $unit = \App\Services\FileTracking\FileMovementUnits::choice($unitId, $request->input('receiving_unit_other'), $toDept);
+                            if ($unit) {
+                                $processedEntry['receiving_unit_id'] = $unit['id'];
+                                $processedEntry['receiving_unit_name'] = $unit['name'];
+                                $processedEntry['receiving_unit_other'] = $unit['other'];
+                            }
+                        }
+                    }
                 }
 
                 // Carry the page count recorded at log-out onto every entry it was supplied for.
@@ -694,6 +733,17 @@ class FileTrackerApiController extends Controller
                 ], 422);
             }
 
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
+            }
+
             $fileNumberBefore = $tracker->file_number;
             $fileTitleBefore = $tracker->file_title;
 
@@ -844,6 +894,17 @@ class FileTrackerApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
+            }
+
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
             }
 
             $resolved = $this->resolveReceivingOfficer($request->input('receiving_officer_id'), $request->input('receiving_officer_name'));
@@ -1041,6 +1102,17 @@ class FileTrackerApiController extends Controller
                 ], 422);
             }
 
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
+            }
+
             $result = $tracker->completeCurrentMovement(
                 $request->log_out_time,
                 $request->notes,
@@ -1106,6 +1178,17 @@ class FileTrackerApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
+            }
+
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
             }
 
             $movementLog = is_array($tracker->movement_log)
@@ -1470,6 +1553,17 @@ class FileTrackerApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
+            }
+
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
             }
 
             $query = FileTracker::query();
@@ -1838,6 +1932,17 @@ class FileTrackerApiController extends Controller
                 ], 422);
             }
 
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
+            }
+
             $operation = $request->operation;
             $trackerIds = $request->tracker_ids;
             $data = $request->data;
@@ -1938,6 +2043,17 @@ class FileTrackerApiController extends Controller
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
                 ], 422);
+            }
+
+            // The unit must belong to the receiving office's department (FileMovementUnits::choice), checked before anything is written.
+            $unitId = $request->filled('receiving_unit_id') ? (int) $request->input('receiving_unit_id') : null;
+            if ($unitId && \App\Services\FileTracking\FileMovementUnits::installed()) {
+                try {
+                    $toDept = DB::connection('sqlsrv')->table('offices')->where('office_code', (string) $request->receiving_office_code)->value('department');
+                    \App\Services\FileTracking\FileMovementUnits::choice($unitId, null, $toDept);
+                } catch (\RuntimeException $e) {
+                    return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['receiving_unit_id' => [$e->getMessage()]]], 422);
+                }
             }
 
             $query = FileTracker::query();

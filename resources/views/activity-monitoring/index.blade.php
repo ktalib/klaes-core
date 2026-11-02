@@ -18,6 +18,7 @@
         'exportCsvEndpoint' => route('activity-monitoring.export.csv'),
         'exportPdfEndpoint' => route('activity-monitoring.export.pdf'),
         'leaderboardEndpoint' => route('activity-monitoring.leaderboard'),
+        'earningsEndpoint' => route('indexing-earnings.sheet.data'),
     ];
 @endphp
 <div class="flex-1 overflow-auto bg-gray-50"
@@ -110,6 +111,12 @@
             @include('activity-monitoring.partials.leaderboard-table')
         </div>
 
+        @if(\App\Http\Controllers\IndexingPay\IndexingEarningsController::canViewAll(auth()->user()))
+            <div x-cloak x-show="activeTab === 'earnings'">
+                @include('activity-monitoring.partials.indexing-earnings')
+            </div>
+        @endif
+
         <div x-cloak x-show="activeTab === 'leaderboard'">
             @include('activity-monitoring.partials.leaderboard-top15')
         </div>
@@ -156,6 +163,16 @@ function activityMonitoringPage(config) {
             meta: null,
             columns: [],
             loaded: false,
+        },
+        earningsTab: {
+            loading: false,
+            loaded: false,
+            error: null,
+            data: null,
+            menu: null,
+            menuTop: 0,
+            menuLeft: 0,
+            q: '',
         },
         activeTab: 'team',
         init() {
@@ -267,6 +284,10 @@ function activityMonitoringPage(config) {
                 this.leaderboardTab.loaded = false;
                 if (this.activeTab === 'leaderboard') {
                     this.loadLeaderboardDetail();
+                }
+                this.earningsTab.loaded = false;
+                if (this.activeTab === 'earnings' && !isAuto) {
+                    this.loadEarnings();
                 }
             } catch (error) {
                 console.error(error);
@@ -385,6 +406,40 @@ function activityMonitoringPage(config) {
             if (tab === 'leaderboard') {
                 this.ensureLeaderboardDetail();
             }
+            if (tab === 'earnings' && !this.earningsTab.loaded) {
+                this.loadEarnings();
+            }
+        },
+        // Indexing Earnings tab: the same figures as the Indexing Earnings sheet, for the page's dates.
+        async loadEarnings() {
+            if (!this.config.earningsEndpoint) return;
+            this.earningsTab.loading = true;
+            this.earningsTab.error = null;
+            try {
+                const params = new URLSearchParams();
+                if (this.filters.date_from) params.set('from', this.filters.date_from);
+                if (this.filters.date_to) params.set('to', this.filters.date_to);
+                const response = await fetch(`${this.config.earningsEndpoint}?${params.toString()}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                this.earningsTab.data = await response.json();
+                this.earningsTab.loaded = true;
+            } catch (error) {
+                console.error(error);
+                this.earningsTab.error = 'Could not load indexing earnings. Please try again.';
+            } finally {
+                this.earningsTab.loading = false;
+            }
+        },
+        naira(v) {
+            v = Number(v || 0);
+            return '₦' + v.toLocaleString('en-NG', { minimumFractionDigits: Math.abs(v - Math.round(v)) < 0.005 ? 0 : 2, maximumFractionDigits: 2 });
+        },
+        earningsPeople() {
+            const rows = this.earningsTab.data?.rows ?? [];
+            const q = (this.earningsTab.q || '').trim().toLowerCase();
+            return q ? rows.filter(r => r.name.toLowerCase().includes(q)) : rows;
         },
         ensureLeaderboardDetail() {
             if (this.leaderboardTab.loaded) {

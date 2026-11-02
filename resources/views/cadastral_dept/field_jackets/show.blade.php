@@ -7,7 +7,7 @@
   $case = $jacket->case;
 @endphp
 <div class="flex-1 overflow-auto bg-gray-50">
-  @include('admin.header', ['PageTitle' => 'Computation File (Field Jacket) ' . $jacket->field_jacket_no, 'PageDescription' => $case->case_ref . ' · survey job ' . ($job->job_number ?: 'not attached yet')])
+  @include('admin.header', ['PageTitle' => 'Computation File (Field Jacket) ' . ($jacket->lppl_no ?: $jacket->field_jacket_no), 'PageDescription' => $case->case_ref . ' · survey job ' . ($job->job_number ?: 'not attached yet')])
 
   <div class="p-6 space-y-6">
     @include('cadastral_dept.partials._nav')
@@ -58,7 +58,7 @@
       <div class="rounded-xl border border-gray-200 bg-white p-5">
         <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Jacket, job and I to S</h3>
         <dl class="grid grid-cols-3 gap-y-2 text-sm">
-          <dt class="text-gray-500">Computation File (Field Jacket)</dt><dd class="col-span-2 font-mono">{{ $jacket->field_jacket_no }}</dd>
+          <dt class="text-gray-500">Computation File (Field Jacket)</dt><dd class="col-span-2 font-mono">{{ $jacket->lppl_no ?: $jacket->field_jacket_no }}@if($jacket->lppl_no) <span class="text-xs text-gray-400">(system code {{ $jacket->field_jacket_no }})</span>@endif</dd>
           <dt class="text-gray-500">Survey Job</dt><dd class="col-span-2 font-mono">{{ $job->job_number }}</dd>
           <dt class="text-gray-500">Surveyor</dt><dd class="col-span-2">{{ $job->surveyor_name ?: '—' }}@if ($job->firm_name) <span class="text-gray-500">({{ $job->firm_name }})</span>@endif</dd>
           <dt class="text-gray-500">I to S</dt><dd class="col-span-2 font-mono">{{ $job->its_number ?: 'Not issued' }}@if ($job->its_issued_at) <span class="font-sans text-gray-500">· {{ $job->its_issued_at->format('d M Y') }}</span>@endif</dd>

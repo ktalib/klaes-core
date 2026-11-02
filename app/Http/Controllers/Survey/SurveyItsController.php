@@ -87,7 +87,7 @@ class SurveyItsController extends Controller
 
     public function create()
     {
-        return view('survey_module.gkn.its.form', ['its' => new SurveyIts(), 'surveyors' => $this->surveyors()]);
+        return view('survey_module.gkn.its.form', ['its' => new SurveyIts(), 'surveyors' => $this->surveyors(), 'computationFiles' => $this->computationFiles()]);
     }
 
     public function store(Request $r)
@@ -101,7 +101,7 @@ class SurveyItsController extends Controller
 
     public function edit(SurveyIts $its)
     {
-        return view('survey_module.gkn.its.form', ['its' => $its, 'surveyors' => $this->surveyors($its->surveyor_id)]);
+        return view('survey_module.gkn.its.form', ['its' => $its, 'surveyors' => $this->surveyors($its->surveyor_id), 'computationFiles' => $this->computationFiles()]);
     }
 
     public function update(Request $r, SurveyIts $its)
@@ -208,6 +208,17 @@ class SurveyItsController extends Controller
             ->get(['id', 'first_name', 'surname', 'other_name', 'rank', 'is_active']);
     }
 
+    /** Survey's commissioned Computation Files (LPKN), newest first, for the I to S form (user, 2026-11-02). */
+    private function computationFiles()
+    {
+        if (! \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasTable('survey_computation_files')) {
+            return collect();
+        }
+
+        return \App\Models\Survey\SurveyComputationFile::query()->orderByDesc('id')->limit(1000)
+            ->get(['id', 'computation_no', 'file_number', 'file_title', 'plot_no', 'district', 'lga', 'surveyors_list_id']);
+    }
+
     private function validated(Request $r, ?SurveyIts $existing = null): array
     {
         // "Other (specify)": whitespace-normalised, case kept. A name already on the
@@ -234,11 +245,18 @@ class SurveyItsController extends Controller
             'job_scope'   => 'nullable|string|max:4000',
             'its_instructions' => 'nullable|string|max:8000',
             'remarks'     => 'nullable|string|max:2000',
+            // The Computation File this instruction is for (user, 2026-11-02).
+            'survey_computation_file_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('sqlsrv.survey_computation_files', 'id')->whereNull('deleted_at')],
         ], [
+            'survey_computation_file_id.exists' => 'That Computation File no longer exists. Pick another.',
             'file_number.required' => 'Select the file with Select File Number.',
             'surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
         ]);
         unset($data['surveyor_other']);
+        // Keep the number as it was when picked, beside the link.
+        $data['computation_no'] = ! empty($data['survey_computation_file_id'])
+            ? \App\Models\Survey\SurveyComputationFile::whereKey($data['survey_computation_file_id'])->value('computation_no')
+            : null;
 
         if ($existing) {
             unset($data['file_number']);

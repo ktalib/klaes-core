@@ -31,6 +31,9 @@
             </div>
             @include('fileindexing.partials.year_override')
             @include('fileindexing.partials.kangis_block_index')
+            {{-- Has this file been scanned? Filled by js/scanning/scan-check-panel.js (user, 2026-11-01). --}}
+            <div id="scan-check-panel" class="hidden"
+                data-check-url="{{ route('scan-check.check') }}"></div>
         </div>
 
         <div id="kangis-placeholder-feedback" class="hidden mt-2 flex items-center gap-2 text-xs rounded px-3 py-1.5 border">

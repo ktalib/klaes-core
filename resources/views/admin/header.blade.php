@@ -119,6 +119,7 @@
         $userId = auth()->id();
         $profileUnreadCount = $userId ? \App\Models\Notification::forUser($userId)->where('is_read', false)->count() : 0;
       @endphp
+      @include('indexing_pay.partials.header_chip')
       <!-- User Profile Dropdown -->
       <div class="relative" data-user-profile-dropdown>
         <!-- Auto Logout Status Indicator -->
@@ -211,6 +212,10 @@
 {{-- Survey > File Status tabs: one sidebar entry, each list a tab (user, 2026-10-30). --}}
 @if (request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index'))
   @include('survey_module.partials._file_status_tabs')
+@endif
+{{-- Cadastral > File Status > Search: a list opened from a result comes filtered to the file (2026-10-31). --}}
+@if (request('url') === 'cadastral' && request('fs'))
+  @include('cadastral_dept.partials._fs_prefill')
 @endif
 
 {{-- Standing reminder for accounts with no usable passport photo on file — none at all,

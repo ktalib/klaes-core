@@ -71,9 +71,10 @@ window.secretariatFileLog = function (config) {
         indexQ: '', indexOpen: false, related_file_number: '',
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', from_other: '', timeline_days: '',
+        unit_id: '', unit_other: '',
     });
     const blankSend = () => ({ row: null, to_office: '', receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
-        officer_other: '', purpose_other: '', notes: '' });
+        officer_other: '', purpose_other: '', notes: '', unit_id: '', unit_other: '' });
     // A listed choice, or "Other" with its specify box filled in (as on Quick Search).
     const chosen = (value, other) => value === 'other' ? String(other || '').trim() !== '' : !!value;
     const listed = (value) => (value && value !== 'other') ? value : null;
@@ -82,7 +83,7 @@ window.secretariatFileLog = function (config) {
     // Batch mode: files collected by scan (or picked from the register), then
     // received or sent together. Each file goes through the same single-file
     // endpoint, so it is checked and logged exactly as one scan would be.
-    const blankBatchAll = () => ({ to_office: '', receiving_officer_id: '', officer_other: '', request_purpose_id: '', purpose_other: '' });
+    const blankBatchAll = () => ({ to_office: '', receiving_officer_id: '', officer_other: '', request_purpose_id: '', purpose_other: '', unit_id: '', unit_other: '' });
     const blankBatch = (on = false) => ({ on, items: [], running: false, notes: '', pick: '', all: blankBatchAll() });
     const blankEdit = () => ({ open: false, ref: null, office: '', status: '', statusLabel: '', initial: {},
         log_in_date: '', log_in_time: '', log_out_date: '', log_out_time: '',
@@ -96,6 +97,8 @@ window.secretariatFileLog = function (config) {
         canDeleteLogs: !!config.canDeleteLogs,
         canEditLogs: !!config.canEditLogs,
         requestPurposes: config.requestPurposes || [],
+        // Units inside a department (Configurable Entities > Units); optional on a send.
+        units: config.units || [],
         officers: config.officers || [],
         officerRanks: config.officerRanks || [],
         lgas: config.lgas || [],
@@ -152,7 +155,8 @@ window.secretariatFileLog = function (config) {
         indexed: { items: [], loading: false, loaded: false },
         _indexTimer: null,
         _indexSeq: 0,
-        profile: { open: false, loading: false, tab: 'history', data: null, match: null },
+        // readOnly: opened from a searched file that is not at this office; no actions.
+        profile: { open: false, loading: false, tab: 'history', data: null, match: null, readOnly: false },
         sheetBusy: false,
         lightbox: { open: false, items: [], index: 0 },
         keyTimes: [],
@@ -188,12 +192,11 @@ window.secretariatFileLog = function (config) {
             ['tab', 'sub', 'incomingView', 'filter', 'memoFilter', 'dateFrom', 'dateTo', 'perPage']
                 .forEach((key) => this.$watch(key, () => { this.page = 1; }));
 
-            // With no date range, the Filter box also searches Outgoing beyond "Last N days"
-            // (server side), so a file sent weeks ago is still found.
+            // The Filter box also searches server side: Outgoing beyond "Last N days" (with no
+            // date range), and files that are not at this office, listed read only.
             this.$watch('filter', () => {
                 clearTimeout(this._searchTimer);
                 this._searchTimer = setTimeout(() => {
-                    if (this.dateFrom || this.dateTo) return;
                     const q = this.outgoingSearch();
                     if (q !== this._lastSearch) this.loadLists(true);
                 }, 400);
@@ -344,7 +347,8 @@ window.secretariatFileLog = function (config) {
                 const params = { office: this.office, days: this.days };
                 if (this.dateFrom) params.from = this.dateFrom;
                 if (this.dateTo) params.to = this.dateTo;
-                const q = this.dateFrom || this.dateTo ? '' : this.outgoingSearch();
+                // The server ignores the search for Outgoing when a date range is set.
+                const q = this.outgoingSearch();
                 if (q) params.q = q;
                 this._lastSearch = q;
                 const data = await this.request(this.urls.lists + '?' + new URLSearchParams(params));
@@ -352,7 +356,9 @@ window.secretariatFileLog = function (config) {
                 const held = (data.held || []).map(r => ({ ...r, bucket: 'held' }));
                 // Memo: the letters, memos and other non-files at this office, waiting or held.
                 const memo = [...pending, ...held].filter(r => r.file_type === 'NON_FILE');
-                this.lists = { pending, held, sent: data.sent || [], memo };
+                // Searched files that are not at this office: shown read only, never counted.
+                const elsewhere = (data.elsewhere || []).map(r => ({ ...r, bucket: 'elsewhere', elsewhere: true }));
+                this.lists = { pending, held, sent: data.sent || [], memo, elsewhere };
                 this.lastRefreshed = new Date();
             } catch (e) {
                 if (silent) console.warn('[File Movement] auto refresh failed:', e.message);
@@ -427,10 +433,25 @@ window.secretariatFileLog = function (config) {
                 && (!card.bucket || this.sub !== 'incoming' || this.incomingView === card.bucket);
         },
 
-        visibleRows() {
+        // This office's rows for the tab, sub-tab, Filter box, Memo type and date range (what Export takes).
+        officeRows() {
             let rows = this.inDateRange(this.searched(this.tabRows(this.tab, this.sub)));
             if (this.view() === 'incoming') rows = rows.filter(r => this.rowBucket(r) === this.incomingView);
+            return this.memoTyped(rows);
+        },
+        // Plus, while the Filter box searches, matching files that are not at this office
+        // (user, 2026-11-02): under every sub-tab, read only, whatever the date range.
+        elsewhereRows() {
+            if (!this.outgoingSearch()) return [];
+            const isMemo = (r) => r.file_type === 'NON_FILE';
+            const rows = (this.lists.elsewhere || []).filter(r => (this.tab === 'memo') === isMemo(r));
+            return this.memoTyped(this.searched(rows));
+        },
+        memoTyped(rows) {
             return this.tab === 'memo' && this.memoFilter ? rows.filter(r => this.memoMatches(r, this.memoFilter)) : rows;
+        },
+        visibleRows() {
+            return [...this.officeRows(), ...this.elsewhereRows()];
         },
 
         // ── Pagination ────────────────────────────────────────────────────
@@ -527,7 +548,7 @@ window.secretariatFileLog = function (config) {
         // Export what the register shows now (tab, sub-tab, Filter box, Memo type, date range)
         // as a CSV that opens in Excel (UTF-8 with BOM), or as a PDF.
         exportData() {
-            const rows = this.visibleRows();
+            const rows = this.officeRows();   // the register only; read-only search rows are not exported
             const sent = this.view() === 'sent';
             // No Notes, Reference, Tracking ID or Log ID in the export (user, 2026-10-16).
             // To: office before officer, as the table shows it. Purpose follows Status, and the
@@ -568,7 +589,7 @@ window.secretariatFileLog = function (config) {
 
         exportRows(format = 'csv') {
             this.exportOpen = false;
-            if (!this.visibleRows().length) { this.notify('info', 'Nothing to export.'); return; }
+            if (!this.officeRows().length) { this.notify('info', 'Nothing to export.'); return; }
             return format === 'pdf' ? this.exportPdf() : this.exportCsv();
         },
 
@@ -671,7 +692,7 @@ window.secretariatFileLog = function (config) {
         // ── Correct a "Not a regular File/Mail" entry: Mail/File and mail type ──
         canEditDetails() {
             const d = this.profile.data;
-            return !!(this.canEditLogs && d && d.file.non_file && d.tracker);
+            return !!(this.canEditLogs && !this.profile.readOnly && d && d.file.non_file && d.tracker);
         },
         async editDetails() {
             const d = this.profile.data;
@@ -853,6 +874,7 @@ window.secretariatFileLog = function (config) {
                 return;
             }
             this.profile.match = m;
+            this.profile.readOnly = false;
             await this.loadProfile({ file_number: m.file_number, tracker_id: m.tracker ? m.tracker.id : '' });
             if (!fromScan || !this.profile.data) return;
 
@@ -894,16 +916,18 @@ window.secretariatFileLog = function (config) {
         },
 
         openRow(row, startSend = false) {
-            this.profile.match = { file_number: row.file_number, tracking_id: row.tracking_id, file_title: row.file_title, tracker: { id: row.id } };
+            this.profile.match = { file_number: row.file_number, tracking_id: row.tracking_id, file_title: row.file_title, tracker: row.id ? { id: row.id } : null };
+            this.profile.readOnly = !!row.elsewhere;
             this.send = blankSend();
-            this.loadProfile({ tracker_id: row.id, file_number: row.file_number || '' }).then(() => {
+            this.loadProfile({ tracker_id: row.id || '', file_number: row.file_number || '' }).then(() => {
+                if (this.profile.readOnly) return;
                 if (startSend && this.heldHere()) this.startSendFromProfile();
             });
             this.$nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
         },
 
         closeProfile() {
-            this.profile = { open: false, loading: false, tab: 'history', data: null, match: null };
+            this.profile = { open: false, loading: false, tab: 'history', data: null, match: null, readOnly: false };
             this.send = blankSend();
         },
 
@@ -1019,6 +1043,41 @@ window.secretariatFileLog = function (config) {
             return m.sender_name.trim();
         },
 
+        // ── Units (CR 30102026 item 34) ──────────────────────────────────
+        // Units of the department the chosen office belongs to.
+        // Units of a department by name (the incoming log picks the department, not an office).
+        unitsInDept(department) {
+            const dept = String(department || '').trim().toLowerCase();
+            if (!dept || dept === 'other') return [];
+            return this.units.filter(u => String(u.department || '').trim().toLowerCase() === dept);
+        },
+        unitsFor(officeCode) {
+            const o = this.offices.find(i => i.office_code === officeCode);
+            if (!o) return [];
+            const dept = String(o.department || '').trim().toLowerCase();
+            return this.units.filter(u => String(u.department || '').trim().toLowerCase() === dept);
+        },
+        // In-Unit when the office it goes to is in my department, In Transit otherwise.
+        isInUnit(officeCode) {
+            const mine = this.offices.find(i => i.office_code === this.office);
+            const to = this.offices.find(i => i.office_code === officeCode);
+            return !!(mine && to && mine.department && String(mine.department).trim().toLowerCase() === String(to.department || '').trim().toLowerCase());
+        },
+        fromUnitFields(department, id, other) {
+            if (id === 'other') return { from_unit_id: null, from_unit_other: String(other || '').trim() || null };
+            const u = this.unitsInDept(department).find(i => String(i.id) === String(id));
+            return { from_unit_id: u ? u.id : null, from_unit_other: null };
+        },
+        unitOk(id, other) {
+            return id !== 'other' || String(other || '').trim() !== '';
+        },
+        // The unit for the request: a listed one of that department, or Other typed. Optional.
+        unitFields(officeCode, id, other) {
+            if (id === 'other') return { receiving_unit_id: null, receiving_unit_other: String(other || '').trim() || null };
+            const u = this.unitsFor(officeCode).find(i => String(i.id) === String(id));
+            return { receiving_unit_id: u ? u.id : null, receiving_unit_other: null };
+        },
+
         // KLAES departments, as the offices table groups them.
         departments() {
             return this.officeGroups().map(g => g.department);
@@ -1076,7 +1135,7 @@ window.secretariatFileLog = function (config) {
 
         canReceive() {
             const d = this.profile.data;
-            if (!d || this.profile.loading) return false;
+            if (!d || this.profile.loading || this.profile.readOnly) return false;
             if (!d.tracker) return !!d.file.file_number;
             if (this.sentFromHere()) return false;
             return !this.heldHere();
@@ -1090,7 +1149,7 @@ window.secretariatFileLog = function (config) {
         },
 
         canSend() {
-            return this.heldHere() && !this.send.row;
+            return !this.profile.readOnly && this.heldHere() && !this.send.row;
         },
 
         profileHeading() {
@@ -1675,7 +1734,8 @@ window.secretariatFileLog = function (config) {
             // Timeline (Days) is optional; when given, a whole number 0–365 (as on Log a File).
             if (this.manualTimelineDays() === false) return false;
             // Send: where it goes.
-            if (this.mode === 'out' && (!m.send_to_office || m.send_to_office === this.office)) return false;
+            if (this.mode === 'out' && (!m.send_to_office || m.send_to_office === this.office || !this.unitOk(m.unit_id, m.unit_other))) return false;
+            if (this.mode === 'in' && !this.unitOk(m.unit_id, m.unit_other)) return false;
             // Where it came from is required: a department, then an office (or Other, typed).
             if (!this.senderIsExternal() && (!m.from_department || !chosen(m.from_office, m.from_other))) return false;
             if (m.entry_type === 'non_file') {
@@ -1743,6 +1803,9 @@ window.secretariatFileLog = function (config) {
                 sender_lga: m.entry_type === 'non_file' && m.sender_type === 'External' && m.sender_mda === 'lga' ? (m.sender_lga || null) : null,
                 // Internal sender with a typed department: that department; otherwise Other is outside KLAES.
                 send_to_office: this.mode === 'out' ? m.send_to_office : null,
+                ...(this.mode === 'out' ? this.unitFields(m.send_to_office, m.unit_id, m.unit_other) : {}),
+                // Incoming: the unit it came from (optional).
+                ...(this.mode === 'in' && !this.senderIsExternal() ? this.fromUnitFields(m.from_department, m.unit_id, m.unit_other) : {}),
                 from_department: this.senderIsExternal() ? null : m.from_department === 'other'
                     ? (this.senderGivesDepartment() && m.sender_dept === 'other' && m.sender.trim() ? m.sender.trim() : 'Outside KLAES')
                     : (m.from_department || null),
@@ -1758,6 +1821,7 @@ window.secretariatFileLog = function (config) {
                 this.manual = blankManual();
                 if (data.action === 'sent') this.sub = 'outgoing';
                 this.profile.match = { file_number: data.tracker.file_number, file_title: data.tracker.file_title, tracker: { id: data.tracker.id } };
+                this.profile.readOnly = false;
                 this.loadProfile({ tracker_id: data.tracker.id, file_number: data.tracker.file_number || '' });
             });
         },
@@ -1821,7 +1885,7 @@ window.secretariatFileLog = function (config) {
             const s = this.send;
             // A request purpose is optional; "Other" must still be typed.
             const purposeOk = s.request_purpose_id !== 'other' || s.purpose_other.trim() !== '';
-            return !!(s.row && s.to_office && chosen(s.receiving_officer_id, s.officer_other) && purposeOk);
+            return !!(s.row && s.to_office && chosen(s.receiving_officer_id, s.officer_other) && purposeOk && this.unitOk(s.unit_id, s.unit_other));
         },
 
         async forward() {
@@ -1839,6 +1903,7 @@ window.secretariatFileLog = function (config) {
                         receiving_officer_id: listed(this.send.receiving_officer_id),
                         receiving_officer_other: typed(this.send.receiving_officer_id, this.send.officer_other),
                         notes: this.send.notes,
+                        ...this.unitFields(this.send.to_office, this.send.unit_id, this.send.unit_other),
                     }),
                 });
                 this.notify('success', data.message);
@@ -1958,6 +2023,8 @@ window.secretariatFileLog = function (config) {
                 i.officer_other = a.officer_other;
                 i.request_purpose_id = a.request_purpose_id;
                 i.purpose_other = a.purpose_other;
+                i.unit_id = a.unit_id;
+                i.unit_other = a.unit_other;
                 if (i.state === 'error') { i.state = 'ready'; i.message = ''; }
             });
         },
@@ -1966,7 +2033,7 @@ window.secretariatFileLog = function (config) {
             // A request purpose is optional; "Other" must still be typed.
             const purposeOk = i.request_purpose_id !== 'other' || String(i.purpose_other || '').trim() !== '';
             return !!(i.to_office && i.to_office !== this.office
-                && chosen(i.receiving_officer_id, i.officer_other) && purposeOk);
+                && chosen(i.receiving_officer_id, i.officer_other) && purposeOk && this.unitOk(i.unit_id, i.unit_other));
         },
         batchReady() {
             const todo = this.batchPending();
@@ -1994,6 +2061,7 @@ window.secretariatFileLog = function (config) {
                             receiving_officer_id: listed(i.receiving_officer_id),
                             receiving_officer_other: typed(i.receiving_officer_id, i.officer_other),
                             notes: this.batch.notes,
+                            ...this.unitFields(i.to_office, i.unit_id, i.unit_other),
                         }
                         : {
                             office: this.office,
@@ -2041,7 +2109,7 @@ window.secretariatFileLog = function (config) {
         // logs at their own office (the server checks both again). The old
         // entry is kept in a hidden history on the server.
         canEditEvent(ev) {
-            if (!this.canEditLogs || !ev || !ev.ref || !ev.entry) return false;
+            if (!this.canEditLogs || this.profile.readOnly || !ev || !ev.ref || !ev.entry) return false;
             if (this.canChooseOffice) return true;
             const code = ev.entry.receiving_office_code || ev.entry.office_code || '';
             return !!(this.myOffice && code === this.myOffice.code);

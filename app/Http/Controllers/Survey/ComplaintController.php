@@ -166,7 +166,7 @@ class ComplaintController extends Controller
 
         $projects = SurveyProject::with('coFile:id,co_file_no')->orderByDesc('id')
             ->get(['id', 'project_code', 'name', 'scheme_type', 'survey_co_file_id', 'prop_district', 'prop_district_other', 'prop_lga']);
-        $cases = SurveyCompCase::withSum('trees', 'line_total')->withCount('plots')->orderByDesc('id')
+        $cases = SurveyCompCase::with('project:id,farmer_share_pct')->withSum('trees', 'line_total')->withCount('plots')->orderByDesc('id')
             ->get(['id', 'case_ref', 'survey_project_id', 'scheme_type', 'num_plots', 'prop_district', 'prop_district_other', 'prop_lga']);
         $beneficiaries = SurveyBeneficiary::with('case:id,case_ref')->orderBy('full_name')
             ->get(['id', 'full_name', 'phone', 'survey_comp_case_id']);
@@ -207,8 +207,8 @@ class ComplaintController extends Controller
                     'district' => AddressBuilder::resolve($c->prop_district, $c->prop_district_other),
                     'lga'      => AddressBuilder::resolve($c->prop_lga),
                     'amount'   => $c->trees_sum_line_total !== null ? round((float) $c->trees_sum_line_total, 2) : null,
-                    // The farmer's half of the 50:50 split (SurveyCompCase::plotSplit).
-                    'plots'    => $plots ? intdiv($plots, 2) : null,
+                    // The farmer's share by the project's sharing ratio (SurveyCompCase::plotSplit).
+                    'plots'    => $plots ? \App\Services\Survey\SurveySettings::splitPlots($plots, $c->project?->farmer_share_pct)['farmer'] : null,
                 ]];
             }),
             'beneficiaries' => $beneficiaries->mapWithKeys(fn ($b) => [$b->id => [

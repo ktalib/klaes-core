@@ -110,6 +110,52 @@ class BeaconRegisterController extends Controller
         ]);
     }
 
+    /**
+     * Issue Beacon No (WhatsApp, user 2026-10-31): the next free serial for a beacon prefix and
+     * optional letter after the serial, one above the highest already issued in that series.
+     */
+    public function nextSerial(Request $r)
+    {
+        $prefix = strtoupper(preg_replace('/[^A-Za-z\/\-]/', '', (string) $r->query('prefix', '')));
+        $suffix = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $r->query('suffix', '')));
+        if ($prefix === '') {
+            return response()->json(['message' => 'Choose a beacon prefix.'], 422);
+        }
+        $series = $prefix . '|' . $suffix;
+        $last = (int) SurveyBeaconNumber::query()->where('beacon_series', $series)->max('beacon_seq');
+
+        return response()->json(['series' => $series, 'last' => $last ?: null, 'next' => $last + 1]);
+    }
+
+    /**
+     * Issue Beacon No duplicate check (user, 2026-11-02): the numbers PREFIX<start..start+count-1><letter>
+     * already in the register, with who they were issued to. Read-only; the save checks again.
+     */
+    public function checkRange(Request $r)
+    {
+        $prefix = strtoupper(preg_replace('/[^A-Za-z\/\-]/', '', (string) $r->query('prefix', '')));
+        $suffix = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $r->query('suffix', '')));
+        $start = (int) $r->query('start', 0);
+        $count = (int) $r->query('count', 0);
+        if ($prefix === '' || $start < 1 || $count < 1 || $count > SurveyBeaconRegister::MAX_RANGE) {
+            return response()->json(['message' => 'Choose the prefix, the number of beacons and the start serial.'], 422);
+        }
+
+        $taken = SurveyBeaconNumber::query()->with('register:id,surveyor_name,issue_date,beacon_from,beacon_to')
+            ->where('beacon_series', $prefix . '|' . $suffix)
+            ->whereBetween('beacon_seq', [$start, $start + $count - 1])
+            ->orderBy('beacon_seq')->get()
+            ->map(fn ($n) => [
+                'seq'      => (int) $n->beacon_seq,
+                'no'       => $n->beacon_no,
+                'surveyor' => $n->register?->surveyor_name,
+                'date'     => optional($n->register?->issue_date)->format('d/m/Y'),
+                'entry'    => $n->register?->issued_range,
+            ])->values();
+
+        return response()->json(['taken' => $taken]);
+    }
+
     public function store(Request $r)
     {
         $this->authorizeAction('create');
@@ -126,6 +172,59 @@ class BeaconRegisterController extends Controller
         return redirect()->route('survey-module.workflow.beacon-register.index')
             ->with('success', "{$entry->total_issued} beacon(s) {$entry->issued_range} recorded"
                 . ($entry->surveyor_name ? " for {$entry->surveyor_name}." : '.'));
+    }
+
+    /**
+     * Issue Beacon No, several groups at once (user, 2026-11-02): each group (a run of numbers with its
+     * type, surveyor and location) becomes its own register entry, all in one transaction, through the
+     * same checks as New Entry. Groups are saved in order, so a group overlapping an earlier one is refused.
+     */
+    public function issueBatch(Request $r)
+    {
+        $this->authorizeAction('create');
+        $r->validate([
+            'issue_date' => 'required|date|before_or_equal:today',
+            'groups'     => 'required|array|min:1|max:50',
+            'groups.*'   => 'array',
+        ], [
+            'issue_date.required' => 'Enter the issue date.',
+            'groups.required'     => 'Add at least one group to the table.',
+            'groups.max'          => 'At most 50 groups in one save.',
+        ]);
+
+        $fields = array_merge(['layout_type', 'beacon_from', 'beacon_to', 'surveyor_choice', 'surveyor_name_other'], AddressBuilder::columns('prop_'));
+        $entries = $this->saving(function () use ($r, $fields) {
+            $out = [];
+            foreach (array_values($r->input('groups')) as $i => $g) {
+                $g = \Illuminate\Support\Arr::only((array) $g, $fields);
+                $label = 'Group ' . ($i + 1) . (! empty($g['beacon_from']) ? ' (' . $g['beacon_from'] . (! empty($g['beacon_to']) ? ' to ' . $g['beacon_to'] : '') . ')' : '');
+                try {
+                    // AddressBuilder's "Other needs specifying" rule reads the outer request, so it is checked here.
+                    foreach (['street', 'district'] as $k) {
+                        if (in_array('Other', (array) ($g["prop_{$k}"] ?? []), true) && trim((string) ($g["prop_{$k}_other"] ?? '')) === '') {
+                            throw ValidationException::withMessages(["prop_{$k}_other" => "Specify the {$k}."]);
+                        }
+                    }
+                    if (($g['surveyor_choice'] ?? '') === 'other' && trim((string) ($g['surveyor_name_other'] ?? '')) === '') {
+                        throw ValidationException::withMessages(['surveyor_name_other' => "Type the surveyor's name."]);
+                    }
+                    [$data, $range] = $this->validated(Request::create('/', 'POST', $g + ['issue_date' => $r->input('issue_date')]));
+                } catch (ValidationException $e) {
+                    throw ValidationException::withMessages(['groups' => $label . ': ' . collect($e->errors())->flatten()->first()]);
+                }
+                $entry = SurveyBeaconRegister::create($data);
+                $this->syncNumbers($entry, $range);
+                $out[] = $entry;
+            }
+
+            return $out;
+        });
+
+        $total = array_sum(array_map(fn ($e) => $e->total_issued, $entries));
+        session()->flash('success', "{$total} beacon(s) recorded in " . count($entries) . ' entr' . (count($entries) === 1 ? 'y' : 'ies') . ': '
+            . implode(', ', array_map(fn ($e) => $e->issued_range, $entries)) . '. Add the payment with Edit on each entry.');
+
+        return response()->json(['message' => 'Saved.', 'redirect' => route('survey-module.workflow.beacon-register.index')]);
     }
 
     public function update(Request $r, SurveyBeaconRegister $entry)

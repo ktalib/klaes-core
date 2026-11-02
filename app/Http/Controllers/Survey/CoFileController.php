@@ -24,6 +24,16 @@ class CoFileController extends Controller
     /** Related file numbers a CO file may carry: SIT, GKN or Misc KN, optionally temporary. */
     public const RELATED_FILE_PATTERN = '/^(SIT-\d{4}-\d+|GKN-\d+|MISC KN \d+)( ?\(T\))?$/i';
 
+    /**
+     * One related-file field per kind (user, 2026-11-02): column => [label, pattern, example].
+     * With Has Related File = Yes at least one is required.
+     */
+    public const RELATED_KINDS = [
+        'related_sit_file_no'    => ['SIT', '/^SIT-\d{4}-\d+( ?\(T\))?$/i', 'SIT-2024-15'],
+        'related_gkn_file_no'    => ['GKN', '/^GKN-\d+( ?\(T\))?$/i', 'GKN-120'],
+        'related_misckn_file_no' => ['Misc KN', '/^MISC KN \d+( ?\(T\))?$/i', 'MISC KN 45'],
+    ];
+
     public function index(Request $r)
     {
         return $this->listing($r, SurveyCoFile::SOURCE_CAPTURED);
@@ -53,6 +63,9 @@ class CoFileController extends Controller
                 $w->where('co_file_no', 'like', "%$term%")
                   ->orWhere('title', 'like', "%$term%")
                   ->orWhere('related_file_no', 'like', "%$term%")
+                  ->orWhere('related_sit_file_no', 'like', "%$term%")
+                  ->orWhere('related_gkn_file_no', 'like', "%$term%")
+                  ->orWhere('related_misckn_file_no', 'like', "%$term%")
                   ->orWhereHas('projects', fn ($p) => $p->where('name', 'like', "%$term%")
                                                         ->orWhere('project_code', 'like', "%$term%")
                                                         ->orWhere('plan_no', 'like', "%$term%"));
@@ -68,7 +81,9 @@ class CoFileController extends Controller
         // The related file's title under its number (CR 30102026 item 31): file_indexings on the
         // file-number string, else its fileNumber row, as relatedLookup() does.
         $relatedTitles = [];
-        $numbers = $coFiles->getCollection()->pluck('related_file_no')->filter()->unique()->values()->all();
+        $numbers = $coFiles->getCollection()
+            ->flatMap(fn ($f) => [$f->related_file_no, $f->related_sit_file_no, $f->related_gkn_file_no, $f->related_misckn_file_no])
+            ->filter()->unique()->values()->all();
         if ($numbers) {
             $db = DB::connection('sqlsrv');
             $live = fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0);
@@ -246,8 +261,13 @@ class CoFileController extends Controller
     private function validated(Request $r, ?SurveyCoFile $existing, bool $capture): array
     {
         $hasSitFile = $r->boolean('has_sit_file');
+        $kinds = array_keys(self::RELATED_KINDS);
         if (! $hasSitFile) {
-            $r->merge(['related_file_no' => null]);
+            $r->merge(array_fill_keys(array_merge(['related_file_no'], $kinds), null));
+        }
+        // At least one of SIT, GKN and Misc KN when Has Related File is Yes (user, 2026-11-02).
+        if ($hasSitFile && ! collect($kinds)->contains(fn ($k) => trim((string) $r->input($k)) !== '')) {
+            throw ValidationException::withMessages(['related_sit_file_no' => 'Has Related File is Yes: select at least one related file (SIT, GKN or Misc KN), or turn it off.']);
         }
         $rules = [
             'title'           => 'required|string|max:255',
@@ -257,14 +277,15 @@ class CoFileController extends Controller
             'has_sit_file'    => 'nullable|boolean',
             // Required when Has Related File is checked; selected from the global selector: SIT-YEAR-SERIAL, or
             // GKN-SERIAL / MISC KN SERIAL from the Survey tab (CR 30102026 item 1).
-            'related_file_no' => [$hasSitFile ? 'required' : 'nullable', 'string', 'max:50', 'regex:' . self::RELATED_FILE_PATTERN],
-        ] + AddressBuilder::rules('prop_');
+        ] + collect(self::RELATED_KINDS)->map(fn ($k) => ['nullable', 'string', 'max:50', 'regex:' . $k[1]])->all()
+          + AddressBuilder::rules('prop_');
 
         if ($capture) {
             // The paper file's own number: Prefix CO + Serial No + Year (checked below).
             // co_file_no in one piece is still accepted.
             if ($r->filled('co_serial') || $r->filled('co_year')) {
-                $r->merge(['co_file_no' => 'CO-' . trim((string) $r->input('co_serial')) . '-' . trim((string) $r->input('co_year'))]);
+                $r->merge(['co_file_no' => 'CO-' . trim((string) $r->input('co_serial')) . '-' . trim((string) $r->input('co_year'))
+                    . ($r->boolean('co_temporary') ? '(T)' : '')]);
             }
             $rules['co_file_no'] = ['required', 'string', 'max:50'];
             $rules['co_serial'] = ['nullable', 'regex:/^\d{1,7}$/'];
@@ -276,8 +297,9 @@ class CoFileController extends Controller
             'co_serial.regex'                 => 'The serial number is digits only, e.g. 9.',
             'co_year.min'                     => 'The year must be ' . SurveyCoFile::FIRST_YEAR . ' or later.',
             'co_year.max'                     => 'The year cannot be in the future.',
-            'related_file_no.regex'           => 'The related file must be a SIT, GKN or Misc KN file number, e.g. SIT-2024-15, GKN-120 or MISC KN 45.',
-            'related_file_no.required'        => 'Select a related file or turn off Has Related File.',
+            'related_sit_file_no.regex'       => 'The SIT field takes a SIT file number, e.g. SIT-2024-15.',
+            'related_gkn_file_no.regex'       => 'The GKN field takes a GKN file number, e.g. GKN-120.',
+            'related_misckn_file_no.regex'    => 'The Misc KN field takes a Misc KN file number, e.g. MISC KN 45.',
             'prop_district.required'          => 'The district is required.',
             'prop_district_other.required_if' => 'Please specify the district.',
             'prop_street_other.required_if'   => 'Please specify the street.',
@@ -297,13 +319,18 @@ class CoFileController extends Controller
             }
             $data['co_file_no'] = $no;
         }
-        unset($data['co_serial'], $data['co_year']);
+        unset($data['co_serial'], $data['co_year'], $data['co_temporary']);
         unset($data['has_sit_file']);
         $data['title'] = trim(preg_replace('/\s+/', ' ', $data['title']));
-        // An identifier: exact format, upper-case prefix only.
-        $data['related_file_no'] = $hasSitFile
-            ? preg_replace(['/^sit-/i', '/^gkn-/i', '/^misc kn /i', '/\(t\)$/'], ['SIT-', 'GKN-', 'MISC KN ', '(T)'], trim((string) ($data['related_file_no'] ?? '')))
-            : null;
+        // Identifiers: exact format, upper-case prefix only. related_file_no keeps the first of the
+        // three for what already reads it (listing title, commissioning sheet, search).
+        foreach ($kinds as $k) {
+            $v = trim((string) ($data[$k] ?? ''));
+            $data[$k] = $hasSitFile && $v !== ''
+                ? preg_replace(['/^sit-/i', '/^gkn-/i', '/^misc kn /i', '/\(t\)$/'], ['SIT-', 'GKN-', 'MISC KN ', '(T)'], $v)
+                : null;
+        }
+        $data['related_file_no'] = $data['related_sit_file_no'] ?? $data['related_gkn_file_no'] ?? $data['related_misckn_file_no'];
 
         return $data;
     }

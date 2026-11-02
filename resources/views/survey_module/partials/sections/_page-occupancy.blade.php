@@ -153,7 +153,7 @@
             </div>
             <div class="op-scenario">
                 <div class="scenario-title">Land to Land OP</div>
-                <div class="scenario-desc">Includes plot schedule (Plot No., OP No.) from Plot Allocation under the 50:50 split.</div>
+                <div class="scenario-desc">Includes plot schedule (Plot No., OP No.) from Plot Allocation under the sharing ratio split.</div>
             </div>
         </div>
     </div>

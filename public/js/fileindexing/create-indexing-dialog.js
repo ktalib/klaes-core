@@ -1959,6 +1959,11 @@
         const trimmed = (fileNumber || '').trim().replace(/\(\s*T\s*\)\s*$/i, '').trim();
         indexedFeedbackState.currentFileNumber = trimmed || null;
 
+        // "Has this file been scanned?" panel under the File Number (scan-check-panel.js).
+        if (typeof window.klaesScanCheck === 'function') {
+            try { window.klaesScanCheck(trimmed); } catch (e) { console.error('Scan check failed', e); }
+        }
+
         if (indexedFeedbackState.promptShownFor
             && indexedFeedbackState.promptShownFor !== indexedFeedbackState.currentFileNumber) {
             indexedFeedbackState.promptShownFor = null;
@@ -2827,6 +2832,8 @@
      */
     function showIndexingSavedCard(data, options = {}) {
         const { isUpdate = false, extraText = '', title = null, instrumentsOnly = false, extraHtml = '' } = options;
+        // Indexing piece-rate pay: the earnings strip refreshes and shows what this save earned.
+        try { window.dispatchEvent(new CustomEvent('klaes:indexing-saved', { detail: { isUpdate } })); } catch (e) { /* never block the card */ }
         const summary = data && data.storage_summary;
         // Present on the transaction-capture response; absent after plain indexing.
         const instruments = (data && data.instruments) || [];
@@ -4973,6 +4980,9 @@
         window.dispatchEvent(new CustomEvent('grouping-record-updated', { detail: record }));
     }
 
+    // The scan check (scan-check-panel.js) calls this when its result changes.
+    window.klaesUpdateCreateButton = function () { updateCreateButtonState(); };
+
     function updateCreateButtonState() {
         const createBtn = document.getElementById('create-file-btn');
         if (!createBtn) {
@@ -4985,6 +4995,17 @@
             createBtn.classList.add('opacity-60', 'cursor-not-allowed');
             return;
         }
+
+        // Not scanned yet: Create stays off until the pages are found (scan-check-panel.js
+        // re-checks on its own and calls this again once the scan is uploaded in Blind Scan).
+        if (!editModeState.isEditing && !window.isEditMode
+            && typeof window.klaesScanAllowsCreate === 'function' && !window.klaesScanAllowsCreate()) {
+            createBtn.disabled = true;
+            createBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            createBtn.title = 'Disabled until this file has been scanned (see the scan check under File Number).';
+            return;
+        }
+        createBtn.removeAttribute('title');
 
         const canSubmit = editModeState.isEditing
             || (Boolean(groupingState.record) && !groupingState.mismatch);
@@ -7660,6 +7681,7 @@
                     error.errorType = payload?.error_type || null;
                     error.existingRecord = payload?.existing_record || null;
                     error.duplicateAction = payload?.duplicate_action || null;
+                    error.scanCheck = payload?.scan_check || null;
                     throw error;
                 }
 
@@ -7768,6 +7790,12 @@
 
                 if (error.errorType === 'duplicate' && error.existingRecord) {
                     await handleDuplicateSubmissionConflict(error.existingRecord, error.message);
+                    return;
+                }
+
+                // Not scanned: the scan panel explains; Create stays off until the scan is found.
+                if (error.errorType === 'not_scanned' && typeof window.klaesScanBlocked === 'function') {
+                    await window.klaesScanBlocked(error.scanCheck, error.message);
                     return;
                 }
 

@@ -100,7 +100,15 @@
             {{-- Allocation Records removed from Records (CR 30102026 item 18); the page keeps its route. --}}
             {{-- The Deeds OP Verification page, opened with ?url=survey (user, 2026-10-27); Deeds' own entry stays unlit.
                  Was "Resettlement Plot Verification" (CR 30102026 item 20). --}}
+            {{-- Commented out for now (user, 2026-11-02): Plot Showing Register opened op-verifications?url=survey.
             <a href="{{ route('op-verifications.index', ['url' => 'survey']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('op-verifications.*') && request('url') === 'survey') || (request()->routeIs('survey-module.compensation.op-verification') && request('via') !== 'examination') ? 'active' : '' }}">
+              <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Plot Showing Register</span>
+            </a>
+            --}}
+            {{-- Plot Showing Register opens the Plot Confirmation register: OP showings (1st, 2nd... with reasons) and
+                 ground checks, with Record Plot Showing (user, 2026-11-02; was the lands list ?view=showing earlier that day). --}}
+            <a href="{{ route('survey-module.compensation.plot-confirmations') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.plot-confirmations') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Plot Showing Register</span>
             </a>
@@ -132,7 +140,7 @@
             </a>
             {{-- Register Land is a button on the Lands page (Cases renamed Lands, 2026-10-29); so is
                  Capture Compensation List (sidebar link removed 2026-10-30), which keeps this item lit. --}}
-            <a href="{{ route('survey-module.compensation.cases') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.cases', 'survey-module.compensation.cases.register', 'survey-module.compensation.cases.show', 'survey-module.compensation.cases.edit', 'survey-module.compensation.capture-list') ? 'active' : '' }}">
+            <a href="{{ route('survey-module.compensation.cases') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.cases', 'survey-module.compensation.cases.register', 'survey-module.compensation.cases.show', 'survey-module.compensation.cases.edit', 'survey-module.compensation.capture-list') && request('view') !== 'showing' ? 'active' : '' }}">
               <i data-lucide="list" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Lands Assessment</span>
             </a>
@@ -241,7 +249,7 @@
           <a href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
             <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors</span>
           </a>
-          {{-- Blank until the source is confirmed (CR 30102026 item 12). --}}
+          {{-- Government = Survey's own (LPKN), Private = Cadastral's (LPPL) (CR 30102026 items 12-14). --}}
           <a href="{{ route('survey-module.gkn.computation-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.computation-files') ? 'active' : '' }}">
             <i data-lucide="folder-archive" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Files (Field Jackets)</span>
           </a>
@@ -273,8 +281,10 @@
             </a>
           </div>
           </div>
-          {{-- CR 30102026 item 21; no page yet. --}}
-          {!! $svSoon('Passing & Checking (Final Survey Plan)', 'clipboard-check') !!}
+          {{-- CR 30102026 item 21 (2026-10-31): a first version of the form; Survey will give its fields. --}}
+          <a href="{{ route('survey-module.gkn.passing-checks') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.passing-checks') ? 'active' : '' }}">
+            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Passing &amp; Checking (Final Survey Plan)</span>
+          </a>
           @endif
         </div>
         @endif

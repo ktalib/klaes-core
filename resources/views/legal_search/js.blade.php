@@ -1,3 +1,6 @@
+{{-- Scanned-page viewer for Blind Scan / records-server pages (user, 2026-11-01). --}}
+<script>window.KLAES_SCAN_PAGES_URL = @json(route('scan-check.pages'));</script>
+<script src="{{ asset('js/scanning/scan-viewer.js') }}?v={{ @filemtime(public_path('js/scanning/scan-viewer.js')) }}"></script>
 <script>
   // Lookup data from DB
   const dbLandUseOptions = @json($landUseOptions ?? []);
@@ -7468,7 +7471,14 @@ const executeSearchAjax = (filters, searchData) => {
       }
 
       const folders = Array.isArray(data.folders) ? data.folders : [];
-      console.log('[Archive Loader] Found', folders.length, 'folders');
+      // Scanned pages not yet in the Digital Archive: Blind Scan, records server (2026-11-01).
+      const scanSources = Array.isArray(data.scan_check?.sources) ? data.scan_check.sources : [];
+      console.log('[Archive Loader] Found', folders.length, 'folders and', scanSources.length, 'scanned folders');
+      if (!folders.length && scanSources.length) {
+        setDigitalArchiveStatus(true);
+        if (foldersEl) foldersEl.innerHTML = renderScanSourceButtons(scanSources, data.scan_check.file_number);
+        return;
+      }
       if (!folders.length) {
         console.warn('[Archive Loader] No folders found');
         if (emptyEl) {
@@ -7501,7 +7511,7 @@ const executeSearchAjax = (filters, searchData) => {
               ${docLabel ? `<span class="flex-shrink-0 text-xs opacity-80">${docLabel}</span>` : ''}
             </button>
           `;
-        }).join('');
+        }).join('') + renderScanSourceButtons(scanSources, data.scan_check?.file_number);
         console.log('[Archive Loader] Archive buttons rendered in DOM');
       }
     } catch (error) {
@@ -7519,6 +7529,37 @@ const executeSearchAjax = (filters, searchData) => {
       if (loadingEl) loadingEl.classList.add('hidden');
     }
   }
+
+  // Buttons for scanned folders outside the Digital Archive; opened in the scanned-page viewer.
+  function renderScanSourceButtons(sources, fileNumber) {
+    if (!Array.isArray(sources) || !sources.length) return '';
+    return sources.map((s) => {
+      const label = escapeArchiveHtml(s.label || 'Scanned');
+      const folder = escapeArchiveHtml(s.folder || '');
+      const pages = Number(s.pages) || 0;
+      return `
+        <button type="button" class="scan-source-card inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors text-left"
+          data-token="${escapeArchiveHtml(s.token || '')}" data-title="${escapeArchiveHtml((fileNumber || '') + ' — ' + (s.label || ''))}" data-subtitle="${folder} · ${pages} page(s)" title="Open the scanned pages (${label})">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          <span class="flex-1 min-w-0 truncate">Scanned (${label}) — ${folder}</span>
+          <span class="flex-shrink-0 text-xs opacity-80">${pages} ${pages === 1 ? 'page' : 'pages'}</span>
+        </button>`;
+    }).join('');
+  }
+
+  document.addEventListener('click', function (event) {
+    const card = event.target.closest('.scan-source-card');
+    if (!card) return;
+    if (!window.KlaesScanViewer) {
+      Swal.fire('Viewer unavailable', 'The scanned-page viewer is not available on this page.', 'info');
+      return;
+    }
+    window.KlaesScanViewer.open({
+      token: card.getAttribute('data-token'),
+      title: card.getAttribute('data-title') || 'Scanned pages',
+      subtitle: card.getAttribute('data-subtitle') || '',
+    });
+  });
 
   function bindLegalSearchArchiveViewer() {
     if (archiveViewerBound) return;

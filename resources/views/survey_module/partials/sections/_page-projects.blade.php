@@ -77,7 +77,9 @@
                     <th class="num" title="Size of Acquisition (hectares)">Acquisition (Ha)</th>
                     <th title="Number beside each name = portions (blocks) that surveyor covers">Surveyors</th>
                     <th class="ctr">Portions</th>
+                    <th class="ctr" title="Farmers' lands registered under the project; click the number to list them">Lands</th>
                     <th>Scheme Type</th>
+                    <th class="num" title="Cash for economic trees entered on the project (Monetary Compensation)">Tree Cash (₦)</th>
                     <th>Purpose</th>
                     <th>Status</th>
                     <th>Created By</th>
@@ -112,6 +114,14 @@
                             @endif
                         </td>
                         <td class="ctr">@if ($portions){{ number_format($portions) }}@else<span class="muted">—</span>@endif</td>
+                        <td class="ctr">
+                            @if ($p->cases_count)
+                                <button type="button" class="pj-lands-btn" onclick="pjToggleLands({{ $p->id }}, this)" aria-expanded="false"
+                                        title="Show this project's lands">{{ number_format($p->cases_count) }} <i class="fas fa-chevron-down"></i></button>
+                            @else
+                                <span class="muted">0</span>
+                            @endif
+                        </td>
                         <td>
                             @if ($p->isMonetary())
                                 <span class="status-badge active"><span class="dot"></span>Monetary Compensation</span>
@@ -119,6 +129,7 @@
                                 <span class="status-badge completed"><span class="dot"></span>Land to Land</span>
                             @endif
                         </td>
+                        <td class="num">@if ($p->isMonetary() && $p->trees->isNotEmpty()){{ number_format($p->trees->sum('amount'), 2) }}@else<span class="muted">—</span>@endif</td>
                         <td class="wide">{{ $p->purpose ?: '—' }}</td>
                         <td>
                             <span class="status-badge {{ $p->status === 'Active' ? 'active' : ($p->status === 'Closed' ? 'rejected' : 'pending') }}">
@@ -142,9 +153,12 @@
                                     <a href="{{ route('survey-module.compensation.capture-list', ['project' => $p->id]) }}" class="{{ $svItem }}">
                                         <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-500"></i> Capture List
                                     </a>
-                                    <a href="{{ route('survey-module.compensation.cases', ['project' => $p->id]) }}" class="{{ $svItem }}">
-                                        <i data-lucide="list" class="w-4 h-4 text-gray-500"></i> View Cases
-                                    </a>
+                                    @if ($p->cases_count)
+                                        {{-- The project's lands, listed under its row (user, 2026-11-02). --}}
+                                        <button type="button" class="{{ $svItem }}" @click="open = false; pjToggleLands({{ $p->id }}, $el.closest('tr').querySelector('.pj-lands-btn'))">
+                                            <i data-lucide="list" class="w-4 h-4 text-gray-500"></i> View Lands
+                                        </button>
+                                    @endif
                                     <a href="{{ route('survey-module.compensation.projects.edit', $p) }}" class="{{ $svItem }}">
                                         <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                     </a>
@@ -161,9 +175,44 @@
                             </div>
                         </td>
                     </tr>
+                    @if ($p->cases->isNotEmpty())
+                        {{-- Lands grouped under their project (user, 2026-11-02). Property order: Plot No., District, LGA, Location. --}}
+                        <tr class="pj-lands-row" data-parent="{{ $p->id }}" hidden>
+                            <td colspan="17">
+                                <div class="pj-lands">
+                                    <table>
+                                        <thead><tr><th>S/N</th><th>Land Ref</th><th>Surveyor</th><th class="ctr">Portion</th><th class="num">Area (Ha)</th>
+                                            <th class="ctr">Farmers</th><th class="ctr">Plots</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Status</th></tr></thead>
+                                        <tbody>
+                                            @foreach ($p->cases as $land)
+                                                @php
+                                                    $lDistrict = \App\Support\AddressBuilder::resolve($land->prop_district, $land->prop_district_other);
+                                                    $lLga = \App\Support\AddressBuilder::resolve($land->prop_lga);
+                                                @endphp
+                                                <tr>
+                                                    <td class="muted">{{ $loop->iteration }}</td>
+                                                    <td class="code">{{ $land->case_ref }}</td>
+                                                    <td>{{ $land->survey_officer ?: '—' }}</td>
+                                                    <td class="ctr">{{ $land->portion_no ?: '—' }}</td>
+                                                    <td class="num">{{ $ha($land->area_ha) }}</td>
+                                                    <td class="ctr">{{ number_format($land->beneficiaries_count) }}</td>
+                                                    <td class="ctr">{{ $land->num_plots !== null ? number_format($land->num_plots) : '—' }}</td>
+                                                    <td>{{ $land->prop_plot ?: '—' }}</td>
+                                                    <td>{{ $lDistrict ?: '—' }}</td>
+                                                    <td>{{ $lLga ? mb_strtoupper($lLga) : '—' }}</td>
+                                                    <td>{{ \App\Support\AddressBuilder::propertyLocation(['district' => $land->prop_district, 'district_other' => $land->prop_district_other, 'lga' => $land->prop_lga, 'state' => $land->prop_state]) ?: '—' }}</td>
+                                                    <td>{{ $land->status ?: '—' }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    @endif
                 @empty
                     <tr>
-                        <td colspan="15" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="17" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No projects yet.
                             <a href="{{ route('survey-module.compensation.projects.create') }}">Create the first one</a>.
@@ -176,8 +225,33 @@
     <div class="table-footer">
         <span>
             Showing {{ $projects->firstItem() ?? 0 }}–{{ $projects->lastItem() ?? 0 }}
-            of {{ number_format($projects->total()) }} projects · the number beside a surveyor is how many portions they surveyed
+            of {{ number_format($projects->total()) }} projects · the number beside a surveyor is how many portions they surveyed · click a Lands number to list them
         </span>
         <div class="pagination">{{ $projects->links() }}</div>
     </div>
 </div>
+
+<style>
+    .survey-proto .pj-lands-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--primary-100, #dbeafe);
+        background: var(--primary-50, #eff6ff); color: var(--primary, #2563eb); font-weight: 600; font-size: 13px; cursor: pointer; }
+    .survey-proto .pj-lands-btn i { font-size: 10px; }
+    .survey-proto tr.pj-lands-row > td { background: var(--gray-50, #f9fafb); padding: 8px 12px 12px 40px; }
+    .survey-proto .pj-lands { border: 1px solid var(--gray-200, #e5e7eb); border-left: 3px solid var(--primary, #2563eb); border-radius: 8px; overflow: auto; background: #fff; }
+    .survey-proto .pj-lands table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .survey-proto .pj-lands th { text-align: left; padding: 7px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-600, #4b5563); background: var(--gray-50, #f9fafb); border-bottom: 1px solid var(--gray-200, #e5e7eb); white-space: nowrap; }
+    .survey-proto .pj-lands td { padding: 6px 10px; border-bottom: 1px solid var(--gray-100, #f3f4f6); }
+    .survey-proto .pj-lands .num { text-align: right; }
+    .survey-proto .pj-lands .ctr { text-align: center; }
+</style>
+<script>
+    // Show / hide a project's lands under its row.
+    function pjToggleLands(id, btn) {
+        var row = document.querySelector('tr.pj-lands-row[data-parent="' + id + '"]');
+        if (!row) return;
+        row.hidden = !row.hidden;
+        if (btn) {
+            btn.setAttribute('aria-expanded', row.hidden ? 'false' : 'true');
+            var i = btn.querySelector('i'); if (i) i.className = row.hidden ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+        }
+    }
+</script>

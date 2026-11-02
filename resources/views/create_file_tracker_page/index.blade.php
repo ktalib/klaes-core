@@ -1374,6 +1374,17 @@
                                                             </select>
                                                         @endif
                                                     </div>
+                                                    {{-- Unit inside the receiving office's department: optional, Other until it is added in
+                                                         Configurable Entities > Units (CR 30102026 item 34; user 2026-11-02). --}}
+                                                    @php $cftUnits = \App\Services\FileTracking\FileMovementUnits::active()->map(fn ($u) => ['id' => (int) $u->id, 'department' => $u->department, 'name' => $u->name])->values(); @endphp
+                                                    <div id="receiving-unit-group" class="space-y-2" data-units='@json($cftUnits)'>
+                                                        <label for="receiving-unit" class="block text-sm font-medium text-gray-700">Requester Unit <span class="font-normal text-gray-400">(optional)</span></label>
+                                                        <select id="receiving-unit" disabled class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                                                            <option value="">— Select the department first —</option>
+                                                        </select>
+                                                        <input type="text" id="receiving-unit-other" maxlength="150" placeholder="Specify the unit *"
+                                                            class="hidden block w-full px-3 py-2 border border-red-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                                    </div>
                                                     <div id="receiving-officer-group" class="space-y-2 @if(($module ?? '') === 'new_kangis') hidden @endif" @if(($module ?? '') === 'new_kangis') aria-hidden="true" @endif>
                                                         <label for="receiving-officer"
                                                             class="block text-sm font-medium text-gray-700">File Requester *</label>

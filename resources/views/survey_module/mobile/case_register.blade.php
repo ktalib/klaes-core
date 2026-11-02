@@ -17,10 +17,16 @@
         'scheme'  => $p->scheme_type,
         'purpose' => $p->purpose,
         'label'   => $p->scheme_label,
+        // The project's sharing ratio, farmer first (CR 30102026 item 11), for the Land to Land split.
+        'farmer'  => (int) explode(':', $p->share_label)[0],
     ]])->all();
 
-    // The phone records Mature lines, so it offers the Mature rate (one catalogue row per tree per Category, 2026-10-30).
-    $treePrices = $treeTypes->where('maturity', '!=', 'Early')->pluck('default_unit_price', 'name')->all();
+    // Catalogue rates per name and Category (Mature / Immature / Seedling, Kano schedule 2026-11-01), as the desktop
+    // register: name => [Category => rate]. A name in both lists takes the economic tree's rate, as findFor().
+    $treePrices = [];
+    foreach ($treeTypes->sortBy(fn ($t) => $t->category === \App\Models\Survey\SurveyTreeType::ECONOMIC_TREE ? 1 : 0) as $t) {
+        $treePrices[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price;
+    }
 
     $benRows  = old('beneficiaries', []);
     $treeRows = old('trees', []);
@@ -363,7 +369,7 @@
                     <input class="input" type="number" inputmode="numeric" min="0" step="1" name="num_plots" id="caseNumPlots"
                            value="{{ old('num_plots', $case->num_plots) }}" placeholder="e.g. 10">
                     <div class="err">A land-to-land case needs the number of plots.</div>
-                    <div class="hint" id="plotsHint">Drives the 50:50 split.</div>
+                    <div class="hint" id="plotsHint">Drives the farmer / Government split.</div>
                 </div>
                 <div class="field span-2" data-key="boundary_file">
                     <label for="caseBoundary">Boundary File reference</label>
@@ -437,13 +443,13 @@
 
             <div id="compLand" style="display:none;">
                 <div class="stat">
-                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Land to Land (50:50)</div>
+                    <div class="lbl"><i class="fas fa-map-location-dot"></i> Land to Land</div>
                     <div class="big"><span id="landPlots">0</span> plots</div>
                     <div class="hint">Physical land allocation · no cash component</div>
                     <div class="split">
-                        <div><b>Farmer</b><small>½ share</small></div>
+                        <div><b>Farmer</b><small id="farmerShare">50% share</small></div>
                         <span style="font-size:24px;color:#d1d5db;">:</span>
-                        <div><b>Government</b><small>½ share, odd plot</small></div>
+                        <div><b>Government</b><small id="govtShare">50% share, odd plot</small></div>
                     </div>
                 </div>
                 <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>The exact Farmer : Government numbers are calculated by the system when the case is saved.</span></div>
@@ -642,10 +648,10 @@
         $('schemeBox').style.display = scheme ? '' : 'none';
         var badge = $('schemeBadge');
         badge.className = 'badge ' + (mon ? 'monetary' : 'land');
-        badge.textContent = mon ? 'Monetary Compensation' : 'Land to Land (50:50)';
+        badge.textContent = mon ? 'Monetary Compensation' : 'Land to Land';
         $('schemeText').textContent = mon
             ? 'Record economic trees and the cash they are worth. No plots are allocated.'
-            : 'Plots are split 50:50 between Farmer and Government. No cash is paid for trees.';
+            : 'Plots are split between Farmer and Government by the project sharing ratio (' + shareLabel() + '). No cash is paid for trees.';
 
         $('treesNA').style.display = land ? '' : 'none';
         $('treesActive').style.display = land ? 'none' : '';
@@ -656,11 +662,21 @@
         var plots = $('caseNumPlots');
         plots.disabled = mon;
         $('plotsReq').style.display = land ? '' : 'none';
-        $('plotsHint').textContent = mon ? 'Not used: a monetary case allocates no plots.' : 'Drives the 50:50 split.';
+        $('plotsHint').textContent = mon ? 'Not used: a monetary case allocates no plots.' : 'Drives the farmer / Government split.';
 
         $('compUnknown').style.display = scheme ? 'none' : '';
         $('compMonetary').style.display = mon ? '' : 'none';
         $('compLand').style.display = land ? '' : 'none';
+    }
+
+    // The chosen project's sharing ratio, farmer first; 50 when no project is chosen.
+    function farmerPct() { var m = PROJECTS[$('caseProject').value]; return m && m.farmer != null ? Number(m.farmer) : 50; }
+    function shareLabel() { var f = farmerPct(); return f + ':' + (100 - f); }
+    function showShare() {
+        var f = farmerPct();
+        $('farmerShare').textContent = f + '% share';
+        // Government takes what the farmer's whole-plot share leaves (SurveySettings::splitPlots), so the odd plot too.
+        $('govtShare').textContent = (100 - f) + '% share, odd plot';
     }
 
     function onProject() {
@@ -668,6 +684,7 @@
         var purpose = $('casePurpose');
         if (meta && !purpose.value && meta.purpose) purpose.value = meta.purpose;
         applyScheme(meta ? meta.scheme : null);
+        showShare();
         $('caseProject').closest('.field').classList.remove('invalid');
     }
 
@@ -717,7 +734,7 @@
             card.querySelector('[data-role=line]').textContent = money(t);
             var line = document.createElement('div');
             var l = document.createElement('span');
-            l.textContent = (card.querySelector('[name$="[tree_type]"]').value || 'Tree') + ' × ' + (card.querySelector('[name$="[quantity]"]').value || 0);
+            l.textContent = (card.querySelector('[name$="[tree_type]"]').value || 'Tree') + ' (' + (card.querySelector('[name$="[maturity]"]').value || 'Mature') + ') × ' + (card.querySelector('[name$="[quantity]"]').value || 0);
             var r = document.createElement('span'); r.textContent = money(t);
             line.appendChild(l); line.appendChild(r); bd.appendChild(line);
         });
@@ -748,11 +765,17 @@
     document.addEventListener('change', function (ev) {
         var t = ev.target;
         if (t.id === 'propState') updateLocation();
-        // Fill the catalogue price when a known tree is chosen and no price is typed yet.
-        if (t.name && /\[tree_type\]$/.test(t.name)) {
-            var price = t.closest('.row-card').querySelector('[name$="[unit_price]"]');
-            var known = TREE_PRICES[(t.value || '').trim()];
-            if (price && !price.value && known != null) { price.value = known; refreshTotals(); }
+        // The catalogue rate for the tree and its Category. It replaces only a price this filled in, never a typed one.
+        if (t.name && /\[(tree_type|maturity)\]$/.test(t.name)) {
+            var card = t.closest('.row-card');
+            var price = card.querySelector('[name$="[unit_price]"]');
+            var rates = TREE_PRICES[(card.querySelector('[name$="[tree_type]"]').value || '').trim()] || {};
+            var known = rates[card.querySelector('[name$="[maturity]"]').value || 'Mature'];
+            if (price && (price.value === '' || price.value === price.dataset.auto)) {
+                price.value = known == null ? '' : String(known);
+                price.dataset.auto = price.value;
+            }
+            refreshTotals();
         }
     });
 
@@ -895,7 +918,7 @@
             ['Coordinates', $('caseCoordinates').value || '—', 2]
         ];
         if (scheme === 'land') {
-            rows.push(['Land compensation', (Number($('caseNumPlots').value) || 0) + ' plots · 50:50 split on save', 2, true]);
+            rows.push(['Land compensation', (Number($('caseNumPlots').value) || 0) + ' plots · split on save by the project sharing ratio (' + shareLabel() + ')', 2, true]);
         } else {
             var qty = trees.reduce(function (s, c) { return s + (Number(c.querySelector('[name$="[quantity]"]').value) || 0); }, 0);
             rows.push(['Economic trees', trees.length + ' line(s), ' + qty + ' tree(s)', 3]);

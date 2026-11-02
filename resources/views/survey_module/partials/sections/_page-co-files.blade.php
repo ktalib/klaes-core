@@ -108,13 +108,19 @@
                         </td>
                         {{-- Related file and its title under it (CR 30102026 items 30, 31). --}}
                         <td class="code">
-                            @if ($f->related_file_no)
-                                {{ $f->related_file_no }}
-                                @php $relTitle = $relatedTitles[mb_strtoupper(trim($f->related_file_no))] ?? null; @endphp
-                                @if ($relTitle)<span class="sub" style="font-family:var(--font);white-space:normal;" title="{{ $relTitle }}">{{ \Illuminate\Support\Str::limit($relTitle, 40) }}</span>@endif
-                            @else
+                            {{-- SIT, GKN and Misc KN, each with its title (user, 2026-11-02); older rows have only related_file_no. --}}
+                            @php
+                                $relNos = array_values(array_unique(array_filter([$f->related_sit_file_no, $f->related_gkn_file_no, $f->related_misckn_file_no]) ?: array_filter([$f->related_file_no])));
+                            @endphp
+                            @forelse ($relNos as $relNo)
+                                <div @if (! $loop->first) style="margin-top:4px;" @endif>
+                                    {{ $relNo }}
+                                    @php $relTitle = $relatedTitles[mb_strtoupper(trim($relNo))] ?? null; @endphp
+                                    @if ($relTitle)<span class="sub" style="font-family:var(--font);white-space:normal;" title="{{ $relTitle }}">{{ \Illuminate\Support\Str::limit($relTitle, 40) }}</span>@endif
+                                </div>
+                            @empty
                                 <span class="muted">—</span>
-                            @endif
+                            @endforelse
                         </td>
                         <td class="wide"><span class="strong" title="{{ $f->title }}">{{ $f->display_title }}</span></td>
                         <td>
@@ -163,22 +169,26 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    <a href="{{ route('survey-module.compensation.projects', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
-                                        <i data-lucide="folders" class="w-4 h-4 text-gray-500"></i> View Projects
-                                    </a>
+                                    {{-- Order: Create Project, View Project, Commissioning Sheet, View Uploaded Files, Edit;
+                                         Send to OP Verification hidden (user, 2026-11-02). --}}
                                     @if ($f->status !== 'Closed')
                                         <a href="{{ route('survey-module.compensation.projects.create', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
                                             <i data-lucide="folder-plus" class="w-4 h-4 text-gray-500"></i> Create Project
                                         </a>
                                     @endif
+                                    <a href="{{ route('survey-module.compensation.projects', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
+                                        <i data-lucide="folders" class="w-4 h-4 text-gray-500"></i> View Project
+                                    </a>
+                                    @if (false)
                                     <a href="{{ route('survey-module.compensation.op-verification', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
                                         <i data-lucide="check-check" class="w-4 h-4 text-gray-500"></i> Send to OP Verification
                                     </a>
+                                    @endif
                                     <a href="{{ route('survey-module.compensation.co-files.commissioning-sheet', $f) }}" class="{{ $svItem }}" target="_blank" rel="noopener">
                                         <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Commissioning Sheet
                                     </a>
-                                    {{-- The CO file's scans in Doc-WARE (CR 30102026 item 17). --}}
-                                    <a href="{{ route('filearchive.index', ['search' => $f->co_file_no, 'field' => 'fileNumber']) }}" class="{{ $svItem }}" target="_blank" rel="noopener">
+                                    {{-- The CO file's raw scanned pages, until it is page-typed; Doc-WARE is linked from there (CR 30102026 item 17). --}}
+                                    <a href="{{ route('survey-module.compensation.co-files.uploaded-files', $f) }}" class="{{ $svItem }}">
                                         <i data-lucide="file-search" class="w-4 h-4 text-gray-500"></i> View Uploaded Files
                                     </a>
                                     <a href="{{ route('survey-module.compensation.co-files.edit', $f) }}" class="{{ $svItem }}">

@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Project Management';
-  $PageDescription = 'Projects define the compensation scheme (Monetary Compensation or Land to Land 50:50). Cases inherit the scheme from the selected project.';
+  $PageDescription = 'Projects define the compensation scheme (Monetary Compensation or Land to Land, with its sharing ratio: 50:50 by default). Cases inherit the scheme from the selected project.';
 @endphp
 
 @section('survey-content')

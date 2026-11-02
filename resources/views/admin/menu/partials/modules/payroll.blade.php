@@ -44,7 +44,7 @@
 
   @if($hasRole('Activity Monitoring') || $hasRole('Super Admin') || $hasRole('Supper Admin') || auth()->user()->type === 'super admin')
   <a href="{{ route('activity-monitoring.index') }}?url=hr"
-     class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('activity-monitoring.index') ? 'active' : '' }}">
+     class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ (request()->routeIs('activity-monitoring.*') && request()->query('url') === 'hr') ? 'active' : '' }}">
     <i data-lucide="activity" class="h-4 w-4 text-blue-500"></i>
     <span>Activity Monitoring</span>
   </a>

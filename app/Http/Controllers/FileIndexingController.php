@@ -580,6 +580,8 @@ class FileIndexingController extends Controller
                         'indexed' => (int) $group['indexed'],
                         'transactions' => (int) $group['transactions'],
                         'weight' => rtrim(rtrim(number_format((float) $group['weight'], 1), '0'), '.'),
+                        // Indexing piece-rate pay for the same dates (Supervisor Monitor).
+                        'earned' => (float) ($group['earned'] ?? 0),
                     ];
                 })
                 ->values();
@@ -3672,6 +3674,13 @@ class FileIndexingController extends Controller
                 return $sightingRefusal;
             }
 
+            // A file is indexed only once its pages exist: Digital Archive, Blind Scan or, as a
+            // fallback, the raw scans on the records server (user, 2026-11-01; empty folders do
+            // not count). Off with config fileindexing.scan_check.block_create.
+            if ($scanRefusal = app(\App\Http\Controllers\Scanning\ScanCheckController::class)->refusal($request->input('file_number'))) {
+                return $scanRefusal;
+            }
+
             // Check for duplicate file number before processing
             // Skip duplicate check when a KANGIS FileNo Placeholder is supplied —
             // the user is intentionally creating a new physical-variant record for
@@ -4565,7 +4574,12 @@ class FileIndexingController extends Controller
             }
             $persistableData = $this->normalizeBillColumns($persistableData);
 
-            // Also flatten the same fields in the main $validated array because it's used 
+            // Indexing piece-rate pay (docs/plans/INDEXING_PIECE_RATE_PAYROLL_PLAN.md): who indexed
+            // this file and when. Beside created_by (the name), never instead of it.
+            $persistableData['indexed_by_user_id'] = Auth::id();
+            $persistableData['indexed_at'] = now();
+
+            // Also flatten the same fields in the main $validated array because it's used
             // in subsequent operations like syncFileNumberTracking which use query builder.
             foreach ($validated as $key => $value) {
                 if (is_array($value) && !in_array($key, ['current_holder', 'original_holder', 'related_fileno'])) {
@@ -4583,6 +4597,10 @@ class FileIndexingController extends Controller
                     // A temp record that already has its identity keeps it.
                     if ($existingTempRecord->prop_id !== null && $existingTempRecord->prop_id !== '') {
                         unset($persistableData['prop_id']);
+                    }
+                    // Completing a temp record is indexing it, unless someone already has.
+                    if (!empty($existingTempRecord->indexed_by_user_id)) {
+                        unset($persistableData['indexed_by_user_id'], $persistableData['indexed_at']);
                     }
                     $fileIndexing->update($persistableData);
                 } else {

@@ -7,9 +7,10 @@
 
     // CO File No = Prefix CO + Serial No + Year (user, 2026-10-30), shown as three boxes.
     $shownNo = $editing || $capture ? (string) $coFile->co_file_no : (string) $nextNo;
-    preg_match('/^CO-(\d+)-(\d{4})$/', $shownNo, $noParts);
+    preg_match('/^CO-(\d+)-(\d{4})(\(T\))?$/', $shownNo, $noParts);
     $noSerial = old('co_serial', $noParts[1] ?? '');
     $noYear   = old('co_year', $noParts[2] ?? '');
+    $noTemp   = (string) old('co_temporary', ! empty($noParts[3]) ? '1' : '0') === '1';
 @endphp
 
 @include('survey_module.partials._flash')
@@ -91,43 +92,61 @@
                             <div class="lbl">Year</div>
                         </div>
                     </div>
+                    @if ($capture)
+                        {{-- A temporary file is saved CO-serial-year(T), e.g. CO-33-2025(T) (user, 2026-11-02). --}}
+                        <label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-weight:500;cursor:pointer;">
+                            <input type="checkbox" name="co_temporary" value="1" style="width:auto;margin:0;" @checked($noTemp) /> Temporary (T)
+                        </label>
+                    @elseif (! empty($noParts[3]))
+                        <div class="helper-text" style="margin-top:4px;">Temporary file (T)</div>
+                    @endif
                     @foreach (['co_file_no', 'co_serial', 'co_year'] as $k)
                         @error($k)<p class="helper-text" style="color:#b91c1c;">{{ $message }}</p>@enderror
                     @endforeach
                     <p class="helper-text">
                         @if ($capture)
-                            The paper file's serial and year; saved as <strong>CO-serial-year</strong>, e.g. CO-9-2018 (no leading zeros).
+                            The paper file's serial and year; saved as <strong>CO-serial-year</strong>, e.g. CO-9-2018 (no leading zeros), or CO-33-2025(T) when Temporary is ticked.
                         @else
                             {{ $editing ? 'Generated when commissioned; cannot be changed.' : 'Next number for this year (' . $shownNo . '); confirmed when you save.' }}
                         @endif
                     </p>
                 </div>
 
-            @php($hasSitFile = (string) old('has_sit_file', $coFile->related_file_no ? '1' : '0') === '1')
+            @php($hasSitFile = (string) old('has_sit_file', ($coFile->related_file_no || $coFile->related_sit_file_no || $coFile->related_gkn_file_no || $coFile->related_misckn_file_no) ? '1' : '0') === '1')
             <div class="form-group co-related-cell">
                 <label for="coHasSitFile">Has Related File <span class="required">*</span></label>
                 <div class="co-sit-toggle">
                     <input type="checkbox" name="has_sit_file" id="coHasSitFile" value="1" @checked($hasSitFile) />
                     <span id="coHasSitFileAnswer">{{ $hasSitFile ? 'Yes' : 'No' }}</span>
                 </div>
-            {{-- Related SIT, GKN or Misc KN file, indexed or not, from the global file number selector (CR 30102026 item 1). --}}
+            {{-- Related files, one field each for SIT, GKN and Misc KN (user, 2026-11-02; CR 30102026 item 1): picked from
+                 the global file number selector, indexed or not. With Has Related File = Yes at least one is required. --}}
                 <div id="coRelatedFields" @class(['hidden' => ! $hasSitFile])>
                 <div id="coRelated" data-lookup="{{ route('survey-module.compensation.co-files.related-lookup') }}">
-                    <label>Related File No. (SIT, GKN or Misc KN) <span class="required">*</span></label>
-                    <div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;">
-                        <input type="text" name="related_file_no" id="coRelatedNo" readonly
-                               value="{{ old('related_file_no', $coFile->related_file_no) }}"
-                               placeholder="No related file selected"
-                               style="flex:1;min-width:200px;font-weight:700;background:var(--gray-100);cursor:not-allowed;" />
-                        <button type="button" class="btn btn-primary" id="coRelatedPick" style="white-space:nowrap;">
-                            <i class="fas fa-folder-open"></i> Select Related File
-                        </button>
-                        <button type="button" class="btn btn-secondary" id="coRelatedClear" style="white-space:nowrap;">
-                            <i class="fas fa-times"></i> Clear
-                        </button>
-                    </div>
-                    @error('related_file_no')<p class="helper-text" style="color:#b91c1c;">{{ $message }}</p>@enderror
-                    <p class="helper-text" id="coRelatedStatus">Pick a SIT, GKN or Misc KN file, indexed or not. When it is indexed, its plot, district and LGA fill in below.</p>
+                    <p class="helper-text" style="margin:0 0 8px;">Select at least one. An indexed file fills the plot, district and LGA below.</p>
+                    @foreach ([
+                        'related_sit_file_no'    => ['SIT', 'sit', 'SIT-'],
+                        'related_gkn_file_no'    => ['GKN', 'gkn', 'GKN-'],
+                        'related_misckn_file_no' => ['Misc KN', 'gkn', 'MISC KN '],
+                    ] as $relCol => [$relLabel, $relTab, $relPrefix])
+                        <div class="co-rel" data-col="{{ $relCol }}" data-tab="{{ $relTab }}" data-prefix="{{ $relPrefix }}" data-label="{{ $relLabel }}" style="margin-bottom:10px;">
+                            <label>{{ $relLabel }} File No.</label>
+                            <div style="display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;">
+                                <input type="text" name="{{ $relCol }}" class="co-rel-no" readonly
+                                       value="{{ old($relCol, $coFile->{$relCol}) }}"
+                                       placeholder="No {{ $relLabel }} file selected"
+                                       style="flex:1;min-width:160px;font-weight:700;background:var(--gray-100);cursor:not-allowed;" />
+                                <button type="button" class="btn btn-primary btn-sm co-rel-pick" style="white-space:nowrap;" aria-label="Select {{ $relLabel }} file">
+                                    <i class="fas fa-folder-open"></i> Select
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm co-rel-clear" style="white-space:nowrap;" aria-label="Clear {{ $relLabel }} file">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                            </div>
+                            @error($relCol)<p class="helper-text" style="color:#b91c1c;">{{ $message }}</p>@enderror
+                            <p class="helper-text co-rel-status" style="margin:2px 0 0;"></p>
+                        </div>
+                    @endforeach
                 </div>
                 </div>
             </div>
@@ -311,16 +330,14 @@
     var root = document.getElementById('coRelated');
     if (!root) return;
     var form = root.closest('form');
-    var number = document.getElementById('coRelatedNo');
-    var status = document.getElementById('coRelatedStatus');
     var hasSitFile = document.getElementById('coHasSitFile');
     var relatedFields = document.getElementById('coRelatedFields');
     var hasSitFileAnswer = document.getElementById('coHasSitFileAnswer');
-    var filled = [];   // fields this pick filled, cleared when the pick changes
+    var blocks = Array.prototype.slice.call(root.querySelectorAll('.co-rel'));
+    var HINT = 'Pick from the file number selector, indexed or not.';
 
     function $j() { return window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null; }
     function field(name) { return form.querySelector('[name="' + name + '"]'); }
-    function say(html, isError) { status.innerHTML = html; status.style.color = isError ? '#b91c1c' : ''; }
     function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
     function isBlank(el) {
         if (!el) return false;
@@ -342,84 +359,99 @@
         el.dispatchEvent(new Event('input', { bubbles: true }));
         return true;
     }
-    // Only what this pick filled is undone; anything typed by hand stays.
-    function clearFilled() {
-        filled.forEach(function (f) {
-            if (f.tagName === 'SELECT') {
-                Array.prototype.forEach.call(f.options, function (o) { o.selected = false; });
-                var $ = $j();
-                if ($ && $(f).data('select2')) $(f).trigger('change'); else f.dispatchEvent(new Event('change', { bubbles: true }));
-            } else {
-                f.value = ''; f.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        });
-        filled = [];
+    function badge(d) {
+        return d.indexed ? '<span class="co-idx yes">Indexed</span>' : '<span class="co-idx no">Not indexed</span>';
     }
+
+    // One picker per kind. Each remembers the fields its pick filled, and undoes only those.
+    blocks.forEach(function (block) {
+        var number = block.querySelector('.co-rel-no'), status = block.querySelector('.co-rel-status');
+        var label = block.dataset.label, prefix = block.dataset.prefix, filled = [];
+        function say(html, isError) { status.innerHTML = html; status.style.color = isError ? '#b91c1c' : ''; }
+        function clearFilled() {
+            filled.forEach(function (f) {
+                if (f.tagName === 'SELECT') {
+                    Array.prototype.forEach.call(f.options, function (o) { o.selected = false; });
+                    var $ = $j();
+                    if ($ && $(f).data('select2')) $(f).trigger('change'); else f.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                    f.value = ''; f.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+            filled = [];
+        }
+        function lookup(fileNumber, fill) {
+            say(esc(fileNumber) + ': checking the records…');
+            return fetch(root.dataset.lookup + '?file_number=' + encodeURIComponent(fileNumber), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (fill && d.known) {
+                        // Fill gaps only: what is already on the form wins.
+                        var t = document.getElementById('coTitle');
+                        if (isBlank(t) && setText(t, d.title)) filled.push(t);
+                        var p = field('prop_plot');
+                        if (isBlank(p) && setText(p, d.plot)) filled.push(p);
+                        [['prop_district[]', d.district], ['prop_lga[]', d.lga]].forEach(function (x) {
+                            var el = field(x[0]);
+                            if (isBlank(el) && setSelect(el, x[1])) filled.push(el);
+                        });
+                    }
+                    var what = d.indexed
+                        ? (d.title ? ' · ' + esc(d.title) : '')
+                        : (d.known ? ' · on the file number register, not yet indexed' : ' · not in the records yet');
+                    say(badge(d) + ' ' + what.replace(/^ · /, '') + (fill && filled.length ? ' — details filled below; check them.' : ''));
+                })
+                .catch(function () { say('Its index status could not be checked.', true); });
+        }
+        block.querySelector('.co-rel-pick').addEventListener('click', function () {
+            if (!window.GlobalFileNoModal) { say('The file number selector did not load. Refresh the page.', true); return; }
+            window.GlobalFileNoModal.open({
+                initialTab: block.dataset.tab,
+                allowedTabs: [block.dataset.tab],
+                callback: function (data) {
+                    var no = data && data.fileNumber ? String(data.fileNumber).trim() : '';
+                    if (!no) return;
+                    // Each field takes its own kind: a GKN number does not go in the Misc KN field.
+                    if (no.toUpperCase().indexOf(prefix.toUpperCase()) !== 0) {
+                        say(esc(no) + ' is not a ' + esc(label) + ' file. Pick a ' + esc(label) + ' file number here.', true);
+                        return;
+                    }
+                    clearFilled();
+                    number.value = no;
+                    lookup(no, true);
+                }
+            });
+        });
+        block.querySelector('.co-rel-clear').addEventListener('click', function () {
+            clearFilled();
+            number.value = '';
+            say(HINT);
+        });
+        block.reset = function () { clearFilled(); number.value = ''; say(HINT); };
+        if (number.value.trim()) lookup(number.value.trim(), false); else say(HINT);
+    });
+
     function updateSitFileVisibility(clearWhenOff) {
         var enabled = hasSitFile.checked;
         relatedFields.classList.toggle('hidden', !enabled);
-        number.required = enabled;
         hasSitFileAnswer.textContent = enabled ? 'Yes' : 'No';
-        if (!enabled && clearWhenOff) {
-            clearFilled();
-            number.value = '';
-            say('Pick a SIT, GKN or Misc KN file, indexed or not. When it is indexed, its plot, district and LGA fill in below.');
-        }
+        if (!enabled && clearWhenOff) blocks.forEach(function (b) { b.reset(); });
     }
     hasSitFile.addEventListener('change', function () { updateSitFileVisibility(true); });
     updateSitFileVisibility(false);
-    function badge(d) {
-        return d.indexed
-            ? '<span class="co-idx yes">Indexed</span>'
-            : '<span class="co-idx no">Not indexed</span>';
-    }
 
-    function lookup(fileNumber, fill) {
-        say(esc(fileNumber) + ': checking the records…');
-        return fetch(root.dataset.lookup + '?file_number=' + encodeURIComponent(fileNumber), { headers: { 'Accept': 'application/json' } })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-                if (fill && d.known) {
-                    // Fill gaps only: what is already on the form wins.
-                    var t = document.getElementById('coTitle');
-                    if (isBlank(t) && setText(t, d.title)) filled.push(t);
-                    var p = field('prop_plot');
-                    if (isBlank(p) && setText(p, d.plot)) filled.push(p);
-                    [['prop_district[]', d.district], ['prop_lga[]', d.lga]].forEach(function (x) {
-                        var el = field(x[0]);
-                        if (isBlank(el) && setSelect(el, x[1])) filled.push(el);
-                    });
-                }
-                var what = d.indexed
-                    ? (d.title ? ' · ' + esc(d.title) : '')
-                    : (d.known ? ' · on the file number register, not yet indexed' : ' · not in the records yet');
-                say(badge(d) + ' <strong>' + esc(fileNumber) + '</strong>' + what
-                    + (fill && filled.length ? ' — details filled below; check them.' : ''));
-            })
-            .catch(function () { say(esc(fileNumber) + ' selected. Its index status could not be checked.', true); });
-    }
-
-    document.getElementById('coRelatedPick').addEventListener('click', function () {
-        if (!window.GlobalFileNoModal) { say('The file number selector did not load. Refresh the page.', true); return; }
-        window.GlobalFileNoModal.open({
-            initialTab: 'sit',
-            allowedTabs: ['sit', 'gkn'],
-            callback: function (data) {
-                var no = data && data.fileNumber ? String(data.fileNumber).trim() : '';
-                if (!no) return;
-                clearFilled();
-                number.value = no;
-                lookup(no, true);
-            }
-        });
+    // Has Related File = Yes needs at least one of the three.
+    form.addEventListener('submit', function (e) {
+        if (!hasSitFile.checked) return;
+        var any = blocks.some(function (b) { return b.querySelector('.co-rel-no').value.trim() !== ''; });
+        if (!any) {
+            e.preventDefault();
+            var st = blocks[0].querySelector('.co-rel-status');
+            st.innerHTML = 'Has Related File is Yes: select at least one related file (SIT, GKN or Misc KN), or turn it off.';
+            st.style.color = '#b91c1c';
+            blocks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     });
-    document.getElementById('coRelatedClear').addEventListener('click', function () {
-        clearFilled();
-        number.value = '';
-        say('Pick a SIT, GKN or Misc KN file, indexed or not. When it is indexed, its plot, district and LGA fill in below.');
-    });
-
-    if (hasSitFile.checked && number.value.trim()) lookup(number.value.trim(), false);
 })();
 </script>
 @endpush

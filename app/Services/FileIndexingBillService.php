@@ -45,7 +45,7 @@ class FileIndexingBillService
 
         try {
             DB::connection('sqlsrv')->transaction(function () use ($fileIndexing, $fileNumber, $request) {
-                $this->clearExisting($fileIndexing->id);
+                $this->originals = $this->clearExisting($fileIndexing->id);
 
                 $bills = $this->collectRows($request, [
                     'amount'       => 'bill_total_amount',
@@ -82,14 +82,44 @@ class FileIndexingBillService
     }
 
     /**
-     * Remove this file's previously-saved indexing bills (and their billing rows)
-     * so a re-save reflects exactly what was submitted.
+     * Who first captured each bill being re-saved, and when (key => [created_by, created_at]).
+     * Indexing piece-rate pay credits a bill to whoever captured it on the day they did
+     * (docs/plans/INDEXING_PIECE_RATE_PAYROLL_PLAN.md). Re-saving a file used to stamp every
+     * bill as new, so it would have been paid again to whoever pressed Save.
      */
-    private function clearExisting(int $fileIndexingId): void
+    private array $originals = [];
+
+    /** The same bill across a re-save: type + year range, else type + receipt + amount. */
+    private function billKey(string $type, $fromYear, $toYear, $receiptNo, $amount): string
+    {
+        $from = $this->toYear($fromYear);
+        $to = $this->toYear($toYear);
+
+        if ($from !== null || $to !== null) {
+            return $type . '|y|' . $from . '|' . $to;
+        }
+
+        return $type . '|r|' . mb_strtoupper(trim((string) $receiptNo)) . '|' . number_format((float) $this->toAmount($amount), 2, '.', '');
+    }
+
+    /**
+     * Remove this file's previously-saved indexing bills (and their billing rows)
+     * so a re-save reflects exactly what was submitted. Returns who captured each
+     * removed bill and when, so an unchanged bill keeps them when it is re-inserted.
+     */
+    private function clearExisting(int $fileIndexingId): array
     {
         $connection = DB::connection('sqlsrv');
 
-        $billingIds = FileIndexingBill::where('file_indexing_id', $fileIndexingId)
+        $originals = [];
+        $existing = FileIndexingBill::where('file_indexing_id', $fileIndexingId)->orderBy('id')->get();
+        foreach ($existing as $bill) {
+            $key = $this->billKey((string) $bill->bill_type, $bill->from_year, $bill->to_year, $bill->receipt_no, $bill->amount);
+            // Earliest capture wins when the same bill was somehow stored twice.
+            $originals[$key] ??= ['created_by' => $bill->created_by, 'created_at' => $bill->created_at];
+        }
+
+        $billingIds = $existing
             ->pluck('billing_id')
             ->filter()
             ->unique()
@@ -104,13 +134,15 @@ class FileIndexingBillService
         }
 
         FileIndexingBill::where('file_indexing_id', $fileIndexingId)->delete();
+
+        return $originals;
     }
 
     private function insertBill(FileIndexing $fileIndexing, string $fileNumber, string $type, string $source, array $row): void
     {
         $billingId = $this->insertBillingRow($fileNumber, $fileIndexing->id, $source, $row);
 
-        FileIndexingBill::create([
+        $bill = new FileIndexingBill([
             'billing_id'       => $billingId,
             'file_indexing_id' => $fileIndexing->id,
             'file_number'      => $fileNumber,
@@ -123,6 +155,19 @@ class FileIndexingBillService
             'created_by'       => Auth::id(),
             'updated_by'       => Auth::id(),
         ]);
+
+        // An unchanged bill keeps its first capturer and capture time (see $originals).
+        // Eloquent leaves a created_at that is already set alone on insert.
+        $original = $this->originals[$this->billKey($type, $row['from_year'], $row['to_year'], $row['receipt_no'], $row['amount'])] ?? null;
+        if ($original) {
+            unset($this->originals[$this->billKey($type, $row['from_year'], $row['to_year'], $row['receipt_no'], $row['amount'])]);
+            $bill->created_by = $original['created_by'];
+            if ($original['created_at']) {
+                $bill->created_at = $original['created_at'];
+            }
+        }
+
+        $bill->save();
     }
 
     private function insertBillingRow(string $fileNumber, int $fileIndexingId, string $source, array $row): int

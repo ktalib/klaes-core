@@ -21,7 +21,7 @@
         $relatedFileNumber = $data['related_file_number'] ?? '';
         $trackingId = ($data['tracking_id'] ?? '') ?: $fileNumber;
 
-        $department = 'SURVEY DEPARTMENT';
+        $department = 'DEPARTMENT OF SURVEY';
 
         $status = request('status', 'Original');
         $isCtc = request('isCTC') == '1';

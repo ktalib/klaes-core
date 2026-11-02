@@ -9,6 +9,8 @@
         data-sv-modal="Log Complaint"      dialog title
         data-sv-modal-size="sm|lg"         narrower / wider dialog (default md)
         data-sv-modal-close="<url>"        where closing goes instead of just hiding (edit mode)
+        data-sv-modal-static               closes only with the x or the form's own Close button,
+                                           not on a click outside or Esc (user, 2026-11-02)
         <button data-sv-again>             a submit button that reopens this modal after the save,
                                            for entering one row after another
 
@@ -89,8 +91,9 @@
             panel.classList.remove('open');
         }
         overlay.querySelector('.sv-modal-x').addEventListener('click', close);
-        overlay.querySelector('.sv-modal-backdrop').addEventListener('click', close);
-        overlay.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !document.querySelector('.select2-container--open')) close(); });
+        var isStatic = panel.hasAttribute('data-sv-modal-static');
+        overlay.querySelector('.sv-modal-backdrop').addEventListener('click', function () { if (!isStatic) close(); });
+        overlay.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !isStatic && !document.querySelector('.select2-container--open')) close(); });
         // Buttons inside the form that only hide the panel ("Close") keep working: they remove .open.
 
         // Errors from the last save are shown at the top of the page, behind the dialog: copy them in.

@@ -27,7 +27,12 @@ class ProjectController extends Controller
 {
     public function index(Request $r)
     {
-        $q = SurveyProject::query()->with(['coFile', 'surveyors', 'creator:id,first_name,last_name'])->withCount('cases');
+        $q = SurveyProject::query()->with(['coFile', 'surveyors', 'creator:id,first_name,last_name', 'trees:id,survey_project_id,amount',
+                // Each project's lands, listed under its row (user, 2026-11-02).
+                'cases' => fn ($c) => $c->select(['id', 'case_ref', 'survey_project_id', 'survey_officer', 'portion_no', 'area_ha', 'num_plots',
+                    'prop_plot', 'prop_district', 'prop_district_other', 'prop_lga', 'prop_state', 'status'])
+                    ->withCount('beneficiaries')->orderBy('portion_no')->orderBy('id')])
+            ->withCount('cases');
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
@@ -71,12 +76,14 @@ class ProjectController extends Controller
         $data = $this->validated($r);
 
         $rows = $data['surveyors'] ?? [];
-        unset($data['surveyors']);
+        $trees = $data['trees'] ?? [];
+        unset($data['surveyors'], $data['trees']);
 
-        $project = DB::connection('sqlsrv')->transaction(function () use ($data, $rows) {
+        $project = DB::connection('sqlsrv')->transaction(function () use ($data, $rows, $trees) {
             $data['project_code'] = SurveyProject::nextRef('project_code', 'PRJ');
             $project = SurveyProject::create($data);
             $this->syncSurveyors($project, $rows);
+            $this->syncTrees($project, $trees);
 
             return $project;
         });
@@ -88,7 +95,7 @@ class ProjectController extends Controller
 
     public function edit(SurveyProject $project)
     {
-        $project->load('surveyors');
+        $project->load('surveyors', 'trees');
 
         return view('survey_module.compensation.project_register', $this->formData($project));
     }
@@ -99,15 +106,18 @@ class ProjectController extends Controller
 
         // Scheme type is immutable once cases exist — they inherited it.
         if ($project->cases()->exists()) {
-            unset($data['scheme_type']);
+            // The sharing ratio too (CR 30102026 item 11): the cases' splits were worked out on it.
+            unset($data['scheme_type'], $data['farmer_share_pct']);
         }
 
         $rows = $data['surveyors'] ?? [];
-        unset($data['surveyors']);
+        $trees = $data['trees'] ?? [];
+        unset($data['surveyors'], $data['trees']);
 
-        DB::connection('sqlsrv')->transaction(function () use ($project, $data, $rows) {
+        DB::connection('sqlsrv')->transaction(function () use ($project, $data, $rows, $trees) {
             $project->update($data);
             $this->syncSurveyors($project, $rows);
+            $this->syncTrees($project->refresh(), $trees);
         });
 
         return redirect()
@@ -125,6 +135,7 @@ class ProjectController extends Controller
         $code = $project->project_code;
         DB::connection('sqlsrv')->transaction(function () use ($project) {
             $project->surveyors()->delete();
+            $project->trees()->delete();
             $project->delete();
         });
 
@@ -155,7 +166,38 @@ class ProjectController extends Controller
             }
         }
 
-        return compact('project', 'coFiles', 'surveyors', 'usedMax');
+        // Economic trees of the Kano schedule: name => [Category => rate per stand].
+        $treeRates = [];
+        foreach (\App\Models\Survey\SurveyTreeType::where('status', 'Active')->where('category', \App\Models\Survey\SurveyTreeType::ECONOMIC_TREE)
+                     ->orderBy('name')->get(['name', 'maturity', 'default_unit_price']) as $t) {
+            $treeRates[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price === null ? null : (float) $t->default_unit_price;
+        }
+
+        return compact('project', 'coFiles', 'surveyors', 'usedMax', 'treeRates');
+    }
+
+    /**
+     * Save the project's economic-tree lines (user, 2026-11-02): the form's list replaces the old
+     * one. A Land to Land project has none.
+     */
+    private function syncTrees(SurveyProject $project, array $rows): void
+    {
+        $project->trees()->delete();
+        if (! $project->isMonetary()) {
+            return;
+        }
+        foreach (array_values($rows) as $i => $row) {
+            \App\Models\Survey\SurveyProjectTree::create([
+                'survey_project_id'   => $project->id,
+                'survey_tree_type_id' => $row['tree_type_id'],
+                'tree_name'           => $row['name'],
+                'maturity'            => $row['maturity'],
+                'stands'              => $row['stands'],
+                'rate'                => $row['rate'],
+                'amount'              => $row['amount'],
+                'sort_order'          => $i,
+            ]);
+        }
     }
 
     /**
@@ -266,12 +308,14 @@ class ProjectController extends Controller
             'plan_no'     => 'nullable|string|max:100',
             'purpose'     => 'nullable|string|max:100',
             'scheme_type' => ['required', Rule::in([SurveyProject::SCHEME_MONETARY, SurveyProject::SCHEME_LAND])],
+            // The sharing ratio (CR 30102026 item 11), one of Configurable Entities > Survey; Land to Land only.
+            'farmer_share_pct' => ['nullable', 'integer', Rule::in(\App\Services\Survey\SurveySettings::sharingRatios()->pluck('farmer_pct')->map(fn ($p) => (int) $p)->all())],
             'status'      => ['required', Rule::in(['Active', 'Draft', 'Closed'])],
             'start_date'  => 'nullable|date',
             'description' => 'nullable|string|max:4000',
         ] + AddressBuilder::rules('prop_');
 
-        return $r->validate($rules, [
+        $data = $r->validate($rules, [
             'prop_district.required'       => 'The district is required.',
             'prop_district_other.required_if' => 'Please specify the district.',
             'prop_street_other.required_if'   => 'Please specify the street.',
@@ -281,6 +325,70 @@ class ProjectController extends Controller
             'surveyors.*.surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
             'surveyors.*.portions.required'        => 'Every surveyor needs a number of portions.',
             'surveyors.*.portion_size_ha.required' => 'Every surveyor needs a size per portion.',
+            'farmer_share_pct.in'                  => 'Choose a sharing ratio from the list.',
         ]);
+
+        $data['trees'] = $this->validatedTrees($r);
+
+        // A Monetary Compensation project has no plots to share; a Land to Land one keeps the
+        // ratio picked, else the general one.
+        $data['farmer_share_pct'] = ($data['scheme_type'] ?? null) === SurveyProject::SCHEME_LAND
+            ? (int) ($data['farmer_share_pct'] ?? \App\Services\Survey\SurveySettings::defaultFarmerPct())
+            : null;
+
+        return $data;
+    }
+
+    /**
+     * Cash for economic trees (user, 2026-11-02): one line per tree and Category, with stands and
+     * the rate per stand (the schedule's, unless the officer changed it); amount = stands x rate.
+     * Blank rows are ignored; the same tree in the same Category twice is refused.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function validatedTrees(Request $r): array
+    {
+        $rows = array_values(array_filter((array) $r->input('trees'),
+            fn ($row) => is_array($row) && trim((string) ($row['name'] ?? '')) !== ''));
+        $r->merge(['trees' => $rows]);
+        $r->validate([
+            'trees'            => 'nullable|array|max:300',
+            'trees.*.name'     => 'required|string|max:255',
+            'trees.*.maturity' => ['required', Rule::in(\App\Models\Survey\SurveyTreeType::MATURITIES)],
+            'trees.*.stands'   => 'required|integer|min:1|max:100000000',
+            'trees.*.rate'     => 'nullable|numeric|min:0|max:9999999999',
+        ], [
+            'trees.*.maturity.required' => 'Every tree needs a Category (Mature, Immature or Seedling).',
+            'trees.*.stands.required'   => 'Every tree needs its number of stands.',
+            'trees.*.stands.min'        => 'Stands must be at least 1.',
+        ]);
+
+        $out = [];
+        $seen = [];
+        foreach ($rows as $i => $row) {
+            $type = \App\Models\Survey\SurveyTreeType::findFor($row['name'], $row['maturity'], \App\Models\Survey\SurveyTreeType::ECONOMIC_TREE);
+            if (! $type) {
+                throw ValidationException::withMessages(["trees.$i.name" => "Pick the economic tree from the list (line " . ($i + 1) . ').']);
+            }
+            $key = $type->id;
+            if (isset($seen[$key])) {
+                throw ValidationException::withMessages(["trees.$i.name" => "{$type->label} is listed twice. Put all its stands on one line."]);
+            }
+            $seen[$key] = true;
+            $rate = ($row['rate'] ?? '') !== '' && $row['rate'] !== null ? (float) $row['rate'] : $type->rate();
+            if ($rate === null) {
+                throw ValidationException::withMessages(["trees.$i.rate" => "{$type->label} has no rate in the schedule: type the rate per stand."]);
+            }
+            $out[] = [
+                'tree_type_id' => $type->id,
+                'name'         => $type->name,
+                'maturity'     => $type->maturity ?: \App\Models\Survey\SurveyTreeType::MATURE,
+                'stands'       => (int) $row['stands'],
+                'rate'         => round($rate, 2),
+                'amount'       => round((int) $row['stands'] * $rate, 2),
+            ];
+        }
+
+        return $out;
     }
 }

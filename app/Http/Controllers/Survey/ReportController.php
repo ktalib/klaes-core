@@ -11,6 +11,7 @@ use App\Models\Survey\SurveyLpkn;
 use App\Models\Survey\SurveyOpRecord;
 use App\Models\Survey\SurveyPlotAllocation;
 use App\Models\Survey\SurveyProject;
+use App\Services\Survey\SurveySettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -60,12 +61,17 @@ class ReportController extends Controller
             ->whereDoesntHave('plots')->sum('num_plots');
         $totalPlots = $plotRows + $declared;
 
+        // Each land split by its own project's sharing ratio (CR 30102026 item 11), as plotSplit() does.
+        $farmerPlots = SurveyCompCase::whereIn('id', $landIds)->with('project:id,farmer_share_pct')->withCount('plots')
+            ->get(['id', 'survey_project_id', 'num_plots'])
+            ->sum(fn ($c) => SurveySettings::splitPlots($c->plots_count ?: (int) $c->num_plots, $c->project?->farmer_share_pct)['farmer']);
+
         $totals = [
             'cases'         => $ids->count(),
             'monetary_cash' => (float) SurveyCaseTree::whereIn('survey_comp_case_id', $monetaryIds)->sum('line_total'),
             'plots'         => $totalPlots,
-            'plots_farmer'  => (int) floor($totalPlots / 2),
-            'plots_govt'    => (int) ceil($totalPlots / 2),
+            'plots_farmer'  => (int) $farmerPlots,
+            'plots_govt'    => $totalPlots - (int) $farmerPlots,
             'beneficiaries' => SurveyBeneficiary::whereIn('survey_comp_case_id', $ids)->count(),
         ];
 

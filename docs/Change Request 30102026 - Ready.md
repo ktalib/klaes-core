@@ -30,12 +30,13 @@ Items from [Change Request 30102026](Change%20Request%2030102026.md) that are cl
 | 1 | Done: CO form accepts SIT, GKN or Misc KN (selector opens SIT + Survey > GKN); "Has Related File" |
 | 2 | Done (user, 2026-10-31): copy of the MLPP / OSS Commissioning Sheet headed Survey Department; printed from the CO Files table and GKN > Applications |
 | 29 | Done (user, 2026-10-31): File Status opens a search page (file no. / OP serial / name) that checks every File Status list; lists stay as tabs; Survey's Title Status tab now view-only across registries |
+| 5, 8, 11, 13, 14, 21, 33, 35 | Done 2026-10-31 from the 31 Oct discussion: Land Assessment lines; Classmark; sharing ratio per project; LPKN / LPPL Computation Files; Passing & Checking form; TP No table emptied (rows kept); Return a generated OP. Also Issue Beacon No, File Status under Cadastral, Configurable Entities > Survey. Only item 34 (In-Unit) remains. |
 | 3, 4 | Done: labels only (stored scheme values unchanged). Item 3 confirmed by the user 2026-10-31 (follow the CR) |
 | 6 | Done: Farm Assessment with Economic Trees / Cash Crops tabs |
 | 7, 9 | Done: "Creatable Plots", "Creatable" |
 | 10 | Done: Resettlement Calculator opens from the Land to Land calculator; removed from the sidebar |
-| 11 | On hold until the user confirms (2026-10-31); nothing built. The 50:50 split is computed live for every case, so changing the ratio would change past cases |
-| 12 | Done: Computation Files (Field Jackets) page, blank, "Source pending" |
+| 11 | Done 2026-10-31: sharing ratios in Configurable Entities > Survey; a project picks one (default 50:50); past cases stay 50:50 |
+| 12 | Done: Computation Files (Field Jackets); source settled 2026-10-31 (Government = Survey LPKN, Private = Cadastral LPPL) |
 | 15 | Done: Survey Management group; Government / Private tabs on Surveyors (staff / licensed, from the Cadastral register), Computation Files (blank, LPKN / LPPL) and Instruction to Survey (Survey / Cadastral jobs) |
 | 16 | Done: Add Reading is a multi-line table (bearing + distance per line, "Add line") |
 | 17 | Done: "View Uploaded Files" opens Doc-WARE for the CO file number (no CO file is indexed in EDMS yet) |

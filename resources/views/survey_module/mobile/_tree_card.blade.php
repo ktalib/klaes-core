@@ -12,6 +12,15 @@
                    maxlength="255" autocomplete="off" placeholder="e.g. Mango">
             <div class="err">Enter the tree type.</div>
         </div>
+        {{-- Category (Kano schedule, 2026-11-01): the rate differs for Mature, Immature and Seedling, as on the desktop register. --}}
+        <div class="field full">
+            <label>Category <span class="req">*</span></label>
+            <select class="input" name="trees[{{ $i }}][maturity]">
+                @foreach (\App\Models\Survey\SurveyTreeType::MATURITIES as $m)
+                    <option value="{{ $m }}" @selected(($row['maturity'] ?? 'Mature') === $m)>{{ $m }}</option>
+                @endforeach
+            </select>
+        </div>
         <div class="field">
             <label>Quantity <span class="req">*</span></label>
             <input class="input" type="number" inputmode="numeric" min="1" step="1" name="trees[{{ $i }}][quantity]"

@@ -47,7 +47,7 @@
 
     <table>
         <tr>
-            <td class="label">Computation File (Field Jacket) No.</td><td class="value big">{{ $jacket->field_jacket_no }}</td>
+            <td class="label">Computation File (Field Jacket) No.</td><td class="value big">{{ $jacket->lppl_no ?: $jacket->field_jacket_no }}@if($jacket->lppl_no) <span style="font-size:11px;font-weight:400;">(system code {{ $jacket->field_jacket_no }})</span>@endif</td>
             <td class="label">Survey Job No.</td><td class="value big">{{ $job->job_number }}</td>
         </tr>
         <tr>

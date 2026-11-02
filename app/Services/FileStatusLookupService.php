@@ -164,6 +164,34 @@ class FileStatusLookupService
         return $q->where(fn ($w) => $w->whereNull($col)->orWhere($col, 0));
     }
 
+    /** The columns of a list's first row that its summary card shows (user, 2026-10-31). */
+    private const CARD_FIELDS = [
+        'rofo'           => ['Status', 'RofO Serial', 'Date Issued'],
+        'cofo'           => ['Reg. Particulars', 'Date', 'Grantee'],
+        'decommissioned' => ['Decommissioned', 'Reason', 'Successor'],
+        'duplicates'     => ['Registry', 'Category'],
+        'regrant'        => ['Type', 'See File No.', 'Captured'],
+        'regrant_due'    => ['Expiry Year', 'Term'],
+        'title_status'   => ['Title Type', 'Status', 'Date'],
+        'dciv'           => ['DCIV File No.', 'Reason', 'Commissioned'],
+        'caveat'         => ['Caveat No.', 'Status', 'Placed'],
+        'mortgage'       => ['Reg. Particulars', 'Date', 'Parties'],
+        'surrender'      => ['Reg. Particulars', 'Date', 'Parties'],
+    ];
+
+    /** [label => value] for the summary card, blanks left out. */
+    private function cardDetails(string $key, ?array $row): array
+    {
+        if (! $row) return [];
+        $out = [];
+        foreach (self::CARD_FIELDS[$key] ?? [] as $f) {
+            $v = trim((string) ($row[$f] ?? ''));
+            if ($v !== '') $out[$f] = $v;
+        }
+
+        return $out;
+    }
+
     /** A JSON list of numbers as "A, B"; anything else as it is. */
     private static function listText($raw): string
     {
@@ -186,16 +214,18 @@ class FileStatusLookupService
     /**
      * Every list, in the File Status tab order. Each entry:
      * key, group (the tab), label, found, rows (label => value), link (the tab, filtered).
+     * $ctx is the module the links open the lists in, view only: survey or cadastral.
      */
-    public function status(string $fileNo): array
+    public function status(string $fileNo, string $ctx = 'survey'): array
     {
+        $ctx = in_array($ctx, ['survey', 'cadastral'], true) ? $ctx : 'survey';
         $nos = $this->aliases($fileNo);
         $fs = urlencode($fileNo);
         $sections = [];
         $add = function (string $key, string $group, string $label, array $rows, ?string $link, ?string $note = null) use (&$sections) {
             $sections[] = ['key' => $key, 'group' => $group, 'label' => $label, 'found' => count($rows) > 0,
                 'rows' => array_slice($rows, 0, self::ROW_LIMIT), 'more' => max(0, count($rows) - self::ROW_LIMIT),
-                'link' => $link, 'note' => $note];
+                'link' => $link, 'note' => $note, 'card' => $this->cardDetails($key, $rows[0] ?? null)];
         };
 
         // RofO: approved recommendations and OSS letters, as LandRofoController@index lists them.
@@ -215,7 +245,7 @@ class FileStatusLookupService
                 'RofO Serial' => $r->land_rofo_serial_no,
                 'Date Issued' => self::date($r->date_issued),
             ])->all();
-        $add('rofo', 'RofO', 'RofO', $rows, route('land-rofos.index', ['url' => 'survey', 'search' => $fileNo, 'searched' => 1]));
+        $add('rofo', 'RofO', 'RofO', $rows, route('land-rofos.index', ['url' => $ctx, 'search' => $fileNo, 'searched' => 1]));
 
         // CofO: the CofO register (CofO_staging), as PropertyCardController@getCofOData reads it.
         $rows = $this->anyOf($this->db()->table('CofO_staging'), ['mlsFNo', 'kangisFileNo', 'NewKANGISFileno'], $nos)
@@ -228,7 +258,7 @@ class FileStatusLookupService
                 'Grantee' => $r->Grantee,
                 'Date' => self::date($r->transaction_date),
             ])->all();
-        $add('cofo', 'CofO', 'CofO', $rows, route('propertycard.cofo', ['url' => 'survey', 'fs' => $fileNo]));
+        $add('cofo', 'CofO', 'CofO', $rows, route('propertycard.cofo', ['url' => $ctx, 'fs' => $fileNo]));
 
         // Decommissioned: flagged fileNumber rows and the decommissioned_files archive.
         $rows = $this->live($this->anyOf($this->db()->table('fileNumber'), ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo'], $nos))
@@ -252,7 +282,7 @@ class FileStatusLookupService
             ]);
         // One line per file and date: the archive repeats what the flag already says.
         $rows = $rows->concat($archive)->unique(fn ($r) => $r['File No.'] . '|' . $r['Decommissioned'])->values()->all();
-        $add('decommissioned', 'Decommissioned', 'Decommissioned', $rows, route('file-decommissioning.decommissioned', ['url' => 'survey', 'fs' => $fileNo]));
+        $add('decommissioned', 'Decommissioned', 'Decommissioned', $rows, route('file-decommissioning.decommissioned', ['url' => $ctx, 'fs' => $fileNo]));
 
         // Duplicates.
         $rows = $this->db()->table('duplicate_fileno')->whereIn('file_number', $nos)
@@ -265,7 +295,7 @@ class FileStatusLookupService
                 'Category' => $r->category,
                 'Comment' => $r->comment,
             ])->all();
-        $add('duplicates', 'Duplicates', 'Duplicates', $rows, route('file-search-db.index', ['url' => 'survey', 'fs' => $fileNo]));
+        $add('duplicates', 'Duplicates', 'Duplicates', $rows, route('file-search-db.index', ['url' => $ctx, 'fs' => $fileNo]));
 
         // Regrant Files: the register (either side of a re-grant) and the files due for re-grant.
         $rows = $this->live($this->anyOf($this->db()->table('title_status_applications'), ['file_no', 'see_fileno'], $nos))
@@ -279,7 +309,7 @@ class FileStatusLookupService
                 'Holder' => $r->applicant_name ?: $r->file_title,
                 'Captured' => self::date($r->created_at),
             ])->all();
-        $add('regrant', 'Regrant Files', 'Regrant Register', $rows, route('regrant.index', ['tab' => 'register', 'url' => 'survey', 'search' => $fileNo]));
+        $add('regrant', 'Regrant Files', 'Regrant Register', $rows, route('regrant.index', ['tab' => 'register', 'url' => $ctx, 'search' => $fileNo]));
 
         $rows = app(RegrantTermService::class)->allDue()
             ->filter(fn ($r) => in_array(self::normalise($r->file_no ?? ''), $nos, true))
@@ -290,7 +320,7 @@ class FileStatusLookupService
                 'Expiry Year' => $r->expiry_year ?? '',
                 'From' => $r->date_source ?? '',
             ])->values()->all();
-        $add('regrant_due', 'Regrant Files', 'To be Regranted', $rows, route('regrant.index', ['tab' => 'due', 'url' => 'survey', 'search' => $fileNo]));
+        $add('regrant_due', 'Regrant Files', 'To be Regranted', $rows, route('regrant.index', ['tab' => 'due', 'url' => $ctx, 'search' => $fileNo]));
 
         // Title Status: every registry's records, as the read-only (Deeds / DCIV) view aggregates them.
         $rows = $this->live($this->db()->table('title_status_applications')->whereIn('file_no', $nos))
@@ -304,7 +334,7 @@ class FileStatusLookupService
                 'Raised by' => $r->url ? ucfirst($r->url) : '',
                 'Date' => self::date($r->created_at),
             ])->all();
-        $add('title_status', 'Title Status', 'Title Status', $rows, route('title-status.index', ['url' => 'survey', 'search' => $fileNo]));
+        $add('title_status', 'Title Status', 'Title Status', $rows, route('title-status.index', ['url' => $ctx, 'search' => $fileNo]));
 
         // DCIV: a DCIV file numbered or related to this one, and a land file linked to its DCIV file.
         // related_fileno is a JSON list on most rows (["RES-2014-2459"]), plain text on the rest.
@@ -336,7 +366,7 @@ class FileStatusLookupService
                 'Commissioned' => self::date($r->created_at),
             ]);
         $rows = $rows->concat($linked)->unique(fn ($r) => mb_strtoupper((string) $r['DCIV File No.']))->values()->all();
-        $add('dciv', 'DCIV', 'DCIV', $rows, route('dciv-generation.index', ['url' => 'survey', 'fs' => $fileNo]));
+        $add('dciv', 'DCIV', 'DCIV', $rows, route('dciv-generation.index', ['url' => $ctx, 'fs' => $fileNo]));
 
         // Encumbrance.
         $rows = $this->anyOf($this->db()->table('caveats'), ['file_number', 'file_number_kangis', 'file_number_mlsf', 'file_number_new_kangis'], $nos)
@@ -350,10 +380,10 @@ class FileStatusLookupService
                 'Placed' => self::date($r->start_date),
                 'Lifted' => self::date($r->release_date),
             ])->all();
-        $add('caveat', 'Encumbrance', 'Caveat', $rows, route('caveat.index') . '?url=survey&fs=' . $fs);
+        $add('caveat', 'Encumbrance', 'Caveat', $rows, route('caveat.index') . '?url=' . $ctx . '&fs=' . $fs);
 
         $add('mortgage', 'Encumbrance', 'Mortgage', $this->instruments($nos, fn ($q) => $q->whereIn('instrument_type', self::MORTGAGE_TYPES)),
-            route('mortgages.index') . '?url=survey&fs=' . $fs);
+            route('mortgages.index') . '?url=' . $ctx . '&fs=' . $fs);
 
         $surrender = function ($q) {
             $q->where(fn ($w) => $w->whereIn('instrument_type', self::SURRENDER_TYPES)
@@ -361,7 +391,7 @@ class FileStatusLookupService
                     ['deed of surrender and release', 'deed of surrender & release', 'deed of surrender, and release']));
         };
         $add('surrender', 'Encumbrance', 'Surrender & Release', $this->instruments($nos, $surrender),
-            route('surrender-release.index', ['url' => 'survey', 'fs' => $fileNo]));
+            route('surrender-release.index', ['url' => $ctx, 'fs' => $fileNo]));
 
         $add('lien', 'Encumbrance', 'Lien', [], null, 'No Lien list yet.');
 

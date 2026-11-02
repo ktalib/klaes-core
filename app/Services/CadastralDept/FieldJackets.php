@@ -135,10 +135,13 @@ class FieldJackets
             }
             $now = now();
             $jacketNo = $this->nextNo($now->year);
+            // The real number, LPPL-<year>-<serial> from 1 (CR 30102026 item 14); FJ-... stays the system code.
+            $lpplNo = self::lpplInstalled() ? \App\Services\Survey\ComputationNumbers::next('LPPL', $now->year) : null;
 
             $jacket = CadastralFieldJacket::create([
                 'cadastral_case_id' => $case->id,
                 'field_jacket_no' => $jacketNo,
+                ...(self::lpplInstalled() ? ['lppl_no' => $lpplNo] : []),
                 'file_number' => $case->file_number,
                 'file_title' => $case->file_title,
                 'plot_no' => $case->plot_no,
@@ -154,7 +157,7 @@ class FieldJackets
             $this->attachTo($jacket, $case, $userId);
 
             $this->audit->logAction('Cadastral Field Jacket Commissioned', 'CadastralFieldJacket', $jacket->id, null,
-                ['field_jacket_no' => $jacketNo], "Computation File (Field Jacket) {$jacketNo} commissioned for {$case->case_ref} ({$case->file_number})");
+                ['field_jacket_no' => $jacketNo, 'lppl_no' => $lpplNo], "Computation File (Field Jacket) " . ($lpplNo ? "{$lpplNo} ({$jacketNo})" : $jacketNo) . " commissioned for {$case->case_ref} ({$case->file_number})");
 
             return $jacket;
         });
@@ -483,6 +486,14 @@ class FieldJackets
         }
 
         return $surveyor;
+    }
+
+    private static ?bool $lpplInstalled = null;
+
+    /** cadastral_field_jackets.lppl_no exists (2026_10_31_140000 migration). */
+    public static function lpplInstalled(): bool
+    {
+        return self::$lpplInstalled ??= Schema::connection(self::CONN)->hasColumn('cadastral_field_jackets', 'lppl_no');
     }
 
     private function assertInstalled(): void

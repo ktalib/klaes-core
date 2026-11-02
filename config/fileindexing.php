@@ -102,4 +102,29 @@ return [
         'land_use' => env('FILEINDEX_DEMO_FILL_LAND_USE', 'INDUSTRIAL'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | "Has this file been scanned?" (Create File Index + Legal Search)
+    |--------------------------------------------------------------------------
+    | User, 2026-11-01. When a file number is entered on Create File Index, the page
+    | shows whether the file's pages exist, and a new index is REFUSED until they do.
+    | Looked for, in order:
+    |   1. the Digital Archive (pages already filed to EDMS for that file number);
+    |   2. the Blind Scan folder (EDMS/BLIND_SCAN/<Registry>_Raw/<file no.>);
+    |   3. fallback: the raw scans on the records server (one folder or PDF per file no.).
+    | A folder with no pages in it is NOT scanned (empty folders were created to be counted).
+    | Set block_create to false to warn without refusing the save.
+    */
+    'scan_check' => [
+        // Off since 2026-11-02 (user: "Not scanned should not block again, let the user index"):
+        // the panel still warns, Create File Index is allowed.
+        'block_create' => false,
+        // Same share as the File Archive page restores (ARCHIVE_SCANS_FOLDER).
+        'records_server_folder' => env('ARCHIVE_SCANS_FOLDER'),
+        // Page files that count; anything else in a folder is ignored.
+        'page_extensions' => ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'pdf', 'bmp', 'gif', 'webp'],
+        // Seconds a result is remembered (a scan done meanwhile shows up after this).
+        'cache_seconds' => 60,
+    ],
+
 ];

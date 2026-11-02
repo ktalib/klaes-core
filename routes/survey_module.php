@@ -66,6 +66,16 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         Route::get('/dashboard', [DashboardController::class, 'compensation'])->name('dashboard');
 
+        // Confirmation Forms (user, 2026-11-02): serials per layout, blank form, capture. Not on the sidebar yet.
+        Route::prefix('confirmation-forms')->name('confirmation-forms')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'index'])->name('');
+            Route::post('/generate', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'generate'])->name('.generate');
+            Route::get('/print', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'print'])->name('.print');
+            Route::post('/capture', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'capture'])->name('.capture');
+            Route::post('/{form}', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'update'])->whereNumber('form')->name('.update');
+            Route::post('/{form}/void', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'void'])->whereNumber('form')->name('.void');
+        });
+
         // CO files (CO-YYYY-0001), one to many projects (user, 2026-10-25)
         // Two lists (user, 2026-10-30): CO Files = captured files, Commission CO File = commissioned files.
         Route::get('/co-files', [CoFileController::class, 'index'])->name('co-files');
@@ -77,6 +87,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/co-files', [CoFileController::class, 'store'])->name('co-files.store');
         // Commissioning Sheet (CR 30102026 item 2): the MLPP sheet, issued by the Survey Department.
         Route::get('/co-files/{coFile}/commissioning-sheet', [CommissioningSheetController::class, 'coFile'])->name('co-files.commissioning-sheet');
+        // View Uploaded Files: the raw blind-scan pages until the file is page-typed (CR 30102026 item 17).
+        Route::get('/co-files/{coFile}/uploaded-files', [\App\Http\Controllers\Survey\CoFileScansController::class, 'show'])->name('co-files.uploaded-files');
         Route::get('/co-files/{coFile}/edit', [CoFileController::class, 'edit'])->name('co-files.edit');
         Route::put('/co-files/{coFile}', [CoFileController::class, 'update'])->name('co-files.update');
         Route::delete('/co-files/{coFile}', [CoFileController::class, 'destroy'])->name('co-files.destroy');
@@ -89,6 +101,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Plot Confirmation register: OP showings and ground checks from the field app (2026-10-30).
         Route::get('/plot-confirmations', [PlotConfirmationController::class, 'index'])->name('plot-confirmations');
+        // Record Plot Showing from the office (user, 2026-11-02): the OP search and the save.
+        Route::get('/plot-confirmations/op-search', [PlotConfirmationController::class, 'opSearch'])->name('plot-confirmations.op-search');
+        Route::post('/plot-confirmations/showings', [PlotConfirmationController::class, 'storeShowing'])->name('plot-confirmations.showings.store');
 
         // Resettlement Calculator: plots = area ÷ plot size by land use / density (SG formulas, 2026-10-29).
         Route::get('/resettlement-calculator', [ResettlementCalculatorController::class, 'index'])->name('resettlement-calculator');
@@ -161,6 +176,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/op/generate', [OpController::class, 'generate'])->name('op.generate');
         Route::post('/op/{op}/advance', [OpController::class, 'advance'])->name('op.advance');
         Route::delete('/op/{op}', [OpController::class, 'destroy'])->name('op.destroy');
+        // Return a generated OP made by mistake; its number is freed (CR 30102026 item 35).
+        Route::post('/op/{op}/return', [OpController::class, 'returnOp'])->name('op.return');
 
         Route::get('/reports', [ReportController::class, 'compensation'])->name('reports');
     });
@@ -172,8 +189,15 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/applications', [GknApplicationController::class, 'index'])->name('applications');
         // Commissioning Sheet for GKN, Misc KN, LPKN, LPPL and RDKN files (CR 30102026 item 2).
         Route::get('/applications/{id}/commissioning-sheet', [CommissioningSheetController::class, 'applicationFile'])->whereNumber('id')->name('applications.commissioning-sheet');
-        // Computation Files (Field Jackets), CR 30102026 item 12: blank table, source pending (2026-10-31).
-        Route::view('/computation-files', 'survey_module.gkn.computation_files')->name('computation-files');
+        // Computation Files (Field Jackets), CR 30102026 items 12-14 (2026-10-31): Government = commissioned here
+        // (LPKN-<year>-<serial>); Private = Cadastral's (LPPL-<year>-<serial>), read-only.
+        Route::get('/computation-files', [\App\Http\Controllers\Survey\ComputationFileController::class, 'index'])->name('computation-files');
+        Route::post('/computation-files', [\App\Http\Controllers\Survey\ComputationFileController::class, 'store'])->name('computation-files.store');
+        Route::put('/computation-files/{computationFile}', [\App\Http\Controllers\Survey\ComputationFileController::class, 'update'])->whereNumber('computationFile')->name('computation-files.update');
+        // Passing & Checking (Final Survey Plan), CR 30102026 item 21 (2026-10-31): a first version.
+        Route::get('/passing-checks', [\App\Http\Controllers\Survey\PassingCheckController::class, 'index'])->name('passing-checks');
+        Route::post('/passing-checks', [\App\Http\Controllers\Survey\PassingCheckController::class, 'store'])->name('passing-checks.store');
+        Route::put('/passing-checks/{passingCheck}', [\App\Http\Controllers\Survey\PassingCheckController::class, 'update'])->whereNumber('passingCheck')->name('passing-checks.update');
         // Instruction to Survey: Survey's own jobs plus Cadastral's, read-only (2026-10-25).
         Route::prefix('instruction-to-survey')->name('its.')->group(function () {
             Route::get('/', [SurveyItsController::class, 'index'])->name('index');
@@ -361,6 +385,12 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             // Rev-M payment lookup for the Payment section, and the printed book (2026-10-25).
             Route::get('/revm-lookup', [BeaconRegisterController::class, 'revmLookup'])->name('revm-lookup');
             Route::get('/print', [BeaconRegisterController::class, 'printBook'])->name('print');
+            // Issue Beacon No (user, 2026-10-31): the next free serial for a prefix (and optional letter).
+            Route::get('/next-serial', [BeaconRegisterController::class, 'nextSerial'])->name('next-serial');
+            // Issue Beacon No: numbers of a run already in the register (duplicate check, user 2026-11-02).
+            Route::get('/check-range', [BeaconRegisterController::class, 'checkRange'])->name('check-range');
+            // Issue Beacon No: save every group in the table as its own entry (user, 2026-11-02).
+            Route::post('/issue', [BeaconRegisterController::class, 'issueBatch'])->name('issue');
             Route::post('/', [BeaconRegisterController::class, 'store'])->name('store');
             Route::put('/{entry}', [BeaconRegisterController::class, 'update'])->name('update');
             Route::delete('/{entry}', [BeaconRegisterController::class, 'destroy'])->name('destroy');

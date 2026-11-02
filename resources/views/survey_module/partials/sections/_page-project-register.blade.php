@@ -2,6 +2,9 @@
     $editing = $project->exists;
     $locked  = $editing && $project->cases()->exists();
     $scheme  = old('scheme_type', $project->scheme_type ?? 'monetary');
+    // Sharing ratio (CR 30102026 item 11): picked here from Configurable Entities > Survey; 50:50 unless set.
+    $ratios  = \App\Services\Survey\SurveySettings::sharingRatios();
+    $farmerPct = (string) old('farmer_share_pct', $project->farmer_share_pct ?? \App\Services\Survey\SurveySettings::defaultFarmerPct());
 @endphp
 
 @include('survey_module.partials._flash')
@@ -50,10 +53,25 @@
                             <input type="radio" name="scheme_type" value="land"
                                    @checked($scheme === 'land') @disabled($locked) />
                             <div class="type-icon"><i class="fas fa-map-marked-alt"></i></div>
-                            <div class="type-title">Land to Land (50:50)</div>
-                            <div class="type-desc">Physical plot allocation. Total plots split 50:50 — half to farmers, half to government. No cash component.</div>
+                            <div class="type-title">Land to Land</div>
+                            <div class="type-desc">Physical plot allocation. Total plots split between farmers and government by the sharing ratio (50:50 unless set below). No cash component.</div>
                             <span class="type-badge">Plots Only</span>
                         </label>
+                    </div>
+
+                    {{-- The project's sharing ratio; only Land to Land uses it. Locked with the scheme once cases exist. --}}
+                    <div id="projRatioBox" class="form-group" style="margin-top:14px;max-width:420px;{{ $scheme === 'land' ? '' : 'display:none;' }}">
+                        <label>Sharing ratio (farmer : Government) <span class="required">*</span></label>
+                        @if ($locked)
+                            <input type="text" value="{{ $project->share_label }}" disabled />
+                        @else
+                            <select name="farmer_share_pct" @disabled($scheme !== 'land')>
+                                @foreach ($ratios as $ratio)
+                                    <option value="{{ $ratio->farmer_pct }}" @selected($farmerPct === (string) $ratio->farmer_pct)>{{ $ratio->label }}{{ $ratio->is_default ? ' (general)' : '' }}</option>
+                                @endforeach
+                            </select>
+                            <p class="helper-text">The general ratio is 50:50. Pick another only for a project agreed on different terms. The ratios are set in Configurable Entities &gt; Survey.</p>
+                        @endif
                     </div>
 
                     @unless ($locked)
@@ -296,6 +314,94 @@
                 </tr>
             </template>
 
+            {{-- Cash for economic trees at project level (user, 2026-11-02): Monetary Compensation only.
+                 Each line is a tree of the Kano schedule in one Category; the rate per stand comes from
+                 the schedule and can be changed; amount = stands x rate. --}}
+            @php
+                $treeRows = old('trees', $project->exists
+                    ? $project->trees->map(fn ($t) => ['name' => $t->tree_name, 'maturity' => $t->maturity, 'stands' => $t->stands, 'rate' => (float) $t->rate])->all()
+                    : []);
+                $treeRows = array_values(array_filter((array) $treeRows, fn ($t) => is_array($t)));
+                $maturities = \App\Models\Survey\SurveyTreeType::MATURITIES;
+            @endphp
+            <div class="pa-section" id="projTreeSection" @style(['display:none' => $scheme !== 'monetary'])>
+                <div class="pa-head"><i class="fas fa-tree"></i><span>Economic Trees (Monetary Compensation)</span></div>
+                <p class="pa-help">
+                    The cash for economic trees on this project. Pick the tree and its Category; the rate per stand comes from the
+                    <a href="{{ route('survey-module.compensation.trees') }}">Farm Assessment</a> schedule (change it if needed).
+                    Amount = stands × rate.
+                </p>
+                <div class="pa-box">
+                    <div class="pa-scroll">
+                        <table class="pa-table" data-column-picker="off">
+                            <thead>
+                                <tr>
+                                    <th class="sn">S/N</th>
+                                    <th>Economic Tree</th>
+                                    <th style="width:150px;">Category</th>
+                                    <th class="num" style="width:130px;">Stands</th>
+                                    <th class="num" style="width:170px;">Rate per Stand (₦)</th>
+                                    <th class="num" style="width:170px;">Amount (₦)</th>
+                                    <th style="width:56px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="projTreeRows">
+                                @foreach ($treeRows as $i => $row)
+                                    <tr data-row>
+                                        <td class="sn" data-sn>{{ $loop->iteration }}</td>
+                                        <td>
+                                            <select name="trees[{{ $i }}][name]" class="pt-name" data-no-search aria-label="Economic tree">
+                                                <option value="">— Select tree —</option>
+                                                @foreach ($treeRates as $name => $rates)<option value="{{ $name }}" @selected(($row['name'] ?? '') === $name)>{{ $name }}</option>@endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select name="trees[{{ $i }}][maturity]" class="pt-mat" aria-label="Category">
+                                                @foreach ($maturities as $m)<option value="{{ $m }}" @selected(($row['maturity'] ?? 'Mature') === $m)>{{ $m }}</option>@endforeach
+                                            </select>
+                                        </td>
+                                        <td><input type="number" name="trees[{{ $i }}][stands]" class="pt-stands" min="1" step="1" value="{{ $row['stands'] ?? '' }}" aria-label="Stands" /></td>
+                                        <td><input type="number" name="trees[{{ $i }}][rate]" class="pt-rate" min="0" step="0.01" value="{{ $row['rate'] ?? '' }}" aria-label="Rate per stand" /></td>
+                                        <td class="num" data-amount>—</td>
+                                        <td><button type="button" class="pa-x" title="Remove" aria-label="Remove tree" onclick="projTrees.remove(this)"><i class="fas fa-times"></i></button></td>
+                                    </tr>
+                                @endforeach
+                                <tr id="projTreeEmpty" class="pa-empty" @style(['display:none' => count($treeRows) > 0])>
+                                    <td colspan="7"><i class="fas fa-tree"></i> No economic trees added. Use <strong>Add Tree</strong> below.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pa-foot">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="projTrees.add()">
+                            <i class="fas fa-plus"></i> Add Tree
+                        </button>
+                        <span class="pa-total" id="projTreeTotal"></span>
+                    </div>
+                </div>
+            </div>
+
+            <template id="projTreeTpl">
+                <tr data-row>
+                    <td class="sn" data-sn></td>
+                    <td>
+                        <select name="trees[__i__][name]" class="pt-name" data-no-search aria-label="Economic tree">
+                            <option value="">— Select tree —</option>
+                            @foreach ($treeRates as $name => $rates)<option value="{{ $name }}">{{ $name }}</option>@endforeach
+                        </select>
+                    </td>
+                    <td>
+                        <select name="trees[__i__][maturity]" class="pt-mat" aria-label="Category">
+                            @foreach ($maturities as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach
+                        </select>
+                    </td>
+                    <td><input type="number" name="trees[__i__][stands]" class="pt-stands" min="1" step="1" aria-label="Stands" /></td>
+                    <td><input type="number" name="trees[__i__][rate]" class="pt-rate" min="0" step="0.01" aria-label="Rate per stand" /></td>
+                    <td class="num" data-amount>—</td>
+                    <td><button type="button" class="pa-x" title="Remove" aria-label="Remove tree" onclick="projTrees.remove(this)"><i class="fas fa-times"></i></button></td>
+                </tr>
+            </template>
+
             <div class="form-actions">
                 <div class="left">
                     <a class="btn btn-secondary" href="{{ route('survey-module.compensation.projects') }}">
@@ -394,6 +500,73 @@
         return { add: add, remove: remove, total: total };
     })();
 
+    // Economic trees (user, 2026-11-02): rate per stand from the schedule by tree + Category,
+    // unless typed over; amount per line and the total.
+    var projTrees = (function () {
+        var RATES = @json($treeRates);
+        var body = document.getElementById('projTreeRows');
+        var next = {{ count($treeRows) }};
+        function money(n) { return '₦' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function scheduleRate(tr) {
+            var n = tr.querySelector('.pt-name').value, m = tr.querySelector('.pt-mat').value;
+            return n && RATES[n] && RATES[n][m] != null ? RATES[n][m] : null;
+        }
+        // The rate follows the schedule while it still shows the schedule's figure (or is empty).
+        function fillRate(tr) {
+            var rate = tr.querySelector('.pt-rate'), auto = scheduleRate(tr);
+            if (rate.value === '' || rate.dataset.auto === rate.value) {
+                rate.value = auto == null ? '' : auto;
+                rate.dataset.auto = rate.value;
+            }
+            rate.placeholder = auto == null && tr.querySelector('.pt-name').value ? 'No rate: type it' : '';
+            total();
+        }
+        function total() {
+            var sum = 0, rows = body.querySelectorAll('tr[data-row]');
+            rows.forEach(function (tr, i) {
+                tr.querySelector('[data-sn]').textContent = i + 1;
+                var s = parseFloat(tr.querySelector('.pt-stands').value) || 0, r = parseFloat(tr.querySelector('.pt-rate').value);
+                var amt = s && !isNaN(r) ? s * r : null;
+                tr.querySelector('[data-amount]').textContent = amt == null ? '—' : money(amt);
+                sum += amt || 0;
+            });
+            document.getElementById('projTreeEmpty').style.display = rows.length ? 'none' : '';
+            document.getElementById('projTreeTotal').innerHTML = rows.length ? 'Total for economic trees: <strong>' + money(sum) + '</strong>' : '';
+        }
+        function $j() { return window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null; }
+        function wire(tr) {
+            var name = tr.querySelector('.pt-name'), mat = tr.querySelector('.pt-mat'), $ = $j();
+            if ($) $(name).select2({ width: '100%', placeholder: '— Select tree —' }).on('change', function () { fillRate(tr); });
+            else name.addEventListener('change', function () { fillRate(tr); });
+            mat.addEventListener('change', function () { fillRate(tr); });
+            tr.querySelector('.pt-stands').addEventListener('input', total);
+            tr.querySelector('.pt-rate').addEventListener('input', total);
+            var rate = tr.querySelector('.pt-rate'), auto = scheduleRate(tr);
+            if (auto != null && rate.value !== '' && parseFloat(rate.value) === auto) rate.dataset.auto = rate.value;
+        }
+        function add() {
+            var tmp = document.createElement('tbody');
+            tmp.innerHTML = document.getElementById('projTreeTpl').innerHTML.replace(/__i__/g, 'n' + (next++)).trim();
+            var tr = tmp.querySelector('tr');
+            body.insertBefore(tr, document.getElementById('projTreeEmpty'));
+            wire(tr);
+            var $ = $j();
+            if ($) $(tr.querySelector('.pt-name')).select2('open'); else tr.querySelector('.pt-name').focus();
+            total();
+        }
+        function remove(btn) {
+            var tr = btn.closest('tr'), $ = $j(), sel = tr.querySelector('.pt-name');
+            if ($ && $(sel).data('select2')) $(sel).select2('destroy');
+            tr.remove();
+            total();
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            body.querySelectorAll('tr[data-row]').forEach(wire);
+            total();
+        });
+        return { add: add, remove: remove, total: total };
+    })();
+
     // Scheme tiles behave like the radio group they wrap.
     function selectNewProjectType(type) {
         var mon = document.getElementById('newTypeOptMonetary');
@@ -403,5 +576,13 @@
         radio.checked = true;
         if (mon) mon.classList.toggle('selected', type === 'monetary');
         if (land) land.classList.toggle('selected', type === 'land');
+        // The sharing ratio belongs to Land to Land only.
+        var box = document.getElementById('projRatioBox'), sel = box ? box.querySelector('select') : null;
+        if (box) box.style.display = type === 'land' ? '' : 'none';
+        if (sel) sel.disabled = type !== 'land';
+        // Economic trees belong to Monetary Compensation only; their lines are dropped on save otherwise.
+        var trees = document.getElementById('projTreeSection');
+        if (trees) trees.style.display = type === 'monetary' ? '' : 'none';
+        if (trees) trees.querySelectorAll('select, input').forEach(function (el) { el.disabled = type !== 'monetary'; });
     }
 </script>

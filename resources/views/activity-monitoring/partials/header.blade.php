@@ -6,6 +6,10 @@
         ['key' => 'target', 'label' => 'Target vs Actual', 'icon' => 'fa-table-list'],
         ['key' => 'leaderboard', 'label' => 'Leaderboard (Top 15)', 'icon' => 'fa-ranking-star'],
     ];
+    // Indexing piece-rate pay (2026-11-01): supervisors see every indexer's earnings here.
+    if (\App\Http\Controllers\IndexingPay\IndexingEarningsController::canViewAll(auth()->user())) {
+        $activityTabs[] = ['key' => 'earnings', 'label' => 'Indexing Earnings', 'icon' => 'fa-wallet'];
+    }
 @endphp
 <div class="bg-white rounded-2xl shadow border border-slate-100 px-4 sm:px-6 py-4 flex flex-wrap gap-3">
     @foreach ($activityTabs as $tab)

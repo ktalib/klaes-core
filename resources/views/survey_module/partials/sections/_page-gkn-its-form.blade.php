@@ -50,6 +50,27 @@
                     </div>
                 @endif
 
+                {{-- The Computation File this instruction is for (user, 2026-11-02); picking one fills any empty details below. --}}
+                @php $cfPick = (string) old('survey_computation_file_id', $its->survey_computation_file_id); @endphp
+                <div class="form-group">
+                    <label>Computation File No.</label>
+                    <select name="survey_computation_file_id" id="itsComputation" @disabled($locked)>
+                        <option value="">— None —</option>
+                        @foreach ($computationFiles ?? [] as $cf)
+                            <option value="{{ $cf->id }}" @selected($cfPick === (string) $cf->id)
+                                    data-title="{{ $cf->file_title }}" data-plot="{{ $cf->plot_no }}" data-district="{{ $cf->district }}"
+                                    data-lga="{{ $cf->lga }}" data-surveyor="{{ $cf->surveyors_list_id }}">
+                                {{ $cf->computation_no }}{{ $cf->file_number ? ' · ' . $cf->file_number : '' }}{{ $cf->file_title ? ' · ' . \Illuminate\Support\Str::limit($cf->file_title, 40) : '' }}
+                            </option>
+                        @endforeach
+                        @if ($its->computation_no && ! collect($computationFiles ?? [])->contains('id', $its->survey_computation_file_id))
+                            <option value="{{ $its->survey_computation_file_id }}" selected>{{ $its->computation_no }}</option>
+                        @endif
+                    </select>
+                    @error('survey_computation_file_id')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                    <p class="helper-text">{{ collect($computationFiles ?? [])->isEmpty() ? 'No Computation Files commissioned yet (GKN > Computation Files).' : 'Optional. LPKN Computation Files commissioned by Survey.' }}</p>
+                </div>
+
                 <div class="form-group full">
                     <label>File Title</label>
                     <input type="text" name="file_title" id="itsTitle" maxlength="500" value="{{ old('file_title', $its->file_title) }}" @disabled($locked) />
@@ -245,6 +266,31 @@ document.addEventListener('DOMContentLoaded', function () {
         sel.addEventListener('change', sync);
     }
     sync();
+});
+</script>
+@endpush
+
+@push('scripts')
+<script>
+// Computation File No. (user, 2026-11-02): picking one fills the title, plot, district, LGA and surveyor
+// where they are still empty; nothing typed is overwritten.
+document.addEventListener('DOMContentLoaded', function () {
+    var sel = document.getElementById('itsComputation');
+    if (!sel) return;
+    function fill() {
+        var o = sel.options[sel.selectedIndex];
+        if (!o || !o.value) return;
+        [['itsTitle', 'title'], ['itsPlot', 'plot'], ['itsDistrict', 'district'], ['itsLga', 'lga']].forEach(function (p) {
+            var el = document.getElementById(p[0]);
+            if (el && !el.disabled && !el.value.trim() && o.dataset[p[1]]) el.value = o.dataset[p[1]];
+        });
+        var sv = document.getElementById('itsSurveyor');
+        if (sv && !sv.disabled && !sv.value && o.dataset.surveyor && sv.querySelector('option[value="' + o.dataset.surveyor + '"]')) {
+            sv.value = o.dataset.surveyor;
+            if (window.jQuery) window.jQuery(sv).trigger('change');
+        }
+    }
+    if (window.jQuery) window.jQuery(sel).on('change', fill); else sel.addEventListener('change', fill);
 });
 </script>
 @endpush

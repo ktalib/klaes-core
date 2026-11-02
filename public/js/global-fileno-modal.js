@@ -952,12 +952,15 @@
         // the format SurveyCoFile::normaliseNumber() stores. The CO tab's method radios are
         // named co-pick-method (not *-input-method), so apply() reads this preview for both.
         generateCOPreview: function () {
+            // Temporary (T) (user, 2026-11-02): CO-33-2025(T). A file already listed with (T) keeps it once.
+            const temp = $('#co-temporary').is(':checked');
+            const withT = function (no) { return no && temp && !/\(T\)$/i.test(no) ? `${no}(T)` : no; };
             if (($('input[name="co-pick-method"]:checked').val() || 'list') === 'list') {
-                return String($('#co-file-list').val() || '');
+                return withT(String($('#co-file-list').val() || ''));
             }
             const serial = String($('#co-serial').val() || '').replace(/^0+/, '');
             const year = String($('#co-year').val() || '');
-            return serial && /^\d{4}$/.test(year) ? `CO-${serial}-${year}` : '';
+            return withT(serial && /^\d{4}$/.test(year) ? `CO-${serial}-${year}` : '');
         },
 
         // The CO dropdown: every CO file in the Survey module, loaded once per page.

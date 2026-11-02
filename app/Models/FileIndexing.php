@@ -19,6 +19,10 @@ class FileIndexing extends Model
     protected $table = 'file_indexings';
 
     protected $fillable = [
+        // Indexing piece-rate pay: who indexed the file through the File Indexing form, and when.
+        // Set only by FileIndexingController::store(); created_by keeps holding the name.
+        'indexed_by_user_id',
+        'indexed_at',
         'main_application_id',
         'subapplication_id',
         'recertification_application_id',

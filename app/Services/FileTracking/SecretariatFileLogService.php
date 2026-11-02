@@ -133,6 +133,23 @@ class SecretariatFileLogService
      *              received_via?:?string} $data
      * @return array{tracker:FileTracker, action:string}
      */
+    /**
+     * Incoming manual log (user, 2026-11-02): the unit the file came from, on the receipt just
+     * written, with In-Unit / In Transit by the sending department. $unit is FileMovementUnits::choice().
+     */
+    public function stampFromUnit(FileTracker $tracker, array $unit, ?string $fromDepartment): void
+    {
+        $log = is_array($tracker->movement_log) ? $tracker->movement_log : (json_decode((string) $tracker->movement_log, true) ?: []);
+        if (!$log) return;
+        $i = count($log) - 1;
+        $log[$i]['from_unit_id'] = $unit['id'];
+        $log[$i]['from_unit_name'] = $unit['name'];
+        $log[$i]['from_unit_other'] = $unit['other'];
+        $log[$i]['movement_category'] ??= FileMovementUnits::category($fromDepartment, $tracker->department);
+        $tracker->movement_log = $log;
+        $tracker->save();
+    }
+
     public function receive(string $officeCode, array $data, User $user): array
     {
         $office = $this->office($officeCode);
@@ -314,10 +331,15 @@ class SecretariatFileLogService
 
     /** @return FileTracker */
     public function forward(string $officeCode, int $trackerId, string $toOfficeCode, ?int $purposeId, ?int $officerId, ?string $notes, User $user,
-                            ?string $purposeOther = null, ?string $officerOther = null, ?int $timelineDays = null): FileTracker
+                            ?string $purposeOther = null, ?string $officerOther = null, ?int $timelineDays = null,
+                            ?int $unitId = null, ?string $unitOther = null): FileTracker
     {
         $office = $this->office($officeCode);
         $to = $this->office($toOfficeCode);
+
+        // Unit inside the receiving department: optional, or "Other" typed (CR 30102026 item 34).
+        $unit = FileMovementUnits::choice($unitId, $unitOther, $to['department']);
+        $category = FileMovementUnits::category($office['department'], $to['department']);
 
         // {id, name}; id is null for an "Other" purpose / officer typed by hand.
         $purpose = $this->purposeChoice($purposeId, $purposeOther);
@@ -341,7 +363,7 @@ class SecretariatFileLogService
             throw new RuntimeException("You cannot send a file to yourself. Choose the officer at {$to['name']} who is receiving it.");
         }
 
-        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user, $timelineDays) {
+        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user, $timelineDays, $unit, $category) {
             $tracker = FileTracker::lockForUpdate()->find($trackerId);
             if (!$tracker) {
                 throw new RuntimeException('File tracker not found.');
@@ -400,6 +422,13 @@ class SecretariatFileLogService
             $log = $tracker->movement_log;
             $log[count($log) - 1]['sent_from_office_code'] = $office['code'];
             $log[count($log) - 1]['sent_from_office_name'] = $office['name'];
+            // In-Unit (same department) or In Transit (another department), and the unit if chosen.
+            $log[count($log) - 1]['movement_category'] = $category;
+            if ($unit) {
+                $log[count($log) - 1]['receiving_unit_id'] = $unit['id'];
+                $log[count($log) - 1]['receiving_unit_name'] = $unit['name'];
+                $log[count($log) - 1]['receiving_unit_other'] = $unit['other'];
+            }
             $tracker->movement_log = $log;
 
             $tracker->receiving_office_code = $to['code'];
@@ -427,6 +456,8 @@ class SecretariatFileLogService
      *          With a date range ($from / $to, Y-m-d) the range replaces $days.
      *          With a $search and no date range, older sends whose file number or
      *          title match are added too, so a search finds the file whatever its age.
+     * elsewhere: with a $search (3+ characters), matching files not in the lists above,
+     *          read only (see elsewhere()).
      */
     public function lists(string $officeCode, int $days = 7, ?string $from = null, ?string $to = null, ?string $search = null): array
     {
@@ -552,7 +583,108 @@ class SecretariatFileLogService
 
         [$pending, $held, $sent] = $this->markDiit($pending, $held, $sent);
 
-        return compact('pending', 'held', 'sent');
+        // A search also finds files this office does not have, read only (whatever the dates).
+        $elsewhere = $search !== '' ? $this->elsewhere($search, $pending, $held, $sent) : [];
+
+        return compact('pending', 'held', 'sent', 'elsewhere');
+    }
+
+    /**
+     * Files matching a search that are not in this office's lists (user, 2026-11-02):
+     * each file's newest tracker wherever it is, so the office sees where it is and
+     * can open its log, but cannot act on it. An indexed file with no tracker at all
+     * is listed too, as not tracked. Rows carry elsewhere = true.
+     */
+    private function elsewhere(string $search, array ...$lists): array
+    {
+        if (mb_strlen($search) < 3) {
+            return [];
+        }
+
+        $seen = [];
+        foreach ($lists as $rows) {
+            foreach ($rows as $r) {
+                $seen['#' . $r['id']] = true;
+                $number = strtoupper(trim((string) ($r['file_number'] ?? '')));
+                if ($number !== '') {
+                    $seen[$number] = true;
+                }
+            }
+        }
+
+        // Every word must match, in any of the columns (as the Filter box does in the browser).
+        $words = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
+        $query = FileTracker::query();
+        foreach ($words as $word) {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $word) . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like)->orWhere('tracking_id', 'like', $like);
+            });
+        }
+        $matched = $query
+            ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(status,'')))) NOT IN ('CANCELLED')")
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get();
+
+        // Only a file's newest tracker says where it is now (as in lists()).
+        $newestIds = $this->newestTrackerIds($matched->pluck('file_number'));
+
+        $out = [];
+        foreach ($matched as $tracker) {
+            $number = strtoupper(trim((string) $tracker->file_number));
+            if (isset($seen['#' . $tracker->id]) || ($number !== '' && isset($seen[$number]))
+                || ($number !== '' && isset($newestIds[$number]) && (int) $newestIds[$number] !== (int) $tracker->id)) {
+                continue;
+            }
+            if ($number !== '') {
+                $seen[$number] = true;
+            }
+
+            $log = array_values($tracker->movement_log ?: []);
+            $last = $log ? end($log) : [];
+            $prev = count($log) > 1 ? $log[count($log) - 2] : null;
+            $status = strtolower((string) ($last['status'] ?? ''));
+            $inTransit = $status === 'pending_acceptance' && !self::isLegacyHandOver($last);
+
+            $out[] = $this->row($tracker, $last ?: [], [
+                'bucket'     => 'elsewhere',
+                'elsewhere'  => true,
+                'has_log'    => count($log) > 0,
+                'from'       => $inTransit
+                    ? ($last['sent_from_office_name'] ?? ($prev['office_name'] ?? $tracker->origin_office_name))
+                    : ($prev['office_name'] ?? $tracker->origin_office_name),
+                'to'         => $last['receiving_office_name'] ?? $last['office_name'] ?? $tracker->current_office_name,
+                'to_officer' => $last['receiving_officer_name'] ?? null,
+                'since'      => $inTransit ? ($last['timestamp'] ?? null) : ($last['accepted_at'] ?? $last['timestamp'] ?? null),
+                'state'      => $inTransit ? 'In transit' : (in_array($status, ['active', 'pending_acceptance'], true) ? 'Held' : (ucfirst($status) ?: 'Logged')),
+                'now_at'     => $tracker->current_office_name,
+            ]);
+            if (count($out) >= 50) {
+                break;
+            }
+        }
+
+        // Indexed files that have never been tracked.
+        $indexed = collect($this->searchIndexed($search, 25))
+            ->reject(fn ($f) => isset($seen[strtoupper(trim($f['file_number']))]));
+        $tracked = $this->newestTrackerIds($indexed->pluck('file_number'));
+        foreach ($indexed as $f) {
+            $number = strtoupper(trim($f['file_number']));
+            if (isset($tracked[$number]) || isset($seen[$number])) {
+                continue;
+            }
+            $seen[$number] = true;
+            $out[] = [
+                'id' => null, 'row_key' => 'idx-' . $f['key'], 'bucket' => 'elsewhere', 'elsewhere' => true,
+                'has_log' => false, 'no_tracker' => true, 'state' => 'Not tracked',
+                'file_number' => $f['file_number'], 'file_title' => $f['file_title'], 'file_type' => null,
+                'from' => null, 'to' => null, 'to_officer' => null, 'since' => null, 'now_at' => null,
+                'purpose' => null, 'notes' => null, 'timeline_days' => null, 'deadline' => null,
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -835,6 +967,9 @@ class SecretariatFileLogService
                 ? $entry['purpose']
                 : $tracker->request_purpose_name,
             'notes'       => $entry['notes'] ?? null,
+            // Unit and In-Unit / In Transit, set on sends since 2026-11-01 (CR 30102026 item 34).
+            'to_unit'     => $entry['receiving_unit_name'] ?? null,
+            'category'    => $entry['movement_category'] ?? null,
             // Timeline (Days) / Expected Return Date, for the tab tables' Timeline column.
             'timeline_days'       => $tracker->timeline_days !== null ? (int) $tracker->timeline_days : null,
             'deadline'            => $tracker->deadline ? $tracker->deadline->format('Y-m-d') : null,

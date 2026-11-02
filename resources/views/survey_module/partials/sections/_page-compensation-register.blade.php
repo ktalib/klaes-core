@@ -53,10 +53,13 @@
         'location' => $projectLocation($p),
     ]])->all();
 
-    // Both catalogue rates per tree (Mature / Early, 2026-10-29), for the price prefill.
-    // name => [Mature => rate, Early => rate], from the catalogue rows (one per tree per Category, 2026-10-30).
+    // Catalogue rates per name and Category (Mature / Immature / Seedling, Kano schedule 2026-11-01), for the price
+    // prefill: name => [Category => rate]. A name in both lists takes the economic tree's rate (per stand), as findFor().
     $treePrices = [];
-    foreach ($treeTypes as $t) $treePrices[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price;
+    foreach ($treeTypes->sortBy(fn ($t) => $t->category === \App\Models\Survey\SurveyTreeType::ECONOMIC_TREE ? 1 : 0) as $t) {
+        $treePrices[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price;
+    }
+    $treeMaturities = \App\Models\Survey\SurveyTreeType::MATURITIES;
 
     // Rows already on the case, or whatever bounced back from validation.
     $benRows = old('beneficiaries', $editing
@@ -126,7 +129,7 @@
             <div class="form-step active" data-step="0">
                 <div class="step-title">General Information</div>
                 <div class="step-subtitle">
-                    Select a Project. The compensation scheme (Monetary Compensation or Land to Land 50:50) is defined at
+                    Select a Project. The compensation scheme (Monetary Compensation or Land to Land, with its sharing ratio) is defined at
                     Project level and cannot be changed on the case.
                 </div>
 
@@ -184,7 +187,7 @@
                             @if ($scheme)
                                 <span class="status-badge {{ $isMonetary ? 'active' : 'completed' }}" style="font-size:14px;padding:6px 16px;">
                                     <span class="dot"></span>
-                                    {{ $isMonetary ? 'Monetary Compensation' : 'Land to Land (50:50)' }}
+                                    {{ $isMonetary ? 'Monetary Compensation' : 'Land to Land (' . ($case->project?->share_label ?? '50:50') . ')' }}
                                 </span>
                                 <span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>
                             @endif
@@ -195,7 +198,7 @@
                                 @if ($isMonetary)
                                     <strong>Monetary Compensation scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.
                                 @else
-                                    <strong>Land to Land scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.
+                                    <strong>Land to Land scheme:</strong> plots are split by the project's sharing ratio (Farmer : Government), 50:50 unless the project set another. No cash is paid for trees.
                                 @endif
                             @endif
                         </div>
@@ -417,7 +420,7 @@
                             @if ($isMonetary)
                                 Not used — a monetary case allocates no plots.
                             @else
-                                Drives the 50:50 split on Step 5.
+                                Drives the farmer / Government split on Step 5.
                             @endif
                         </p>
                     </div>
@@ -448,7 +451,7 @@
                     <i class="fas fa-ban"></i>
                     <strong>Not applicable to this case.</strong>
                     Land to Land compensation pays no cash for economic trees, so nothing is recorded on this step.
-                    Compensation is the 50:50 plot allocation on Step 5. Any tree line entered here is discarded on save.
+                    Compensation is the plot allocation (by the project's sharing ratio) on Step 5. Any tree line entered here is discarded on save.
                 </div>
 
                 <div id="caseTreesActive" @style(['display:none' => $isLand])>
@@ -472,8 +475,7 @@
                             <div class="form-group">
                                 <label>Category <span class="required">*</span></label>
                                 <select id="newTreeMaturity" onchange="caseReg.priceFor(true)">
-                                    <option value="Mature">Mature</option>
-                                    <option value="Early">Early</option>
+                                    @foreach ($treeMaturities as $tm)<option value="{{ $tm }}">{{ $tm }}</option>@endforeach
                                 </select>
                             </div>
                             <div class="form-group">
@@ -499,7 +501,7 @@
                     </div>
 
                     <style>
-                        /* Category column (Mature / Early, 2026-10-29), this page only. */
+                        /* Category column (Mature / Immature / Seedling), this page only. */
                         .survey-proto .tree-list.tl-m .list-header, .survey-proto .tree-list.tl-m .list-item { grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr auto; }
                     </style>
                     <div class="tree-list tl-m">
@@ -515,7 +517,7 @@
                         {{-- Hidden prototype row, cloned by addTree(). --}}
                         <div class="list-item" id="caseTreeTemplate" style="display:none;">
                             <span><input type="text" data-f="tree_type" /><input type="hidden" data-f="id" /></span>
-                            <span><select data-f="maturity"><option value="Mature">Mature</option><option value="Early">Early</option></select></span>
+                            <span><select data-f="maturity">@foreach ($treeMaturities as $tm)<option value="{{ $tm }}">{{ $tm }}</option>@endforeach</select></span>
                             <span><input type="number" min="1" step="1" data-f="quantity" oninput="caseReg.lineTotal(this)" /></span>
                             <span class="hide-mobile"><input type="number" min="0" step="0.01" data-f="unit_price" oninput="caseReg.lineTotal(this)" /></span>
                             <span class="total" data-role="line">0.00</span>
@@ -534,7 +536,7 @@
                                         <input type="hidden" name="trees[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
                                     </span>
                                     <span><select name="trees[{{ $i }}][maturity]">
-                                        @foreach (['Mature', 'Early'] as $m)<option value="{{ $m }}" @selected(($row['maturity'] ?? 'Mature') === $m)>{{ $m }}</option>@endforeach
+                                        @foreach ($treeMaturities as $m)<option value="{{ $m }}" @selected(($row['maturity'] ?? 'Mature') === $m)>{{ $m }}</option>@endforeach
                                     </select></span>
                                     <span><input type="number" min="1" step="1" name="trees[{{ $i }}][quantity]"
                                                  value="{{ $row['quantity'] ?? '' }}" oninput="caseReg.lineTotal(this)" /></span>
@@ -607,7 +609,7 @@
                         <div class="comp-cards single">
                             <div class="comp-card" style="border-color:var(--primary);background:var(--primary-50);">
                                 <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
-                                <div class="card-label">Land to Land Compensation (50:50)</div>
+                                <div class="card-label">Land to Land Compensation ({{ $case->project?->share_label ?? '50:50' }})</div>
                                 <div style="font-size:20px;font-weight:600;color:var(--primary);margin:8px 0;" id="caseLandPlots">
                                     {{ number_format($split['total'] ?? (int) old('num_plots', $case->num_plots)) }} Plots Total
                                 </div>
@@ -854,14 +856,14 @@
         if (badge && scheme) {
             badge.innerHTML = '<span class="status-badge ' + (isMonetary ? 'active' : 'completed') +
                 '" style="font-size:14px;padding:6px 16px;"><span class="dot"></span>' +
-                (isMonetary ? 'Monetary Compensation' : 'Land to Land (50:50)') + '</span>' +
+                (isMonetary ? 'Monetary Compensation' : 'Land to Land') + '</span>' +
                 '<span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>';
         }
         var note = qs('caseSchemeNote');
         if (note && scheme) {
             note.innerHTML = '<i class="fas fa-info-circle"></i> ' + (isMonetary
                 ? '<strong>Monetary Compensation scheme:</strong> record economic trees and the cash they are worth. No plots are allocated.'
-                : '<strong>Land to Land scheme:</strong> plots are split 50:50 (Farmer : Government). No cash is paid for trees.');
+                : '<strong>Land to Land scheme:</strong> plots are split by the project&rsquo;s sharing ratio (Farmer : Government), 50:50 unless the project set another. No cash is paid for trees.');
         }
 
         // Step 4 — required for monetary, explicitly not applicable for land.
@@ -880,7 +882,7 @@
         if (req)   req.style.display = isLand ? '' : 'none';
         if (help)  help.textContent = isMonetary
             ? 'Not used — a monetary case allocates no plots.'
-            : 'Drives the 50:50 split on Step 5.';
+            : 'Drives the farmer / Government split on Step 5.';
 
         // Step 5 — one panel, never two.
         ['casePanelUnknown', 'casePanelMonetary', 'casePanelLand'].forEach(function (id) {
@@ -893,7 +895,7 @@
         var compSub = qs('caseCompSubtitle');
         if (compSub) {
             compSub.textContent = isLand
-                ? 'Land to Land: plots split 50:50 (Farmer : Government). No monetary compensation on this case.'
+                ? 'Land to Land: plots split by the project sharing ratio (Farmer : Government). No monetary compensation on this case.'
                 : (isMonetary
                     ? 'Monetary Compensation: economic trees only (Tree × Quantity × Unit Price). No plots on this case.'
                     : 'The scheme is exclusive — monetary or land-to-land, never both.');
@@ -1057,7 +1059,7 @@
         if (src && dst) dst.value = src.value;
     }
 
-    // The 50:50 numbers are produced by SurveyCompCase::plotSplit() on the server.
+    // The split numbers are produced by SurveyCompCase::plotSplit() on the server (project sharing ratio).
     // Changing the plot count here only re-labels the total and flags the split as
     // pending; the page never recomputes the shares itself.
     function mirrorPlots() {
@@ -1117,7 +1119,7 @@
             var farmerEl = qs('caseLandFarmer'), govtEl = qs('caseLandGovt');
             var shares = (farmerEl && farmerEl.textContent !== '—')
                 ? ' (' + farmerEl.textContent + ' Farmer : ' + govtEl.textContent + ' Government)'
-                : ' · 50:50 split calculated on save';
+                : ' · split calculated on save (project sharing ratio)';
             text('pvLand', plots + ' plots' + shares);
         } else {
             var rows = treeRows();

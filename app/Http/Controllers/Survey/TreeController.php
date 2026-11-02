@@ -21,16 +21,19 @@ use Illuminate\Validation\ValidationException;
  * available when the catalogue was loaded (2026-10-25). Such a tree cannot be
  * valued until a rate is entered here or typed on the line.
  *
- * Each row is one tree in one Category (Mature / Early) with its own rate
- * (user, 2026-10-30); Type is Cash Crop / Timber / Fruit.
+ * Each row is one crop / tree in one Category (Mature / Immature / Seedling) with its own rate;
+ * Type is Cash Crop (priced per m²) or Economic Tree (priced per stand). Loaded from the Kano
+ * schedule (user, 2026-11-01), with the per-hectare price and the cost of production per hectare.
  */
 class TreeController extends Controller
 {
-    public const CATEGORIES = ['Cash Crop', 'Timber', 'Fruit'];
+    public const CATEGORIES = SurveyTreeType::TYPES;
     public const STATUSES   = ['Active', 'Inactive'];
     // Farm Assessment tabs (CR 30102026 item 6): Cash Crops = Type Cash Crop, Economic Trees = every other Type.
     public const TABS       = ['economic' => 'Economic Trees', 'cash' => 'Cash Crops'];
-    public const CASH_CROP  = 'Cash Crop';
+    public const CASH_CROP  = SurveyTreeType::CASH_CROP;
+    /** Mature, Immature, Seedling. */
+    public const MATURITY_ORDER = "CASE maturity WHEN 'Mature' THEN 0 WHEN 'Immature' THEN 1 ELSE 2 END";
 
     public function index(Request $r)
     {
@@ -52,7 +55,7 @@ class TreeController extends Controller
             if ($r->query('rate') === 'unset') $q->whereNull('default_unit_price');
         };
 
-        // One table row per tree, folding its Mature and Early rows (user, 2026-10-30): pages count trees.
+        // One table row per tree, folding its Category rows (user, 2026-10-30): pages count trees.
         $treeNames = SurveyTreeType::query()->tap($filter)->select('name')->groupBy('name')->orderBy('name')
             ->paginate(15)->withQueryString();
 
@@ -67,7 +70,7 @@ class TreeController extends Controller
             ])
             ->tap($filter)
             ->whereIn('name', $treeNames->pluck('name')->all() ?: [''])
-            ->orderBy('name')->orderBy('maturity', 'desc')   // Mature before Early
+            ->orderBy('name')->orderByRaw(self::MATURITY_ORDER)
             ->get();
 
         // Figures for the open tab.
@@ -90,7 +93,7 @@ class TreeController extends Controller
         }
 
         // Catalogue rows for the "add line" select — inactive types are not offered.
-        $activeTypes = SurveyTreeType::where('status', 'Active')->orderBy('name')->orderBy('maturity', 'desc')
+        $activeTypes = SurveyTreeType::where('status', 'Active')->orderBy('name')->orderByRaw(self::MATURITY_ORDER)
             ->get(['id', 'name', 'local_name', 'category', 'maturity', 'default_unit_price']);
 
         return view('survey_module.compensation.trees', compact(
@@ -99,61 +102,71 @@ class TreeController extends Controller
     }
 
     /**
-     * A tree is added in both Categories at once, Mature and Early, each with its own rate
-     * (user, 2026-10-30: "Mature or Early, so it have to be two, and the rate too"). A
-     * Category the tree already has is left as it is.
+     * A crop / tree is added in all three Categories at once (Mature, Immature, Seedling), each
+     * with its own rate per unit and per hectare; the cost of production per hectare is shared.
+     * A Category it already has is left as it is.
      */
     public function store(Request $r)
     {
-        $data = $r->validate([
+        $rules = [
             'name'           => ['required', 'string', 'max:255'],
             'local_name'     => 'nullable|string|max:150',
             'botanical_name' => 'nullable|string|max:255',
             'category'       => ['required', Rule::in(self::CATEGORIES)],
-            // Blank = no rate set yet; the calculator refuses the tree until there is one.
-            'rate_mature'    => 'nullable|numeric|min:0|max:999999999999',
-            'rate_early'     => 'nullable|numeric|min:0|max:999999999999',
+            'cost_per_ha'    => 'nullable|numeric|min:0|max:999999999999',
             'status'         => ['required', Rule::in(self::STATUSES)],
-        ], ['category.in' => 'Type must be Cash Crop, Timber or Fruit.']);
+        ];
+        foreach (SurveyTreeType::MATURITIES as $m) {
+            // Blank = no rate set yet; the calculator refuses the row until there is one.
+            $rules['rate.' . $m] = 'nullable|numeric|min:0|max:999999999999';
+            $rules['rate_ha.' . $m] = 'nullable|numeric|min:0|max:999999999999';
+        }
+        $data = $r->validate($rules, ['category.in' => 'Type must be Cash Crop or Economic Tree.']);
 
         $name = trim(preg_replace('/\s+/', ' ', $data['name']));
-        $shared = ['name' => $name, 'category' => $data['category'], 'status' => $data['status']];
+        $shared = ['name' => $name, 'category' => $data['category'], 'status' => $data['status'], 'cost_per_ha' => self::blank($data['cost_per_ha'] ?? null)];
         foreach (['local_name', 'botanical_name'] as $k) $shared[$k] = trim((string) ($data[$k] ?? '')) ?: null;
-        $rates = [SurveyTreeType::MATURE => $data['rate_mature'] ?? null, SurveyTreeType::EARLY => $data['rate_early'] ?? null];
 
         $added = []; $kept = [];
-        DB::connection('sqlsrv')->transaction(function () use ($name, $shared, $rates, &$added, &$kept) {
-            foreach ($rates as $maturity => $rate) {
+        DB::connection('sqlsrv')->transaction(function () use ($name, $shared, $data, &$added, &$kept) {
+            foreach (SurveyTreeType::MATURITIES as $maturity) {
                 // A blank rate means "not set", never ₦0; always sent so the column default (0) cannot apply.
-                $row = $shared + ['maturity' => $maturity, 'default_unit_price' => trim((string) $rate) === '' ? null : $rate];
-                $existing = SurveyTreeType::withTrashed()->where('name', $name)->where('maturity', $maturity)->first();
-                if ($existing && ! $existing->trashed()) { $kept[] = $maturity; continue; }
-                // The (name, maturity) unique index covers retired rows: revive one rather than insert.
-                if ($existing) { $existing->restore(); $existing->update($row); } else { SurveyTreeType::create($row); }
+                $row = $shared + ['maturity' => $maturity,
+                    'default_unit_price' => self::blank($data['rate'][$maturity] ?? null),
+                    'price_per_ha' => self::blank($data['rate_ha'][$maturity] ?? null)];
+                $exists = SurveyTreeType::where('name', $name)->where('category', $shared['category'])->where('maturity', $maturity)->exists();
+                if ($exists) { $kept[] = $maturity; continue; }
+                SurveyTreeType::create($row);
                 $added[] = $maturity;
             }
         });
 
         if (! $added) {
-            throw ValidationException::withMessages(['name' => "{$name} is already in the catalogue as Mature and Early. Edit its rows to change them."]);
+            throw ValidationException::withMessages(['name' => "{$name} is already a {$shared['category']} in every Category. Edit its rows to change them."]);
         }
 
-        return back()->with('success', "{$name} added as " . implode(' and ', $added)
+        return back()->with('success', "{$name} added as " . implode(', ', $added)
             . ($kept ? '; its ' . implode(' and ', $kept) . ' row was already there and is unchanged.' : '.'));
     }
 
+    private static function blank($v)
+    {
+        return trim((string) $v) === '' ? null : $v;
+    }
     public function update(Request $r, SurveyTreeType $treeType)
     {
         $data = $this->validated($r, $treeType);
         $oldName = $treeType->name;
+        $oldType = $treeType->category;
 
         $treeType->update($data);
 
-        // The tree's other Category row keeps the same names and Type.
-        SurveyTreeType::withTrashed()->where('name', $oldName)->whereKeyNot($treeType->id)
+        // The crop / tree's other Category rows keep the same names, Type and cost of production.
+        SurveyTreeType::where('name', $oldName)->where('category', $oldType)->whereKeyNot($treeType->id)
             ->where('maturity', '!=', $treeType->maturity)
             ->update(['name' => $treeType->name, 'local_name' => $treeType->local_name,
-                      'botanical_name' => $treeType->botanical_name, 'category' => $treeType->category]);
+                      'botanical_name' => $treeType->botanical_name, 'category' => $treeType->category,
+                      'cost_per_ha' => $treeType->cost_per_ha]);
 
         // Existing case lines keep the price they were valued at — the catalogue
         // price is only a default for new lines.
@@ -191,7 +204,7 @@ class TreeController extends Controller
             'quantity'            => 'required|integer|min:1|max:1000000',
             'unit_price'          => 'nullable|numeric|min:0|max:99999999999',
         ], [
-            'maturity.required'            => 'Choose the Category (Mature or Early).',
+            'maturity.required'            => 'Choose the Category (Mature, Immature or Seedling).',
             'survey_tree_type_id.required' => 'Choose a tree type from the catalogue.',
             'survey_tree_type_id.exists'   => 'That tree type is not in the catalogue.',
             'quantity.min'                 => 'Quantity must be at least 1.',
@@ -199,7 +212,7 @@ class TreeController extends Controller
 
         $type = SurveyTreeType::findOrFail($data['survey_tree_type_id']);
 
-        // The catalogue row is one tree in one Category (Mature / Early), with its own rate;
+        // The catalogue row is one tree in one Category (Mature / Immature / Seedling), with its own rate;
         // the Category picked on the form must be that row's.
         $maturity = $type->maturity ?: SurveyTreeType::MATURE;
         if ($maturity !== $data['maturity']) {
@@ -244,26 +257,27 @@ class TreeController extends Controller
             'botanical_name'     => 'nullable|string|max:255',
             'category'           => ['required', Rule::in(self::CATEGORIES)],
             'maturity'           => ['required', Rule::in(SurveyTreeType::MATURITIES)],
-            // Blank = no rate set yet; the calculator refuses the tree until there is one.
+            // Blank = no rate set yet; the calculator refuses the row until there is one.
             'default_unit_price' => 'nullable|numeric|min:0|max:999999999999',
+            'price_per_ha'       => 'nullable|numeric|min:0|max:999999999999',
+            'cost_per_ha'        => 'nullable|numeric|min:0|max:999999999999',
             'status'             => ['required', Rule::in(self::STATUSES)],
         ], [
-            'category.in'       => 'Type must be Cash Crop, Timber or Fruit.',
-            'maturity.required' => 'Choose the Category: Mature or Early.',
+            'category.in'       => 'Type must be Cash Crop or Economic Tree.',
+            'maturity.required' => 'Choose the Category: Mature, Immature or Seedling.',
         ]);
         $data['name'] = trim(preg_replace('/\s+/', ' ', $data['name']));
 
-        // One row per tree per Category. Retired rows count too: the database's unique
-        // index covers them, so the form must refuse the pair before the insert does.
-        $taken = SurveyTreeType::withTrashed()->where('name', $data['name'])->where('maturity', $data['maturity'])
+        // One live row per name, Type and Category (the unique index covers live rows only).
+        $taken = SurveyTreeType::where('name', $data['name'])->where('category', $data['category'])->where('maturity', $data['maturity'])
             ->when($existing, fn ($q) => $q->where('id', '!=', $existing->id))->exists();
         if ($taken) {
-            throw ValidationException::withMessages(['name' => "{$data['name']} ({$data['maturity']}) is already in the catalogue (it may be a retired entry)."]);
+            throw ValidationException::withMessages(['name' => "{$data['name']} ({$data['category']}, {$data['maturity']}) is already in the catalogue."]);
         }
 
         // A blank rate means "not set", never ₦0. Always sent explicitly: left out
         // of an insert, the column's database default (0) would apply.
-        foreach (['default_unit_price', 'local_name', 'botanical_name'] as $k) {
+        foreach (['default_unit_price', 'price_per_ha', 'cost_per_ha', 'local_name', 'botanical_name'] as $k) {
             $v = $data[$k] ?? null;
             $data[$k] = trim((string) $v) === '' ? null : $v;
         }

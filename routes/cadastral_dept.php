@@ -44,6 +44,9 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
     // role acts for any desk or unit head through the case routes below. Sidebar: Admin, after Dashboard.
     Route::get('/central-admin', [CentralAdminController::class, 'index'])->name('central-admin.index');
 
+    // Verification > File Status > Search (user, 2026-10-31): the Survey File Status search, copied for Cadastral.
+    Route::get('/file-status', [\App\Http\Controllers\CadastralDept\FileStatusController::class, 'index'])->name('file-status');
+
     // Generate Property Index Card (2026-10-16): one card per file from the Legal Search records,
     // filed as a PDF to EDMS/SCAN_UPLOAD/Cadastral_Registry/PIC/{file}/. Registering a file generates it too.
     Route::get('/pic', [PropertyIndexCardController::class, 'index'])->name('pic.index');

@@ -114,6 +114,7 @@ class MobilePlotController extends Controller
             'allottee_present' => 'required|in:1,0',
             'reason'           => [Rule::requiredIf($count > 0), 'nullable', Rule::in(Showing::REASONS)],
             'notes'            => 'nullable|string|max:2000',
+            'requester_is_allottee' => 'nullable|in:0,1',
             'latitude'         => 'nullable|numeric|between:-90,90',
             'longitude'        => 'nullable|numeric|between:-180,180|required_with:latitude',
             'accuracy_m'       => 'nullable|numeric|min:0|max:100000',
@@ -125,9 +126,12 @@ class MobilePlotController extends Controller
             'reason.required'           => 'This OP has been shown before: say why (Change of Ownership or Verification).',
         ]);
         [$staffId, $name] = $this->surveyor($data);
+        // Who asked for the showing (user, 2026-11-02). Not required of a showing queued on a phone
+        // before the app asked for it, so the offline queue still syncs.
+        $requester = \App\Services\Survey\ShowingRequester::resolve($r, $record, false);
 
         try {
-            $showing = DB::connection('sqlsrv')->transaction(function () use ($record, $data, $staffId, $name, $uuid) {
+            $showing = DB::connection('sqlsrv')->transaction(function () use ($record, $data, $staffId, $name, $uuid, $requester) {
                 // Re-read inside the transaction so two officers saving at once do not share a number.
                 $no = (int) Showing::where('op_source', $record['source'])->where('op_source_id', $record['id'])->lockForUpdate()->max('showing_no') + 1;
 
@@ -153,7 +157,7 @@ class MobilePlotController extends Controller
                     'accuracy_m'        => $data['accuracy_m'] ?? null,
                     'client_uuid'       => $uuid,
                     'source'            => 'mobile',
-                ]);
+                ] + $requester);
             });
         } catch (QueryException $e) {
             if ($uuid && ($done = Showing::where('client_uuid', $uuid)->first())) return $this->answerShowing($r, $record, $done, true);

@@ -8,6 +8,7 @@ use App\Models\Survey\SurveyProject;
 use App\Models\Survey\SurveyResettlementCalculation as Calc;
 use App\Models\Survey\SurveyResettlementRate as Rate;
 use App\Services\Survey\ResettlementCalculator;
+use App\Services\Survey\SurveySettings;
 use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -29,7 +30,7 @@ class ResettlementCalculatorController extends Controller
 
     public function index(Request $r)
     {
-        $lands = SurveyCompCase::with(['project:id,project_code,name,scheme_type,purpose', 'beneficiaries:id,survey_comp_case_id,full_name'])
+        $lands = SurveyCompCase::with(['project:id,project_code,name,scheme_type,purpose,farmer_share_pct', 'beneficiaries:id,survey_comp_case_id,full_name'])
             ->orderByDesc('id')
             ->get(['id', 'case_ref', 'survey_project_id', 'scheme_type', 'area_ha', 'portion_size_ha', 'portion_no', 'prop_plot', 'prop_district', 'prop_district_other', 'prop_lga']);
 
@@ -43,11 +44,14 @@ class ResettlementCalculatorController extends Controller
             'purposes' => ResettlementCalculator::purposes(),
             'calcs'    => $calcs,
             'roundings' => ResettlementCalculator::ROUNDINGS,
+            'ratios'    => SurveySettings::sharingRatios(),
+            'classmarks' => SurveySettings::classmarks()->map(fn ($c) => ['from' => (float) $c->from_fraction, 'to' => (float) $c->to_fraction, 'plots' => (float) $c->plots])->values(),
             'lands'    => $lands,
             'landMeta' => $lands->mapWithKeys(fn ($l) => [$l->id => [
                 'ref'      => $l->case_ref,
                 'area'     => $l->area_ha !== null ? (float) $l->area_ha : ($l->portion_size_ha !== null ? (float) $l->portion_size_ha : null),
                 'plotForPlot' => ($l->scheme_type ?: $l->project?->scheme_type) === SurveyProject::SCHEME_LAND,
+                'farmerPct'   => $l->project?->farmer_share_pct ?? SurveySettings::GENERAL_FARMER_PCT,
                 'project'  => $l->project ? $l->project->project_code . ' · ' . $l->project->name : null,
                 'farmers'  => $l->beneficiaries->pluck('full_name')->filter()->implode(', '),
                 // Property order: Plot No., District, LGA.
@@ -68,8 +72,10 @@ class ResettlementCalculatorController extends Controller
             'rounding'            => ['required', Rule::in(array_keys(ResettlementCalculator::ROUNDINGS))],
             'purpose'             => 'required|string|max:150',
             'split'               => 'nullable|boolean',
+            'farmer_pct'          => ['nullable', 'integer', Rule::in(SurveySettings::sharingRatios()->pluck('farmer_pct')->map(fn ($p) => (int) $p)->all())],
             'notes'               => 'nullable|string|max:1000',
         ], [
+            'farmer_pct.in'    => 'Choose a sharing ratio from the list.',
             'purpose.required' => 'Choose the purpose.',
             'rate_id.required' => 'Choose the land use, purpose and density.',
             'area_ha.gt'       => 'The area must be more than zero hectares.',
@@ -84,13 +90,15 @@ class ResettlementCalculatorController extends Controller
             throw ValidationException::withMessages(['rate_id' => 'That density is not one set for ' . ($purpose ?: $data['purpose']) . '. Choose the purpose and density again.']);
         }
         $land = ! empty($data['survey_comp_case_id']) ? SurveyCompCase::with('project')->find($data['survey_comp_case_id']) : null;
-        // On a land the scheme decides: Land-to-Land always splits 50:50; Monetary Compensation never.
+        // On a land the scheme decides: Land-to-Land always splits, by the project's sharing
+        // ratio (CR 30102026 item 11); Monetary Compensation never. Without a land, the ratio picked.
         $split = $land
             ? (($land->scheme_type ?: $land->project?->scheme_type) === SurveyProject::SCHEME_LAND)
             : (bool) ($data['split'] ?? false);
+        $farmerPct = $land ? $land->project?->farmer_share_pct : ($data['farmer_pct'] ?? null);
 
         $res = $this->calculator->calculate((float) $data['area_ha'], (float) $rate->plot_size_ha,
-            (float) ($data['deduction_percent'] ?? 0), $data['rounding'], $split);
+            (float) ($data['deduction_percent'] ?? 0), $data['rounding'], $split, $farmerPct);
 
         $c = Calc::create([
             'calc_ref'                    => Calc::nextRef('calc_ref', 'RC', 4),

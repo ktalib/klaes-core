@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
 class MobileOfflineController extends Controller
 {
     /** Bump to make every phone refresh its cached pages and assets. */
-    public const SW_VERSION = 'scf-2026-10-30-1';
+    public const SW_VERSION = 'scf-2026-11-02-3';
 
     public function serviceWorker()
     {

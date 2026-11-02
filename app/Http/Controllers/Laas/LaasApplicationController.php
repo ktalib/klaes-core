@@ -205,6 +205,8 @@ class LaasApplicationController extends Controller
             'answers'     => (array) ($application->form_data ?? []),
             'typeLabel'   => SroFormSchema::typeLabel($type),
             'docTypes'    => self::DOC_TYPES,
+            // Where the file is in Cadastral (and the Survey stages inside it); hidden after a transfer.
+            'cadastral'   => $until ? null : app(\App\Services\Laas\LaasCadastralProgress::class)->forFile($application->file_number),
         ]);
     }
 

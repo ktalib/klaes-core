@@ -85,17 +85,15 @@ class SurveyCompCase extends SurveyModel
     }
 
     /**
-     * 50:50 split. Plot rows win; otherwise fall back to the declared count.
-     * Odd plot goes to Government (ceil), farmer takes the floor.
+     * Farmer / Government split by the project's sharing ratio (CR 30102026 item 11):
+     * 50:50 unless the project picked another. Plot rows win; otherwise fall back to the
+     * declared count. The farmer takes the whole plots of their share, Government the
+     * rest, so on 50:50 the odd plot goes to Government.
      */
     public function plotSplit(): array
     {
         $total = $this->plots()->count() ?: (int) ($this->num_plots ?? 0);
 
-        return [
-            'total'  => $total,
-            'govt'   => (int) ceil($total / 2),
-            'farmer' => (int) floor($total / 2),
-        ];
+        return \App\Services\Survey\SurveySettings::splitPlots($total, $this->survey_project_id ? $this->project?->farmer_share_pct : null);
     }
 }

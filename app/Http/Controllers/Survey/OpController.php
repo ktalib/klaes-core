@@ -122,7 +122,8 @@ class OpController extends Controller
             $ref = $this->reference($case, $beneficiary);
 
             $op = SurveyOpRecord::create([
-                'op_number'             => SurveyOpRecord::nextRef('op_number', 'OP'),
+                // The lowest free number: one freed by a Return is used again (CR 30102026 item 35).
+                'op_number'             => SurveyOpRecord::nextOpNumber(),
                 'survey_comp_case_id'   => $case->id,
                 'survey_beneficiary_id' => $beneficiary?->id,
                 // Scheme is inherited from the case, never taken from the request.
@@ -149,6 +150,33 @@ class OpController extends Controller
         return redirect()
             ->route('survey-module.compensation.op')
             ->with($created ? 'success' : 'error', $msg);
+    }
+
+    /**
+     * Return a generated OP made by mistake (CR 30102026 item 35, user 2026-10-31): the permit
+     * and its pipeline are removed, so the case / beneficiary is back in the table above, ready
+     * to generate again, and its OP number is freed for the next OP (SurveyOpRecord::nextOpNumber).
+     * An issued OP, or one already sent to Deeds, cannot be returned here.
+     */
+    public function returnOp(SurveyOpRecord $op)
+    {
+        if ($op->status === self::STATUS_ISSUED) {
+            return back()->with('error', "{$op->op_number} has already been issued and cannot be returned.");
+        }
+        if ($op->sent_to_deeds_at) {
+            return back()->with('error', "{$op->op_number} has already been sent to Deeds and cannot be returned here.");
+        }
+
+        $number = $op->op_number;
+        $who = $op->beneficiary?->full_name ?: $op->case?->case_ref;
+        \Illuminate\Support\Facades\Log::info('Survey OP returned', ['op' => $op->toArray(), 'steps' => $op->steps()->get()->toArray(), 'by' => auth()->id()]);
+        \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($op) {
+            // Removed outright, not soft-deleted, so the number is free again (the steps first: they hold the key).
+            $op->steps()->withTrashed()->forceDelete();
+            $op->forceDelete();
+        });
+
+        return back()->with('success', "{$number} returned" . ($who ? " for {$who}" : '') . '. It is back in the table above, and the number will be used by the next OP generated.');
     }
 
     public function destroy(SurveyOpRecord $op)

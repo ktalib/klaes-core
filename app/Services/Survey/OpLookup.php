@@ -78,7 +78,7 @@ class OpLookup
         return DB::connection('sqlsrv')->table('instrument_capture as ic')
             ->where('ic.instrument_type', self::OP)
             ->where(fn ($q) => $q->whereNull('ic.is_deleted')->orWhere('ic.is_deleted', 0))
-            ->select(['ic.id', 'ic.op_serial_number', 'ic.op_type', 'ic.party_2_name', 'ic.party_2_phone', 'ic.plot_number', 'ic.plot_size',
+            ->select(['ic.id', 'ic.op_serial_number', 'ic.op_type', 'ic.party_2_name', 'ic.party_2_phone', 'ic.party_2_address', 'ic.plot_number', 'ic.plot_size',
                       'ic.district', 'ic.lga', 'ic.property_description', 'ic.property_location', 'ic.lpkn_no', 'ic.tp_no',
                       'ic.temp_fileno', 'ic.mlsFNo', 'ic.registration_number', 'ic.land_use', 'ic.reg_date']);
     }
@@ -103,6 +103,7 @@ class OpLookup
             'type'        => $this->s($r->op_type),
             'allottee'    => $this->s($r->party_2_name),
             'phone'       => $this->s($r->party_2_phone),
+            'address'     => $this->s($r->party_2_address),
             'plot_no'     => $this->s($r->plot_number),
             'plot_size'   => $this->s($r->plot_size),
             'district'    => $this->s($r->district),
@@ -125,6 +126,7 @@ class OpLookup
             'type'        => $this->s($r->op_type),
             'allottee'    => $this->s($r->Grantee),
             'phone'       => null,
+            'address'     => null,
             'plot_no'     => $this->s($r->plot_no),
             'plot_size'   => $this->s($r->plot_size),
             'district'    => $this->s($r->districtName),

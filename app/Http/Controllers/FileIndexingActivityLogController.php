@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * File Indexing Activity Log
+ * Supervisor Monitor (was "File Indexing Activity Log"; renamed 2026-11-01)
+ *
+ * Each user also carries what they earned under the indexing piece rate (attachEarnings).
  *
  * Per-user breakdown of file indexing work. Each row is a file number and shows:
  *   - Number of files .......... 1 (the file itself) + its related files
@@ -35,6 +37,8 @@ class FileIndexingActivityLogController extends Controller
     private array $userDisplay = [];
     /** user id => list of raw created_by values that map to this user. */
     private array $userKeys = [];
+    /** Normalized display name => every user id carrying it (two accounts can share a name). */
+    private array $idsByName = [];
 
     /**
      * Load current users from the users table and index every identifier that a
@@ -55,6 +59,7 @@ class FileIndexingActivityLogController extends Controller
             $full = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
             $display = $full !== '' ? $full : ($u->username ?: ($u->email ?: ('User #' . $u->id)));
             $this->userDisplay[$u->id] = $display;
+            $this->idsByName[strtoupper(trim($display))][] = (int) $u->id;
 
             foreach ([(string) $u->id, $full, $u->username, $u->email] as $key) {
                 $norm = strtoupper(trim((string) $key));
@@ -127,6 +132,7 @@ class FileIndexingActivityLogController extends Controller
             'transactions' => array_sum(array_column($groups, 'transactions')),
             'weight' => array_sum(array_column($groups, 'weight')),
             'records' => array_sum(array_map(fn ($g) => count($g['rows']), $groups)),
+            'earned' => round(array_sum(array_column($groups, 'earned')), 2),
         ];
 
         return view('fileindexing.activity_log.index', [
@@ -201,7 +207,11 @@ class FileIndexingActivityLogController extends Controller
         $records = $query->orderBy('created_by')->orderByDesc('created_at')->get();
 
         if ($records->isEmpty()) {
-            return [];
+            // Nobody indexed a file, but records captured still earn.
+            $groups = $this->attachEarnings([], $filters);
+            usort($groups, fn ($a, $b) => $b['earned'] <=> $a['earned']);
+
+            return $groups;
         }
 
         // 2. Related links for all records in one query, grouped by parent id.
@@ -266,6 +276,7 @@ class FileIndexingActivityLogController extends Controller
 
             if (!isset($grouped[$userKey])) {
                 $grouped[$userKey] = [
+                    'user_id' => $userId,
                     'user' => $this->userDisplay[$userId],
                     'files' => 0,
                     'related' => 0,
@@ -278,6 +289,7 @@ class FileIndexingActivityLogController extends Controller
             }
 
             $grouped[$userKey]['rows'][] = [
+                'id' => (int) $rec->id,
                 'file_number' => $mainFileNo !== '' ? $mainFileNo : ($rec->file_title ?: '(untitled)'),
                 'file_title' => $rec->file_title,
                 'registry' => $registry,
@@ -306,7 +318,105 @@ class FileIndexingActivityLogController extends Controller
             $g['registries'] = array_keys($g['registries']);
         }
         unset($g);
-        usort($groups, fn ($a, $b) => $b['weight'] <=> $a['weight']);
+
+        $groups = $this->attachEarnings($groups, $filters);
+        usort($groups, fn ($a, $b) => [$b['weight'], $b['earned']] <=> [$a['weight'], $a['earned']]);
+
+        return $groups;
+    }
+
+    /**
+     * Indexing piece-rate earnings (docs/plans/INDEXING_PIECE_RATE_PAYROLL_PLAN.md) for the
+     * same users and dates, from EarningsService so the figures match the My Indexing
+     * Earnings page and the Indexing Earnings sheet exactly.
+     *
+     *   group 'earned'        everything the user earned in the range (files + records)
+     *   row   'earned'        that file's base fee + the records the same user captured on it
+     *   group 'other_records' records the user captured on files not listed under them
+     *
+     * Users who earned only from records (no file indexed in the range) are added as groups
+     * of their own, so the column accounts for every naira.
+     */
+    private function attachEarnings(array $groups, array $filters): array
+    {
+        try {
+            $svc = app(\App\Services\IndexingPay\EarningsService::class);
+            [$pStart] = $svc->programme();
+            $from = !empty($filters['date_from']) ? Carbon::parse($filters['date_from'])->toDateString() : $pStart;
+            $to = !empty($filters['date_to']) ? Carbon::parse($filters['date_to'])->toDateString() : now()->toDateString();
+
+            $eligible = array_flip($svc->eligibleUserIds());
+            $ids = $filters['user'] !== '' ? [(int) $filters['user']] : array_merge(array_column($groups, 'user_id'), array_keys($eligible));
+            $ids = array_values(array_filter(array_unique($ids), fn ($id) => isset($eligible[$id])));
+            $items = $ids ? $svc->collect($ids, $from, $to) : [];
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Supervisor Monitor: earnings unavailable', ['error' => $e->getMessage()]);
+            $eligible = [];
+            $items = [];
+        }
+
+        $total = [];
+        $fileBase = [];
+        $recordsOnFile = [];
+        foreach ($items as $it) {
+            $uid = $it['user_id'];
+            $total[$uid] = ($total[$uid] ?? 0) + $it['amount'];
+            if ($it['kind'] === 'file') {
+                // Keyed by user too: a file's fee shows only under the person who indexed it.
+                $fileBase[$uid . '|' . $it['source_id']] = ($fileBase[$uid . '|' . $it['source_id']] ?? 0) + $it['amount'];
+            } else {
+                $key = $uid . '|' . strtoupper(trim($it['file_number']));
+                $recordsOnFile[$key] = ($recordsOnFile[$key] ?? 0) + $it['amount'];
+            }
+        }
+
+        $seen = [];
+        foreach ($groups as &$g) {
+            // Files are grouped by the NAME in created_by, and two accounts can share a name
+            // (e.g. one holding Indexing, one not). Earnings are by user id, so a group takes
+            // the earnings of every account carrying its name.
+            $uids = array_values(array_unique(array_merge([$g['user_id']], $this->idsByName[strtoupper(trim($g['user']))] ?? [])));
+            $g['eligible'] = false;
+            $g['earned'] = 0;
+            foreach ($uids as $uid) {
+                $seen[$uid] = true;
+                $g['eligible'] = $g['eligible'] || isset($eligible[$uid]);
+                $g['earned'] += $total[$uid] ?? 0;
+            }
+            $g['earned'] = round($g['earned'], 2);
+            $listed = 0;
+            foreach ($g['rows'] as &$row) {
+                $row['earned_base'] = 0;
+                $row['earned_records'] = 0;
+                foreach ($uids as $uid) {
+                    $recKey = $uid . '|' . strtoupper(trim($row['file_number']));
+                    $row['earned_base'] += $fileBase[$uid . '|' . $row['id']] ?? 0;
+                    $row['earned_records'] += $recordsOnFile[$recKey] ?? 0;
+                    // A file number listed twice under one user takes its records once.
+                    unset($recordsOnFile[$recKey]);
+                }
+                $row['earned'] = round($row['earned_base'] + $row['earned_records'], 2);
+                $listed += $row['earned'];
+            }
+            unset($row);
+            $g['other_records'] = round(max(0, $g['earned'] - $listed), 2);
+        }
+        unset($g);
+
+        foreach ($total as $uid => $amount) {
+            if (isset($seen[$uid]) || $amount <= 0) {
+                continue;
+            }
+            $groups[] = [
+                'user_id' => $uid,
+                'user' => $this->userDisplay[$uid] ?? ('User #' . $uid),
+                'files' => 0, 'related' => 0, 'indexed' => 0, 'transactions' => 0, 'weight' => 0,
+                'registries' => [], 'rows' => [],
+                'eligible' => true,
+                'earned' => round($amount, 2),
+                'other_records' => round($amount, 2),
+            ];
+        }
 
         return $groups;
     }

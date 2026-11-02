@@ -72,6 +72,7 @@
                                 </p>
                             </div>
                         @endif
+                        @include('indexing_pay.partials.create_strip')
                     </div>
 
                     <form id="new-file-form" data-default-indexer="{{ Auth::user()->name ?? 'Current User' }}"
@@ -416,6 +417,9 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     @include('fileindexing.partials.year_policy')
     <script src="{{ asset('js/global-fileno-modal.js') }}?v={{ @filemtime(public_path('js/global-fileno-modal.js')) }}"></script>
+    <script>window.KLAES_SCAN_PAGES_URL = @json(route('scan-check.pages'));</script>
+    <script src="{{ asset('js/scanning/scan-viewer.js') }}?v={{ @filemtime(public_path('js/scanning/scan-viewer.js')) }}"></script>
+    <script src="{{ asset('js/scanning/scan-check-panel.js') }}?v={{ @filemtime(public_path('js/scanning/scan-check-panel.js')) }}"></script>
     <script src="{{ asset('js/fileindexing/create-indexing-dialog.js') }}?v={{ @filemtime(public_path('js/fileindexing/create-indexing-dialog.js')) }}"></script>
 
     {{-- TEST AID. Same two locks as the button itself, so on production this

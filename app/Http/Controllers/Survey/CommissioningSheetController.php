@@ -27,7 +27,8 @@ class CommissioningSheetController extends Controller
         return $this->render([
             'file_number'         => $coFile->co_file_no,
             'file_type'           => 'CO File',
-            'related_file_number' => $coFile->related_file_no,
+            // SIT, GKN and Misc KN together (user, 2026-11-02).
+            'related_file_number' => implode(', ', array_filter([$coFile->related_sit_file_no, $coFile->related_gkn_file_no, $coFile->related_misckn_file_no])) ?: $coFile->related_file_no,
             'file_title'          => $coFile->title,
             'tp_number'           => implode(', ', $coFile->tpNumbers()),
             'plot_number'         => $coFile->prop_plot,

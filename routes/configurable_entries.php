@@ -66,6 +66,22 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     Route::post('/kano-mdas/{mda}/toggle', [Entries::class, 'toggleKanoMda'])->whereNumber('mda')->name('kano-mdas.toggle');
     Route::post('/kano-mdas/{mda}/delete', [Entries::class, 'deleteKanoMda'])->whereNumber('mda')->name('kano-mdas.delete');
 
+    // Survey (CR 30102026, 2026-10-31): sharing ratios, Classmark, land rates, beacon prefixes.
+    $surveyLists = ['ratios', 'classmarks', 'land-rates', 'beacon-prefixes'];
+    Route::post('/survey/{list}', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'save'])->whereIn('list', $surveyLists)->name('survey.store');
+    Route::post('/survey/{list}/{id}', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'save'])->whereIn('list', $surveyLists)->whereNumber('id')->name('survey.update');
+    Route::post('/survey/{list}/{id}/toggle', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'toggle'])->whereIn('list', $surveyLists)->whereNumber('id')->name('survey.toggle');
+    Route::post('/survey/{list}/{id}/delete', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'delete'])->whereIn('list', $surveyLists)->whereNumber('id')->name('survey.delete');
+
+    // Units (CR 30102026 item 34, 2026-11-01): units inside a department, offered on File Movement's Send to.
+    Route::post('/units', [\App\Http\Controllers\SystemAdmin\FileMovementUnitsController::class, 'save'])->name('units.store');
+    Route::post('/units/{id}', [\App\Http\Controllers\SystemAdmin\FileMovementUnitsController::class, 'save'])->whereNumber('id')->name('units.update');
+    Route::post('/units/{id}/toggle', [\App\Http\Controllers\SystemAdmin\FileMovementUnitsController::class, 'toggle'])->whereNumber('id')->name('units.toggle');
+    Route::post('/units/{id}/delete', [\App\Http\Controllers\SystemAdmin\FileMovementUnitsController::class, 'delete'])->whereNumber('id')->name('units.delete');
+
+    // Indexing Pay (2026-11-01): the indexing piece-rate card, effective-dated.
+    Route::post('/indexing-pay', [\App\Http\Controllers\SystemAdmin\IndexingPaySettingsController::class, 'save'])->name('indexing-pay.save');
+
     // Cadastral: the official fee sheet's rates and rules, the S.L.N. No. 3 of 1983
     // area schedule, transport bands, numbering, file prefixes / source registries,
     // and who holds each job post. Read back by App\Services\Cadastral\CadastralSettings.

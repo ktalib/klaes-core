@@ -791,6 +791,14 @@
                         </div>
                     </div>
 
+                    {{-- A temporary CO file, e.g. CO-33-2025(T) (user, 2026-11-02). --}}
+                    <div class="mb-4">
+                        <label class="inline-flex items-center text-sm font-medium text-gray-700 cursor-pointer">
+                            <input type="checkbox" id="co-temporary" class="form-checkbox h-4 w-4 text-rose-500 rounded border-gray-300 focus:ring-rose-400">
+                            <span class="ml-2">Temporary <span class="text-gray-400">(T)</span></span>
+                        </label>
+                    </div>
+
                     <div class="bg-gray-50 border rounded p-3">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Preview</label>
                         <div id="co-preview" class="text-lg font-mono font-bold text-rose-900 bg-white border px-3 py-2 rounded h-[48px] flex items-center">
@@ -811,9 +819,12 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Prefix</label>
                             <select id="mls-gkn-prefix" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-orange-500">
+                                {{-- The Survey file types (user, 2026-11-02: list was incomplete); CO has its own tab. --}}
                                 <option value="GKN" selected>GKN</option>
-                                <option value="MISC">MISC KN</option>
                                 <option value="LPKN">LPKN</option>
+                                <option value="LPPL">LPPL</option>
+                                <option value="MISC">MISC KN</option>
+                                <option value="RDKN">RDKN</option>
                             </select>
                         </div>
                         <div>

@@ -638,6 +638,9 @@ class CaseWorkflow
 
         // In-app notification to the desk concerned, sent once the move commits.
         app(WorkflowNotifications::class)->moved($case, $from, $to, $outcome, $remarks, $userId);
+
+        // The file holder's LAAS portal timeline (user, 2026-11-02): after commit, never throws, no SMS.
+        app(\App\Services\Laas\LaasCadastralProgress::class)->moved($case, $from, $to, $outcome);
     }
 
     /** CAD-2026-00001: next sequence for the year. Caller holds the transaction. */

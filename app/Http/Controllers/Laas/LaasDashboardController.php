@@ -20,6 +20,10 @@ class LaasDashboardController extends Controller
 
         return view('laas.dashboard', [
             'applications'   => $applications,
+            // Cadastral & Survey progress per file, keyed by upper-cased file number (user, 2026-11-02).
+            'cadastral'      => app(\App\Services\Laas\LaasCadastralProgress::class)->forFiles(
+                $applications->reject->isTransferredOut()->pluck('file_number')->all()
+            ),
             'unreadUpdates'  => $this->unreadCount($applicant->id),
         ]);
     }

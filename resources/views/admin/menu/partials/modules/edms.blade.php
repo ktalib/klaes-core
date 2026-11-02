@@ -119,11 +119,14 @@
               <span>File Indexing Assistant (old)</span>
             </a> --}}
 
-            @if($hasRole('Indexing Activity Log'))
-              <a href="{{route('fileindexing.activity-log')}}"
-                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('fileindexing.activity-log') ? 'active' : '' }}">
-                <i data-lucide="activity" class="h-3.5 w-3.5 text-emerald-400"></i>
-                <span>Indexing Activity Log</span>
+            {{-- Supervisor Monitor (fileindexing.activity-log) link removed from the sidebar (user,
+                 2026-11-01): Activity Monitoring covers it. The page and route remain. --}}
+            {{-- Indexing piece-rate pay: indexers' own progress & earnings (admins: any indexer's). --}}
+            @if(\App\Http\Controllers\IndexingPay\IndexingEarningsController::canSeeProgress(auth()->user()))
+              <a href="{{ route('indexing-earnings.me') }}"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('indexing-earnings.me') ? 'active' : '' }}">
+                <i data-lucide="wallet" class="h-3.5 w-3.5 text-emerald-400"></i>
+                <span>My Earnings</span>
               </a>
             @endif
           </div>
@@ -185,6 +188,7 @@
           <span>Blind Scanning</span>
         </a>
       @endif
+
 
       <!-- e. Scanning -->
       @if($hasRole('Scanning'))

@@ -38,6 +38,12 @@ class CaseController extends Controller
 
     public function index(Request $r)
     {
+        // Lands Assessment and the Plot Showing Register (?view=showing) are both blank for now
+        // (user, 2026-11-02); the lands stay in the database and open by link. Remove this to bring the list back.
+        if (true) {
+            return view('survey_module.compensation.cases', ['blank' => true, 'detail' => null]);
+        }
+
         $q = SurveyCompCase::query()->with(['project', 'allocation', 'creator:id,first_name,last_name'])->withCount('beneficiaries');
 
         if ($term = trim((string) $r->query('q', ''))) {
@@ -436,7 +442,8 @@ class CaseController extends Controller
 
     protected function schemeLabel(?string $type): string
     {
-        return $type === SurveyProject::SCHEME_LAND ? 'Land to Land (50:50)' : 'Monetary Compensation';
+        // The ratio is the project's (CR 30102026 item 11), so the scheme alone does not name one.
+        return $type === SurveyProject::SCHEME_LAND ? 'Land to Land' : 'Monetary Compensation';
     }
 
     /** Why this case may not be submitted yet, or null when it may. */

@@ -49,7 +49,7 @@
             <h2>{{ $case->case_ref }}</h2>
             <span class="pill {{ $statusClass($case->status) }}">{{ $statusLabel($case->status) }}</span>
         </div>
-        <p>{{ $isLand ? 'Land to Land (50:50)' : 'Monetary Compensation' }} · registered {{ optional($case->created_at)->format('d M Y, H:i') }}</p>
+        <p>{{ $isLand ? 'Land to Land (' . ($case->project?->share_label ?? '50:50') . ')' : 'Monetary Compensation' }} · registered {{ optional($case->created_at)->format('d M Y, H:i') }}</p>
     </div>
 </header>
 
@@ -134,7 +134,7 @@
                         <div class="li">
                             <div style="min-width:0;">
                                 <div class="main-t">{{ $t->tree_type }}</div>
-                                <small>{{ number_format($t->quantity) }} × ₦{{ number_format((float) $t->unit_price, 2) }}</small>
+                                <small>{{ $t->maturity ?: 'Mature' }} · {{ number_format($t->quantity) }} × ₦{{ number_format((float) $t->unit_price, 2) }}</small>
                             </div>
                             <span class="amt">₦{{ number_format((float) $t->line_total, 2) }}</span>
                         </div>

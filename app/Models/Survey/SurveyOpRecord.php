@@ -62,6 +62,23 @@ class SurveyOpRecord extends SurveyModel
         return $this->hasMany(SurveyOpWorkflowStep::class, 'survey_op_record_id')->orderBy('step_no');
     }
 
+    /**
+     * The next OP number, OP-<year>-<3 digits>: the lowest one free this year (CR 30102026 item 35).
+     * A returned OP is removed outright, so its number is the one taken next; a deleted OP stays
+     * soft-deleted and keeps its number, as before.
+     */
+    public static function nextOpNumber(): string
+    {
+        $year = date('Y');
+        $used = static::withTrashed()->where('op_number', 'like', "OP-{$year}-%")->pluck('op_number')
+            ->map(fn ($no) => preg_match('/^OP-' . $year . '-(\d+)$/', (string) $no, $m) ? (int) $m[1] : null)
+            ->filter()->flip();
+        $n = 1;
+        while (isset($used[$n])) $n++;
+
+        return sprintf('OP-%s-%03d', $year, $n);
+    }
+
     /** Create the five pipeline rows, with step 1 already active. */
     public function seedWorkflow(): void
     {

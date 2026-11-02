@@ -155,6 +155,7 @@
                 </div>
             </div>
         </div>
+        @include('indexing_pay.partials.profile_section')
     </div>
       @include('admin.footer')
   </div>

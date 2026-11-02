@@ -92,17 +92,190 @@
 
 @include('survey_module.partials._flash')
 
+{{-- The three buttons together on the right, each its own colour (user, 2026-11-02). --}}
+<style>
+    .br-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+    .br-actions .btn { color: #fff; border: 0; }
+    .br-actions .btn:hover { filter: brightness(.92); color: #fff; }
+    .br-actions .br-btn-print { background: #475569; }
+    .br-actions .br-btn-issue { background: #d97706; }
+    .br-actions .br-btn-new { background: #0f766e; }
+</style>
 <div class="page-header">
     <div></div>
-    {{-- The register as the printed book, for the current filters (2026-10-25). --}}
-    <a href="{{ route('survey-module.workflow.beacon-register.print', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}"
-       target="_blank" class="btn btn-secondary btn-sm" style="margin-right:6px;"><i class="fas fa-print"></i> Print Register</a>
-    @if ($brCan['create'])
-        <button type="button" class="btn btn-primary btn-sm" onclick="brOpenNew()">
-            <i class="fas fa-plus"></i> New Entry
-        </button>
-    @endif
+    <div class="br-actions">
+        {{-- The register as the printed book, for the current filters (2026-10-25). --}}
+        <a href="{{ route('survey-module.workflow.beacon-register.print', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}"
+           target="_blank" class="btn btn-sm br-btn-print"><i class="fas fa-print"></i> Print Register</a>
+        @if ($brCan['create'])
+            {{-- Issue Beacon No (WhatsApp, user 2026-10-31; groups 2026-11-02). --}}
+            @unless ($e)
+                <button type="button" class="btn btn-sm br-btn-issue" onclick="brIssueOpen()">
+                    <i class="fas fa-hashtag"></i> Issue Beacon No
+                </button>
+            @endunless
+            <button type="button" class="btn btn-sm br-btn-new" onclick="brOpenNew()">
+                <i class="fas fa-plus"></i> New Entry
+            </button>
+        @endif
+    </div>
 </div>
+
+@if ($brCan['create'] && ! $e)
+@php
+    $brPrefixes = \App\Services\Survey\SurveySettings::beaconPrefixes();
+@endphp
+<style>
+    #brIssue .bi-sec { border: 1px solid var(--gray-200, #e5e7eb); border-radius: 8px; padding: 10px 14px 4px; margin: 0 0 12px; }
+    #brIssue .bi-sec > legend { padding: 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--primary, #0f766e); }
+    #brIssue .bi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 16px; }
+    #brIssue .bi-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 0 16px; align-items: start; }
+    @media (max-width: 900px) { #brIssue .bi-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { #brIssue .bi-grid, #brIssue .bi-grid-2 { grid-template-columns: 1fr; } }
+    #brIssue .br-layout.is-invalid { outline: 1.5px solid var(--danger, #b91c1c); outline-offset: 4px; }
+    #brIssue .bi-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+    #brIssue .bi-table th { position: sticky; top: 0; z-index: 1; background: var(--gray-50, #f9fafb); text-align: left; padding: 7px 10px; font-size: 11.5px; font-weight: 600; text-transform: uppercase; color: var(--gray-600, #4b5563); border-bottom: 1px solid var(--gray-200, #e5e7eb); white-space: nowrap; }
+    #brIssue .bi-table td { padding: 6px 10px; border-bottom: 1px solid var(--gray-100, #f3f4f6); vertical-align: top; }
+    #brIssue .bi-table tr.bi-first td { border-top: 2px solid var(--gray-300, #d1d5db); }
+    #brIssue .bi-table td.bi-no { font-weight: 600; white-space: nowrap; }
+    #brIssue .bi-menu { position: fixed; z-index: 1100; width: 200px; background: #fff; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.12); padding: 4px 0; }
+    #brIssue .bi-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; background: none; border: 0; text-align: left; font-size: 13px; color: var(--gray-700, #374151); cursor: pointer; }
+    #brIssue .bi-menu button:hover { background: var(--gray-50, #f9fafb); }
+    #brIssueAdd:disabled, #brIssueSave:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+<div id="brIssue" class="br-modal" role="dialog" aria-modal="true" aria-labelledby="brIssueTitle">
+  {{-- Clicking outside does not close it (user, 2026-11-02): Cancel or the x only. --}}
+  <div class="br-modal-backdrop"></div>
+  <div class="br-modal-dialog" style="max-width:1200px;">
+    <div class="br-modal-header">
+        <h4 id="brIssueTitle">Issue Beacon No</h4>
+        <button type="button" class="br-modal-x" aria-label="Close" onclick="brIssueClose()">&times;</button>
+    </div>
+    <div style="padding:16px 20px;overflow-y:auto;flex:1;min-height:0;">
+        @if ($brPrefixes->isEmpty())
+            <p class="helper-text">No beacon prefix is set yet. Add them in Configurable Entities &gt; Survey &gt; Beacon Prefixes.</p>
+        @else
+        {{-- Several groups in one go (user, 2026-11-02): each run of numbers with its own type, surveyor and
+             location is added to the table at the bottom; Save records every group as its own register entry. --}}
+        <fieldset class="bi-sec">
+            <legend>Beacon Type &amp; Date</legend>
+            <div class="bi-grid-2">
+                <div class="form-group">
+                    <label>Beacon Type <span class="required">*</span></label>
+                    <div class="br-layout" id="brIssueType" role="radiogroup" aria-label="Beacon type">
+                        @foreach ($layoutTypes as $key => $label)
+                            <label class="br-layout-opt">
+                                <input type="radio" name="br_issue_type" value="{{ $key }}" onchange="document.getElementById('brIssueType').classList.remove('is-invalid')" />
+                                <span><i class="fas {{ $key === 'Government' ? 'fa-landmark' : 'fa-user' }}"></i> {{ $label }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Issue Date <span class="required">*</span></label>
+                    <input type="date" id="brIssueOn" value="{{ now()->format('Y-m-d') }}" max="{{ now()->format('Y-m-d') }}" />
+                    <p class="helper-text">The same date for every group.</p>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="bi-sec">
+            <legend>Beacon Numbers</legend>
+            <div class="bi-grid">
+                <div class="form-group">
+                    <label>Beacon Prefix <span class="required">*</span></label>
+                    <select id="brIssuePrefix" onchange="brIssueNext()">
+                        <option value="">Select prefix…</option>
+                        @foreach ($brPrefixes as $p)<option value="{{ $p->prefix }}">{{ $p->prefix }}{{ $p->description ? ' · ' . $p->description : '' }}</option>@endforeach
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Number of Beacons <span class="required">*</span></label>
+                    <input type="number" id="brIssueCount" min="1" max="{{ \App\Models\Survey\SurveyBeaconRegister::MAX_RANGE }}" value="4" oninput="brIssuePreview()" />
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+                        <input type="checkbox" id="brIssueAuto" checked style="width:auto;" onchange="brIssueMode()" /> Automatic serial
+                    </label>
+                    <input type="number" id="brIssueStart" min="1" placeholder="Start serial" disabled oninput="brIssuePreview()" />
+                    <p class="helper-text" id="brIssueNextNote">Choose a prefix to get the next serial.</p>
+                </div>
+                <div class="form-group">
+                    <label>Alphabet after the serial</label>
+                    <input type="text" id="brIssueSuffix" maxlength="3" placeholder="Optional, e.g. B" style="text-transform:uppercase;" oninput="this.value = this.value.replace(/[^a-z]/gi, ''); brIssueNext()" />
+                </div>
+            </div>
+            {{-- Duplicate check: against the register and against the groups already in the table. --}}
+            <p id="brIssuePreview" style="margin:0 0 2px;font-weight:700;"></p>
+            <p id="brIssueDupNote" class="helper-text" style="margin:0 0 8px;"></p>
+        </fieldset>
+
+        <fieldset class="bi-sec">
+            <legend>Surveyor</legend>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                <div class="form-group">
+                    <label>Surveyor</label>
+                    <select id="brIssueSurveyor" onchange="document.getElementById('brIssueSurveyorOtherWrap').style.display = this.value === 'other' ? '' : 'none'">
+                        <option value="">Select surveyor…</option>
+                        @if (count($surveyors['staff']))
+                            <optgroup label="Survey Department staff">
+                                @foreach ($surveyors['staff'] as $key => $s)<option value="{{ $key }}" data-name="{{ $s['name'] }}">{{ $s['name'] }}{{ $s['hint'] ? ' — ' . $s['hint'] : '' }}</option>@endforeach
+                            </optgroup>
+                        @endif
+                        @if (count($surveyors['surcon']))
+                            <optgroup label="Registered surveyors (SURCON)">
+                                @foreach ($surveyors['surcon'] as $key => $s)<option value="{{ $key }}" data-name="{{ $s['name'] }}">{{ $s['name'] }}{{ $s['hint'] ? ' — ' . $s['hint'] : '' }}</option>@endforeach
+                            </optgroup>
+                        @endif
+                        <option value="other">Other (specify)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="brIssueSurveyorOtherWrap" style="display:none;">
+                    <label>Specify surveyor's name <span class="required">*</span></label>
+                    <input type="text" id="brIssueSurveyorOther" maxlength="255" />
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="br-section-address bi-sec" style="padding-top:12px;">
+            @include('survey_module.partials._address_builder', [
+                'prefix' => 'issue_',
+                'mode'   => 'property',
+                'model'  => null,
+                'legend' => 'Beacon Location',
+            ])
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin:0 0 14px;flex-wrap:wrap;">
+            <span id="brIssueAddMsg" class="helper-text" style="color:var(--danger, #b91c1c);margin:0;"></span>
+            <button type="button" class="btn btn-primary" id="brIssueAdd" onclick="brIssueAdd()"><i class="fas fa-plus"></i> Add to table</button>
+        </div>
+
+        {{-- The table is last (user, 2026-11-02): one row per beacon number, grouped by type, surveyor and location. --}}
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+            <strong style="font-size:14px;">Beacons to issue</strong>
+            <span id="brIssueSummary" class="helper-text" style="margin:0;"></span>
+        </div>
+        <div id="brIssueTableWrap" data-column-picker="off" style="max-height:340px;overflow:auto;border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;">
+            <table class="bi-table">
+                <thead>
+                    <tr><th style="width:48px;">S/N</th><th>Beacon No.</th><th>Type</th><th>Surveyor</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th style="width:44px;"></th></tr>
+                </thead>
+                <tbody id="brIssueRows"></tbody>
+            </table>
+        </div>
+        @endif
+    </div>
+    <div class="form-actions" style="padding:12px 20px;border-top:1px solid var(--gray-200,#e5e7eb);margin:0;">
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="brIssueClose()">Cancel</button></div>
+        <div class="right" style="display:flex;align-items:center;gap:12px;">
+            <span id="brIssueSaveMsg" class="helper-text" style="color:var(--danger, #b91c1c);margin:0;"></span>
+            @unless ($brPrefixes->isEmpty())<button type="button" class="btn btn-success" id="brIssueSave" onclick="brIssueSave()" disabled><i class="fas fa-save"></i> <span>Save</span></button>@endunless
+        </div>
+    </div>
+  </div>
+</div>
+@endif
 
 {{-- Entry modal: create, or edit when ?edit=<id>. Reopens after a validation error. --}}
 <div id="brModal" class="br-modal {{ $formOpen ? 'open' : '' }}" role="dialog" aria-modal="true" aria-labelledby="brModalTitle">
@@ -841,6 +1014,289 @@
         var d = String(n);
         while (d.length < a.width) d = '0' + d;
         return a.prefix + d + a.suffix;
+    }
+
+    // Issue Beacon No (user, 2026-10-31): PREFIX + serial + optional letter, a run of N numbers.
+    // Groups (user, 2026-11-02): each run, with its type, surveyor and location, is added to the table;
+    // Save records every group as its own register entry in one go. Nothing is saved before that.
+    var brIssueServerNext = null, brIssueGroups = [], brIssueGid = 0, brIssueState = 'none', brIssueEditAt = null;
+    var BR_ISSUE_URL = {
+        next: @json(route('survey-module.workflow.beacon-register.next-serial')),
+        check: @json(route('survey-module.workflow.beacon-register.check-range')),
+        save: @json(route('survey-module.workflow.beacon-register.issue'))
+    };
+    function brIssueEl(id) { return document.getElementById(id); }
+    function brIssueOpen() { brIssueEl('brIssue').classList.add('open'); document.body.style.overflow = 'hidden'; brIssueRender(); }
+    function brIssueClose() {
+        if (brIssueGroups.length && !confirm('Close and drop the beacons in the table? They have not been saved.')) return;
+        brIssueGroups = []; brIssueEditAt = null; brIssueRender(); brIssueMenuClose();
+        brIssueEl('brIssue').classList.remove('open'); document.body.style.overflow = '';
+        brIssueMode();
+    }
+    function brIssueSeries() { return brIssueEl('brIssuePrefix').value + '|' + brIssueEl('brIssueSuffix').value.toUpperCase(); }
+    // The highest serial of this prefix + letter already in the table (0 if none).
+    function brIssuePendingMax(series) {
+        return brIssueGroups.reduce(function (m, g) { return g.series === series ? Math.max(m, g.start + g.count - 1) : m; }, 0);
+    }
+    function brIssueMode() {
+        var auto = brIssueEl('brIssueAuto').checked, start = brIssueEl('brIssueStart');
+        start.disabled = auto;
+        if (auto) {
+            var pend = brIssuePendingMax(brIssueSeries());
+            start.value = brIssueServerNext ? Math.max(brIssueServerNext, pend + 1) : '';
+        }
+        brIssuePreview();
+    }
+    function brIssueNext() {
+        var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueEl('brIssueSuffix').value.toUpperCase();
+        var note = brIssueEl('brIssueNextNote');
+        brIssueServerNext = null;
+        if (!prefix) { note.textContent = 'Choose a prefix to get the next serial.'; brIssueMode(); return; }
+        note.textContent = 'Checking the last serial issued…';
+        fetch(BR_ISSUE_URL.next + '?prefix=' + encodeURIComponent(prefix) + '&suffix=' + encodeURIComponent(suffix), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                brIssueServerNext = d.next;
+                var pend = brIssuePendingMax(prefix + '|' + suffix);
+                note.textContent = (d.last ? 'Last issued: ' + prefix + d.last + suffix + '.' : 'None issued yet under ' + prefix + (suffix ? ' … ' + suffix : '') + '.')
+                    + (pend >= d.next ? ' In the table up to ' + prefix + pend + suffix + '.' : '')
+                    + ' Next: ' + Math.max(d.next, pend + 1) + '.';
+                brIssueMode();
+            })
+            .catch(function () { note.textContent = 'The last serial could not be checked; untick Automatic and enter it.'; });
+    }
+    function brIssueRange() {
+        var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueEl('brIssueSuffix').value.toUpperCase();
+        var count = parseInt(brIssueEl('brIssueCount').value, 10), start = parseInt(brIssueEl('brIssueStart').value, 10);
+        if (!prefix || !(count > 0) || !(start > 0)) return null;
+        return { prefix: prefix, suffix: suffix, series: prefix + '|' + suffix, start: start, count: count,
+                 from: prefix + start + suffix, to: prefix + (start + count - 1) + suffix };
+    }
+    // Duplicate check (user, 2026-11-02): against the register (server) and the groups in the table.
+    var brIssueTimer = null, brIssueSeq = 0;
+    function brIssuePreview() {
+        var r = brIssueRange(), p = brIssueEl('brIssuePreview'), note = brIssueEl('brIssueDupNote');
+        p.textContent = r ? (r.count === 1 ? r.from : r.from + ' to ' + r.to) + ' (' + r.count + ' beacon' + (r.count === 1 ? '' : 's') + ')' : '';
+        note.textContent = ''; note.style.color = '';
+        clearTimeout(brIssueTimer);
+        var mine = ++brIssueSeq;
+        if (!r) { brIssueState = 'none'; return; }
+        if (r.count > BR_MAX) { brIssueState = 'clash'; note.style.color = 'var(--danger, #b91c1c)'; note.textContent = 'At most ' + BR_MAX.toLocaleString() + ' beacons in one group.'; return; }
+
+        var inTable = [];
+        brIssueGroups.forEach(function (g, gi) {
+            if (g.series !== r.series) return;
+            var lo = Math.max(g.start, r.start), hi = Math.min(g.start + g.count - 1, r.start + r.count - 1);
+            if (lo <= hi) inTable.push((lo === hi ? r.prefix + lo + r.suffix : r.prefix + lo + r.suffix + ' to ' + r.prefix + hi + r.suffix) + ' (group ' + (gi + 1) + ')');
+        });
+        brIssueState = 'checking';
+        note.textContent = 'Checking for duplicates…';
+        brIssueTimer = setTimeout(function () {
+            var url = BR_ISSUE_URL.check + '?prefix=' + encodeURIComponent(r.prefix) + '&suffix=' + encodeURIComponent(r.suffix) + '&start=' + r.start + '&count=' + r.count;
+            fetch(url, { headers: { Accept: 'application/json' } }).then(function (res) { return res.json(); }).then(function (d) {
+                if (mine !== brIssueSeq) return;   // a newer run was asked for meanwhile
+                var taken = d.taken || [], msgs = [];
+                if (taken.length) {
+                    var t = taken[0];
+                    msgs.push(taken.length + ' already issued: ' + taken.slice(0, 6).map(function (x) { return x.no; }).join(', ') + (taken.length > 6 ? ', …' : '')
+                        + ' (' + (t.surveyor ? 'to ' + t.surveyor + ' ' : '') + (t.date ? 'on ' + t.date : '') + (t.entry ? ', entry ' + t.entry : '') + ').');
+                }
+                if (inTable.length) msgs.push('Already in the table: ' + inTable.join('; ') + '.');
+                brIssueState = msgs.length ? 'clash' : 'ok';
+                note.style.color = msgs.length ? 'var(--danger, #b91c1c)' : '#15803d';
+                note.textContent = msgs.length ? msgs.join(' ') + ' Change the start serial or the number of beacons.' : 'No duplicates: none of these numbers has been issued or added.';
+            }).catch(function () {
+                if (mine !== brIssueSeq) return;
+                brIssueState = inTable.length ? 'clash' : 'unchecked';
+                note.style.color = inTable.length ? 'var(--danger, #b91c1c)' : '';
+                note.textContent = inTable.length ? 'Already in the table: ' + inTable.join('; ') + '.' : 'Could not check the register now; Save checks again.';
+            });
+        }, 300);
+    }
+
+    // The Beacon Location box (issue_ address builder): read, show and clear.
+    function brIssueAddrRoot() { return document.querySelector('.address-builder[data-prefix="issue_"]'); }
+    function brIssueAddr() {
+        var root = brIssueAddrRoot();
+        var multi = function (k) { var s = root.querySelector('select[name="issue_' + k + '[]"]'); return s ? Array.prototype.filter.call(s.options, function (o) { return o.selected && o.value; }).map(function (o) { return o.value; }) : []; };
+        var txt = function (k) { var el = root.querySelector('[name="issue_' + k + '"]'); return el ? el.value.trim() : ''; };
+        return { house: txt('house'), plot: txt('plot'), street: multi('street'), street_other: txt('street_other'),
+                 district: multi('district'), district_other: txt('district_other'), lga: multi('lga'), state: txt('state') };
+    }
+    function brIssueShow(list, other) { return list.map(function (v) { return v === 'Other' ? (other || 'Other') : v; }).join(' & '); }
+    function brIssueAddrClear() {
+        var root = brIssueAddrRoot();
+        ['street', 'district', 'lga'].forEach(function (k) {
+            var s = root.querySelector('select[name="issue_' + k + '[]"]');
+            if (!s) return;
+            Array.prototype.forEach.call(s.options, function (o) { o.selected = false; });
+            if (window.jQuery && jQuery(s).data('select2')) jQuery(s).trigger('change'); else s.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        ['house', 'plot', 'street_other', 'district_other'].forEach(function (k) {
+            var el = root.querySelector('[name="issue_' + k + '"]');
+            if (el) { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }
+        });
+    }
+
+    function brIssueAdd() {
+        var msg = brIssueEl('brIssueAddMsg'), fail = function (t, el) { msg.textContent = t; if (el && el.focus) el.focus(); };
+        msg.textContent = ''; brIssueEl('brIssueSaveMsg').textContent = '';
+        var typeEl = document.querySelector('input[name="br_issue_type"]:checked');
+        if (!typeEl) { brIssueEl('brIssueType').classList.add('is-invalid'); return fail('Choose the beacon type: Government or Private.'); }
+        var r = brIssueRange();
+        if (!r) return fail('Choose the prefix, the number of beacons and the start serial.', brIssueEl('brIssuePrefix'));
+        if (brIssueState === 'checking') return fail('Still checking for duplicates; try again in a moment.');
+        if (brIssueState === 'clash') return fail('Some of these numbers are taken; change the start serial or the number of beacons.', brIssueEl('brIssueCount'));
+        var svSel = brIssueEl('brIssueSurveyor'), sv = svSel.value, svOther = brIssueEl('brIssueSurveyorOther').value.trim().replace(/\s+/g, ' ');
+        if (sv === 'other' && !svOther) return fail("Type the surveyor's name.", brIssueEl('brIssueSurveyorOther'));
+        var a = brIssueAddr();
+        if (a.street.indexOf('Other') >= 0 && !a.street_other) return fail('Specify the street.');
+        if (a.district.indexOf('Other') >= 0 && !a.district_other) return fail('Specify the district.');
+        var opt = svSel.options[svSel.selectedIndex];
+
+        // A group taken back with Edit returns to its place in the table.
+        var at = brIssueEditAt === null ? brIssueGroups.length : Math.min(brIssueEditAt, brIssueGroups.length);
+        brIssueEditAt = null;
+        brIssueGroups.splice(at, 0, {
+            id: ++brIssueGid, type: typeEl.value, series: r.series, prefix: r.prefix, suffix: r.suffix, start: r.start, count: r.count, from: r.from, to: r.to,
+            auto: brIssueEl('brIssueAuto').checked,
+            sv: sv, svOther: sv === 'other' ? svOther : '', svLabel: sv === 'other' ? svOther : (sv && opt ? (opt.dataset.name || opt.text) : ''),
+            addr: a,
+            show: { plot: a.plot || (a.house ? 'House ' + a.house : ''), district: brIssueShow(a.district, a.district_other),
+                    lga: a.lga.join(' & ').toUpperCase(),
+                    // Location = District, LGA, State (user, 2026-11-02), as the entry's stored location.
+                    location: [brIssueShow(a.district, a.district_other), a.lga.join(' & ').toUpperCase(), a.state].filter(Boolean).join(', ') }
+        });
+        // Ready for the next group: same type, prefix and surveyor; the next serial; a fresh location.
+        brIssueAddrClear();
+        brIssueRender();
+        brIssueMode();
+        brIssueNext();
+    }
+
+    function brIssueTotal() { return brIssueGroups.reduce(function (n, g) { return n + g.count; }, 0); }
+    function brIssueRender() {
+        var body = brIssueEl('brIssueRows');
+        if (!body) return;
+        body.textContent = '';
+        var sn = 0;
+        brIssueGroups.forEach(function (g) {
+            for (var i = 0; i < g.count; i++) {
+                var tr = document.createElement('tr');
+                if (i === 0) tr.className = 'bi-first';
+                var cells = [++sn, g.prefix + (g.start + i) + g.suffix];
+                cells.forEach(function (v, ci) { var td = document.createElement('td'); td.textContent = v; if (ci === 1) td.className = 'bi-no'; tr.appendChild(td); });
+                if (i === 0) {
+                    [g.type, g.svLabel || '—', g.show.plot || '—', g.show.district || '—', g.show.lga || '—', g.show.location || '—'].forEach(function (v) {
+                        var td = document.createElement('td'); td.rowSpan = g.count; td.textContent = v; tr.appendChild(td);
+                    });
+                    var act = document.createElement('td'); act.rowSpan = g.count;
+                    act.innerHTML = '<button type="button" class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100" title="Actions" aria-label="Actions"><i data-lucide="more-vertical" class="w-5 h-5"></i></button>';
+                    act.firstChild.addEventListener('click', function (ev) { ev.stopPropagation(); brIssueMenu(ev.currentTarget, g.id); });
+                    tr.appendChild(act);
+                }
+                body.appendChild(tr);
+            }
+        });
+        if (!sn) {
+            body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);padding:18px 10px;">No beacons added yet. Fill in the type, numbers, surveyor and location above, then Add to table.</td></tr>';
+        }
+        var total = brIssueTotal(), groups = brIssueGroups.length;
+        brIssueEl('brIssueSummary').textContent = groups ? total + ' beacon' + (total === 1 ? '' : 's') + ' in ' + groups + ' group' + (groups === 1 ? '' : 's') : '';
+        var save = brIssueEl('brIssueSave');
+        if (save) { save.disabled = !groups; save.querySelector('span').textContent = groups ? 'Save ' + total + ' beacon' + (total === 1 ? '' : 's') : 'Save'; }
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+
+    // Row menu: Edit group (back into the form) / Remove group.
+    function brIssueMenuClose() { var m = document.getElementById('brIssueMenu'); if (m) m.remove(); }
+    function brIssueMenu(btn, gid) {
+        var had = document.getElementById('brIssueMenu');
+        brIssueMenuClose();
+        if (had && had.dataset.gid == gid) return;
+        var m = document.createElement('div');
+        m.id = 'brIssueMenu'; m.className = 'bi-menu'; m.dataset.gid = gid; m.dataset.t = Date.now();
+        m.innerHTML = '<button type="button" data-a="edit"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit group</button>'
+            + '<button type="button" data-a="remove" style="color:#dc2626;"><i data-lucide="trash-2" class="w-4 h-4 text-red-500"></i> Remove group</button>';
+        brIssueEl('brIssue').appendChild(m);
+        var rc = btn.getBoundingClientRect();
+        m.style.top = Math.min(rc.bottom + 4, window.innerHeight - m.offsetHeight - 8) + 'px';
+        m.style.left = Math.max(8, rc.right - 200) + 'px';
+        m.addEventListener('click', function (ev) {
+            var b = ev.target.closest('button');
+            if (!b) return;
+            ev.stopPropagation(); brIssueMenuClose();
+            if (b.dataset.a === 'edit') brIssueEditGroup(gid); else brIssueRemoveGroup(gid);
+        });
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+    document.addEventListener('click', function (ev) { if (!ev.target.closest || !ev.target.closest('#brIssueMenu')) brIssueMenuClose(); });
+    // A scroll closes it, but not the one that brought the button into view as it opened.
+    document.addEventListener('scroll', function () { var m = document.getElementById('brIssueMenu'); if (m && Date.now() - m.dataset.t > 250) brIssueMenuClose(); }, true);
+    function brIssueRemoveGroup(gid) {
+        brIssueGroups = brIssueGroups.filter(function (g) { return g.id !== gid; });
+        brIssueRender(); brIssueMode(); brIssueNext();
+    }
+    function brIssueSetSelect(sel, v) {
+        sel.value = v;
+        if (window.jQuery && jQuery(sel).data('select2')) jQuery(sel).trigger('change.select2');
+    }
+    function brIssueEditGroup(gid) {
+        var g = brIssueGroups.filter(function (x) { return x.id === gid; })[0];
+        if (!g) return;
+        brIssueEditAt = brIssueGroups.indexOf(g);
+        brIssueGroups = brIssueGroups.filter(function (x) { return x.id !== gid; });
+        var radio = document.querySelector('input[name="br_issue_type"][value="' + g.type + '"]');
+        if (radio) radio.checked = true;
+        brIssueEl('brIssueSuffix').value = g.suffix;
+        brIssueEl('brIssueCount').value = g.count;
+        brIssueEl('brIssueAuto').checked = false;
+        brIssueEl('brIssueStart').disabled = false;
+        brIssueEl('brIssueStart').value = g.start;
+        brIssueSetSelect(brIssueEl('brIssuePrefix'), g.prefix);
+        var svSel = brIssueEl('brIssueSurveyor');
+        brIssueSetSelect(svSel, g.sv);
+        svSel.dispatchEvent(new Event('change'));
+        brIssueEl('brIssueSurveyorOther').value = g.svOther;
+        brIssueAddrClear();
+        var root = brIssueAddrRoot();
+        ['house', 'plot'].forEach(function (k) { var el = root.querySelector('[name="issue_' + k + '"]'); if (el) el.value = g.addr[k]; });
+        if (window.fillAddressBuilder) window.fillAddressBuilder('issue_', g.addr);
+        brIssueRender();
+        brIssueNext();
+        brIssueEl('brIssueAddMsg').textContent = 'Group ' + g.from + ' is back in the form: change it, then Add to table again.';
+    }
+
+    function brIssueSave() {
+        var msg = brIssueEl('brIssueSaveMsg'), btn = brIssueEl('brIssueSave');
+        msg.textContent = '';
+        if (!brIssueGroups.length) { msg.textContent = 'Add at least one group to the table.'; return; }
+        var on = brIssueEl('brIssueOn').value;
+        if (!on) { msg.textContent = 'Enter the issue date.'; brIssueEl('brIssueOn').focus(); return; }
+        var payload = {
+            issue_date: on,
+            groups: brIssueGroups.map(function (g) {
+                return {
+                    layout_type: g.type, beacon_from: g.from, beacon_to: g.count === 1 ? '' : g.to,
+                    surveyor_choice: g.sv, surveyor_name_other: g.svOther,
+                    prop_house: g.addr.house, prop_plot: g.addr.plot, prop_street: g.addr.street, prop_street_other: g.addr.street_other,
+                    prop_district: g.addr.district, prop_district_other: g.addr.district_other, prop_lga: g.addr.lga, prop_state: g.addr.state
+                };
+            })
+        };
+        btn.disabled = true;
+        fetch(BR_ISSUE_URL.save, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+            body: JSON.stringify(payload)
+        }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (d) { return { ok: res.ok, d: d }; });
+        }).then(function (x) {
+            if (x.ok && x.d.redirect) { brIssueGroups = []; window.location = x.d.redirect; return; }
+            var errs = x.d.errors ? Object.keys(x.d.errors).map(function (k) { return x.d.errors[k][0]; }) : [];
+            msg.textContent = errs[0] || x.d.message || 'Could not save. Nothing was recorded.';
+            btn.disabled = false;
+        }).catch(function () { msg.textContent = 'Could not reach the server. Nothing was recorded.'; btn.disabled = false; });
     }
 
     function brCount() {

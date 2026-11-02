@@ -35,6 +35,8 @@ class SurveyCompensationSchedule
             ->withCount('plots')
             ->orderBy('id')
             ->get();
+        // Each case's split reads the project's sharing ratio; it is this project, so no query per case.
+        $cases->each->setRelation('project', $project);
 
         $holdings = $this->holdings($cases);
 
@@ -89,7 +91,8 @@ class SurveyCompensationSchedule
         foreach ($holdings as $h) {
             // Each case's plot count comes from plotSplit(), which owns "plot rows win".
             $plots = (int) $h['cases']->sum(fn ($c) => $c->plotSplit()['total']);
-            $split = (new SurveyCompCase(['num_plots' => $plots]))->plotSplit();   // odd plot to Government
+            // Split by the project's sharing ratio (CR 30102026 item 11); the schedule is for one project.
+            $split = \App\Services\Survey\SurveySettings::splitPlots($plots, $h['cases']->first()?->project?->farmer_share_pct);
 
             $rows[] = $this->row($h) + [
                 'plots' => $plots,
@@ -142,6 +145,8 @@ class SurveyCompensationSchedule
         return [
             'key'       => $h['key'],
             'name'      => $h['people'] ? implode(' & ', array_map(fn ($p) => $p->full_name, $h['people'])) : null,
+            // Each person of a joint holding, so the schedule can list a few and fold the rest (user, 2026-11-02).
+            'names'     => array_values(array_map(fn ($p) => trim((string) $p->full_name), $h['people'])),
             'joint'     => $h['joint'],
             'unassigned'=> ! $h['people'],
             'phone'     => $h['joint'] ? null : $first?->phone,

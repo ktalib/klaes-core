@@ -135,7 +135,7 @@
         {{-- 3. Part-to-whole per project: stacked horizontal bars. --}}
         <div class="viz-card">
             <h3>Land to Land: plots by project</h3>
-            <p class="sub">Owner and Government plots, split 50:50 per beneficiary (odd plot to Government)</p>
+            <p class="sub">Owner and Government plots, split by each project sharing ratio (part plot to Government)</p>
             @if ($plots)
                 <div class="viz-box" style="height:{{ max(160, 56 * count($plots) + 70) }}px;"><canvas id="svPlots" role="img" aria-label="Owner and Government plots by project"></canvas></div>
             @else

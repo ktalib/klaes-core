@@ -204,14 +204,10 @@ class PlotAllocationController extends Controller
         return $id ? SurveyCompCase::find($id) : null;
     }
 
-    /** Same rule as SurveyCompCase::plotSplit(): the odd plot goes to Government. */
+    /** Same rule as SurveyCompCase::plotSplit(), on the general ratio (no case to take a project from). */
     private function splitOf(int $total): array
     {
-        return [
-            'total'  => $total,
-            'govt'   => (int) ceil($total / 2),
-            'farmer' => (int) floor($total / 2),
-        ];
+        return \App\Services\Survey\SurveySettings::splitPlots($total);
     }
 
     /** Plot allocation is meaningless for a cash case — refuse rather than silently file it. */

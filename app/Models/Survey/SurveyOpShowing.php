@@ -23,6 +23,7 @@ class SurveyOpShowing extends SurveyModel
         'shown_on'            => 'date',
         'op_source_id'        => 'integer',
         'allottee_present'    => 'boolean',
+        'requester_is_allottee' => 'boolean',
         'latitude'            => 'float',
         'longitude'           => 'float',
         'accuracy_m'          => 'float',

@@ -87,7 +87,7 @@
         <img src="{{ asset('assets/logo/ministry1.jpg') }}" alt="" />
         <div class="t">
             <div class="m">Kano State Ministry of Land and Physical Planning</div>
-            <div class="d">SURVEY DEPARTMENT</div>
+            <div class="d">DEPARTMENT OF SURVEY</div>
             <div class="f">COMPENSATION COMPLAINT FORM</div>
         </div>
         <img src="{{ asset('assets/logo/ministry2.png') }}" alt="" />

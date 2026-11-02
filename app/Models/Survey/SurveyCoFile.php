@@ -87,11 +87,12 @@ class SurveyCoFile extends SurveyModel
     public static function normaliseNumber(?string $raw): ?string
     {
         $s = strtoupper(trim((string) $raw));
-        if (! preg_match('/^CO[\s\-\/.]*0*(\d{1,7})[\s\-\/.]+(\d{4})$/', $s, $m) || (int) $m[1] === 0) {
+        // A temporary file keeps its (T): CO-33-2025(T) (user, 2026-11-02).
+        if (! preg_match('/^CO[\s\-\/.]*0*(\d{1,7})[\s\-\/.]+(\d{4})\s*(\(T\))?$/', $s, $m) || (int) $m[1] === 0) {
             return null;
         }
 
-        return 'CO-' . (int) $m[1] . '-' . $m[2];
+        return 'CO-' . (int) $m[1] . '-' . $m[2] . (empty($m[3]) ? '' : '(T)');
     }
 
     /**

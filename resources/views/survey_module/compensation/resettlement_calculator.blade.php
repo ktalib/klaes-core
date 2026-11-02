@@ -6,7 +6,7 @@
   use App\Services\Survey\ResettlementCalculator as RC;
 
   $PageTitle = 'Resettlement Calculator';
-  $PageDescription = 'Plots = area (ha) ÷ plot size for the land use and density. Land-to-Land lands split 50:50 (odd plot to Government).';
+  $PageDescription = 'Plots = area (ha) ÷ plot size for the land use and density. Land-to-Land lands split by the sharing ratio (50:50 unless the project set another); the Classmark reads the part plot.';
   $active = $rates->where('is_active', true)->values();
   // Only these four land uses, in full (user, 2026-10-30). One without a plot size yet shows a note under Density,
   // and the calculation waits until the SG size is added below.
@@ -86,7 +86,7 @@
                 </div>
 
                 {{-- Settings hidden for now (user, 2026-10-30); the fields still post their defaults:
-                     0% roads/open space, round down, 50:50 split on Land-to-Land. --}}
+                     0% roads/open space, round down, the sharing ratio split on Land-to-Land. --}}
                 <div id="rcSettings" hidden>
                 <div class="sv-group"><i class="fas fa-sliders-h"></i><span>Settings</span></div>
                 <div class="form-group">
@@ -103,10 +103,17 @@
                     <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
                         <input type="hidden" name="split" value="0" />
                         <input type="checkbox" name="split" value="1" id="rcSplit" style="width:auto;" @checked(old('split', '1') === '1') />
-                        Apply the 50:50 split (Land to Land)
+                        Apply the sharing ratio split (Land to Land)
                     </label>
                 </div>
                 <p class="helper-text full" id="rcSplitFixed" style="display:none;grid-column:1/-1;"></p>
+                </div>
+                {{-- Sharing ratio (CR 30102026 item 11): a land uses its project ratio; without one, pick it here. --}}
+                <div class="form-group full" id="rcRatioBox">
+                    <label>Sharing ratio (farmer : Government)</label>
+                    <select name="farmer_pct" id="rcRatio">
+                        @foreach ($ratios as $ratio)<option value="{{ $ratio->farmer_pct }}" @selected((string) old('farmer_pct', $ratios->firstWhere('is_default', 1)?->farmer_pct ?? 50) === (string) $ratio->farmer_pct)>{{ $ratio->label }}{{ $ratio->is_default ? ' (general)' : '' }}</option>@endforeach
+                    </select>
                 </div>
                 <div class="form-group full">
                     <label>Notes</label>
@@ -124,10 +131,12 @@
                 <h3><i class="fas fa-calculator" style="color:var(--primary);"></i> Result</h3>
                 <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-end;">
                     <div><div class="rc-sub">Plots in the farm</div><div class="rc-big" id="rcPlots">—</div><div class="rc-sub" id="rcExact"></div></div>
+                    {{-- Classmark (CR 30102026 item 8): the part plot read as full / half / quarter plots. --}}
+                    <div id="rcClassmarkBox" style="display:none;"><div class="rc-sub">Classmark</div><div style="font-size:22px;font-weight:700;" id="rcClassmark">—</div><div class="rc-sub" id="rcClassmarkNote"></div></div>
                     <div id="rcShares" style="display:none;">
-                        <div class="rc-sub">50:50 split</div>
+                        <div class="rc-sub"><span id="rcRatioLabel">50:50</span> split</div>
                         <div style="font-size:22px;font-weight:700;">Farmer <span id="rcFarmer">—</span> · Government <span id="rcGovt">—</span></div>
-                        <div class="rc-sub">Odd plot to Government, as the current Land-to-Land rule.</div>
+                        <div class="rc-sub">The farmer takes the whole plots of their share; Government the rest.</div>
                     </div>
                 </div>
                 <div class="rc-sub" id="rcFormula" style="margin-top:12px;font-family:ui-monospace,monospace;"></div>
@@ -136,7 +145,7 @@
             <div class="rc-card">
                 <h3>All densities for <span id="rcLuName">—</span></h3>
                 <table class="rc-t" data-column-picker="off">
-                    <thead><tr><th>Density</th><th class="n">Plot size (ha)</th><th class="n">Creatable</th><th class="n">Plots</th><th class="n">Farmer</th><th class="n">Government</th></tr></thead>
+                    <thead><tr><th>Density</th><th class="n">Plot size (ha)</th><th class="n">Creatable</th><th class="n">Classmark</th><th class="n">Plots</th><th class="n">Farmer</th><th class="n">Government</th></tr></thead>
                     <tbody id="rcTable"></tbody>
                 </table>
             </div>
@@ -253,21 +262,37 @@
 
 <script>
 (function () {
-    var RATES = @json($ratesJs), LANDS = @json($landMeta), PURPOSES = @json($purposes),
+    var RATES = @json($ratesJs), LANDS = @json($landMeta), PURPOSES = @json($purposes), CLASSMARKS = @json($classmarks),
         OLD_RATE = @json((string) old('rate_id')), OLD_PURPOSE = @json((string) old('purpose'));
     var $ = function (id) { return document.getElementById(id); };
     var land = $('rcLand'), area = $('rcArea'), lu = $('rcLandUse'), pur = $('rcPurpose'), dens = $('rcDensities'), rateIn = $('rcRate'),
-        deduct = $('rcDeduct'), round = $('rcRound'), split = $('rcSplit');
+        deduct = $('rcDeduct'), round = $('rcRound'), split = $('rcSplit'), ratio = $('rcRatio');
     var filledArea = null;
     var nf = function (n, d) { return Number(n).toLocaleString(undefined, { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
 
     // Mirrors App\Services\Survey\ResettlementCalculator::calculate(); the server recomputes on save.
-    function calc(a, size, pct, mode, doSplit) {
+    // The farmer takes the whole plots of their share (SurveySettings::splitPlots).
+    function calc(a, size, pct, mode, doSplit, farmerPct) {
         pct = Math.max(0, Math.min(100, pct || 0));
         var net = a * (1 - pct / 100), exact = net / size;
         var plots = mode === 'up' ? Math.ceil(exact - 1e-6) : (mode === 'nearest' ? Math.round(exact) : Math.floor(exact + 1e-6));
         plots = Math.max(0, plots);
-        return { net: net, exact: exact, plots: plots, farmer: doSplit ? Math.floor(plots / 2) : null, govt: doSplit ? Math.ceil(plots / 2) : null };
+        var farmer = Math.floor(plots * farmerPct / 100);
+        return { net: net, exact: exact, plots: plots, farmer: doSplit ? farmer : null, govt: doSplit ? plots - farmer : null };
+    }
+
+    function farmerPct() {
+        var m = LANDS[land.value];
+        return m ? Number(m.farmerPct) : Number(ratio.value || 50);
+    }
+
+    // Mirrors SurveySettings::applyClassmark(): whole plots kept, the decimal part read to two places.
+    function classmark(exact) {
+        var whole = Math.floor(exact + 1e-9), frac = Math.round((exact - whole) * 100) / 100;
+        var r = CLASSMARKS.find(function (c) { return frac >= c.from - 1e-9 && frac <= c.to + 1e-9; });
+        var plots = whole + (r ? r.plots : 0), h = Math.round((plots - Math.floor(plots)) * 100), w = Math.floor(plots);
+        var sign = { 25: '\u00bc', 50: '\u00bd', 75: '\u00be' }[h];
+        return { plots: plots, frac: frac, label: h === 0 ? String(w) : (sign ? (w ? w : '') + sign : plots.toFixed(2)) };
     }
 
     function splitOn() {
@@ -309,22 +334,27 @@
     }
 
     function render() {
-        var a = parseFloat(area.value), pct = parseFloat(deduct.value) || 0, mode = round.value, doSplit = splitOn();
+        var a = parseFloat(area.value), pct = parseFloat(deduct.value) || 0, mode = round.value, doSplit = splitOn(), fp = farmerPct();
         var list = ratesFor();
         $('rcLuName').textContent = pur.value || '—';
         $('rcShares').style.display = doSplit ? '' : 'none';
+        $('rcRatioLabel').textContent = fp + ':' + (100 - fp);
         $('rcTable').innerHTML = list.map(function (r) {
-            var res = a > 0 ? calc(a, r.size, pct, mode, doSplit) : null;
+            var res = a > 0 ? calc(a, r.size, pct, mode, doSplit, fp) : null;
             return '<tr class="' + (String(r.id) === rateIn.value ? 'on' : '') + '"><td>' + (r.code ? r.code + ' – ' : '') + (r.density || '') + '</td>' +
-                '<td class="n">' + nf(r.size, 4) + '</td><td class="n">' + (res ? nf(res.exact, 2) : '—') + '</td><td class="n">' + (res ? nf(res.plots) : '—') + '</td>' +
+                '<td class="n">' + nf(r.size, 4) + '</td><td class="n">' + (res ? nf(res.exact, 2) : '—') + '</td><td class="n">' + (res ? classmark(res.exact).label : '—') + '</td><td class="n">' + (res ? nf(res.plots) : '—') + '</td>' +
                 '<td class="n">' + (res && doSplit ? nf(res.farmer) : '—') + '</td><td class="n">' + (res && doSplit ? nf(res.govt) : '—') + '</td></tr>';
         }).join('');
         var r = RATES.find(function (x) { return String(x.id) === rateIn.value; });
         if (!r || !(a > 0)) {
             $('rcPlots').textContent = '—'; $('rcExact').textContent = 'Enter the area and choose a density.'; $('rcFormula').textContent = '';
+            $('rcClassmarkBox').style.display = 'none';
             return;
         }
-        var res = calc(a, r.size, pct, mode, doSplit);
+        var res = calc(a, r.size, pct, mode, doSplit, fp), cm = classmark(res.exact);
+        $('rcClassmarkBox').style.display = '';
+        $('rcClassmark').textContent = cm.label + (cm.plots === 1 ? ' plot' : ' plots');
+        $('rcClassmarkNote').textContent = nf(res.exact, 2) + ' read by the Classmark (part plot .' + String(Math.round(cm.frac * 100)).padStart(2, '0') + ')';
         $('rcPlots').textContent = nf(res.plots);
         $('rcExact').textContent = nf(res.exact, 2) + ' before ' + round.options[round.selectedIndex].text.toLowerCase();
         $('rcFarmer').textContent = nf(res.farmer); $('rcGovt').textContent = nf(res.govt);
@@ -341,9 +371,10 @@
         $('rcAreaNote').style.display = filledArea !== null ? '' : 'none';
         $('rcLandInfo').textContent = m ? [m.project, m.farmers ? 'Farmer: ' + m.farmers : null, m.place].filter(Boolean).join(' · ') : '';
         $('rcSplitBox').style.display = m ? 'none' : '';
+        $('rcRatioBox').style.display = m ? 'none' : '';
         var fixed = $('rcSplitFixed');
         fixed.style.display = m ? '' : 'none';
-        fixed.textContent = m ? (m.plotForPlot ? 'Land-to-Land land: the 50:50 split applies.' : 'Monetary Compensation land: no plot split.') : '';
+        fixed.textContent = m ? (m.plotForPlot ? 'Land-to-Land land: the project\x27s ' + m.farmerPct + ':' + (100 - m.farmerPct) + ' split applies.' : 'Monetary Compensation land: no plot split.') : '';
         render();
     }
 
@@ -353,6 +384,7 @@
     pur.addEventListener('change', function () { rateIn.value = ''; densities(); render(); });
     [area, deduct, round].forEach(function (el) { el.addEventListener('input', render); el.addEventListener('change', render); });
     split.addEventListener('change', render);
+    ratio.addEventListener('change', render);
     land.addEventListener('change', pickLand);
     densities(); pickLand();
 })();

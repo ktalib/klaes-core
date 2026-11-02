@@ -859,6 +859,25 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/leaderboard', 'leaderboard')->name('leaderboard');
     });
 
+    // "Has this file been scanned?" for Create File Index / Legal Search, and the scanned-page
+    // browser (user, 2026-11-01; config fileindexing.scan_check).
+    Route::middleware('XSS')->controller(\App\Http\Controllers\Scanning\ScanCheckController::class)->group(function () {
+        Route::get('/scan-check', 'check')->name('scan-check.check');
+        Route::get('/scan-check/pages', 'pages')->name('scan-check.pages');
+        Route::get('/scan-check/page', 'page')->name('scan-check.page');
+    });
+
+    // Indexing piece-rate pay (docs/plans/INDEXING_PIECE_RATE_PAYROLL_PLAN.md).
+    Route::middleware('XSS')->prefix('indexing-earnings')->name('indexing-earnings.')->controller(\App\Http\Controllers\IndexingPay\IndexingEarningsController::class)->group(function () {
+        Route::get('/', 'me')->name('me');
+        Route::get('/summary', 'summary')->name('summary');
+        Route::get('/day', 'day')->name('day');
+        Route::get('/sheet', 'sheet')->name('sheet');
+        Route::get('/sheet/data', 'sheetData')->name('sheet.data');
+        Route::get('/sheet/users/{user}', 'userDetail')->whereNumber('user')->name('sheet.user');
+        Route::get('/sheet/export', 'exportCsv')->name('sheet.export');
+    });
+
     Route::middleware('track.activity')->prefix('pra-pic-audit')->name('pra-pic-audit.')->group(function () {
         Route::get('/', [PraPicAuditController::class, 'index'])->name('index');
         Route::get('/pra/user-records', [PraPicAuditController::class, 'praUserRecords'])->name('pra.user-records');

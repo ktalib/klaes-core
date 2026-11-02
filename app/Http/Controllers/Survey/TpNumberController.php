@@ -18,8 +18,29 @@ use Illuminate\Validation\ValidationException;
  */
 class TpNumberController extends Controller
 {
+    /**
+     * CR 30102026 item 33 (user, 2026-10-31): the table is shown EMPTY until Survey's own TP
+     * lookup list is brought in to replace it; the current list was found to be a mess. The
+     * 2,100 survey_tp_numbers rows are NOT deleted, only no longer queried here, and the
+     * refill from tp_lookups (TpLookupSync::pullNew) is not run. Set to false, or replace
+     * the source, once the new TP lookup table is loaded.
+     */
+    public const LIST_PENDING = true;
+
     public function index(Request $r, TpLookupSync $sync)
     {
+        if (self::LIST_PENDING) {
+            return view('survey_module.records.tp_numbers', [
+                'tps'         => new \Illuminate\Pagination\LengthAwarePaginator([], 0, 25),
+                'projects'    => collect(),
+                'editing'     => null,
+                'prefixes'    => TP::prefixOptions(),
+                'purposes'    => TP::purposeOptions(),
+                'stats'       => ['total' => 0, 'prefixes' => 0, 'plots' => 0, 'linked' => 0],
+                'listPending' => true,
+            ]);
+        }
+
         $sync->pullNew();   // TP numbers added to tp_lookups since the last visit show up by themselves
 
         $q = TP::query()->with('creator:id,first_name,last_name');

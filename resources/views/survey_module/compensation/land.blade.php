@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Resettlement Plot Allocation';
-  $PageDescription = 'Land to Land compensation cases · 50:50 plot split. For detailed plot rows use Resettlement Plots under Geo-informatics.';
+  $PageDescription = 'Land to Land compensation cases · plots split by the project’s sharing ratio (50:50 by default). For detailed plot rows use Resettlement Plots under Geo-informatics.';
 @endphp
 
 @section('survey-content')

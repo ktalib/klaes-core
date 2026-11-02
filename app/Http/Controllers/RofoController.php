@@ -94,6 +94,7 @@ class RofoController extends Controller
                     ->where('paper_code', $rofo->security_paper_code)
                     ->update([
                         'is_used' => false,
+                        'status' => 'available',
                         'assigned_to_type' => null,
                         'assigned_to_id' => null,
                         'assigned_by' => null,
@@ -111,6 +112,7 @@ class RofoController extends Controller
                 ->where('paper_code', $request->security_paper_code)
                 ->update([
                     'is_used' => true,
+                    'status' => 'assigned',
                     'assigned_to_type' => 'ST',
                     'assigned_to_id' => $rofo->id,
                     'assigned_by' => Auth::id(),

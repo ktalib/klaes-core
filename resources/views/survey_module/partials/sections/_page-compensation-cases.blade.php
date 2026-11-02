@@ -29,7 +29,7 @@
 
     <div class="page-header">
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <a class="btn btn-secondary" href="{{ route('survey-module.compensation.cases') }}">
+            <a class="btn btn-secondary" href="{{ route('survey-module.compensation.cases', (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}">
                 <i class="fas fa-arrow-left"></i> Back to Cases
             </a>
             <a class="btn btn-primary" href="{{ route('survey-module.compensation.cases.edit', $detail) }}">
@@ -109,7 +109,7 @@
                 <div class="preview-item">
                     <span class="label">Compensation Scheme (from Project)</span>
                     <span class="value" style="color:var(--primary);font-weight:700;">
-                        {{ $detail->isMonetary() ? 'Monetary Compensation' : 'Land to Land (50:50)' }}
+                        {{ $detail->isMonetary() ? 'Monetary Compensation' : 'Land to Land (' . ($detail->project?->share_label ?? '50:50') . ')' }}
                     </span>
                 </div>
                 <div class="preview-item">
@@ -143,7 +143,7 @@
                     <div class="comp-cards single">
                         <div class="comp-card" style="border-color:var(--primary);background:var(--primary-50);">
                             <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
-                            <div class="card-label">Land to Land Compensation (50:50)</div>
+                            <div class="card-label">Land to Land Compensation ({{ $detail->project?->share_label ?? '50:50' }})</div>
                             <div style="font-size:20px;font-weight:600;color:var(--primary);margin:8px 0;">
                                 {{ number_format($split['total'] ?? 0) }} Plots Total
                             </div>
@@ -260,7 +260,7 @@
         <div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <a href="{{ route('survey-module.compensation.capture-list') }}" class="btn btn-secondary">
-                <i class="fas fa-clipboard-list"></i> Capture Compensation List
+                <i class="fas fa-clipboard-list"></i> Capture Compensation
             </a>
             <a href="{{ route('survey-module.compensation.cases.register') }}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Register
@@ -271,7 +271,7 @@
     {{-- Imported / Captured tabs (CR 30102026 item 23); they replace the All Records dropdown. --}}
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;" role="tablist">
         @foreach (['imported' => ['Imported', 'fa-file-import'], 'entered' => ['Captured', 'fa-keyboard']] as $k => [$label, $icon])
-            <a href="{{ route('survey-module.compensation.cases', ['origin' => $k]) }}" role="tab" aria-selected="{{ $tab === $k ? 'true' : 'false' }}"
+            <a href="{{ route('survey-module.compensation.cases', ['origin' => $k] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}" role="tab" aria-selected="{{ $tab === $k ? 'true' : 'false' }}"
                class="btn {{ $tab === $k ? 'btn-primary' : 'btn-outline' }} btn-sm">
                 <i class="fas {{ $icon }}"></i> {{ $label }} <span style="opacity:.75;">({{ number_format($tabCounts[$k]) }})</span>
             </a>
@@ -299,6 +299,7 @@
 
     <form method="GET" class="table-toolbar">
         <input type="hidden" name="origin" value="{{ $tab }}" />
+        @if(request('view') === 'showing')<input type="hidden" name="view" value="showing" />@endif
         <div class="left">
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Search case, project, officer…"
                    style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
@@ -323,7 +324,7 @@
             </select>
             <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
             @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
-                <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.cases', ['origin' => $tab]) }}">Clear</a>
+                <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.cases', ['origin' => $tab] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}">Clear</a>
             @endif
         </div>
     </form>
@@ -390,7 +391,7 @@
                                     <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                          :style="'top:' + top + 'px; left:' + left + 'px'"
                                          class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                        <a href="{{ route('survey-module.compensation.cases.show', $c) }}" class="{{ $svItem }}"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
+                                        <a href="{{ route('survey-module.compensation.cases.show', [$c] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}" class="{{ $svItem }}"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
                                         <a href="{{ route('survey-module.compensation.cases.edit', $c) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
                                         @unless ($c->isExistingRecord())
                                         <a href="{{ route('survey-module.compensation.op', ['case' => $c->id]) }}" class="{{ $svItem }}"><i data-lucide="file-signature" class="w-4 h-4 text-gray-500"></i> Generate OP</a>
@@ -410,7 +411,7 @@
                                 <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                                 @if (request()->hasAny(['q', 'status', 'project', 'scheme']))
                                     No lands match these filters.
-                                    <a href="{{ route('survey-module.compensation.cases', ['origin' => $tab]) }}">Clear them</a>.
+                                    <a href="{{ route('survey-module.compensation.cases', ['origin' => $tab] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}">Clear them</a>.
                                 @elseif ($tab === 'entered')
                                     No captured lands yet.
                                     <a href="{{ route('survey-module.compensation.cases.register') }}">Register one</a> or

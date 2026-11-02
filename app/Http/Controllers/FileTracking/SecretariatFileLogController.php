@@ -41,6 +41,8 @@ class SecretariatFileLogController extends Controller
             'requestPurposes' => \App\Models\RequestPurpose::active()->orderBy('name')->get(['id', 'name']),
             'officers'        => $this->log->receivingOfficers(),
             'externalSenders' => $this->log->externalSenders(),
+            // Units inside a department for "Send to" (optional; CR 30102026 item 34).
+            'units'           => \App\Services\FileTracking\FileMovementUnits::active(),
             'officerRanks'    => $this->log->officerRanks(),
             'lgas'            => $this->log->lgas(),
             // Only a super admin may choose an office; everyone else is fixed to the
@@ -340,10 +342,25 @@ class SecretariatFileLogController extends Controller
             'received_via' => 'nullable|in:scan,manual',
             // Send mode on the manual log: log it here and send it on in one step.
             'send_to_office' => 'nullable|string|max:50',
+            'receiving_unit_id'    => 'nullable|integer',
+            'receiving_unit_other' => 'nullable|string|max:150',
+            // Incoming: the unit it came from inside the sending department (user, 2026-11-02).
+            'from_unit_id'         => 'nullable|integer',
+            'from_unit_other'      => 'nullable|string|max:150',
         ]);
 
         $office = $this->actingOffice($request);
         $sendTo = $data['send_to_office'] ?? null;
+
+        // Checked before anything is written; stamped on the receipt below.
+        try {
+            $fromUnit = $sendTo ? null : \App\Services\FileTracking\FileMovementUnits::choice(
+                isset($data['from_unit_id']) ? (int) $data['from_unit_id'] : null, $data['from_unit_other'] ?? null, $data['from_department'] ?? null);
+        } catch (RuntimeException $e) {
+            $message = str_replace('the department the file is going to', 'the department it came from', $e->getMessage());
+
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
 
         try {
             if ($sendTo) {
@@ -357,12 +374,16 @@ class SecretariatFileLogController extends Controller
                     $tracker = $this->log->forward($office, (int) $result['tracker']->id, $sendTo,
                         $data['request_purpose_id'] ?? null, $data['receiving_officer_id'] ?? null, null, $user,
                         $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null,
-                        isset($data['timeline_days']) ? (int) $data['timeline_days'] : null);
+                        isset($data['timeline_days']) ? (int) $data['timeline_days'] : null,
+                        isset($data['receiving_unit_id']) ? (int) $data['receiving_unit_id'] : null, $data['receiving_unit_other'] ?? null);
 
                     return ['tracker' => $tracker, 'action' => 'sent'];
                 });
             } else {
                 $result = $this->log->receive($office, $data, $request->user());
+                if ($fromUnit) {
+                    $this->log->stampFromUnit($result['tracker'], $fromUnit, $data['from_department'] ?? null);
+                }
             }
         } catch (\App\Services\FileTracking\MissingReceiptDetailsException $e) {
             // The page asks for what is missing and sends the receipt again.
@@ -401,6 +422,8 @@ class SecretariatFileLogController extends Controller
             'receiving_officer_id'    => 'nullable|required_without:receiving_officer_other|integer',
             'receiving_officer_other' => 'nullable|string|max:255',
             'notes'                => 'nullable|string|max:1000',
+            'receiving_unit_id'    => 'nullable|integer',
+            'receiving_unit_other' => 'nullable|string|max:150',
         ]);
 
         $office = $this->actingOffice($request);
@@ -410,7 +433,8 @@ class SecretariatFileLogController extends Controller
                 isset($data['request_purpose_id']) ? (int) $data['request_purpose_id'] : null,
                 isset($data['receiving_officer_id']) ? (int) $data['receiving_officer_id'] : null,
                 $data['notes'] ?? null, $request->user(),
-                $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null);
+                $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null, null,
+                isset($data['receiving_unit_id']) ? (int) $data['receiving_unit_id'] : null, $data['receiving_unit_other'] ?? null);
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
@@ -421,8 +445,20 @@ class SecretariatFileLogController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'File sent to ' . $tracker->receiving_office_name
-                . ($tracker->receiving_officer_name ? ' (' . $tracker->receiving_officer_name . ')' : '') . '.',
+                . ($tracker->receiving_officer_name ? ' (' . $tracker->receiving_officer_name . ')' : '')
+                . $this->unitNote($tracker) . '.',
             'tracker' => $tracker->only(['id', 'tracking_id', 'file_number', 'file_title', 'receiving_office_name']),
         ]);
+    }
+
+    /** ", In-Unit · Recommendation" on the send message, from the entry just added. */
+    private function unitNote($tracker): string
+    {
+        $log = $tracker->movement_log ?: [];
+        $last = $log ? end($log) : [];
+        $unit = $last['receiving_unit_name'] ?? null;
+        $inUnit = ($last['movement_category'] ?? null) === \App\Services\FileTracking\FileMovementUnits::IN_UNIT;
+
+        return $inUnit ? ', In-Unit' . ($unit ? ' · ' . $unit : '') : ($unit ? ', ' . $unit : '');
     }
 }
